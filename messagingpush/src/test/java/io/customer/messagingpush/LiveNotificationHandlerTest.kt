@@ -82,7 +82,11 @@ internal class LiveNotificationHandlerTest : IntegrationTest() {
 
     private fun handlerFor(bundle: Bundle): LiveNotificationHandler = LiveNotificationHandler(bundle)
 
-    private fun invoke(handler: LiveNotificationHandler, bypassOrderGuard: Boolean = false) {
+    private fun invoke(
+        handler: LiveNotificationHandler,
+        bypassOrderGuard: Boolean = false,
+        isSuperseded: () -> Boolean = { false }
+    ) {
         handler.handle(
             context = contextMock,
             deliveryId = "delivery-id-1",
@@ -91,7 +95,8 @@ internal class LiveNotificationHandlerTest : IntegrationTest() {
             tintColor = null,
             channelId = channelId,
             notificationManager = notificationManager,
-            bypassOrderGuard = bypassOrderGuard
+            bypassOrderGuard = bypassOrderGuard,
+            isSuperseded = isSuperseded
         )
     }
 
@@ -276,6 +281,36 @@ internal class LiveNotificationHandlerTest : IntegrationTest() {
     }
 
     // --- Missing required fields short-circuit ---
+
+    // --- Superseded-by-reset guard (logout during a slow render) ---
+
+    @Test
+    fun handle_givenSupersededByReset_dropsRenderWithoutNotifyingOrStoring() {
+        // A logout can land while the branding logo downloads or the app renderer runs. When it
+        // does, the render must be dropped after that work completes: it must not post the
+        // notification nor write the activity type back into the store the reset just cleared.
+        val activityId = "live-act-1"
+
+        invoke(handlerFor(newBundle(activityId = activityId)), bypassOrderGuard = true, isSuperseded = { true })
+
+        assertCalledNever {
+            notificationManager.notify(any<String>(), any<Int>(), any<Notification>())
+        }
+        SDKComponent.liveNotificationStore.activityType(activityId).shouldBeNull()
+    }
+
+    @Test
+    fun handle_givenNotSuperseded_postsAndStoresActivityType() {
+        // The complement of the guard above: a render that is still current posts and writes back.
+        val activityId = "live-act-1"
+
+        invoke(handlerFor(newBundle(activityId = activityId)), bypassOrderGuard = true, isSuperseded = { false })
+
+        verify {
+            notificationManager.notify(activityId, any<Int>(), any<Notification>())
+        }
+        SDKComponent.liveNotificationStore.activityType(activityId).shouldNotBeNull()
+    }
 
     @Test
     fun handle_givenMissingActivityId_returnsEarlyWithoutNotifying() {

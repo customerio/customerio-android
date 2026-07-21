@@ -203,11 +203,15 @@ internal class LiveNotificationManager(
             // A logout/reset after this render was queued invalidates it, so it can't
             // re-post a previous user's activity into a store that reset just cleared.
             if (generation != renderGeneration) return@launch
-            renderLocally(bundle)
+            // The render below performs a blocking branding-logo download (up to ~20s) and
+            // may invoke a slow app renderer. A logout can land during that window — after
+            // this pre-check passed — so the handler re-checks the generation immediately
+            // before it posts the notification and writes the activity type back.
+            renderLocally(bundle, isSuperseded = { generation != renderGeneration })
         }
     }
 
-    private fun renderLocally(bundle: Bundle) {
+    private fun renderLocally(bundle: Bundle, isSuperseded: () -> Boolean) {
         val ctx = context
         val appMetaData = ctx.applicationMetaData()
         val applicationName = ctx.applicationInfo.loadLabel(ctx.packageManager).toString()
@@ -234,7 +238,8 @@ internal class LiveNotificationManager(
             tintColor = tintColor,
             channelId = channelId,
             notificationManager = notificationManager,
-            bypassOrderGuard = true
+            bypassOrderGuard = true,
+            isSuperseded = isSuperseded
         )
     }
 

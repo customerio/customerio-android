@@ -52,35 +52,17 @@
             android:orientation="vertical">
 
             <RadioButton
-                android:id="@+id/radio_delivery_tracking"
+                android:id="@+id/radio_segments"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:checked="true"
-                android:text="@string/live_notification_type_delivery_tracking" />
-
-            <RadioButton
-                android:id="@+id/radio_flight_status"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="@string/live_notification_type_flight_status" />
-
-            <RadioButton
-                android:id="@+id/radio_live_score"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="@string/live_notification_type_live_score" />
+                android:text="@string/live_notification_type_segments" />
 
             <RadioButton
                 android:id="@+id/radio_countdown_timer"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:text="@string/live_notification_type_countdown_timer" />
-
-            <RadioButton
-                android:id="@+id/radio_auction_bid"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="@string/live_notification_type_auction_bid" />
 
             <RadioButton
                 android:id="@+id/radio_custom_rideshare"
@@ -201,6 +183,22 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="@dimen/margin_default"
             android:text="@string/live_notification_debug_start_via_api" />
+
+        <Button
+            android:id="@+id/api_update_button"
+            style="?attr/materialButtonOutlinedStyle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/margin_default"
+            android:text="@string/live_notification_debug_update_via_api" />
+
+        <Button
+            android:id="@+id/api_end_button"
+            style="?attr/materialButtonOutlinedStyle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/margin_default"
+            android:text="@string/live_notification_debug_end_via_api" />
 
     </LinearLayout>
     </androidx.core.widget.NestedScrollView>

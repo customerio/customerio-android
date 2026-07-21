@@ -8,6 +8,9 @@ import android.content.Context
 import android.content.Intent
 import android.os.Build
 import android.os.Bundle
+import android.text.Spannable
+import android.text.SpannableString
+import android.text.style.ForegroundColorSpan
 import android.widget.RemoteViews
 import androidx.core.app.NotificationCompat
 import io.customer.android.sample.java_layout.R
@@ -15,21 +18,11 @@ import io.customer.messagingpush.data.communication.CustomerIOPushNotificationCa
 import io.customer.messagingpush.data.model.CustomerIOParsedPushPayload
 
 /**
- * Sample host-app renderer for **custom** live-notification activity types — the
- * ones the SDK has no built-in template for. The SDK calls
- * [createLiveNotification] for every live-notification event; we return a fully
- * app-built [Notification] for the two custom types and `null` for the built-in
- * ones (so the SDK keeps rendering those from its own templates).
- *
- * Two deliberately different rendering strategies are shown:
- *  - [ACTIVITY_TYPE_RIDESHARE] → a **completely custom RemoteViews layout**
- *    (collapsed + expanded), with an app-drawn 4-stop progress strip.
- *  - [ACTIVITY_TYPE_WORKOUT] → the **standard NotificationCompat builder API**
- *    (determinate progress + BigTextStyle + action), requesting promoted-ongoing
- *    treatment on Android 16+.
- *
- * The SDK still owns posting: it keys the notification by `activity_id` (so
- * updates replace it) and cancels it on `end`.
+ * Sample host-app renderer for **custom** live-notification activity types (those
+ * the SDK has no built-in template for). Returns an app-built [Notification] for
+ * the two custom types — [ACTIVITY_TYPE_RIDESHARE] via a custom RemoteViews layout
+ * and [ACTIVITY_TYPE_WORKOUT] via the standard NotificationCompat builder — and
+ * `null` for built-in types so the SDK renders those itself.
  */
 class LiveNotificationCallback : CustomerIOPushNotificationCallback {
 
@@ -55,26 +48,30 @@ class LiveNotificationCallback : CustomerIOPushNotificationCallback {
         val driver = extras.getString("driverName") ?: "Your driver"
         val vehicle = extras.getString("vehicle") ?: ""
         val plate = extras.getString("plate") ?: ""
+        val rating = extras.getString("rating") ?: ""
         val eta = extras.getString("etaText") ?: ""
         val status = extras.getString("statusMessage") ?: ""
         val step = extras.getString("step")?.toIntOrNull() ?: 0
         val progress = extras.getString("progress")?.toIntOrNull() ?: 0
 
         val title = if (ended) "Trip complete" else "$driver is on the way"
-        val subtitle = listOf(vehicle, plate).filter { it.isNotBlank() }.joinToString(" · ")
+        val avatarInitial = driver.trim().firstOrNull()?.uppercaseChar()?.toString() ?: "?"
+        val vehicleLine = listOf(vehicle, plate).filter { it.isNotBlank() }.joinToString(" · ")
         val etaText = if (ended) "Done" else eta
 
         fun applyHeader(rv: RemoteViews) {
+            rv.setTextViewText(R.id.tv_avatar, avatarInitial)
             rv.setTextViewText(R.id.tv_title, title)
-            rv.setTextViewText(R.id.tv_subtitle, subtitle)
             rv.setTextViewText(R.id.tv_eta, etaText)
         }
 
+        // Collapsed is a compact single line; expanded adds the gold star rating + vehicle.
         val collapsed = RemoteViews(context.packageName, R.layout.notification_rideshare_collapsed)
         applyHeader(collapsed)
 
         val expanded = RemoteViews(context.packageName, R.layout.notification_rideshare_expanded)
         applyHeader(expanded)
+        expanded.setTextViewText(R.id.tv_subtitle, ratingLine(rating, vehicleLine))
         expanded.setTextViewText(R.id.tv_status, if (ended) "Thanks for riding with us" else status)
 
         val stepIds = intArrayOf(R.id.iv_step1, R.id.iv_step2, R.id.iv_step3, R.id.iv_step4)
@@ -96,6 +93,19 @@ class LiveNotificationCallback : CustomerIOPushNotificationCallback {
             .setOnlyAlertOnce(true)
             .setCategory(NotificationCompat.CATEGORY_PROGRESS)
             .build()
+    }
+
+    /** Builds "★ 4.9 · Toyota Prius · 7XYZ123" with the star tinted gold. */
+    private fun ratingLine(rating: String, vehicleLine: String): CharSequence {
+        val parts = listOfNotNull(
+            rating.takeIf { it.isNotBlank() }?.let { "★ $it" },
+            vehicleLine.takeIf { it.isNotBlank() }
+        )
+        val full = parts.joinToString(" · ")
+        if (rating.isBlank() || full.isEmpty()) return full
+        return SpannableString(full).apply {
+            setSpan(ForegroundColorSpan(0xFFF5A623.toInt()), 0, 1, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+        }
     }
 
     // --- Custom type 2: standard NotificationCompat builder API ---
@@ -131,9 +141,7 @@ class LiveNotificationCallback : CustomerIOPushNotificationCallback {
             builder.addAction(R.drawable.ic_workout_run, "Pause", pauseIntent)
         }
 
-        // Request live-update (promoted-ongoing) treatment on Android 16+ (BAKLAVA).
-        // Requires POST_PROMOTED_NOTIFICATIONS (declared in the manifest), an ongoing
-        // notification with a title, an allowed style (BigTextStyle), and no colorize.
+        // Request promoted-ongoing (live-update) treatment on Android 16+ (BAKLAVA).
         if (Build.VERSION.SDK_INT >= 36 && !ended) {
             builder.addExtras(Bundle().apply { putBoolean(EXTRA_REQUEST_PROMOTED_ONGOING, true) })
         }
@@ -157,13 +165,15 @@ class LiveNotificationCallback : CustomerIOPushNotificationCallback {
     }
 
     companion object {
-        // Custom activity types (not built-in). Must also be passed to
-        // MessagingPushModuleConfig.Builder.setLiveNotificationTypes(...) to be enabled.
-        const val ACTIVITY_TYPE_RIDESHARE = "io.customer.liveactivities.custom.rideshare"
-        const val ACTIVITY_TYPE_WORKOUT = "io.customer.liveactivities.custom.workout"
+        // Custom activity types (not built-in). Being custom String identifiers,
+        // they must be enabled via
+        // MessagingPushModuleConfig.Builder.enableCustomLiveNotificationTypes(...)
+        // (not enableLiveNotificationTypes(...), which takes the LiveNotificationType enum).
+        const val ACTIVITY_TYPE_RIDESHARE = "io.customer.livenotifications.custom.rideshare"
+        const val ACTIVITY_TYPE_WORKOUT = "io.customer.livenotifications.custom.workout"
 
         private const val CHANNEL_ID = "cio_custom_live"
-        private const val KEY_ACTIVITY_TYPE = "activity_type"
+        private const val KEY_ACTIVITY_TYPE = "notification_type"
         private const val KEY_EVENT = "event"
         private const val EVENT_END = "end"
         private const val ACTION_WORKOUT_PAUSE = "io.customer.android.sample.java_layout.WORKOUT_PAUSE"

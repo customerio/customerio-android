@@ -1,0 +1,6 @@
+<!-- Rounded green pill behind the rideshare ETA value (custom live notification). -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <solid android:color="#0E8A45" />
+    <corners android:radius="16dp" />
+</shape>

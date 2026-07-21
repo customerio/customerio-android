@@ -178,4 +178,18 @@ internal class LocationTracker(
 data class LocationCoordinates(
     val latitude: Double,
     val longitude: Double
-)
+) {
+    // The API validator checks nested classes individually — the companion doesn't inherit the marker.
+    @InternalCustomerIOApi
+    companion object {
+        /**
+         * Validates that latitude is within [-90, 90] and longitude is within [-180, 180].
+         * Also rejects NaN and Infinity values.
+         */
+        fun isValid(latitude: Double, longitude: Double): Boolean {
+            if (latitude.isNaN() || latitude.isInfinite()) return false
+            if (longitude.isNaN() || longitude.isInfinite()) return false
+            return latitude in -90.0..90.0 && longitude in -180.0..180.0
+        }
+    }
+}

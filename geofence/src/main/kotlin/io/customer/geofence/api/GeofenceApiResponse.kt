@@ -5,6 +5,7 @@ import io.customer.geofence.GeofenceConstants
 import io.customer.geofence.GeofenceRegion
 import io.customer.geofence.GeofenceTransitionType
 import io.customer.geofence.di.geofenceLogger
+import io.customer.location.LocationCoordinates
 import io.customer.sdk.core.di.SDKComponent
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
@@ -84,7 +85,13 @@ internal fun GeofenceApiResponse.toDomainConfig(): GeofenceConfig? =
     config?.toDomain()
 
 internal fun GeofenceApiResponse.toDomainRegions(): List<GeofenceRegion> =
-    geofences.map { it.toDomain() }
+    geofences.mapNotNull { region ->
+        // Unknown-unknowns net: an escaping throw would crash the host (scope has no exception handler).
+        runCatching { region.toDomain() }.getOrNull() ?: run {
+            SDKComponent.geofenceLogger.logInvalidRegionDropped(region.id)
+            null
+        }
+    }
 
 // Coerces raw server values into sane bounds so a misconfigured backend can't push the SDK into a
 // pathological state: non-positive values fall back; positive out-of-range values clamp.
@@ -128,18 +135,22 @@ private fun GeofenceApiConfig.toDomain(): GeofenceConfig {
     )
 }
 
-private fun GeofenceApiRegion.toDomain(): GeofenceRegion = GeofenceRegion(
-    id = id,
-    name = name,
-    externalId = externalId,
-    latitude = latitude,
-    longitude = longitude,
-    radius = radius.toFloat(),
-    transitionTypes = resolveTransitionTypes(transitionTypes),
-    lastUpdated = lastUpdated ?: 0L,
-    geosetIds = geosetIds,
-    metadata = sanitizeMetadata(metadata)
-)
+// Null when the region violates Geofence.Builder preconditions; one bad region must not cost the whole sync.
+private fun GeofenceApiRegion.toDomain(): GeofenceRegion? {
+    if (radius <= 0 || !LocationCoordinates.isValid(latitude, longitude)) return null
+    return GeofenceRegion(
+        id = id,
+        name = name,
+        externalId = externalId,
+        latitude = latitude,
+        longitude = longitude,
+        radius = radius.toFloat(),
+        transitionTypes = resolveTransitionTypes(transitionTypes),
+        lastUpdated = lastUpdated ?: 0L,
+        geosetIds = geosetIds,
+        metadata = sanitizeMetadata(metadata)
+    )
+}
 
 /**
  * Reduces the raw wire value to the scalar map the event can carry: anything that isn't a JSON object

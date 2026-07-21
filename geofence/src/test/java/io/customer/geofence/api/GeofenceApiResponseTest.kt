@@ -86,6 +86,46 @@ class GeofenceApiResponseTest : RobolectricTest() {
     }
 
     @Test
+    fun parseAndMap_givenInvalidRegions_expectDroppedAndValidKept() {
+        // GMS throws IllegalArgumentException for these at registration — one bad region
+        // must never fail the sync (or crash the host). Each is dropped with a log.
+        val regions = parseRegions(
+            """
+            {
+              "geofences": [
+                { "id": "zero-radius", "latitude": 0.0, "longitude": 0.0, "radius": 0 },
+                { "id": "negative-radius", "latitude": 0.0, "longitude": 0.0, "radius": -5 },
+                { "id": "bad-lat", "latitude": 91.0, "longitude": 0.0, "radius": 100 },
+                { "id": "bad-lng", "latitude": 0.0, "longitude": 181.0, "radius": 100 },
+                { "id": "valid", "latitude": 40.7, "longitude": -74.0, "radius": 100 }
+              ]
+            }
+            """.trimIndent()
+        )
+
+        regions.map { it.id } shouldBeEqualTo listOf("valid")
+        verify(exactly = 4) { mockLogger.logInvalidRegionDropped(any()) }
+        verify { mockLogger.logInvalidRegionDropped("zero-radius") }
+    }
+
+    @Test
+    fun parseAndMap_givenBoundaryCoordinates_expectKept() {
+        // Poles and the antimeridian are valid registerable values — the validation is
+        // inclusive at the boundaries.
+        val regions = parseRegions(
+            """
+            {
+              "geofences": [
+                { "id": "pole", "latitude": -90.0, "longitude": 180.0, "radius": 0.5 }
+              ]
+            }
+            """.trimIndent()
+        )
+
+        regions.map { it.id } shouldBeEqualTo listOf("pole")
+    }
+
+    @Test
     fun parseAndMap_givenNoGeosetIds_expectEmpty() {
         val regions = parseRegions(
             """{ "geofences": [ { "id": 1, "latitude": 0.0, "longitude": 0.0, "radius": 100 } ] }"""

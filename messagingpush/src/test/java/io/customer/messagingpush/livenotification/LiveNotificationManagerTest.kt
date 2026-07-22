@@ -68,7 +68,9 @@ internal class LiveNotificationManagerTest : IntegrationTest() {
     }
 
     @Test
-    fun update_reportsUpdateEventWithContentState() {
+    fun update_reportsNoLifecycleEvent() {
+        // A locally-triggered update re-renders the activity but must NOT emit a CDP
+        // "Live Notification Event": only start/end are reported.
         saveToken()
 
         manager.update(
@@ -78,33 +80,21 @@ internal class LiveNotificationManagerTest : IntegrationTest() {
             contentState = mapOf("title" to "Arriving")
         )
 
-        verify { lifecycleClient.reportUpdate("act-1", type, "fcm-tok", any()) }
+        verify(exactly = 0) { lifecycleClient.reportStart(any(), any(), any(), any(), any()) }
+        verify(exactly = 0) { lifecycleClient.reportEnd(any(), any(), any()) }
     }
 
     @Test
     fun update_afterEnded_isIgnored() {
         // The activity ended locally or was dismissed (marked terminal): a later update
-        // must not repost it or report a stray update event.
+        // must not repost it. (Updates are never reported regardless; this covers the guard.)
         saveToken()
         SDKComponent.liveNotificationStore.markEnded("act-1")
 
         manager.update("act-1", type, attributes = emptyMap(), contentState = mapOf("title" to "Late"))
 
-        verify(exactly = 0) { lifecycleClient.reportUpdate(any(), any(), any(), any()) }
-    }
-
-    @Test
-    fun update_withoutFcmToken_doesNotReport() {
-        SDKComponent.android().globalPreferenceStore.removeDeviceToken()
-
-        manager.update(
-            "act-1",
-            type,
-            attributes = emptyMap(),
-            contentState = mapOf("title" to "Arriving")
-        )
-
-        verify(exactly = 0) { lifecycleClient.reportUpdate(any(), any(), any(), any()) }
+        verify(exactly = 0) { lifecycleClient.reportStart(any(), any(), any(), any(), any()) }
+        verify(exactly = 0) { lifecycleClient.reportEnd(any(), any(), any()) }
     }
 
     @Test

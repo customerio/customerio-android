@@ -5,7 +5,6 @@ import io.customer.messagingpush.livenotification.LiveNotificationLifecycleClien
 import io.customer.messagingpush.livenotification.LiveNotificationLifecycleClientImpl.Companion.EVENT_LIVE_NOTIFICATION_TOKEN
 import io.customer.messagingpush.livenotification.LiveNotificationLifecycleClientImpl.Companion.EVENT_TYPE_END
 import io.customer.messagingpush.livenotification.LiveNotificationLifecycleClientImpl.Companion.EVENT_TYPE_START
-import io.customer.messagingpush.livenotification.LiveNotificationLifecycleClientImpl.Companion.EVENT_TYPE_UPDATE
 import io.customer.messagingpush.livenotification.LiveNotificationLifecycleClientImpl.Companion.PLATFORM_ANDROID
 import io.customer.messagingpush.livenotification.LiveNotificationLifecycleClientImpl.Companion.PROP_ATTRIBUTES
 import io.customer.messagingpush.livenotification.LiveNotificationLifecycleClientImpl.Companion.PROP_CIO_INSTANCE_ID
@@ -83,43 +82,6 @@ internal class LiveNotificationLifecycleClientTest : IntegrationTest() {
     }
 
     @Test
-    fun reportUpdate_emitsLiveNotificationWithContentStateOnly() {
-        identified()
-        val name = slot<String>()
-        val props = slot<Map<String, Any?>>()
-        every { pipeline.track(capture(name), capture(props)) } returns Unit
-
-        client.reportUpdate(
-            instanceUUID = "inst-2",
-            activityType = "io.customer.livenotifications.segments",
-            deviceId = "fcm-tok",
-            contentState = mapOf("title" to "Arriving")
-        )
-
-        name.captured shouldBeEqualTo EVENT_LIVE_NOTIFICATION
-        props.captured[PROP_EVENT_TYPE] shouldBeEqualTo EVENT_TYPE_UPDATE
-        props.captured[PROP_CIO_INSTANCE_ID] shouldBeEqualTo "inst-2"
-        props.captured[PROP_DEVICE_ID] shouldBeEqualTo "fcm-tok"
-        props.captured[PROP_PLATFORM] shouldBeEqualTo PLATFORM_ANDROID
-        props.captured[PROP_NOTIFICATION_TYPE] shouldBeEqualTo "io.customer.livenotifications.segments"
-        // Update never carries static attributes.
-        props.captured.containsKey(PROP_ATTRIBUTES).shouldBeFalse()
-        @Suppress("UNCHECKED_CAST")
-        (props.captured[PROP_CONTENT_STATE] as Map<String, Any?>)["title"] shouldBeEqualTo "Arriving"
-    }
-
-    @Test
-    fun reportUpdate_omitsContentStateWhenEmpty() {
-        identified()
-        val props = slot<Map<String, Any?>>()
-        every { pipeline.track(any(), capture(props)) } returns Unit
-
-        client.reportUpdate("inst-2", "type", "fcm-tok", contentState = emptyMap())
-
-        props.captured.containsKey(PROP_CONTENT_STATE).shouldBeFalse()
-    }
-
-    @Test
     fun reportEnd_emitsLiveNotificationWithEndProperties() {
         identified()
         val name = slot<String>()
@@ -177,7 +139,6 @@ internal class LiveNotificationLifecycleClientTest : IntegrationTest() {
         every { pipeline.isUserIdentified } returns false
 
         client.reportStart("inst-1", "type", "fcm-tok", emptyMap(), emptyMap())
-        client.reportUpdate("inst-1", "type", "fcm-tok", emptyMap())
         client.reportEnd("inst-1", "type", "fcm-tok")
 
         verify(exactly = 0) { pipeline.track(any(), any()) }

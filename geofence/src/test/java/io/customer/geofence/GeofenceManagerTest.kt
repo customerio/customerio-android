@@ -102,9 +102,7 @@ class GeofenceManagerTest : RobolectricTest() {
 
     @Test
     fun replaceGeofences_givenRegionGmsRejects_expectFailureNotCrash() = runTest {
-        // Defense in depth behind parse-time validation: GMS throws IllegalArgumentException
-        // at request build for a non-positive radius — the sync must fail, never throw (the
-        // geofence scope has no exception handler, so an escape would crash the host).
+        // GMS rejects the request at build (radius 0) — the sync must fail, never throw.
         grantAllPermissions()
 
         val result = manager.replaceGeofences(listOf(buildRegion(radius = 0f)))

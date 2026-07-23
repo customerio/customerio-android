@@ -238,9 +238,16 @@ internal class GeofenceRepositoryImpl(
         val fetchResult = apiService.fetchGeofences(fetchLocation)
         return fetchResult.fold(
             onSuccess = { response ->
-                val regions = response.toDomainRegions()
+                // An unusable response throws (see toDomainRegions) — fail the refresh and
+                // keep current registrations; never let it escape the handler-less scope.
+                val mapped = runCatching {
+                    response.toDomainRegions() to response.toDomainConfig()
+                }.getOrElse { e ->
+                    logger.logSyncFailed("response mapping failed: ${e.message}")
+                    return@fold Result.failure(e)
+                }
+                val (regions, parsedConfig) = mapped
                 // Config preference: server-shipped > last cached > constants.
-                val parsedConfig = response.toDomainConfig()
                 val config = parsedConfig ?: store.getCachedConfigOrFallback()
                 registerNearestAndPersist(
                     userId = userId,

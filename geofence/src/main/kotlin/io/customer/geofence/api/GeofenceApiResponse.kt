@@ -84,14 +84,26 @@ internal data class GeofenceApiRegion(
 internal fun GeofenceApiResponse.toDomainConfig(): GeofenceConfig? =
     config?.toDomain()
 
-internal fun GeofenceApiResponse.toDomainRegions(): List<GeofenceRegion> =
-    geofences.mapNotNull { region ->
-        // Unknown-unknowns net: an escaping throw would crash the host (scope has no exception handler).
-        runCatching { region.toDomain() }.getOrNull() ?: run {
-            SDKComponent.geofenceLogger.logInvalidRegionDropped(region.id)
+// One bad region costs itself (dropped + logged). A non-empty response whose regions ALL drop
+// is unusable — throw so the caller fails the refresh instead of clearing live state.
+internal fun GeofenceApiResponse.toDomainRegions(): List<GeofenceRegion> {
+    if (geofences.isEmpty()) return emptyList()
+
+    val mapped = geofences.mapNotNull { region ->
+        try {
+            region.toDomain() ?: run {
+                SDKComponent.geofenceLogger.logInvalidRegionDropped(region.id)
+                null
+            }
+        } catch (e: Exception) {
+            SDKComponent.geofenceLogger.logRegionMappingFailed(region.id, e.message)
             null
         }
     }
+
+    if (mapped.isEmpty()) error("all ${geofences.size} regions dropped")
+    return mapped
+}
 
 // Coerces raw server values into sane bounds so a misconfigured backend can't push the SDK into a
 // pathological state: non-positive values fall back; positive out-of-range values clamp.
@@ -136,7 +148,7 @@ private fun GeofenceApiConfig.toDomain(): GeofenceConfig {
 }
 
 // Null when the region violates Geofence.Builder preconditions; one bad region must not cost the whole sync.
-private fun GeofenceApiRegion.toDomain(): GeofenceRegion? {
+internal fun GeofenceApiRegion.toDomain(): GeofenceRegion? {
     if (radius <= 0 || !LocationCoordinates.isValid(latitude, longitude)) return null
     return GeofenceRegion(
         id = id,

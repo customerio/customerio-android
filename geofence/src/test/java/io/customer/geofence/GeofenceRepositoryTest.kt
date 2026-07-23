@@ -5,6 +5,7 @@ import io.customer.commontest.config.testConfigurationDefault
 import io.customer.commontest.core.RobolectricTest
 import io.customer.geofence.api.GeofenceApiResponse
 import io.customer.geofence.api.GeofenceApiService
+import io.customer.geofence.api.toDomainRegions
 import io.customer.geofence.store.GeofenceRegionStore
 import io.customer.sdk.communication.Event
 import io.customer.sdk.core.util.Clock
@@ -14,7 +15,9 @@ import io.mockk.coVerify
 import io.mockk.coVerifyOrder
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.mockkStatic
 import io.mockk.slot
+import io.mockk.unmockkStatic
 import io.mockk.verify
 import java.io.IOException
 import java.util.concurrent.atomic.AtomicInteger
@@ -387,6 +390,30 @@ class GeofenceRepositoryTest : RobolectricTest() {
         verify(exactly = 0) { store.saveRegisteredIds(any()) }
         verify(exactly = 0) { store.setLastSyncTimestamp(any()) }
         coVerify(exactly = 0) { manager.replaceGeofences(any(), any()) }
+    }
+
+    @Test
+    fun refresh_givenResponseMappingThrows_expectFailureNotEmptySuccess() = runTest {
+        // Unusable response fails the refresh; nothing registered, removed, or persisted.
+        every { secureUserStore.getUserId() } returns "user-42"
+        every { store.getLastSyncTimestamp() } returns null
+        coEvery { apiService.fetchGeofences(any()) } returns
+            Result.success(sampleResponse(maxBusinessGeofences = 3))
+        mockkStatic("io.customer.geofence.api.GeofenceApiResponseKt")
+        try {
+            every { any<GeofenceApiResponse>().toDomainRegions() } throws IllegalStateException("mapper defect")
+
+            val result = repository.refresh(latitude = 12.34, longitude = 56.78)
+
+            result.isFailure shouldBeEqualTo true
+            verify { logger.logSyncFailed(match { it?.contains("mapper defect") == true }) }
+            coVerify(exactly = 0) { manager.replaceGeofences(any(), any()) }
+            coVerify(exactly = 0) { manager.removeGeofencesByIds(any()) }
+            verify(exactly = 0) { store.saveCachedRegions(any()) }
+            verify(exactly = 0) { store.saveRegisteredIds(any()) }
+        } finally {
+            unmockkStatic("io.customer.geofence.api.GeofenceApiResponseKt")
+        }
     }
 
     @Test

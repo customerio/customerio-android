@@ -164,6 +164,18 @@ class GeofenceApiResponseTest : RobolectricTest() {
     }
 
     @Test
+    fun parse_givenNaNOrInfinityValues_expectDecodeFails() {
+        // Pins the assumption that lets toDomain skip isFinite checks: the serializer has
+        // no allowSpecialFloatingPointValues, so NaN/Infinity can never reach mapping —
+        // even via lenient-mode quoted strings. Decode failure -> Result.failure upstream.
+        val nanRadius = """{ "geofences": [ { "id": 1, "latitude": 0.0, "longitude": 0.0, "radius": "NaN" } ] }"""
+        val infLatitude = """{ "geofences": [ { "id": 1, "latitude": "Infinity", "longitude": 0.0, "radius": 100 } ] }"""
+
+        invoking { parseResponse(nanRadius) } shouldThrow Exception::class
+        invoking { parseResponse(infLatitude) } shouldThrow Exception::class
+    }
+
+    @Test
     fun parseAndMap_givenBoundaryCoordinates_expectKept() {
         // Poles and the antimeridian are valid registerable values — the validation is
         // inclusive at the boundaries.

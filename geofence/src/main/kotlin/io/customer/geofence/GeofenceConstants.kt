@@ -6,11 +6,13 @@ internal object GeofenceConstants {
     // business geofences when applying separate INITIAL_TRIGGER strategies.
     const val MOVEMENT_TRIGGER_ID = "cio_movement_trigger"
 
-    // Fallback for `localRefreshTriggerRadius` when the API config omits it.
-    const val FALLBACK_LOCAL_REFRESH_RADIUS_METERS = 3_000f
+    // Fallback for `localRefreshTriggerRadius` when the API config omits it. Matches the
+    // server default and iOS.
+    const val FALLBACK_LOCAL_REFRESH_RADIUS_METERS = 1_000f
 
-    // Fallback for `remoteFetchRefreshTriggerRadius` when the API config omits it.
-    const val FALLBACK_REMOTE_FETCH_RADIUS_METERS = 20_000f
+    // Fallback for `remoteFetchRefreshTriggerRadius` when the API config omits it. Matches the
+    // server default and iOS.
+    const val FALLBACK_REMOTE_FETCH_RADIUS_METERS = 5_000f
 
     // Fallback for `maxBusinessGeofences`. Matches the historical cap so customers
     // aren't punished by a misconfigured backend.

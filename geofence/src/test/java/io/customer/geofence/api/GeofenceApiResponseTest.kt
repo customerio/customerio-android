@@ -9,13 +9,18 @@ import io.customer.geofence.GeofenceJsonSerializer
 import io.customer.geofence.GeofenceLogger
 import io.customer.geofence.GeofenceRegion
 import io.customer.geofence.GeofenceTransitionType
+import io.mockk.every
 import io.mockk.mockk
+import io.mockk.mockkStatic
+import io.mockk.unmockkStatic
 import io.mockk.verify
 import kotlinx.serialization.json.JsonPrimitive
+import org.amshove.kluent.invoking
 import org.amshove.kluent.shouldBeEmpty
 import org.amshove.kluent.shouldBeEqualTo
 import org.amshove.kluent.shouldBeNull
 import org.amshove.kluent.shouldContainSame
+import org.amshove.kluent.shouldThrow
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -83,6 +88,108 @@ class GeofenceApiResponseTest : RobolectricTest() {
         )
 
         regions[0].radius shouldBeEqualTo 150.5f
+    }
+
+    @Test
+    fun parseAndMap_givenInvalidRegions_expectDroppedAndValidKept() {
+        // GMS would throw for these at registration — each drops alone, with a log.
+        val regions = parseRegions(
+            """
+            {
+              "geofences": [
+                { "id": "zero-radius", "latitude": 0.0, "longitude": 0.0, "radius": 0 },
+                { "id": "negative-radius", "latitude": 0.0, "longitude": 0.0, "radius": -5 },
+                { "id": "bad-lat", "latitude": 91.0, "longitude": 0.0, "radius": 100 },
+                { "id": "bad-lng", "latitude": 0.0, "longitude": 181.0, "radius": 100 },
+                { "id": "valid", "latitude": 40.7, "longitude": -74.0, "radius": 100 }
+              ]
+            }
+            """.trimIndent()
+        )
+
+        regions.map { it.id } shouldBeEqualTo listOf("valid")
+        verify(exactly = 4) { mockLogger.logInvalidRegionDropped(any()) }
+        verify { mockLogger.logInvalidRegionDropped("zero-radius") }
+    }
+
+    @Test
+    fun parseAndMap_givenOneRegionMappingThrows_expectOthersKept() {
+        // One region's unexpected mapper throw must cost only itself.
+        val response = parseResponse(twoValidRegionsJson())
+        mockkStatic("io.customer.geofence.api.GeofenceApiResponseKt")
+        try {
+            every { any<GeofenceApiRegion>().toDomain() } answers {
+                val region = invocation.self as GeofenceApiRegion
+                if (region.id == "1") throw IllegalStateException("metadata defect") else callOriginal()
+            }
+
+            val regions = response.toDomainRegions()
+
+            regions.map { it.id } shouldBeEqualTo listOf("2")
+            verify { mockLogger.logRegionMappingFailed("1", "metadata defect") }
+        } finally {
+            unmockkStatic("io.customer.geofence.api.GeofenceApiResponseKt")
+        }
+    }
+
+    @Test
+    fun parseAndMap_givenAllRegionsMappingThrow_expectThrowsNotEmptyList() {
+        // All regions dropping = unusable response; an empty "success" would wipe live registrations.
+        val response = parseResponse(twoValidRegionsJson())
+        mockkStatic("io.customer.geofence.api.GeofenceApiResponseKt")
+        try {
+            every { any<GeofenceApiRegion>().toDomain() } throws IllegalStateException("mapper defect")
+
+            invoking { response.toDomainRegions() } shouldThrow IllegalStateException::class
+        } finally {
+            unmockkStatic("io.customer.geofence.api.GeofenceApiResponseKt")
+        }
+    }
+
+    @Test
+    fun parseAndMap_givenAllRegionsInvalid_expectThrowsNotEmptyList() {
+        // Same guard for all-invalid values (no exceptions involved) — only a genuinely
+        // empty response may produce an empty result.
+        val raw = """
+            {
+              "geofences": [
+                { "id": "zero-radius", "latitude": 0.0, "longitude": 0.0, "radius": 0 },
+                { "id": "bad-lat", "latitude": 91.0, "longitude": 0.0, "radius": 100 }
+              ]
+            }
+        """.trimIndent()
+
+        invoking { parseRegions(raw) } shouldThrow IllegalStateException::class
+        verify(exactly = 2) { mockLogger.logInvalidRegionDropped(any()) }
+    }
+
+    @Test
+    fun parse_givenNaNOrInfinityValues_expectDecodeFails() {
+        // Pins the assumption that lets toDomain skip isFinite checks: the serializer has
+        // no allowSpecialFloatingPointValues, so NaN/Infinity can never reach mapping —
+        // even via lenient-mode quoted strings. Decode failure -> Result.failure upstream.
+        val nanRadius = """{ "geofences": [ { "id": 1, "latitude": 0.0, "longitude": 0.0, "radius": "NaN" } ] }"""
+        val infLatitude = """{ "geofences": [ { "id": 1, "latitude": "Infinity", "longitude": 0.0, "radius": 100 } ] }"""
+
+        invoking { parseResponse(nanRadius) } shouldThrow Exception::class
+        invoking { parseResponse(infLatitude) } shouldThrow Exception::class
+    }
+
+    @Test
+    fun parseAndMap_givenBoundaryCoordinates_expectKept() {
+        // Poles and the antimeridian are valid registerable values — the validation is
+        // inclusive at the boundaries.
+        val regions = parseRegions(
+            """
+            {
+              "geofences": [
+                { "id": "pole", "latitude": -90.0, "longitude": 180.0, "radius": 0.5 }
+              ]
+            }
+            """.trimIndent()
+        )
+
+        regions.map { it.id } shouldBeEqualTo listOf("pole")
     }
 
     @Test
@@ -532,6 +639,15 @@ class GeofenceApiResponseTest : RobolectricTest() {
 
     private fun parseRegions(raw: String): List<GeofenceRegion> =
         parseResponse(raw).toDomainRegions()
+
+    private fun twoValidRegionsJson(): String = """
+        {
+          "geofences": [
+            { "id": 1, "latitude": 10.0, "longitude": 10.0, "radius": 100 },
+            { "id": 2, "latitude": 20.0, "longitude": 20.0, "radius": 100 }
+          ]
+        }
+    """.trimIndent()
 
     private fun regionJsonWith(transitionTypes: String): String = """
         {

@@ -101,6 +101,17 @@ class GeofenceManagerTest : RobolectricTest() {
     }
 
     @Test
+    fun replaceGeofences_givenRegionGmsRejects_expectFailureNotCrash() = runTest {
+        // GMS rejects the request at build (radius 0) — the sync must fail, never throw.
+        grantAllPermissions()
+
+        val result = manager.replaceGeofences(listOf(buildRegion(radius = 0f)))
+
+        result.isFailure.shouldBeTrue()
+        verify(exactly = 0) { client.addGeofences(any<GeofencingRequest>(), any()) }
+    }
+
+    @Test
     fun replaceGeofences_givenBusinessGeofences_expectInitialTriggerEnter() = runTest {
         grantAllPermissions()
 

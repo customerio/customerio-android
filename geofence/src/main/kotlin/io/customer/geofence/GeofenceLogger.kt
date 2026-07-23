@@ -48,6 +48,14 @@ internal class GeofenceLogger(private val logger: Logger) {
         logger.debug("Geofence '$geofenceId': device already inside a newly-registered fence — synthesizing ENTER (GMS INITIAL_TRIGGER_ENTER is unreliable)", tag = TAG)
     }
 
+    fun logInvalidRegionDropped(geofenceId: String) {
+        logger.debug("Geofence '$geofenceId' dropped — invalid coordinates or radius, not registerable with the OS", tag = TAG)
+    }
+
+    fun logRegionMappingFailed(geofenceId: String, message: String?) {
+        logger.error("Geofence '$geofenceId' dropped — mapping failed unexpectedly: $message", tag = TAG)
+    }
+
     fun logTransitionDroppedUnknownId(geofenceId: String) {
         logger.debug("Geofence '$geofenceId' transition dropped — id not in registered store", tag = TAG)
     }

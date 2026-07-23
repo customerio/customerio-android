@@ -29,7 +29,7 @@ internal class LocationServicesImpl(
             return
         }
 
-        if (!isValidCoordinate(latitude, longitude)) {
+        if (!LocationCoordinates.isValid(latitude, longitude)) {
             logger.error("Invalid coordinates: lat=$latitude, lng=$longitude. Latitude must be [-90, 90] and longitude [-180, 180].")
             return
         }
@@ -83,17 +83,5 @@ internal class LocationServicesImpl(
         currentLocationJob = null
         job.cancel()
         return true
-    }
-
-    companion object {
-        /**
-         * Validates that latitude is within [-90, 90] and longitude is within [-180, 180].
-         * Also rejects NaN and Infinity values.
-         */
-        internal fun isValidCoordinate(latitude: Double, longitude: Double): Boolean {
-            if (latitude.isNaN() || latitude.isInfinite()) return false
-            if (longitude.isNaN() || longitude.isInfinite()) return false
-            return latitude in -90.0..90.0 && longitude in -180.0..180.0
-        }
     }
 }

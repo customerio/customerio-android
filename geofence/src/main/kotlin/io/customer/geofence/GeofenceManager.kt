@@ -128,10 +128,16 @@ internal class GeofenceManager(
         regions: List<GeofenceRegion>,
         initialTrigger: Int
     ): Result<Unit> {
-        val request = GeofencingRequest.Builder()
-            .setInitialTrigger(initialTrigger)
-            .addGeofences(regions.map { it.toGmsGeofence() })
-            .build()
+        // Defense in depth: a GMS rejection must fail the sync, never crash the host.
+        val request = try {
+            GeofencingRequest.Builder()
+                .setInitialTrigger(initialTrigger)
+                .addGeofences(regions.map { it.toGmsGeofence() })
+                .build()
+        } catch (e: IllegalArgumentException) {
+            logger.logRegistrationFailed(e.message)
+            return Result.failure(e)
+        }
 
         return suspendCancellableCoroutine { cont ->
             try {

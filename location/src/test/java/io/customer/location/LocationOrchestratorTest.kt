@@ -39,28 +39,28 @@ class LocationOrchestratorTest {
     }
 
     @Test
-    fun requestLocationUpdate_givenModeOff_expectNoFix() = runTest {
-        orchestrator(LocationTrackingMode.OFF).requestLocationUpdate()
+    fun requestLocation_givenTrackedAndModeOff_expectNoFix() = runTest {
+        orchestrator(LocationTrackingMode.OFF).requestLocation(LocationRequestIntent(tracked = true))
 
         coVerify(exactly = 0) { provider.requestLocation(any()) }
         verify(exactly = 0) { tracker.onLocationReceived(any(), any()) }
     }
 
     @Test
-    fun requestLocationUpdate_givenModeEnabledAndAuthorized_expectTrackedFix() = runTest {
+    fun requestLocation_givenTrackedAndModeEnabledAndAuthorized_expectTrackedFix() = runTest {
         givenAuthorizedFix()
 
-        orchestrator(LocationTrackingMode.MANUAL).requestLocationUpdate()
+        orchestrator(LocationTrackingMode.MANUAL).requestLocation(LocationRequestIntent(tracked = true))
 
         verify { tracker.onLocationReceived(37.7749, -122.4194) }
         verify(exactly = 0) { tracker.onLocationReceivedWithoutTracking(any(), any()) }
     }
 
     @Test
-    fun requestLocationUpdateSilently_givenModeOff_expectFixWithoutTracking() = runTest {
+    fun requestLocation_givenSilentAndModeOff_expectFixWithoutTracking() = runTest {
         givenAuthorizedFix()
 
-        orchestrator(LocationTrackingMode.OFF).requestLocationUpdateSilently()
+        orchestrator(LocationTrackingMode.OFF).requestLocation(LocationRequestIntent(tracked = false))
 
         coVerify { provider.requestLocation(LocationGranularity.DEFAULT) }
         verify { tracker.onLocationReceivedWithoutTracking(37.7749, -122.4194) }
@@ -68,12 +68,45 @@ class LocationOrchestratorTest {
     }
 
     @Test
-    fun requestLocationUpdateSilently_givenPermissionDenied_expectNoFix() = runTest {
+    fun requestLocation_givenSilentAndPermissionDenied_expectNoFix() = runTest {
         coEvery { provider.currentAuthorizationStatus() } returns AuthorizationStatus.DENIED
 
-        orchestrator(LocationTrackingMode.OFF).requestLocationUpdateSilently()
+        orchestrator(LocationTrackingMode.OFF).requestLocation(LocationRequestIntent(tracked = false))
 
         coVerify(exactly = 0) { provider.requestLocation(any()) }
         verify(exactly = 0) { tracker.onLocationReceivedWithoutTracking(any(), any()) }
+    }
+
+    @Test
+    fun requestLocation_givenSilentUpgradedMidFetch_expectTrackedDelivery() = runTest {
+        // Tracked request arrives while the silent fetch is in flight: the same
+        // fix must reach the tracked path (trackedLocation, persistence, track event).
+        coEvery { provider.currentAuthorizationStatus() } returns AuthorizationStatus.AUTHORIZED_FOREGROUND
+        val intent = LocationRequestIntent(tracked = false)
+        coEvery { provider.requestLocation(LocationGranularity.DEFAULT) } answers {
+            intent.upgradeToTracked()
+            LocationSnapshot(latitude = 37.7749, longitude = -122.4194, timestamp = Date(), horizontalAccuracy = 10.0)
+        }
+
+        orchestrator(LocationTrackingMode.ON_APP_START).requestLocation(intent)
+
+        verify { tracker.onLocationReceived(37.7749, -122.4194) }
+        verify(exactly = 0) { tracker.onLocationReceivedWithoutTracking(any(), any()) }
+    }
+
+    @Test
+    fun requestLocation_givenSilentUpgradedButModeOff_expectSilentDelivery() = runTest {
+        // An upgrade must never make a disabled tracking mode emit analytics.
+        coEvery { provider.currentAuthorizationStatus() } returns AuthorizationStatus.AUTHORIZED_FOREGROUND
+        val intent = LocationRequestIntent(tracked = false)
+        coEvery { provider.requestLocation(LocationGranularity.DEFAULT) } answers {
+            intent.upgradeToTracked()
+            LocationSnapshot(latitude = 37.7749, longitude = -122.4194, timestamp = Date(), horizontalAccuracy = 10.0)
+        }
+
+        orchestrator(LocationTrackingMode.OFF).requestLocation(intent)
+
+        verify { tracker.onLocationReceivedWithoutTracking(37.7749, -122.4194) }
+        verify(exactly = 0) { tracker.onLocationReceived(any(), any()) }
     }
 }

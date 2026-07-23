@@ -4,6 +4,7 @@ import io.customer.location.provider.LocationProvider
 import io.customer.location.provider.LocationRequestException
 import io.customer.location.type.LocationGranularity
 import io.customer.sdk.core.util.Logger
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.CancellationException
 
 /**
@@ -17,27 +18,10 @@ internal class LocationOrchestrator(
     private val locationProvider: LocationProvider
 ) {
 
-    suspend fun requestLocationUpdate() {
-        acquireLocation(forceFetch = false, onAcquired = locationTracker::onLocationReceived)
-    }
-
-    /**
-     * Like [requestLocationUpdate] but skips the "CIO Location Update" track event and fetches
-     * regardless of tracking mode: geofencing needs a fix even when location tracking is OFF.
-     */
-    suspend fun requestLocationUpdateSilently() {
-        acquireLocation(forceFetch = true, onAcquired = locationTracker::onLocationReceivedWithoutTracking)
-    }
-
-    /**
-     * @param forceFetch when true, bypasses the tracking-mode (OFF) gate so an internal caller
-     *   can still get a fix; the location permission check below always applies.
-     */
-    private suspend fun acquireLocation(
-        forceFetch: Boolean,
-        onAcquired: (Double, Double) -> Unit
-    ) {
-        if (!forceFetch && !config.isEnabled) {
+    suspend fun requestLocation(intent: LocationRequestIntent) {
+        // A request that starts tracked respects the OFF gate; silent ones fetch regardless —
+        // geofencing needs a fix even when location tracking is OFF.
+        if (intent.isTracked && !config.isEnabled) {
             logger.debug("Location tracking is disabled, ignoring requestLocationUpdate.")
             return
         }
@@ -53,7 +37,13 @@ internal class LocationOrchestrator(
                 granularity = LocationGranularity.DEFAULT
             )
             logger.debug("Tracking location: lat=${snapshot.latitude}, lng=${snapshot.longitude}")
-            onAcquired(snapshot.latitude, snapshot.longitude)
+            // Read at delivery so a mid-flight upgrade routes the same fix tracked. The OFF gate
+            // re-applies — an upgrade must never make a disabled tracking mode emit analytics.
+            if (intent.isTracked && config.isEnabled) {
+                locationTracker.onLocationReceived(snapshot.latitude, snapshot.longitude)
+            } else {
+                locationTracker.onLocationReceivedWithoutTracking(snapshot.latitude, snapshot.longitude)
+            }
         } catch (e: CancellationException) {
             logger.debug("Location request was cancelled.")
             throw e
@@ -63,4 +53,15 @@ internal class LocationOrchestrator(
             logger.error("Location request failed with unexpected error: ${e.message}")
         }
     }
+}
+
+/**
+ * Mutable intent of one in-flight location request. Starts tracked (analytics) or silent
+ * (geofence-only) and can only be upgraded: a tracked request arriving while a silent
+ * fetch is in flight consumes the same fix instead of being dropped.
+ */
+internal class LocationRequestIntent(tracked: Boolean) {
+    private val tracked = AtomicBoolean(tracked)
+    val isTracked: Boolean get() = tracked.get()
+    fun upgradeToTracked() = tracked.set(true)
 }

@@ -185,6 +185,10 @@ internal class GeofenceLogger(private val logger: Logger) {
         logger.error("Geofence '$geofenceId' $transitionName: WorkManager scheduling failed; left in pending store for the foreground flush — $message", tag = TAG)
     }
 
+    fun logGeofencingDisabled() {
+        logger.info("Geofencing is disabled (GeofenceLocationMode.OFF); removing any existing OS registrations and skipping setup", tag = TAG)
+    }
+
     fun logMissingLocationModule() {
         logger.error(
             "ModuleGeofence requires ModuleLocation to be registered alongside it. Add ModuleLocation to CustomerIOConfigBuilder; geofencing will not function until then.",

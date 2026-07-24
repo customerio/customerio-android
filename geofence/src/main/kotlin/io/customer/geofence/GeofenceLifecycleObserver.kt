@@ -29,26 +29,36 @@ internal class GeofenceLifecycleObserver(
 ) : DefaultLifecycleObserver {
 
     override fun onStart(owner: LifecycleOwner) {
-        flushPendingGeofenceDeliveries()
+        flushPendingGeofenceDeliveries(deliveryFlusher, eventBus, regionStore, logger)
     }
+}
 
-    private fun flushPendingGeofenceDeliveries() {
-        deliveryFlusher.flush(
-            callbacks = object : PendingDeliveryFlusher.Callbacks<PendingGeofenceDelivery>() {
-                override fun onSnapshot(count: Int) = logger.logForegroundFlushSnapshot(count)
-                override fun onWorkCancelled(entry: PendingGeofenceDelivery) =
-                    logger.logForegroundFlushCancelledWorkManager(entry.geofenceId, entry.transition.name)
-                override fun onPublished(entry: PendingGeofenceDelivery) =
-                    logger.logForegroundFlushPublished(entry.geofenceId, entry.transition.name)
-                override fun onEntryFailed(entry: PendingGeofenceDelivery, cause: Throwable) =
-                    logger.logForegroundFlushEntryFailed(entry.geofenceId, entry.transition.name, cause.message)
-                override fun onComplete(count: Int) = logger.logForegroundFlushComplete(count)
-            },
-            guarantee = PendingDeliveryFlusher.DeliveryGuarantee.AT_LEAST_ONCE
-        ) { entry ->
-            eventBus.publish(
-                entry.withFreshestEventData(regionStore.getCachedRegion(entry.geofenceId)).toGeofenceTransitionEvent()
-            )
-        }
+/**
+ * Drains the pending-delivery store through the analytics pipeline. Returns immediately; the drain
+ * runs in the background. Also called once at init in [GeofenceLocationMode.OFF], where a row whose
+ * WorkManager enqueue failed would otherwise have no drain path left.
+ */
+internal fun flushPendingGeofenceDeliveries(
+    deliveryFlusher: PendingDeliveryFlusher<PendingGeofenceDelivery>,
+    eventBus: EventBus,
+    regionStore: GeofenceRegionStore,
+    logger: GeofenceLogger
+) {
+    deliveryFlusher.flush(
+        callbacks = object : PendingDeliveryFlusher.Callbacks<PendingGeofenceDelivery>() {
+            override fun onSnapshot(count: Int) = logger.logForegroundFlushSnapshot(count)
+            override fun onWorkCancelled(entry: PendingGeofenceDelivery) =
+                logger.logForegroundFlushCancelledWorkManager(entry.geofenceId, entry.transition.name)
+            override fun onPublished(entry: PendingGeofenceDelivery) =
+                logger.logForegroundFlushPublished(entry.geofenceId, entry.transition.name)
+            override fun onEntryFailed(entry: PendingGeofenceDelivery, cause: Throwable) =
+                logger.logForegroundFlushEntryFailed(entry.geofenceId, entry.transition.name, cause.message)
+            override fun onComplete(count: Int) = logger.logForegroundFlushComplete(count)
+        },
+        guarantee = PendingDeliveryFlusher.DeliveryGuarantee.AT_LEAST_ONCE
+    ) { entry ->
+        eventBus.publish(
+            entry.withFreshestEventData(regionStore.getCachedRegion(entry.geofenceId)).toGeofenceTransitionEvent()
+        )
     }
 }

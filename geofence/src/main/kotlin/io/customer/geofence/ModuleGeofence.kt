@@ -3,8 +3,10 @@ package io.customer.geofence
 import androidx.annotation.VisibleForTesting
 import androidx.lifecycle.ProcessLifecycleOwner
 import io.customer.base.internal.InternalCustomerIOApi
+import io.customer.geofence.di.geofenceCooldownFilter
 import io.customer.geofence.di.geofenceDeliveryFlusher
 import io.customer.geofence.di.geofenceLogger
+import io.customer.geofence.di.geofenceManager
 import io.customer.geofence.di.geofenceRegionStore
 import io.customer.geofence.di.geofenceServices
 import io.customer.location.LocationCoordinates
@@ -17,6 +19,7 @@ import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.module.CustomerIOModule
 import io.customer.sdk.core.util.HandlerMainThreadPoster
 import io.customer.sdk.core.util.MainThreadPoster
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 
@@ -33,7 +36,8 @@ private const val MODULE_NAME = "Geofence"
  * location provider regardless of the location tracking mode, and works even when
  * location tracking is OFF (geofence fixes never emit analytics). With the default
  * [GeofenceLocationMode.AUTOMATIC] the SDK acquires the location it needs on its own;
- * with [GeofenceLocationMode.MANUAL] the host drives it via [refreshFromCurrentLocation].
+ * with [GeofenceLocationMode.MANUAL] the host drives it via [refreshFromCurrentLocation];
+ * with [GeofenceLocationMode.OFF] geofencing is disabled.
  *
  * Usage:
  * ```
@@ -51,6 +55,12 @@ class ModuleGeofence @JvmOverloads constructor(
 
     override fun initialize() {
         val logger = SDKComponent.geofenceLogger
+
+        if (!moduleConfig.isEnabled) {
+            logger.logGeofencingDisabled()
+            tearDownForDisabledMode(logger)
+            return
+        }
 
         // Geofencing is meaningless without the location module: there is no path
         // for fixes to reach the SDK, so nearby-sync and movement triggers would
@@ -79,6 +89,7 @@ class ModuleGeofence @JvmOverloads constructor(
      */
     @OptIn(InternalCustomerIOApi::class)
     fun refreshFromCurrentLocation() {
+        if (!moduleConfig.isEnabled) return
         val locationModule = runCatching { ModuleLocation.instance() }.getOrNull()
         if (locationModule == null) {
             SDKComponent.geofenceLogger.logMissingLocationModule()
@@ -102,6 +113,48 @@ class ModuleGeofence @JvmOverloads constructor(
         if (moduleConfig.locationMode != GeofenceLocationMode.AUTOMATIC) return
         // No-ops without location permission.
         locationModule.locationServices.requestLocationUpdateSilently()
+    }
+
+    /**
+     * Undoes a previous run for [GeofenceLocationMode.OFF]: OS registrations and the receivers
+     * survive app updates and fire independently of the subscriptions this mode skips, so disabling
+     * has to tear down rather than just not set up. Unlike the sign-out wipe the store is cleared
+     * unconditionally — no later refresh exists to retry a failed OS clear, and dropping
+     * registeredIds is what makes the receiver discard (and unregister) a stray transition.
+     */
+    private fun tearDownForDisabledMode(logger: GeofenceLogger) {
+        // Both guarded: this runs inside the host's `CustomerIO.initialize()`, where a throw would
+        // surface as a startup crash.
+        val sdkAndroid = runCatching { SDKComponent.android() }.getOrNull() ?: run {
+            logger.logSyncFailed("Disabled-mode teardown skipped: Android components unavailable")
+            return
+        }
+        // Cleared synchronously so the receivers — which run on their own scopes later in this launch
+        // — can't read state they'd re-register from. `prefs.edit {}` defers only the disk write.
+        runCatching { sdkAndroid.geofenceRegionStore.clearUserScopedState() }
+            .onFailure { logger.logSyncFailed("Disabled-mode store clear failed: ${it.message}") }
+
+        val teardownScope = SDKComponent.scopeProvider.geofenceScope
+        teardownScope.launch {
+            try {
+                sdkAndroid.geofenceCooldownFilter.clearAll()
+                // Pending rows are transitions that already happened; OFF stops producing events
+                // rather than retracting past ones. Before the OS clear so a failure can't skip it.
+                flushPendingGeofenceDeliveries(
+                    deliveryFlusher = sdkAndroid.geofenceDeliveryFlusher,
+                    eventBus = SDKComponent.eventBus,
+                    regionStore = sdkAndroid.geofenceRegionStore,
+                    logger = logger
+                )
+                sdkAndroid.geofenceManager.clearAll()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Throwable) {
+                logger.logSyncFailed("Disabled-mode teardown failed: ${e.message}")
+            } finally {
+                teardownScope.cancel()
+            }
+        }
     }
 
     /**

@@ -11,6 +11,7 @@ public final class io/customer/geofence/GeofenceBroadcastReceiver : android/cont
 public final class io/customer/geofence/GeofenceLocationMode : java/lang/Enum {
 	public static final field AUTOMATIC Lio/customer/geofence/GeofenceLocationMode;
 	public static final field MANUAL Lio/customer/geofence/GeofenceLocationMode;
+	public static final field OFF Lio/customer/geofence/GeofenceLocationMode;
 	public static fun getEntries ()Lkotlin/enums/EnumEntries;
 	public static fun valueOf (Ljava/lang/String;)Lio/customer/geofence/GeofenceLocationMode;
 	public static fun values ()[Lio/customer/geofence/GeofenceLocationMode;

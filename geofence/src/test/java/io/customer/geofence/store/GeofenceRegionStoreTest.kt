@@ -127,6 +127,18 @@ class GeofenceRegionStoreTest : RobolectricTest() {
         store.getLastRegistrationUptime() shouldBeEqualTo 123_456L
     }
 
+    @Test
+    fun getLastRegistrationPackageUpdateTime_givenNothingStored_expectNull() {
+        store.getLastRegistrationPackageUpdateTime().shouldBeNull()
+    }
+
+    @Test
+    fun setLastRegistrationPackageUpdateTime_thenGet_expectRoundTrip() {
+        store.setLastRegistrationPackageUpdateTime(123_456L)
+
+        store.getLastRegistrationPackageUpdateTime() shouldBeEqualTo 123_456L
+    }
+
     // --- Cached config ---
 
     @Test
@@ -291,6 +303,7 @@ class GeofenceRegionStoreTest : RobolectricTest() {
         store.saveLastApiFetchLocation(GeofenceLocation(1.0, 2.0))
         store.saveLastMovementTriggerLocation(GeofenceLocation(3.0, 4.0))
         store.setLastRegistrationUptime(99_999L)
+        store.setLastRegistrationPackageUpdateTime(88_888L)
         store.setLastSyncTimestamp(12_345L)
 
         store.clearUserScopedState()
@@ -300,6 +313,7 @@ class GeofenceRegionStoreTest : RobolectricTest() {
         store.getLastApiFetchLocation().shouldBeNull()
         store.getLastMovementTriggerLocation().shouldBeNull()
         store.getLastRegistrationUptime().shouldBeNull()
+        store.getLastRegistrationPackageUpdateTime().shouldBeNull()
         // Freshness throttle: wiped so the next login re-fetches.
         store.getLastSyncTimestamp().shouldBeNull()
         // Cached regions/config: preserved.

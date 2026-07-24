@@ -48,6 +48,9 @@ class GeofenceRepositoryTest : RobolectricTest() {
     private val cooldownFilter: GeofenceCooldownFilter = mockk(relaxed = true)
     private val transitionEmitter: GeofenceTransitionEmitter = mockk(relaxed = true)
     private val clock: Clock = mockk(relaxed = true)
+    private val packageInfo: GeofencePackageInfo = mockk {
+        every { lastUpdateTimeMs() } returns null
+    }
     private val logger: GeofenceLogger = mockk(relaxed = true)
     private val jsonSerializer = GeofenceJsonSerializer()
 
@@ -70,6 +73,7 @@ class GeofenceRepositoryTest : RobolectricTest() {
         cooldownFilter = cooldownFilter,
         transitionEmitter = transitionEmitter,
         clock = clock,
+        packageInfo = packageInfo,
         logger = logger
     )
 
@@ -700,6 +704,106 @@ class GeofenceRepositoryTest : RobolectricTest() {
         every { store.getRegisteredIds() } returns setOf("biz-1")
         every { store.getLastRegistrationUptime() } returns 10_000L
         every { clock.elapsedRealtime() } returns 5_000L
+        every { distanceFilter.nearest(any(), any(), any(), any(), any()) } returns
+            listOf(GeofenceRegion("biz-1", 0.0, 0.0, 100f))
+        val existingSlot = slot<Set<String>>()
+        coEvery { manager.replaceGeofences(any(), capture(existingSlot)) } returns Result.success(Unit)
+
+        repository.refresh(latitude = 0.0, longitude = 0.0)
+
+        coVerify(exactly = 0) { apiService.fetchGeofences(any()) }
+        coVerify(exactly = 1) { manager.replaceGeofences(any(), any()) }
+        existingSlot.captured.shouldBeEmpty()
+    }
+
+    @Test
+    fun refresh_givenAppUpdatedSinceLastRegistration_expectAllBusinessReRegistered() = runTest {
+        // Package lastUpdateTime changed => the app was updated, which can cancel the geofence
+        // PendingIntent and drop OS registrations. Re-register all business (empty existing set)
+        // even though registeredIds still lists them, then re-stamp the new update time.
+        every { secureUserStore.getUserId() } returns "user-42"
+        every { store.getRegisteredIds() } returns setOf(GeofenceConstants.MOVEMENT_TRIGGER_ID, "biz-1")
+        every { store.getCachedRegions() } returns listOf(GeofenceRegion("biz-1", 0.0, 0.0, 100f))
+        every { store.getLastRegistrationUptime() } returns 5_000L
+        every { clock.elapsedRealtime() } returns 10_000L // no reboot
+        every { store.getLastRegistrationPackageUpdateTime() } returns 1_000L
+        every { packageInfo.lastUpdateTimeMs() } returns 2_000L // updated since
+        coEvery { apiService.fetchGeofences(any()) } returns
+            Result.success(sampleResponse(maxBusinessGeofences = 5))
+        every { distanceFilter.nearest(any(), any(), any(), any(), any()) } returns
+            listOf(GeofenceRegion("biz-1", 0.0, 0.0, 100f))
+        val existingSlot = slot<Set<String>>()
+        coEvery { manager.replaceGeofences(any(), capture(existingSlot)) } returns Result.success(Unit)
+
+        repository.refresh(latitude = 0.0, longitude = 0.0)
+
+        existingSlot.captured.shouldBeEmpty()
+        verify { store.setLastRegistrationPackageUpdateTime(2_000L) }
+    }
+
+    @Test
+    fun refresh_givenRegistrationsButNoPackageStamp_expectAllBusinessReRegistered() = runTest {
+        // Upgrade migration: registrations from an SDK version that didn't stamp the package
+        // update time predate stamping — the upgrade itself was an app update, so re-register.
+        every { secureUserStore.getUserId() } returns "user-42"
+        every { store.getRegisteredIds() } returns setOf(GeofenceConstants.MOVEMENT_TRIGGER_ID, "biz-1")
+        every { store.getCachedRegions() } returns listOf(GeofenceRegion("biz-1", 0.0, 0.0, 100f))
+        every { store.getLastRegistrationUptime() } returns 5_000L
+        every { clock.elapsedRealtime() } returns 10_000L // no reboot
+        every { store.getLastRegistrationPackageUpdateTime() } returns null
+        every { packageInfo.lastUpdateTimeMs() } returns 2_000L
+        coEvery { apiService.fetchGeofences(any()) } returns
+            Result.success(sampleResponse(maxBusinessGeofences = 5))
+        every { distanceFilter.nearest(any(), any(), any(), any(), any()) } returns
+            listOf(GeofenceRegion("biz-1", 0.0, 0.0, 100f))
+        val existingSlot = slot<Set<String>>()
+        coEvery { manager.replaceGeofences(any(), capture(existingSlot)) } returns Result.success(Unit)
+
+        repository.refresh(latitude = 0.0, longitude = 0.0)
+
+        existingSlot.captured.shouldBeEmpty()
+        verify { store.setLastRegistrationPackageUpdateTime(2_000L) }
+    }
+
+    @Test
+    fun refresh_givenNoAppUpdateSinceLastRegistration_expectBusinessKept() = runTest {
+        // Matching update-time stamps => package untouched => trust registeredIds and keep the
+        // unchanged business geofence (skip re-upsert).
+        every { secureUserStore.getUserId() } returns "user-42"
+        every { store.getRegisteredIds() } returns setOf(GeofenceConstants.MOVEMENT_TRIGGER_ID, "biz-1")
+        every { store.getCachedRegions() } returns listOf(GeofenceRegion("biz-1", 0.0, 0.0, 100f))
+        every { store.getLastRegistrationUptime() } returns 5_000L
+        every { clock.elapsedRealtime() } returns 10_000L // no reboot
+        every { store.getLastRegistrationPackageUpdateTime() } returns 1_000L
+        every { packageInfo.lastUpdateTimeMs() } returns 1_000L // unchanged
+        coEvery { apiService.fetchGeofences(any()) } returns
+            Result.success(sampleResponse(maxBusinessGeofences = 5))
+        every { distanceFilter.nearest(any(), any(), any(), any(), any()) } returns
+            listOf(GeofenceRegion("biz-1", 0.0, 0.0, 100f))
+        val existingSlot = slot<Set<String>>()
+        coEvery { manager.replaceGeofences(any(), capture(existingSlot)) } returns Result.success(Unit)
+
+        repository.refresh(latitude = 0.0, longitude = 0.0)
+
+        existingSlot.captured shouldContainSame setOf("biz-1")
+    }
+
+    @Test
+    fun refresh_givenFreshCacheButAppUpdated_expectLocalReRegisterInsteadOfSkip() = runTest {
+        // App update after a fresh-cache launch: time-fresh + ranking-fresh + registeredIds intact
+        // would normally SKIP, but the update may have wiped GMS state. Force a LOCAL re-register
+        // (no network) instead of leaving nothing monitored — the exact post-update launch path.
+        every { secureUserStore.getUserId() } returns "user-42"
+        every { store.getLastSyncTimestamp() } returns System.currentTimeMillis() - 60_000L
+        every { store.getCachedConfig() } returns sampleConfig()
+        every { store.getLastApiFetchLocation() } returns GeofenceLocation(0.0, 0.0)
+        every { store.getLastMovementTriggerLocation() } returns GeofenceLocation(0.0, 0.0)
+        every { store.getCachedRegions() } returns listOf(GeofenceRegion("biz-1", 0.0, 0.0, 100f))
+        every { store.getRegisteredIds() } returns setOf("biz-1")
+        every { store.getLastRegistrationUptime() } returns 5_000L
+        every { clock.elapsedRealtime() } returns 10_000L // no reboot
+        every { store.getLastRegistrationPackageUpdateTime() } returns 1_000L
+        every { packageInfo.lastUpdateTimeMs() } returns 2_000L // updated since
         every { distanceFilter.nearest(any(), any(), any(), any(), any()) } returns
             listOf(GeofenceRegion("biz-1", 0.0, 0.0, 100f))
         val existingSlot = slot<Set<String>>()
@@ -1479,6 +1583,31 @@ class GeofenceRepositoryTest : RobolectricTest() {
         every { store.getRegisteredIds() } returns emptySet()
         every { store.getLastRegistrationUptime() } returns 500_000L
         every { clock.elapsedRealtime() } returns 1_000L // rebooted
+        coEvery { apiService.fetchGeofences(any()) } returns
+            Result.success(sampleResponse(maxBusinessGeofences = 3)) // g-1 at (0,0) radius 100
+        every { distanceFilter.nearest(any(), any(), any(), any(), any()) } answers { firstArg() }
+        coEvery { manager.replaceGeofences(any(), any()) } returns Result.success(Unit)
+
+        repository.refresh(latitude = 0.0, longitude = 0.0)
+
+        coVerify(exactly = 1) { apiService.fetchGeofences(any()) }
+        coVerify(exactly = 0) { transitionEmitter.emit(any(), any(), any(), any(), any(), any(), any()) }
+    }
+
+    @Test
+    fun refresh_givenAppUpdateAndStaleCache_expectRemoteFetchButNoInitialEnter() = runTest {
+        // App update wiped OS state (package updateTime changed, no reboot). The launch anchor can
+        // predate the update just like a reboot, so containment can't be trusted — a newly fetched
+        // fence containing it must not synthesize either.
+        every { secureUserStore.getUserId() } returns "user-42"
+        every { clock.currentTimeMillis() } returns 200_000_000_000L
+        every { store.getLastSyncTimestamp() } returns 1_000L // stale → remote fetch
+        every { store.getCachedRegions() } returns emptyList()
+        every { store.getRegisteredIds() } returns setOf("biz-1")
+        every { store.getLastRegistrationUptime() } returns 500L
+        every { clock.elapsedRealtime() } returns 1_000L // no reboot (uptime advanced)
+        every { store.getLastRegistrationPackageUpdateTime() } returns 1_000L
+        every { packageInfo.lastUpdateTimeMs() } returns 2_000L // updated since → app-update wipe
         coEvery { apiService.fetchGeofences(any()) } returns
             Result.success(sampleResponse(maxBusinessGeofences = 3)) // g-1 at (0,0) radius 100
         every { distanceFilter.nearest(any(), any(), any(), any(), any()) } answers { firstArg() }

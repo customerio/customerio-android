@@ -7,6 +7,7 @@ import io.customer.geofence.GeofenceDistanceFilter
 import io.customer.geofence.GeofenceJsonSerializer
 import io.customer.geofence.GeofenceLogger
 import io.customer.geofence.GeofenceManager
+import io.customer.geofence.GeofencePackageInfo
 import io.customer.geofence.GeofencePermissionChecker
 import io.customer.geofence.GeofenceReceiverToggle
 import io.customer.geofence.GeofenceRepository
@@ -129,6 +130,9 @@ internal val AndroidSDKComponent.geofenceRegionStore: GeofenceRegionStore
         )
     }
 
+internal val AndroidSDKComponent.geofencePackageInfo: GeofencePackageInfo
+    get() = newInstance { GeofencePackageInfo(applicationContext) }
+
 internal val AndroidSDKComponent.geofenceRepository: GeofenceRepository
     get() = singleton<GeofenceRepository> {
         GeofenceRepositoryImpl(
@@ -140,6 +144,7 @@ internal val AndroidSDKComponent.geofenceRepository: GeofenceRepository
             cooldownFilter = geofenceCooldownFilter,
             transitionEmitter = geofenceTransitionEmitter,
             clock = SDKComponent.clock,
+            packageInfo = geofencePackageInfo,
             logger = SDKComponent.geofenceLogger
         )
     }

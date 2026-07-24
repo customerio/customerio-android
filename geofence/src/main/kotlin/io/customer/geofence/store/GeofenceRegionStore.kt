@@ -60,6 +60,10 @@ internal interface GeofenceRegionStore {
     fun getLastRegistrationUptime(): Long?
     fun setLastRegistrationUptime(uptimeMs: Long)
 
+    /** Package lastUpdateTime at the last successful OS registration; null if never registered. Drives app-update detection. */
+    fun getLastRegistrationPackageUpdateTime(): Long?
+    fun setLastRegistrationPackageUpdateTime(timeMs: Long)
+
     fun saveCachedConfig(config: GeofenceConfig)
     fun getCachedConfig(): GeofenceConfig?
 
@@ -119,6 +123,14 @@ internal class GeofenceRegionStoreImpl(
         prefs.edit { putLong(KEY_LAST_REGISTRATION_UPTIME, uptimeMs) }
     }
 
+    override fun getLastRegistrationPackageUpdateTime(): Long? = prefs.read {
+        if (contains(KEY_LAST_REGISTRATION_PACKAGE_UPDATE_TIME)) getLong(KEY_LAST_REGISTRATION_PACKAGE_UPDATE_TIME, 0L) else null
+    }
+
+    override fun setLastRegistrationPackageUpdateTime(timeMs: Long) {
+        prefs.edit { putLong(KEY_LAST_REGISTRATION_PACKAGE_UPDATE_TIME, timeMs) }
+    }
+
     override fun saveCachedConfig(config: GeofenceConfig) =
         writeJson(KEY_CACHED_CONFIG, GeofenceConfig.serializer(), config)
 
@@ -155,6 +167,7 @@ internal class GeofenceRegionStoreImpl(
             remove(KEY_LAST_MOVEMENT_TRIGGER_LOCATION)
             remove(KEY_REGISTERED_IDS)
             remove(KEY_LAST_REGISTRATION_UPTIME)
+            remove(KEY_LAST_REGISTRATION_PACKAGE_UPDATE_TIME)
             remove(KEY_LAST_SYNC)
         }
     }
@@ -207,6 +220,7 @@ internal class GeofenceRegionStoreImpl(
         const val KEY_LAST_MOVEMENT_TRIGGER_LOCATION = "last_movement_trigger_location"
         const val KEY_LAST_SYNC = "last_sync_timestamp"
         const val KEY_LAST_REGISTRATION_UPTIME = "last_registration_uptime"
+        const val KEY_LAST_REGISTRATION_PACKAGE_UPDATE_TIME = "last_registration_package_update_time"
         const val CRYPTO_KEY_ALIAS = "cio_geofence_location_key"
         val REGIONS_SERIALIZER = ListSerializer(GeofenceRegion.serializer())
         val ID_SET_SERIALIZER = SetSerializer(String.serializer())

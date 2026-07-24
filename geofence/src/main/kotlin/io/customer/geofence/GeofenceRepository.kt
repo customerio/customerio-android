@@ -345,11 +345,11 @@ internal class GeofenceRepositoryImpl(
             max = config.maxBusinessGeofences,
             maxDistanceMeters = config.maxMonitoringDistance
         )
-        // Keep the movement trigger registered whenever the user has registerable geofences — even
-        // if none are near enough now (all beyond maxMonitoringDistance) — so an EXIT re-ranks them
-        // in as the device approaches. A truly empty set (no geofences / kill switch) registers nothing.
-        val hasRegisterableGeofences = regions.isNotEmpty() && config.maxBusinessGeofences > 0
-        val regionsToRegister = if (!hasRegisterableGeofences) {
+        // Keep the movement trigger registered even when no regions qualify right now — all beyond
+        // maxMonitoringDistance, or the distance-capped /nearest returned none here — so an EXIT
+        // re-ranks/re-fetches as the device travels. Only maxBusinessGeofences = 0 means "feature off".
+        val monitoringEnabled = config.maxBusinessGeofences > 0
+        val regionsToRegister = if (!monitoringEnabled) {
             emptyList()
         } else {
             listOf(buildMovementTrigger(latitude, longitude, config.localRefreshTriggerRadius)) + nearest
@@ -391,14 +391,14 @@ internal class GeofenceRepositoryImpl(
                     store.setLastRegistrationUptime(clock.elapsedRealtime())
                     // Track the user's location at each successful registration so boot restore can
                     // re-center close to their real position. Clear only when nothing is registered
-                    // (no geofences / kill switch) — the trigger, and thus its location, is gone.
-                    if (hasRegisterableGeofences) {
+                    // (kill switch) — the trigger, and thus its location, is gone.
+                    if (monitoringEnabled) {
                         store.saveLastMovementTriggerLocation(GeofenceLocation(latitude, longitude))
                     } else {
                         store.clearLastMovementTriggerLocation()
                     }
                     onRegistered()
-                    logger.logSyncSucceeded(nearest.size)
+                    logger.logSyncSucceeded(nearest.size, movementTriggerRegistered = monitoringEnabled)
                 }
             }
             if (registrationResult.isSuccess && emitInitialEnter) {

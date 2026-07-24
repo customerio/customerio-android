@@ -65,7 +65,7 @@ internal class LiveNotificationRegistrar(
         store.clearRegistrations()
         // Drop identity so a post-logout push-to-start registration isn't sent for the
         // previous (identified) user until a new UserChangedEvent arrives. Local
-        // start/update/end gating uses pipeline.isUserIdentified, cleared synchronously by
+        // start/end gating uses pipeline.isUserIdentified, cleared synchronously by
         // clearIdentify().
         userId = ""
         isIdentified = false

@@ -65,7 +65,7 @@ internal class LiveNotificationManager(
         lastBundles[activityId] = Bundle(bundle)
         render(bundle)
         // Lifecycle reporting is intentionally decoupled from the local render: the
-        // app called start/update/end, so Customer.io must track the activity (and be
+        // app called start/end, so Customer.io must track the activity (and be
         // able to push updates / remote-end it) even when the local render posts nothing
         // — e.g. a custom type with no built-in template, or a transient render failure.
         // The report is not blocking (token read is an in-memory pref; track() enqueues),

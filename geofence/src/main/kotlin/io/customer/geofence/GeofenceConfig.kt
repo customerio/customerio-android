@@ -21,7 +21,8 @@ internal data class GeofenceConfig(
     // Window (ms) for suppressing duplicate transition events for the same geofence.
     @SerialName("duplicateEventsExpiry")
     val duplicateEventsExpiry: Long,
-    // Max business geofences registered at once (the movement trigger is extra).
+    // Max business geofences registered at once (the movement trigger is extra). 0 is the
+    // server-driven kill switch: nothing registers, not even the movement trigger.
     @SerialName("maxBusinessGeofences")
     val maxBusinessGeofences: Int,
     // Cap (m) on how far a business geofence can be from the device to be registered.

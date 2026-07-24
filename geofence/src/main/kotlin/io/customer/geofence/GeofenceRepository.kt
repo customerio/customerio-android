@@ -59,6 +59,7 @@ internal class GeofenceRepositoryImpl(
     private val cooldownFilter: GeofenceCooldownFilter,
     private val transitionEmitter: GeofenceTransitionEmitter,
     private val clock: Clock,
+    private val packageInfo: GeofencePackageInfo,
     private val logger: GeofenceLogger
 ) : GeofenceRepository {
 
@@ -89,11 +90,10 @@ internal class GeofenceRepositoryImpl(
             // after this reads pre-wipe freshness/registrations and SKIPs — that would leave
             // a just-identified user unmonitored. Pref reads only; network stays outside the lock.
             val action = stateMutex.withLock { refreshAction(LocationCoordinates(latitude, longitude), config) }
-            // A launch/identify refresh runs with the persisted anchor, which a reboot can leave
-            // pointing at a pre-reboot position — containment can't be trusted, so no synthesis
-            // this pass (mirrors restoreFromCache). The flag drops once registration re-stamps
-            // uptime. Sign-in is unaffected: sign-out clears the stamp with the anchor.
-            val emitInitialEnter = !osStateWipedByReboot()
+            // A launch/identify refresh runs with the persisted anchor, which a reboot or app update
+            // can leave pointing at a stale position — containment can't be trusted, so no synthesis
+            // this pass (mirrors restoreFromCache). Drops once registration re-stamps.
+            val emitInitialEnter = !osStateWiped()
             return when (action) {
                 RefreshAction.REMOTE -> performRemoteRefresh(userId, latitude, longitude, emitInitialEnter)
                 RefreshAction.LOCAL -> performLocalRefresh(userId, latitude, longitude, config, emitInitialEnter = emitInitialEnter)
@@ -121,9 +121,9 @@ internal class GeofenceRepositoryImpl(
             movedBeyondFetchRadius(distanceFromLastFetch, config) -> RefreshAction.REMOTE
             isRankingStale(distanceFromLastRegistration, config) -> RefreshAction.LOCAL
             hasUnregisteredCache() -> RefreshAction.LOCAL
-            // Without this a fresh-cache launch after a reboot would SKIP — registeredIds survive the
-            // reboot but GMS doesn't, leaving nothing monitored. Re-rank locally to re-register.
-            osStateWipedByReboot() -> RefreshAction.LOCAL
+            // Without this a fresh-cache launch after a reboot or app update would SKIP —
+            // registeredIds survive but GMS state doesn't, leaving nothing monitored.
+            osStateWiped() -> RefreshAction.LOCAL
             else -> RefreshAction.SKIP
         }
     }
@@ -157,6 +157,22 @@ internal class GeofenceRepositoryImpl(
      */
     private fun osStateWipedByReboot(): Boolean =
         store.getLastRegistrationUptime()?.let { clock.elapsedRealtime() < it } ?: false
+
+    /**
+     * Package replaced since the last registration — an app update can cancel the geofence
+     * PendingIntent, silently dropping OS registrations while registeredIds survive.
+     * Same consequences and call sites as [osStateWipedByReboot].
+     */
+    private fun osStateWipedByAppUpdate(): Boolean {
+        val current = packageInfo.lastUpdateTimeMs() ?: return false
+        // No stamp but live registrations = they predate stamping (this upgrade is itself an
+        // app update) — treat as wiped.
+        val stamped = store.getLastRegistrationPackageUpdateTime()
+            ?: return store.getRegisteredIds().isNotEmpty()
+        return current != stamped
+    }
+
+    private fun osStateWiped(): Boolean = osStateWipedByReboot() || osStateWipedByAppUpdate()
 
     @RequiresPermission(Manifest.permission.ACCESS_FINE_LOCATION)
     override suspend fun handleMovement(latitude: Double, longitude: Double): Result<Unit> {
@@ -300,9 +316,9 @@ internal class GeofenceRepositoryImpl(
      */
     @RequiresPermission(Manifest.permission.ACCESS_FINE_LOCATION)
     private suspend fun registerWithBusinessDiff(regions: List<GeofenceRegion>): Result<Unit> {
-        // After a reboot GMS is empty, so re-register everything rather than trust the surviving
-        // registeredIds (which would otherwise be skipped as "unchanged").
-        val existingBusinessIds = if (osStateWipedByReboot()) {
+        // After a reboot or app update GMS state is gone, so re-register everything rather than
+        // trust the surviving registeredIds (which would otherwise be skipped as "unchanged").
+        val existingBusinessIds = if (osStateWiped()) {
             emptySet()
         } else {
             unchangedRegisteredIds(regions)
@@ -345,11 +361,11 @@ internal class GeofenceRepositoryImpl(
             max = config.maxBusinessGeofences,
             maxDistanceMeters = config.maxMonitoringDistance
         )
-        // Keep the movement trigger registered whenever the user has registerable geofences — even
-        // if none are near enough now (all beyond maxMonitoringDistance) — so an EXIT re-ranks them
-        // in as the device approaches. A truly empty set (no geofences / kill switch) registers nothing.
-        val hasRegisterableGeofences = regions.isNotEmpty() && config.maxBusinessGeofences > 0
-        val regionsToRegister = if (!hasRegisterableGeofences) {
+        // Keep the movement trigger registered even when no regions qualify right now — all beyond
+        // maxMonitoringDistance, or the distance-capped /nearest returned none here — so an EXIT
+        // re-ranks/re-fetches as the device travels. Only maxBusinessGeofences = 0 means "feature off".
+        val monitoringEnabled = config.maxBusinessGeofences > 0
+        val regionsToRegister = if (!monitoringEnabled) {
             emptyList()
         } else {
             listOf(buildMovementTrigger(latitude, longitude, config.localRefreshTriggerRadius)) + nearest
@@ -386,19 +402,20 @@ internal class GeofenceRepositoryImpl(
                         newIds + staleIds
                     }
                     store.saveRegisteredIds(idsToSave)
-                    // Stamp device uptime so the next refresh can detect a reboot (which wipes OS
-                    // geofences) and force a full re-register instead of trusting registeredIds.
+                    // Stamp uptime and package update time so the next refresh detects a reboot or
+                    // app update (both wipe OS geofences) and re-registers instead of trusting ids.
                     store.setLastRegistrationUptime(clock.elapsedRealtime())
+                    packageInfo.lastUpdateTimeMs()?.let { store.setLastRegistrationPackageUpdateTime(it) }
                     // Track the user's location at each successful registration so boot restore can
                     // re-center close to their real position. Clear only when nothing is registered
-                    // (no geofences / kill switch) — the trigger, and thus its location, is gone.
-                    if (hasRegisterableGeofences) {
+                    // (kill switch) — the trigger, and thus its location, is gone.
+                    if (monitoringEnabled) {
                         store.saveLastMovementTriggerLocation(GeofenceLocation(latitude, longitude))
                     } else {
                         store.clearLastMovementTriggerLocation()
                     }
                     onRegistered()
-                    logger.logSyncSucceeded(nearest.size)
+                    logger.logSyncSucceeded(nearest.size, movementTriggerRegistered = monitoringEnabled)
                 }
             }
             if (registrationResult.isSuccess && emitInitialEnter) {

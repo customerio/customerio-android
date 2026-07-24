@@ -17,9 +17,6 @@ internal interface LiveNotificationLifecycleClient {
         contentState: Map<String, Any?>
     )
 
-    /** Reports an `update` event carrying the new dynamic [contentState]. */
-    fun reportUpdate(instanceUUID: String, activityType: String, deviceId: String, contentState: Map<String, Any?>)
-
     /** Reports an `end` event, optionally carrying a final dynamic [contentState]. */
     fun reportEnd(
         instanceUUID: String,
@@ -53,25 +50,6 @@ internal class LiveNotificationLifecycleClientImpl(
                 put(PROP_PLATFORM, PLATFORM_ANDROID)
                 put(PROP_NOTIFICATION_TYPE, activityType)
                 if (attributes.isNotEmpty()) put(PROP_ATTRIBUTES, attributes)
-                if (contentState.isNotEmpty()) put(PROP_CONTENT_STATE, contentState)
-            }
-        )
-    }
-
-    override fun reportUpdate(
-        instanceUUID: String,
-        activityType: String,
-        deviceId: String,
-        contentState: Map<String, Any?>
-    ) {
-        track(
-            event = EVENT_LIVE_NOTIFICATION,
-            properties = buildMap {
-                put(PROP_EVENT_TYPE, EVENT_TYPE_UPDATE)
-                put(PROP_CIO_INSTANCE_ID, instanceUUID)
-                put(PROP_DEVICE_ID, deviceId)
-                put(PROP_PLATFORM, PLATFORM_ANDROID)
-                put(PROP_NOTIFICATION_TYPE, activityType)
                 if (contentState.isNotEmpty()) put(PROP_CONTENT_STATE, contentState)
             }
         )
@@ -146,7 +124,6 @@ internal class LiveNotificationLifecycleClientImpl(
         const val PROP_PUSH_TO_START_TOKEN = "pushToStartToken"
 
         const val EVENT_TYPE_START = "start"
-        const val EVENT_TYPE_UPDATE = "update"
         const val EVENT_TYPE_END = "end"
         const val REGISTRATION_TYPE_PUSH_TO_START = "push_to_start"
         const val PLATFORM_ANDROID = "android"

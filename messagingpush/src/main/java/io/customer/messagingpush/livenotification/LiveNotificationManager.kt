@@ -21,7 +21,8 @@ import kotlinx.coroutines.launch
 
 /**
  * Renders live notifications locally on behalf of the host app and reports the
- * corresponding start/update/end lifecycle events to Customer.io.
+ * corresponding start/end lifecycle events to Customer.io. Local updates are
+ * rendered but intentionally not reported — only start/end emit CDP events.
  */
 internal class LiveNotificationManager(
     private val lifecycleClient: LiveNotificationLifecycleClient,
@@ -64,7 +65,7 @@ internal class LiveNotificationManager(
         lastBundles[activityId] = Bundle(bundle)
         render(bundle)
         // Lifecycle reporting is intentionally decoupled from the local render: the
-        // app called start/update/end, so Customer.io must track the activity (and be
+        // app called start/end, so Customer.io must track the activity (and be
         // able to push updates / remote-end it) even when the local render posts nothing
         // — e.g. a custom type with no built-in template, or a transient render failure.
         // The report is not blocking (token read is an in-memory pref; track() enqueues),
@@ -72,7 +73,10 @@ internal class LiveNotificationManager(
         reportStart(activityId, activityType, attributes, contentState)
     }
 
-    /** Re-renders a previously started live notification and reports an `update` event. */
+    /**
+     * Re-renders a previously started live notification locally. The update is
+     * intentionally not reported to Customer.io — only start/end emit CDP events.
+     */
     fun update(
         activityId: String,
         activityType: String,
@@ -81,8 +85,8 @@ internal class LiveNotificationManager(
     ) {
         // Terminal state is governed here for local renders (they bypass the handler's
         // server-push guard): an update after the activity ended locally or was dismissed
-        // must not repost it or report a stray update. `start` mints a fresh id, and
-        // `end` guards itself, so only `update` needs this check.
+        // must not repost it. `start` mints a fresh id, and `end` guards itself, so only
+        // `update` needs this check.
         if (SDKComponent.liveNotificationStore.isEnded(activityId)) {
             SDKComponent.logger.debug(
                 "Live notification '$activityId' already ended; ignoring update."
@@ -92,7 +96,6 @@ internal class LiveNotificationManager(
         val bundle = buildBundle(activityId, activityType, attributes + contentState, EVENT_UPDATE)
         lastBundles[activityId] = Bundle(bundle)
         render(bundle)
-        reportUpdate(activityId, activityType, contentState)
     }
 
     /**
@@ -261,22 +264,6 @@ internal class LiveNotificationManager(
             activityType = activityType,
             deviceId = deviceId,
             attributes = attributes.toJsonSafePayload(),
-            contentState = contentState.toJsonSafePayload()
-        )
-    }
-
-    private fun reportUpdate(activityId: String, activityType: String, contentState: Map<String, Any?>) {
-        val deviceId = SDKComponent.android().globalPreferenceStore.getDeviceToken()
-        if (deviceId.isNullOrBlank()) {
-            SDKComponent.logger.debug(
-                "No FCM token available yet; skipping update event for live notification '$activityId'."
-            )
-            return
-        }
-        lifecycleClient.reportUpdate(
-            instanceUUID = activityId,
-            activityType = activityType,
-            deviceId = deviceId,
             contentState = contentState.toJsonSafePayload()
         )
     }

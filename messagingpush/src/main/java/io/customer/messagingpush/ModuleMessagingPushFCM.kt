@@ -68,7 +68,7 @@ class ModuleMessagingPushFCM @JvmOverloads constructor(
      * registers the instance with Customer.io so the backend can push updates.
      *
      * The notification renders regardless of identity, but its lifecycle events
-     * (start/update/end) are only reported to Customer.io for an **identified
+     * (start/end) are only reported to Customer.io for an **identified
      * user** — call `identify` first if you need the backend to track this
      * activity and push updates/remote end (matches iOS Live Activities).
      *
@@ -111,8 +111,8 @@ class ModuleMessagingPushFCM @JvmOverloads constructor(
 
     /**
      * Updates a live notification previously started via [startLiveNotification]
-     * for a built-in template type: re-renders it in place and reports an
-     * `update` event to Customer.io.
+     * for a built-in template type: re-renders it in place. The update is
+     * intentionally not reported to Customer.io — only start/end emit CDP events.
      *
      * @param activityId the id returned by [startLiveNotification].
      */

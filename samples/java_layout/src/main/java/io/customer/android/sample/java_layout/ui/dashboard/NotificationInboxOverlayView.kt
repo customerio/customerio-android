@@ -1,9 +1,25 @@
 package io.customer.android.sample.java_layout.ui.dashboard
 
 import androidx.compose.ui.platform.ComposeView
+import androidx.compose.ui.text.font.Font
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
+import io.customer.android.sample.java_layout.R
 import io.customer.android.sample.java_layout.ui.inline.compose.ComposeTheme
 import io.customer.base.internal.InternalCustomerIOApi
 import io.customer.messaginginbox.NotificationInboxOverlay
+
+// Host-supplied custom fonts for the Visual Inbox. Keys must match the workspace theme's `fontFamily`
+// tokens; Jist resolves a theme font ONLY from this map (falls back to the system font otherwise).
+private val jistCustomFonts: Map<String, FontFamily> = mapOf(
+    "Abril Fatface" to FontFamily(Font(R.font.abril_fatface, FontWeight.Normal)),
+    "DM Sans" to FontFamily(
+        Font(R.font.dm_sans_regular, FontWeight.Normal),
+        Font(R.font.dm_sans_medium, FontWeight.Medium),
+        Font(R.font.dm_sans_semibold, FontWeight.SemiBold),
+        Font(R.font.dm_sans_bold, FontWeight.Bold)
+    )
+)
 
 /**
  * Helper for the Java-based dashboard to mount the Compose-based [NotificationInboxOverlay]
@@ -26,7 +42,7 @@ object NotificationInboxOverlayView {
     fun mount(composeView: ComposeView) {
         composeView.setContent {
             ComposeTheme {
-                NotificationInboxOverlay()
+                NotificationInboxOverlay(fonts = jistCustomFonts)
             }
         }
     }

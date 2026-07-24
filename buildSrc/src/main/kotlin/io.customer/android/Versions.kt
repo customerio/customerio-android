@@ -11,7 +11,7 @@ object Versions {
     internal const val ANDROID_GRADLE_PLUGIN = "8.9.3"
 
     // Jist rendering engine — published Maven Central artifact (io.customer.android:jist).
-    internal const val JIST = "0.1.0-alpha03"
+    internal const val JIST = "0.1.0"
     internal const val ANDROIDX_TEST_JUNIT = "1.3.0"
     internal const val ANDROIDX_TEST_RUNNER = "1.7.0"
     internal const val ANDROIDX_TEST_RULES = "1.7.0"

@@ -20,6 +20,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.Font
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import io.customer.android.sample.kotlin_compose.R
@@ -37,6 +40,18 @@ import io.customer.base.internal.InternalCustomerIOApi
 import io.customer.messaginginbox.NotificationInboxOverlay
 import io.customer.sdk.CustomerIO
 import kotlinx.coroutines.launch
+
+// Host-supplied custom fonts for the Visual Inbox. Keys must match the workspace theme's `fontFamily`
+// tokens; Jist resolves a theme font ONLY from this map (falls back to the system font otherwise).
+private val jistCustomFonts: Map<String, FontFamily> = mapOf(
+    "Abril Fatface" to FontFamily(Font(R.font.abril_fatface, FontWeight.Normal)),
+    "DM Sans" to FontFamily(
+        Font(R.font.dm_sans_regular, FontWeight.Normal),
+        Font(R.font.dm_sans_medium, FontWeight.Medium),
+        Font(R.font.dm_sans_semibold, FontWeight.SemiBold),
+        Font(R.font.dm_sans_bold, FontWeight.Bold)
+    )
+)
 
 @Composable
 fun DashboardRoute(
@@ -113,7 +128,7 @@ fun DashboardScreen(
         // configured corner) that opens the Jist-rendered message list in a bottom sheet. The bell
         // appears only when the data layer reports the inbox visible (enabled + a renderable
         // message). Mounted last so it overlays the dashboard content.
-        NotificationInboxOverlay()
+        NotificationInboxOverlay(fonts = jistCustomFonts)
     }
 }
 

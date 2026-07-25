@@ -22,11 +22,14 @@ class GeofenceLifecycleObserverTest {
     private val mockRegionStore: GeofenceRegionStore = mockk(relaxed = true)
     private val mockLogger: GeofenceLogger = mockk(relaxed = true)
 
+    private var foregroundHookRuns = 0
+
     private val observer = GeofenceLifecycleObserver(
         deliveryFlusher = mockDeliveryFlusher,
         eventBus = mockEventBus,
         regionStore = mockRegionStore,
-        logger = mockLogger
+        logger = mockLogger,
+        onForeground = { foregroundHookRuns++ }
     )
 
     @Test
@@ -38,6 +41,14 @@ class GeofenceLifecycleObserverTest {
         verify(exactly = 2) {
             mockDeliveryFlusher.flush(any(), PendingDeliveryFlusher.DeliveryGuarantee.AT_LEAST_ONCE, any())
         }
+    }
+
+    @Test
+    fun onStart_expectForegroundHookRunOncePerEntry() {
+        observer.onStart(owner)
+        observer.onStart(owner)
+
+        foregroundHookRuns shouldBeEqualTo 2
     }
 
     @Test

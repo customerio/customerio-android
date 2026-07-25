@@ -61,6 +61,18 @@ internal interface GeofenceServices {
      * launch.
      */
     fun onLocationAcquired(latitude: Double, longitude: Double)
+
+    /**
+     * Retries a sync still waiting on a location fix. Same freshness handling as [onAppLaunch];
+     * separate reason so device logs tell the two apart.
+     */
+    fun onForegroundRetry(latitude: Double?, longitude: Double?)
+
+    /**
+     * Whether a trigger is waiting on a location fix — a no-location skip or an [onRefreshRequested]
+     * that never received one. Peeks only; [onLocationAcquired] still owns clearing the flags.
+     */
+    fun isAwaitingLocation(): Boolean
 }
 
 internal class GeofenceServicesImpl(
@@ -124,6 +136,18 @@ internal class GeofenceServicesImpl(
         onUserIdentified(latitude, longitude)
     }
 
+    override fun onForegroundRetry(latitude: Double?, longitude: Double?) {
+        triggerSync(
+            reason = REASON_FOREGROUND_RETRY,
+            latitude = latitude,
+            longitude = longitude,
+            action = repository::refresh
+        )
+    }
+
+    override fun isAwaitingLocation(): Boolean =
+        lastSkippedForNoLocation.get() || explicitRefreshRequested.get()
+
     override fun onUserSignedOut() {
         // Drop any pending refresh intent so a previous user's request can't drive a
         // sync for the next user — sign-out wipes user-scoped session state.
@@ -174,5 +198,6 @@ internal class GeofenceServicesImpl(
         const val REASON_MOVEMENT_EXIT = "movement-trigger-exit"
         const val REASON_USER_IDENTIFIED = "user-identified"
         const val REASON_APP_LAUNCH = "app-launch"
+        const val REASON_FOREGROUND_RETRY = "foreground-retry"
     }
 }

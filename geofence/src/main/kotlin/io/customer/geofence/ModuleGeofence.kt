@@ -168,7 +168,8 @@ class ModuleGeofence @JvmOverloads constructor(
                     deliveryFlusher = sdkAndroid.geofenceDeliveryFlusher,
                     eventBus = eventBus,
                     regionStore = sdkAndroid.geofenceRegionStore,
-                    logger = logger
+                    logger = logger,
+                    onForeground = { retrySyncAwaitingLocation(sdkAndroid, locationModule) }
                 )
             )
 
@@ -195,6 +196,30 @@ class ModuleGeofence @JvmOverloads constructor(
                     // the launch read completes rather than leaking its Job.
                     launchScope.cancel()
                 }
+            }
+        }
+    }
+
+    /**
+     * A silent fix that never arrives — cancelled when the app backgrounds mid-fetch, timed out,
+     * location services off — leaves the sync armed with nothing to consume it, and nothing else
+     * re-requests one until the next cold launch. Foreground entry is the next chance.
+     */
+    private fun retrySyncAwaitingLocation(sdkAndroid: AndroidSDKComponent, locationModule: ModuleLocation) {
+        // Cheap atomic reads, so the healthy case never reaches the anchor read below.
+        if (!sdkAndroid.geofenceServices.isAwaitingLocation()) return
+        // Anchor read hits SharedPreferences plus a Keystore decrypt; onStart is the main thread.
+        val retryScope = SDKComponent.scopeProvider.geofenceScope
+        retryScope.launch {
+            try {
+                val anchor = refreshAnchor(sdkAndroid, locationModule)
+                sdkAndroid.geofenceServices.onForegroundRetry(
+                    latitude = anchor?.latitude,
+                    longitude = anchor?.longitude
+                )
+                autoAcquireIfNeeded(locationModule, anchor)
+            } finally {
+                retryScope.cancel()
             }
         }
     }

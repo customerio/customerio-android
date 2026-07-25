@@ -73,6 +73,13 @@ internal interface GeofenceServices {
      * that never received one. Peeks only; [onLocationAcquired] still owns clearing the flags.
      */
     fun isAwaitingLocation(): Boolean
+
+    /**
+     * Whether a host refresh ([onRefreshRequested]) is still waiting on its fix. It asked for a
+     * live location, so the foreground retry must re-request one instead of settling for the
+     * anchor — otherwise the flag stays armed and retries forever. Peeks only.
+     */
+    fun isHostRefreshPending(): Boolean
 }
 
 internal class GeofenceServicesImpl(
@@ -147,6 +154,8 @@ internal class GeofenceServicesImpl(
 
     override fun isAwaitingLocation(): Boolean =
         lastSkippedForNoLocation.get() || explicitRefreshRequested.get()
+
+    override fun isHostRefreshPending(): Boolean = explicitRefreshRequested.get()
 
     override fun onUserSignedOut() {
         // Drop any pending refresh intent so a previous user's request can't drive a

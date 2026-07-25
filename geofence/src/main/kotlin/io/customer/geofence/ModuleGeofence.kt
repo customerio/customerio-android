@@ -217,7 +217,13 @@ class ModuleGeofence @JvmOverloads constructor(
                     latitude = anchor?.latitude,
                     longitude = anchor?.longitude
                 )
-                autoAcquireIfNeeded(locationModule, anchor)
+                if (sdkAndroid.geofenceServices.isHostRefreshPending()) {
+                    // The host asked for a live fix — an anchor can't satisfy it. Re-request like
+                    // refreshFromCurrentLocation does (mode-independent); the fix consumes the flag.
+                    locationModule.locationServices.requestLocationUpdateSilently()
+                } else {
+                    autoAcquireIfNeeded(locationModule, anchor)
+                }
             } finally {
                 retryScope.cancel()
             }

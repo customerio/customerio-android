@@ -357,6 +357,34 @@ class GeofenceServicesTest : RobolectricTest() {
     }
 
     @Test
+    fun isHostRefreshPending_givenRequestThenFix_expectArmedThenConsumed() = runTest(StandardTestDispatcher()) {
+        every { secureUserStore.getUserId() } returns "user-1"
+        coEvery { repository.refresh(any(), any()) } returns Result.success(Unit)
+        val services = servicesWith(this)
+
+        services.onRefreshRequested()
+        services.isHostRefreshPending() shouldBeEqualTo true
+
+        // Only the live fix satisfies a host refresh — the foreground retry keeps
+        // re-requesting one until this consumes the flag.
+        services.onLocationAcquired(latitude = 12.0, longitude = 34.0)
+        advanceUntilIdle()
+
+        services.isHostRefreshPending() shouldBeEqualTo false
+    }
+
+    @Test
+    fun isHostRefreshPending_givenOnlyNoLocationSkip_expectFalse() = runTest(StandardTestDispatcher()) {
+        val services = servicesWith(this)
+
+        services.onUserIdentified(latitude = null, longitude = null)
+        advanceUntilIdle()
+
+        // A no-location skip retries via the anchor/auto-acquire path, not a forced re-request.
+        services.isHostRefreshPending() shouldBeEqualTo false
+    }
+
+    @Test
     fun onUserSignedOut_expectRepositoryResetInvoked() = runTest(StandardTestDispatcher()) {
         // Sign-out delegates the wipe decision to repository.reset(); the services layer
         // just drops the anchor synchronously and kicks reset off the scope.

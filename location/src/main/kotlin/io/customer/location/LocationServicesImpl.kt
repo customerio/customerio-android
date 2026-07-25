@@ -1,6 +1,7 @@
 package io.customer.location
 
 import android.location.Location
+import io.customer.base.internal.InternalCustomerIOApi
 import io.customer.sdk.core.util.Logger
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -22,13 +23,16 @@ internal class LocationServicesImpl(
     @Volatile
     private var currentLocationJob: Job? = null
 
+    @Volatile
+    private var currentRequestIntent: LocationRequestIntent? = null
+
     override fun setLastKnownLocation(latitude: Double, longitude: Double) {
         if (!config.isEnabled) {
             logger.debug("Location tracking is disabled, ignoring setLastKnownLocation.")
             return
         }
 
-        if (!isValidCoordinate(latitude, longitude)) {
+        if (!LocationCoordinates.isValid(latitude, longitude)) {
             logger.error("Invalid coordinates: lat=$latitude, lng=$longitude. Latitude must be [-90, 90] and longitude [-180, 180].")
             return
         }
@@ -43,12 +47,29 @@ internal class LocationServicesImpl(
     }
 
     override fun requestLocationUpdate() {
-        // If a request is already in flight, ignore the new call
-        if (currentLocationJob?.isActive == true) return
+        launchLocationRequest(tracked = true)
+    }
 
+    @OptIn(InternalCustomerIOApi::class)
+    override fun requestLocationUpdateSilently() {
+        launchLocationRequest(tracked = false)
+    }
+
+    private fun launchLocationRequest(tracked: Boolean) {
+        if (currentLocationJob?.isActive == true) {
+            if (!tracked) return
+            // Tracked intent must survive the gate (ON_APP_START and the geofence bootstrap
+            // race for this slot on first identify) — upgrade the in-flight request instead. If it
+            // can no longer deliver, fall through to a fresh fetch: a duplicate fix is dropped by
+            // the sync filter, a lost one isn't recoverable.
+            if (currentRequestIntent?.upgradeToTracked() == true) return
+        }
+
+        val intent = LocationRequestIntent(tracked)
+        currentRequestIntent = intent
         currentLocationJob = scope.launch {
             try {
-                orchestrator.requestLocationUpdate()
+                orchestrator.requestLocation(intent)
             } finally {
                 // Only clear if this is still the current job — prevents
                 // a cancelled job's finally from nulling a newer job's reference
@@ -58,6 +79,9 @@ internal class LocationServicesImpl(
             }
         }
     }
+
+    @OptIn(InternalCustomerIOApi::class)
+    override fun getLastKnownLocation(): LocationCoordinates? = locationTracker.lastKnownLocation
 
     /**
      * Cancels any in-flight location request.
@@ -70,17 +94,5 @@ internal class LocationServicesImpl(
         currentLocationJob = null
         job.cancel()
         return true
-    }
-
-    companion object {
-        /**
-         * Validates that latitude is within [-90, 90] and longitude is within [-180, 180].
-         * Also rejects NaN and Infinity values.
-         */
-        internal fun isValidCoordinate(latitude: Double, longitude: Double): Boolean {
-            if (latitude.isNaN() || latitude.isInfinite()) return false
-            if (longitude.isNaN() || longitude.isInfinite()) return false
-            return latitude in -90.0..90.0 && longitude in -180.0..180.0
-        }
     }
 }

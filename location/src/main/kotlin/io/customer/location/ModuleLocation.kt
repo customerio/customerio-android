@@ -2,6 +2,7 @@ package io.customer.location
 
 import android.location.Location
 import androidx.lifecycle.ProcessLifecycleOwner
+import io.customer.base.internal.InternalCustomerIOApi
 import io.customer.location.provider.FusedLocationProvider
 import io.customer.location.store.LocationPreferenceStoreImpl
 import io.customer.location.sync.LocationSyncFilter
@@ -78,7 +79,7 @@ class ModuleLocation @JvmOverloads constructor(
         val locationSyncFilter = LocationSyncFilter(
             LocationSyncStoreImpl(context, logger)
         )
-        val locationTracker = LocationTracker(dataPipeline, store, locationSyncFilter, logger)
+        val locationTracker = LocationTracker(dataPipeline, store, locationSyncFilter, eventBus, logger)
 
         val locationProvider = FusedLocationProvider(context)
         val orchestrator = LocationOrchestrator(
@@ -96,8 +97,15 @@ class ModuleLocation @JvmOverloads constructor(
             scope = locationScope
         )
 
-        // When OFF, skip all background machinery — no restoration, no enrichment,
-        // no event subscriptions. LocationServicesImpl has its own isEnabled guards
+        // Register as IdentifyHook regardless of tracking mode. Its resetContext() clears the
+        // in-memory location on sign-out (analytics.reset) — needed even when tracking is OFF,
+        // because silent geofence fixes still populate lastKnownLocation and it must not leak to
+        // the next user. When OFF, getIdentifyContext() stays empty (trackedLocation is never set),
+        // so nothing is enriched. When enabled, it also carries location into the identify context.
+        SDKComponent.identifyHookRegistry.register(locationTracker)
+
+        // When OFF, skip the rest of the background machinery — no restoration, no track
+        // subscription, no lifecycle observer. LocationServicesImpl has its own isEnabled guards
         // for the public API, so callers get silent no-ops with helpful log messages.
         if (!moduleConfig.isEnabled) return
 
@@ -105,18 +113,21 @@ class ModuleLocation @JvmOverloads constructor(
 
         locationTracker.restorePersistedLocation()
 
-        // Register as IdentifyHook so location is added to identify event context
-        // and cleared synchronously during analytics.reset(). This ensures every
-        // identify() call carries the device's current location in the event context —
-        // the primary way location reaches a user's profile.
-        SDKComponent.identifyHookRegistry.register(locationTracker)
-
         // On identify, attempt to send a supplementary "CIO Location Update" track event.
         // The identify event itself already carries location via context enrichment —
         // this track event is for journey/segment triggers in the user's timeline.
         eventBus.subscribe<Event.UserChangedEvent> {
             if (!it.userId.isNullOrEmpty()) {
                 locationTracker.onUserIdentified()
+
+                // ON_APP_START's lifecycle one-shot fires per process, but resetContext()
+                // wipes trackedLocation on logout — a subsequent identify in the same process
+                // needs a fresh fetch. MANUAL deliberately doesn't auto-fetch.
+                if (locationTracker.trackedLocation == null &&
+                    moduleConfig.trackingMode == LocationTrackingMode.ON_APP_START
+                ) {
+                    services.requestLocationUpdate()
+                }
             }
         }
 
@@ -128,7 +139,10 @@ class ModuleLocation @JvmOverloads constructor(
         val mainThreadPoster: MainThreadPoster = HandlerMainThreadPoster()
         mainThreadPoster.post {
             ProcessLifecycleOwner.get().lifecycle.addObserver(
-                LocationLifecycleObserver(services, moduleConfig.trackingMode)
+                LocationLifecycleObserver(
+                    locationServices = services,
+                    trackingMode = moduleConfig.trackingMode
+                )
             )
         }
     }
@@ -167,4 +181,13 @@ private class UninitializedLocationServices(
     override fun setLastKnownLocation(location: Location) = logNotInitialized()
 
     override fun requestLocationUpdate() = logNotInitialized()
+
+    @OptIn(InternalCustomerIOApi::class)
+    override fun requestLocationUpdateSilently() = logNotInitialized()
+
+    @OptIn(InternalCustomerIOApi::class)
+    override fun getLastKnownLocation(): LocationCoordinates? {
+        logNotInitialized()
+        return null
+    }
 }

@@ -1,0 +1,47 @@
+public final class io/customer/geofence/GeofenceBootReceiver : android/content/BroadcastReceiver {
+	public fun <init> ()V
+	public fun onReceive (Landroid/content/Context;Landroid/content/Intent;)V
+}
+
+public final class io/customer/geofence/GeofenceBroadcastReceiver : android/content/BroadcastReceiver {
+	public fun <init> ()V
+	public fun onReceive (Landroid/content/Context;Landroid/content/Intent;)V
+}
+
+public final class io/customer/geofence/GeofenceLocationMode : java/lang/Enum {
+	public static final field AUTOMATIC Lio/customer/geofence/GeofenceLocationMode;
+	public static final field MANUAL Lio/customer/geofence/GeofenceLocationMode;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lio/customer/geofence/GeofenceLocationMode;
+	public static fun values ()[Lio/customer/geofence/GeofenceLocationMode;
+}
+
+public final class io/customer/geofence/GeofenceModuleConfig : io/customer/sdk/core/module/CustomerIOModuleConfig {
+	public synthetic fun <init> (Lio/customer/geofence/GeofenceLocationMode;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun getLocationMode ()Lio/customer/geofence/GeofenceLocationMode;
+}
+
+public final class io/customer/geofence/GeofenceModuleConfig$Builder : io/customer/sdk/core/module/CustomerIOModuleConfig$Builder {
+	public fun <init> ()V
+	public fun build ()Lio/customer/geofence/GeofenceModuleConfig;
+	public synthetic fun build ()Lio/customer/sdk/core/module/CustomerIOModuleConfig;
+	public final fun setLocationMode (Lio/customer/geofence/GeofenceLocationMode;)Lio/customer/geofence/GeofenceModuleConfig$Builder;
+}
+
+public final class io/customer/geofence/ModuleGeofence : io/customer/sdk/core/module/CustomerIOModule {
+	public static final field Companion Lio/customer/geofence/ModuleGeofence$Companion;
+	public fun <init> ()V
+	public fun <init> (Lio/customer/geofence/GeofenceModuleConfig;)V
+	public synthetic fun <init> (Lio/customer/geofence/GeofenceModuleConfig;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun getModuleConfig ()Lio/customer/geofence/GeofenceModuleConfig;
+	public synthetic fun getModuleConfig ()Lio/customer/sdk/core/module/CustomerIOModuleConfig;
+	public fun getModuleName ()Ljava/lang/String;
+	public fun initialize ()V
+	public static final fun instance ()Lio/customer/geofence/ModuleGeofence;
+	public final fun refreshFromCurrentLocation ()V
+}
+
+public final class io/customer/geofence/ModuleGeofence$Companion {
+	public final fun instance ()Lio/customer/geofence/ModuleGeofence;
+}
+

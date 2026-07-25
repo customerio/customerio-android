@@ -26,6 +26,51 @@
             android:orientation="vertical"
             android:padding="20dp">
 
+        <!-- BACKGROUND LOCATION (geofence permission setup) -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="@drawable/section_background"
+            android:orientation="vertical"
+            android:padding="16dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/bg_perm_section_title"
+                android:textColor="?android:attr/textColorSecondary"
+                android:textSize="14sp"
+                android:textStyle="bold" />
+
+            <Button
+                android:id="@+id/grant_background_location"
+                style="?attr/materialButtonStyle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:text="@string/bg_perm_button_not_determined" />
+
+            <TextView
+                android:id="@+id/grant_background_status_label"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:text="@string/bg_perm_status_not_determined"
+                android:textColor="?android:attr/textColorTertiary"
+                android:textSize="12sp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:text="@string/background_location_description"
+                android:textColor="?android:attr/textColorTertiary"
+                android:textSize="12sp" />
+        </LinearLayout>
+
+        <!-- OR separator -->
+        <include layout="@layout/or_separator" />
+
         <!-- OPTION 1: QUICK PRESETS -->
         <LinearLayout
             android:layout_width="match_parent"

@@ -10,7 +10,8 @@ class ScopeProviderStub private constructor(
     override val eventBusScope: TestScope,
     override val lifecycleListenerScope: TestScope,
     override val inAppLifecycleScope: TestScope,
-    override val locationScope: TestScope
+    override val locationScope: TestScope,
+    override val geofenceScope: TestScope
 ) : ScopeProvider {
 
     @Suppress("FunctionName")
@@ -20,14 +21,16 @@ class ScopeProviderStub private constructor(
             eventBusScope = TestScope(UnconfinedTestDispatcher()),
             lifecycleListenerScope = TestScope(UnconfinedTestDispatcher()),
             inAppLifecycleScope = TestScope(UnconfinedTestDispatcher()),
-            locationScope = TestScope(UnconfinedTestDispatcher())
+            locationScope = TestScope(UnconfinedTestDispatcher()),
+            geofenceScope = TestScope(UnconfinedTestDispatcher())
         )
 
         fun Standard(): ScopeProviderStub = ScopeProviderStub(
             eventBusScope = TestScope(StandardTestDispatcher()),
             lifecycleListenerScope = TestScope(StandardTestDispatcher()),
             inAppLifecycleScope = TestScope(StandardTestDispatcher()),
-            locationScope = TestScope(StandardTestDispatcher())
+            locationScope = TestScope(StandardTestDispatcher()),
+            geofenceScope = TestScope(StandardTestDispatcher())
         )
     }
 }

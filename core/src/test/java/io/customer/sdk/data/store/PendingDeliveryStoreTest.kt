@@ -65,6 +65,69 @@ class PendingDeliveryStoreTest : RobolectricTest() {
     }
 
     @Test
+    fun get_givenExistingKey_expectMatchingEntry() {
+        val store = newStore()
+        val target = entry("target")
+        store.appendAll(listOf(entry("other"), target))
+
+        store.get(target.key) shouldBeEqualTo target
+    }
+
+    @Test
+    fun get_givenAbsentKey_expectNull() {
+        val store = newStore()
+        store.append(entry("other"))
+
+        store.get("missing") shouldBeEqualTo null
+    }
+
+    @Test
+    fun appendAll_givenMultipleEntries_expectAllPersistedAfterExisting() {
+        val store = newStore()
+        store.append(entry("a"))
+
+        store.appendAll(listOf(entry("b"), entry("c")))
+
+        store.loadAll().map { it.id } shouldBeEqualTo listOf("a", "b", "c")
+    }
+
+    @Test
+    fun appendAll_givenWriteSucceeds_expectTrue() {
+        val store = newStore()
+
+        store.appendAll(listOf(entry("a"))) shouldBeEqualTo true
+    }
+
+    @Test
+    fun appendAll_givenWriteFails_expectFalse() {
+        val store = newStore()
+        // Force the write to fail by turning the backing file path into a directory.
+        storeFile().delete()
+        storeFile().mkdirs()
+
+        store.appendAll(listOf(entry("a"))) shouldBeEqualTo false
+    }
+
+    @Test
+    fun appendAll_givenEmpty_expectNoChange() {
+        val store = newStore()
+        store.append(entry("a"))
+
+        store.appendAll(emptyList())
+
+        store.loadAll().map { it.id } shouldBeEqualTo listOf("a")
+    }
+
+    @Test
+    fun appendAll_givenOverCapacity_expectOldestEvicted() {
+        val store = newStore(maxEntries = 2)
+
+        store.appendAll(listOf(entry("a"), entry("b"), entry("c")))
+
+        store.loadAll().map { it.id } shouldBeEqualTo listOf("b", "c")
+    }
+
+    @Test
     fun remove_givenExistingKey_expectEntryRemoved() {
         val store = newStore()
         val keep = entry("keep")
@@ -111,6 +174,24 @@ class PendingDeliveryStoreTest : RobolectricTest() {
 
         store.claim(target.key) shouldBeEqualTo true
         store.claim(target.key) shouldBeEqualTo false
+    }
+
+    @Test
+    fun claim_givenRemovingWriteFails_expectFalseAndEntryPreserved() {
+        val store = newStore()
+        val target = entry("target")
+        store.append(target)
+        // Entry is readable, but the atomic write can't stage its temp file while the store's
+        // directory is read-only, so the claim must fail and leave the row for the other channel.
+        val dir = contextMock.applicationContext.filesDir
+        dir.setReadOnly()
+        try {
+            store.claim(target.key) shouldBeEqualTo false
+        } finally {
+            dir.setWritable(true)
+        }
+
+        store.loadAll() shouldBeEqualTo listOf(target)
     }
 
     @Test

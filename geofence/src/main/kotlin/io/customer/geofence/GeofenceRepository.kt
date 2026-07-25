@@ -197,7 +197,14 @@ internal class GeofenceRepositoryImpl(
             // Initial-enter synthesis stays on here (unlike refresh): containment is judged against
             // the OS's live triggering fix, so a reboot/app-update wipe can't make it stale.
             return if (needsRemoteFetch) {
-                performRemoteRefresh(userId, latitude, longitude)
+                val remote = performRemoteRefresh(userId, latitude, longitude)
+                if (remote.isFailure) {
+                    // The trigger already fired, and a failed pass never re-centres it — leaving it
+                    // where the device just exited, so nothing can fire again. Re-rank to re-arm it.
+                    logger.logMovementRearmedAfterFailedRefresh()
+                    performLocalRefresh(userId, latitude, longitude, config)
+                }
+                remote
             } else {
                 performLocalRefresh(userId, latitude, longitude, config)
             }

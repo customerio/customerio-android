@@ -230,6 +230,32 @@ class GeofenceRepositoryTest : RobolectricTest() {
     }
 
     @Test
+    fun handleMovement_givenRemoteFetchFails_expectMovementTriggerRearmedAtCurrentFix() = runTest {
+        // A failed pass leaves the trigger where the device already exited, so nothing fires again.
+        val error = IOException("network down")
+        every { secureUserStore.getUserId() } returns "user-42"
+        every { store.getLastApiFetchLocation() } returns GeofenceLocation(0.0, 0.0)
+        every { store.getCachedConfig() } returns sampleConfig()
+        every { store.getCachedRegions() } returns emptyList()
+        every { store.getRegisteredIds() } returns emptySet()
+        every { distanceFilter.nearest(any(), any(), any(), any(), any()) } returns emptyList()
+        coEvery { apiService.fetchGeofences(any()) } returns Result.failure(error)
+        coEvery { manager.replaceGeofences(any(), any()) } returns Result.success(Unit)
+
+        val result = repository.handleMovement(latitude = 1.0, longitude = 0.0)
+
+        result.isFailure shouldBeEqualTo true
+        result.exceptionOrNull() shouldBeEqualTo error
+        coVerify { manager.replaceGeofences(any(), any()) }
+        verify { store.saveLastMovementTriggerLocation(GeofenceLocation(1.0, 0.0)) }
+        verify { logger.logMovementRearmedAfterFailedRefresh() }
+        // Anchor and freshness stay untouched, so the next EXIT still fetches remotely rather than
+        // treating the re-rank as a successful sync.
+        verify(exactly = 0) { store.saveLastApiFetchLocation(any()) }
+        verify(exactly = 0) { store.setLastSyncTimestamp(any()) }
+    }
+
+    @Test
     fun handleMovement_givenMovedWithinFetchRadius_expectLocalReRankNoFetch() = runTest {
         val cached = listOf(GeofenceRegion("biz-1", 0.0, 0.0, 100f))
         every { secureUserStore.getUserId() } returns "user-42"

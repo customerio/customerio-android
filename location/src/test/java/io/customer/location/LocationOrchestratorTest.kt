@@ -7,11 +7,14 @@ import io.customer.location.type.LocationSnapshot
 import io.customer.sdk.core.util.Logger
 import io.mockk.coEvery
 import io.mockk.coVerify
+import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
 import java.util.Date
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.runTest
+import org.amshove.kluent.shouldBeEqualTo
+import org.amshove.kluent.shouldBeFalse
 import org.junit.jupiter.api.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -75,6 +78,34 @@ class LocationOrchestratorTest {
 
         coVerify(exactly = 0) { provider.requestLocation(any()) }
         verify(exactly = 0) { tracker.onLocationReceivedWithoutTracking(any(), any()) }
+    }
+
+    @Test
+    fun requestLocation_givenUpgradeRacesTheHandoff_expectRejected() = runTest {
+        // Upgrading at the moment the fix is handed off must fail, or the tracked caller is dropped
+        // while its fix goes out silently. Observed from inside the delivery callback.
+        givenAuthorizedFix()
+        val intent = LocationRequestIntent(tracked = false)
+        var upgradeAccepted: Boolean? = null
+        every { tracker.onLocationReceivedWithoutTracking(any(), any()) } answers {
+            upgradeAccepted = intent.upgradeToTracked()
+        }
+
+        orchestrator(LocationTrackingMode.MANUAL).requestLocation(intent)
+
+        upgradeAccepted shouldBeEqualTo false
+    }
+
+    @Test
+    fun requestLocation_givenRequestEndedWithoutDelivering_expectIntentClosed() = runTest {
+        // A closed intent is what tells a later tracked caller to fetch its own fix instead of
+        // waiting on a request that can no longer deliver.
+        coEvery { provider.currentAuthorizationStatus() } returns AuthorizationStatus.DENIED
+        val intent = LocationRequestIntent(tracked = false)
+
+        orchestrator(LocationTrackingMode.MANUAL).requestLocation(intent)
+
+        intent.upgradeToTracked().shouldBeFalse()
     }
 
     @Test

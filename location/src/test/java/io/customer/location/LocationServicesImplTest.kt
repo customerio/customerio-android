@@ -12,6 +12,7 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import org.amshove.kluent.shouldBeEqualTo
 import org.amshove.kluent.shouldBeFalse
 import org.amshove.kluent.shouldBeTrue
 import org.junit.jupiter.api.Test
@@ -113,6 +114,37 @@ class LocationServicesImplTest {
         // or starting a second fetch.
         intentSlot.captured.isTracked.shouldBeTrue()
         coVerify(exactly = 1) { orchestrator.requestLocation(any()) }
+        gate.complete(Unit)
+    }
+
+    @Test
+    fun requestLocationUpdate_givenInFlightRequestAlreadyDelivered_expectFreshFetch() {
+        // The in-flight request has handed its fix off but its job is still alive, so upgrading
+        // would be swallowed — the tracked caller needs its own fetch.
+        val config = LocationModuleConfig.Builder()
+            .setLocationTrackingMode(LocationTrackingMode.ON_APP_START)
+            .build()
+        val tracker: LocationTracker = mockk(relaxUnitFun = true)
+        val orchestrator: LocationOrchestrator = mockk(relaxUnitFun = true)
+        val logger = mockk<io.customer.sdk.core.util.Logger>(relaxUnitFun = true)
+        val scope = TestScope(UnconfinedTestDispatcher())
+        val gate = CompletableDeferred<Unit>()
+        val intents = mutableListOf<LocationRequestIntent>()
+        val routedTracked = mutableListOf<Boolean>()
+        coEvery { orchestrator.requestLocation(capture(intents)) } coAnswers {
+            // Deliver, then keep the job alive so the second call still sees it as in flight.
+            routedTracked += intents.last().claimTrackedDelivery()
+            gate.await()
+        }
+
+        val services = LocationServicesImpl(config, logger, tracker, orchestrator, scope)
+        services.requestLocationUpdateSilently()
+
+        services.requestLocationUpdate()
+
+        // The second fetch is the one that routes tracked.
+        coVerify(exactly = 2) { orchestrator.requestLocation(any()) }
+        routedTracked shouldBeEqualTo listOf(false, true)
         gate.complete(Unit)
     }
 

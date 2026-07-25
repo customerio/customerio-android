@@ -59,11 +59,10 @@ internal class LocationServicesImpl(
         if (currentLocationJob?.isActive == true) {
             if (!tracked) return
             // Tracked intent must survive the gate (ON_APP_START and the geofence bootstrap
-            // race for this slot on first identify) — upgrade the in-flight request instead.
-            currentRequestIntent?.upgradeToTracked()
-            // If the request finished before the upgrade applied, fall through to a fresh
-            // one — a duplicate fix is deduped by the sync filter; a lost one isn't recoverable.
-            if (currentLocationJob?.isActive == true) return
+            // race for this slot on first identify) — upgrade the in-flight request instead. If it
+            // can no longer deliver, fall through to a fresh fetch: a duplicate fix is dropped by
+            // the sync filter, a lost one isn't recoverable.
+            if (currentRequestIntent?.upgradeToTracked() == true) return
         }
 
         val intent = LocationRequestIntent(tracked)

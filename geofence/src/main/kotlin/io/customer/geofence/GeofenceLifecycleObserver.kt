@@ -11,7 +11,8 @@ import io.customer.sdk.data.store.PendingDeliveryFlusher
 /**
  * Registered with `ProcessLifecycleOwner` at geofence-module init. On every foreground
  * entry it flushes pending OS-delivered transitions through the analytics pipeline,
- * independent of the location tracking mode (so MANUAL still delivers).
+ * independent of the location tracking mode (so MANUAL still delivers), then runs
+ * [onForeground] — the retry hook for a sync still waiting on a location fix.
  *
  * The shared [PendingDeliveryFlusher] runs [PendingDeliveryFlusher.DeliveryGuarantee.AT_LEAST_ONCE]:
  * publish, remove, then best-effort cancel the WorkManager delivery. The worker
@@ -25,11 +26,13 @@ internal class GeofenceLifecycleObserver(
     private val deliveryFlusher: PendingDeliveryFlusher<PendingGeofenceDelivery>,
     private val eventBus: EventBus,
     private val regionStore: GeofenceRegionStore,
-    private val logger: GeofenceLogger
+    private val logger: GeofenceLogger,
+    private val onForeground: () -> Unit
 ) : DefaultLifecycleObserver {
 
     override fun onStart(owner: LifecycleOwner) {
         flushPendingGeofenceDeliveries()
+        onForeground()
     }
 
     private fun flushPendingGeofenceDeliveries() {

@@ -263,6 +263,128 @@ class GeofenceServicesTest : RobolectricTest() {
     }
 
     @Test
+    fun onForegroundRetry_expectRefreshUnderItsOwnReason() = runTest(StandardTestDispatcher()) {
+        coEvery { repository.refresh(any(), any()) } returns Result.success(Unit)
+        val services = servicesWith(this)
+
+        services.onForegroundRetry(latitude = 1.0, longitude = 2.0)
+        advanceUntilIdle()
+
+        coVerify { repository.refresh(1.0, 2.0) }
+        verify { logger.logSyncTriggered("foreground-retry") }
+    }
+
+    @Test
+    fun onForegroundRetry_givenStillNoLocation_expectStaysArmed() = runTest(StandardTestDispatcher()) {
+        every { secureUserStore.getUserId() } returns "user-1"
+        coEvery { repository.refresh(any(), any()) } returns Result.success(Unit)
+        val services = servicesWith(this)
+
+        // A retry that still has no anchor must leave the flag up, or the fix it kicks off
+        // arrives with nothing armed to consume it.
+        services.onUserIdentified(latitude = null, longitude = null)
+        services.onForegroundRetry(latitude = null, longitude = null)
+        advanceUntilIdle()
+        services.isAwaitingLocation() shouldBeEqualTo true
+
+        services.onLocationAcquired(latitude = 12.0, longitude = 34.0)
+        advanceUntilIdle()
+
+        coVerify { repository.refresh(12.0, 34.0) }
+    }
+
+    @Test
+    fun isAwaitingLocation_givenNoLocationSkip_expectTrue() = runTest(StandardTestDispatcher()) {
+        val services = servicesWith(this)
+
+        services.onUserIdentified(latitude = null, longitude = null)
+        advanceUntilIdle()
+
+        services.isAwaitingLocation() shouldBeEqualTo true
+    }
+
+    @Test
+    fun isAwaitingLocation_givenExplicitRefreshRequested_expectTrue() = runTest(StandardTestDispatcher()) {
+        val services = servicesWith(this)
+
+        services.onRefreshRequested()
+
+        services.isAwaitingLocation() shouldBeEqualTo true
+    }
+
+    @Test
+    fun isAwaitingLocation_givenSuccessfulTrigger_expectFalse() = runTest(StandardTestDispatcher()) {
+        coEvery { repository.refresh(any(), any()) } returns Result.success(Unit)
+        val services = servicesWith(this)
+
+        services.onUserIdentified(latitude = 1.0, longitude = 2.0)
+        advanceUntilIdle()
+
+        services.isAwaitingLocation() shouldBeEqualTo false
+    }
+
+    @Test
+    fun isAwaitingLocation_expectPeekLeavesFlagForTheReturningFix() = runTest(StandardTestDispatcher()) {
+        every { secureUserStore.getUserId() } returns "user-1"
+        coEvery { repository.refresh(any(), any()) } returns Result.success(Unit)
+        val services = servicesWith(this)
+
+        services.onUserIdentified(latitude = null, longitude = null)
+        advanceUntilIdle()
+        // Repeated foreground entries peek; only the arriving fix may consume the flag.
+        services.isAwaitingLocation() shouldBeEqualTo true
+        services.isAwaitingLocation() shouldBeEqualTo true
+
+        services.onLocationAcquired(latitude = 12.0, longitude = 34.0)
+        advanceUntilIdle()
+
+        coVerify { repository.refresh(12.0, 34.0) }
+        services.isAwaitingLocation() shouldBeEqualTo false
+    }
+
+    @Test
+    fun isAwaitingLocation_afterSignOut_expectFalse() = runTest(StandardTestDispatcher()) {
+        coEvery { repository.reset() } returns Result.success(Unit)
+        val services = servicesWith(this)
+
+        services.onUserIdentified(latitude = null, longitude = null)
+        advanceUntilIdle()
+        services.onUserSignedOut()
+        advanceUntilIdle()
+
+        // Otherwise the next user's first foreground entry would retry the previous user's skip.
+        services.isAwaitingLocation() shouldBeEqualTo false
+    }
+
+    @Test
+    fun isHostRefreshPending_givenRequestThenFix_expectArmedThenConsumed() = runTest(StandardTestDispatcher()) {
+        every { secureUserStore.getUserId() } returns "user-1"
+        coEvery { repository.refresh(any(), any()) } returns Result.success(Unit)
+        val services = servicesWith(this)
+
+        services.onRefreshRequested()
+        services.isHostRefreshPending() shouldBeEqualTo true
+
+        // Only the live fix satisfies a host refresh — the foreground retry keeps
+        // re-requesting one until this consumes the flag.
+        services.onLocationAcquired(latitude = 12.0, longitude = 34.0)
+        advanceUntilIdle()
+
+        services.isHostRefreshPending() shouldBeEqualTo false
+    }
+
+    @Test
+    fun isHostRefreshPending_givenOnlyNoLocationSkip_expectFalse() = runTest(StandardTestDispatcher()) {
+        val services = servicesWith(this)
+
+        services.onUserIdentified(latitude = null, longitude = null)
+        advanceUntilIdle()
+
+        // A no-location skip retries via the anchor/auto-acquire path, not a forced re-request.
+        services.isHostRefreshPending() shouldBeEqualTo false
+    }
+
+    @Test
     fun onUserSignedOut_expectRepositoryResetInvoked() = runTest(StandardTestDispatcher()) {
         // Sign-out delegates the wipe decision to repository.reset(); the services layer
         // just drops the anchor synchronously and kicks reset off the scope.

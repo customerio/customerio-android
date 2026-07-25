@@ -212,18 +212,22 @@ class ModuleGeofence @JvmOverloads constructor(
         val retryScope = SDKComponent.scopeProvider.geofenceScope
         retryScope.launch {
             try {
+                if (sdkAndroid.geofenceServices.isHostRefreshPending()) {
+                    // The host asked for a live fix — an anchor can't satisfy it, so don't sync
+                    // from one. Re-request like refreshFromCurrentLocation does (mode-independent);
+                    // the arriving fix consumes the flag and drives the sync.
+                    locationModule.locationServices.requestLocationUpdateSilently()
+                    return@launch
+                }
                 val anchor = refreshAnchor(sdkAndroid, locationModule)
+                // Re-check after the anchor read: a fix that landed meanwhile has already consumed
+                // the flags and synced — retrying now would re-center on the pre-fix anchor.
+                if (!sdkAndroid.geofenceServices.isAwaitingLocation()) return@launch
                 sdkAndroid.geofenceServices.onForegroundRetry(
                     latitude = anchor?.latitude,
                     longitude = anchor?.longitude
                 )
-                if (sdkAndroid.geofenceServices.isHostRefreshPending()) {
-                    // The host asked for a live fix — an anchor can't satisfy it. Re-request like
-                    // refreshFromCurrentLocation does (mode-independent); the fix consumes the flag.
-                    locationModule.locationServices.requestLocationUpdateSilently()
-                } else {
-                    autoAcquireIfNeeded(locationModule, anchor)
-                }
+                autoAcquireIfNeeded(locationModule, anchor)
             } finally {
                 retryScope.cancel()
             }

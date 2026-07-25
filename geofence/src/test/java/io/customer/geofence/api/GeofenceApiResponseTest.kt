@@ -119,7 +119,7 @@ class GeofenceApiResponseTest : RobolectricTest() {
         mockkStatic("io.customer.geofence.api.GeofenceApiResponseKt")
         try {
             every { any<GeofenceApiRegion>().toDomain() } answers {
-                val region = invocation.self as GeofenceApiRegion
+                val region = firstArg<GeofenceApiRegion>()
                 if (region.id == "1") throw IllegalStateException("metadata defect") else callOriginal()
             }
 

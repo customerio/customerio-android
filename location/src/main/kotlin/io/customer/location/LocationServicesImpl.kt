@@ -23,6 +23,9 @@ internal class LocationServicesImpl(
     @Volatile
     private var currentLocationJob: Job? = null
 
+    @Volatile
+    private var currentRequestIntent: LocationRequestIntent? = null
+
     override fun setLastKnownLocation(latitude: Double, longitude: Double) {
         if (!config.isEnabled) {
             logger.debug("Location tracking is disabled, ignoring setLastKnownLocation.")
@@ -44,21 +47,29 @@ internal class LocationServicesImpl(
     }
 
     override fun requestLocationUpdate() {
-        launchLocationRequest(orchestrator::requestLocationUpdate)
+        launchLocationRequest(tracked = true)
     }
 
     @OptIn(InternalCustomerIOApi::class)
     override fun requestLocationUpdateSilently() {
-        launchLocationRequest(orchestrator::requestLocationUpdateSilently)
+        launchLocationRequest(tracked = false)
     }
 
-    private fun launchLocationRequest(request: suspend () -> Unit) {
-        // If a request is already in flight, ignore the new call
-        if (currentLocationJob?.isActive == true) return
+    private fun launchLocationRequest(tracked: Boolean) {
+        if (currentLocationJob?.isActive == true) {
+            if (!tracked) return
+            // Tracked intent must survive the gate (ON_APP_START and the geofence bootstrap
+            // race for this slot on first identify) — upgrade the in-flight request instead. If it
+            // can no longer deliver, fall through to a fresh fetch: a duplicate fix is dropped by
+            // the sync filter, a lost one isn't recoverable.
+            if (currentRequestIntent?.upgradeToTracked() == true) return
+        }
 
+        val intent = LocationRequestIntent(tracked)
+        currentRequestIntent = intent
         currentLocationJob = scope.launch {
             try {
-                request()
+                orchestrator.requestLocation(intent)
             } finally {
                 // Only clear if this is still the current job — prevents
                 // a cancelled job's finally from nulling a newer job's reference

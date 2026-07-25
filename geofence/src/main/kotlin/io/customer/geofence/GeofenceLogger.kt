@@ -112,6 +112,10 @@ internal class GeofenceLogger(private val logger: Logger) {
         logger.error("Geofence sync failed: $message", tag = TAG)
     }
 
+    fun logMovementRearmedAfterFailedRefresh() {
+        logger.debug("Movement refresh failed; re-ranking from cache to re-arm the movement trigger", tag = TAG)
+    }
+
     fun logSyncSucceeded(count: Int, movementTriggerRegistered: Boolean) {
         val trigger = if (movementTriggerRegistered) {
             " + 1 movement trigger"

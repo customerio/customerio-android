@@ -28,7 +28,20 @@ internal class LiveNotificationRegistrar(
     private val enabledTypes: Set<String>
         get() = SDKComponent.pushModuleConfig.liveNotificationTypes
 
+    // This registrar is a DI singleton and its subscriptions are never torn down, so a repeat
+    // initialize() would otherwise stack a second set of handlers on every event and register
+    // (or re-register) each type once per call.
+    @Volatile
+    private var started: Boolean = false
+
+    @Synchronized
     fun start() {
+        if (started) {
+            SDKComponent.logger.debug("Live Notifications: registrar already started; ignoring.")
+            return
+        }
+        started = true
+
         val clearedByMigration = store.migrate()
         if (clearedByMigration > 0) {
             SDKComponent.logger.debug(

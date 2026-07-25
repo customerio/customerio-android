@@ -3,7 +3,14 @@
 
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.INTERNET" />
-    <uses-permission android:name="android.permission.POST_PROMOTED_NOTIFICATIONS" />
+
+    <!--
+    NOTE: android.permission.POST_PROMOTED_NOTIFICATIONS is intentionally NOT declared here.
+    Live notifications are opt-in, so the SDK does not add a promoted-notification permission
+    to every app that merely depends on this module. Apps that enable live notifications and
+    want the promoted "live update" treatment on Android 16+ declare it themselves; without it
+    the SDK posts standard ongoing notifications instead (see Api36LiveNotificationBuilder).
+    -->
 
     <application>
         <!-- Transparent activity for push interactions 

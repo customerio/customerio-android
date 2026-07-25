@@ -15,7 +15,6 @@ import io.customer.messagingpush.activity.NotificationClickReceiverActivity
 import io.customer.messagingpush.data.model.CustomerIOParsedPushPayload
 import io.customer.messagingpush.di.liveNotificationStore
 import io.customer.messagingpush.di.pushModuleConfig
-import io.customer.messagingpush.livenotification.LiveNotificationBranding
 import io.customer.messagingpush.livenotification.LiveNotificationDismissReceiver
 import io.customer.messagingpush.livenotification.template.TemplateAssets
 import io.customer.messagingpush.livenotification.template.TemplateRegistry
@@ -140,10 +139,15 @@ internal class LiveNotificationHandler(
             }
         }
 
-        // Advance the high-water mark on BOTH paths: a local render must also bump it
+        // Advances the high-water mark on BOTH paths: a local render must also bump it
         // so a later delayed remote push at an intermediate timestamp can't overwrite
         // newer local content.
-        if (timestamp != null) {
+        //
+        // Deliberately invoked only once this render is committed (past the supersede
+        // check below), not up-front: a local render invalidated by a logout must not
+        // write any state back into the store that reset just cleared.
+        fun advanceHighWaterMark() {
+            if (timestamp == null) return
             val lastSeen = store.lastTimestamp(activityId)
             if (lastSeen == null || timestamp > lastSeen) {
                 store.setLastTimestamp(activityId, timestamp)
@@ -153,7 +157,8 @@ internal class LiveNotificationHandler(
         val template = TemplateRegistry.find(activityType)
         val data = extractData(bundle)
         val branding = SDKComponent.pushModuleConfig.liveNotificationBranding
-        val effectiveSmallIcon = resolveSmallIcon(branding, smallIcon)
+        // Branding overrides the status-bar icon for live notifications only.
+        val effectiveSmallIcon = branding?.smallIcon ?: smallIcon
 
         val result = template?.render(
             context = context,
@@ -174,6 +179,7 @@ internal class LiveNotificationHandler(
         val notifId = notificationId(activityId)
 
         if (result?.cancelImmediately == true) {
+            advanceHighWaterMark()
             notificationManager.cancel(activityId, notifId)
             return
         }
@@ -194,7 +200,7 @@ internal class LiveNotificationHandler(
         val deletePendingIntent = if (isEnd) null else createDeleteIntent(context, notifId, activityId, activityType)
 
         // The host app may fully render the notification; otherwise fall back to the SDK template.
-        val appNotification = SDKComponent.pushModuleConfig.notificationCallback
+        val appNotification = SDKComponent.pushModuleConfig.liveNotificationCallback
             ?.createLiveNotification(parsedPayload, context)
         val notification = appNotification ?: result?.let {
             buildSdkNotification(context, channelId, effectiveSmallIcon, it, pendingIntent, deletePendingIntent, ongoing = !isEnd)
@@ -202,13 +208,16 @@ internal class LiveNotificationHandler(
 
         // A logout/reset may have landed while the branding logo downloaded or the app
         // renderer ran above. If so, drop this render: don't post the notification and don't
-        // write the activity type back into the store that reset just cleared.
+        // write the activity type or the high-water mark back into the store that reset
+        // just cleared.
         if (isSuperseded()) {
             SDKComponent.logger.debug(
                 "Live notification render for '$activityId' was superseded by a reset; dropping."
             )
             return
         }
+
+        advanceHighWaterMark()
 
         when {
             notification != null -> {
@@ -348,14 +357,6 @@ internal class LiveNotificationHandler(
         } catch (e: JSONException) {
             raw
         }
-    }
-
-    @DrawableRes
-    private fun resolveSmallIcon(
-        branding: LiveNotificationBranding?,
-        fallback: Int
-    ): Int {
-        return branding?.smallIcon ?: fallback
     }
 
     private fun createIntentForNotificationClick(

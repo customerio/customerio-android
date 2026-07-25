@@ -14,7 +14,7 @@ import android.text.style.ForegroundColorSpan
 import android.widget.RemoteViews
 import androidx.core.app.NotificationCompat
 import io.customer.android.sample.java_layout.R
-import io.customer.messagingpush.data.communication.CustomerIOPushNotificationCallback
+import io.customer.messagingpush.data.communication.CustomerIOLiveNotificationsCallback
 import io.customer.messagingpush.data.model.CustomerIOParsedPushPayload
 
 /**
@@ -24,7 +24,7 @@ import io.customer.messagingpush.data.model.CustomerIOParsedPushPayload
  * and [ACTIVITY_TYPE_WORKOUT] via the standard NotificationCompat builder — and
  * `null` for built-in types so the SDK renders those itself.
  */
-class LiveNotificationCallback : CustomerIOPushNotificationCallback {
+class LiveNotificationCallback : CustomerIOLiveNotificationsCallback {
 
     override fun createLiveNotification(
         payload: CustomerIOParsedPushPayload,

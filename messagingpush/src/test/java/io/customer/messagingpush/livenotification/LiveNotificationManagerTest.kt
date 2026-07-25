@@ -1,8 +1,16 @@
 package io.customer.messagingpush.livenotification
 
+import android.app.Notification
+import android.app.NotificationManager
+import android.content.Context
 import io.customer.commontest.config.TestConfig
 import io.customer.commontest.config.testConfigurationDefault
+import io.customer.commontest.extensions.attachToSDKComponent
 import io.customer.commontest.util.DispatchersProviderStub
+import io.customer.messagingpush.MessagingPushModuleConfig
+import io.customer.messagingpush.ModuleMessagingPushFCM
+import io.customer.messagingpush.data.communication.CustomerIOLiveNotificationsCallback
+import io.customer.messagingpush.data.model.CustomerIOParsedPushPayload
 import io.customer.messagingpush.di.liveNotificationStore
 import io.customer.messagingpush.testutils.core.IntegrationTest
 import io.customer.sdk.core.di.SDKComponent
@@ -17,9 +25,11 @@ import kotlinx.coroutines.test.advanceUntilIdle
 import org.amshove.kluent.shouldBeEmpty
 import org.amshove.kluent.shouldBeEqualTo
 import org.amshove.kluent.shouldBeTrue
+import org.amshove.kluent.shouldNotBeEmpty
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.Shadows
 
 /**
  * Tests for [LiveNotificationManager], the on-device (client-initiated) path.
@@ -209,5 +219,63 @@ internal class LiveNotificationManagerTest : IntegrationTest() {
 
         // The queued render saw the bumped generation and dropped, so nothing was re-added.
         SDKComponent.liveNotificationStore.trackedActivityIds().shouldBeEmpty()
+    }
+
+    @Test
+    fun start_givenThrowingAppRenderer_doesNotCrashAndStillReports() {
+        // The render runs on an SDK-owned coroutine scope with no exception handler, so an
+        // app-supplied renderer that throws would otherwise take the host process down from a
+        // thread the app cannot guard. The failure must be contained to this render.
+        saveToken()
+        ModuleMessagingPushFCM(
+            MessagingPushModuleConfig.Builder()
+                .enableLiveNotificationTypes(LiveNotificationType.SEGMENTS)
+                .setLiveNotificationCallback(
+                    object : CustomerIOLiveNotificationsCallback {
+                        override fun createLiveNotification(
+                            payload: CustomerIOParsedPushPayload,
+                            context: Context
+                        ): Notification = throw IllegalStateException("app renderer blew up")
+                    }
+                )
+                .build()
+        ).attachToSDKComponent()
+
+        // Would propagate out of the render coroutine and crash the process before the fix.
+        manager.start("act-throw", type, attributes = emptyMap(), contentState = mapOf("status" to "Preparing"))
+
+        // Reporting is decoupled from rendering, so the lifecycle event is still emitted.
+        verify { lifecycleClient.reportStart("act-throw", type, "fcm-tok", any(), any()) }
+    }
+
+    @Test
+    fun update_givenThrowingAppRenderer_laterRendersStillRun() {
+        // The render chain must survive a failed render: a subsequent update still posts.
+        saveToken()
+        var shouldThrow = true
+        val notificationManager = SDKComponent.android().applicationContext
+            .getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        ModuleMessagingPushFCM(
+            MessagingPushModuleConfig.Builder()
+                .enableLiveNotificationTypes(LiveNotificationType.SEGMENTS)
+                .setLiveNotificationCallback(
+                    object : CustomerIOLiveNotificationsCallback {
+                        override fun createLiveNotification(
+                            payload: CustomerIOParsedPushPayload,
+                            context: Context
+                        ): Notification? {
+                            if (shouldThrow) throw IllegalStateException("app renderer blew up")
+                            return null // fall back to the SDK template
+                        }
+                    }
+                )
+                .build()
+        ).attachToSDKComponent()
+
+        manager.start("act-chain", type, attributes = emptyMap(), contentState = mapOf("status" to "Preparing"))
+        shouldThrow = false
+        manager.update("act-chain", type, attributes = emptyMap(), contentState = mapOf("status" to "Arriving"))
+
+        Shadows.shadowOf(notificationManager).allNotifications.shouldNotBeEmpty()
     }
 }

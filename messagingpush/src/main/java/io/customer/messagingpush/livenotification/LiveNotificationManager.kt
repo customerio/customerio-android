@@ -13,7 +13,7 @@ import io.customer.messagingpush.util.NotificationChannelCreator
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.extensions.applicationMetaData
 import io.customer.sdk.core.util.DispatchersProvider
-import java.util.concurrent.ConcurrentHashMap
+import java.util.Collections
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
@@ -37,7 +37,18 @@ internal class LiveNotificationManager(
     // Last bundle rendered per activity id, so end() can re-render the final
     // state as a dismissible notification and resolve the activity type even if
     // the initial render never posted.
-    private val lastBundles = ConcurrentHashMap<String, Bundle>()
+    //
+    // Bounded: entries are only removed by end() or logout, so an app that starts
+    // activities it never ends would otherwise grow this for the process lifetime.
+    // Evicting the least-recently-written id degrades gracefully — end() falls back
+    // to the persisted activity type and cancels instead of re-rendering a terminal
+    // state (the same path taken after process death).
+    private val lastBundles: MutableMap<String, Bundle> = Collections.synchronizedMap(
+        object : LinkedHashMap<String, Bundle>(MAX_CACHED_BUNDLES, 0.75f, false) {
+            override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Bundle>): Boolean =
+                size > MAX_CACHED_BUNDLES
+        }
+    )
 
     private val renderScope: CoroutineScope by lazy {
         CoroutineScope(SupervisorJob() + dispatchers.background)
@@ -210,7 +221,20 @@ internal class LiveNotificationManager(
             // may invoke a slow app renderer. A logout can land during that window — after
             // this pre-check passed — so the handler re-checks the generation immediately
             // before it posts the notification and writes the activity type back.
-            renderLocally(bundle, isSuperseded = { generation != renderGeneration })
+            //
+            // Contained here because this coroutine runs on an SDK-owned scope with no
+            // exception handler: an app-supplied CustomerIOLiveNotificationsCallback that
+            // throws, or a NotificationManager rejection (e.g. oversized RemoteViews), would
+            // otherwise surface as an uncaught exception and take the host process down from
+            // a thread the app cannot guard. Drop the render and keep the chain alive instead.
+            runCatching {
+                renderLocally(bundle, isSuperseded = { generation != renderGeneration })
+            }.onFailure { cause ->
+                SDKComponent.logger.error(
+                    "Failed to render live notification " +
+                        "'${bundle.getString(LiveNotificationHandler.CIO_INSTANCE_ID_KEY)}': ${cause.message}"
+                )
+            }
         }
     }
 
@@ -284,6 +308,9 @@ internal class LiveNotificationManager(
     }
 
     companion object {
+        // Generous relative to any realistic number of concurrently-live activities on one
+        // device, while still bounding the cache for an app that never calls end().
+        private const val MAX_CACHED_BUNDLES = 50
         private const val EVENT_START = "start"
         private const val EVENT_UPDATE = "update"
         private const val EVENT_END = "end"

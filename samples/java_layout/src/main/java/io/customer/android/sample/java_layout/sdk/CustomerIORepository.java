@@ -36,8 +36,15 @@ public class CustomerIORepository {
     /**
      * The push module instance, retained so the live-notification demo screen can call
      * {@link ModuleMessagingPushFCM#startLiveNotification} (the public local-start API).
+     * Reached through {@link io.customer.android.sample.java_layout.di.ApplicationGraph},
+     * which already owns this repository — no static state needed.
      */
-    public static ModuleMessagingPushFCM messagingPushModule;
+    private ModuleMessagingPushFCM messagingPushModule;
+
+    @NonNull
+    public ModuleMessagingPushFCM getMessagingPushModule() {
+        return messagingPushModule;
+    }
 
     public void initializeSdk(SampleApplication application) {
         ApplicationGraph appGraph = application.getApplicationGraph();
@@ -63,7 +70,7 @@ public class CustomerIORepository {
                                 new LiveNotificationAsset.Drawable(R.drawable.ic_live_delivery_scooter) // typed logo
                         ))
                         // App-rendered custom types go through this callback.
-                        .setNotificationCallback(new LiveNotificationCallback())
+                        .setLiveNotificationCallback(new LiveNotificationCallback())
                         // Live notifications are opt-in: enable the built-in template types...
                         .enableLiveNotificationTypes(
                                 LiveNotificationType.SEGMENTS,

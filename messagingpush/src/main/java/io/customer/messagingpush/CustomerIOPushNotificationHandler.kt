@@ -137,13 +137,9 @@ internal class CustomerIOPushNotificationHandler(
         val notificationManager =
             context.getSystemService(FirebaseMessagingService.NOTIFICATION_SERVICE) as NotificationManager
 
-        val channelId = notificationChannelCreator.createNotificationChannelIfNeededAndReturnChannelId(
-            context = context,
-            applicationName = applicationName,
-            appMetaData = appMetaData,
-            notificationManager = notificationManager
-        )
-
+        // Branch before creating the standard channel: live notifications use their own
+        // channel, so registering the standard one here would add a channel the user sees
+        // in app settings but that nothing ever posts to.
         val activityId = bundle.getString(LiveNotificationHandler.CIO_INSTANCE_ID_KEY)
         if (activityId != null) {
             val liveChannelId = notificationChannelCreator.createLiveNotificationChannelIfNeededAndReturnChannelId(
@@ -164,6 +160,13 @@ internal class CustomerIOPushNotificationHandler(
             )
             return
         }
+
+        val channelId = notificationChannelCreator.createNotificationChannelIfNeededAndReturnChannelId(
+            context = context,
+            applicationName = applicationName,
+            appMetaData = appMetaData,
+            notificationManager = notificationManager
+        )
 
         val requestCode = abs(System.currentTimeMillis().toInt())
         bundle.putInt(NOTIFICATION_REQUEST_CODE, requestCode)

@@ -1,6 +1,7 @@
 package io.customer.messagingpush.livenotification
 
 import android.content.BroadcastReceiver
+import android.content.BroadcastReceiver.PendingResult
 import android.content.Context
 import android.content.Intent
 import io.customer.messagingpush.di.liveNotificationLifecycleClient
@@ -42,7 +43,9 @@ class LiveNotificationDismissReceiver : BroadcastReceiver() {
         }
         // Keep the process alive past onReceive() so the async CDP pipeline can
         // persist the end event before the receiver's process is torn down.
-        val pendingResult = goAsync()
+        // Only available while the framework is dispatching the broadcast — null when
+        // onReceive is invoked directly, in which case there is nothing to finish.
+        val pendingResult: PendingResult? = goAsync()
         CoroutineScope(SDKComponent.dispatchersProvider.background).launch {
             try {
                 SDKComponent.liveNotificationLifecycleClient.reportEnd(
@@ -51,7 +54,7 @@ class LiveNotificationDismissReceiver : BroadcastReceiver() {
                     deviceId = deviceId
                 )
             } finally {
-                pendingResult.finish()
+                pendingResult?.finish()
             }
         }
     }

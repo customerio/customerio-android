@@ -2,6 +2,7 @@ package io.customer.messagingpush
 
 import io.customer.messagingpush.config.PushClickBehavior
 import io.customer.messagingpush.config.PushClickBehavior.ACTIVITY_PREVENT_RESTART
+import io.customer.messagingpush.data.communication.CustomerIOLiveNotificationsCallback
 import io.customer.messagingpush.data.communication.CustomerIOPushNotificationCallback
 import io.customer.messagingpush.livenotification.LiveNotificationBranding
 import io.customer.messagingpush.livenotification.LiveNotificationType
@@ -18,13 +19,16 @@ import io.customer.sdk.core.module.CustomerIOModuleConfig
  * live notifications. `null` means templates fall back to FCM metadata values.
  * @property liveNotificationTypes activity type identifiers (built-in + custom)
  * the host app enabled.
+ * @property liveNotificationCallback lets the host app render live notifications
+ * itself. `null` means the SDK renders its built-in templates.
  */
 class MessagingPushModuleConfig private constructor(
     val autoTrackPushEvents: Boolean,
     val notificationCallback: CustomerIOPushNotificationCallback?,
     val pushClickBehavior: PushClickBehavior,
     val liveNotificationBranding: LiveNotificationBranding?,
-    val liveNotificationTypes: Set<String>
+    val liveNotificationTypes: Set<String>,
+    val liveNotificationCallback: CustomerIOLiveNotificationsCallback?
 ) : CustomerIOModuleConfig {
     class Builder : CustomerIOModuleConfig.Builder<MessagingPushModuleConfig> {
         private var autoTrackPushEvents: Boolean = true
@@ -32,6 +36,7 @@ class MessagingPushModuleConfig private constructor(
         private var pushClickBehavior: PushClickBehavior = ACTIVITY_PREVENT_RESTART
         private var liveNotificationBranding: LiveNotificationBranding? = null
         private val liveNotificationTypes: MutableSet<String> = mutableSetOf()
+        private var liveNotificationCallback: CustomerIOLiveNotificationsCallback? = null
 
         /**
          * Allows to enable/disable automatic tracking of push events. Auto tracking will generate
@@ -82,6 +87,12 @@ class MessagingPushModuleConfig private constructor(
          * enabled or the feature is a no-op. Repeatable and additive with
          * [enableCustomLiveNotificationTypes].
          *
+         * For the promoted "live update" treatment on Android 16+ (a notification
+         * pinned to the status bar / lock screen), the host app must declare
+         * `android.permission.POST_PROMOTED_NOTIFICATIONS` in its manifest — the
+         * SDK deliberately does not declare it on the app's behalf. Without it,
+         * live notifications still post as standard ongoing notifications.
+         *
          * @param types built-in activity types to enable.
          */
         fun enableLiveNotificationTypes(vararg types: LiveNotificationType): Builder {
@@ -92,8 +103,8 @@ class MessagingPushModuleConfig private constructor(
         /**
          * Enables live notifications for customer-defined [types] (reverse-DNS
          * identifier strings). Custom types have no built-in template, so a
-         * [CustomerIOPushNotificationCallback.createLiveNotification] must render
-         * them.
+         * [CustomerIOLiveNotificationsCallback] set via
+         * [setLiveNotificationCallback] must render them.
          *
          * Repeatable and additive with [enableLiveNotificationTypes].
          *
@@ -104,19 +115,32 @@ class MessagingPushModuleConfig private constructor(
             return this
         }
 
+        /**
+         * Lets the host app render live notifications itself instead of using the
+         * SDK's built-in templates. Required for custom activity types enabled via
+         * [enableCustomLiveNotificationTypes], which have no built-in template.
+         *
+         * @param liveNotificationCallback renderer invoked for every live notification.
+         */
+        fun setLiveNotificationCallback(liveNotificationCallback: CustomerIOLiveNotificationsCallback): Builder {
+            this.liveNotificationCallback = liveNotificationCallback
+            return this
+        }
+
         override fun build(): MessagingPushModuleConfig {
             return MessagingPushModuleConfig(
                 autoTrackPushEvents = autoTrackPushEvents,
                 notificationCallback = notificationCallback,
                 pushClickBehavior = pushClickBehavior,
                 liveNotificationBranding = liveNotificationBranding,
-                liveNotificationTypes = liveNotificationTypes.toSet()
+                liveNotificationTypes = liveNotificationTypes.toSet(),
+                liveNotificationCallback = liveNotificationCallback
             )
         }
     }
 
     override fun toString(): String {
-        return "MessagingPushModuleConfig(autoTrackPushEvents=$autoTrackPushEvents, notificationCallback=$notificationCallback, pushClickBehavior=$pushClickBehavior, liveNotificationBranding=$liveNotificationBranding, liveNotificationTypes=$liveNotificationTypes)"
+        return "MessagingPushModuleConfig(autoTrackPushEvents=$autoTrackPushEvents, notificationCallback=$notificationCallback, pushClickBehavior=$pushClickBehavior, liveNotificationBranding=$liveNotificationBranding, liveNotificationTypes=$liveNotificationTypes, liveNotificationCallback=$liveNotificationCallback)"
     }
 
     companion object {

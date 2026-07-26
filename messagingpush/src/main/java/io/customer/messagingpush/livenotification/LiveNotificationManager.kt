@@ -13,7 +13,7 @@ import io.customer.messagingpush.util.NotificationChannelCreator
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.extensions.applicationMetaData
 import io.customer.sdk.core.util.DispatchersProvider
-import java.util.Collections
+import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
@@ -38,17 +38,13 @@ internal class LiveNotificationManager(
     // state as a dismissible notification and resolve the activity type even if
     // the initial render never posted.
     //
-    // Bounded: entries are only removed by end() or logout, so an app that starts
-    // activities it never ends would otherwise grow this for the process lifetime.
-    // Evicting the least-recently-written id degrades gracefully — end() falls back
-    // to the persisted activity type and cancels instead of re-rendering a terminal
-    // state (the same path taken after process death).
-    private val lastBundles: MutableMap<String, Bundle> = Collections.synchronizedMap(
-        object : LinkedHashMap<String, Bundle>(MAX_CACHED_BUNDLES, 0.75f, false) {
-            override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Bundle>): Boolean =
-                size > MAX_CACHED_BUNDLES
-        }
-    )
+    // Entries are dropped by end() and by logout, but not by a remote end or a user
+    // swipe, so an activity finished either of those ways keeps its bundle until the
+    // next logout or process death. That is a few hundred bytes per activity against
+    // a count bounded by how many live notifications one app start actually shows, so
+    // it is left unbounded rather than adding eviction that could discard the terminal
+    // state a later end() wants to render.
+    private val lastBundles = ConcurrentHashMap<String, Bundle>()
 
     private val renderScope: CoroutineScope by lazy {
         CoroutineScope(SupervisorJob() + dispatchers.background)
@@ -259,8 +255,9 @@ internal class LiveNotificationManager(
 
         LiveNotificationHandler(bundle).handle(
             context = ctx,
-            deliveryId = "",
-            deliveryToken = "",
+            // Locally started: no Customer.io delivery to attribute metrics to.
+            deliveryId = null,
+            deliveryToken = null,
             smallIcon = smallIcon,
             tintColor = tintColor,
             channelId = channelId,
@@ -308,9 +305,6 @@ internal class LiveNotificationManager(
     }
 
     companion object {
-        // Generous relative to any realistic number of concurrently-live activities on one
-        // device, while still bounding the cache for an app that never calls end().
-        private const val MAX_CACHED_BUNDLES = 50
         private const val EVENT_START = "start"
         private const val EVENT_UPDATE = "update"
         private const val EVENT_END = "end"

@@ -60,8 +60,12 @@ internal class LiveNotificationHandler(
 
     fun handle(
         context: Context,
-        deliveryId: String,
-        deliveryToken: String,
+        // Null for locally-started activities: they were never delivered by Customer.io, so
+        // there is nothing to attribute a delivery metric to. The public
+        // [CustomerIOParsedPushPayload] types these as non-null, so they are flattened to ""
+        // when the payload is built below, and the click path skips metric reporting on blank.
+        deliveryId: String?,
+        deliveryToken: String?,
         @DrawableRes smallIcon: Int,
         @ColorInt tintColor: Int?,
         channelId: String,
@@ -188,8 +192,8 @@ internal class LiveNotificationHandler(
         val parsedPayload = CustomerIOParsedPushPayload(
             extras = Bundle(bundle),
             deepLink = result?.deepLink ?: bundle.getString(CustomerIOPushNotificationHandler.DEEP_LINK_KEY),
-            cioDeliveryId = deliveryId,
-            cioDeliveryToken = deliveryToken,
+            cioDeliveryId = deliveryId.orEmpty(),
+            cioDeliveryToken = deliveryToken.orEmpty(),
             title = result?.title ?: bundle.getString(CustomerIOPushNotificationHandler.TITLE_KEY).orEmpty(),
             body = result?.body ?: bundle.getString(CustomerIOPushNotificationHandler.BODY_KEY).orEmpty(),
             activityId = activityId

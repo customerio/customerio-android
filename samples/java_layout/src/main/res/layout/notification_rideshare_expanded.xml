@@ -2,7 +2,7 @@
 <!-- Custom RemoteViews layout for the app-rendered "rideshare" live notification
      (expanded): header (avatar, name + rating, ETA pill), status, 4-stop tracker
      and progress bar. Driven via
-     CustomerIOPushNotificationCallback.createLiveNotification. -->
+     CustomerIOLiveNotificationsCallback.createLiveNotification. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"

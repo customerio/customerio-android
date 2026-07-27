@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Custom RemoteViews layout for the app-rendered "rideshare" live notification
      (collapsed). Kept compact to fit the system's short collapsed content height.
-     Driven via CustomerIOPushNotificationCallback.createLiveNotification. -->
+     Driven via CustomerIOLiveNotificationsCallback.createLiveNotification. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"

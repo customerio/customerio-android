@@ -12,6 +12,7 @@ import io.customer.messaginginapp.store.InAppPreferenceStore
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.util.Logger
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicReference
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
@@ -56,6 +57,9 @@ internal class InboxRepository(
     private val logger: Logger = SDKComponent.logger
 ) {
     private val gson = Gson()
+
+    /** Last raw branding payload and its parsed form; see [persistedBranding]. */
+    private val parsedBranding = AtomicReference<Pair<String, Branding>?>(null)
 
     /** Full URL key for the persisted templates response (matches the gist interceptor key). */
     private val templatesUrl: String
@@ -358,12 +362,22 @@ internal class InboxRepository(
     /** Reads the last persisted templates response from the HTTP-cache-backed store. */
     private fun persistedTemplatesJson(): String? = preferenceStore.getNetworkResponse(templatesUrl)
 
-    /** Reads + parses the last persisted branding response from the HTTP-cache-backed store. */
+    /**
+     * Reads + parses the last persisted branding response from the HTTP-cache-backed store.
+     *
+     * The parse result is memoized against the raw payload: this is read several times per store
+     * change (visibility, snapshot, chrome) and the payload changes at most once per session.
+     */
     private fun persistedBranding(): Branding? {
         val raw = preferenceStore.getNetworkResponse(brandingUrl) ?: return null
-        return runCatching {
+        parsedBranding.get()?.let { (cachedRaw, cachedBranding) ->
+            if (cachedRaw == raw) return cachedBranding
+        }
+        val parsed = runCatching {
             parseBrandingJson(gson.fromJson(raw, JsonObject::class.java), gson)
-        }.getOrNull()
+        }.getOrNull() ?: return null
+        parsedBranding.set(raw to parsed)
+        return parsed
     }
 
     /**

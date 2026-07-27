@@ -269,8 +269,6 @@ internal class Queue : GistQueue {
         }
     }
 
-    // Reads the X-CIO-Inbox-Enabled response header and updates the visual-inbox
-    // enablement gate in state. state holds the live value the UI observes.
     private fun updateInboxFlag(headers: Headers) {
         val inboxHeaderValue = headers[HEADER_INBOX_ENABLED]
         val wasEnabled = state.isInboxEnabled

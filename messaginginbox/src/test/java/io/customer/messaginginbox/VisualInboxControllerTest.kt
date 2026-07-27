@@ -58,9 +58,18 @@ class VisualInboxControllerTest {
      * [kotlinx.coroutines.Dispatchers.IO]. uiStateFlow() applies `flowOn(loadDispatcher)`; pointing
      * it at a [StandardTestDispatcher] backed by this test's scheduler keeps the load/snapshot work
      * on virtual time, so `runCurrent()` deterministically drains it (production still uses IO).
+     *
+     * The sharing scope is `backgroundScope` for the same reason: uiStateFlow() is shared via
+     * `shareIn`, and leaving it on the SDK's real lifecycle scope would run the upstream off virtual
+     * time. It has to be `backgroundScope` rather than the test scope itself so the sharing
+     * coroutine is cancelled when the test body ends instead of keeping `runTest` waiting on it.
      */
     private fun TestScope.controllerOnTestDispatcher(visualInbox: VisualInbox): VisualInboxController =
-        VisualInboxController(visualInbox, loadDispatcher = StandardTestDispatcher(testScheduler))
+        VisualInboxController(
+            visualInbox,
+            loadDispatcher = StandardTestDispatcher(testScheduler),
+            sharingScope = backgroundScope
+        )
 
     private fun visible(messages: List<InboxMessage>): InboxVisibility.Visible =
         InboxVisibility.Visible(

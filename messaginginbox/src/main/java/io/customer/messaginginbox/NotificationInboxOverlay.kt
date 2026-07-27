@@ -148,6 +148,7 @@ fun NotificationInboxView(
         .collectAsStateWithLifecycle(initialValue = VisualInboxUiState(loading = true))
     InboxListContent(
         controller = controller,
+        state = state,
         colors = rememberInboxColors((state.visibility as? InboxVisibility.Visible)?.branding),
         fonts = fonts,
         onNavigatedAway = onDismissRequest,
@@ -276,6 +277,7 @@ internal fun NotificationInboxOverlay(
         ) {
             InboxListContent(
                 controller = controller,
+                state = state,
                 colors = colors,
                 fonts = fonts,
                 // Close the sheet when a tapped message navigates via a deep link, so the deep-linked
@@ -384,6 +386,7 @@ private fun InboxBellContent(
 @Composable
 private fun InboxListContent(
     controller: VisualInboxController,
+    state: VisualInboxUiState,
     colors: InboxColors,
     modifier: Modifier = Modifier,
     // Custom-font registry forwarded to the Jist renderer (see NotificationInboxOverlay); empty = none.
@@ -393,8 +396,6 @@ private fun InboxListContent(
     onNavigatedAway: (() -> Unit)? = null
 ) {
     val context = LocalContext.current
-    val state by remember(controller) { controller.uiStateFlow() }
-        .collectAsStateWithLifecycle(initialValue = VisualInboxUiState(loading = true))
 
     // While the inbox content is shown, mark the currently-unread messages opened (deduped in the
     // controller). For the overlay this fires when the panel opens; for a standalone view, on appear.
@@ -698,9 +699,16 @@ private fun CustomCircularProgressIndicator(
     }
 }
 
-/** Builds a [VisualInboxController] wired to the SDK data layer + the host's inbox event listener. */
-@Composable
-private fun rememberInboxController(): VisualInboxController = remember {
+/**
+ * The process-wide [VisualInboxController], wired to the SDK data layer + the host's inbox event
+ * listener.
+ *
+ * One instance rather than one per composable: the controller's dedupe guards (shown / opened /
+ * clicked / dismissed queueIds) are documented as per-session, so a bell and a separately-mounted
+ * view must share them — otherwise each would re-report the same message. Sharing it also means all
+ * consumers observe a single upstream (see [VisualInboxController.uiStateFlow]).
+ */
+private val sharedInboxController: VisualInboxController by lazy {
     val module = ModuleMessagingInApp.instance()
     VisualInboxController(
         visualInbox = module.visualInbox(),
@@ -710,6 +718,9 @@ private fun rememberInboxController(): VisualInboxController = remember {
         inboxEventListenerProvider = { module.inboxEventListener }
     )
 }
+
+@Composable
+private fun rememberInboxController(): VisualInboxController = sharedInboxController
 
 /**
  * Whether any selected message can actually render — its `type` has a decoded template. A message

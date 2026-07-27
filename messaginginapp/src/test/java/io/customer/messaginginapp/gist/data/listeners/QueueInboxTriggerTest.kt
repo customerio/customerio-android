@@ -190,8 +190,6 @@ class QueueInboxTriggerTest : IntegrationTest() {
     }
 
     // --- absent header carries no signal: the last known enablement value stands ---
-    // A 304 (served from cache) and an error response routinely omit the header. Coercing that
-    // to false hid the inbox until the next clean 200.
 
     @Test
     fun updateInboxFlag_givenAbsentHeaderWhileEnabled_expectStaysEnabled() {

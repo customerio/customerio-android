@@ -32,10 +32,9 @@ class InboxFetchOutcomeTest {
         val visible = outcome as InboxFetchOutcome.Visible
         visible.templatesJson shouldBeEqualTo "{\"fresh\":true}"
         visible.branding shouldBeEqualTo branding
-        visible.fromCache shouldBeEqualTo false
     }
 
-    // --- Both inputs serve from stale -> still Visible, fromCache=true ---
+    // --- Both inputs serve from stale -> still Visible ---
 
     @Test
     fun decideOutcome_givenBothServeFromStale_expectVisibleFromCache() {
@@ -50,7 +49,6 @@ class InboxFetchOutcomeTest {
         val visible = outcome as InboxFetchOutcome.Visible
         visible.templatesJson shouldBeEqualTo "{\"stale\":true}"
         visible.branding shouldBeEqualTo staleBranding
-        visible.fromCache shouldBeEqualTo true
     }
 
     @Test
@@ -65,8 +63,6 @@ class InboxFetchOutcomeTest {
         outcome.shouldBeInstanceOf<InboxFetchOutcome.Visible>()
         val visible = outcome as InboxFetchOutcome.Visible
         visible.branding shouldBeEqualTo staleBranding
-        // A stale input means the overall result is served (partly) from cache.
-        visible.fromCache shouldBeEqualTo true
     }
 
     // --- Templates missing (no fresh, no stale) -> Hidden, not error ---

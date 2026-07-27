@@ -38,7 +38,7 @@ class InboxActionTest {
     )
 
     private fun visible(messages: List<InboxMessage>): InboxVisibility.Visible =
-        InboxVisibility.Visible(templatesJson = "{}", branding = Branding(), messages = messages, fromCache = false)
+        InboxVisibility.Visible(templatesJson = "{}", branding = Branding(), messages = messages)
 
     /**
      * Builds a Jist action event whose `data` object carries optional `behavior` / `action`

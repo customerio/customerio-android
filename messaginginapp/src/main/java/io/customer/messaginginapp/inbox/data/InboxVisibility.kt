@@ -26,14 +26,12 @@ sealed class InboxVisibility {
      * @param templatesJson raw, Jist-agnostic template registry JSON
      * @param branding branding tokens + patterns (required-to-render; never null)
      * @param messages the selected/sorted message list to render
-     * @param fromCache true when any served render input came from cache (fresh-cache or stale)
      */
     @InternalCustomerIOApi
     data class Visible(
         val templatesJson: String,
         val branding: Branding,
-        val messages: List<InboxMessage>,
-        val fromCache: Boolean
+        val messages: List<InboxMessage>
     ) : InboxVisibility()
 
     /**

@@ -44,6 +44,6 @@ internal object InboxSelection {
 
     private fun isExpired(message: InboxMessage, now: Date): Boolean {
         val expiry = message.expiry ?: return false
-        return expiry.before(now)
+        return expiry <= now
     }
 }

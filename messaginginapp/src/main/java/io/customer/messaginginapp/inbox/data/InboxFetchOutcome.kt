@@ -24,13 +24,11 @@ sealed class InboxFetchOutcome {
      *
      * @param templatesJson raw, Jist-agnostic template registry JSON
      * @param branding branding tokens + patterns (required-to-render; never null here)
-     * @param fromCache true when ANY served input came from cache (fresh-cache hit or stale)
      */
     @InternalCustomerIOApi
     data class Visible(
         val templatesJson: String,
-        val branding: Branding,
-        val fromCache: Boolean
+        val branding: Branding
     ) : InboxFetchOutcome()
 
     /**
@@ -91,14 +89,9 @@ internal fun decideOutcome(
             InboxFetchOutcome.Hidden(reasons.joinToString(", "))
         }
 
-        else -> {
-            // fromCache when either served input was not a fresh network/cache-fresh result.
-            val servedFromCache = freshTemplatesJson == null || freshBranding == null
-            InboxFetchOutcome.Visible(
-                templatesJson = templates,
-                branding = branding,
-                fromCache = servedFromCache
-            )
-        }
+        else -> InboxFetchOutcome.Visible(
+            templatesJson = templates,
+            branding = branding
+        )
     }
 }

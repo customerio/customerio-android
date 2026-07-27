@@ -74,11 +74,18 @@ internal class InboxRepository(
 
     /**
      * Session-scoped revalidation gate. False until the first [loadTemplatesAndBranding] of
-     * the session has performed (or attempted) a conditional GET; true afterward. The repo is
-     * a DI singleton, so this resets to false ONLY on process restart (= new session). While
-     * true (and both assets persisted) loads serve the persisted value with no network call.
+     * the session has performed (or attempted) a conditional GET; true afterward. While true
+     * (and both assets persisted) loads serve the persisted value with no network call. The repo
+     * is a DI singleton, so this reopens on process restart or on a new store session id (Reset /
+     * logout), which is what stops one user's render assets from being served to the next.
      */
     private val hasRevalidatedAssetsThisSession = AtomicBoolean(false)
+
+    init {
+        inAppMessagingManager.subscribeToAttribute({ it.sessionId }) {
+            hasRevalidatedAssetsThisSession.set(false)
+        }
+    }
 
     /** True while a [loadTemplatesAndBranding] fetch cycle is currently running. */
     val isFetchInFlight: Boolean
@@ -158,7 +165,7 @@ internal class InboxRepository(
         val alreadyRevalidated = hasRevalidatedAssetsThisSession.get()
         if (alreadyRevalidated && persistedTemplates != null && persistedBranding != null) {
             logger.debug("$LOG_TAG fetch short-circuit: revalidated this session + both assets present, no network")
-            return InboxFetchOutcome.Visible(persistedTemplates, persistedBranding, fromCache = true)
+            return InboxFetchOutcome.Visible(persistedTemplates, persistedBranding)
         }
 
         // Otherwise we hit the network for each required asset. Until the session has been
@@ -242,7 +249,7 @@ internal class InboxRepository(
         )
         when (outcome) {
             is InboxFetchOutcome.Visible ->
-                logger.info("$LOG_TAG fetch outcome: Visible (fromCache=${outcome.fromCache})")
+                logger.info("$LOG_TAG fetch outcome: Visible")
             is InboxFetchOutcome.Hidden ->
                 logger.info("$LOG_TAG fetch outcome: Hidden -> ${outcome.reason}")
         }
@@ -297,7 +304,7 @@ internal class InboxRepository(
         val visibility = computeVisibilityInternal(outcome)
         when (visibility) {
             is InboxVisibility.Visible ->
-                logger.info("$LOG_TAG visibility: Visible(${visibility.messages.size} message(s), fromCache=${visibility.fromCache})")
+                logger.info("$LOG_TAG visibility: Visible(${visibility.messages.size} message(s))")
             is InboxVisibility.Hidden ->
                 logger.info("$LOG_TAG visibility: Hidden -> ${visibility.reason}")
         }
@@ -316,8 +323,7 @@ internal class InboxRepository(
             is InboxFetchOutcome.Visible -> InboxVisibility.Visible(
                 templatesJson = outcome.templatesJson,
                 branding = outcome.branding,
-                messages = messages,
-                fromCache = outcome.fromCache
+                messages = messages
             )
 
             is InboxFetchOutcome.Hidden -> InboxVisibility.Hidden(outcome.reason)

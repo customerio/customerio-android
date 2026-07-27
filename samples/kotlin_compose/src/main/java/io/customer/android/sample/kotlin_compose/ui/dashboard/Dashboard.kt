@@ -36,7 +36,6 @@ import io.customer.android.sample.kotlin_compose.ui.components.TrackScreenLifecy
 import io.customer.android.sample.kotlin_compose.ui.components.VersionText
 import io.customer.android.sample.kotlin_compose.ui.inline.InlineMessagesNavigationActivity
 import io.customer.android.sample.kotlin_compose.ui.inline.InlineMessagesTabbedActivity
-import io.customer.base.internal.InternalCustomerIOApi
 import io.customer.messaginginbox.NotificationInboxOverlay
 import io.customer.sdk.CustomerIO
 import kotlinx.coroutines.launch
@@ -83,7 +82,6 @@ fun DashboardRoute(
     )
 }
 
-@OptIn(InternalCustomerIOApi::class)
 @Composable
 fun DashboardScreen(
     userState: State<User>,

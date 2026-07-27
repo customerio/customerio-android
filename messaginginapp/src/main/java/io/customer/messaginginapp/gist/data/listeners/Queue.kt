@@ -270,13 +270,13 @@ internal class Queue : GistQueue {
     }
 
     // Reads the X-CIO-Inbox-Enabled response header and updates the visual-inbox
-    // enablement gate in state. Mirrors updateSseFlag so the flag flows through
-    // InAppMessagingAction/State consistently; state holds the live value the UI
-    // observes.
+    // enablement gate in state. state holds the live value the UI observes.
     private fun updateInboxFlag(headers: Headers) {
         val inboxHeaderValue = headers[HEADER_INBOX_ENABLED]
-        val inboxEnabled = inboxHeaderValue?.lowercase()?.toBooleanStrictOrNull() ?: false
         val wasEnabled = state.isInboxEnabled
+        // An absent or unparseable header carries no enablement signal - 304s and error responses
+        // routinely omit it - so the last known value stands rather than hiding the inbox.
+        val inboxEnabled = inboxHeaderValue?.lowercase()?.toBooleanStrictOrNull() ?: wasEnabled
 
         logger.debug("$INBOX_LOG_TAG enablement header '$HEADER_INBOX_ENABLED'=${inboxHeaderValue ?: "<absent>"} -> $inboxEnabled (current=$wasEnabled)")
 

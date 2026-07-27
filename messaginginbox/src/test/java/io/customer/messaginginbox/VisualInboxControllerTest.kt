@@ -66,8 +66,7 @@ class VisualInboxControllerTest {
         InboxVisibility.Visible(
             templatesJson = "{}",
             branding = Branding(),
-            messages = messages,
-            fromCache = false
+            messages = messages
         )
 
     @Test

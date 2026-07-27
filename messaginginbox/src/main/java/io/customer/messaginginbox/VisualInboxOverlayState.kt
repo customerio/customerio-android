@@ -172,8 +172,8 @@ internal class VisualInboxController(
                     // metric via the generic `Report Delivery Event` (metric: opened) — matching web
                     // (rendered as "Opened Inbox Message" for an inbox delivery). No named CDP event.
                     visualInbox.markMessageOpened(message)
-                    // Observational host callback (item 14): a message was marked opened.
-                    notifyListener { messageOpened(message) }
+                    // Hand the host the post-action state: the resolved message predates the mark.
+                    notifyListener { messageOpened(message.copy(opened = true)) }
                 }
         } finally {
             markInFlight.set(false)

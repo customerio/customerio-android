@@ -37,6 +37,13 @@ internal class LiveNotificationManager(
     // Last bundle rendered per activity id, so end() can re-render the final
     // state as a dismissible notification and resolve the activity type even if
     // the initial render never posted.
+    //
+    // Entries are dropped by end() and by logout, but not by a remote end or a user
+    // swipe, so an activity finished either of those ways keeps its bundle until the
+    // next logout or process death. That is a few hundred bytes per activity against
+    // a count bounded by how many live notifications one app start actually shows, so
+    // it is left unbounded rather than adding eviction that could discard the terminal
+    // state a later end() wants to render.
     private val lastBundles = ConcurrentHashMap<String, Bundle>()
 
     private val renderScope: CoroutineScope by lazy {
@@ -210,7 +217,20 @@ internal class LiveNotificationManager(
             // may invoke a slow app renderer. A logout can land during that window — after
             // this pre-check passed — so the handler re-checks the generation immediately
             // before it posts the notification and writes the activity type back.
-            renderLocally(bundle, isSuperseded = { generation != renderGeneration })
+            //
+            // LiveNotificationHandler.handle contains its own failures, so this covers the
+            // setup around it (metadata lookup, channel creation, system service). Needed
+            // because this coroutine runs on an SDK-owned scope with no exception handler,
+            // where anything escaping would take the host process down from a thread the app
+            // cannot guard. Drop the render and keep the chain alive instead.
+            runCatching {
+                renderLocally(bundle, isSuperseded = { generation != renderGeneration })
+            }.onFailure { cause ->
+                SDKComponent.logger.error(
+                    "Failed to render live notification " +
+                        "'${bundle.getString(LiveNotificationHandler.CIO_INSTANCE_ID_KEY)}': ${cause.message}"
+                )
+            }
         }
     }
 
@@ -235,8 +255,9 @@ internal class LiveNotificationManager(
 
         LiveNotificationHandler(bundle).handle(
             context = ctx,
-            deliveryId = "",
-            deliveryToken = "",
+            // Locally started: no Customer.io delivery to attribute metrics to.
+            deliveryId = null,
+            deliveryToken = null,
             smallIcon = smallIcon,
             tintColor = tintColor,
             channelId = channelId,

@@ -90,11 +90,65 @@ internal class LiveNotificationStoreTest : IntegrationTest() {
         val ttl = 1_000L
 
         store.setLastTimestamp("old", 1L, now = now - ttl - 1)
-        store.setActivityType("old", "io.customer.livenotifications.segments")
+        store.setActivityType("old", "io.customer.livenotifications.segments", now = now - ttl - 1)
 
         store.trimStaleTimestamps(ttlMs = ttl, now = now)
 
         store.activityType("old").shouldBeNull()
+    }
+
+    @Test
+    fun trimStaleTimestamps_removesOrphanedActivityTypeWithNoTimestampEntry() {
+        // A push that arrives without a `timestamp` records an activity type but no timestamp
+        // entry. Reclamation must not key off `ts:` alone, or such ids leak forever and keep
+        // inflating trackedActivityIds().
+        val now = 10_000_000_000L
+        val ttl = 1_000L
+
+        store.setActivityType("orphan", "io.customer.livenotifications.segments", now = now - ttl - 1)
+        store.lastTimestamp("orphan").shouldBeNull()
+
+        store.trimStaleTimestamps(ttlMs = ttl, now = now)
+
+        store.activityType("orphan").shouldBeNull()
+        store.trackedActivityIds().shouldBeEmpty()
+    }
+
+    @Test
+    fun trimStaleTimestamps_removesOrphanedEndedMarkerWithNoTimestampEntry() {
+        val now = 10_000_000_000L
+        val ttl = 1_000L
+
+        store.markEnded("orphan-end", now = now - ttl - 1)
+
+        store.trimStaleTimestamps(ttlMs = ttl, now = now)
+
+        store.isEnded("orphan-end").shouldBeFalse()
+    }
+
+    @Test
+    fun trimStaleTimestamps_keepsIdWhenAnyEntryIsStillFresh() {
+        // The timestamp aged out but the activity was re-rendered recently, so the id is still
+        // live: dropping it would lose the ability to cancel it on logout.
+        val now = 10_000_000_000L
+        val ttl = 1_000L
+
+        store.setLastTimestamp("mixed", 1L, now = now - ttl - 1)
+        store.setActivityType("mixed", "io.customer.livenotifications.segments", now = now - 1)
+
+        store.trimStaleTimestamps(ttlMs = ttl, now = now)
+
+        store.activityType("mixed") shouldBeEqualTo "io.customer.livenotifications.segments"
+        store.lastTimestamp("mixed") shouldBeEqualTo 1L
+    }
+
+    @Test
+    fun activityType_givenTypeContainingSeparator_roundTrips() {
+        // Types are customer-defined strings, and the stored value is stamped `type|writeTime`,
+        // so the split must tolerate a '|' inside the type itself.
+        store.setActivityType("act-1", "com.acme.live|weird")
+
+        store.activityType("act-1") shouldBeEqualTo "com.acme.live|weird"
     }
 
     @Test
@@ -124,7 +178,7 @@ internal class LiveNotificationStoreTest : IntegrationTest() {
         val ttl = 1_000L
 
         store.setLastTimestamp("old", 1L, now = now - ttl - 1)
-        store.markEnded("old")
+        store.markEnded("old", now = now - ttl - 1)
 
         store.trimStaleTimestamps(ttlMs = ttl, now = now)
 

@@ -79,7 +79,7 @@ class ModuleMessagingPushFCM @JvmOverloads constructor(
      * Starts a live notification locally for a customer-defined [activityType]
      * (one enabled via [MessagingPushModuleConfig.Builder.enableCustomLiveNotificationTypes]).
      * Custom types have no built-in template, so a
-     * [io.customer.messagingpush.data.communication.CustomerIOPushNotificationCallback.createLiveNotification]
+     * [io.customer.messagingpush.data.communication.CustomerIOLiveNotificationsCallback]
      * must render them.
      *
      * As with the templated overload, lifecycle events are reported to

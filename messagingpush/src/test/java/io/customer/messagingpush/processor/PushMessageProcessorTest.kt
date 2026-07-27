@@ -429,6 +429,70 @@ class PushMessageProcessorTest : IntegrationTest() {
     }
 
     @Test
+    fun processNotificationClick_givenLocallyStartedLiveNotification_expectDoNotTrackOpened() {
+        // A locally started live notification is rendered by the SDK on the app's behalf and was
+        // never delivered by Customer.io, so it carries no delivery id/token. Tracking `opened`
+        // for it would emit a delivery metric with empty identifiers that cannot be attributed.
+        setupModuleConfig(autoTrackPushEvents = true)
+        val processor = pushMessageProcessor()
+        val givenPayload = CustomerIOParsedPushPayload(
+            extras = Bundle.EMPTY,
+            deepLink = null,
+            cioDeliveryId = "",
+            cioDeliveryToken = "",
+            title = String.random,
+            body = String.random,
+            activityId = String.random
+        )
+        val intent = Intent().apply {
+            putExtra(NotificationClickReceiverActivity.NOTIFICATION_PAYLOAD_EXTRA, givenPayload)
+        }
+        setupDeepLinkResponse(
+            deepLink = null,
+            defaultHostAppIntent = emptyIntent().withTestFlags()
+        )
+
+        processor.processNotificationClick(contextMock, intent)
+
+        // No metric published, but the click itself is still handled (deep link / launcher).
+        assertCalledNever {
+            eventBus.publish(any<Event.TrackPushMetricEvent>())
+        }
+        assertCalledOnce {
+            mockPushLogger.logNotificationClickMetricsSkippedForLocalNotification(givenPayload)
+            deepLinkUtilMock.createDefaultHostAppIntent(any())
+        }
+    }
+
+    @Test
+    fun processNotificationClick_givenPushDeliveredNotification_expectTrackOpened() {
+        // Complement of the guard above: a real Customer.io push has both identifiers, so the
+        // `opened` metric must still be reported.
+        setupModuleConfig(autoTrackPushEvents = true)
+        val processor = pushMessageProcessor()
+        val givenPayload = pushMessagePayload()
+        val intent = Intent().apply {
+            putExtra(NotificationClickReceiverActivity.NOTIFICATION_PAYLOAD_EXTRA, givenPayload)
+        }
+        setupDeepLinkResponse(
+            deepLink = null,
+            defaultHostAppIntent = emptyIntent().withTestFlags()
+        )
+
+        processor.processNotificationClick(contextMock, intent)
+
+        assertCalledOnce {
+            eventBus.publish(
+                Event.TrackPushMetricEvent(
+                    event = Metric.Opened,
+                    deliveryId = givenPayload.cioDeliveryId,
+                    deviceToken = givenPayload.cioDeliveryToken
+                )
+            )
+        }
+    }
+
+    @Test
     fun processNotificationClick_givenAutoTrackingDisabled_expectDoNotTrackOpened() {
         setupModuleConfig(autoTrackPushEvents = false)
         val processor = pushMessageProcessor()

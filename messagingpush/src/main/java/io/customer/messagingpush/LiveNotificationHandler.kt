@@ -15,7 +15,6 @@ import io.customer.messagingpush.activity.NotificationClickReceiverActivity
 import io.customer.messagingpush.data.model.CustomerIOParsedPushPayload
 import io.customer.messagingpush.di.liveNotificationStore
 import io.customer.messagingpush.di.pushModuleConfig
-import io.customer.messagingpush.livenotification.LiveNotificationBranding
 import io.customer.messagingpush.livenotification.LiveNotificationDismissReceiver
 import io.customer.messagingpush.livenotification.template.TemplateAssets
 import io.customer.messagingpush.livenotification.template.TemplateRegistry
@@ -59,10 +58,25 @@ internal class LiveNotificationHandler(
         )
     }
 
+    /**
+     * Renders and posts the live notification described by the bundle.
+     *
+     * Every failure is contained here rather than at the call sites, because both callers
+     * run somewhere a throw is fatal: the FCM path executes on
+     * `FirebaseMessagingService.onMessageReceived`, and the local path on an SDK-owned
+     * coroutine scope with no exception handler. The risky work — template rendering, asset
+     * decoding/download, the host app's
+     * [io.customer.messagingpush.data.communication.CustomerIOLiveNotificationsCallback], and
+     * the `notify` call itself — is all inside. A failure drops this render only.
+     */
     fun handle(
         context: Context,
-        deliveryId: String,
-        deliveryToken: String,
+        // Null for locally-started activities: they were never delivered by Customer.io, so
+        // there is nothing to attribute a delivery metric to. The public
+        // [CustomerIOParsedPushPayload] types these as non-null, so they are flattened to ""
+        // when the payload is built below, and the click path skips metric reporting on blank.
+        deliveryId: String?,
+        deliveryToken: String?,
         @DrawableRes smallIcon: Int,
         @ColorInt tintColor: Int?,
         channelId: String,
@@ -77,6 +91,38 @@ internal class LiveNotificationHandler(
         // logout/reset landed during rendering, in which case the render is dropped so it
         // can't post or re-store a previous user's activity. Local renders only.
         isSuperseded: () -> Boolean = { false }
+    ) {
+        runCatching {
+            handleInternal(
+                context = context,
+                deliveryId = deliveryId,
+                deliveryToken = deliveryToken,
+                smallIcon = smallIcon,
+                tintColor = tintColor,
+                channelId = channelId,
+                notificationManager = notificationManager,
+                bypassOrderGuard = bypassOrderGuard,
+                isSuperseded = isSuperseded
+            )
+        }.onFailure { cause ->
+            SDKComponent.logger.error(
+                "Failed to render live notification " +
+                    "'${bundle.getString(CIO_INSTANCE_ID_KEY)}': ${cause.message}"
+            )
+        }
+    }
+
+    @Suppress("LongParameterList")
+    private fun handleInternal(
+        context: Context,
+        deliveryId: String?,
+        deliveryToken: String?,
+        @DrawableRes smallIcon: Int,
+        @ColorInt tintColor: Int?,
+        channelId: String,
+        notificationManager: NotificationManager,
+        bypassOrderGuard: Boolean,
+        isSuperseded: () -> Boolean
     ) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
             ContextCompat.checkSelfPermission(context, android.Manifest.permission.POST_NOTIFICATIONS)
@@ -140,10 +186,15 @@ internal class LiveNotificationHandler(
             }
         }
 
-        // Advance the high-water mark on BOTH paths: a local render must also bump it
+        // Advances the high-water mark on BOTH paths: a local render must also bump it
         // so a later delayed remote push at an intermediate timestamp can't overwrite
         // newer local content.
-        if (timestamp != null) {
+        //
+        // Deliberately invoked only once this render is committed (past the supersede
+        // check below), not up-front: a local render invalidated by a logout must not
+        // write any state back into the store that reset just cleared.
+        fun advanceHighWaterMark() {
+            if (timestamp == null) return
             val lastSeen = store.lastTimestamp(activityId)
             if (lastSeen == null || timestamp > lastSeen) {
                 store.setLastTimestamp(activityId, timestamp)
@@ -153,7 +204,8 @@ internal class LiveNotificationHandler(
         val template = TemplateRegistry.find(activityType)
         val data = extractData(bundle)
         val branding = SDKComponent.pushModuleConfig.liveNotificationBranding
-        val effectiveSmallIcon = resolveSmallIcon(branding, smallIcon)
+        // Branding overrides the status-bar icon for live notifications only.
+        val effectiveSmallIcon = branding?.smallIcon ?: smallIcon
 
         val result = template?.render(
             context = context,
@@ -174,6 +226,15 @@ internal class LiveNotificationHandler(
         val notifId = notificationId(activityId)
 
         if (result?.cancelImmediately == true) {
+            // Same supersede gate as the post path below: a render invalidated by a logout
+            // must not touch the store the reset just cleared, on any exit path.
+            if (isSuperseded()) {
+                SDKComponent.logger.debug(
+                    "Live notification render for '$activityId' was superseded by a reset; dropping."
+                )
+                return
+            }
+            advanceHighWaterMark()
             notificationManager.cancel(activityId, notifId)
             return
         }
@@ -182,8 +243,8 @@ internal class LiveNotificationHandler(
         val parsedPayload = CustomerIOParsedPushPayload(
             extras = Bundle(bundle),
             deepLink = result?.deepLink ?: bundle.getString(CustomerIOPushNotificationHandler.DEEP_LINK_KEY),
-            cioDeliveryId = deliveryId,
-            cioDeliveryToken = deliveryToken,
+            cioDeliveryId = deliveryId.orEmpty(),
+            cioDeliveryToken = deliveryToken.orEmpty(),
             title = result?.title ?: bundle.getString(CustomerIOPushNotificationHandler.TITLE_KEY).orEmpty(),
             body = result?.body ?: bundle.getString(CustomerIOPushNotificationHandler.BODY_KEY).orEmpty(),
             activityId = activityId
@@ -194,7 +255,7 @@ internal class LiveNotificationHandler(
         val deletePendingIntent = if (isEnd) null else createDeleteIntent(context, notifId, activityId, activityType)
 
         // The host app may fully render the notification; otherwise fall back to the SDK template.
-        val appNotification = SDKComponent.pushModuleConfig.notificationCallback
+        val appNotification = SDKComponent.pushModuleConfig.liveNotificationCallback
             ?.createLiveNotification(parsedPayload, context)
         val notification = appNotification ?: result?.let {
             buildSdkNotification(context, channelId, effectiveSmallIcon, it, pendingIntent, deletePendingIntent, ongoing = !isEnd)
@@ -202,13 +263,16 @@ internal class LiveNotificationHandler(
 
         // A logout/reset may have landed while the branding logo downloaded or the app
         // renderer ran above. If so, drop this render: don't post the notification and don't
-        // write the activity type back into the store that reset just cleared.
+        // write the activity type or the high-water mark back into the store that reset
+        // just cleared.
         if (isSuperseded()) {
             SDKComponent.logger.debug(
                 "Live notification render for '$activityId' was superseded by a reset; dropping."
             )
             return
         }
+
+        advanceHighWaterMark()
 
         when {
             notification != null -> {
@@ -348,14 +412,6 @@ internal class LiveNotificationHandler(
         } catch (e: JSONException) {
             raw
         }
-    }
-
-    @DrawableRes
-    private fun resolveSmallIcon(
-        branding: LiveNotificationBranding?,
-        fallback: Int
-    ): Int {
-        return branding?.smallIcon ?: fallback
     }
 
     private fun createIntentForNotificationClick(

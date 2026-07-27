@@ -66,7 +66,10 @@ internal object Api36LiveNotificationBuilder {
                 builder.addExtras(extras)
             } else {
                 SDKComponent.logger.debug(
-                    "POST_PROMOTED_NOTIFICATIONS not granted; posting as standard ongoing"
+                    "POST_PROMOTED_NOTIFICATIONS not granted; posting as a standard ongoing " +
+                        "notification. Declare <uses-permission " +
+                        "android:name=\"android.permission.POST_PROMOTED_NOTIFICATIONS\" /> in the " +
+                        "app manifest to get the promoted live-update treatment on Android 16+."
                 )
             }
         }

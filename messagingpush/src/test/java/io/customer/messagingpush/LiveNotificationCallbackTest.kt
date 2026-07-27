@@ -7,7 +7,7 @@ import android.os.Bundle
 import androidx.core.app.NotificationCompat
 import io.customer.commontest.extensions.assertCalledNever
 import io.customer.commontest.extensions.attachToSDKComponent
-import io.customer.messagingpush.data.communication.CustomerIOPushNotificationCallback
+import io.customer.messagingpush.data.communication.CustomerIOLiveNotificationsCallback
 import io.customer.messagingpush.data.model.CustomerIOParsedPushPayload
 import io.customer.messagingpush.livenotification.LiveNotificationType
 import io.customer.messagingpush.testutils.core.IntegrationTest
@@ -21,8 +21,10 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 
 /**
- * Covers the host-app render override (`createLiveNotification`) and
- * customer-defined activity types.
+ * Covers the host-app render override ([CustomerIOLiveNotificationsCallback]) and
+ * customer-defined activity types. Live-notification rendering is deliberately a
+ * separate callback from `CustomerIOPushNotificationCallback`, so it is registered
+ * via `setLiveNotificationCallback`, not `setNotificationCallback`.
  */
 @RunWith(RobolectricTestRunner::class)
 internal class LiveNotificationCallbackTest : IntegrationTest() {
@@ -30,10 +32,10 @@ internal class LiveNotificationCallbackTest : IntegrationTest() {
     private val notificationManager: NotificationManager = mockk(relaxed = true)
     private val customType = "com.acme.live.ride"
 
-    private fun attach(callback: CustomerIOPushNotificationCallback?) {
+    private fun attach(callback: CustomerIOLiveNotificationsCallback?) {
         ModuleMessagingPushFCM(
             MessagingPushModuleConfig.Builder().apply {
-                callback?.let { setNotificationCallback(it) }
+                callback?.let { setLiveNotificationCallback(it) }
                 // Enable a built-in type (for the override test) and the custom type.
                 enableLiveNotificationTypes(LiveNotificationType.SEGMENTS)
                 enableCustomLiveNotificationTypes(customType)
@@ -41,7 +43,7 @@ internal class LiveNotificationCallbackTest : IntegrationTest() {
         ).attachToSDKComponent()
     }
 
-    private fun callbackReturning(notification: Notification) = object : CustomerIOPushNotificationCallback {
+    private fun callbackReturning(notification: Notification) = object : CustomerIOLiveNotificationsCallback {
         override fun createLiveNotification(payload: CustomerIOParsedPushPayload, context: Context): Notification =
             notification
     }
@@ -93,6 +95,29 @@ internal class LiveNotificationCallbackTest : IntegrationTest() {
     fun customType_withoutCallback_isDropped() {
         attach(callback = null) // enabled type, but no renderer
 
+        invoke(bundle(customType))
+
+        assertCalledNever {
+            notificationManager.notify(any<String>(), any<Int>(), any<Notification>())
+        }
+    }
+
+    @Test
+    fun throwingCallback_onPushPath_isContainedAndPostsNothing() {
+        // The FCM path runs on FirebaseMessagingService.onMessageReceived, which has no
+        // try/catch of its own, so a throwing host renderer would take the process down.
+        // Containment lives in LiveNotificationHandler.handle and therefore covers this
+        // path as well as the local one — matching what the callback KDoc promises.
+        attach(
+            object : CustomerIOLiveNotificationsCallback {
+                override fun createLiveNotification(
+                    payload: CustomerIOParsedPushPayload,
+                    context: Context
+                ): Notification = throw IllegalStateException("app renderer blew up")
+            }
+        )
+
+        // Must not propagate (invoke() drives the push path: bypassOrderGuard = false).
         invoke(bundle(customType))
 
         assertCalledNever {

@@ -291,7 +291,7 @@ public class LiveNotificationDemoActivity extends BaseActivity<ActivityLiveNotif
 
     /** Demonstrates the typed local-start API: {@code startLiveNotification(LiveNotificationData)}. */
     private void startViaApi() {
-        ModuleMessagingPushFCM module = CustomerIORepository.messagingPushModule;
+        ModuleMessagingPushFCM module = customerIORepository.getMessagingPushModule();
         if (module == null) return;
         LiveNotificationData.Segments data = new LiveNotificationData.Segments(
                 /* header */ "Order #API-1001",
@@ -312,7 +312,7 @@ public class LiveNotificationDemoActivity extends BaseActivity<ActivityLiveNotif
      * started via {@link #startViaApi()}.
      */
     private void updateViaApi() {
-        ModuleMessagingPushFCM module = CustomerIORepository.messagingPushModule;
+        ModuleMessagingPushFCM module = customerIORepository.getMessagingPushModule();
         if (module == null || lastApiActivityId == null) return;
         LiveNotificationData.Segments data = new LiveNotificationData.Segments(
                 /* header */ "Order #API-1001",
@@ -328,7 +328,7 @@ public class LiveNotificationDemoActivity extends BaseActivity<ActivityLiveNotif
 
     /** Demonstrates the local-end API: {@code endLiveNotification(activityId)}. */
     private void endViaApi() {
-        ModuleMessagingPushFCM module = CustomerIORepository.messagingPushModule;
+        ModuleMessagingPushFCM module = customerIORepository.getMessagingPushModule();
         if (module == null || lastApiActivityId == null) return;
         module.endLiveNotification(lastApiActivityId);
         binding.statusTextView.setText(R.string.live_notification_status_ended);

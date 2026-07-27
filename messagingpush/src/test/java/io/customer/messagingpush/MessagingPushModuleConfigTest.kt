@@ -13,7 +13,7 @@ class MessagingPushModuleConfigTest : JUnit5Test() {
         val config = MessagingPushModuleConfig.default()
 
         val actual = config.toString()
-        assertEquals("MessagingPushModuleConfig(autoTrackPushEvents=true, notificationCallback=null, pushClickBehavior=ACTIVITY_PREVENT_RESTART, liveNotificationBranding=null, liveNotificationTypes=[])", actual)
+        assertEquals("MessagingPushModuleConfig(autoTrackPushEvents=true, notificationCallback=null, pushClickBehavior=ACTIVITY_PREVENT_RESTART, liveNotificationBranding=null, liveNotificationTypes=[], liveNotificationCallback=null)", actual)
     }
 
     @Test

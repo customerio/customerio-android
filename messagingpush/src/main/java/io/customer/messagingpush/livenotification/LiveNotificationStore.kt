@@ -59,12 +59,47 @@ internal class LiveNotificationStore(context: Context) {
         prefs.edit { remove(TS_PREFIX + activityId) }
     }
 
-    /** Removes timestamp entries (and their paired activity types + ended markers) recorded longer than [ttlMs] ago. Intended to run on app launch. */
+    /**
+     * Reclaims every per-activity entry (timestamp + activity type + ended marker) whose most
+     * recent write is older than [ttlMs]. Intended to run on app launch.
+     *
+     * All three families are swept, not just `ts:`: a push that arrives without a `timestamp`
+     * records an activity type and possibly an ended marker but no timestamp entry, so keying
+     * reclamation off `ts:` alone would leak those entries forever and keep inflating
+     * [trackedActivityIds]. An id is only dropped once *all* of its present entries have aged
+     * out, so a fresh write in one family always keeps the whole id alive.
+     */
     fun trimStaleTimestamps(ttlMs: Long = DEFAULT_TS_TTL_MS, now: Long = System.currentTimeMillis()) {
-        val staleActivityIds = prefs.all.entries.filter { (key, value) ->
-            key.startsWith(TS_PREFIX) &&
-                ((value as? String)?.substringAfter('|', "")?.toLongOrNull()?.let { now - it > ttlMs } ?: true)
-        }.map { it.key.removePrefix(TS_PREFIX) }
+        // activity id -> most recent write time across its entries; null once any entry's write
+        // time is unknown but a newer one may still be found (unknown is treated as oldest).
+        val lastWriteByActivityId = mutableMapOf<String, Long?>()
+
+        fun record(activityId: String, writtenAt: Long?) {
+            if (!lastWriteByActivityId.containsKey(activityId)) {
+                lastWriteByActivityId[activityId] = writtenAt
+                return
+            }
+            val known = lastWriteByActivityId[activityId]
+            if (known == null || (writtenAt != null && writtenAt > known)) {
+                lastWriteByActivityId[activityId] = writtenAt ?: known
+            }
+        }
+
+        for ((key, value) in prefs.all) {
+            val raw = value as? String
+            when {
+                key.startsWith(TS_PREFIX) ->
+                    record(key.removePrefix(TS_PREFIX), raw?.substringAfterLast('|')?.toLongOrNull())
+                key.startsWith(TYPE_PREFIX) ->
+                    record(key.removePrefix(TYPE_PREFIX), raw?.writeTimeOrNull())
+                key.startsWith(END_PREFIX) ->
+                    record(key.removePrefix(END_PREFIX), raw?.toLongOrNull())
+            }
+        }
+
+        val staleActivityIds = lastWriteByActivityId
+            .filterValues { lastWrite -> lastWrite == null || now - lastWrite > ttlMs }
+            .keys
         if (staleActivityIds.isNotEmpty()) {
             prefs.edit {
                 staleActivityIds.forEach {
@@ -102,10 +137,15 @@ internal class LiveNotificationStore(context: Context) {
 
     /** The activity type last rendered for [activityId], or null if unknown. */
     fun activityType(activityId: String): String? =
-        prefs.getString(TYPE_PREFIX + activityId, null)
+        prefs.getString(TYPE_PREFIX + activityId, null)?.let { stored ->
+            // Values are stamped `type|writeTimeMillis` so [trimStaleTimestamps] can age them
+            // out. Split from the right so a customer-defined type containing '|' round-trips,
+            // and fall back to the raw value for entries written before stamping existed.
+            if (stored.writeTimeOrNull() != null) stored.substringBeforeLast('|') else stored
+        }
 
-    fun setActivityType(activityId: String, activityType: String) {
-        prefs.edit { putString(TYPE_PREFIX + activityId, activityType) }
+    fun setActivityType(activityId: String, activityType: String, now: Long = System.currentTimeMillis()) {
+        prefs.edit { putString(TYPE_PREFIX + activityId, "$activityType|$now") }
     }
 
     fun clearActivityType(activityId: String) {
@@ -127,6 +167,13 @@ internal class LiveNotificationStore(context: Context) {
                 .forEach { remove(it) }
         }
     }
+
+    /**
+     * The trailing `|writeTimeMillis` stamp on a stored value, or null when the value carries
+     * no stamp (written by a build predating stamping, so treated as arbitrarily old).
+     */
+    private fun String.writeTimeOrNull(): Long? =
+        if (contains('|')) substringAfterLast('|').toLongOrNull() else null
 
     companion object {
         private const val PREFS_NAME = "io.customer.messagingpush.live_notifications"

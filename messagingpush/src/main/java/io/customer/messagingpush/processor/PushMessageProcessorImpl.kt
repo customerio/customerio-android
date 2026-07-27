@@ -139,18 +139,25 @@ internal class PushMessageProcessorImpl(
     }
 
     private fun trackNotificationClickMetrics(payload: CustomerIOParsedPushPayload) {
-        if (moduleConfig.autoTrackPushEvents) {
-            pushLogger.logTrackingPushMessageOpened(payload)
-            eventBus.publish(
-                Event.TrackPushMetricEvent(
-                    event = Metric.Opened,
-                    deliveryId = payload.cioDeliveryId,
-                    deviceToken = payload.cioDeliveryToken
-                )
-            )
-        } else {
+        if (!moduleConfig.autoTrackPushEvents) {
             pushLogger.logPushMetricsAutoTrackingDisabled()
+            return
         }
+        // A locally-started live notification was never delivered by Customer.io, so it has
+        // no delivery id/token. Reporting an `opened` metric for it would send a delivery
+        // event with empty identifiers, which the backend cannot attribute to anything.
+        if (payload.cioDeliveryId.isBlank() || payload.cioDeliveryToken.isBlank()) {
+            pushLogger.logNotificationClickMetricsSkippedForLocalNotification(payload)
+            return
+        }
+        pushLogger.logTrackingPushMessageOpened(payload)
+        eventBus.publish(
+            Event.TrackPushMetricEvent(
+                event = Metric.Opened,
+                deliveryId = payload.cioDeliveryId,
+                deviceToken = payload.cioDeliveryToken
+            )
+        )
     }
 
     private fun handleNotificationDeepLink(

@@ -24,6 +24,21 @@ data class CustomerIOParsedPushPayload(
     val body: String,
     val activityId: String? = null
 ) : Parcelable {
+    /**
+     * Preserves the pre-live-notifications 6-argument constructor in the ABI.
+     * Adding [activityId] with a default value replaces the old 6-arg entry point
+     * with a 7-arg one plus a synthetic bridge, so host apps compiled against an
+     * earlier release would otherwise hit `NoSuchMethodError` at runtime.
+     */
+    constructor(
+        extras: Bundle,
+        deepLink: String?,
+        cioDeliveryId: String,
+        cioDeliveryToken: String,
+        title: String,
+        body: String
+    ) : this(extras, deepLink, cioDeliveryId, cioDeliveryToken, title, body, null)
+
     constructor(parcel: Parcel) : this(
         extras = parcel.readBundle(Bundle::class.java.classLoader) ?: Bundle(),
         deepLink = parcel.readString(),

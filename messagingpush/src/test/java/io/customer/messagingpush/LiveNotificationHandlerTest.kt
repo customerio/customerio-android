@@ -288,15 +288,21 @@ internal class LiveNotificationHandlerTest : IntegrationTest() {
     fun handle_givenSupersededByReset_dropsRenderWithoutNotifyingOrStoring() {
         // A logout can land while the branding logo downloads or the app renderer runs. When it
         // does, the render must be dropped after that work completes: it must not post the
-        // notification nor write the activity type back into the store the reset just cleared.
+        // notification, nor write the activity type OR the timestamp high-water mark back into
+        // the store the reset just cleared.
         val activityId = "live-act-1"
 
-        invoke(handlerFor(newBundle(activityId = activityId)), bypassOrderGuard = true, isSuperseded = { true })
+        invoke(
+            handlerFor(newBundle(activityId = activityId, timestamp = 100L)),
+            bypassOrderGuard = true,
+            isSuperseded = { true }
+        )
 
         assertCalledNever {
             notificationManager.notify(any<String>(), any<Int>(), any<Notification>())
         }
         SDKComponent.liveNotificationStore.activityType(activityId).shouldBeNull()
+        SDKComponent.liveNotificationStore.lastTimestamp(activityId).shouldBeNull()
     }
 
     @Test
@@ -304,12 +310,17 @@ internal class LiveNotificationHandlerTest : IntegrationTest() {
         // The complement of the guard above: a render that is still current posts and writes back.
         val activityId = "live-act-1"
 
-        invoke(handlerFor(newBundle(activityId = activityId)), bypassOrderGuard = true, isSuperseded = { false })
+        invoke(
+            handlerFor(newBundle(activityId = activityId, timestamp = 100L)),
+            bypassOrderGuard = true,
+            isSuperseded = { false }
+        )
 
         verify {
             notificationManager.notify(activityId, any<Int>(), any<Notification>())
         }
         SDKComponent.liveNotificationStore.activityType(activityId).shouldNotBeNull()
+        SDKComponent.liveNotificationStore.lastTimestamp(activityId) shouldBeEqualTo 100L
     }
 
     @Test

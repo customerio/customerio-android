@@ -700,27 +700,30 @@ private fun CustomCircularProgressIndicator(
 }
 
 /**
- * The process-wide [VisualInboxController], wired to the SDK data layer + the host's inbox event
- * listener.
+ * The [VisualInboxController] shared by every inbox composable, resolved from the SDK graph.
  *
  * One instance rather than one per composable: the controller's dedupe guards (shown / opened /
- * clicked / dismissed queueIds) are documented as per-session, so a bell and a separately-mounted
- * view must share them — otherwise each would re-report the same message. Sharing it also means all
- * consumers observe a single upstream (see [VisualInboxController.uiStateFlow]).
+ * clicked / dismissed queueIds) are per-session, so a bell and a separately-mounted view must share
+ * them, and all consumers then observe a single upstream (see [VisualInboxController.uiStateFlow]).
+ *
+ * Held by the SDK graph rather than a top-level `lazy` so it is released and rebuilt with the SDK.
+ * A process-lifetime instance would outlive `CustomerIO` teardown, keeping a stale module reference
+ * that fails on the next initialization — and would register as a leak.
  */
-private val sharedInboxController: VisualInboxController by lazy {
-    val module = ModuleMessagingInApp.instance()
-    VisualInboxController(
-        visualInbox = module.visualInbox(),
-        // Host-registered inbox action/event listener (items 13/14), mirroring the in-app
-        // eventListener. Read from the module on each callback so a listener registered at runtime
-        // via ModuleMessagingInApp.setInboxEventListener takes effect; null when none is set.
-        inboxEventListenerProvider = { module.inboxEventListener }
-    )
-}
+internal val SDKComponent.visualInboxController: VisualInboxController
+    get() = singleton {
+        val module = ModuleMessagingInApp.instance()
+        VisualInboxController(
+            visualInbox = module.visualInbox(),
+            // Read from the module on each callback so a listener registered at runtime via
+            // ModuleMessagingInApp.setInboxEventListener takes effect; null when none is set.
+            inboxEventListenerProvider = { module.inboxEventListener }
+        )
+    }
 
 @Composable
-private fun rememberInboxController(): VisualInboxController = sharedInboxController
+private fun rememberInboxController(): VisualInboxController =
+    remember { SDKComponent.visualInboxController }
 
 /**
  * Whether any selected message can actually render — its `type` has a decoded template. A message

@@ -369,11 +369,32 @@ class InboxRepositoryTest {
         templatesCalls.get() shouldBeEqualTo 1
         brandingCalls.get() shouldBeEqualTo 1
 
+        // The subscription replays the current session id before any real change.
+        sessionListener.captured.invoke("")
         sessionListener.captured.invoke("new-session-id")
         repo.loadTemplatesAndBranding()
 
         templatesCalls.get() shouldBeEqualTo 2
         brandingCalls.get() shouldBeEqualTo 2
+    }
+
+    // The subscription is a StateFlow collected from a launched coroutine, so its first delivery
+    // replays the current session id and can land after a load already closed the gate. A replay is
+    // not a session change and must not reopen it.
+    @Test
+    fun loadTemplatesAndBranding_givenInitialSessionReplayAfterLoad_expectGateStaysClosed() = runTest {
+        val templatesCalls = AtomicInteger(0)
+        val brandingCalls = AtomicInteger(0)
+        val store = preferenceStoreWith(templates = templatesJson, branding = brandingJson)
+        val manager = managerWith(enabled = true, messages = setOf(message()))
+        val repo = repository(countingApi(templatesCalls, brandingCalls), manager, store)
+
+        repo.loadTemplatesAndBranding()
+        sessionListener.captured.invoke("")
+        repo.loadTemplatesAndBranding()
+
+        templatesCalls.get() shouldBeEqualTo 1
+        brandingCalls.get() shouldBeEqualTo 1
     }
 
     // A Reset / logout landing mid-fetch must not close the gate: that cycle belongs to the old
@@ -409,6 +430,7 @@ class InboxRepositoryTest {
             branding
         }
         val repo = repository(api, manager, store)
+        sessionListener.captured.invoke(currentSessionId)
 
         repo.loadTemplatesAndBranding()
         repo.loadTemplatesAndBranding()

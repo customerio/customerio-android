@@ -85,9 +85,19 @@ internal class InboxRepository(
      */
     private val hasRevalidatedAssetsThisSession = AtomicBoolean(false)
 
+    /**
+     * Last session id delivered by the subscription below. The store is a StateFlow collected from a
+     * launched coroutine, so the first delivery is a replay of the current value rather than a
+     * change, and it can land after a load has already closed the gate.
+     */
+    private val lastKnownSessionId = AtomicReference<String?>(null)
+
     init {
-        inAppMessagingManager.subscribeToAttribute({ it.sessionId }) {
-            hasRevalidatedAssetsThisSession.set(false)
+        inAppMessagingManager.subscribeToAttribute({ it.sessionId }) { sessionId ->
+            val previous = lastKnownSessionId.getAndSet(sessionId)
+            if (previous != null && previous != sessionId) {
+                hasRevalidatedAssetsThisSession.set(false)
+            }
         }
     }
 

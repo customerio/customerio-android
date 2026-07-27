@@ -376,6 +376,47 @@ class InboxRepositoryTest {
         brandingCalls.get() shouldBeEqualTo 2
     }
 
+    // A Reset / logout landing mid-fetch must not close the gate: that cycle belongs to the old
+    // session, so the next load still revalidates instead of serving assets it never revalidated.
+    @Test
+    fun loadTemplatesAndBranding_givenSessionChangesMidFetch_expectGateStaysOpen() = runTest {
+        val templatesCalls = AtomicInteger(0)
+        val brandingCalls = AtomicInteger(0)
+        val store = preferenceStoreWith(templates = templatesJson, branding = brandingJson)
+        val manager = mockk<InAppMessagingManager>(relaxed = true)
+        var currentSessionId = "session-1"
+        every { manager.getCurrentState() } answers {
+            InAppMessagingState(
+                userId = "user-1",
+                isInboxEnabled = true,
+                inboxMessages = setOf(message()),
+                sessionId = currentSessionId
+            )
+        }
+        every {
+            manager.subscribeToAttribute(any<(InAppMessagingState) -> String>(), any(), capture(sessionListener))
+        } returns mockk(relaxed = true)
+
+        val api = mockk<InboxApi>()
+        coEvery { api.fetchTemplatesRaw() } coAnswers {
+            templatesCalls.incrementAndGet()
+            currentSessionId = "session-2"
+            sessionListener.captured.invoke(currentSessionId)
+            templatesJson
+        }
+        coEvery { api.fetchBranding() } coAnswers {
+            brandingCalls.incrementAndGet()
+            branding
+        }
+        val repo = repository(api, manager, store)
+
+        repo.loadTemplatesAndBranding()
+        repo.loadTemplatesAndBranding()
+
+        templatesCalls.get() shouldBeEqualTo 2
+        brandingCalls.get() shouldBeEqualTo 2
+    }
+
     // (c) A failed revalidation serves the last-persisted (stale) value and closes the gate,
     // so the next same-session load serves cache without retrying the network.
     @Test

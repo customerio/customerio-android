@@ -160,6 +160,9 @@ internal class InboxRepository(
     }
 
     private suspend fun doLoadTemplatesAndBranding(): InboxFetchOutcome {
+        // Session this cycle belongs to; re-checked before closing the gate below.
+        val sessionAtFetchStart = inAppMessagingManager.getCurrentState().sessionId
+
         // Last-persisted values up front: serve-stale source if a fetch fails.
         val persistedTemplates = persistedTemplatesJson()
         val persistedBranding = persistedBranding()
@@ -234,8 +237,12 @@ internal class InboxRepository(
         // The session has now attempted its conditional GET (whether the result was 304, 200,
         // or a failure that fell back to stale). Close the gate so later loads in this session
         // serve persisted values without re-hitting the network until the session resets
-        // (process restart).
-        hasRevalidatedAssetsThisSession.set(true)
+        // (process restart). Skipped when the session changed mid-fetch (Reset / logout): that
+        // reopened the gate, and closing it here would let the new session serve assets it never
+        // revalidated.
+        if (inAppMessagingManager.getCurrentState().sessionId == sessionAtFetchStart) {
+            hasRevalidatedAssetsThisSession.set(true)
+        }
 
         // Single decision point: only consult last-persisted (stale) values when we have no
         // fresh input to serve, so the explicit serve-stale path is exercised for both inputs.

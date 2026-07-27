@@ -218,11 +218,11 @@ internal class LiveNotificationManager(
             // this pre-check passed — so the handler re-checks the generation immediately
             // before it posts the notification and writes the activity type back.
             //
-            // Contained here because this coroutine runs on an SDK-owned scope with no
-            // exception handler: an app-supplied CustomerIOLiveNotificationsCallback that
-            // throws, or a NotificationManager rejection (e.g. oversized RemoteViews), would
-            // otherwise surface as an uncaught exception and take the host process down from
-            // a thread the app cannot guard. Drop the render and keep the chain alive instead.
+            // LiveNotificationHandler.handle contains its own failures, so this covers the
+            // setup around it (metadata lookup, channel creation, system service). Needed
+            // because this coroutine runs on an SDK-owned scope with no exception handler,
+            // where anything escaping would take the host process down from a thread the app
+            // cannot guard. Drop the render and keep the chain alive instead.
             runCatching {
                 renderLocally(bundle, isSuperseded = { generation != renderGeneration })
             }.onFailure { cause ->

@@ -58,6 +58,17 @@ internal class LiveNotificationHandler(
         )
     }
 
+    /**
+     * Renders and posts the live notification described by the bundle.
+     *
+     * Every failure is contained here rather than at the call sites, because both callers
+     * run somewhere a throw is fatal: the FCM path executes on
+     * `FirebaseMessagingService.onMessageReceived`, and the local path on an SDK-owned
+     * coroutine scope with no exception handler. The risky work — template rendering, asset
+     * decoding/download, the host app's
+     * [io.customer.messagingpush.data.communication.CustomerIOLiveNotificationsCallback], and
+     * the `notify` call itself — is all inside. A failure drops this render only.
+     */
     fun handle(
         context: Context,
         // Null for locally-started activities: they were never delivered by Customer.io, so
@@ -80,6 +91,38 @@ internal class LiveNotificationHandler(
         // logout/reset landed during rendering, in which case the render is dropped so it
         // can't post or re-store a previous user's activity. Local renders only.
         isSuperseded: () -> Boolean = { false }
+    ) {
+        runCatching {
+            handleInternal(
+                context = context,
+                deliveryId = deliveryId,
+                deliveryToken = deliveryToken,
+                smallIcon = smallIcon,
+                tintColor = tintColor,
+                channelId = channelId,
+                notificationManager = notificationManager,
+                bypassOrderGuard = bypassOrderGuard,
+                isSuperseded = isSuperseded
+            )
+        }.onFailure { cause ->
+            SDKComponent.logger.error(
+                "Failed to render live notification " +
+                    "'${bundle.getString(CIO_INSTANCE_ID_KEY)}': ${cause.message}"
+            )
+        }
+    }
+
+    @Suppress("LongParameterList")
+    private fun handleInternal(
+        context: Context,
+        deliveryId: String?,
+        deliveryToken: String?,
+        @DrawableRes smallIcon: Int,
+        @ColorInt tintColor: Int?,
+        channelId: String,
+        notificationManager: NotificationManager,
+        bypassOrderGuard: Boolean,
+        isSuperseded: () -> Boolean
     ) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
             ContextCompat.checkSelfPermission(context, android.Manifest.permission.POST_NOTIFICATIONS)
@@ -183,6 +226,14 @@ internal class LiveNotificationHandler(
         val notifId = notificationId(activityId)
 
         if (result?.cancelImmediately == true) {
+            // Same supersede gate as the post path below: a render invalidated by a logout
+            // must not touch the store the reset just cleared, on any exit path.
+            if (isSuperseded()) {
+                SDKComponent.logger.debug(
+                    "Live notification render for '$activityId' was superseded by a reset; dropping."
+                )
+                return
+            }
             advanceHighWaterMark()
             notificationManager.cancel(activityId, notifId)
             return

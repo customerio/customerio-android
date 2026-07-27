@@ -103,6 +103,29 @@ internal class LiveNotificationCallbackTest : IntegrationTest() {
     }
 
     @Test
+    fun throwingCallback_onPushPath_isContainedAndPostsNothing() {
+        // The FCM path runs on FirebaseMessagingService.onMessageReceived, which has no
+        // try/catch of its own, so a throwing host renderer would take the process down.
+        // Containment lives in LiveNotificationHandler.handle and therefore covers this
+        // path as well as the local one — matching what the callback KDoc promises.
+        attach(
+            object : CustomerIOLiveNotificationsCallback {
+                override fun createLiveNotification(
+                    payload: CustomerIOParsedPushPayload,
+                    context: Context
+                ): Notification = throw IllegalStateException("app renderer blew up")
+            }
+        )
+
+        // Must not propagate (invoke() drives the push path: bypassOrderGuard = false).
+        invoke(bundle(customType))
+
+        assertCalledNever {
+            notificationManager.notify(any<String>(), any<Int>(), any<Notification>())
+        }
+    }
+
+    @Test
     fun customType_endWithoutRenderer_cancelsSinceThereIsNoEndState() {
         // Custom type, no callback → no end-state to post. With nothing to show for the
         // end, the SDK cancels the notification rather than leaving the prior ongoing

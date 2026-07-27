@@ -16,6 +16,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
+import org.amshove.kluent.shouldBeEmpty
 import org.amshove.kluent.shouldBeEqualTo
 import org.amshove.kluent.shouldBeInstanceOf
 import org.junit.Test
@@ -136,15 +137,17 @@ class InboxRepositoryTest {
         repo.isInboxVisible shouldBeEqualTo false
     }
 
+    // A renderable inbox with nothing in it is "You're all caught up", not hidden: the message count
+    // does not gate visibility, so the list can render its empty state.
     @Test
-    fun computeVisibility_givenNoMessages_expectHidden() = runTest {
+    fun computeVisibility_givenNoMessages_expectVisibleAndEmpty() = runTest {
         val api = mockk<InboxApi>(relaxed = true)
         val manager = managerWith(enabled = true, messages = emptySet())
         val repo = repository(api, manager, preferenceStoreWith(templatesJson, brandingJson))
 
         val visibility = repo.computeVisibility()
-        visibility.shouldBeInstanceOf<InboxVisibility.Hidden>()
-        (visibility as InboxVisibility.Hidden).reason shouldBeEqualTo "no selected messages"
+        visibility.shouldBeInstanceOf<InboxVisibility.Visible>()
+        (visibility as InboxVisibility.Visible).messages.shouldBeEmpty()
     }
 
     @Test
@@ -431,6 +434,31 @@ class InboxRepositoryTest {
         }
         val repo = repository(api, manager, store)
         sessionListener.captured.invoke(currentSessionId)
+
+        repo.loadTemplatesAndBranding()
+        repo.loadTemplatesAndBranding()
+
+        templatesCalls.get() shouldBeEqualTo 2
+        brandingCalls.get() shouldBeEqualTo 2
+    }
+
+    // A revalidation that fails with an empty cache has nothing to serve, so the gate must stay open
+    // and let the next poll retry. Closing it would strand the inbox hidden for the whole process.
+    @Test
+    fun loadTemplatesAndBranding_givenFailureAndNoCache_expectGateStaysOpen() = runTest {
+        val templatesCalls = AtomicInteger(0)
+        val brandingCalls = AtomicInteger(0)
+        val api = mockk<InboxApi>()
+        coEvery { api.fetchTemplatesRaw() } coAnswers {
+            templatesCalls.incrementAndGet()
+            throw InboxFetchException("offline")
+        }
+        coEvery { api.fetchBranding() } coAnswers {
+            brandingCalls.incrementAndGet()
+            throw InboxFetchException("offline")
+        }
+        val manager = managerWith(enabled = true, messages = setOf(message()))
+        val repo = repository(api, manager, preferenceStoreWith())
 
         repo.loadTemplatesAndBranding()
         repo.loadTemplatesAndBranding()

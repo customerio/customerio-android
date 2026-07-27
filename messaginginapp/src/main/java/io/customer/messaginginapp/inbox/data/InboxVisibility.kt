@@ -11,12 +11,15 @@ import io.customer.messaginginapp.gist.data.model.InboxMessage
  *
  * [Visible] iff ALL of:
  *  - `isInboxEnabled` (server-driven gate), AND
- *  - at least one selected message (fresh OR stale cache), AND
  *  - templates available (fresh OR stale cache), AND
  *  - branding available (fresh OR stale cache; branding is required-to-render).
  *
  * If any piece is missing/uncached, the inbox is [Hidden]. See
  * [InboxRepository.computeVisibility] and [decideOutcome] for how the inputs combine.
+ *
+ * The message count does NOT gate visibility: a renderable inbox with zero selected messages is
+ * [Visible] with an empty [Visible.messages] ("You're all caught up"), not [Hidden]. Overlay chrome
+ * is gated separately on having renderable messages, so no bell appears over an empty panel.
  */
 @InternalCustomerIOApi
 sealed class InboxVisibility {

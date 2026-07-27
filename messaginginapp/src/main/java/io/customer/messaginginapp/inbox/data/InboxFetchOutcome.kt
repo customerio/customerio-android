@@ -46,7 +46,6 @@ sealed class InboxFetchOutcome {
 // iOS SDK so both platforms emit the same visual-inbox diagnostic reasons. They are
 // logging-only and never surfaced to users; do not change without aligning iOS.
 internal const val REASON_INBOX_DISABLED = "inbox disabled"
-internal const val REASON_NO_SELECTED_MESSAGES = "no selected messages"
 internal const val REASON_TEMPLATES_UNAVAILABLE = "templates unavailable"
 internal const val REASON_BRANDING_UNAVAILABLE = "branding unavailable"
 

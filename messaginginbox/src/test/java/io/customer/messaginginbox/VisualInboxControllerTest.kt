@@ -4,7 +4,6 @@ import io.customer.messaginginapp.gist.data.model.InboxMessage
 import io.customer.messaginginapp.inbox.VisualInbox
 import io.customer.messaginginapp.inbox.data.Branding
 import io.customer.messaginginapp.inbox.data.InboxVisibility
-import io.customer.messaginginapp.inbox.jist.JistInboxAdapter
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
@@ -86,7 +85,6 @@ class VisualInboxControllerTest {
         val state = VisualInboxController(visualInbox).load()
 
         state.visibility.shouldBeInstanceOf<InboxVisibility.Hidden>()
-        verify(exactly = 0) { visualInbox.getSelectedMessages() }
     }
 
     @Test
@@ -95,7 +93,6 @@ class VisualInboxControllerTest {
         val visualInbox = mockk<VisualInbox>(relaxed = true)
         every { visualInbox.isEnabled } returns true
         every { visualInbox.getVisibility() } returns visible(messages)
-        every { visualInbox.getSelectedMessages() } returns JistInboxAdapter.toJist(messages)
 
         val state = VisualInboxController(visualInbox).load()
 
@@ -105,16 +102,14 @@ class VisualInboxControllerTest {
     }
 
     @Test
-    fun snapshot_givenHiddenButSelectableMessagesExist_expectEmptyMessagesAndZeroUnopened() {
-        // Visibility gate: the data layer is Hidden (e.g. templates/branding missing) even though
-        // selectable messages exist. The snapshot must NOT carry those messages, so the panel shows
-        // empty (not a broken Jist render with null templates) and markOpenMessagesOpened no-ops
-        // consistently. unopenedCount must be 0 because messages is empty.
-        val messages = listOf(message("a", opened = false), message("b", opened = false))
+    fun snapshot_givenHidden_expectEmptyMessagesAndZeroUnopened() {
+        // Visibility gate: the data layer is Hidden (e.g. templates/branding missing). Only
+        // InboxVisibility.Visible carries messages, so the snapshot stays empty and the panel shows
+        // nothing rather than a broken Jist render with null templates; markOpenMessagesOpened
+        // no-ops consistently. unopenedCount must be 0 because messages is empty.
         val visualInbox = mockk<VisualInbox>(relaxed = true)
         every { visualInbox.getVisibility() } returns
             InboxVisibility.Hidden("templates unavailable, branding unavailable")
-        every { visualInbox.getSelectedMessages() } returns JistInboxAdapter.toJist(messages)
 
         val state = VisualInboxController(visualInbox).snapshot()
 
@@ -122,8 +117,6 @@ class VisualInboxControllerTest {
         state.visibility.shouldBeInstanceOf<InboxVisibility.Hidden>()
         state.messages.shouldBeEmpty()
         state.unopenedCount shouldBeEqualTo 0
-        // Selectable messages must not be read into the snapshot when Hidden.
-        verify(exactly = 0) { visualInbox.getSelectedMessages() }
     }
 
     @Test
@@ -141,7 +134,6 @@ class VisualInboxControllerTest {
         every { visualInbox.observeInboxChanges() } returns changes
         every { visualInbox.isEnabled } answers { enabled }
         every { visualInbox.getVisibility() } returns visible(messages)
-        every { visualInbox.getSelectedMessages() } returns JistInboxAdapter.toJist(messages)
 
         val controller = controllerOnTestDispatcher(visualInbox)
         val collected = mutableListOf<VisualInboxUiState>()
@@ -177,7 +169,6 @@ class VisualInboxControllerTest {
         every { visualInbox.observeInboxChanges() } returns changes
         every { visualInbox.isEnabled } returns true
         every { visualInbox.getVisibility() } returns visible(messages)
-        every { visualInbox.getSelectedMessages() } returns JistInboxAdapter.toJist(messages)
 
         val controller = controllerOnTestDispatcher(visualInbox)
         val collected = mutableListOf<VisualInboxUiState>()
@@ -217,7 +208,6 @@ class VisualInboxControllerTest {
         every { visualInbox.getVisibility() } answers {
             if (templatesReady) visible(messages) else InboxVisibility.Hidden("templates unavailable, branding unavailable")
         }
-        every { visualInbox.getSelectedMessages() } returns JistInboxAdapter.toJist(messages)
 
         val controller = controllerOnTestDispatcher(visualInbox)
         val collected = mutableListOf<VisualInboxUiState>()
@@ -254,10 +244,6 @@ class VisualInboxControllerTest {
         every { visualInbox.isEnabled } returns true
         // Seeded emission sees 2 unopened; after the opened-state change, message "a" is opened.
         every { visualInbox.getVisibility() } returnsMany listOf(visible(unopened), visible(afterOpen))
-        every { visualInbox.getSelectedMessages() } returnsMany listOf(
-            JistInboxAdapter.toJist(unopened),
-            JistInboxAdapter.toJist(afterOpen)
-        )
 
         val controller = controllerOnTestDispatcher(visualInbox)
         val collected = mutableListOf<VisualInboxUiState>()

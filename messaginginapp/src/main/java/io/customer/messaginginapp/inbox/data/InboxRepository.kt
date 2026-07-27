@@ -244,20 +244,27 @@ internal class InboxRepository(
             }
         }
 
-        // The session has now attempted its conditional GET (whether the result was 304, 200,
-        // or a failure that fell back to stale). Close the gate so later loads in this session
-        // serve persisted values without re-hitting the network until the session resets
-        // (process restart). Skipped when the session changed mid-fetch (Reset / logout): that
-        // reopened the gate, and closing it here would let the new session serve assets it never
-        // revalidated.
-        if (inAppMessagingManager.getCurrentState().sessionId == sessionAtFetchStart) {
-            hasRevalidatedAssetsThisSession.set(true)
-        }
-
         // Single decision point: only consult last-persisted (stale) values when we have no
         // fresh input to serve, so the explicit serve-stale path is exercised for both inputs.
         val staleTemplates = if (freshTemplates == null) persistedTemplates else null
         val staleBranding = if (freshBranding == null) persistedBranding else null
+
+        // Close the gate so later loads in this session serve persisted values without re-hitting
+        // the network, but only when:
+        //  - the session that started this cycle is still current (a Reset / logout mid-fetch
+        //    reopened the gate, and closing it here would let the new session serve assets it never
+        //    revalidated), AND
+        //  - there is actually something to serve. A failure with an empty cache has no fallback, so
+        //    closing would strand the inbox hidden for the rest of the process; leaving it open lets
+        //    the next poll retry. A cycle that resolved (fresh OR stale) still closes it, so a
+        //    failing server cannot cause a per-poll retry loop.
+        val hasServableAssets = (freshTemplates ?: staleTemplates) != null &&
+            (freshBranding ?: staleBranding) != null
+        if (inAppMessagingManager.getCurrentState().sessionId == sessionAtFetchStart && hasServableAssets) {
+            hasRevalidatedAssetsThisSession.set(true)
+        } else if (!hasServableAssets) {
+            logger.debug("$LOG_TAG revalidation produced nothing servable: gate stays open for the next poll")
+        }
 
         if (staleTemplates != null) logger.info("$LOG_TAG serve-stale: using last-persisted TEMPLATES (fetch failed)")
         if (staleBranding != null) logger.info("$LOG_TAG serve-stale: using last-persisted BRANDING (fetch failed)")
@@ -336,10 +343,10 @@ internal class InboxRepository(
         if (!isInboxEnabled) {
             return InboxVisibility.Hidden(REASON_INBOX_DISABLED)
         }
+        // An empty selection is NOT hidden: a renderable inbox with nothing in it is "You're all
+        // caught up", which the inbox list renders. Overlay chrome is gated separately on having
+        // renderable messages, so no bell appears over an empty panel.
         val messages = selectVisualInboxMessages()
-        if (messages.isEmpty()) {
-            return InboxVisibility.Hidden(REASON_NO_SELECTED_MESSAGES)
-        }
         return when (outcome) {
             is InboxFetchOutcome.Visible -> InboxVisibility.Visible(
                 templatesJson = outcome.templatesJson,

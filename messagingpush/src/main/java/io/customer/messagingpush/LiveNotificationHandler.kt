@@ -89,7 +89,8 @@ internal class LiveNotificationHandler(
         // Re-checked after the (potentially slow) render work and immediately before the
         // notification is posted and the activity type is written back. Returns true when a
         // logout/reset landed during rendering, in which case the render is dropped so it
-        // can't post or re-store a previous user's activity. Local renders only.
+        // can't post or re-store a previous user's activity. Supplied for every render that
+        // runs on LiveNotificationManager's render chain — local and server-delivered alike.
         isSuperseded: () -> Boolean = { false }
     ) {
         runCatching {

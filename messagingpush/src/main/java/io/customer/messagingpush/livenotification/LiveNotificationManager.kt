@@ -206,6 +206,29 @@ internal class LiveNotificationManager(
      */
     @Synchronized
     private fun render(bundle: Bundle) {
+        enqueueRender(bundle.getString(LiveNotificationHandler.CIO_INSTANCE_ID_KEY)) { isSuperseded ->
+            renderLocally(bundle, isSuperseded)
+        }
+    }
+
+    /**
+     * Renders a server-delivered live notification off the caller's thread.
+     *
+     * Push renders used to run inline on Firebase's `onMessageReceived` thread, where the
+     * blocking branding-logo download (up to ~20s) held up Firebase's message handler and
+     * delayed follow-up pushes. Routing them through the same chain as local renders releases
+     * that thread immediately and keeps push and local renders from interleaving.
+     */
+    @Synchronized
+    fun renderFromPush(activityId: String?, render: (isSuperseded: () -> Boolean) -> Unit) {
+        enqueueRender(activityId, render)
+    }
+
+    /**
+     * Queues [render] behind any in-flight render so the two can't interleave, and drops it if a
+     * logout/reset lands first.
+     */
+    private fun enqueueRender(activityId: String?, render: (isSuperseded: () -> Boolean) -> Unit) {
         val generation = renderGeneration
         val previous = renderChain
         renderChain = renderScope.launch {
@@ -224,11 +247,10 @@ internal class LiveNotificationManager(
             // where anything escaping would take the host process down from a thread the app
             // cannot guard. Drop the render and keep the chain alive instead.
             runCatching {
-                renderLocally(bundle, isSuperseded = { generation != renderGeneration })
+                render { generation != renderGeneration }
             }.onFailure { cause ->
                 SDKComponent.logger.error(
-                    "Failed to render live notification " +
-                        "'${bundle.getString(LiveNotificationHandler.CIO_INSTANCE_ID_KEY)}': ${cause.message}"
+                    "Failed to render live notification '$activityId': ${cause.message}"
                 )
             }
         }

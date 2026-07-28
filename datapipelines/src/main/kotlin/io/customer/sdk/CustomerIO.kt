@@ -306,6 +306,12 @@ class CustomerIO private constructor(
             traits = traits,
             serializationStrategy = serializationStrategy
         )
+        // Reflect identity synchronously on the caller's thread so isUserIdentified is correct
+        // immediately, before analytics.userId() catches up (see syncUserIdentified). Must be set
+        // before publishUserChanged: the mirror takes precedence over the analytics fallback, so a
+        // subscriber that gates on isUserIdentified would otherwise read a stale `false` left by an
+        // earlier clearIdentify() even though analytics.userId() is already correct.
+        syncUserIdentified = true
         // Publish for other modules. Must come after analytics.identify() so analytics.userId()
         // returns the new userId for subscribers that gate on it (e.g. location resync).
         publishUserChanged(userId)
@@ -323,9 +329,6 @@ class CustomerIO private constructor(
         // Update the per-session marker after a successful identify (with or without traits)
         // so that a subsequent no-traits identify of the same userId can be deduped.
         lastIdentifiedUserIdThisSession = userId
-        // Reflect identity synchronously on the caller's thread so isUserIdentified is correct
-        // immediately, before analytics.userId() catches up (see syncUserIdentified).
-        syncUserIdentified = true
     }
 
     /**

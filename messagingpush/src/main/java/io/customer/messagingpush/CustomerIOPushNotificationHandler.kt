@@ -16,6 +16,7 @@ import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
 import io.customer.messagingpush.activity.NotificationClickReceiverActivity
 import io.customer.messagingpush.data.model.CustomerIOParsedPushPayload
+import io.customer.messagingpush.di.liveNotificationManager
 import io.customer.messagingpush.di.pushLogger
 import io.customer.messagingpush.di.pushModuleConfig
 import io.customer.messagingpush.extensions.*
@@ -149,15 +150,21 @@ internal class CustomerIOPushNotificationHandler(
                 notificationManager = notificationManager
             )
             // onNotificationComposed is intentionally not called for live notifications.
-            LiveNotificationHandler(bundle).handle(
-                context = context,
-                deliveryId = deliveryId,
-                deliveryToken = deliveryToken,
-                smallIcon = smallIcon,
-                tintColor = tintColor,
-                channelId = liveChannelId,
-                notificationManager = notificationManager
-            )
+            // Dispatched rather than run inline: the handler performs a blocking branding-logo
+            // download (up to ~20s), which would otherwise hold Firebase's onMessageReceived
+            // thread and delay follow-up pushes.
+            SDKComponent.liveNotificationManager.renderFromPush(activityId) { isSuperseded ->
+                LiveNotificationHandler(bundle).handle(
+                    context = context,
+                    deliveryId = deliveryId,
+                    deliveryToken = deliveryToken,
+                    smallIcon = smallIcon,
+                    tintColor = tintColor,
+                    channelId = liveChannelId,
+                    notificationManager = notificationManager,
+                    isSuperseded = isSuperseded
+                )
+            }
             return
         }
 

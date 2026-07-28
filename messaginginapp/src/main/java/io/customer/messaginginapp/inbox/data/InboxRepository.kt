@@ -321,12 +321,13 @@ internal class InboxRepository(
      * Whether the visual inbox should be shown right now. The inbox is VISIBLE iff
      * ALL of the following hold:
      *  - [isInboxEnabled] is true (server-driven gate), AND
-     *  - at least one selected message exists (read from the headless store), AND
      *  - templates are available (persisted via the HTTP cache), AND
      *  - branding is available (persisted via the HTTP cache).
      *
-     * Any missing/uncached piece => hidden (no error). This folds the enabled +
-     * messages inputs in around [decideOutcome]'s templates+branding decision.
+     * Any missing/uncached piece => hidden (no error). This folds the enabled input
+     * in around [decideOutcome]'s templates+branding decision. The selected messages
+     * ride along on [InboxVisibility.Visible] but do not gate it: a renderable inbox
+     * with zero messages is visible and empty ("You're all caught up").
      */
     fun computeVisibility(outcome: InboxFetchOutcome = currentTemplatesBrandingOutcome()): InboxVisibility {
         val visibility = computeVisibilityInternal(outcome)

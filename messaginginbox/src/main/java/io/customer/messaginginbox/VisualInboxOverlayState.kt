@@ -159,9 +159,10 @@ internal class VisualInboxController(
     fun snapshot(): VisualInboxUiState {
         val visibility = visualInbox.getVisibility()
         // Visibility is the single source of truth: only carry messages when the inbox is fully
-        // renderable (Visible == enabled + templates + branding + >=1 message). Otherwise the
-        // panel could render the list with null templates/theme (Jist renders empty) and
-        // markOpenMessagesOpened would no-op, leaving viewed messages unopened.
+        // renderable (Visible == enabled + templates + branding; the message count does not gate it,
+        // so Visible with an empty list is the "all caught up" case). Otherwise the panel could
+        // render the list with null templates/theme (Jist renders empty) and markOpenMessagesOpened
+        // would no-op, leaving viewed messages unopened.
         //
         // Reuse the list the visibility decision was made from rather than re-selecting: a second
         // read would repeat the selection and the Jist deep-copy, and could observe a store change
@@ -173,7 +174,7 @@ internal class VisualInboxController(
         // reconciled against the live list: the data-layer tombstone (deletedInboxMessageIds) prevents
         // a dismissed message from resurrecting and queueIds are never reused, so a guard never needs
         // releasing within a session. Reconciling here only re-introduced edge cases (guards wiped on
-        // a transient non-Visible state, or stuck after the last row is dismissed → Hidden).
+        // a transient non-Visible state, or on the empty list left after the last row is dismissed).
         return VisualInboxUiState(
             loading = false,
             visibility = visibility,

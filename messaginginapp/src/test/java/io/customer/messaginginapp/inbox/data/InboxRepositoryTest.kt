@@ -23,8 +23,9 @@ import org.junit.Test
 
 /**
  * Visibility-policy coverage for [InboxRepository]: the inbox is VISIBLE iff
- * enabled + >=1 selected message + templates + branding (each fresh OR stale),
- * else HIDDEN — never an error. Also covers branding/templates serve-stale (from
+ * enabled + templates + branding (each fresh OR stale), else HIDDEN — never an
+ * error. The message count does not gate visibility, so an enabled inbox with no
+ * messages is visible and empty. Also covers branding/templates serve-stale (from
  * the last-persisted HTTP-cache-backed value) and messages-from-headless-state.
  *
  * Freshness coverage (once-per-session revalidation gate): the first load of a

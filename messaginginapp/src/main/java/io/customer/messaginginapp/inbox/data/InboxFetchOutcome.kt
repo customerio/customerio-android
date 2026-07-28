@@ -12,15 +12,16 @@ import io.customer.base.internal.InternalCustomerIOApi
  * inbox is [Visible] iff BOTH render inputs resolve, each via: fresh fetch/cache-hit,
  * else serve stale (last-persisted), else missing -> [Hidden]. Branding is
  * REQUIRED-to-render and behaves exactly like templates (no defaults). Full
- * visibility ALSO requires `isInboxEnabled` + a selected message, folded in by
+ * visibility ALSO requires `isInboxEnabled`, folded in by
  * [InboxRepository.computeVisibility]; [decideOutcome] decides only templates+branding.
+ * The message count does not gate visibility — an empty inbox is visible and empty.
  */
 @InternalCustomerIOApi
 sealed class InboxFetchOutcome {
     /**
      * Render inputs resolved: templates AND branding are both available (each
-     * fresh or served stale). The inbox can be shown (subject to the enabled +
-     * messages checks folded in by the repository's visibility computation).
+     * fresh or served stale). The inbox can be shown (subject to the enabled
+     * check folded in by the repository's visibility computation).
      *
      * @param templatesJson raw, Jist-agnostic template registry JSON
      * @param branding branding tokens + patterns (required-to-render; never null here)

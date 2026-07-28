@@ -139,4 +139,30 @@ internal class LiveNotificationCallbackTest : IntegrationTest() {
             notificationManager.cancel("act-cb", expectedNotifId)
         }
     }
+
+    @Test
+    fun throwingCallback_onEnd_cancelsRatherThanStrandingTheOngoingNotification() {
+        // A server-delivered `end` claims the terminal transition in the store *before* rendering.
+        // If the render then throws, the previous ongoing (non-dismissible) notification would be
+        // left on screen and every retry `end` dropped by that same claim — stranding it. So
+        // containment must cancel on the end path, not just swallow the failure.
+        attach(
+            object : CustomerIOLiveNotificationsCallback {
+                override fun createLiveNotification(
+                    payload: CustomerIOParsedPushPayload,
+                    context: Context
+                ): Notification = throw IllegalStateException("app renderer blew up")
+            }
+        )
+        val expectedNotifId = "act-cb".hashCode() and 0x7FFFFFFF
+
+        invoke(bundle(customType, event = "end"))
+
+        verify(exactly = 1) {
+            notificationManager.cancel("act-cb", expectedNotifId)
+        }
+        assertCalledNever {
+            notificationManager.notify(any<String>(), any<Int>(), any<Notification>())
+        }
+    }
 }

@@ -106,10 +106,19 @@ internal class LiveNotificationHandler(
                 isSuperseded = isSuperseded
             )
         }.onFailure { cause ->
+            val activityId = bundle.getString(CIO_INSTANCE_ID_KEY)
             SDKComponent.logger.error(
-                "Failed to render live notification " +
-                    "'${bundle.getString(CIO_INSTANCE_ID_KEY)}': ${cause.message}"
+                "Failed to render live notification '$activityId': ${cause.message}"
             )
+            // A server-delivered `end` claims the terminal transition in the store *before*
+            // rendering, so a failure here would leave the previous ongoing (non-dismissible)
+            // notification on screen while every retry `end` is dropped by that same claim.
+            // Cancel it so a failed render can't strand the activity visible and unclearable.
+            // Local renders are excluded: LiveNotificationManager owns their terminal flow and
+            // claims ended only after the render.
+            if (!bypassOrderGuard && bundle.getString(EVENT_KEY) == EVENT_END && activityId != null) {
+                notificationManager.cancel(activityId, notificationId(activityId))
+            }
         }
     }
 

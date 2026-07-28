@@ -2,14 +2,18 @@ package io.customer.location
 
 import io.customer.location.store.LocationPreferenceStore
 import io.customer.location.sync.LocationSyncFilter
+import io.customer.sdk.communication.Event
+import io.customer.sdk.communication.EventBus
 import io.customer.sdk.core.pipeline.DataPipeline
 import io.customer.sdk.core.util.Logger
 import io.customer.sdk.util.EventNames
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.slot
 import io.mockk.verify
 import org.amshove.kluent.shouldBeEmpty
 import org.amshove.kluent.shouldBeEqualTo
+import org.amshove.kluent.shouldBeNull
 import org.amshove.kluent.shouldNotBeEmpty
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -19,6 +23,7 @@ class LocationTrackerTest {
     private val dataPipeline: DataPipeline = mockk(relaxUnitFun = true)
     private val store: LocationPreferenceStore = mockk(relaxUnitFun = true)
     private val syncFilter: LocationSyncFilter = mockk(relaxUnitFun = true)
+    private val mockEventBus: EventBus = mockk(relaxUnitFun = true)
     private val logger: Logger = mockk(relaxUnitFun = true)
 
     private lateinit var tracker: LocationTracker
@@ -27,7 +32,7 @@ class LocationTrackerTest {
     fun setup() {
         every { dataPipeline.isUserIdentified } returns true
         every { syncFilter.filterAndRecord(any(), any()) } returns true
-        tracker = LocationTracker(dataPipeline, store, syncFilter, logger)
+        tracker = LocationTracker(dataPipeline, store, syncFilter, mockEventBus, logger)
     }
 
     // -- onLocationReceived --
@@ -71,12 +76,44 @@ class LocationTrackerTest {
 
     @Test
     fun givenNullDataPipeline_expectNoException() {
-        val trackerWithNullPipeline = LocationTracker(null, store, syncFilter, logger)
+        val trackerWithNullPipeline = LocationTracker(null, store, syncFilter, mockEventBus, logger)
 
         trackerWithNullPipeline.onLocationReceived(37.7749, -122.4194)
 
         // Persist still happens, but no track call
         verify { store.saveCachedLocation(37.7749, -122.4194) }
+    }
+
+    @Test
+    fun givenLocationReceived_expectLocationAcquiredPublishedOnEventBus() {
+        val captured = slot<Event.LocationAcquired>()
+
+        tracker.onLocationReceived(37.7749, -122.4194)
+
+        verify { mockEventBus.publish(capture(captured)) }
+        captured.captured shouldBeEqualTo Event.LocationAcquired(latitude = 37.7749, longitude = -122.4194)
+    }
+
+    // -- onLocationReceivedWithoutTracking --
+
+    @Test
+    fun givenLocationReceivedWithoutTracking_expectNoAnalyticsSideEffects() {
+        tracker.onLocationReceivedWithoutTracking(37.7749, -122.4194)
+
+        verify(exactly = 0) { dataPipeline.track(any(), any()) }
+        verify(exactly = 0) { store.saveCachedLocation(any(), any()) }
+        tracker.getIdentifyContext().shouldBeEmpty()
+    }
+
+    @Test
+    fun givenLocationReceivedWithoutTracking_expectPublishedAndReadableViaLastKnownLocation() {
+        val captured = slot<Event.LocationAcquired>()
+
+        tracker.onLocationReceivedWithoutTracking(37.7749, -122.4194)
+
+        verify { mockEventBus.publish(capture(captured)) }
+        captured.captured shouldBeEqualTo Event.LocationAcquired(latitude = 37.7749, longitude = -122.4194)
+        tracker.lastKnownLocation shouldBeEqualTo LocationCoordinates(latitude = 37.7749, longitude = -122.4194)
     }
 
     // -- syncCachedLocationIfNeeded --
@@ -129,6 +166,8 @@ class LocationTrackerTest {
         context.shouldNotBeEmpty()
         context["location_latitude"] shouldBeEqualTo 37.7749
         context["location_longitude"] shouldBeEqualTo -122.4194
+        // Also seeds the cross-module field so geofencing has a fix at cold start.
+        tracker.lastKnownLocation shouldBeEqualTo LocationCoordinates(latitude = 37.7749, longitude = -122.4194)
     }
 
     @Test
@@ -222,8 +261,9 @@ class LocationTrackerTest {
 
         tracker.resetContext()
 
-        // In-memory location cleared — no stale data for next identify
+        // Both in-memory fields cleared — no stale data for next identify
         tracker.getIdentifyContext().shouldBeEmpty()
+        tracker.lastKnownLocation.shouldBeNull()
         // Persistence and sync filter also cleared synchronously
         verify { store.clearCachedLocation() }
         verify { syncFilter.clearSyncedData() }

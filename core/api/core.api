@@ -16,6 +16,46 @@ public final class io/customer/sdk/communication/Event$DeleteDeviceTokenEvent : 
 	public fun <init> ()V
 }
 
+public final class io/customer/sdk/communication/Event$GeofenceTransition : java/lang/Enum {
+	public static final field ENTER Lio/customer/sdk/communication/Event$GeofenceTransition;
+	public static final field EXIT Lio/customer/sdk/communication/Event$GeofenceTransition;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lio/customer/sdk/communication/Event$GeofenceTransition;
+	public static fun values ()[Lio/customer/sdk/communication/Event$GeofenceTransition;
+}
+
+public final class io/customer/sdk/communication/Event$GeofenceTransitionEvent : io/customer/sdk/communication/Event {
+	public fun <init> (Ljava/lang/String;Lio/customer/sdk/communication/Event$GeofenceTransition;Ljava/util/Map;Ljava/lang/String;Ljava/util/Date;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Lio/customer/sdk/communication/Event$GeofenceTransition;
+	public final fun component3 ()Ljava/util/Map;
+	public final fun component4 ()Ljava/lang/String;
+	public final fun component5 ()Ljava/util/Date;
+	public final fun copy (Ljava/lang/String;Lio/customer/sdk/communication/Event$GeofenceTransition;Ljava/util/Map;Ljava/lang/String;Ljava/util/Date;)Lio/customer/sdk/communication/Event$GeofenceTransitionEvent;
+	public static synthetic fun copy$default (Lio/customer/sdk/communication/Event$GeofenceTransitionEvent;Ljava/lang/String;Lio/customer/sdk/communication/Event$GeofenceTransition;Ljava/util/Map;Ljava/lang/String;Ljava/util/Date;ILjava/lang/Object;)Lio/customer/sdk/communication/Event$GeofenceTransitionEvent;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getGeofenceId ()Ljava/lang/String;
+	public final fun getProperties ()Ljava/util/Map;
+	public fun getTimestamp ()Ljava/util/Date;
+	public final fun getTransition ()Lio/customer/sdk/communication/Event$GeofenceTransition;
+	public final fun getUserId ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/customer/sdk/communication/Event$LocationAcquired : io/customer/sdk/communication/Event {
+	public fun <init> (DD)V
+	public final fun component1 ()D
+	public final fun component2 ()D
+	public final fun copy (DD)Lio/customer/sdk/communication/Event$LocationAcquired;
+	public static synthetic fun copy$default (Lio/customer/sdk/communication/Event$LocationAcquired;DDILjava/lang/Object;)Lio/customer/sdk/communication/Event$LocationAcquired;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getLatitude ()D
+	public final fun getLongitude ()D
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
 public final class io/customer/sdk/communication/Event$RegisterDeviceTokenEvent : io/customer/sdk/communication/Event {
 	public fun <init> (Ljava/lang/String;)V
 	public final fun component1 ()Ljava/lang/String;
@@ -120,6 +160,7 @@ public abstract class io/customer/sdk/core/di/AndroidSDKComponent : io/customer/
 	public abstract fun getClient ()Lio/customer/sdk/data/store/Client;
 	public abstract fun getDeviceStore ()Lio/customer/sdk/data/store/DeviceStore;
 	public abstract fun getGlobalPreferenceStore ()Lio/customer/sdk/data/store/GlobalPreferenceStore;
+	public abstract fun getSecureUserStore ()Lio/customer/sdk/data/store/SecureUserStore;
 }
 
 public final class io/customer/sdk/core/di/AndroidSDKComponentImpl : io/customer/sdk/core/di/AndroidSDKComponent {
@@ -131,6 +172,7 @@ public final class io/customer/sdk/core/di/AndroidSDKComponentImpl : io/customer
 	public fun getClient ()Lio/customer/sdk/data/store/Client;
 	public fun getDeviceStore ()Lio/customer/sdk/data/store/DeviceStore;
 	public fun getGlobalPreferenceStore ()Lio/customer/sdk/data/store/GlobalPreferenceStore;
+	public fun getSecureUserStore ()Lio/customer/sdk/data/store/SecureUserStore;
 	public fun reset ()V
 }
 
@@ -224,6 +266,7 @@ public final class io/customer/sdk/core/util/Logger$DefaultImpls {
 
 public abstract interface class io/customer/sdk/core/util/ScopeProvider {
 	public abstract fun getEventBusScope ()Lkotlinx/coroutines/CoroutineScope;
+	public abstract fun getGeofenceScope ()Lkotlinx/coroutines/CoroutineScope;
 	public abstract fun getInAppLifecycleScope ()Lkotlinx/coroutines/CoroutineScope;
 	public abstract fun getLifecycleListenerScope ()Lkotlinx/coroutines/CoroutineScope;
 	public abstract fun getLocationScope ()Lkotlinx/coroutines/CoroutineScope;
@@ -239,6 +282,7 @@ public final class io/customer/sdk/core/util/SdkDispatchers : io/customer/sdk/co
 public final class io/customer/sdk/core/util/SdkScopeProvider : io/customer/sdk/core/util/ScopeProvider {
 	public fun <init> (Lio/customer/sdk/core/util/DispatchersProvider;)V
 	public fun getEventBusScope ()Lkotlinx/coroutines/CoroutineScope;
+	public fun getGeofenceScope ()Lkotlinx/coroutines/CoroutineScope;
 	public fun getInAppLifecycleScope ()Lkotlinx/coroutines/CoroutineScope;
 	public fun getLifecycleListenerScope ()Lkotlinx/coroutines/CoroutineScope;
 	public fun getLocationScope ()Lkotlinx/coroutines/CoroutineScope;

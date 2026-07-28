@@ -50,5 +50,40 @@ sealed class Event {
         val token: String
     ) : Event()
 
+    /**
+     * Published by the location module on every fresh location fix. Other modules
+     * subscribe to react to location updates without depending on its internals.
+     */
+    data class LocationAcquired(
+        val latitude: Double,
+        val longitude: Double
+    ) : Event()
+
     class DeleteDeviceTokenEvent : Event()
+
+    enum class GeofenceTransition {
+        ENTER,
+        EXIT
+    }
+
+    /**
+     * Event published by the Location module when a geofence transition is received from the OS.
+     * Subscribers (e.g. data pipelines) translate this into a tracked event.
+     *
+     * [userId] is snapshotted at queue time, not the SDK's current identity — non-null means the
+     * subscriber must attribute the resulting track event to this userId (not whoever is identified
+     * at flush time), so a sign-out + sign-in between queue and delivery cannot reattribute. Null
+     * means anonymous at queue time; the subscriber falls back to the pipeline's anonymousId path.
+     *
+     * [timestamp] is the moment the transition fired (captured at receiver time), not the publish
+     * time. Subscribers stamp this onto the outgoing CDP event so a delayed flush still attributes
+     * the transition to when it happened, not when it was sent.
+     */
+    data class GeofenceTransitionEvent(
+        val geofenceId: String,
+        val transition: GeofenceTransition,
+        val properties: Map<String, Any>,
+        val userId: String?,
+        override val timestamp: Date
+    ) : Event()
 }

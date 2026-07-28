@@ -18,6 +18,7 @@ import io.customer.android.sample.java_layout.ui.dashboard.DashboardActivity;
 import io.customer.android.sample.java_layout.utils.OSUtils;
 import io.customer.android.sample.java_layout.utils.ViewUtils;
 import io.customer.datapipelines.config.ScreenView;
+import io.customer.location.LocationTrackingMode;
 import io.customer.sdk.core.util.CioLogLevel;
 import io.customer.sdk.data.model.Region;
 import io.reactivex.rxjava3.android.schedulers.AndroidSchedulers;
@@ -139,6 +140,7 @@ public class SettingsActivity extends BaseActivity<ActivitySettingsBinding> {
         binding.settingsLogLevelValuesGroup.check(getCheckedLogLevelButtonId(config.getLogLevel()));
         binding.settingsTestModeValuesGroup.check(getCheckedTestModeButtonId(config.isTestModeEnabled()));
         binding.settingsInAppMessagingValuesGroup.check(getCheckedInAppMessagingButtonId(config.isInAppMessagingEnabled()));
+        binding.settingsLocationTrackingModeValuesGroup.check(getCheckedLocationTrackingModeButtonId(config.getLocationTrackingMode()));
     }
 
     private void saveSettings() {
@@ -182,6 +184,7 @@ public class SettingsActivity extends BaseActivity<ActivitySettingsBinding> {
         CioLogLevel logLevel = getSelectedLogLevel();
         Region region = getSelectedRegion();
         ScreenView screenViewUse = getSelectedScreenViewUse();
+        LocationTrackingMode locationTrackingMode = getSelectedLocationTrackingMode();
 
         return new CustomerIOSDKConfig(cdpApiKey,
                 siteId,
@@ -194,7 +197,34 @@ public class SettingsActivity extends BaseActivity<ActivitySettingsBinding> {
                 screenViewUse,
                 featTrackApplicationLifecycle,
                 featTestModeEnabled,
-                featInAppMessagingEnabled);
+                featInAppMessagingEnabled,
+                locationTrackingMode);
+    }
+
+    @NonNull
+    private LocationTrackingMode getSelectedLocationTrackingMode() {
+        int checkedButton = binding.settingsLocationTrackingModeValuesGroup.getCheckedButtonId();
+        if (checkedButton == R.id.settings_location_tracking_mode_off_button) {
+            return LocationTrackingMode.OFF;
+        } else if (checkedButton == R.id.settings_location_tracking_mode_manual_button) {
+            return LocationTrackingMode.MANUAL;
+        } else if (checkedButton == R.id.settings_location_tracking_mode_on_app_start_button) {
+            return LocationTrackingMode.ON_APP_START;
+        }
+        throw new IllegalStateException();
+    }
+
+    private int getCheckedLocationTrackingModeButtonId(@NonNull LocationTrackingMode mode) {
+        switch (mode) {
+            case OFF:
+                return R.id.settings_location_tracking_mode_off_button;
+            case MANUAL:
+                return R.id.settings_location_tracking_mode_manual_button;
+            case ON_APP_START:
+                return R.id.settings_location_tracking_mode_on_app_start_button;
+            default:
+                throw new IllegalStateException();
+        }
     }
 
     @NonNull

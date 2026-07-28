@@ -1,5 +1,6 @@
 package io.customer.sdk.core.network
 
+import android.net.Uri
 import android.util.Base64
 import io.customer.base.internal.InternalCustomerIOApi
 import io.customer.sdk.core.di.SDKComponent
@@ -13,20 +14,21 @@ import java.net.URL
 @InternalCustomerIOApi
 data class HttpRequestParams(
     val path: String,
+    val method: HttpMethod = HttpMethod.POST,
+    val queryParams: Map<String, String> = emptyMap(),
     val headers: Map<String, String> = emptyMap(),
     val body: String? = null
 )
+
+@InternalCustomerIOApi
+enum class HttpMethod { GET, POST }
 
 /** HTTP client for Customer.io API calls with SDK authentication. */
 @InternalCustomerIOApi
 interface CustomerIOHttpClient {
     /**
-     * Performs a POST request to [params.path] with [params.headers] and [params.body].
-     *
-     * @param params The request parameters (path, headers, body).
-     * @return A `Result<String>`:
-     *   - `Result.success(responseBody)` for 2xx response codes
-     *   - `Result.failure(exception)` for network errors or non-2xx codes
+     * Performs an HTTP request per [params]. Returns `Result.success(body)`
+     * for 2xx and `Result.failure(exception)` for network errors or non-2xx.
      */
     suspend fun request(params: HttpRequestParams): Result<String>
 }
@@ -49,9 +51,18 @@ internal class CustomerIOHttpClientImpl : CustomerIOHttpClient {
         val apiHost = settings.apiHost
         val writeKey = settings.writeKey
 
-        // Ensure we have exactly one slash
+        // `apiHost` already includes the API version prefix (e.g.,
+        // "cdp.customer.io/v1"), so `Uri.Builder().authority()` can't be used
+        // here — it would percent-encode the embedded `/`. Compose the base URL
+        // first, then layer query params on top via `buildUpon`.
         val cleanedPath = if (params.path.startsWith("/")) params.path else "/${params.path}"
-        val urlString = "https://$apiHost$cleanedPath"
+        val urlString = Uri.parse("https://$apiHost$cleanedPath")
+            .buildUpon()
+            .apply {
+                params.queryParams.forEach { (k, v) -> appendQueryParameter(k, v) }
+            }
+            .build()
+            .toString()
 
         val connection = try {
             val urlObj = URL(urlString)
@@ -66,7 +77,7 @@ internal class CustomerIOHttpClientImpl : CustomerIOHttpClient {
             // Configure the connection
             connection.connectTimeout = connectTimeoutMs
             connection.readTimeout = readTimeoutMs
-            connection.requestMethod = "POST"
+            connection.requestMethod = params.method.name
             connection.setRequestProperty("User-Agent", client.toString())
 
             // Authorization: Basic <base64("writeKey:")>

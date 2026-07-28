@@ -1,6 +1,7 @@
 package io.customer.location
 
 import android.location.Location
+import io.customer.base.internal.InternalCustomerIOApi
 
 /**
  * Public API for the Location module.
@@ -49,4 +50,26 @@ interface LocationServices {
      * runtime permissions and only call this when permission is granted.
      */
     fun requestLocationUpdate()
+
+    /**
+     * Requests a single location update for internal consumers (e.g. geofencing) with
+     * no analytics side effects: no "CIO Location Update" track event, and the fix is
+     * not persisted or added to identify context. It is readable via
+     * [getLastKnownLocation].
+     *
+     * Requires location permission like [requestLocationUpdate], but fetches regardless
+     * of the tracking mode — geofencing needs a fix even when tracking is OFF.
+     * Internal API for other SDK modules.
+     */
+    @InternalCustomerIOApi
+    fun requestLocationUpdateSilently()
+
+    /**
+     * Returns the most recent location the SDK observed from any source — host
+     * [setLastKnownLocation], [requestLocationUpdate], or a silent
+     * [requestLocationUpdateSilently] fix — or null if none yet. Internal API for
+     * other SDK modules.
+     */
+    @InternalCustomerIOApi
+    fun getLastKnownLocation(): LocationCoordinates?
 }

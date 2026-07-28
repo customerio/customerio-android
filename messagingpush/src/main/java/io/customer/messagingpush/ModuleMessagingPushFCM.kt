@@ -6,10 +6,8 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ProcessLifecycleOwner
-import androidx.work.WorkManager
-import androidx.work.await
 import io.customer.messagingpush.di.fcmTokenProvider
-import io.customer.messagingpush.di.pendingPushDeliveryStore
+import io.customer.messagingpush.di.pushDeliveryFlusher
 import io.customer.messagingpush.di.pushLogger
 import io.customer.messagingpush.di.pushTrackingUtil
 import io.customer.messagingpush.logger.PushNotificationLogger
@@ -18,14 +16,10 @@ import io.customer.messagingpush.store.PendingPushDeliveryMetric
 import io.customer.sdk.communication.Event
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.di.SDKComponent.eventBus
-import io.customer.sdk.core.di.workManagerProvider
 import io.customer.sdk.core.module.CustomerIOModule
-import io.customer.sdk.core.util.DispatchersProvider
-import io.customer.sdk.data.store.PendingDeliveryStore
+import io.customer.sdk.data.store.PendingDeliveryFlusher
 import io.customer.sdk.events.Metric
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.filter
-import kotlinx.coroutines.launch
 
 class ModuleMessagingPushFCM @JvmOverloads constructor(
     override val moduleConfig: MessagingPushModuleConfig = MessagingPushModuleConfig.default()
@@ -35,14 +29,10 @@ class ModuleMessagingPushFCM @JvmOverloads constructor(
         get() = SDKComponent.android().fcmTokenProvider
     private val pushTrackingUtil = SDKComponent.pushTrackingUtil
     private val activityLifecycleCallbacks = SDKComponent.activityLifecycleCallbacks
-    private val pendingPushDeliveryStore: PendingDeliveryStore<PendingPushDeliveryMetric>
-        get() = SDKComponent.pendingPushDeliveryStore
-    private val dispatchers: DispatchersProvider
-        get() = SDKComponent.dispatchersProvider
+    private val pushDeliveryFlusher: PendingDeliveryFlusher<PendingPushDeliveryMetric>
+        get() = SDKComponent.pushDeliveryFlusher
     private val pushLogger: PushNotificationLogger
         get() = SDKComponent.pushLogger
-    private val workManagerForCancel: WorkManager?
-        get() = SDKComponent.workManagerProvider.getWorkManager()
 
     override val moduleName: String
         get() = MODULE_NAME
@@ -112,62 +102,33 @@ class ModuleMessagingPushFCM @JvmOverloads constructor(
     }
 
     /**
-     * Snapshot the pending store, cancel each entry's WorkManager unique work
-     * so the worker won't also deliver, then publish each entry through the
-     * analytics pipeline. Removes only the snapshotted keys at the end so
-     * entries appended mid-handoff survive.
-     *
-     * Cancel happens before publish on purpose: a worker that is `ENQUEUED`
-     * or running flips to `CANCELLED` immediately and won't issue its HTTP
-     * call. Reversing the order would widen the window in which both
-     * channels can race to deliver the same metric.
+     * Drain the pending push-delivery store through the analytics pipeline,
+     * cancelling each entry's WorkManager unique work so the two channels can't
+     * both deliver. The exactly-once drain logic (cancel → claim → publish, with
+     * per-entry isolation) lives in the shared [PendingDeliveryFlusher]; here we
+     * only supply the analytics-pipeline transport and the push-specific logs.
      */
     @androidx.annotation.VisibleForTesting
     internal fun handoffPendingPushDeliveryToAnalyticsPipeline() {
-        CoroutineScope(dispatchers.background).launch {
-            runCatching {
-                val pending = pendingPushDeliveryStore.loadAll()
-                if (pending.isEmpty()) {
-                    pushLogger.logForegroundSnapshot(count = 0)
-                    return@runCatching
-                }
-                pushLogger.logForegroundSnapshot(count = pending.size)
-
-                val wm = workManagerForCancel
-                // Process each entry in isolation. WorkManager's cancelUniqueWork().await()
-                // can throw — if one entry's cancel fails we don't want to short-circuit
-                // the rest of the batch. Failed entries stay in the store so the next
-                // foreground transition retries them.
-                var flushedCount = 0
-                pending.forEach { entry ->
-                    try {
-                        if (wm != null) {
-                            wm.cancelUniqueWork(entry.deliveryId).await()
-                            pushLogger.logHandoffCancelledWorkManager(entry.deliveryId)
-                        }
-                        // Atomically claim before publishing so the WorkManager worker
-                        // (which also claims before sending) cannot deliver the same
-                        // metric. Removing per-entry here, rather than batching at the
-                        // end, also means a mid-loop CancellationException can't strand
-                        // an already-published entry for re-publish next foreground.
-                        if (!pendingPushDeliveryStore.claim(entry.deliveryId)) return@forEach
-                        eventBus.publish(
-                            Event.TrackPushMetricEvent(
-                                event = Metric.Delivered,
-                                deliveryId = entry.deliveryId,
-                                deviceToken = entry.token
-                            )
-                        )
-                        pushLogger.logHandoffPublishedToEventBus(entry.deliveryId)
-                        flushedCount++
-                    } catch (ce: kotlinx.coroutines.CancellationException) {
-                        throw ce
-                    } catch (ex: Exception) {
-                        pushLogger.logHandoffEntryFailed(entry.deliveryId, ex)
-                    }
-                }
-                pushLogger.logHandoffComplete(count = flushedCount)
+        pushDeliveryFlusher.flush(
+            callbacks = object : PendingDeliveryFlusher.Callbacks<PendingPushDeliveryMetric>() {
+                override fun onSnapshot(count: Int) = pushLogger.logForegroundSnapshot(count)
+                override fun onWorkCancelled(entry: PendingPushDeliveryMetric) =
+                    pushLogger.logHandoffCancelledWorkManager(entry.deliveryId)
+                override fun onPublished(entry: PendingPushDeliveryMetric) =
+                    pushLogger.logHandoffPublishedToEventBus(entry.deliveryId)
+                override fun onEntryFailed(entry: PendingPushDeliveryMetric, cause: Throwable) =
+                    pushLogger.logHandoffEntryFailed(entry.deliveryId, cause)
+                override fun onComplete(count: Int) = pushLogger.logHandoffComplete(count)
             }
+        ) { entry ->
+            eventBus.publish(
+                Event.TrackPushMetricEvent(
+                    event = Metric.Delivered,
+                    deliveryId = entry.deliveryId,
+                    deviceToken = entry.token
+                )
+            )
         }
     }
 

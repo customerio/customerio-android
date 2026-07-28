@@ -12,6 +12,8 @@ import io.customer.sdk.data.store.DeviceStore
 import io.customer.sdk.data.store.DeviceStoreImpl
 import io.customer.sdk.data.store.GlobalPreferenceStore
 import io.customer.sdk.data.store.GlobalPreferenceStoreImpl
+import io.customer.sdk.data.store.SecureUserStore
+import io.customer.sdk.data.store.SecureUserStoreImpl
 
 abstract class AndroidSDKComponent : DiGraph() {
     abstract val client: Client
@@ -21,6 +23,7 @@ abstract class AndroidSDKComponent : DiGraph() {
     abstract val applicationStore: ApplicationStore
     abstract val deviceStore: DeviceStore
     abstract val globalPreferenceStore: GlobalPreferenceStore
+    abstract val secureUserStore: SecureUserStore
 }
 
 /**
@@ -57,6 +60,8 @@ class AndroidSDKComponentImpl(
         }
     override val globalPreferenceStore: GlobalPreferenceStore
         get() = singleton<GlobalPreferenceStore> { GlobalPreferenceStoreImpl(applicationContext) }
+    override val secureUserStore: SecureUserStore
+        get() = singleton<SecureUserStore> { SecureUserStoreImpl(applicationContext, SDKComponent.logger) }
 
     override fun reset() {
         super.reset()

@@ -59,6 +59,24 @@ Create GitHub Actions secrets:
 
 This project is setup with GPG signing to sign the Maven artifacts before they are uploaded to Sonatype's servers to sync to Maven Central. GPG keys have been generated already but if you need to generate them again, [see this guide](https://gist.github.com/levibostian/ed2edcaa1ce1722d70683ce83fc429e2#sign) to do so. 
 
+#### Maven Central file count
+
+A production release publishes eight modules. Each module contains the binary, sources,
+Javadocs, Gradle module metadata, and POM, together with a PGP signature for each file.
+
+Gradle 8 normally adds MD5, SHA-1, SHA-256, and SHA-512 checksum sidecars to every artifact and
+signature during a remote Maven publication. That expands the ten publication files per module to
+fifty files, or 400 files for a complete SDK release. [Sonatype's publishing usage guidance](https://central.sonatype.org/publish/reducing-publishing-usage/)
+notes that additional generated checksum files are generally not required. The
+[Gradle compatibility flag](https://docs.gradle.org/6.0.1/release-notes.html#publication-of-sha256-and-sha512-checksums)
+in `gradle.properties` disables SHA-256 and SHA-512 sidecars while retaining MD5, SHA-1, and all
+PGP signatures. The expected remote publication is therefore thirty files per module, or 240
+files for a complete SDK release.
+
+Do not remove source jars, Javadoc jars, POMs, signatures, or Gradle module metadata solely to
+reduce this count. They are required by Maven Central or used by Gradle consumers. Review the
+calculation whenever the set of publishable modules or attached artifacts changes.
+
 ### Publish SDK locally
 
 This section explains how to publish the SDK locally to Maven Local. This could be useful in couple of scenarios:
@@ -73,6 +91,22 @@ IS_DEVELOPMENT=true ./gradlew publishToMavenLocal
 ```
 
 This will publish a local version to Maven Local called 'local', that you can use for wrapper SDKs.
+
+To validate the published artifacts as an external Android application would consume them, force
+both sample apps to resolve the `local` Maven coordinates instead of their normal project
+dependencies, then build both debug and minified release APKs:
+
+```bash
+./gradlew \
+  :samples:java_layout:assembleDebug \
+  :samples:java_layout:assembleRelease \
+  :samples:kotlin_compose:assembleDebug \
+  :samples:kotlin_compose:assembleRelease \
+  -PcioSDKVersion=local
+```
+
+This exercises dependency metadata, transitive dependencies, consumer ProGuard rules, SDK APIs,
+and Android resource packaging from the published Maven artifacts.
 
 # Troubleshooting
 

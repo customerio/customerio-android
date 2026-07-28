@@ -14,8 +14,9 @@ import io.customer.messagingpush.di.pushLogger
 import io.customer.messagingpush.store.PendingPushDeliveryMetric
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.util.CustomerIOWorkManagerProvider
+import io.customer.sdk.data.store.PendingDeliveryResult
+import io.customer.sdk.data.store.claimSendRestore
 import io.customer.sdk.events.Metric
-import java.io.IOException
 
 private const val DELIVERY_ID = "delivery-id"
 private const val DELIVERY_TOKEN = "delivery-token"
@@ -81,39 +82,35 @@ internal class PushDeliveryMetricsWorker(
 
         val logger = SDKComponent.pushLogger
         val store = SDKComponent.pendingPushDeliveryStore
+        val entry = PendingPushDeliveryMetric(deliveryId = deliveryId, token = deliveryToken)
 
-        // Atomically claim the entry before sending. If it's already gone, the
-        // foreground handoff (which also claims before publishing) already
-        // delivered this metric via the analytics pipeline, so sending here
-        // would double-count it. This guards the race when WorkManager restores
-        // a persisted job after process death and runs it alongside the handoff.
-        if (!store.claim(deliveryId)) {
-            logger.logWorkerSkippedAlreadyDelivered(deliveryId)
-            return Result.success()
-        }
-
-        val result = SDKComponent.pushDeliveryTracker.trackMetric(
-            event = Metric.Delivered.name,
-            deliveryId = deliveryId,
-            token = deliveryToken
-        )
-
-        return when {
-            result.isSuccess -> {
-                // Entry was already removed by claim() above; just log success.
+        // Shared exactly-once decision: atomically claim before sending (a lost
+        // claim means the foreground handoff already delivered this metric via
+        // the analytics pipeline, so sending here would double-count it), and
+        // restore the entry on failure so a retry or the handoff can deliver it.
+        return when (
+            val outcome = store.claimSendRestore(entry) {
+                SDKComponent.pushDeliveryTracker.trackMetric(
+                    event = Metric.Delivered.name,
+                    deliveryId = deliveryId,
+                    token = deliveryToken
+                )
+            }
+        ) {
+            PendingDeliveryResult.AlreadyClaimed -> {
+                logger.logWorkerSkippedAlreadyDelivered(deliveryId)
+                Result.success()
+            }
+            PendingDeliveryResult.Delivered -> {
                 logger.logWorkerSuccessRemoved(deliveryId)
                 Result.success()
             }
-            result.exceptionOrNull() is IOException -> {
-                // Transient failure: restore the claim so a WorkManager retry —
-                // or the foreground handoff — can deliver it later.
-                store.append(PendingPushDeliveryMetric(deliveryId = deliveryId, token = deliveryToken))
-                logger.logWorkerRetry(deliveryId, result.exceptionOrNull())
+            is PendingDeliveryResult.Retryable -> {
+                logger.logWorkerRetry(deliveryId, outcome.cause)
                 Result.retry()
             }
-            else -> {
-                store.append(PendingPushDeliveryMetric(deliveryId = deliveryId, token = deliveryToken))
-                logger.logWorkerFailure(deliveryId, result.exceptionOrNull())
+            is PendingDeliveryResult.Failed -> {
+                logger.logWorkerFailure(deliveryId, outcome.cause)
                 Result.failure()
             }
         }

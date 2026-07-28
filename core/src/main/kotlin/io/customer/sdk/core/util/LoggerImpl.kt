@@ -45,13 +45,13 @@ internal open class LoggerImpl(
     private fun logIfMatchesCriteria(levelForMessage: CioLogLevel, message: String, tag: String?, throwable: Throwable?) {
         if (!shouldLog(levelForMessage)) return
 
-        // Dispatch log event to log dispatcher only if the log level is met and the dispatcher is set
-        // Otherwise, log to Logcat
-        logDispatcher?.invoke(levelForMessage, message) ?: when (levelForMessage) {
+        // Tag prepended once so dispatcher and Logcat see the same final message.
+        val taggedMessage = prependTagToMessage(tag, message)
+        logDispatcher?.invoke(levelForMessage, taggedMessage) ?: when (levelForMessage) {
             CioLogLevel.NONE -> {}
-            CioLogLevel.ERROR -> actualLogger.error(TAG, prependTagToMessage(tag, message), throwable)
-            CioLogLevel.INFO -> actualLogger.info(TAG, prependTagToMessage(tag, message))
-            CioLogLevel.DEBUG -> actualLogger.debug(TAG, prependTagToMessage(tag, message))
+            CioLogLevel.ERROR -> actualLogger.error(TAG, taggedMessage, throwable)
+            CioLogLevel.INFO -> actualLogger.info(TAG, taggedMessage)
+            CioLogLevel.DEBUG -> actualLogger.debug(TAG, taggedMessage)
         }
     }
 

@@ -13,6 +13,7 @@ import io.customer.android.sample.java_layout.support.Optional;
 import io.customer.android.sample.java_layout.utils.StringUtils;
 import io.customer.datapipelines.config.ScreenView;
 import io.customer.datapipelines.extensions.RegionExtKt;
+import io.customer.location.LocationTrackingMode;
 import io.customer.sdk.core.util.CioLogLevel;
 import io.customer.sdk.data.model.Region;
 
@@ -33,6 +34,7 @@ public class CustomerIOSDKConfig {
         static final String TRACK_APPLICATION_LIFECYCLE = "cio_sdk_track_application_lifecycle";
         static final String TEST_MODE_ENABLED = "cio_sdk_test_mode";
         static final String IN_APP_MESSAGING_ENABLED = "cio_sdk_in_app_messaging_enabled";
+        static final String LOCATION_TRACKING_MODE = "cio_sdk_location_tracking_mode";
     }
 
     public static CustomerIOSDKConfig getDefaultConfigurations() {
@@ -47,7 +49,8 @@ public class CustomerIOSDKConfig {
                 ScreenView.All.INSTANCE,
                 true,
                 false,
-                true);
+                true,
+                LocationTrackingMode.MANUAL);
     }
 
     @NonNull
@@ -69,6 +72,7 @@ public class CustomerIOSDKConfig {
         boolean applicationLifecycleTrackingEnabled = StringUtils.parseBoolean(bundle.get(Keys.TRACK_APPLICATION_LIFECYCLE), defaultConfig.applicationLifecycleTrackingEnabled);
         boolean testModeEnabled = StringUtils.parseBoolean(bundle.get(Keys.TEST_MODE_ENABLED), defaultConfig.testModeEnabled);
         boolean inAppMessagingEnabled = StringUtils.parseBoolean(bundle.get(Keys.IN_APP_MESSAGING_ENABLED), defaultConfig.inAppMessagingEnabled);
+        LocationTrackingMode locationTrackingMode = parseLocationTrackingMode(bundle.get(Keys.LOCATION_TRACKING_MODE), defaultConfig.locationTrackingMode);
 
         CustomerIOSDKConfig config = new CustomerIOSDKConfig(cdpApiKey,
                 siteId,
@@ -81,8 +85,21 @@ public class CustomerIOSDKConfig {
                 screenViewUse,
                 applicationLifecycleTrackingEnabled,
                 testModeEnabled,
-                inAppMessagingEnabled);
+                inAppMessagingEnabled,
+                locationTrackingMode);
         return Optional.of(config);
+    }
+
+    @NonNull
+    private static LocationTrackingMode parseLocationTrackingMode(@Nullable String name, @NonNull LocationTrackingMode fallback) {
+        if (TextUtils.isEmpty(name)) {
+            return fallback;
+        }
+        try {
+            return LocationTrackingMode.valueOf(name);
+        } catch (IllegalArgumentException e) {
+            return fallback;
+        }
     }
 
     @NonNull
@@ -100,6 +117,7 @@ public class CustomerIOSDKConfig {
         bundle.put(Keys.TRACK_APPLICATION_LIFECYCLE, StringUtils.fromBoolean(config.applicationLifecycleTrackingEnabled));
         bundle.put(Keys.TEST_MODE_ENABLED, StringUtils.fromBoolean(config.testModeEnabled));
         bundle.put(Keys.IN_APP_MESSAGING_ENABLED, StringUtils.fromBoolean(config.inAppMessagingEnabled));
+        bundle.put(Keys.LOCATION_TRACKING_MODE, config.locationTrackingMode.name());
         return bundle;
     }
 
@@ -121,6 +139,8 @@ public class CustomerIOSDKConfig {
     private final boolean applicationLifecycleTrackingEnabled;
     private final boolean testModeEnabled;
     private final boolean inAppMessagingEnabled;
+    @NonNull
+    private final LocationTrackingMode locationTrackingMode;
 
     public CustomerIOSDKConfig(@NonNull String cdpApiKey,
                                @NonNull String siteId,
@@ -133,7 +153,8 @@ public class CustomerIOSDKConfig {
                                @NonNull ScreenView screenViewUse,
                                boolean applicationLifecycleTrackingEnabled,
                                boolean testModeEnabled,
-                               boolean inAppMessagingEnabled) {
+                               boolean inAppMessagingEnabled,
+                               @NonNull LocationTrackingMode locationTrackingMode) {
         this.cdpApiKey = cdpApiKey;
         this.siteId = siteId;
         this.apiHost = apiHost;
@@ -146,6 +167,7 @@ public class CustomerIOSDKConfig {
         this.applicationLifecycleTrackingEnabled = applicationLifecycleTrackingEnabled;
         this.testModeEnabled = testModeEnabled;
         this.inAppMessagingEnabled = inAppMessagingEnabled;
+        this.locationTrackingMode = locationTrackingMode;
     }
 
     @NonNull
@@ -201,5 +223,10 @@ public class CustomerIOSDKConfig {
     @NonNull
     public ScreenView getScreenViewUse() {
         return screenViewUse;
+    }
+
+    @NonNull
+    public LocationTrackingMode getLocationTrackingMode() {
+        return locationTrackingMode;
     }
 }

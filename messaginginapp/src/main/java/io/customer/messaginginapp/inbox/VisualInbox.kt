@@ -6,8 +6,6 @@ import io.customer.messaginginapp.inbox.data.Branding
 import io.customer.messaginginapp.inbox.data.InboxFetchOutcome
 import io.customer.messaginginapp.inbox.data.InboxRepository
 import io.customer.messaginginapp.inbox.data.InboxVisibility
-import io.customer.messaginginapp.inbox.jist.JistInboxAdapter
-import io.customer.messaginginapp.inbox.jist.JistInboxMessage
 import io.customer.messaginginapp.state.InAppMessagingManager
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -21,10 +19,9 @@ import kotlinx.coroutines.flow.map
  * logic — and adds the visual-inbox-specific surface:
  * - [isEnabled]: the server-driven enablement gate (X-CIO-Inbox-Enabled).
  * - [isInboxVisible] / [getVisibility]: the single visibility signal — the inbox shows
- *   ONLY when fully renderable (enabled + messages + templates + branding, each fresh
- *   or stale). A "no data" situation is [InboxVisibility.Hidden], never an error.
- * - [getSelectedMessages]: cio_inbox-prefix-filtered, expiry-dropped, priority+sentAt-sorted,
- *   mapped to Jist types with typed/nested properties preserved.
+ *   ONLY when fully renderable (enabled + templates + branding, each fresh or stale), and
+ *   carries the selected messages (cio_inbox-prefix-filtered, expiry-dropped,
+ *   priority+sentAt-sorted). A "no data" situation is [InboxVisibility.Hidden], never an error.
  * - [loadTemplatesAndBranding]: fetches (parallel) + caches templates/branding,
  *   returning a terminal [InboxFetchOutcome] (visible-vs-hidden; never an error to UI).
  * - [getTemplatesJson] / [getBranding]: cached accessors.
@@ -45,8 +42,8 @@ class VisualInbox internal constructor(
      * inbox's visibility or unread count: the enablement gate or the inbox message set
      * (including opened-state changes). Backed by the store's StateFlow, so it emits the
      * current value immediately on collection (a late-mounting overlay still gets latest state).
-     * The overlay maps each emission to a fresh read of CACHED state via [getVisibility] /
-     * [getSelectedMessages]; this never triggers a network fetch.
+     * The overlay maps each emission to a fresh read of CACHED state via [getVisibility]; this never
+     * triggers a network fetch.
      */
     fun observeInboxChanges(): Flow<Unit> =
         inAppMessagingManager.state
@@ -67,9 +64,6 @@ class VisualInbox internal constructor(
         get() = repository.isInboxVisible
 
     fun getVisibility(): InboxVisibility = repository.computeVisibility()
-
-    fun getSelectedMessages(): List<JistInboxMessage> =
-        JistInboxAdapter.toJist(repository.selectVisualInboxMessages())
 
     suspend fun loadTemplatesAndBranding(): InboxFetchOutcome = repository.loadTemplatesAndBranding()
 

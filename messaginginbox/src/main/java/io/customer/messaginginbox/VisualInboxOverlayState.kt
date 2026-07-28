@@ -3,19 +3,24 @@ package io.customer.messaginginbox
 import io.customer.jist.JistActionEvent
 import io.customer.messaginginapp.inbox.VisualInbox
 import io.customer.messaginginapp.inbox.data.InboxVisibility
+import io.customer.messaginginapp.inbox.jist.JistInboxAdapter
 import io.customer.messaginginapp.inbox.jist.JistInboxMessage
 import io.customer.messaginginapp.type.InboxEventListener
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.util.Logger
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.flow.onStart
+import kotlinx.coroutines.flow.shareIn
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
@@ -64,7 +69,10 @@ internal class VisualInboxController(
     // Dispatcher the uiStateFlow upstream (load/snapshot) runs on. Defaults to IO so the
     // retry/backoff + parsing in load() never runs on the main (collector) thread; injectable so
     // unit tests can substitute a TestDispatcher and keep the flow on virtual time.
-    private val loadDispatcher: CoroutineDispatcher = Dispatchers.IO
+    private val loadDispatcher: CoroutineDispatcher = Dispatchers.IO,
+    // Scope the shared ui-state flow is kept alive on. Defaults to the SDK's in-app lifecycle scope;
+    // injectable so unit tests can supply a TestScope.
+    private val sharingScope: CoroutineScope = SDKComponent.scopeProvider.inAppLifecycleScope
 ) {
     // Dedupe guard for auto-mark-opened: queueIds already marked opened in this session, plus a
     // simple in-flight flag so a re-entrant open doesn't re-issue marks before the first finishes.
@@ -94,7 +102,25 @@ internal class VisualInboxController(
      * [loadDispatcher] (IO by default), so only the (cheap) state observation stays on main — no
      * jank/ANR risk. The merge/dedupe semantics are unchanged.
      */
-    fun uiStateFlow(): Flow<VisualInboxUiState> {
+    fun uiStateFlow(): Flow<VisualInboxUiState> = sharedUiState
+
+    /**
+     * Shared so every consumer (bell, panel, a host-embedded view) observes ONE upstream. Collecting
+     * a cold flow per consumer would re-run the whole load/snapshot pipeline — including the
+     * templates/branding reads and the Jist mapping — once per collector on every store change.
+     *
+     * `WhileSubscribed` keeps the upstream running only while something is mounted; the replay cache
+     * hands a late collector (e.g. the panel opening) the current snapshot immediately.
+     */
+    private val sharedUiState: SharedFlow<VisualInboxUiState> by lazy {
+        buildUiStateFlow().shareIn(
+            scope = sharingScope,
+            started = SharingStarted.WhileSubscribed(replayExpirationMillis = 0),
+            replay = 1
+        )
+    }
+
+    private fun buildUiStateFlow(): Flow<VisualInboxUiState> {
         // Store changes are allowed to fetch (mayFetch = true); fetch-completion signals only
         // re-read the cache (mayFetch = false) to avoid re-triggering the network.
         val storeChanges: Flow<Boolean> = visualInbox.observeInboxChanges()
@@ -133,19 +159,22 @@ internal class VisualInboxController(
     fun snapshot(): VisualInboxUiState {
         val visibility = visualInbox.getVisibility()
         // Visibility is the single source of truth: only carry messages when the inbox is fully
-        // renderable (Visible == enabled + templates + branding + >=1 message). Otherwise the
-        // panel could render the list with null templates/theme (Jist renders empty) and
-        // markOpenMessagesOpened would no-op, leaving viewed messages unopened.
-        val messages = if (visibility is InboxVisibility.Visible) {
-            visualInbox.getSelectedMessages()
-        } else {
-            emptyList()
-        }
+        // renderable (Visible == enabled + templates + branding; the message count does not gate it,
+        // so Visible with an empty list is the "all caught up" case). Otherwise the panel could
+        // render the list with null templates/theme (Jist renders empty) and markOpenMessagesOpened
+        // would no-op, leaving viewed messages unopened.
+        //
+        // Reuse the list the visibility decision was made from rather than re-selecting: a second
+        // read would repeat the selection and the Jist deep-copy, and could observe a store change
+        // in between and disagree with the state published alongside it.
+        val messages = (visibility as? InboxVisibility.Visible)
+            ?.let { JistInboxAdapter.toJist(it.messages) }
+            .orEmpty()
         // The per-session dedupe guards (shown/opened/clicked/deleted queueIds) are intentionally NOT
         // reconciled against the live list: the data-layer tombstone (deletedInboxMessageIds) prevents
         // a dismissed message from resurrecting and queueIds are never reused, so a guard never needs
         // releasing within a session. Reconciling here only re-introduced edge cases (guards wiped on
-        // a transient non-Visible state, or stuck after the last row is dismissed → Hidden).
+        // a transient non-Visible state, or on the empty list left after the last row is dismissed).
         return VisualInboxUiState(
             loading = false,
             visibility = visibility,
@@ -172,8 +201,8 @@ internal class VisualInboxController(
                     // metric via the generic `Report Delivery Event` (metric: opened) — matching web
                     // (rendered as "Opened Inbox Message" for an inbox delivery). No named CDP event.
                     visualInbox.markMessageOpened(message)
-                    // Observational host callback (item 14): a message was marked opened.
-                    notifyListener { messageOpened(message) }
+                    // Hand the host the post-action state: the resolved message predates the mark.
+                    notifyListener { messageOpened(message.copy(opened = true)) }
                 }
         } finally {
             markInFlight.set(false)
@@ -212,8 +241,8 @@ internal class VisualInboxController(
      *     [VisualInbox.trackMessageClicked] plumbing — no new network path) exactly once per
      *     queueId, then give the host listener (item 13) a chance to intercept. If the host returns
      *     true it fully handled the action and we return [InboxNavigation.None].
-     *  3. Otherwise the SDK applies its default navigation (item 12): an `openUrl` (http(s)) value
-     *     opens externally in the system browser ([InboxNavigation.OpenUrl]); an `openDeeplink`
+     *  3. Otherwise the SDK applies its default navigation (item 12): an `openUrl` value opens
+     *     externally ([InboxNavigation.OpenUrl]); an `openDeeplink`
      *     value is routed through the app's deep-link handling ([InboxNavigation.OpenDeeplink],
      *     which the overlay resolves against the host app first, mirroring push/in-app deep links);
      *     a `performAction` is host-only (no navigation); a missing/malformed value is a logged no-op.
@@ -403,7 +432,7 @@ internal sealed interface InboxAction {
         override val url: String? get() = null
     }
 
-    /** Open [url] externally in the system browser (`openUrl`, or an http(s) value with no behavior). */
+    /** Open [url] externally, as the platform resolves it (`openUrl`). */
     data class OpenUrl(override val url: String) : InboxAction
 
     /** Route [url] through the app's deep-link handling (`openDeeplink`, or a non-http scheme value). */

@@ -188,4 +188,59 @@ class QueueInboxTriggerTest : IntegrationTest() {
         assert(!manager.getCurrentState().isInboxEnabled) { "expected isInboxEnabled=false" }
         coVerify(exactly = 0) { mockRepository.loadTemplatesAndBranding() }
     }
+
+    // --- absent header carries no signal: the last known enablement value stands ---
+
+    @Test
+    fun updateInboxFlag_givenAbsentHeaderWhileEnabled_expectStaysEnabled() {
+        manager.dispatch(InAppMessagingAction.SetInboxEnabled(true))
+        flushCoroutines(scopeProviderStub.inAppLifecycleScope)
+        every { mockRepository.isFetchInFlight } returns false
+        every { mockRepository.needsTemplatesOrBrandingFetch() } returns false
+
+        invokeUpdateInboxFlag(Headers.headersOf())
+
+        assert(manager.getCurrentState().isInboxEnabled) {
+            "expected isInboxEnabled to stay true when the header is absent"
+        }
+    }
+
+    @Test
+    fun updateInboxFlag_givenAbsentHeaderWhileDisabled_expectStaysDisabled() {
+        every { mockRepository.isFetchInFlight } returns false
+        every { mockRepository.needsTemplatesOrBrandingFetch() } returns true
+
+        invokeUpdateInboxFlag(Headers.headersOf())
+
+        assert(!manager.getCurrentState().isInboxEnabled) {
+            "expected isInboxEnabled to stay false when the header is absent"
+        }
+        coVerify(exactly = 0) { mockRepository.loadTemplatesAndBranding() }
+    }
+
+    @Test
+    fun updateInboxFlag_givenUnparseableHeaderWhileEnabled_expectStaysEnabled() {
+        manager.dispatch(InAppMessagingAction.SetInboxEnabled(true))
+        flushCoroutines(scopeProviderStub.inAppLifecycleScope)
+        every { mockRepository.isFetchInFlight } returns false
+        every { mockRepository.needsTemplatesOrBrandingFetch() } returns false
+
+        invokeUpdateInboxFlag(mapOf("X-CIO-Inbox-Enabled" to "yes").toHeaders())
+
+        assert(manager.getCurrentState().isInboxEnabled) {
+            "expected isInboxEnabled to stay true when the header value is unparseable"
+        }
+    }
+
+    @Test
+    fun updateInboxFlag_givenAbsentHeaderWhileEnabledAndCacheMiss_expectFetchTriggered() {
+        manager.dispatch(InAppMessagingAction.SetInboxEnabled(true))
+        flushCoroutines(scopeProviderStub.inAppLifecycleScope)
+        every { mockRepository.isFetchInFlight } returns false
+        every { mockRepository.needsTemplatesOrBrandingFetch() } returns true
+
+        invokeUpdateInboxFlag(Headers.headersOf())
+
+        coVerify(exactly = 1) { mockRepository.loadTemplatesAndBranding() }
+    }
 }

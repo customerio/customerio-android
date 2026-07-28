@@ -9,8 +9,8 @@ import io.customer.messaginginapp.gist.data.model.InboxMessage
  * Mirrors [InAppEventListener.messageActionTaken], but unlike in-app — where the callback is purely
  * observational — the inbox callback lets the host **intercept** the action: returning `true`
  * signals the host handled it and the SDK performs no default behavior; returning `false` (or not
- * registering a listener at all) lets the SDK run its default handling (open an http(s) url in the
- * system browser; deeplinks are left to the host).
+ * registering a listener at all) lets the SDK run its default handling: an `openUrl` opens
+ * externally, an `openDeeplink` routes through the app's deep-link handling.
  *
  * The SDK's built-in dismiss action is handled by the SDK regardless of this listener.
  */

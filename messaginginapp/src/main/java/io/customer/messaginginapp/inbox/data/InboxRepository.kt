@@ -12,6 +12,7 @@ import io.customer.messaginginapp.store.InAppPreferenceStore
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.util.Logger
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicReference
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
@@ -57,6 +58,9 @@ internal class InboxRepository(
 ) {
     private val gson = Gson()
 
+    /** Last raw branding payload and its parsed form; see [persistedBranding]. */
+    private val parsedBranding = AtomicReference<Pair<String, Branding>?>(null)
+
     /** Full URL key for the persisted templates response (matches the gist interceptor key). */
     private val templatesUrl: String
         get() = "${gistQueue.baseUrl}/api/v1/templates"
@@ -74,11 +78,28 @@ internal class InboxRepository(
 
     /**
      * Session-scoped revalidation gate. False until the first [loadTemplatesAndBranding] of
-     * the session has performed (or attempted) a conditional GET; true afterward. The repo is
-     * a DI singleton, so this resets to false ONLY on process restart (= new session). While
-     * true (and both assets persisted) loads serve the persisted value with no network call.
+     * the session has performed (or attempted) a conditional GET; true afterward. While true
+     * (and both assets persisted) loads serve the persisted value with no network call. The repo
+     * is a DI singleton, so this reopens on process restart or on a new store session id (Reset /
+     * logout), which is what stops one user's render assets from being served to the next.
      */
     private val hasRevalidatedAssetsThisSession = AtomicBoolean(false)
+
+    /**
+     * Last session id delivered by the subscription below. The store is a StateFlow collected from a
+     * launched coroutine, so the first delivery is a replay of the current value rather than a
+     * change, and it can land after a load has already closed the gate.
+     */
+    private val lastKnownSessionId = AtomicReference<String?>(null)
+
+    init {
+        inAppMessagingManager.subscribeToAttribute({ it.sessionId }) { sessionId ->
+            val previous = lastKnownSessionId.getAndSet(sessionId)
+            if (previous != null && previous != sessionId) {
+                hasRevalidatedAssetsThisSession.set(false)
+            }
+        }
+    }
 
     /** True while a [loadTemplatesAndBranding] fetch cycle is currently running. */
     val isFetchInFlight: Boolean
@@ -149,6 +170,9 @@ internal class InboxRepository(
     }
 
     private suspend fun doLoadTemplatesAndBranding(): InboxFetchOutcome {
+        // Session this cycle belongs to; re-checked before closing the gate below.
+        val sessionAtFetchStart = inAppMessagingManager.getCurrentState().sessionId
+
         // Last-persisted values up front: serve-stale source if a fetch fails.
         val persistedTemplates = persistedTemplatesJson()
         val persistedBranding = persistedBranding()
@@ -158,7 +182,7 @@ internal class InboxRepository(
         val alreadyRevalidated = hasRevalidatedAssetsThisSession.get()
         if (alreadyRevalidated && persistedTemplates != null && persistedBranding != null) {
             logger.debug("$LOG_TAG fetch short-circuit: revalidated this session + both assets present, no network")
-            return InboxFetchOutcome.Visible(persistedTemplates, persistedBranding, fromCache = true)
+            return InboxFetchOutcome.Visible(persistedTemplates, persistedBranding)
         }
 
         // Otherwise we hit the network for each required asset. Until the session has been
@@ -220,16 +244,27 @@ internal class InboxRepository(
             }
         }
 
-        // The session has now attempted its conditional GET (whether the result was 304, 200,
-        // or a failure that fell back to stale). Close the gate so later loads in this session
-        // serve persisted values without re-hitting the network until the session resets
-        // (process restart).
-        hasRevalidatedAssetsThisSession.set(true)
-
         // Single decision point: only consult last-persisted (stale) values when we have no
         // fresh input to serve, so the explicit serve-stale path is exercised for both inputs.
         val staleTemplates = if (freshTemplates == null) persistedTemplates else null
         val staleBranding = if (freshBranding == null) persistedBranding else null
+
+        // Close the gate so later loads in this session serve persisted values without re-hitting
+        // the network, but only when:
+        //  - the session that started this cycle is still current (a Reset / logout mid-fetch
+        //    reopened the gate, and closing it here would let the new session serve assets it never
+        //    revalidated), AND
+        //  - there is actually something to serve. A failure with an empty cache has no fallback, so
+        //    closing would strand the inbox hidden for the rest of the process; leaving it open lets
+        //    the next poll retry. A cycle that resolved (fresh OR stale) still closes it, so a
+        //    failing server cannot cause a per-poll retry loop.
+        val hasServableAssets = (freshTemplates ?: staleTemplates) != null &&
+            (freshBranding ?: staleBranding) != null
+        if (inAppMessagingManager.getCurrentState().sessionId == sessionAtFetchStart && hasServableAssets) {
+            hasRevalidatedAssetsThisSession.set(true)
+        } else if (!hasServableAssets) {
+            logger.debug("$LOG_TAG revalidation produced nothing servable: gate stays open for the next poll")
+        }
 
         if (staleTemplates != null) logger.info("$LOG_TAG serve-stale: using last-persisted TEMPLATES (fetch failed)")
         if (staleBranding != null) logger.info("$LOG_TAG serve-stale: using last-persisted BRANDING (fetch failed)")
@@ -242,7 +277,7 @@ internal class InboxRepository(
         )
         when (outcome) {
             is InboxFetchOutcome.Visible ->
-                logger.info("$LOG_TAG fetch outcome: Visible (fromCache=${outcome.fromCache})")
+                logger.info("$LOG_TAG fetch outcome: Visible")
             is InboxFetchOutcome.Hidden ->
                 logger.info("$LOG_TAG fetch outcome: Hidden -> ${outcome.reason}")
         }
@@ -286,18 +321,19 @@ internal class InboxRepository(
      * Whether the visual inbox should be shown right now. The inbox is VISIBLE iff
      * ALL of the following hold:
      *  - [isInboxEnabled] is true (server-driven gate), AND
-     *  - at least one selected message exists (read from the headless store), AND
      *  - templates are available (persisted via the HTTP cache), AND
      *  - branding is available (persisted via the HTTP cache).
      *
-     * Any missing/uncached piece => hidden (no error). This folds the enabled +
-     * messages inputs in around [decideOutcome]'s templates+branding decision.
+     * Any missing/uncached piece => hidden (no error). This folds the enabled input
+     * in around [decideOutcome]'s templates+branding decision. The selected messages
+     * ride along on [InboxVisibility.Visible] but do not gate it: a renderable inbox
+     * with zero messages is visible and empty ("You're all caught up").
      */
     fun computeVisibility(outcome: InboxFetchOutcome = currentTemplatesBrandingOutcome()): InboxVisibility {
         val visibility = computeVisibilityInternal(outcome)
         when (visibility) {
             is InboxVisibility.Visible ->
-                logger.info("$LOG_TAG visibility: Visible(${visibility.messages.size} message(s), fromCache=${visibility.fromCache})")
+                logger.info("$LOG_TAG visibility: Visible(${visibility.messages.size} message(s))")
             is InboxVisibility.Hidden ->
                 logger.info("$LOG_TAG visibility: Hidden -> ${visibility.reason}")
         }
@@ -308,16 +344,15 @@ internal class InboxRepository(
         if (!isInboxEnabled) {
             return InboxVisibility.Hidden(REASON_INBOX_DISABLED)
         }
+        // An empty selection is NOT hidden: a renderable inbox with nothing in it is "You're all
+        // caught up", which the inbox list renders. Overlay chrome is gated separately on having
+        // renderable messages, so no bell appears over an empty panel.
         val messages = selectVisualInboxMessages()
-        if (messages.isEmpty()) {
-            return InboxVisibility.Hidden(REASON_NO_SELECTED_MESSAGES)
-        }
         return when (outcome) {
             is InboxFetchOutcome.Visible -> InboxVisibility.Visible(
                 templatesJson = outcome.templatesJson,
                 branding = outcome.branding,
-                messages = messages,
-                fromCache = outcome.fromCache
+                messages = messages
             )
 
             is InboxFetchOutcome.Hidden -> InboxVisibility.Hidden(outcome.reason)
@@ -352,12 +387,22 @@ internal class InboxRepository(
     /** Reads the last persisted templates response from the HTTP-cache-backed store. */
     private fun persistedTemplatesJson(): String? = preferenceStore.getNetworkResponse(templatesUrl)
 
-    /** Reads + parses the last persisted branding response from the HTTP-cache-backed store. */
+    /**
+     * Reads + parses the last persisted branding response from the HTTP-cache-backed store.
+     *
+     * The parse result is memoized against the raw payload: this is read several times per store
+     * change (visibility, snapshot, chrome) and the payload changes at most once per session.
+     */
     private fun persistedBranding(): Branding? {
         val raw = preferenceStore.getNetworkResponse(brandingUrl) ?: return null
-        return runCatching {
+        parsedBranding.get()?.let { (cachedRaw, cachedBranding) ->
+            if (cachedRaw == raw) return cachedBranding
+        }
+        val parsed = runCatching {
             parseBrandingJson(gson.fromJson(raw, JsonObject::class.java), gson)
-        }.getOrNull()
+        }.getOrNull() ?: return null
+        parsedBranding.set(raw to parsed)
+        return parsed
     }
 
     /**

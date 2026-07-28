@@ -9,20 +9,23 @@ import io.customer.messaginginapp.testutils.extension.createInboxMessage
 import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.slot
 import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
+import org.amshove.kluent.shouldBeEmpty
 import org.amshove.kluent.shouldBeEqualTo
 import org.amshove.kluent.shouldBeInstanceOf
 import org.junit.Test
 
 /**
  * Visibility-policy coverage for [InboxRepository]: the inbox is VISIBLE iff
- * enabled + >=1 selected message + templates + branding (each fresh OR stale),
- * else HIDDEN — never an error. Also covers branding/templates serve-stale (from
+ * enabled + templates + branding (each fresh OR stale), else HIDDEN — never an
+ * error. The message count does not gate visibility, so an enabled inbox with no
+ * messages is visible and empty. Also covers branding/templates serve-stale (from
  * the last-persisted HTTP-cache-backed value) and messages-from-headless-state.
  *
  * Freshness coverage (once-per-session revalidation gate): the first load of a
@@ -44,17 +47,23 @@ class InboxRepositoryTest {
     private fun message(): InboxMessage =
         createInboxMessage(deliveryId = "m1", topics = listOf("cio_inbox"))
 
+    /** Captures the session-id listener the repository registers, so tests can simulate a Reset. */
+    private val sessionListener = slot<(String) -> Unit>()
+
     private fun managerWith(
         enabled: Boolean,
         messages: Set<InboxMessage> = emptySet()
     ): InAppMessagingManager {
-        val manager = mockk<InAppMessagingManager>()
+        val manager = mockk<InAppMessagingManager>(relaxed = true)
         val state = InAppMessagingState(
             userId = "user-1",
             isInboxEnabled = enabled,
             inboxMessages = messages
         )
         every { manager.getCurrentState() } returns state
+        every {
+            manager.subscribeToAttribute(any<(InAppMessagingState) -> String>(), any(), capture(sessionListener))
+        } returns mockk(relaxed = true)
         return manager
     }
 
@@ -129,15 +138,17 @@ class InboxRepositoryTest {
         repo.isInboxVisible shouldBeEqualTo false
     }
 
+    // A renderable inbox with nothing in it is "You're all caught up", not hidden: the message count
+    // does not gate visibility, so the list can render its empty state.
     @Test
-    fun computeVisibility_givenNoMessages_expectHidden() = runTest {
+    fun computeVisibility_givenNoMessages_expectVisibleAndEmpty() = runTest {
         val api = mockk<InboxApi>(relaxed = true)
         val manager = managerWith(enabled = true, messages = emptySet())
         val repo = repository(api, manager, preferenceStoreWith(templatesJson, brandingJson))
 
         val visibility = repo.computeVisibility()
-        visibility.shouldBeInstanceOf<InboxVisibility.Hidden>()
-        (visibility as InboxVisibility.Hidden).reason shouldBeEqualTo "no selected messages"
+        visibility.shouldBeInstanceOf<InboxVisibility.Visible>()
+        (visibility as InboxVisibility.Visible).messages.shouldBeEmpty()
     }
 
     @Test
@@ -184,9 +195,8 @@ class InboxRepositoryTest {
 
         val outcome = repo.loadTemplatesAndBranding()
         // First load of the session revalidates (both fetches throw); serve-stale from the
-        // persisted values keeps the inbox Visible(fromCache=true).
+        // persisted values keeps the inbox Visible.
         outcome.shouldBeInstanceOf<InboxFetchOutcome.Visible>()
-        (outcome as InboxFetchOutcome.Visible).fromCache shouldBeEqualTo true
 
         val visibility = repo.computeVisibility()
         visibility.shouldBeInstanceOf<InboxVisibility.Visible>()
@@ -197,7 +207,7 @@ class InboxRepositoryTest {
     fun loadTemplatesAndBranding_givenFetchFailsButPersistedExists_expectServedStaleVisible() = runTest {
         // Templates persisted, branding NOT -> the fetch path runs (branding missing). Branding
         // fetch fails; templates fetch also fails but the persisted templates serve stale, and
-        // here we persist branding too so the whole thing resolves Visible(fromCache=true).
+        // here we persist branding too so the whole thing resolves Visible.
         val store = preferenceStoreWith(templates = templatesJson, branding = brandingJson)
         val api = mockk<InboxApi>()
         coEvery { api.fetchTemplatesRaw() } throws InboxFetchException("offline")
@@ -207,7 +217,6 @@ class InboxRepositoryTest {
 
         val outcome = repo.loadTemplatesAndBranding()
         outcome.shouldBeInstanceOf<InboxFetchOutcome.Visible>()
-        (outcome as InboxFetchOutcome.Visible).fromCache shouldBeEqualTo true
     }
 
     // --- needsTemplatesOrBrandingFetch drives the poll-time fetch-if-missing trigger ---
@@ -344,10 +353,119 @@ class InboxRepositoryTest {
         val second = repo.loadTemplatesAndBranding() // same session: must serve cache
 
         second.shouldBeInstanceOf<InboxFetchOutcome.Visible>()
-        (second as InboxFetchOutcome.Visible).fromCache shouldBeEqualTo true
         // No SECOND network call: still exactly one fetch per endpoint across both loads.
         templatesCalls.get() shouldBeEqualTo 1
         brandingCalls.get() shouldBeEqualTo 1
+    }
+
+    // A new store session id (Reset / logout) reopens the gate, so the next load revalidates
+    // instead of serving the previous user's persisted assets.
+    @Test
+    fun loadTemplatesAndBranding_givenNewSessionAfterReset_expectRevalidatesAgain() = runTest {
+        val templatesCalls = AtomicInteger(0)
+        val brandingCalls = AtomicInteger(0)
+        val store = preferenceStoreWith(templates = templatesJson, branding = brandingJson)
+        val manager = managerWith(enabled = true, messages = setOf(message()))
+        val repo = repository(countingApi(templatesCalls, brandingCalls), manager, store)
+
+        repo.loadTemplatesAndBranding()
+        repo.loadTemplatesAndBranding()
+        templatesCalls.get() shouldBeEqualTo 1
+        brandingCalls.get() shouldBeEqualTo 1
+
+        // The subscription replays the current session id before any real change.
+        sessionListener.captured.invoke("")
+        sessionListener.captured.invoke("new-session-id")
+        repo.loadTemplatesAndBranding()
+
+        templatesCalls.get() shouldBeEqualTo 2
+        brandingCalls.get() shouldBeEqualTo 2
+    }
+
+    // The subscription is a StateFlow collected from a launched coroutine, so its first delivery
+    // replays the current session id and can land after a load already closed the gate. A replay is
+    // not a session change and must not reopen it.
+    @Test
+    fun loadTemplatesAndBranding_givenInitialSessionReplayAfterLoad_expectGateStaysClosed() = runTest {
+        val templatesCalls = AtomicInteger(0)
+        val brandingCalls = AtomicInteger(0)
+        val store = preferenceStoreWith(templates = templatesJson, branding = brandingJson)
+        val manager = managerWith(enabled = true, messages = setOf(message()))
+        val repo = repository(countingApi(templatesCalls, brandingCalls), manager, store)
+
+        repo.loadTemplatesAndBranding()
+        sessionListener.captured.invoke("")
+        repo.loadTemplatesAndBranding()
+
+        templatesCalls.get() shouldBeEqualTo 1
+        brandingCalls.get() shouldBeEqualTo 1
+    }
+
+    // A Reset / logout landing mid-fetch must not close the gate: that cycle belongs to the old
+    // session, so the next load still revalidates instead of serving assets it never revalidated.
+    @Test
+    fun loadTemplatesAndBranding_givenSessionChangesMidFetch_expectGateStaysOpen() = runTest {
+        val templatesCalls = AtomicInteger(0)
+        val brandingCalls = AtomicInteger(0)
+        val store = preferenceStoreWith(templates = templatesJson, branding = brandingJson)
+        val manager = mockk<InAppMessagingManager>(relaxed = true)
+        var currentSessionId = "session-1"
+        every { manager.getCurrentState() } answers {
+            InAppMessagingState(
+                userId = "user-1",
+                isInboxEnabled = true,
+                inboxMessages = setOf(message()),
+                sessionId = currentSessionId
+            )
+        }
+        every {
+            manager.subscribeToAttribute(any<(InAppMessagingState) -> String>(), any(), capture(sessionListener))
+        } returns mockk(relaxed = true)
+
+        val api = mockk<InboxApi>()
+        coEvery { api.fetchTemplatesRaw() } coAnswers {
+            templatesCalls.incrementAndGet()
+            currentSessionId = "session-2"
+            sessionListener.captured.invoke(currentSessionId)
+            templatesJson
+        }
+        coEvery { api.fetchBranding() } coAnswers {
+            brandingCalls.incrementAndGet()
+            branding
+        }
+        val repo = repository(api, manager, store)
+        sessionListener.captured.invoke(currentSessionId)
+
+        repo.loadTemplatesAndBranding()
+        repo.loadTemplatesAndBranding()
+
+        templatesCalls.get() shouldBeEqualTo 2
+        brandingCalls.get() shouldBeEqualTo 2
+    }
+
+    // A revalidation that fails with an empty cache has nothing to serve, so the gate must stay open
+    // and let the next poll retry. Closing it would strand the inbox hidden for the whole process.
+    @Test
+    fun loadTemplatesAndBranding_givenFailureAndNoCache_expectGateStaysOpen() = runTest {
+        val templatesCalls = AtomicInteger(0)
+        val brandingCalls = AtomicInteger(0)
+        val api = mockk<InboxApi>()
+        coEvery { api.fetchTemplatesRaw() } coAnswers {
+            templatesCalls.incrementAndGet()
+            throw InboxFetchException("offline")
+        }
+        coEvery { api.fetchBranding() } coAnswers {
+            brandingCalls.incrementAndGet()
+            throw InboxFetchException("offline")
+        }
+        val manager = managerWith(enabled = true, messages = setOf(message()))
+        val repo = repository(api, manager, preferenceStoreWith())
+
+        repo.loadTemplatesAndBranding()
+        repo.loadTemplatesAndBranding()
+
+        templatesCalls.get() shouldBeEqualTo 2
+        brandingCalls.get() shouldBeEqualTo 2
     }
 
     // (c) A failed revalidation serves the last-persisted (stale) value and closes the gate,
@@ -372,7 +490,6 @@ class InboxRepositoryTest {
         val first = repo.loadTemplatesAndBranding()
         // Revalidation attempted (1 call each) but failed -> serve stale persisted -> Visible.
         first.shouldBeInstanceOf<InboxFetchOutcome.Visible>()
-        (first as InboxFetchOutcome.Visible).fromCache shouldBeEqualTo true
         templatesCalls.get() shouldBeEqualTo 1
         brandingCalls.get() shouldBeEqualTo 1
 

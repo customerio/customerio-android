@@ -148,6 +148,7 @@ fun NotificationInboxView(
         .collectAsStateWithLifecycle(initialValue = VisualInboxUiState(loading = true))
     InboxListContent(
         controller = controller,
+        state = state,
         colors = rememberInboxColors((state.visibility as? InboxVisibility.Visible)?.branding),
         fonts = fonts,
         onNavigatedAway = onDismissRequest,
@@ -276,6 +277,7 @@ internal fun NotificationInboxOverlay(
         ) {
             InboxListContent(
                 controller = controller,
+                state = state,
                 colors = colors,
                 fonts = fonts,
                 // Close the sheet when a tapped message navigates via a deep link, so the deep-linked
@@ -384,6 +386,7 @@ private fun InboxBellContent(
 @Composable
 private fun InboxListContent(
     controller: VisualInboxController,
+    state: VisualInboxUiState,
     colors: InboxColors,
     modifier: Modifier = Modifier,
     // Custom-font registry forwarded to the Jist renderer (see NotificationInboxOverlay); empty = none.
@@ -393,8 +396,6 @@ private fun InboxListContent(
     onNavigatedAway: (() -> Unit)? = null
 ) {
     val context = LocalContext.current
-    val state by remember(controller) { controller.uiStateFlow() }
-        .collectAsStateWithLifecycle(initialValue = VisualInboxUiState(loading = true))
 
     // While the inbox content is shown, mark the currently-unread messages opened (deduped in the
     // controller). For the overlay this fires when the panel opens; for a standalone view, on appear.
@@ -698,18 +699,31 @@ private fun CustomCircularProgressIndicator(
     }
 }
 
-/** Builds a [VisualInboxController] wired to the SDK data layer + the host's inbox event listener. */
+/**
+ * The [VisualInboxController] shared by every inbox composable, resolved from the SDK graph.
+ *
+ * One instance rather than one per composable: the controller's dedupe guards (shown / opened /
+ * clicked / dismissed queueIds) are per-session, so a bell and a separately-mounted view must share
+ * them, and all consumers then observe a single upstream (see [VisualInboxController.uiStateFlow]).
+ *
+ * Held by the SDK graph rather than a top-level `lazy` so it is released and rebuilt with the SDK.
+ * A process-lifetime instance would outlive `CustomerIO` teardown, keeping a stale module reference
+ * that fails on the next initialization — and would register as a leak.
+ */
+internal val SDKComponent.visualInboxController: VisualInboxController
+    get() = singleton {
+        val module = ModuleMessagingInApp.instance()
+        VisualInboxController(
+            visualInbox = module.visualInbox(),
+            // Read from the module on each callback so a listener registered at runtime via
+            // ModuleMessagingInApp.setInboxEventListener takes effect; null when none is set.
+            inboxEventListenerProvider = { module.inboxEventListener }
+        )
+    }
+
 @Composable
-private fun rememberInboxController(): VisualInboxController = remember {
-    val module = ModuleMessagingInApp.instance()
-    VisualInboxController(
-        visualInbox = module.visualInbox(),
-        // Host-registered inbox action/event listener (items 13/14), mirroring the in-app
-        // eventListener. Read from the module on each callback so a listener registered at runtime
-        // via ModuleMessagingInApp.setInboxEventListener takes effect; null when none is set.
-        inboxEventListenerProvider = { module.inboxEventListener }
-    )
-}
+private fun rememberInboxController(): VisualInboxController =
+    remember { SDKComponent.visualInboxController }
 
 /**
  * Whether any selected message can actually render — its `type` has a decoded template. A message

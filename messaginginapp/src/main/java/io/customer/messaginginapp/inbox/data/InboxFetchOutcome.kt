@@ -12,25 +12,24 @@ import io.customer.base.internal.InternalCustomerIOApi
  * inbox is [Visible] iff BOTH render inputs resolve, each via: fresh fetch/cache-hit,
  * else serve stale (last-persisted), else missing -> [Hidden]. Branding is
  * REQUIRED-to-render and behaves exactly like templates (no defaults). Full
- * visibility ALSO requires `isInboxEnabled` + a selected message, folded in by
+ * visibility ALSO requires `isInboxEnabled`, folded in by
  * [InboxRepository.computeVisibility]; [decideOutcome] decides only templates+branding.
+ * The message count does not gate visibility — an empty inbox is visible and empty.
  */
 @InternalCustomerIOApi
 sealed class InboxFetchOutcome {
     /**
      * Render inputs resolved: templates AND branding are both available (each
-     * fresh or served stale). The inbox can be shown (subject to the enabled +
-     * messages checks folded in by the repository's visibility computation).
+     * fresh or served stale). The inbox can be shown (subject to the enabled
+     * check folded in by the repository's visibility computation).
      *
      * @param templatesJson raw, Jist-agnostic template registry JSON
      * @param branding branding tokens + patterns (required-to-render; never null here)
-     * @param fromCache true when ANY served input came from cache (fresh-cache hit or stale)
      */
     @InternalCustomerIOApi
     data class Visible(
         val templatesJson: String,
-        val branding: Branding,
-        val fromCache: Boolean
+        val branding: Branding
     ) : InboxFetchOutcome()
 
     /**
@@ -48,7 +47,6 @@ sealed class InboxFetchOutcome {
 // iOS SDK so both platforms emit the same visual-inbox diagnostic reasons. They are
 // logging-only and never surfaced to users; do not change without aligning iOS.
 internal const val REASON_INBOX_DISABLED = "inbox disabled"
-internal const val REASON_NO_SELECTED_MESSAGES = "no selected messages"
 internal const val REASON_TEMPLATES_UNAVAILABLE = "templates unavailable"
 internal const val REASON_BRANDING_UNAVAILABLE = "branding unavailable"
 
@@ -91,14 +89,9 @@ internal fun decideOutcome(
             InboxFetchOutcome.Hidden(reasons.joinToString(", "))
         }
 
-        else -> {
-            // fromCache when either served input was not a fresh network/cache-fresh result.
-            val servedFromCache = freshTemplatesJson == null || freshBranding == null
-            InboxFetchOutcome.Visible(
-                templatesJson = templates,
-                branding = branding,
-                fromCache = servedFromCache
-            )
-        }
+        else -> InboxFetchOutcome.Visible(
+            templatesJson = templates,
+            branding = branding
+        )
     }
 }

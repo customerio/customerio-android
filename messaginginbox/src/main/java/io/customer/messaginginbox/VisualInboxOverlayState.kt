@@ -152,7 +152,16 @@ internal class VisualInboxController(
         }
         // Fetch (or serve-stale) templates + branding; outcome folds into getVisibility() below.
         visualInbox.loadTemplatesAndBranding()
-        return snapshot()
+        val snapshot = snapshot()
+        // A concurrent poll-driven fetch makes loadTemplatesAndBranding() return immediately on the
+        // repository's in-flight guard, before anything is cached. Reporting that as a settled Hidden
+        // would render nothing at all until observeContentChanges fires; report loading instead so
+        // the panel shows its spinner, matching iOS (which sets .loading before it fetches).
+        return if (!snapshot.isVisible && visualInbox.isFetchInFlight) {
+            snapshot.copy(loading = true)
+        } else {
+            snapshot
+        }
     }
 
     /** Builds a snapshot from the current data-layer state without triggering a fetch. */

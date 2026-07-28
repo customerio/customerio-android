@@ -110,13 +110,12 @@ internal class LiveNotificationHandler(
             SDKComponent.logger.error(
                 "Failed to render live notification '$activityId': ${cause.message}"
             )
-            // A server-delivered `end` claims the terminal transition in the store *before*
-            // rendering, so a failure here would leave the previous ongoing (non-dismissible)
-            // notification on screen while every retry `end` is dropped by that same claim.
-            // Cancel it so a failed render can't strand the activity visible and unclearable.
-            // Local renders are excluded: LiveNotificationManager owns their terminal flow and
-            // claims ended only after the render.
-            if (!bypassOrderGuard && bundle.getString(EVENT_KEY) == EVENT_END && activityId != null) {
+            // An `end` claims the terminal transition in the store *before* the render runs —
+            // server pushes in the order guard below, local ends in LiveNotificationManager.end.
+            // So a failure here would leave the previous ongoing (non-dismissible) notification on
+            // screen while every retry `end` is dropped by that same claim. Cancel it on both
+            // paths so a failed render can't strand the activity visible and unclearable.
+            if (bundle.getString(EVENT_KEY) == EVENT_END && activityId != null) {
                 notificationManager.cancel(activityId, notificationId(activityId))
             }
         }
@@ -194,6 +193,15 @@ internal class LiveNotificationHandler(
                     return
                 }
             }
+        } else if (!isEnd && store.isEnded(activityId)) {
+            // Local start/update renders are queued, so the activity can go terminal between
+            // enqueue and render — most commonly a user swipe, which the dismiss receiver marks
+            // ended. Without re-checking here the render would repost a notification the user
+            // already cleared. `end` is exempt: it renders precisely because it just went terminal.
+            SDKComponent.logger.debug(
+                "Dropping local render for ended live notification '$activityId'."
+            )
+            return
         }
 
         // Advances the high-water mark on BOTH paths: a local render must also bump it
@@ -251,7 +259,7 @@ internal class LiveNotificationHandler(
 
         bundle.putInt(CustomerIOPushNotificationHandler.NOTIFICATION_REQUEST_CODE, notifId)
         val parsedPayload = CustomerIOParsedPushPayload(
-            extras = Bundle(bundle),
+            extras = flattenedExtras(bundle, data),
             deepLink = result?.deepLink ?: bundle.getString(CustomerIOPushNotificationHandler.DEEP_LINK_KEY),
             cioDeliveryId = deliveryId.orEmpty(),
             cioDeliveryToken = deliveryToken.orEmpty(),
@@ -267,6 +275,7 @@ internal class LiveNotificationHandler(
         // The host app may fully render the notification; otherwise fall back to the SDK template.
         val appNotification = SDKComponent.pushModuleConfig.liveNotificationCallback
             ?.createLiveNotification(parsedPayload, context)
+            ?.withDefaultIntents(pendingIntent, deletePendingIntent)
         val notification = appNotification ?: result?.let {
             buildSdkNotification(context, channelId, effectiveSmallIcon, it, pendingIntent, deletePendingIntent, ongoing = !isEnd)
         }
@@ -395,6 +404,37 @@ internal class LiveNotificationHandler(
      * [RESERVED_KEYS], merged with any nested `payload` object (which wins on
      * collision). JSON-object/array strings are parsed; scalars kept verbatim.
      */
+    /**
+     * Fills in the SDK's click and dismiss intents on an app-rendered notification that didn't
+     * set its own. The SDK still owns posting and lifecycle for these, so without this a custom
+     * notification could not open the app, report `opened`, deep-link, or report a user swipe —
+     * and every host would have to reconstruct internal receiver details to get them. An app that
+     * does set either intent keeps it.
+     */
+    private fun Notification.withDefaultIntents(
+        clickIntent: PendingIntent?,
+        dismissIntent: PendingIntent?
+    ): Notification = apply {
+        if (contentIntent == null) contentIntent = clickIntent
+        if (deleteIntent == null) deleteIntent = dismissIntent
+    }
+
+    /**
+     * The bundle a host callback receives. Server pushes carry customer content nested in the
+     * JSON `payload` field, which [extractData] unwraps for built-in templates; without the same
+     * unwrapping here an app-rendered type would see `payload` instead of its own fields, which
+     * is not what [io.customer.messagingpush.data.communication.CustomerIOLiveNotificationsCallback]
+     * promises. Envelope keys already in the bundle win, so nothing the SDK owns is overwritten.
+     */
+    private fun flattenedExtras(bundle: Bundle, data: JSONObject): Bundle = Bundle(bundle).apply {
+        remove(PAYLOAD_KEY)
+        for (key in data.keys()) {
+            if (containsKey(key)) continue
+            val value = data.opt(key) ?: continue
+            putString(key, value.toString())
+        }
+    }
+
     private fun extractData(bundle: Bundle): JSONObject {
         val data = JSONObject()
         for (key in bundle.keySet()) {

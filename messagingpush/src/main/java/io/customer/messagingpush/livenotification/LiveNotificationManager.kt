@@ -129,6 +129,34 @@ internal class LiveNotificationManager(
         val activityType = lastBundle?.getString(LiveNotificationHandler.NOTIFICATION_TYPE_KEY)
             ?: store.activityType(activityId)
 
+        val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+
+        if (activityType == null) {
+            SDKComponent.logger.debug(
+                "No known live notification for '$activityId'; nothing to end."
+            )
+            // Nothing to report or claim, but still cancel so a stale ongoing notification
+            // isn't left stuck and non-dismissible.
+            notificationManager.cancel(activityId, LiveNotificationHandler.notificationId(activityId))
+            return
+        }
+
+        // Claim the terminal transition so `end` is reported at most once per id, and claim it
+        // BEFORE rendering: the render is queued, so a user swipe landing first would have the
+        // dismiss receiver end and clear the notification, and a later terminal render would
+        // repost what they just dismissed. Losing the claim means exactly that happened, so
+        // there is nothing left to render. The store's timestamp/type are intentionally NOT
+        // cleared: the terminal marker and the high-water mark must survive so a delayed older
+        // push can't resurrect the activity, and logout can still cancel a still-visible ended
+        // notification. Reclamation happens via the store's TTL trim / logout clear.
+        if (!store.markEnded(activityId)) {
+            SDKComponent.logger.debug(
+                "Live notification '$activityId' was already ended elsewhere; not re-rendering."
+            )
+            return
+        }
+        reportEnd(activityId, activityType)
+
         if (lastBundle != null) {
             val endBundle = Bundle(lastBundle).apply {
                 putString(LiveNotificationHandler.EVENT_KEY, EVENT_END)
@@ -138,22 +166,7 @@ internal class LiveNotificationManager(
         } else {
             // No cached content to render a terminal state (e.g. after process death):
             // cancel so a previously ongoing notification isn't left stuck and non-dismissible.
-            val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             notificationManager.cancel(activityId, LiveNotificationHandler.notificationId(activityId))
-        }
-
-        // Claim the terminal transition so `end` is reported at most once per id
-        // (a prior user swipe-dismiss may have already reported it). The store's
-        // timestamp/type are intentionally NOT cleared: the terminal marker and the
-        // high-water mark must survive so a delayed older push can't resurrect the
-        // activity, and logout can still cancel a still-visible ended notification.
-        // Reclamation happens via the store's TTL trim / logout clear.
-        if (activityType == null) {
-            SDKComponent.logger.debug(
-                "No known live notification for '$activityId'; nothing to end."
-            )
-        } else if (store.markEnded(activityId)) {
-            reportEnd(activityId, activityType)
         }
     }
 

@@ -63,6 +63,13 @@ class VisualInbox internal constructor(
     val isInboxVisible: Boolean
         get() = repository.isInboxVisible
 
+    /**
+     * True while a templates/branding fetch cycle is running. The overlay reads this to tell a
+     * not-yet-renderable inbox that is still loading apart from one that has settled on Hidden.
+     */
+    val isFetchInFlight: Boolean
+        get() = repository.isFetchInFlight
+
     fun getVisibility(): InboxVisibility = repository.computeVisibility()
 
     suspend fun loadTemplatesAndBranding(): InboxFetchOutcome = repository.loadTemplatesAndBranding()

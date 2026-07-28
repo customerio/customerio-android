@@ -87,6 +87,36 @@ class VisualInboxControllerTest {
         state.visibility.shouldBeInstanceOf<InboxVisibility.Hidden>()
     }
 
+    // A concurrent poll-driven fetch makes loadTemplatesAndBranding() return on the repository's
+    // in-flight guard before anything is cached. That must report loading, not a settled Hidden:
+    // Hidden renders nothing at all, so the panel would sit blank instead of showing its spinner.
+    @Test
+    fun load_givenFetchInFlightAndNotYetRenderable_expectLoading() = runTest {
+        val visualInbox = mockk<VisualInbox>(relaxed = true)
+        every { visualInbox.isEnabled } returns true
+        every { visualInbox.getVisibility() } returns InboxVisibility.Hidden("templates unavailable")
+        every { visualInbox.isFetchInFlight } returns true
+
+        val state = VisualInboxController(visualInbox).load()
+
+        state.loading shouldBeEqualTo true
+        state.isVisible shouldBeEqualTo false
+    }
+
+    // Control: once nothing is in flight, a Hidden inbox is settled and must NOT claim to be loading,
+    // or the panel would spin forever on a genuinely non-renderable inbox.
+    @Test
+    fun load_givenHiddenAndNoFetchInFlight_expectNotLoading() = runTest {
+        val visualInbox = mockk<VisualInbox>(relaxed = true)
+        every { visualInbox.isEnabled } returns true
+        every { visualInbox.getVisibility() } returns InboxVisibility.Hidden("templates unavailable")
+        every { visualInbox.isFetchInFlight } returns false
+
+        val state = VisualInboxController(visualInbox).load()
+
+        state.loading shouldBeEqualTo false
+    }
+
     @Test
     fun load_givenEnabledAndVisible_expectSnapshotWithUnopenedCount() = runTest {
         val messages = listOf(message("a", opened = false), message("b", opened = true))

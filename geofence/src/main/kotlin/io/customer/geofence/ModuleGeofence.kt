@@ -18,6 +18,7 @@ import io.customer.sdk.core.module.CustomerIOModule
 import io.customer.sdk.core.util.HandlerMainThreadPoster
 import io.customer.sdk.core.util.MainThreadPoster
 import io.customer.sdk.data.store.SecureUserStore
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 
@@ -179,6 +180,10 @@ class ModuleGeofence @JvmOverloads constructor(
                                 if (!refreshOnForeground(sdkAndroid.geofenceServices, sdkAndroid.secureUserStore, locationModule)) {
                                     retrySyncAwaitingLocation(sdkAndroid, locationModule)
                                 }
+                            } catch (e: CancellationException) {
+                                throw e
+                            } catch (e: Throwable) {
+                                SDKComponent.geofenceLogger.logSyncFailed("foreground refresh failed: ${e.message}")
                             } finally {
                                 foregroundScope.cancel()
                             }
@@ -205,6 +210,12 @@ class ModuleGeofence @JvmOverloads constructor(
                         )
                         autoAcquireIfNeeded(locationModule, anchor)
                     }
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Throwable) {
+                    // Keystore/prefs reads can throw on some OEMs; log instead of relying on
+                    // the scope's last-resort handler so the failure is attributable.
+                    SDKComponent.geofenceLogger.logSyncFailed("app-launch refresh failed: ${e.message}")
                 } finally {
                     // One-shot: geofenceScope mints a fresh scope per access, so cancel it once
                     // the launch read completes rather than leaking its Job.
@@ -268,6 +279,10 @@ class ModuleGeofence @JvmOverloads constructor(
                     longitude = anchor?.longitude
                 )
                 autoAcquireIfNeeded(locationModule, anchor)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Throwable) {
+                SDKComponent.geofenceLogger.logSyncFailed("foreground retry failed: ${e.message}")
             } finally {
                 retryScope.cancel()
             }

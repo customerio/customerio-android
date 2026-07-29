@@ -11,6 +11,7 @@ import io.customer.sdk.core.util.Iso8601TimestampFormatter
 import io.customer.sdk.data.store.PendingDeliveryStore
 import io.customer.sdk.data.store.sendRemoveOnSuccess
 import io.customer.sdk.util.EventNames
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import org.json.JSONObject
@@ -85,8 +86,16 @@ internal class AsyncGeofenceEventTracker(
             return
         }
         CoroutineScope(dispatcher.background).launch {
-            pendingStore.sendRemoveOnSuccess(entry) {
-                tracker.trackEvent(entry)
+            try {
+                pendingStore.sendRemoveOnSuccess(entry) {
+                    tracker.trackEvent(entry)
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Throwable) {
+                // Ad-hoc scope with no exception handler — an escape would crash the host.
+                // The entry stays in the store, so the foreground flush retries it.
+                logger.logAsyncDeliveryFailed(entry.geofenceId, entry.transition.name, e.message)
             }
         }
     }

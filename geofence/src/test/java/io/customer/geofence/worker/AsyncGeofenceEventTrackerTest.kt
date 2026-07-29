@@ -69,6 +69,19 @@ class AsyncGeofenceEventTrackerTest : RobolectricTest() {
     }
 
     @Test
+    fun trackEvent_givenStoreThrows_expectLoggedNotCrashed() = runTest {
+        // The fire-and-forget scope has no exception handler — an escaping throw
+        // would crash the host. The entry stays in store for the foreground flush.
+        val entry = PendingGeofenceDelivery("biz-5", Event.GeofenceTransition.ENTER, 11L, "user-42", transitionId = "tid-5")
+        every { mockStore.loadAll() } throws IllegalStateException("corrupt store")
+
+        asyncTracker.trackEvent(entry)
+
+        verify { mockLogger.logAsyncDeliveryFailed("biz-5", "ENTER", "corrupt store") }
+        coVerify(exactly = 0) { mockTracker.trackEvent(any()) }
+    }
+
+    @Test
     fun trackEvent_givenFailure_expectEntryKeptForFlush() = runTest {
         val entry = PendingGeofenceDelivery("biz-4", Event.GeofenceTransition.ENTER, 9L, "user-42", transitionId = "tid-4")
         every { mockStore.loadAll() } returns listOf(entry)

@@ -33,6 +33,9 @@ class SseLifecycleManagerTest : JUnitTest() {
     private val stateFlow = MutableStateFlow<InAppMessagingState>(
         InAppMessagingState(sseEnabled = false)
     )
+
+    /** The backfill hook the manager registers on the connection manager. */
+    private val connectionConfirmed = slot<() -> Unit>()
     private var sseFlagChangeCallback: ((Boolean) -> Unit)? = null
     private var userIdentificationChangeCallback: ((Boolean) -> Unit)? = null
     private var subscriptionCallCount = 0
@@ -45,6 +48,7 @@ class SseLifecycleManagerTest : JUnitTest() {
         sseFlagChangeCallback = null
         userIdentificationChangeCallback = null
 
+        every { sseConnectionManager.onConnectionConfirmed = capture(connectionConfirmed) } just Runs
         every { processLifecycleOwner.lifecycle } returns lifecycle
         every { lifecycle.currentState } returns Lifecycle.State.CREATED
         every { lifecycle.addObserver(any()) } just Runs
@@ -388,11 +392,35 @@ class SseLifecycleManagerTest : JUnitTest() {
     }
 
     // =====================
-    // Catch-up fetch tests (fetchUserMessages on foreground)
+    // Connection-start tests. The backfill fetch itself is driven by the server's connected
+    // event (see the onConnectionConfirmed test), not by these transitions.
     // =====================
 
+    // The backfill is driven by the server confirming the connection, not by the transition that
+    // decides to open it: issued alongside startConnection() the fire-and-forget fetch could land
+    // after an SSE update and overwrite a newer inbox with an older snapshot.
     @Test
-    fun testOnStart_whenSseEnabledAndUserIdentified_thenFetchesUserMessages() {
+    fun testConnectionConfirmed_thenBackfillsUserMessages() {
+        stateFlow.value = InAppMessagingState(sseEnabled = true, userId = "user-123")
+        lifecycleManager = SseLifecycleManager(
+            inAppMessagingManager = inAppMessagingManager,
+            processLifecycleOwner = processLifecycleOwner,
+            sseConnectionManager = sseConnectionManager,
+            sseLogger = sseLogger,
+            gistQueue = gistQueue,
+            mainThreadPoster = mainThreadPoster
+        )
+
+        // Nothing is fetched until the server acknowledges the connection.
+        verify(exactly = 0) { gistQueue.fetchUserMessages() }
+
+        connectionConfirmed.captured.invoke()
+
+        verify(exactly = 1) { gistQueue.fetchUserMessages() }
+    }
+
+    @Test
+    fun testOnStart_whenSseEnabledAndUserIdentified_thenStartsConnectionWithoutFetching() {
         // Given - SSE enabled and user is identified
         stateFlow.value = InAppMessagingState(sseEnabled = true, userId = "user-123")
         lifecycleManager = SseLifecycleManager(
@@ -412,7 +440,8 @@ class SseLifecycleManagerTest : JUnitTest() {
         observer.onStart(processLifecycleOwner)
 
         // Then - should fetch user messages to catch up on missed messages
-        verify(exactly = 1) { gistQueue.fetchUserMessages() }
+        verify(exactly = 1) { sseConnectionManager.startConnection() }
+        verify(exactly = 0) { gistQueue.fetchUserMessages() }
     }
 
     @Test
@@ -468,7 +497,7 @@ class SseLifecycleManagerTest : JUnitTest() {
     }
 
     @Test
-    fun testBackgroundToForeground_whenSseEnabled_thenFetchesUserMessages() {
+    fun testBackgroundToForeground_whenSseEnabled_thenStartsConnection() {
         // Given - SSE enabled and user is identified
         stateFlow.value = InAppMessagingState(sseEnabled = true, userId = "user-123")
         lifecycleManager = SseLifecycleManager(
@@ -486,7 +515,8 @@ class SseLifecycleManagerTest : JUnitTest() {
 
         // First foreground
         observer.onStart(processLifecycleOwner)
-        verify(exactly = 1) { gistQueue.fetchUserMessages() }
+        verify(exactly = 1) { sseConnectionManager.startConnection() }
+        verify(exactly = 0) { gistQueue.fetchUserMessages() }
 
         // Background the app
         observer.onStop(processLifecycleOwner)
@@ -495,11 +525,12 @@ class SseLifecycleManagerTest : JUnitTest() {
         observer.onStart(processLifecycleOwner)
 
         // Then - should fetch again to catch up on messages missed while backgrounded
-        verify(exactly = 2) { gistQueue.fetchUserMessages() }
+        verify(exactly = 2) { sseConnectionManager.startConnection() }
+        verify(exactly = 0) { gistQueue.fetchUserMessages() }
     }
 
     @Test
-    fun testOnStart_whenAlreadyForegrounded_thenDoesNotFetchAgain() {
+    fun testOnStart_whenAlreadyForegrounded_thenDoesNotStartConnectionAgain() {
         // Given - SSE enabled and user is identified
         stateFlow.value = InAppMessagingState(sseEnabled = true, userId = "user-123")
         lifecycleManager = SseLifecycleManager(
@@ -517,13 +548,14 @@ class SseLifecycleManagerTest : JUnitTest() {
 
         // First call
         observer.onStart(processLifecycleOwner)
-        verify(exactly = 1) { gistQueue.fetchUserMessages() }
+        verify(exactly = 1) { sseConnectionManager.startConnection() }
 
         // When - duplicate onStart without onStop
         observer.onStart(processLifecycleOwner)
 
         // Then - should NOT fetch again (AtomicBoolean guard prevents duplicate)
-        verify(exactly = 1) { gistQueue.fetchUserMessages() }
+        verify(exactly = 1) { sseConnectionManager.startConnection() }
+        verify(exactly = 0) { gistQueue.fetchUserMessages() }
     }
 
     // =====================
@@ -773,43 +805,7 @@ class SseLifecycleManagerTest : JUnitTest() {
     // =====================
 
     @Test
-    fun testUserBecomesIdentified_whenForegroundedAndSseEnabled_thenFetchesUserMessages() {
-        // Given - anonymous + SSE enabled + foregrounded
-        stateFlow.value = InAppMessagingState(
-            sseEnabled = true,
-            userId = null,
-            anonymousId = "anonymous-123"
-        )
-        lifecycleManager = SseLifecycleManager(
-            inAppMessagingManager = inAppMessagingManager,
-            processLifecycleOwner = processLifecycleOwner,
-            sseConnectionManager = sseConnectionManager,
-            sseLogger = sseLogger,
-            gistQueue = gistQueue,
-            mainThreadPoster = mainThreadPoster
-        )
-
-        val observerSlot = slot<androidx.lifecycle.LifecycleObserver>()
-        verify { lifecycle.addObserver(capture(observerSlot)) }
-        val observer = observerSlot.captured as androidx.lifecycle.DefaultLifecycleObserver
-        observer.onStart(processLifecycleOwner)
-        // Foregrounding while anonymous does not fetch (polling handles anonymous)
-        verify(exactly = 0) { gistQueue.fetchUserMessages() }
-
-        // When - user becomes identified (shouldUseSse flips true)
-        stateFlow.value = InAppMessagingState(
-            sseEnabled = true,
-            userId = "user-123",
-            anonymousId = "anonymous-123"
-        )
-        userIdentificationChangeCallback?.invoke(true)
-
-        // Then - backfill fetch fires so existing messages load without a foreground
-        verify(exactly = 1) { gistQueue.fetchUserMessages() }
-    }
-
-    @Test
-    fun testSseFlagChange_whenForegroundedAndUserIdentified_thenFetchesUserMessages() {
+    fun testSseFlagChange_whenForegroundedAndUserIdentified_thenStartsConnection() {
         // Given - identified user + SSE disabled + foregrounded
         stateFlow.value = InAppMessagingState(sseEnabled = false, userId = "user-123")
         lifecycleManager = SseLifecycleManager(
@@ -826,13 +822,14 @@ class SseLifecycleManagerTest : JUnitTest() {
         val observer = observerSlot.captured as androidx.lifecycle.DefaultLifecycleObserver
         observer.onStart(processLifecycleOwner)
         // Foregrounding while SSE disabled does not fetch here (polling handles it)
-        verify(exactly = 0) { gistQueue.fetchUserMessages() }
+        verify(exactly = 0) { sseConnectionManager.startConnection() }
 
         // When - SSE flag flips true (shouldUseSse becomes true)
         stateFlow.value = InAppMessagingState(sseEnabled = true, userId = "user-123")
         sseFlagChangeCallback?.invoke(true)
 
         // Then - backfill fetch fires
-        verify(exactly = 1) { gistQueue.fetchUserMessages() }
+        verify(exactly = 1) { sseConnectionManager.startConnection() }
+        verify(exactly = 0) { gistQueue.fetchUserMessages() }
     }
 }

@@ -55,6 +55,18 @@ internal class SseConnectionManager(
     private val scope: CoroutineScope
 ) {
 
+    /**
+     * Invoked when the server confirms the connection (its `connected` event), which is the only
+     * transition into [SseConnectionState.CONNECTED].
+     *
+     * Exists so the owner can sync state that SSE itself will not deliver: the stream only carries
+     * messages that arrive AFTER the connection is established, so whatever already exists for the
+     * user has to be fetched over HTTP. Doing that here rather than alongside [startConnection]
+     * means the fetch cannot race an SSE update that lands first (mirrors gist-web, which fetches
+     * from its `connected` listener).
+     */
+    internal var onConnectionConfirmed: (() -> Unit)? = null
+
     private val connectionMutex = Mutex()
     private var connectionJob: Job? = null
     private var timeoutJob: Job? = null
@@ -315,6 +327,7 @@ internal class SseConnectionManager(
         heartbeatTimer.startTimer(
             NetworkUtilities.DEFAULT_HEARTBEAT_TIMEOUT_MS + NetworkUtilities.HEARTBEAT_BUFFER_MS
         )
+        onConnectionConfirmed?.invoke()
     }
 
     /**

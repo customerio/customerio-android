@@ -56,14 +56,20 @@ internal class SseConnectionManager(
 ) {
 
     /**
-     * Invoked when the server confirms the connection (its `connected` event), which is the only
-     * transition into [SseConnectionState.CONNECTED].
+     * Invoked when the SERVER confirms the connection with its `connected` event — not on the
+     * transport-level [ConnectionOpenEvent], which arrives first.
      *
      * Exists so the owner can sync state that SSE itself will not deliver: the stream only carries
      * messages that arrive AFTER the connection is established, so whatever already exists for the
-     * user has to be fetched over HTTP. Doing that here rather than alongside [startConnection]
-     * means the fetch cannot race an SSE update that lands first (mirrors gist-web, which fetches
-     * from its `connected` listener).
+     * user has to be fetched over HTTP. Waiting for confirmation rather than firing alongside
+     * [startConnection] means the fetch starts against a stream that is already live, and is skipped
+     * entirely when a connection never establishes (mirrors gist-web, which fetches from its
+     * `connected` listener).
+     *
+     * NOTE: this does not fully order the HTTP response against SSE. An `inbox_messages` event that
+     * arrives while the fetch is in flight can still be overwritten by the older HTTP snapshot,
+     * because both publish a full-state write. Closing that needs the two writes versioned or
+     * merged; tracked separately.
      */
     internal var onConnectionConfirmed: (() -> Unit)? = null
 
@@ -219,6 +225,11 @@ internal class SseConnectionManager(
             ServerEvent.CONNECTED -> {
                 sseLogger.logConnectionConfirmed()
                 setupSuccessfulConnection()
+                // Only here, not in setupSuccessfulConnection: that also runs for the transport
+                // ConnectionOpenEvent, which fires first and before the server has confirmed
+                // anything — so hooking it there would both double-invoke and start the backfill at
+                // the same point as the pre-connect fetch this replaced.
+                onConnectionConfirmed?.invoke()
             }
 
             ServerEvent.HEARTBEAT -> {
@@ -327,7 +338,6 @@ internal class SseConnectionManager(
         heartbeatTimer.startTimer(
             NetworkUtilities.DEFAULT_HEARTBEAT_TIMEOUT_MS + NetworkUtilities.HEARTBEAT_BUFFER_MS
         )
-        onConnectionConfirmed?.invoke()
     }
 
     /**

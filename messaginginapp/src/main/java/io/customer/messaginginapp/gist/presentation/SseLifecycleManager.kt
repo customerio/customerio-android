@@ -106,11 +106,14 @@ internal class SseLifecycleManager(
      * existing inbox until the next foreground, which is why it used to appear only after a
      * background/relaunch.
      *
-     * Keyed off the server's `connected` event rather than the transition that decides to connect,
-     * because `fetchUserMessages()` is fire-and-forget: issued alongside `startConnection()` its
-     * response could land after an SSE update and overwrite the newer inbox with an older snapshot.
-     * Waiting for confirmation also means no fetch happens when the connection never establishes.
-     * Mirrors gist-web, which fetches from its `connected` listener.
+     * Keyed off the server's `connected` event rather than the transition that decides to connect, so
+     * the fetch starts against a stream that is already live and is skipped entirely when the
+     * connection never establishes. Mirrors gist-web, which fetches from its `connected` listener.
+     *
+     * This narrows the window but does not close it: `fetchUserMessages()` is fire-and-forget, so an
+     * `inbox_messages` event arriving while the request is in flight can still be overwritten by the
+     * older HTTP snapshot, since both publish a full-state write. Ordering the two properly needs
+     * them versioned or merged; tracked separately.
      */
     private fun backfillOnConnect() {
         sseLogger.logSseConnectionConfirmedBackfill()

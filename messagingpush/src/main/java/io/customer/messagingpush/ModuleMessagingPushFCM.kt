@@ -9,6 +9,7 @@ import androidx.lifecycle.ProcessLifecycleOwner
 import io.customer.messagingpush.di.fcmTokenProvider
 import io.customer.messagingpush.di.liveNotificationManager
 import io.customer.messagingpush.di.liveNotificationRegistrar
+import io.customer.messagingpush.di.liveNotificationStore
 import io.customer.messagingpush.di.pushDeliveryFlusher
 import io.customer.messagingpush.di.pushLogger
 import io.customer.messagingpush.di.pushTrackingUtil
@@ -42,6 +43,11 @@ class ModuleMessagingPushFCM @JvmOverloads constructor(
         get() = MODULE_NAME
 
     override fun initialize() {
+        // Persist the opt-in set on every initialization, including when it is empty. A process
+        // Android starts only to deliver an FCM push runs no app code, so this module is never
+        // registered there and the config reads back as empty; LiveNotificationHandler falls back
+        // to this to tell "never enabled" from "not loaded in this process yet".
+        SDKComponent.liveNotificationStore.setEnabledActivityTypes(moduleConfig.liveNotificationTypes)
         // Live notifications are opt-in; start before requesting the token so the
         // registrar observes the resulting RegisterDeviceTokenEvent.
         if (moduleConfig.liveNotificationTypes.isNotEmpty()) {

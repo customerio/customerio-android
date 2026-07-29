@@ -5,9 +5,10 @@ import androidx.core.content.edit
 import java.util.concurrent.TimeUnit
 
 /**
- * Persistent live-notification state (dedicated SharedPreferences file):
- * per-`activity_type` registration signatures, per-`activity_id` last-seen
- * timestamps for the out-of-order guard, and per-`activity_id` activity types.
+ * Persistent live-notification state (dedicated SharedPreferences file): the
+ * app-wide set of enabled activity types, per-`activity_type` registration
+ * signatures, per-`activity_id` last-seen timestamps for the out-of-order guard,
+ * and per-`activity_id` activity types.
  */
 internal class LiveNotificationStore(context: Context) {
 
@@ -27,6 +28,36 @@ internal class LiveNotificationStore(context: Context) {
             prefs.edit { stale.forEach { remove(it) } }
         }
         return stale.size
+    }
+
+    // --- Enabled activity types (app-wide) ---
+
+    /**
+     * The activity types the host app last opted into, or an empty set if it never enabled
+     * live notifications.
+     *
+     * Persisted because the opt-in set otherwise lives only in the module config built during
+     * SDK initialization. When Android starts a process solely to deliver an FCM push, no app
+     * code runs, so nothing rebuilds that config — see [setEnabledActivityTypes].
+     */
+    fun enabledActivityTypes(): Set<String> =
+        prefs.getStringSet(ENABLED_TYPES_KEY, null)
+            // getStringSet hands back an instance owned by SharedPreferences that must not be
+            // mutated or retained; copy it.
+            ?.toSet()
+            .orEmpty()
+
+    /**
+     * Records the app's opt-in set, replacing any previous value.
+     *
+     * Replaces rather than merges, and clears the entry when [types] is empty, so an app that
+     * stops enabling a type — or the feature entirely — is not still treated as opted in by the
+     * next process that starts without running app code.
+     */
+    fun setEnabledActivityTypes(types: Set<String>) {
+        prefs.edit {
+            if (types.isEmpty()) remove(ENABLED_TYPES_KEY) else putStringSet(ENABLED_TYPES_KEY, types)
+        }
     }
 
     // --- Registration dedup (per activity_type) ---
@@ -177,6 +208,10 @@ internal class LiveNotificationStore(context: Context) {
 
     companion object {
         private const val PREFS_NAME = "io.customer.messagingpush.live_notifications"
+
+        // Deliberately unprefixed: the reclamation sweeps below key off the `ts:`/`type:`/`end:`
+        // prefixes, and this entry is app-wide rather than per-activity, so it must not match.
+        private const val ENABLED_TYPES_KEY = "enabled_types"
         private const val REG_PREFIX = "reg:"
         private const val TS_PREFIX = "ts:"
         private const val TYPE_PREFIX = "type:"

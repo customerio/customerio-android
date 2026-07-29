@@ -10,6 +10,8 @@ import io.customer.commontest.extensions.assertCalledOnce
 import io.customer.commontest.extensions.random
 import io.customer.commontest.util.DispatchersProviderStub
 import io.customer.messagingpush.di.fcmTokenProvider
+import io.customer.messagingpush.di.liveNotificationStore
+import io.customer.messagingpush.livenotification.LiveNotificationType
 import io.customer.messagingpush.logger.PushNotificationLogger
 import io.customer.messagingpush.provider.DeviceTokenProvider
 import io.customer.messagingpush.store.PendingPushDeliveryMetric
@@ -26,7 +28,9 @@ import io.mockk.mockk
 import io.mockk.verify
 import io.mockk.verifyOrder
 import kotlinx.coroutines.test.runTest
+import org.amshove.kluent.shouldBeEmpty
 import org.amshove.kluent.shouldBeTrue
+import org.amshove.kluent.shouldContainSame
 import org.amshove.kluent.shouldNotBeNull
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -285,5 +289,43 @@ class ModuleMessagingPushFCMTest : IntegrationTest() {
         // The static ref must point at the latest observer — the prior one was
         // removed from the process lifecycle before the new one was added.
         (secondObserver !== firstObserver).shouldBeTrue()
+    }
+
+    // --- Enabled types are persisted so a cold FCM process can recover the opt-in ---
+
+    private fun stubNoFcmToken() {
+        every { fcmTokenProviderMock.getCurrentToken(any()) } answers {
+            val callback = firstArg<(String?) -> Unit>()
+            callback(null)
+        }
+    }
+
+    @Test
+    fun initialize_givenEnabledTypes_expectPersistThemForColdProcess() {
+        stubNoFcmToken()
+
+        ModuleMessagingPushFCM(
+            MessagingPushModuleConfig.Builder()
+                .enableLiveNotificationTypes(LiveNotificationType.SEGMENTS)
+                .enableCustomLiveNotificationTypes("com.example.rideshare")
+                .build()
+        ).initialize()
+
+        SDKComponent.liveNotificationStore.enabledActivityTypes() shouldContainSame setOf(
+            LiveNotificationType.SEGMENTS.identifier,
+            "com.example.rideshare"
+        )
+    }
+
+    @Test
+    fun initialize_givenNoEnabledTypes_expectClearPersistedTypes() {
+        // An app that stops enabling live notifications must not leave a stale opt-in behind for
+        // the next process that starts without running app code.
+        stubNoFcmToken()
+        SDKComponent.liveNotificationStore.setEnabledActivityTypes(setOf("com.example.stale"))
+
+        ModuleMessagingPushFCM().initialize()
+
+        SDKComponent.liveNotificationStore.enabledActivityTypes().shouldBeEmpty()
     }
 }

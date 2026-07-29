@@ -121,6 +121,27 @@ internal class LiveNotificationHandler(
         }
     }
 
+    /**
+     * The activity types the host app has opted into.
+     *
+     * Prefers the live module config and falls back to the persisted set. When Android starts a
+     * process solely to deliver an FCM push, no app code runs — the FCM service only wires up the
+     * Android context — so the push module is never registered and its config reads back as
+     * `MessagingPushModuleConfig.default()`, an empty set.
+     *
+     * Without the fallback that empty set is ambiguous: it means both "this app never enabled live
+     * notifications", which must be ignored, and "this app enabled them, but this process has not
+     * loaded that yet", which must not. The latter is every live notification delivered after
+     * ordinary process death, and for an `end` it also strands the notification a previous process
+     * posted, since ongoing notifications are not user-dismissible.
+     *
+     * The config still wins whenever it is populated, so disabling a type takes effect immediately
+     * in a running process rather than waiting for the persisted copy to be rewritten.
+     */
+    private fun enabledActivityTypes(): Set<String> =
+        SDKComponent.pushModuleConfig.liveNotificationTypes
+            .ifEmpty { SDKComponent.liveNotificationStore.enabledActivityTypes() }
+
     @Suppress("LongParameterList")
     private fun handleInternal(
         context: Context,
@@ -153,7 +174,7 @@ internal class LiveNotificationHandler(
         }
 
         val activityType = bundle.getString(NOTIFICATION_TYPE_KEY)
-        if (activityType == null || activityType !in SDKComponent.pushModuleConfig.liveNotificationTypes) {
+        if (activityType == null || activityType !in enabledActivityTypes()) {
             SDKComponent.logger.debug(
                 "Live notification type '$activityType' is not enabled; ignoring activity '$activityId'."
             )

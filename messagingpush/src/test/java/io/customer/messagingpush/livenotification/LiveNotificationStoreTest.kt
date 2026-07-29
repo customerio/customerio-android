@@ -17,6 +17,45 @@ internal class LiveNotificationStoreTest : IntegrationTest() {
     private val store by lazy { LiveNotificationStore(contextMock) }
 
     @Test
+    fun enabledActivityTypes_setGetAndReplace() {
+        store.enabledActivityTypes().shouldBeEmpty()
+
+        store.setEnabledActivityTypes(setOf("type-a", "type-b"))
+        store.enabledActivityTypes() shouldContainSame setOf("type-a", "type-b")
+
+        // Replaces rather than merges, so a type the app stopped enabling really goes away.
+        store.setEnabledActivityTypes(setOf("type-b"))
+        store.enabledActivityTypes() shouldContainSame setOf("type-b")
+    }
+
+    @Test
+    fun enabledActivityTypes_givenEmptySet_clearsTheEntry() {
+        store.setEnabledActivityTypes(setOf("type-a"))
+
+        // An app that disables live notifications entirely must not still read as opted in.
+        store.setEnabledActivityTypes(emptySet())
+
+        store.enabledActivityTypes().shouldBeEmpty()
+    }
+
+    @Test
+    fun enabledActivityTypes_survivesPerActivityReclamation() {
+        // The entry is app-wide and deliberately unprefixed, so neither the TTL sweep nor the
+        // logout clear — both of which key off the per-activity prefixes — may remove it.
+        val now = 10_000_000_000L
+        val ttl = 1_000L
+        store.setEnabledActivityTypes(setOf("type-a"))
+        store.setLastTimestamp("old", 1L, now = now - ttl - 1)
+        store.setActivityType("old", "type-a", now = now - ttl - 1)
+
+        store.trimStaleTimestamps(ttlMs = ttl, now = now)
+        store.clearAllActivities()
+
+        store.activityType("old").shouldBeNull()
+        store.enabledActivityTypes() shouldContainSame setOf("type-a")
+    }
+
+    @Test
     fun registrationSignature_setGetClear() {
         store.registrationSignature("type-a").shouldBeNull()
 

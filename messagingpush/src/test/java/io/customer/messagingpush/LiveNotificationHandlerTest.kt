@@ -7,6 +7,7 @@ import io.customer.commontest.config.TestConfig
 import io.customer.commontest.extensions.assertCalledNever
 import io.customer.commontest.extensions.attachToSDKComponent
 import io.customer.messagingpush.di.liveNotificationStore
+import io.customer.messagingpush.di.pushModuleConfig
 import io.customer.messagingpush.livenotification.LiveNotificationAsset
 import io.customer.messagingpush.livenotification.LiveNotificationBranding
 import io.customer.messagingpush.livenotification.LiveNotificationType
@@ -17,6 +18,7 @@ import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
 import io.mockk.verify
+import org.amshove.kluent.shouldBeEmpty
 import org.amshove.kluent.shouldBeEqualTo
 import org.amshove.kluent.shouldBeNull
 import org.amshove.kluent.shouldNotBeNull
@@ -643,6 +645,72 @@ internal class LiveNotificationHandlerTest : IntegrationTest() {
 
         verify(exactly = 0) {
             notificationManager.notify(activityId, any<Int>(), any<Notification>())
+        }
+    }
+
+    // --- Cold process: the module is not registered, so the config carries no enabled types ---
+
+    /**
+     * Simulates a process Android started only to deliver an FCM push: the service wires up the
+     * Android context, but no app code runs, so the push module is never registered and
+     * `pushModuleConfig` falls back to its empty default.
+     */
+    private fun simulateColdProcess() {
+        SDKComponent.modules.remove(ModuleMessagingPushFCM.MODULE_NAME)
+        SDKComponent.pushModuleConfig.liveNotificationTypes.shouldBeEmpty()
+    }
+
+    @Test
+    fun handle_givenColdProcessAndPersistedTypes_stillPosts() {
+        simulateColdProcess()
+        SDKComponent.liveNotificationStore.setEnabledActivityTypes(setOf(TemplateRegistry.SEGMENTS))
+
+        invoke(handlerFor(newBundle(activityType = TemplateRegistry.SEGMENTS)))
+
+        verify(exactly = 1) {
+            notificationManager.notify(any<String>(), any<Int>(), any<Notification>())
+        }
+    }
+
+    @Test
+    fun handle_givenColdProcessAndNoPersistedTypes_dropsNotification() {
+        // The opt-in guarantee still holds: an app that never enabled live notifications must
+        // not start rendering them just because the config is empty in this process.
+        simulateColdProcess()
+
+        invoke(handlerFor(newBundle(activityType = TemplateRegistry.SEGMENTS)))
+
+        assertCalledNever {
+            notificationManager.notify(any<String>(), any<Int>(), any<Notification>())
+        }
+    }
+
+    @Test
+    fun handle_givenColdProcessAndPersistedTypes_endCancelsStrandedNotification() {
+        // An `end` is the case that matters most: the earlier `start` was posted by a live
+        // process as an ongoing (non-dismissible) notification, so dropping the `end` would
+        // leave it on screen with no way for the user to clear it.
+        val activityId = "cold-end"
+        simulateColdProcess()
+        SDKComponent.liveNotificationStore.setEnabledActivityTypes(setOf(TemplateRegistry.SEGMENTS))
+
+        invoke(handlerFor(newBundle(activityId = activityId, event = "end")))
+
+        verify(exactly = 1) {
+            notificationManager.notify(activityId, any<Int>(), any<Notification>())
+        }
+    }
+
+    @Test
+    fun handle_givenLiveConfig_ignoresStalePersistedTypes() {
+        // A populated config always wins, so disabling a type takes effect immediately in a
+        // running process instead of waiting for the persisted copy to be rewritten.
+        SDKComponent.liveNotificationStore.setEnabledActivityTypes(setOf("io.customer.stale.type"))
+
+        invoke(handlerFor(newBundle(activityType = "io.customer.stale.type")))
+
+        assertCalledNever {
+            notificationManager.notify(any<String>(), any<Int>(), any<Notification>())
         }
     }
 }

@@ -26,9 +26,18 @@ interface CustomerIOLiveNotificationsCallback {
      * notification is dropped.
      *
      * The SDK still owns the posting lifecycle: it posts the returned notification
-     * keyed by the activity id (so later updates replace it) and cancels it on
-     * `end`. It does NOT modify the returned notification, so any dismissal
-     * reporting is the app's responsibility.
+     * keyed by the activity id, so later updates replace it in place.
+     *
+     * The SDK fills in its own click and dismiss intents on the returned notification
+     * wherever the app left them unset, so a tap reports `opened` and follows the
+     * deep link, and a swipe reports `end`, without the app wiring up internal
+     * receivers. Setting either intent yourself keeps it — and makes the
+     * corresponding reporting your responsibility.
+     *
+     * On `end` this is called again to render the terminal, non-ongoing state;
+     * returning `null` there cancels the notification instead. A terminal
+     * notification deliberately carries no dismiss intent, so swiping it away does
+     * not report a second `end`.
      *
      * Called on a background thread. Throwing from here is caught and logged by
      * the SDK, but the notification is then dropped — prefer returning `null`.

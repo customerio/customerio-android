@@ -291,6 +291,19 @@ internal class LiveNotificationHandler(
             return
         }
 
+        // Re-check terminal state immediately before committing, on both paths. The guard above
+        // runs before the template render and the app callback, either of which can block for a
+        // long time — a remote branding logo waits up to ~20s. A user swipe during that work has
+        // the dismiss receiver mark the activity ended, and posting now would resurrect a
+        // notification they already cleared. `end` is exempt: it posts precisely because it just
+        // went terminal.
+        if (!isEnd && store.isEnded(activityId)) {
+            SDKComponent.logger.debug(
+                "Live notification '$activityId' was ended while rendering; not posting."
+            )
+            return
+        }
+
         advanceHighWaterMark()
 
         when {

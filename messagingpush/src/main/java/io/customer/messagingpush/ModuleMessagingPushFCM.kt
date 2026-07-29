@@ -58,9 +58,15 @@ class ModuleMessagingPushFCM @JvmOverloads constructor(
      * registers the instance with Customer.io so the backend can push updates.
      *
      * The notification renders regardless of identity, but its lifecycle events
-     * (start/end) are only reported to Customer.io for an **identified
-     * user** — call `identify` first if you need the backend to track this
-     * activity and push updates/remote end (matches iOS Live Activities).
+     * (start/end) are only reported to Customer.io for an **identified user** with a
+     * **registered device token** — call `identify` first if you need the backend to
+     * track this activity and push updates/remote end (matches iOS Live Activities).
+     *
+     * A lifecycle event dropped because either prerequisite was missing is **not
+     * retried**: the notification still renders and this still returns an id, but the
+     * backend never learns about that instance and so can neither update nor end it.
+     * The device token is requested asynchronously at initialization, so a start
+     * issued immediately after a first install can fall into that window.
      *
      * @return the generated `activity_id`, used to correlate subsequent updates.
      */
@@ -82,8 +88,9 @@ class ModuleMessagingPushFCM @JvmOverloads constructor(
      * [io.customer.messagingpush.data.communication.CustomerIOLiveNotificationsCallback]
      * must render them.
      *
-     * As with the templated overload, lifecycle events are reported to
-     * Customer.io only for an identified user.
+     * As with the templated overload, lifecycle events are reported to Customer.io only
+     * for an identified user with a registered device token, and an event dropped for a
+     * missing prerequisite is not retried.
      *
      * @param data flattened fields delivered to the renderer.
      * @return the generated `activity_id`.

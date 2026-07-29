@@ -231,6 +231,31 @@ internal class LiveNotificationCallbackTest : IntegrationTest() {
     }
 
     @Test
+    fun dismissalDuringRender_isNotReposted() {
+        // The real window: the pre-render guard has already passed, then the template render and
+        // the app callback run — a remote logo download can hold that for ~20s. A swipe in there
+        // has the dismiss receiver mark the activity ended, so committing now would resurrect it.
+        // Marking ended from inside the callback reproduces exactly that ordering.
+        attach(
+            object : CustomerIOLiveNotificationsCallback {
+                override fun createLiveNotification(
+                    payload: CustomerIOParsedPushPayload,
+                    context: Context
+                ): Notification {
+                    SDKComponent.liveNotificationStore.markEnded("act-cb")
+                    return appNotification("Rendered after dismissal")
+                }
+            }
+        )
+
+        invoke(bundle(customType, event = "update"))
+
+        assertCalledNever {
+            notificationManager.notify(any<String>(), any<Int>(), any<Notification>())
+        }
+    }
+
+    @Test
     fun throwingCallback_onLocalEnd_cancelsToo() {
         // Same stranding risk as the server path: LiveNotificationManager.end claims the terminal
         // transition before the queued render, so a failed local end render must also cancel.

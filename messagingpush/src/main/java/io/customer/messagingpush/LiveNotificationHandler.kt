@@ -304,8 +304,6 @@ internal class LiveNotificationHandler(
             return
         }
 
-        advanceHighWaterMark()
-
         when {
             notification != null -> {
                 notificationManager.notify(activityId, notifId, notification)
@@ -328,6 +326,11 @@ internal class LiveNotificationHandler(
                 return
             }
         }
+
+        // Only now, past every early return above: advancing on a render that showed nothing
+        // would let the out-of-order guard drop a later push carrying an older timestamp even
+        // though this one never reached the shade.
+        advanceHighWaterMark()
 
         // Pushes are server-initiated, so the handler never reports a lifecycle event.
         // The terminal marker was already claimed above (remote) or by the manager

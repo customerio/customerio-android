@@ -22,22 +22,26 @@ class LiveNotificationDismissReceiver : BroadcastReceiver() {
         val activityType = intent.getStringExtra(EXTRA_ACTIVITY_TYPE) ?: return
         SDKComponent.setupAndroidComponent(context = context)
 
-        val deviceId = SDKComponent.android().globalPreferenceStore.getDeviceToken()
-        if (deviceId.isNullOrBlank()) {
+        // Claim the terminal transition first, whether or not the end turns out to be
+        // reportable: the user dismissed this notification, so nothing may repost it. Renders
+        // consult this marker, so a dismissal left unmarked would let a queued local update or
+        // a later push bring back a notification the user already cleared. Report `end` at most
+        // once per id; if already ended (e.g. endLiveNotification ran) skip the duplicate. The
+        // marker also retains the store's ordering guard for the same reason.
+        if (!SDKComponent.liveNotificationStore.markEnded(activityId)) {
             SDKComponent.logger.debug(
-                "No FCM token available; skipping end event for live notification '$activityId'."
+                "Live notification '$activityId' already ended; skipping dismiss end event."
             )
             return
         }
 
-        // Claim the terminal transition only after confirming we can report it, so a
-        // missing token doesn't mark the id terminal (losing the end and blocking any
-        // later one). Report `end` at most once per id; if already ended (e.g.
-        // endLiveNotification ran) skip the duplicate. Marking ended also retains the
-        // store's ordering guard so a later push can't repost the dismissed notification.
-        if (!SDKComponent.liveNotificationStore.markEnded(activityId)) {
+        // Lifecycle events require a registered device token and are never retried, so a
+        // dismissal without one stays local: the activity is terminal on the device, but
+        // Customer.io never learns the notification was cleared.
+        val deviceId = SDKComponent.android().globalPreferenceStore.getDeviceToken()
+        if (deviceId.isNullOrBlank()) {
             SDKComponent.logger.debug(
-                "Live notification '$activityId' already ended; skipping dismiss end event."
+                "No FCM token available; skipping end event for live notification '$activityId'."
             )
             return
         }

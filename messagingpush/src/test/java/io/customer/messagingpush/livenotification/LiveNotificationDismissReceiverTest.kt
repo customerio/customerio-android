@@ -86,14 +86,16 @@ internal class LiveNotificationDismissReceiverTest : IntegrationTest() {
     }
 
     @Test
-    fun onReceive_withoutFcmToken_doesNotMarkEnded() {
-        // With no device token the receiver can't report `end`, so it must NOT mark the
-        // id terminal — doing so would lose the end and block any later one.
+    fun onReceive_withoutFcmToken_stillMarksEndedSoNothingRepostsIt() {
+        // The end isn't reportable without a token, and lifecycle events are never retried — but
+        // the user did dismiss the notification, so the activity must still go terminal. Renders
+        // consult that marker; leaving it unset let a queued local update or a later push repost
+        // a notification the user had already cleared.
         SDKComponent.android().globalPreferenceStore.removeDeviceToken()
 
         dismiss("act-1")
 
         verify(exactly = 0) { lifecycleClient.reportEnd(any(), any(), any(), any()) }
-        SDKComponent.liveNotificationStore.isEnded("act-1").shouldBeFalse()
+        SDKComponent.liveNotificationStore.isEnded("act-1").shouldBeTrue()
     }
 }

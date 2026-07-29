@@ -12,6 +12,7 @@ import io.customer.commontest.extensions.attachToSDKComponent
 import io.customer.messagingpush.data.communication.CustomerIOLiveNotificationsCallback
 import io.customer.messagingpush.data.model.CustomerIOParsedPushPayload
 import io.customer.messagingpush.di.liveNotificationStore
+import io.customer.messagingpush.livenotification.LiveNotificationDismissReceiver
 import io.customer.messagingpush.livenotification.LiveNotificationType
 import io.customer.messagingpush.testutils.core.IntegrationTest
 import io.customer.sdk.core.di.SDKComponent
@@ -20,6 +21,7 @@ import io.mockk.mockk
 import io.mockk.slot
 import io.mockk.verify
 import org.amshove.kluent.shouldBeEqualTo
+import org.amshove.kluent.shouldBeNull
 import org.amshove.kluent.shouldNotBeNull
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -253,6 +255,42 @@ internal class LiveNotificationCallbackTest : IntegrationTest() {
         assertCalledNever {
             notificationManager.notify(any<String>(), any<Int>(), any<Notification>())
         }
+    }
+
+    @Test
+    fun updateAfterTokenlessDismissal_isNotReposted() {
+        // A dismissal with no device token can't report `end`, but it still marks the activity
+        // terminal — otherwise this update would repost what the user swiped away. Covers the
+        // dismiss receiver and the render guard together, which is where the gap actually was.
+        attach(callbackReturning(appNotification("Should not post")))
+        SDKComponent.android().globalPreferenceStore.removeDeviceToken()
+        LiveNotificationDismissReceiver().onReceive(
+            contextMock,
+            Intent().apply {
+                putExtra(LiveNotificationDismissReceiver.EXTRA_ACTIVITY_ID, "act-cb")
+                putExtra(LiveNotificationDismissReceiver.EXTRA_ACTIVITY_TYPE, customType)
+            }
+        )
+
+        invoke(bundle(customType, event = "update"))
+
+        assertCalledNever {
+            notificationManager.notify(any<String>(), any<Int>(), any<Notification>())
+        }
+    }
+
+    @Test
+    fun renderThatPostsNothing_doesNotAdvanceTheHighWaterMark() {
+        // A render that shows nothing must not move the out-of-order guard, or a later push
+        // carrying an older timestamp would be dropped despite never having been rendered.
+        attach(callback = null) // custom type with no renderer -> nothing to post
+        val b = bundle(customType).apply {
+            putString(LiveNotificationHandler.TIMESTAMP_KEY, "5000")
+        }
+
+        invoke(b)
+
+        SDKComponent.liveNotificationStore.lastTimestamp("act-cb").shouldBeNull()
     }
 
     @Test

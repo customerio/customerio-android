@@ -36,6 +36,9 @@ internal class SseLifecycleManager(
     }
 
     init {
+        // Backfill once the server confirms the connection, not when we decide to open it.
+        sseConnectionManager.onConnectionConfirmed = ::backfillOnConnect
+
         // Lifecycle registration must be on main thread
         mainThreadPoster.post {
             processLifecycleOwner.lifecycle.addObserver(lifecycleObserver)
@@ -72,7 +75,7 @@ internal class SseLifecycleManager(
         // Anonymous users should use polling instead of SSE
         if (state.shouldUseSse) {
             sseLogger.logAppForegrounded()
-            startSseConnectionWithBackfill()
+            startSseConnection()
         } else {
             sseLogger.logAppForegroundedSseNotUsed(state.sseEnabled, state.isUserIdentified)
         }
@@ -88,18 +91,33 @@ internal class SseLifecycleManager(
     }
 
     /**
-     * Starts the SSE connection, preceded by a one-time HTTP backfill fetch.
+     * Starts the SSE connection. The backfill fetch is NOT issued here — see [backfillOnConnect].
+     */
+    private fun startSseConnection() {
+        sseConnectionManager.startConnection()
+    }
+
+    /**
+     * Fetches the messages that already exist for the user, once the server has confirmed the SSE
+     * connection.
      *
      * The SSE endpoint does not send pending messages on connect — it only delivers messages that
-     * arrive AFTER the connection is established. So every transition INTO the SSE-connected state
-     * (app foregrounded, user becomes identified, or the SSE flag is enabled while foregrounded)
-     * must first fetch the messages that already exist for the user. Without this, on a fresh
-     * login the existing inbox is never retrieved until the next foreground — which is why it
-     * previously appeared only after a background/relaunch.
+     * arrive AFTER the connection is established. Without this, a fresh login never retrieves the
+     * existing inbox until the next foreground, which is why it used to appear only after a
+     * background/relaunch.
+     *
+     * Keyed off the server's `connected` event rather than the transition that decides to connect, so
+     * the fetch starts against a stream that is already live and is skipped entirely when the
+     * connection never establishes. Mirrors gist-web, which fetches from its `connected` listener.
+     *
+     * This narrows the window but does not close it: `fetchUserMessages()` is fire-and-forget, so an
+     * `inbox_messages` event arriving while the request is in flight can still be overwritten by the
+     * older HTTP snapshot, since both publish a full-state write. Ordering the two properly needs
+     * them versioned or merged; tracked separately.
      */
-    private fun startSseConnectionWithBackfill() {
+    private fun backfillOnConnect() {
+        sseLogger.logSseConnectionConfirmedBackfill()
         gistQueue.fetchUserMessages()
-        sseConnectionManager.startConnection()
     }
 
     private fun subscribeToSseFlagChanges() {
@@ -116,7 +134,7 @@ internal class SseLifecycleManager(
             // Only start SSE connection if shouldUseSse (enabled AND user identified)
             if (state.shouldUseSse) {
                 sseLogger.logSseEnabledWhileForegrounded()
-                startSseConnectionWithBackfill()
+                startSseConnection()
             } else if (sseEnabled && !state.isUserIdentified) {
                 // SSE enabled but user is anonymous - don't start SSE
                 sseLogger.logSseEnabledButUserAnonymous()
@@ -145,7 +163,7 @@ internal class SseLifecycleManager(
             if (state.shouldUseSse) {
                 // User became identified and SSE is enabled - start SSE connection
                 sseLogger.logEnablingSseForIdentifiedUser()
-                startSseConnectionWithBackfill()
+                startSseConnection()
             } else if (!isIdentified && state.sseEnabled) {
                 // User became anonymous and SSE flag is enabled - stop SSE, fall back to polling
                 sseLogger.logDisablingSseForAnonymousUser()

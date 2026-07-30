@@ -3,6 +3,7 @@ package io.customer.android.sample.kotlin_compose
 import android.app.Application
 import io.customer.android.sample.kotlin_compose.data.models.setValuesFromBuilder
 import io.customer.android.sample.kotlin_compose.data.sdk.InAppMessageEventListener
+import io.customer.android.sample.kotlin_compose.data.sdk.SampleInboxEventListener
 import io.customer.android.sample.kotlin_compose.di.ServiceLocator
 import io.customer.geofence.ModuleGeofence
 import io.customer.location.ModuleLocation
@@ -35,7 +36,9 @@ class MainApplication : Application() {
                     config = MessagingInAppModuleConfig.Builder(
                         siteId = configuration.siteId,
                         region = Region.US
-                    ).setEventListener(InAppMessageEventListener()).build()
+                    ).setEventListener(InAppMessageEventListener())
+                        .setInboxEventListener(SampleInboxEventListener())
+                        .build()
                 )
             )
             .addCustomerIOModule(ModuleMessagingPushFCM())

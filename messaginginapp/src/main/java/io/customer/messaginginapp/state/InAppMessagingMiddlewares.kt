@@ -230,7 +230,13 @@ internal fun processInboxMessages() = middleware<InAppMessagingState> { store, n
     when (action) {
         is InAppMessagingAction.ProcessInboxMessages -> {
             if (action.messages.isNotEmpty()) {
-                // Deduplicate by queueId - keep first occurrence of each unique queueId
+                // Deduplicate by queueId - keep first occurrence of each unique queueId.
+                // NOTE: tombstone filtering (suppressing server-echoed, just-dismissed messages) and
+                // tombstone pruning (forgetting a tombstone once the server's list no longer contains
+                // it) are intentionally NOT done here — both decisions need the RAW incoming list
+                // compared against prior state, so they live solely in the reducer
+                // (InAppMessageReducer.kt). Filtering here would hide tombstoned ids from the reducer
+                // and cause it to prune tombstones prematurely.
                 val uniqueMessages = action.messages.distinctBy(InboxMessage::queueId)
                 next(InAppMessagingAction.ProcessInboxMessages(uniqueMessages))
             } else {
@@ -279,8 +285,15 @@ internal fun processInboxMessages() = middleware<InAppMessagingState> { store, n
                     }
 
                     is InAppMessagingAction.InboxAction.TrackClicked -> {
-                        // Track click metric for analytics
-                        val params = action.actionName?.let { mapOf("actionName" to it) } ?: emptyMap()
+                        // Track click metric for analytics via the generic "Report Delivery Event"
+                        // (metric: clicked), carrying the action name AND value to match web — the CDP
+                        // backend renders it as "Clicked Inbox Message" for an inbox delivery.
+                        // Omit empty name/value so a value-less action doesn't emit `actionValue: ""`
+                        // — web omits the field entirely when there is no value.
+                        val params = buildMap {
+                            action.actionName?.takeIf { it.isNotEmpty() }?.let { put("actionName", it) }
+                            action.actionValue?.takeIf { it.isNotEmpty() }?.let { put("actionValue", it) }
+                        }
 
                         logger.debug("Inbox message clicked: ${currentMessage.toLogString()}")
                         currentMessage.deliveryId?.let { deliveryId ->

@@ -1,0 +1,68 @@
+import io.customer.android.Dependencies
+import io.customer.android.Versions
+
+plugins {
+    id 'com.android.library'
+    id 'org.jetbrains.kotlin.android'
+    id 'org.jetbrains.kotlin.plugin.compose'
+}
+
+apply plugin: 'io.customer.android.publish-module'
+
+customerIoPublish {
+    artifactId = "messaging-inbox"
+}
+apply from: "${rootDir}/scripts/android-config.gradle"
+apply from: "${rootDir}/scripts/codecov-android.gradle"
+apply from: "${rootDir}/scripts/android-module-testing.gradle"
+
+android {
+    namespace 'io.customer.messaginginbox'
+    defaultConfig {
+        consumerProguardFiles "consumer-rules.pro"
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+    buildFeatures {
+        compose true
+    }
+}
+
+dependencies {
+    // Main dependencies
+    api project(":messaginginapp")  // This module builds on top of the messaginginapp module
+
+    // Jist rendering engine (published Maven Central artifact). The overlay decodes the data
+    // layer's raw JSON into Jist's serialization types and renders messages with `JistView`.
+    implementation Dependencies.jist
+
+    // kotlinx.serialization JSON: the overlay decodes the data layer's raw templates JSON,
+    // message properties, and branding theme into Jist's kotlinx.serialization types.
+    implementation Dependencies.kotlinxSerializationJson
+
+    // Compose dependencies
+    implementation platform(Dependencies.composeBom)
+    implementation Dependencies.composeUi
+    implementation Dependencies.composeUiGraphics
+    implementation Dependencies.composeFoundation
+    // Material3 provides the drop-in overlay's native ModalBottomSheet (drag handle, drag-to-dismiss,
+    // partial/expanded detents, predictive-back), the true parallel to the iOS overlay's .sheet.
+    implementation Dependencies.composeMaterial3
+    implementation Dependencies.composeRuntime
+    implementation Dependencies.androidxLifecycleRuntimeCompose
+    implementation Dependencies.coroutinesAndroid
+
+    // Testing
+    testImplementation project(":common-test")
+    testImplementation Dependencies.junit4
+    testImplementation Dependencies.kluentJava
+    testImplementation Dependencies.mockK
+    testImplementation Dependencies.coroutinesTest
+    androidTestImplementation Dependencies.androidxTestJunit
+    androidTestImplementation Dependencies.espressoCore
+}

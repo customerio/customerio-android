@@ -86,6 +86,52 @@ class SseConnectionManagerTest : JUnitTest() {
         coVerify { sseService.connectSse("test-session", "test-user", "test-site") }
     }
 
+    // The hook must fire on the SERVER's `connected` event only. setupSuccessfulConnection() also runs
+    // for the transport ConnectionOpenEvent, which arrives first, so hooking it there would fire twice
+    // and start the first backfill before the server had confirmed anything.
+    @Test
+    fun testStartConnection_whenOpenThenConnected_thenConfirmsExactlyOnce() = runTest {
+        val mockState = InAppMessagingState(
+            userId = "test-user",
+            sessionId = "test-session",
+            siteId = "test-site"
+        )
+        every { inAppMessagingManager.getCurrentState() } returns mockState
+        coEvery { sseService.connectSse(any(), any(), any()) } returns flowOf(
+            ConnectionOpenEvent,
+            ServerEvent(ServerEvent.CONNECTED, ""),
+            ServerEvent(ServerEvent.HEARTBEAT, "")
+        )
+
+        var confirmedCount = 0
+        connectionManager.onConnectionConfirmed = { confirmedCount++ }
+
+        connectionManager.startConnection()
+        testScope.advanceUntilIdle()
+
+        confirmedCount shouldBeEqualTo 1
+    }
+
+    @Test
+    fun testStartConnection_whenOnlyTransportOpen_thenDoesNotConfirm() = runTest {
+        val mockState = InAppMessagingState(
+            userId = "test-user",
+            sessionId = "test-session",
+            siteId = "test-site"
+        )
+        every { inAppMessagingManager.getCurrentState() } returns mockState
+        coEvery { sseService.connectSse(any(), any(), any()) } returns flowOf(ConnectionOpenEvent)
+
+        var confirmedCount = 0
+        connectionManager.onConnectionConfirmed = { confirmedCount++ }
+
+        connectionManager.startConnection()
+        testScope.advanceUntilIdle()
+
+        // Transport open alone is not confirmation: nothing should be backfilled yet.
+        confirmedCount shouldBeEqualTo 0
+    }
+
     @Test
     fun testStartConnection_whenAlreadyConnecting_thenDoesNotStartNewConnection() = runTest {
         // Given

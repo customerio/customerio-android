@@ -5,6 +5,8 @@ import io.customer.sdk.core.di.SDKComponent
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
@@ -68,6 +70,17 @@ internal data class InAppMessagingManager(val listener: GistListener? = null) {
      * @return The current state.
      */
     fun getCurrentState() = store.state
+
+    /**
+     * Reactive, read-only view of the store state.
+     *
+     * Emits the current state immediately on collection and every subsequent change.
+     * Consumers (e.g. the visual inbox overlay) collect this to react to store changes
+     * — such as `isInboxEnabled` flipping true after the first queue poll — without
+     * relying on recomposition or manual re-querying. Use [getCurrentState] for a
+     * one-shot read instead.
+     */
+    val state: StateFlow<InAppMessagingState> = storeStateFlow.asStateFlow()
 
     /**
      * Subscribes to a specific attribute of the state.

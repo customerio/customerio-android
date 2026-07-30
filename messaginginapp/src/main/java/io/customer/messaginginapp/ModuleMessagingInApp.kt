@@ -1,16 +1,20 @@
 package io.customer.messaginginapp
 
+import io.customer.base.internal.InternalCustomerIOApi
 import io.customer.messaginginapp.di.gistCustomAttributes
 import io.customer.messaginginapp.di.gistProvider
 import io.customer.messaginginapp.di.inAppMessagingManager
 import io.customer.messaginginapp.di.notificationInbox
+import io.customer.messaginginapp.di.visualInbox
 import io.customer.messaginginapp.gist.data.model.Message
 import io.customer.messaginginapp.gist.presentation.GistListener
 import io.customer.messaginginapp.gist.presentation.GistProvider
 import io.customer.messaginginapp.inbox.NotificationInbox
+import io.customer.messaginginapp.inbox.VisualInbox
 import io.customer.messaginginapp.state.InAppMessagingAction
 import io.customer.messaginginapp.type.ColorScheme
 import io.customer.messaginginapp.type.InAppMessage
+import io.customer.messaginginapp.type.InboxEventListener
 import io.customer.sdk.communication.Event
 import io.customer.sdk.communication.subscribe
 import io.customer.sdk.core.di.SDKComponent
@@ -28,6 +32,30 @@ class ModuleMessagingInApp(
         get() = SDKComponent.gistProvider
     private val logger = SDKComponent.logger
 
+    // Runtime-overridable inbox event listener. Seeded from the build-time config value and replaced
+    // in place when the host calls [setInboxEventListener]. Volatile: written from the host thread,
+    // read from the inbox overlay's UI/flow threads.
+    @Volatile
+    private var runtimeInboxEventListener: InboxEventListener? = config.inboxEventListener
+
+    /**
+     * The inbox event listener currently in effect: the runtime override registered via
+     * [setInboxEventListener] if any, otherwise the build-time
+     * [MessagingInAppModuleConfig.Builder.setInboxEventListener] value. The visual inbox reads this
+     * so a listener registered at runtime takes effect without rebuilding the SDK config.
+     */
+    val inboxEventListener: InboxEventListener?
+        get() = runtimeInboxEventListener
+
+    /**
+     * Register (or replace) the inbox event listener at runtime. Overrides any listener set at build
+     * time via [MessagingInAppModuleConfig.Builder.setInboxEventListener]. Mirrors iOS'
+     * `MessagingInApp.shared.setInboxEventListener`.
+     */
+    fun setInboxEventListener(listener: InboxEventListener) {
+        runtimeInboxEventListener = listener
+    }
+
     /**
      * Access the inbox messages instance for managing user inbox messages.
      *
@@ -35,6 +63,18 @@ class ModuleMessagingInApp(
      */
     fun inbox(): NotificationInbox {
         return SDKComponent.notificationInbox
+    }
+
+    /**
+     * Access the visual notification inbox data layer used by the inbox overlay.
+     * Exposes the enablement gate, selected/sorted/typed (Jist) message list, raw
+     * templates JSON and branding. Internal API consumed by the overlay module.
+     *
+     * @return [VisualInbox] data-layer facade
+     */
+    @InternalCustomerIOApi
+    fun visualInbox(): VisualInbox {
+        return SDKComponent.visualInbox
     }
 
     fun dismissMessage() {

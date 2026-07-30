@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <application />
+
+    <!--
+      Package-visibility declaration (Android 11+ / API 30+): the overlay resolves openUrl/openDeeplink
+      actions via `resolveActivity`, which is filtered by package visibility. Without this, the external
+      browser fallback can resolve to null even when a browser exists. Mirrors messagingpush's manifest.
+    -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <category android:name="android.intent.category.BROWSABLE" />
+            <data android:scheme="https" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <category android:name="android.intent.category.BROWSABLE" />
+            <data android:scheme="http" />
+        </intent>
+    </queries>
+</manifest>

@@ -100,6 +100,7 @@ public class CustomerIORepository {
             builder.addCustomerIOModule(new ModuleMessagingInApp(
                     new MessagingInAppModuleConfig.Builder(sdkConfig.getSiteId(), sdkConfig.getRegion())
                             .setEventListener(new InAppMessageEventListener(appGraph.getLogger()))
+                            .setInboxEventListener(new SampleInboxEventListener(appGraph.getLogger()))
                             .build()
             ));
         }

@@ -242,10 +242,29 @@ class NotificationInbox internal constructor(
      */
     @JvmOverloads
     fun trackMessageClicked(message: InboxMessage, actionName: String? = null) {
+        trackMessageClicked(message, actionName, actionValue = null)
+    }
+
+    /**
+     * Tracks a click event for an inbox message, including the clicked action's value.
+     * Sends metric event to data pipelines to track message interaction.
+     *
+     * This is a separate overload rather than a third defaulted parameter on the two-arg method
+     * above: adding a default to that method would change its generated `$default` synthetic
+     * signature and break precompiled Kotlin integrations that call `trackMessageClicked(message)`
+     * / `trackMessageClicked(message, actionName)` against a released SDK (`NoSuchMethodError`).
+     *
+     * @param message The inbox message that was clicked
+     * @param actionName Name of the action clicked (e.g., "view_details", "dismiss")
+     * @param actionValue Value of the action clicked (e.g., the deep link / URL). Included in the
+     *   `Report Delivery Event` (metric: clicked) alongside the name, matching web.
+     */
+    fun trackMessageClicked(message: InboxMessage, actionName: String?, actionValue: String?) {
         inAppMessagingManager.dispatch(
             InAppMessagingAction.InboxAction.TrackClicked(
                 message = message,
-                actionName = actionName
+                actionName = actionName,
+                actionValue = actionValue
             )
         )
     }

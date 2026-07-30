@@ -10,6 +10,7 @@ include ':messagingpush'
 include ':common-test'
 include ':messaginginapp'
 include ':messaginginapp-compose'
+include ':messaginginbox'
 include ':samples:kotlin_compose'
 include ':samples:java_layout'
 include ':datapipelines'
@@ -17,3 +18,6 @@ include ':core'
 include ':tracking-migration'
 include ':location'
 include ':geofence'
+
+// Note: :messaginginbox consumes Jist from the published Maven Central artifact
+// io.customer.android:jist (see messaginginbox/build.gradle) — no local include needed.

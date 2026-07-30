@@ -55,6 +55,10 @@ internal class InAppSseLogger(private val logger: Logger) {
         logger.debug(tag = TAG, message = "Connection confirmed")
     }
 
+    fun logSseConnectionConfirmedBackfill() {
+        logger.debug(tag = TAG, message = "Connection confirmed, backfilling messages that predate the stream")
+    }
+
     fun logConnectionClosed() {
         logger.debug(tag = TAG, message = "Connection closed")
     }

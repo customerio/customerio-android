@@ -130,6 +130,8 @@ dependencies {
         implementation(project(":messaginginapp"))
         // messaginginapp-compose adds messaginginapp transitively
         implementation(project(":messaginginapp-compose"))
+        // messaginginbox adds messaginginapp transitively
+        implementation(project(":messaginginbox"))
         implementation(project(":location"))
         // :geofence depends on :location transitively
         implementation(project(":geofence"))
@@ -140,6 +142,8 @@ dependencies {
         implementation "io.customer.android:messaging-in-app:$cioSDKVersion"
         // messaginginapp-compose adds messaginginapp transitively
         implementation "io.customer.android:messaging-in-app-compose:$cioSDKVersion"
+        // messaginginbox adds messaginginapp transitively
+        implementation "io.customer.android:messaging-inbox:$cioSDKVersion"
         implementation "io.customer.android:location:$cioSDKVersion"
         // geofence depends on location transitively
         implementation "io.customer.android:geofence:$cioSDKVersion"

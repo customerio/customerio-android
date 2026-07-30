@@ -7,10 +7,18 @@ object Dependencies {
     const val androidxTestRunner = "androidx.test:runner:${Versions.ANDROIDX_TEST_RUNNER}"
     const val androidxTestRules = "androidx.test:rules:${Versions.ANDROIDX_TEST_RULES}"
 
+    // Jist rendering engine (published Maven Central artifact).
+    const val jist = "io.customer.android:jist:${Versions.JIST}"
+
     const val coroutinesAndroid =
         "org.jetbrains.kotlinx:kotlinx-coroutines-android:${Versions.COROUTINES}"
     const val androidxCoreKtx = "androidx.core:core-ktx:${Versions.ANDROIDX_KTX}"
     const val androidxProcessLifecycle = "androidx.lifecycle:lifecycle-process:${Versions.ANDROIDX_LIFECYCLE_PROCESS}"
+
+    // Lifecycle-aware Compose state collection (`collectAsStateWithLifecycle`) so the overlay pauses
+    // flow collection while the host is backgrounded / the overlay is off-screen. Shares the lifecycle
+    // release version with lifecycle-process above.
+    const val androidxLifecycleRuntimeCompose = "androidx.lifecycle:lifecycle-runtime-compose:${Versions.ANDROIDX_LIFECYCLE_PROCESS}"
     const val androidxAnnotations =
         "androidx.annotation:annotation:${Versions.ANDROIDX_ANNOTATIONS}"
     const val coroutinesCore =
@@ -66,5 +74,6 @@ object Dependencies {
     const val composeUiGraphics = "androidx.compose.ui:ui-graphics"
     const val composeFoundation = "androidx.compose.foundation:foundation"
     const val composeMaterial = "androidx.compose.material:material"
+    const val composeMaterial3 = "androidx.compose.material3:material3"
     const val composeRuntime = "androidx.compose.runtime:runtime"
 }

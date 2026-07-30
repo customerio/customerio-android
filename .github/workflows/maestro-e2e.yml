@@ -1,0 +1,93 @@
+name: Maestro SDK E2E
+
+on:
+  workflow_dispatch:
+    inputs:
+      suite:
+        description: E2E suite to run
+        type: choice
+        options:
+          - smoke
+          - geofence
+          - message-inbox
+        default: smoke
+      harness_ref:
+        description: customerio/mobile-e2e branch, tag, or commit
+        type: string
+        default: main
+  schedule:
+    - cron: "17 6 * * 1-5"
+
+concurrency:
+  group: maestro-android-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  e2e:
+    name: Android ${{ inputs.suite || 'smoke' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Check out Android SDK
+        uses: actions/checkout@v4
+
+      - name: Check out shared E2E harness
+        uses: actions/checkout@v4
+        with:
+          repository: customerio/mobile-e2e
+          ref: ${{ inputs.harness_ref || 'main' }}
+          path: .e2e-harness
+          token: ${{ secrets.MOBILE_E2E_REPO_TOKEN || github.token }}
+
+      - uses: ./.github/actions/setup-android
+
+      - name: Enable emulator acceleration
+        run: sudo chmod 666 /dev/kvm
+
+      - name: Install Maestro and evidence dependencies
+        run: |
+          curl -Ls https://get.maestro.mobile.dev | bash
+          echo "$HOME/.maestro/bin" >> "$GITHUB_PATH"
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg python3-pil
+
+      - name: Configure sample workspace
+        env:
+          CDP_API_KEY: ${{ secrets.CUSTOMERIO_JAVA_WORKSPACE_CDP_API_KEY }}
+          SITE_ID: ${{ secrets.CUSTOMERIO_JAVA_WORKSPACE_SITE_ID }}
+        run: |
+          printf 'cdpApiKey=%s\nsiteId=%s\nworkspace=%s\n' \
+            "$CDP_API_KEY" "$SITE_ID" "Mobile E2E" > samples/local.properties
+
+      - name: Run SDK to backend E2E
+        env:
+          MAESTRO_EXT_API_KEY: ${{ secrets.MOBILE_E2E_EXT_API_KEY }}
+          MAESTRO_APP_API_KEY: ${{ secrets.MOBILE_E2E_APP_API_KEY }}
+          INBOX_TRANSACTIONAL_MESSAGE_ID: ${{ vars.MOBILE_E2E_INBOX_TRANSACTIONAL_MESSAGE_ID }}
+        run: |
+          ./.e2e-harness/e2e run \
+            --platform android \
+            --sdk-repo "$GITHUB_WORKSPACE" \
+            --suite "${{ inputs.suite || 'smoke' }}" \
+            --headless
+
+      - name: Sanitize E2E evidence
+        id: sanitize
+        if: always()
+        env:
+          MAESTRO_EXT_API_KEY: ${{ secrets.MOBILE_E2E_EXT_API_KEY }}
+          MAESTRO_APP_API_KEY: ${{ secrets.MOBILE_E2E_APP_API_KEY }}
+        run: |
+          if [[ -d artifacts/e2e ]]; then
+            python3 .e2e-harness/scripts/redact_artifacts.py artifacts/e2e
+            python3 .e2e-harness/scripts/redact_artifacts.py --check artifacts/e2e
+          fi
+
+      - name: Upload E2E evidence
+        if: ${{ always() && steps.sanitize.outcome == 'success' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: maestro-android-${{ inputs.suite || 'smoke' }}
+          path: artifacts/e2e/
+          if-no-files-found: warn
+          retention-days: 14

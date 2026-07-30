@@ -5,7 +5,6 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
-import android.graphics.BitmapFactory
 import android.media.RingtoneManager
 import android.os.Build
 import android.os.Bundle
@@ -17,20 +16,18 @@ import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
 import io.customer.messagingpush.activity.NotificationClickReceiverActivity
 import io.customer.messagingpush.data.model.CustomerIOParsedPushPayload
+import io.customer.messagingpush.di.liveNotificationManager
 import io.customer.messagingpush.di.pushLogger
 import io.customer.messagingpush.di.pushModuleConfig
 import io.customer.messagingpush.extensions.*
 import io.customer.messagingpush.processor.PushMessageProcessor
+import io.customer.messagingpush.util.BitmapDownloader
 import io.customer.messagingpush.util.NotificationChannelCreator
 import io.customer.messagingpush.util.PushTrackingUtil.Companion.DELIVERY_ID_KEY
 import io.customer.messagingpush.util.PushTrackingUtil.Companion.DELIVERY_TOKEN_KEY
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.extensions.applicationMetaData
-import java.net.URL
 import kotlin.math.abs
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.withContext
 
 /**
  * Class to handle PushNotification.
@@ -117,9 +114,6 @@ internal class CustomerIOPushNotificationHandler(
         pushLogger.logShowingPushNotification(remoteMessage)
 
         val applicationName = context.applicationInfo.loadLabel(context.packageManager).toString()
-        val requestCode = abs(System.currentTimeMillis().toInt())
-
-        bundle.putInt(NOTIFICATION_REQUEST_CODE, requestCode)
 
         val appMetaData = context.applicationMetaData()
 
@@ -144,12 +138,46 @@ internal class CustomerIOPushNotificationHandler(
         val notificationManager =
             context.getSystemService(FirebaseMessagingService.NOTIFICATION_SERVICE) as NotificationManager
 
+        // Branch before creating the standard channel: live notifications use their own
+        // channel, so registering the standard one here would add a channel the user sees
+        // in app settings but that nothing ever posts to.
+        val activityId = bundle.getString(LiveNotificationHandler.CIO_INSTANCE_ID_KEY)
+        if (activityId != null) {
+            val liveChannelId = notificationChannelCreator.createLiveNotificationChannelIfNeededAndReturnChannelId(
+                context = context,
+                applicationName = applicationName,
+                appMetaData = appMetaData,
+                notificationManager = notificationManager
+            )
+            // onNotificationComposed is intentionally not called for live notifications.
+            // Dispatched rather than run inline: the handler performs a blocking branding-logo
+            // download (up to ~20s), which would otherwise hold Firebase's onMessageReceived
+            // thread and delay follow-up pushes.
+            SDKComponent.liveNotificationManager.renderFromPush(activityId) { isSuperseded ->
+                LiveNotificationHandler(bundle).handle(
+                    context = context,
+                    deliveryId = deliveryId,
+                    deliveryToken = deliveryToken,
+                    smallIcon = smallIcon,
+                    tintColor = tintColor,
+                    channelId = liveChannelId,
+                    notificationManager = notificationManager,
+                    isSuperseded = isSuperseded
+                )
+            }
+            return
+        }
+
         val channelId = notificationChannelCreator.createNotificationChannelIfNeededAndReturnChannelId(
             context = context,
             applicationName = applicationName,
             appMetaData = appMetaData,
             notificationManager = notificationManager
         )
+
+        val requestCode = abs(System.currentTimeMillis().toInt())
+        bundle.putInt(NOTIFICATION_REQUEST_CODE, requestCode)
+
         val defaultSoundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
         val notificationBuilder = NotificationCompat.Builder(context, channelId)
             .setSmallIcon(smallIcon)
@@ -226,19 +254,11 @@ internal class CustomerIOPushNotificationHandler(
         builder: NotificationCompat.Builder,
         body: String,
         defaultLargeIcon: Bitmap? = null
-    ) = runBlocking {
+    ) {
         val style = NotificationCompat.BigPictureStyle()
             .bigLargeIcon(defaultLargeIcon)
             .setSummaryText(body)
-        val url = URL(imageUrl)
-        withContext(Dispatchers.IO) {
-            try {
-                val input = url.openStream()
-                BitmapFactory.decodeStream(input)
-            } catch (e: Exception) {
-                null
-            }
-        }?.let { bitmap ->
+        BitmapDownloader.download(imageUrl)?.let { bitmap ->
             style.bigPicture(bitmap)
             builder.setLargeIcon(bitmap)
             builder.setStyle(style)

@@ -33,6 +33,18 @@ internal class NotificationChannelCreator(
         @VisibleForTesting
         internal const val METADATA_NOTIFICATION_CHANNEL_IMPORTANCE =
             "io.customer.notification_channel_importance"
+
+        @VisibleForTesting
+        internal const val METADATA_LIVE_NOTIFICATION_CHANNEL_ID =
+            "io.customer.live_notification_channel_id"
+
+        @VisibleForTesting
+        internal const val METADATA_LIVE_NOTIFICATION_CHANNEL_NAME =
+            "io.customer.live_notification_channel_name"
+
+        @VisibleForTesting
+        internal const val METADATA_LIVE_NOTIFICATION_CHANNEL_IMPORTANCE =
+            "io.customer.live_notification_channel_importance"
     }
 
     /**
@@ -51,51 +63,98 @@ internal class NotificationChannelCreator(
         appMetaData: Bundle?,
         notificationManager: NotificationManager
     ): String {
-        val defaultChannelId = context.packageName
         val channelId = appMetaData?.getMetaDataString(name = METADATA_NOTIFICATION_CHANNEL_ID)
-            ?: defaultChannelId
+            ?: context.packageName
 
         // Since android Oreo notification channel is needed.
         if (androidVersionChecker.isOreoOrHigher()) {
-            val existingChannel = notificationManager.getNotificationChannel(channelId)
-
-            val channelName =
-                appMetaData?.getMetaDataString(name = METADATA_NOTIFICATION_CHANNEL_NAME)
-                    ?: "$applicationName Notifications"
-            val rawImportance = appMetaData?.getInt(
-                METADATA_NOTIFICATION_CHANNEL_IMPORTANCE,
-                NotificationManager.IMPORTANCE_DEFAULT
-            ) ?: NotificationManager.IMPORTANCE_DEFAULT
-
-            // Validate that the importance value is a valid NotificationManager constant
-            val importance = validateImportanceLevel(rawImportance)
-
-            // Only create or update the channel if it doesn't exist or the name is different
-            if (existingChannel == null || existingChannel.name != channelName) {
-                logger.logCreatingNotificationChannel(channelId, channelName, importance)
-                val channel = NotificationChannel(
-                    channelId,
-                    channelName,
-                    importance
-                )
-                notificationManager.createNotificationChannel(channel)
-            } else {
-                logger.logNotificationChannelAlreadyExists(channelId)
-            }
+            val channelName = appMetaData?.getMetaDataString(name = METADATA_NOTIFICATION_CHANNEL_NAME)
+                ?: "$applicationName Notifications"
+            val importance = resolveImportance(
+                appMetaData = appMetaData,
+                metadataKey = METADATA_NOTIFICATION_CHANNEL_IMPORTANCE,
+                default = NotificationManager.IMPORTANCE_DEFAULT
+            )
+            createOrUpdateChannel(notificationManager, channelId, channelName, importance)
         }
 
         return channelId
     }
 
     /**
-     * Validates that the provided importance level is a valid NotificationManager importance constant.
-     * If the value is not valid, it returns the default importance level.
+     * Creates a notification channel for live notifications on Android Oreo+ and returns its ID.
      *
-     * @param importanceLevel The importance level to validate
-     * @return A valid NotificationManager importance constant
+     * Defaults to `{packageName}_cio_live` / `{appName} Live Updates` / `IMPORTANCE_HIGH`.
+     * Each value can be overridden via manifest `<meta-data>`:
+     * - `io.customer.live_notification_channel_id`
+     * - `io.customer.live_notification_channel_name`
+     * - `io.customer.live_notification_channel_importance` (integer, e.g. 4 for HIGH)
+     *
+     * `IMPORTANCE_HIGH` is the recommended default — it ensures the first "start" event
+     * surfaces as a heads-up notification. Note: channel importance cannot be changed
+     * programmatically after the channel is created on a device.
+     *
+     * @param context The application context
+     * @param applicationName The application name used to derive the default channel name
+     * @param appMetaData The application metadata bundle
+     * @param notificationManager The notification manager instance
+     * @return The channel ID to use in the notification builder
+     */
+    fun createLiveNotificationChannelIfNeededAndReturnChannelId(
+        context: Context,
+        applicationName: String,
+        appMetaData: Bundle?,
+        notificationManager: NotificationManager
+    ): String {
+        val channelId = appMetaData?.getMetaDataString(name = METADATA_LIVE_NOTIFICATION_CHANNEL_ID)
+            ?: "${context.packageName}_cio_live"
+
+        if (androidVersionChecker.isOreoOrHigher()) {
+            val channelName = appMetaData?.getMetaDataString(name = METADATA_LIVE_NOTIFICATION_CHANNEL_NAME)
+                ?: "$applicationName Live Updates"
+            val importance = resolveImportance(
+                appMetaData = appMetaData,
+                metadataKey = METADATA_LIVE_NOTIFICATION_CHANNEL_IMPORTANCE,
+                default = NotificationManager.IMPORTANCE_HIGH
+            )
+            createOrUpdateChannel(notificationManager, channelId, channelName, importance)
+        }
+
+        return channelId
+    }
+
+    @RequiresApi(Build.VERSION_CODES.O)
+    private fun createOrUpdateChannel(
+        notificationManager: NotificationManager,
+        channelId: String,
+        channelName: String,
+        importance: Int
+    ) {
+        val existingChannel = notificationManager.getNotificationChannel(channelId)
+        // Only create or update the channel if it doesn't exist or the name is different
+        if (existingChannel == null || existingChannel.name != channelName) {
+            logger.logCreatingNotificationChannel(channelId, channelName, importance)
+            val channel = NotificationChannel(channelId, channelName, importance)
+            notificationManager.createNotificationChannel(channel)
+        } else {
+            logger.logNotificationChannelAlreadyExists(channelId)
+        }
+    }
+
+    @RequiresApi(Build.VERSION_CODES.N)
+    private fun resolveImportance(appMetaData: Bundle?, metadataKey: String, default: Int): Int {
+        val rawImportance = appMetaData?.getInt(metadataKey, default) ?: default
+        return validateImportanceLevel(rawImportance, fallback = default)
+    }
+
+    /**
+     * Validates that the provided importance level is a valid NotificationManager importance constant.
+     * If the value is not valid, returns the supplied [fallback] so each caller preserves its own
+     * intended default (e.g. `IMPORTANCE_HIGH` for live notifications) rather than silently
+     * collapsing to `IMPORTANCE_DEFAULT`.
      */
     @RequiresApi(Build.VERSION_CODES.N)
-    private fun validateImportanceLevel(importanceLevel: Int): Int {
+    private fun validateImportanceLevel(importanceLevel: Int, fallback: Int): Int {
         return when (importanceLevel) {
             NotificationManager.IMPORTANCE_NONE,
             NotificationManager.IMPORTANCE_MIN,
@@ -106,7 +165,7 @@ internal class NotificationChannelCreator(
 
             else -> {
                 logger.logInvalidNotificationChannelImportance(importanceLevel)
-                NotificationManager.IMPORTANCE_DEFAULT
+                fallback
             }
         }
     }

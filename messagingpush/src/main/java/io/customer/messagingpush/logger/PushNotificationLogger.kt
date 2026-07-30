@@ -218,6 +218,14 @@ internal class PushNotificationLogger(private val logger: Logger) {
         )
     }
 
+    fun logNotificationClickMetricsSkippedForLocalNotification(payload: CustomerIOParsedPushPayload) {
+        logger.debug(
+            tag = TAG,
+            message = "Skipping opened metric for notification without a delivery id/token " +
+                "(locally started, not delivered by Customer.io): $payload"
+        )
+    }
+
     fun logFailedToHandlePushClick(throwable: Throwable) {
         logger.error(
             tag = TAG,

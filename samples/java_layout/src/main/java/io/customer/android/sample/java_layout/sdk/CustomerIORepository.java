@@ -16,7 +16,14 @@ import io.customer.messaginginapp.MessagingInAppModuleConfig;
 import io.customer.messaginginapp.ModuleMessagingInApp;
 import io.customer.location.LocationModuleConfig;
 import io.customer.location.ModuleLocation;
+import android.graphics.Color;
+
+import io.customer.android.sample.java_layout.R;
+import io.customer.messagingpush.MessagingPushModuleConfig;
 import io.customer.messagingpush.ModuleMessagingPushFCM;
+import io.customer.messagingpush.livenotification.LiveNotificationAsset;
+import io.customer.messagingpush.livenotification.LiveNotificationBranding;
+import io.customer.messagingpush.livenotification.LiveNotificationType;
 import io.customer.sdk.CustomerIO;
 import io.customer.sdk.CustomerIOConfig;
 import io.customer.sdk.CustomerIOConfigBuilder;
@@ -25,6 +32,20 @@ import io.customer.sdk.CustomerIOConfigBuilder;
  * Repository class to hold all Customer.io related operations at single place
  */
 public class CustomerIORepository {
+
+    /**
+     * The push module instance, retained so the live-notification demo screen can call
+     * {@link ModuleMessagingPushFCM#startLiveNotification} (the public local-start API).
+     * Reached through {@link io.customer.android.sample.java_layout.di.ApplicationGraph},
+     * which already owns this repository — no static state needed.
+     */
+    private ModuleMessagingPushFCM messagingPushModule;
+
+    @NonNull
+    public ModuleMessagingPushFCM getMessagingPushModule() {
+        return messagingPushModule;
+    }
+
     public void initializeSdk(SampleApplication application) {
         ApplicationGraph appGraph = application.getApplicationGraph();
         // Get desired SDK config, only required by sample app
@@ -38,8 +59,31 @@ public class CustomerIORepository {
         configureSdk(builder, sdkConfig);
 
         // Enable optional features of the SDK by adding desired modules.
-        // Enables push notification
-        builder.addCustomerIOModule(new ModuleMessagingPushFCM());
+        // Enables push notification with live-notification branding registered once at init.
+        messagingPushModule = new ModuleMessagingPushFCM(
+                new MessagingPushModuleConfig.Builder()
+                        // One app-level brand applied to every live notification.
+                        .setLiveNotificationBranding(new LiveNotificationBranding(
+                                "Customer.io Sample",
+                                Color.parseColor("#FF6A00"),
+                                R.drawable.ic_live_delivery,                                        // @DrawableRes small icon
+                                new LiveNotificationAsset.Drawable(R.drawable.ic_live_delivery_scooter) // typed logo
+                        ))
+                        // App-rendered custom types go through this callback.
+                        .setLiveNotificationCallback(new LiveNotificationCallback())
+                        // Live notifications are opt-in: enable the built-in template types...
+                        .enableLiveNotificationTypes(
+                                LiveNotificationType.SEGMENTS,
+                                LiveNotificationType.COUNTDOWN_TIMER
+                        )
+                        // ...plus our two custom (app-rendered) types.
+                        .enableCustomLiveNotificationTypes(
+                                LiveNotificationCallback.ACTIVITY_TYPE_RIDESHARE,
+                                LiveNotificationCallback.ACTIVITY_TYPE_WORKOUT
+                        )
+                        .build()
+        );
+        builder.addCustomerIOModule(messagingPushModule);
 
         // Enables location tracking
         builder.addCustomerIOModule(new ModuleLocation(

@@ -118,6 +118,16 @@ class CustomerIO private constructor(
     // Reset on clearIdentify so a subsequent identify of the same userId is not deduped.
     private var lastIdentifiedUserIdThisSession: String? = null
 
+    // Caller-thread mirror of whether a user is currently identified, backing the synchronous
+    // [isUserIdentified]. analytics.userId() is updated asynchronously and lags a synchronous
+    // identify(), so a consumer that gates on it right after login (e.g. a live-notification
+    // start() on the next line) would otherwise read stale state and drop the event. Set on the
+    // caller's thread during identify()/clearIdentify() so it is accurate the instant they return.
+    // null = no identify/reset has happened this process yet, so fall back to the (possibly
+    // restored-from-persistence) analytics userId; true = identified; false = anonymous.
+    @Volatile
+    private var syncUserIdentified: Boolean? = null
+
     init {
         // Set analytics logger and debug logs based on SDK logger configuration
         Analytics.debugLogsEnabled = logger.logLevel == CioLogLevel.DEBUG
@@ -296,6 +306,12 @@ class CustomerIO private constructor(
             traits = traits,
             serializationStrategy = serializationStrategy
         )
+        // Reflect identity synchronously on the caller's thread so isUserIdentified is correct
+        // immediately, before analytics.userId() catches up (see syncUserIdentified). Must be set
+        // before publishUserChanged: the mirror takes precedence over the analytics fallback, so a
+        // subscriber that gates on isUserIdentified would otherwise read a stale `false` left by an
+        // earlier clearIdentify() even though analytics.userId() is already correct.
+        syncUserIdentified = true
         // Publish for other modules. Must come after analytics.identify() so analytics.userId()
         // returns the new userId for subscribers that gate on it (e.g. location resync).
         publishUserChanged(userId)
@@ -344,6 +360,9 @@ class CustomerIO private constructor(
 
         // Reset the dedup marker so a subsequent identify of the same userId is not deduped.
         lastIdentifiedUserIdThisSession = null
+        // Reflect logout synchronously so isUserIdentified reads false immediately, before
+        // analytics.reset() propagates (see syncUserIdentified).
+        syncUserIdentified = false
 
         logger.debug("deleting device token to remove device from user profile")
 
@@ -377,7 +396,10 @@ class CustomerIO private constructor(
         get() = analytics.userId()
 
     override val isUserIdentified: Boolean
-        get() = !analytics.userId().isNullOrEmpty()
+        // Prefer the caller-thread mirror so this is correct synchronously right after
+        // identify()/clearIdentify(); fall back to analytics for a session restored from
+        // persistence, where neither was called this process. See [syncUserIdentified].
+        get() = syncUserIdentified ?: !analytics.userId().isNullOrEmpty()
 
     @Deprecated("Use setDeviceAttributes() function instead")
     @set:JvmName("setDeviceAttributesDeprecated")

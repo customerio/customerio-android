@@ -1,0 +1,105 @@
+package io.customer.messagingpush.livenotification
+
+import io.customer.messagingpush.di.liveNotificationManager
+import io.customer.messagingpush.di.pushModuleConfig
+import io.customer.sdk.communication.Event
+import io.customer.sdk.core.di.SDKComponent
+import io.customer.sdk.core.di.SDKComponent.eventBus
+
+/**
+ * Emits `register_push_to_start` track events for the enabled live-notification
+ * types when the device token or user changes, deduping already-registered
+ * `token|userId` signatures. Registers only for identified users.
+ */
+internal class LiveNotificationRegistrar(
+    private val client: LiveNotificationLifecycleClient,
+    private val store: LiveNotificationStore
+) {
+
+    @Volatile
+    private var token: String? = null
+
+    @Volatile
+    private var userId: String = ""
+
+    @Volatile
+    private var isIdentified: Boolean = false
+
+    private val enabledTypes: Set<String>
+        get() = SDKComponent.pushModuleConfig.liveNotificationTypes
+
+    // This registrar is a DI singleton and its subscriptions are never torn down, so a repeat
+    // initialize() would otherwise stack a second set of handlers on every event and register
+    // (or re-register) each type once per call.
+    @Volatile
+    private var started: Boolean = false
+
+    @Synchronized
+    fun start() {
+        if (started) {
+            SDKComponent.logger.debug("Live Notifications: registrar already started; ignoring.")
+            return
+        }
+        started = true
+
+        val clearedByMigration = store.migrate()
+        if (clearedByMigration > 0) {
+            SDKComponent.logger.debug(
+                "Live Notifications: migration cleared $clearedByMigration stale registration(s) from the old namespace."
+            )
+        }
+        store.trimStaleTimestamps()
+
+        eventBus.subscribe(Event.RegisterDeviceTokenEvent::class) { onDeviceTokenChanged(it.token) }
+        eventBus.subscribe(Event.UserChangedEvent::class) { onUserChanged(it) }
+        eventBus.subscribe(Event.DeleteDeviceTokenEvent::class) { onDeviceTokenDeleted() }
+        eventBus.subscribe(Event.ResetEvent::class) { onReset() }
+    }
+
+    internal fun onDeviceTokenChanged(newToken: String) {
+        token = newToken
+        registerAll()
+    }
+
+    internal fun onUserChanged(event: Event.UserChangedEvent) {
+        userId = event.userId ?: event.anonymousId
+        isIdentified = event.userId != null
+        registerAll()
+    }
+
+    internal fun onDeviceTokenDeleted() {
+        token = null
+        // Drop dedup signatures so re-registering the same token later isn't skipped.
+        store.clearRegistrations()
+    }
+
+    internal fun onReset() {
+        SDKComponent.liveNotificationManager.cancelAllActivities()
+        store.clearRegistrations()
+        // Drop identity so a post-logout push-to-start registration isn't sent for the
+        // previous (identified) user until a new UserChangedEvent arrives. Local
+        // start/end gating uses pipeline.isUserIdentified, cleared synchronously by
+        // clearIdentify().
+        userId = ""
+        isIdentified = false
+    }
+
+    private fun registerAll() {
+        if (!isIdentified) {
+            if (token != null && enabledTypes.isNotEmpty()) {
+                SDKComponent.logger.debug(
+                    "Live Notifications: holding push-to-start registration for ${enabledTypes.size} type(s); no identified user."
+                )
+            }
+            return
+        }
+        val currentToken = token ?: return
+        val signature = "$currentToken|$userId"
+        for (activityType in enabledTypes) {
+            if (store.registrationSignature(activityType) == signature) continue
+            if (client.registerPushToStart(activityType, currentToken)) {
+                store.setRegistrationSignature(activityType, signature)
+            }
+        }
+    }
+}

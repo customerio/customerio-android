@@ -1,0 +1,5 @@
+<!-- Circular avatar background for the rideshare driver initial (custom live notification). -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="oval">
+    <solid android:color="#12131A" />
+</shape>

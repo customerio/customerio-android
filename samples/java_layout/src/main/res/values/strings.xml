@@ -162,6 +162,7 @@
 
     <!-- Inbox Messages -->
     <string name="inbox_messages">Inbox Messages</string>
+    <string name="visual_inbox">Visual Inbox</string>
     <string name="label_inbox_messages_activity">InboxMessagesActivity</string>
     <string name="inbox_empty_state">No inbox messages</string>
     <string name="inbox_fetch_error">Failed to fetch inbox messages</string>

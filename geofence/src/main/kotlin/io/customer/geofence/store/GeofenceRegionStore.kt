@@ -27,6 +27,8 @@ import kotlinx.serialization.builtins.serializer
  *   registeredIds               — subset live in OS; drives the stale-cleanup diff.
  *   enteredIds                  — fences the device is inside; goes with the registrations it
  *                                  describes, since sign-out drops those from the OS.
+ *   emittedEnterIds             — fences we have reported entered; the next user must not inherit
+ *                                  a suppressed ENTER for a fence they were never told about.
  *   lastApiFetchLocation        — anchor for the tier-B distance check (rarely updated).
  *   lastMovementTriggerLocation — user's location at the most recent movement-trigger
  *                                  registration; used by boot restore to re-center
@@ -93,6 +95,32 @@ internal interface GeofenceRegionStore {
      * would drop a genuine EXIT for a fence entered before the upgrade.
      */
     fun hasContainmentRecord(): Boolean
+
+    /**
+     * Fences we have reported an ENTER for and not yet reported an EXIT for — i.e. what the backend
+     * currently believes. Deliberately distinct from [getEnteredIds]: that one tracks where the
+     * device *is* (seeded from our own geometry on every sync), this one tracks what we have *said*.
+     *
+     * Conflating them would swallow real crossings, because a sync seeds containment moments before
+     * the OS reports the matching ENTER — measured at 20-46ms on a Pixel 6.
+     */
+    fun hasEmittedEnter(geofenceId: String): Boolean
+
+    /** Records that an ENTER for [geofenceId] reached the delivery pipeline. Idempotent. */
+    fun markEnterEmitted(geofenceId: String)
+
+    /** Records that an EXIT for [geofenceId] reached the delivery pipeline, re-arming its ENTER. */
+    fun clearEnterEmitted(geofenceId: String)
+
+    /**
+     * Drops reported-ENTER marks for fences no longer in [registeredIds], so the set can't outlive
+     * the monitoring that would clear it.
+     *
+     * A fence dropped from the monitored set while the device is still inside never reports its
+     * EXIT, so without this its mark would stand indefinitely and swallow the ENTER of a genuine
+     * revisit months later. Pruned to the same registration snapshot as [reconcileEnteredIds].
+     */
+    fun pruneEmittedEnterIds(registeredIds: Set<String>)
 
     /** Device uptime at the last successful OS registration; null if never registered. Drives reboot detection. */
     fun getLastRegistrationUptime(): Long?
@@ -178,6 +206,33 @@ internal class GeofenceRegionStoreImpl(
         writeJson(KEY_ENTERED_IDS, ID_SET_SERIALIZER, (getEnteredIds() intersect registeredIds) + inside)
     }
 
+    override fun hasEmittedEnter(geofenceId: String): Boolean =
+        geofenceId in (readJson(KEY_EMITTED_ENTER_IDS, ID_SET_SERIALIZER) ?: emptySet())
+
+    // Shares [enteredLock] with the entered set: both are read-modify-write on the same prefs file,
+    // and one transition touches both.
+    override fun markEnterEmitted(geofenceId: String) = synchronized(enteredLock) {
+        val current = readJson(KEY_EMITTED_ENTER_IDS, ID_SET_SERIALIZER) ?: emptySet()
+        if (geofenceId !in current) {
+            writeJson(KEY_EMITTED_ENTER_IDS, ID_SET_SERIALIZER, current + geofenceId)
+        }
+    }
+
+    override fun clearEnterEmitted(geofenceId: String) = synchronized(enteredLock) {
+        val current = readJson(KEY_EMITTED_ENTER_IDS, ID_SET_SERIALIZER) ?: emptySet()
+        if (geofenceId in current) {
+            writeJson(KEY_EMITTED_ENTER_IDS, ID_SET_SERIALIZER, current - geofenceId)
+        }
+    }
+
+    override fun pruneEmittedEnterIds(registeredIds: Set<String>) = synchronized(enteredLock) {
+        val current = readJson(KEY_EMITTED_ENTER_IDS, ID_SET_SERIALIZER) ?: emptySet()
+        val retained = current intersect registeredIds
+        if (retained.size != current.size) {
+            writeJson(KEY_EMITTED_ENTER_IDS, ID_SET_SERIALIZER, retained)
+        }
+    }
+
     override fun getLastRegistrationUptime(): Long? = prefs.read {
         if (contains(KEY_LAST_REGISTRATION_UPTIME)) getLong(KEY_LAST_REGISTRATION_UPTIME, 0L) else null
     }
@@ -230,6 +285,7 @@ internal class GeofenceRegionStoreImpl(
             remove(KEY_LAST_MOVEMENT_TRIGGER_LOCATION)
             remove(KEY_REGISTERED_IDS)
             remove(KEY_ENTERED_IDS)
+            remove(KEY_EMITTED_ENTER_IDS)
             remove(KEY_LAST_REGISTRATION_UPTIME)
             remove(KEY_LAST_REGISTRATION_PACKAGE_UPDATE_TIME)
             remove(KEY_LAST_SYNC)
@@ -282,6 +338,7 @@ internal class GeofenceRegionStoreImpl(
         const val KEY_CACHED_REGIONS = "cached_regions"
         const val KEY_REGISTERED_IDS = "registered_ids"
         const val KEY_ENTERED_IDS = "entered_ids"
+        const val KEY_EMITTED_ENTER_IDS = "emitted_enter_ids"
         const val KEY_CACHED_CONFIG = "cached_config"
         const val KEY_LAST_API_FETCH_LOCATION = "last_api_fetch_location"
         const val KEY_LAST_MOVEMENT_TRIGGER_LOCATION = "last_movement_trigger_location"

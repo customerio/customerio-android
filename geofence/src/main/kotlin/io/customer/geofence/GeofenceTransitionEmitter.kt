@@ -1,5 +1,6 @@
 package io.customer.geofence
 
+import io.customer.geofence.store.GeofenceRegionStore
 import io.customer.geofence.store.PendingGeofenceDelivery
 import io.customer.geofence.worker.GeofenceEventScheduler
 import io.customer.sdk.communication.Event
@@ -9,17 +10,25 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.json.JsonElement
 
 /**
- * Cooldown-gated, per-geoset fan-out for one crossing: persist the batch, then schedule delivery.
+ * Gated, per-geoset fan-out for one crossing: persist the batch, then schedule delivery.
  * Shared by the OS broadcast path ([GeofenceBroadcastReceiver]) and the synthesized initial-enter
- * path ([GeofenceRepository]) so both produce identical rows and dedupe via the cooldown filter.
+ * path ([GeofenceRepository]) so both produce identical rows and pass the same gates.
+ *
+ * Two gates, in order: an ENTER already reported and not yet balanced by an EXIT is dropped
+ * outright, then the time-based cooldown dedupes the rest. Both paths share the first gate, which is
+ * why it lives here rather than in the receiver — the synthesized path never touches the receiver.
  */
 internal class GeofenceTransitionEmitter(
     private val cooldownFilter: GeofenceCooldownFilter,
     private val pendingStore: PendingDeliveryStore<PendingGeofenceDelivery>,
     private val scheduler: GeofenceEventScheduler,
+    private val regionStore: GeofenceRegionStore,
     private val logger: GeofenceLogger
 ) {
-    /** @return false when the cooldown suppressed it or the persist failed (cooldown rolled back). */
+    /**
+     * @return false when the ENTER was already reported, the cooldown suppressed it, or the persist
+     * failed (cooldown rolled back).
+     */
     suspend fun emit(
         geofenceId: String,
         transition: Event.GeofenceTransition,
@@ -29,6 +38,14 @@ internal class GeofenceTransitionEmitter(
         metadata: Map<String, JsonElement>,
         geosetIds: List<String>
     ): Boolean {
+        // Every reboot and app update re-registers with INITIAL_TRIGGER_ENTER, so the OS re-reports
+        // ENTER for a fence the device never left. Ahead of the cooldown so the drop doesn't spend
+        // the fence's slot. Read-then-mark isn't atomic — the mark waits for a durable write below —
+        // but tryAcquire is, so two concurrent duplicates still collapse to one.
+        if (transition == Event.GeofenceTransition.ENTER && regionStore.hasEmittedEnter(geofenceId)) {
+            logger.logEnterDroppedAlreadyReported(geofenceId)
+            return false
+        }
         if (!cooldownFilter.tryAcquire(userId, geofenceId, transition)) {
             logger.logTransitionSuppressed(geofenceId, transition.name)
             return false
@@ -60,6 +77,12 @@ internal class GeofenceTransitionEmitter(
             logger.logPersistFailed(geofenceId, transition.name)
             cooldownFilter.release(userId, geofenceId, transition)
             return false
+        }
+        // Only once the rows are durable, so a rolled-back write doesn't leave a fence marked as
+        // reported (which would suppress the retry) or unmarked (which would let a duplicate through).
+        when (transition) {
+            Event.GeofenceTransition.ENTER -> regionStore.markEnterEmitted(geofenceId)
+            Event.GeofenceTransition.EXIT -> regionStore.clearEnterEmitted(geofenceId)
         }
         entries.forEach { entry ->
             // Isolate the scheduler so one failure can't abandon the rest of the batch.

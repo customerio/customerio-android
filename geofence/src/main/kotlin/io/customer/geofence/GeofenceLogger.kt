@@ -60,6 +60,10 @@ internal class GeofenceLogger(private val logger: Logger) {
         logger.debug("Geofence '$geofenceId' transition dropped — id not in registered store", tag = TAG)
     }
 
+    fun logEnterDroppedAlreadyReported(geofenceId: String) {
+        logger.debug("Geofence '$geofenceId' ENTER: dropped — already reported as entered and no exit since, so the OS is re-reporting a state we already sent", tag = TAG)
+    }
+
     fun logExitDroppedNeverEntered(geofenceId: String) {
         logger.debug("Geofence '$geofenceId' EXIT: dropped — no record of the device being inside, so the OS is reconciling its own state", tag = TAG)
     }

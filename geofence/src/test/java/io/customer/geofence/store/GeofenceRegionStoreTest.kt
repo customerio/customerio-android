@@ -184,6 +184,62 @@ class GeofenceRegionStoreTest : RobolectricTest() {
     }
 
     @Test
+    fun hasEmittedEnter_givenNothingReported_expectFalse() {
+        store.hasEmittedEnter("biz-1").shouldBeFalse()
+    }
+
+    @Test
+    fun markEnterEmitted_givenCalledTwice_expectStillReportedAndIdempotent() {
+        store.markEnterEmitted("biz-1")
+        store.markEnterEmitted("biz-1")
+
+        store.hasEmittedEnter("biz-1").shouldBeTrue()
+        store.clearEnterEmitted("biz-1")
+        store.hasEmittedEnter("biz-1").shouldBeFalse()
+    }
+
+    @Test
+    fun pruneEmittedEnterIds_expectMarksDroppedForUnregisteredFences() {
+        store.markEnterEmitted("biz-kept")
+        store.markEnterEmitted("biz-evicted")
+
+        store.pruneEmittedEnterIds(setOf("biz-kept"))
+
+        store.hasEmittedEnter("biz-kept").shouldBeTrue()
+        store.hasEmittedEnter("biz-evicted").shouldBeFalse()
+    }
+
+    @Test
+    fun pruneEmittedEnterIds_givenFenceEvictedWhileInside_expectLaterRevisitNotSuppressed() {
+        // Without the prune the mark outlives the monitoring that would clear it: a fence dropped
+        // from the nearest set while the device is inside never reports its EXIT, so a genuine
+        // revisit months later would be swallowed.
+        store.markEnterEmitted("biz-1")
+
+        // Evicted from the monitored set — no EXIT is ever delivered for it.
+        store.pruneEmittedEnterIds(setOf("biz-other"))
+        // Re-registered on a later sync when the device comes back into range.
+        store.pruneEmittedEnterIds(setOf("biz-1"))
+
+        store.hasEmittedEnter("biz-1").shouldBeFalse()
+    }
+
+    @Test
+    fun markEnterEmitted_expectIndependentOfEnteredSet() {
+        // The two sets answer different questions — where the device is vs. what we have sent — and
+        // the geometry seeding writes only the former. Coupling them would let a sync's reconcile
+        // suppress the OS ENTER that follows it milliseconds later.
+        store.markEnterEmitted("biz-1")
+
+        store.getEnteredIds().shouldBeEmpty()
+
+        store.reconcileEnteredIds(registeredIds = setOf("biz-2"), inside = setOf("biz-2"))
+
+        store.hasEmittedEnter("biz-1").shouldBeTrue()
+        store.hasEmittedEnter("biz-2").shouldBeFalse()
+    }
+
+    @Test
     fun getLastRegistrationUptime_givenNothingStored_expectNull() {
         store.getLastRegistrationUptime().shouldBeNull()
     }
@@ -371,6 +427,7 @@ class GeofenceRegionStoreTest : RobolectricTest() {
         store.saveCachedConfig(config)
         store.saveRegisteredIds(setOf("biz-1"))
         store.recordEntered("biz-1")
+        store.markEnterEmitted("biz-1")
         store.saveLastApiFetchLocation(GeofenceLocation(1.0, 2.0))
         store.saveLastMovementTriggerLocation(GeofenceLocation(3.0, 4.0))
         store.setLastRegistrationUptime(99_999L)
@@ -383,6 +440,8 @@ class GeofenceRegionStoreTest : RobolectricTest() {
         store.getRegisteredIds().shouldBeEmpty()
         // Goes with the registrations it describes — sign-out drops those from the OS.
         store.getEnteredIds().shouldBeEmpty()
+        // The next user must not inherit a suppressed ENTER for a fence they were never told about.
+        store.hasEmittedEnter("biz-1").shouldBeFalse()
         store.getLastApiFetchLocation().shouldBeNull()
         store.getLastMovementTriggerLocation().shouldBeNull()
         store.getLastRegistrationUptime().shouldBeNull()

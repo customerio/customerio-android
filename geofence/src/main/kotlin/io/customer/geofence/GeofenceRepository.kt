@@ -421,6 +421,9 @@ internal class GeofenceRepositoryImpl(
                             .map { it.id }
                             .toSet()
                     )
+                    // Same snapshot: a fence dropped from the monitored set never reports the EXIT
+                    // that would re-arm it, so its mark must go with its registration.
+                    store.pruneEmittedEnterIds(idsToSave)
                     // Stamp uptime and package update time so the next refresh detects a reboot or
                     // app update (both wipe OS geofences) and re-registers instead of trusting ids.
                     store.setLastRegistrationUptime(clock.elapsedRealtime())

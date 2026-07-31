@@ -1,6 +1,7 @@
 package io.customer.geofence
 
 import io.customer.commontest.core.RobolectricTest
+import io.customer.geofence.store.GeofenceRegionStore
 import io.customer.geofence.store.PendingGeofenceDelivery
 import io.customer.geofence.worker.GeofenceEventScheduler
 import io.customer.sdk.communication.Event
@@ -28,10 +29,15 @@ class GeofenceTransitionEmitterTest : RobolectricTest() {
     private val mockScheduler: GeofenceEventScheduler = mockk(relaxed = true)
     private val mockLogger: GeofenceLogger = mockk(relaxed = true)
 
+    // Relaxed default is `hasEmittedEnter = false`, i.e. nothing reported yet — the state every
+    // pre-existing test assumes.
+    private val mockRegionStore: GeofenceRegionStore = mockk(relaxed = true)
+
     private val emitter = GeofenceTransitionEmitter(
         cooldownFilter = mockCooldownFilter,
         pendingStore = mockPendingStore,
         scheduler = mockScheduler,
+        regionStore = mockRegionStore,
         logger = mockLogger
     )
 
@@ -103,5 +109,75 @@ class GeofenceTransitionEmitterTest : RobolectricTest() {
         emitted.shouldBeFalse()
         verify(exactly = 1) { mockCooldownFilter.release("user-1", "biz-1", Event.GeofenceTransition.ENTER) }
         coVerify(exactly = 0) { mockScheduler.schedule(any()) }
+    }
+
+    @Test
+    fun emit_givenEnterAlreadyReported_expectDroppedWithoutSpendingCooldown() = runTest {
+        every { mockRegionStore.hasEmittedEnter("biz-1") } returns true
+
+        val emitted = emitter.emit("biz-1", Event.GeofenceTransition.ENTER, "user-1", 100L, null, emptyMap(), emptyList())
+
+        emitted.shouldBeFalse()
+        // Ahead of the cooldown, so the slot stays free for the next genuine transition.
+        verify(exactly = 0) { mockCooldownFilter.tryAcquire(any(), any(), any()) }
+        verify(exactly = 0) { mockPendingStore.appendAll(any()) }
+    }
+
+    @Test
+    fun emit_givenExitWhileEnterReported_expectDeliveredAndEnterRearmed() = runTest {
+        every { mockRegionStore.hasEmittedEnter("biz-1") } returns true
+        every { mockCooldownFilter.tryAcquire(any(), any(), any()) } returns true
+        every { mockPendingStore.appendAll(any()) } returns true
+
+        val emitted = emitter.emit("biz-1", Event.GeofenceTransition.EXIT, "user-1", 100L, null, emptyMap(), emptyList())
+
+        // The gate is ENTER-only: an EXIT must never be blocked by it.
+        emitted.shouldBeTrue()
+        verify(exactly = 1) { mockRegionStore.clearEnterEmitted("biz-1") }
+    }
+
+    @Test
+    fun emit_givenEnterDelivered_expectMarkedReported() = runTest {
+        every { mockCooldownFilter.tryAcquire(any(), any(), any()) } returns true
+        every { mockPendingStore.appendAll(any()) } returns true
+
+        emitter.emit("biz-1", Event.GeofenceTransition.ENTER, "user-1", 100L, null, emptyMap(), emptyList())
+
+        verify(exactly = 1) { mockRegionStore.markEnterEmitted("biz-1") }
+    }
+
+    @Test
+    fun emit_givenEnterPersistFails_expectNotMarkedSoRetryCanDeliver() = runTest {
+        every { mockCooldownFilter.tryAcquire(any(), any(), any()) } returns true
+        every { mockPendingStore.appendAll(any()) } returns false
+
+        emitter.emit("biz-1", Event.GeofenceTransition.ENTER, "user-1", 100L, null, emptyMap(), emptyList())
+
+        // Marking a rolled-back write would suppress the retry and lose the crossing entirely.
+        verify(exactly = 0) { mockRegionStore.markEnterEmitted(any()) }
+    }
+
+    @Test
+    fun emit_givenExitPersistFails_expectEnterStaysReported() = runTest {
+        every { mockRegionStore.hasEmittedEnter("biz-1") } returns true
+        every { mockCooldownFilter.tryAcquire(any(), any(), any()) } returns true
+        every { mockPendingStore.appendAll(any()) } returns false
+
+        emitter.emit("biz-1", Event.GeofenceTransition.EXIT, "user-1", 100L, null, emptyMap(), emptyList())
+
+        // Clearing on a failed write would let the next ENTER through while the backend still
+        // believes the user is inside.
+        verify(exactly = 0) { mockRegionStore.clearEnterEmitted(any()) }
+    }
+
+    @Test
+    fun emit_givenExitSuppressedByCooldown_expectEnterStaysReported() = runTest {
+        every { mockRegionStore.hasEmittedEnter("biz-1") } returns true
+        every { mockCooldownFilter.tryAcquire(any(), any(), any()) } returns false
+
+        emitter.emit("biz-1", Event.GeofenceTransition.EXIT, "user-1", 100L, null, emptyMap(), emptyList())
+
+        // A suppressed EXIT was never sent, so the backend's view is unchanged.
+        verify(exactly = 0) { mockRegionStore.clearEnterEmitted(any()) }
     }
 }

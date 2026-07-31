@@ -32,6 +32,7 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.JsonPrimitive
 import org.amshove.kluent.shouldBeEmpty
 import org.amshove.kluent.shouldBeEqualTo
+import org.amshove.kluent.shouldContain
 import org.amshove.kluent.shouldContainSame
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -585,6 +586,25 @@ class GeofenceRepositoryTest : RobolectricTest() {
 
         // Nothing is monitored, so claiming containment would let a later phantom EXIT through.
         verify(exactly = 0) { store.reconcileEnteredIds(any(), any()) }
+        verify(exactly = 0) { store.pruneEmittedEnterIds(any()) }
+    }
+
+    @Test
+    fun refresh_givenRegistrationSucceeds_expectEmittedEnterPrunedToRegisteredSet() = runTest {
+        // The reported-ENTER marks must be pruned to the same snapshot the registrations are, or a
+        // fence evicted while the device is inside keeps a mark no EXIT will ever clear.
+        every { secureUserStore.getUserId() } returns "user-42"
+        every { store.getRegisteredIds() } returns emptySet()
+        coEvery { apiService.fetchGeofences(any()) } returns Result.success(sampleResponse(maxBusinessGeofences = 5))
+        every { distanceFilter.nearest(any(), any(), any(), any(), any()) } returns
+            listOf(GeofenceRegion("biz-inside", 0.0, 0.0, 500f))
+        coEvery { manager.replaceGeofences(any(), any()) } returns Result.success(Unit)
+
+        repository.refresh(latitude = 0.0, longitude = 0.0)
+
+        val pruned = slot<Set<String>>()
+        verify { store.pruneEmittedEnterIds(capture(pruned)) }
+        pruned.captured shouldContain "biz-inside"
     }
 
     @Test

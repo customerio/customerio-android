@@ -128,6 +128,33 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
                 }
             }
 
+            // Containment bookkeeping runs before the identity checks below: being inside a fence is
+            // a physical fact, independent of whether the transition is deliverable.
+            val store = androidComponent.geofenceRegionStore
+            val cachedRegion = store.getCachedRegion(geofenceId)
+            when (transition) {
+                Event.GeofenceTransition.ENTER -> store.recordEntered(geofenceId)
+                // claimExit runs first either way so the record is consumed atomically; the checks
+                // after it only decide whether an unmatched EXIT is trusted.
+                //
+                // Two cases where an absent record proves nothing, so the EXIT is delivered:
+                // a region registered without ENTER monitoring can never produce one to record, and
+                // an install upgraded from an SDK without the set has no data until the first
+                // registration seeds it. A missing cache row is treated the same way — unknown
+                // transition types can't justify dropping a crossing.
+                Event.GeofenceTransition.EXIT -> if (
+                    !store.claimExit(geofenceId) &&
+                    store.hasContainmentRecord() &&
+                    cachedRegion?.transitionTypes?.contains(GeofenceTransitionType.ENTER) == true
+                ) {
+                    // GMS reports EXIT for a fence it never reported as entered — an artifact of its
+                    // own state reconciliation, not a crossing. Delivering it fires EXIT-triggered
+                    // campaigns at people who were never there.
+                    logger.logExitDroppedNeverEntered(geofenceId)
+                    return@forEach
+                }
+            }
+
             // Snapshot userId so a sign-out + sign-in before delivery can't reattribute this
             // transition. Empty userId is treated as "not identified" per `isUserIdentified`.
             val userId = androidComponent.secureUserStore.getUserId()?.takeIf { it.isNotEmpty() }
@@ -139,7 +166,6 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
                 return@forEach
             }
 
-            val cachedRegion = androidComponent.geofenceRegionStore.getCachedRegion(geofenceId)
             transitionEmitter.emit(
                 geofenceId = geofenceId,
                 transition = transition,

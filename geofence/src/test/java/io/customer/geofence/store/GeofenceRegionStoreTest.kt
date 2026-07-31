@@ -13,7 +13,9 @@ import io.customer.geofence.GeofenceTransitionType
 import io.mockk.mockk
 import org.amshove.kluent.shouldBeEmpty
 import org.amshove.kluent.shouldBeEqualTo
+import org.amshove.kluent.shouldBeFalse
 import org.amshove.kluent.shouldBeNull
+import org.amshove.kluent.shouldBeTrue
 import org.amshove.kluent.shouldContain
 import org.amshove.kluent.shouldContainSame
 import org.junit.Test
@@ -113,6 +115,72 @@ class GeofenceRegionStoreTest : RobolectricTest() {
         store.saveRegisteredIds(emptySet())
 
         store.getRegisteredIds().shouldBeEmpty()
+    }
+
+    @Test
+    fun claimExit_givenNeverEntered_expectFalse() {
+        // The phantom-EXIT guard: no containment record means GMS is reconciling its own
+        // state rather than reporting a crossing.
+        store.claimExit("biz-1") shouldBeEqualTo false
+    }
+
+    @Test
+    fun claimExit_givenEntered_expectTrueThenFalseOnSecondCall() {
+        store.recordEntered("biz-1")
+
+        store.claimExit("biz-1") shouldBeEqualTo true
+        // Consumed: a duplicate EXIT for the same crossing doesn't pass twice.
+        store.claimExit("biz-1") shouldBeEqualTo false
+    }
+
+    @Test
+    fun recordEntered_givenCalledTwice_expectSingleEntry() {
+        store.recordEntered("biz-1")
+        store.recordEntered("biz-1")
+
+        store.getEnteredIds() shouldContainSame setOf("biz-1")
+    }
+
+    @Test
+    fun reconcileEnteredIds_expectPrunedToRegisteredAndUnionedWithInside() {
+        store.recordEntered("biz-kept")
+        store.recordEntered("biz-unregistered")
+
+        store.reconcileEnteredIds(
+            registeredIds = setOf("biz-kept", "biz-new-inside"),
+            inside = setOf("biz-new-inside")
+        )
+
+        // "biz-unregistered" pruned, "biz-kept" survives because it is still registered.
+        store.getEnteredIds() shouldContainSame setOf("biz-kept", "biz-new-inside")
+    }
+
+    @Test
+    fun hasContainmentRecord_givenNothingEverRecorded_expectFalse() {
+        // Upgraded install: distinguishable from "recorded, and nothing is entered".
+        store.hasContainmentRecord().shouldBeFalse()
+        store.getEnteredIds().shouldBeEmpty()
+    }
+
+    @Test
+    fun hasContainmentRecord_givenReconcileWithNothingInside_expectTrue() {
+        // The first registration seeds the key even when the device is inside nothing, which is what
+        // ends the upgrade grace period.
+        store.reconcileEnteredIds(registeredIds = setOf("biz-1"), inside = emptySet())
+
+        store.hasContainmentRecord().shouldBeTrue()
+        store.getEnteredIds().shouldBeEmpty()
+    }
+
+    @Test
+    fun reconcileEnteredIds_givenStaleAnchorReportsOutside_expectExistingContainmentPreserved() {
+        // A launch refresh can run off the persisted anchor rather than a live fix. If that
+        // anchor wrongly says "outside", erasing containment would swallow the genuine EXIT.
+        store.recordEntered("biz-1")
+
+        store.reconcileEnteredIds(registeredIds = setOf("biz-1"), inside = emptySet())
+
+        store.getEnteredIds() shouldContainSame setOf("biz-1")
     }
 
     @Test
@@ -273,11 +341,13 @@ class GeofenceRegionStoreTest : RobolectricTest() {
         store.saveLastApiFetchLocation(GeofenceLocation(1.0, 2.0))
         store.saveLastMovementTriggerLocation(GeofenceLocation(3.0, 4.0))
         store.setLastSyncTimestamp(12_345L)
+        store.recordEntered("biz-1")
 
         store.clearAll()
 
         store.getCachedRegions().shouldBeEmpty()
         store.getRegisteredIds().shouldBeEmpty()
+        store.getEnteredIds().shouldBeEmpty()
         store.getCachedConfig().shouldBeNull()
         store.getLastApiFetchLocation().shouldBeNull()
         store.getLastMovementTriggerLocation().shouldBeNull()
@@ -300,6 +370,7 @@ class GeofenceRegionStoreTest : RobolectricTest() {
         store.saveCachedRegions(regions)
         store.saveCachedConfig(config)
         store.saveRegisteredIds(setOf("biz-1"))
+        store.recordEntered("biz-1")
         store.saveLastApiFetchLocation(GeofenceLocation(1.0, 2.0))
         store.saveLastMovementTriggerLocation(GeofenceLocation(3.0, 4.0))
         store.setLastRegistrationUptime(99_999L)
@@ -310,6 +381,8 @@ class GeofenceRegionStoreTest : RobolectricTest() {
 
         // User-specific: wiped.
         store.getRegisteredIds().shouldBeEmpty()
+        // Goes with the registrations it describes — sign-out drops those from the OS.
+        store.getEnteredIds().shouldBeEmpty()
         store.getLastApiFetchLocation().shouldBeNull()
         store.getLastMovementTriggerLocation().shouldBeNull()
         store.getLastRegistrationUptime().shouldBeNull()

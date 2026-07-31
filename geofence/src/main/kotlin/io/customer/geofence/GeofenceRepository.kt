@@ -411,6 +411,16 @@ internal class GeofenceRepositoryImpl(
                         newIds + staleIds
                     }
                     store.saveRegisteredIds(idsToSave)
+                    // Seed containment from our own geometry rather than waiting on a GMS ENTER:
+                    // synthesis is suppressed after a reboot or app update, so no ENTER is emitted
+                    // for a fence the device is already sitting inside, and its later genuine EXIT
+                    // would otherwise look unentered and be dropped.
+                    store.reconcileEnteredIds(
+                        registeredIds = idsToSave,
+                        inside = nearest.filter { it.distanceTo(latitude, longitude) <= it.radius }
+                            .map { it.id }
+                            .toSet()
+                    )
                     // Stamp uptime and package update time so the next refresh detects a reboot or
                     // app update (both wipe OS geofences) and re-registers instead of trusting ids.
                     store.setLastRegistrationUptime(clock.elapsedRealtime())

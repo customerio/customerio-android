@@ -547,6 +547,47 @@ class GeofenceRepositoryTest : RobolectricTest() {
     }
 
     @Test
+    fun refresh_givenRegistrationSucceeds_expectContainmentSeededFromGeometryNotFromEnterEvents() = runTest {
+        // Initial-ENTER synthesis is suppressed after a reboot/app update, so no ENTER is emitted
+        // for a fence the device is already inside. Without seeding containment here, that fence's
+        // later genuine EXIT would look unentered and be dropped by the guard.
+        every { secureUserStore.getUserId() } returns "user-42"
+        every { store.getRegisteredIds() } returns emptySet()
+        val inside = GeofenceRegion("biz-inside", 0.0, 0.0, 500f)
+        val outside = GeofenceRegion("biz-outside", 1.0, 1.0, 100f)
+        coEvery { apiService.fetchGeofences(any()) } returns Result.success(sampleResponse(maxBusinessGeofences = 5))
+        every { distanceFilter.nearest(any(), any(), any(), any(), any()) } returns listOf(inside, outside)
+        coEvery { manager.replaceGeofences(any(), any()) } returns Result.success(Unit)
+
+        val result = repository.refresh(latitude = 0.0, longitude = 0.0)
+
+        result.isSuccess shouldBeEqualTo true
+        // Only the fence whose radius actually contains the device is seeded; the far one is not,
+        // so a phantom EXIT for it is still dropped.
+        verify {
+            store.reconcileEnteredIds(
+                registeredIds = any(),
+                inside = setOf("biz-inside")
+            )
+        }
+    }
+
+    @Test
+    fun refresh_givenRegistrationFails_expectContainmentNotSeeded() = runTest {
+        every { secureUserStore.getUserId() } returns "user-42"
+        every { store.getRegisteredIds() } returns emptySet()
+        coEvery { apiService.fetchGeofences(any()) } returns Result.success(sampleResponse(maxBusinessGeofences = 5))
+        every { distanceFilter.nearest(any(), any(), any(), any(), any()) } returns
+            listOf(GeofenceRegion("biz-inside", 0.0, 0.0, 500f))
+        coEvery { manager.replaceGeofences(any(), any()) } returns Result.failure(IOException("gms down"))
+
+        repository.refresh(latitude = 0.0, longitude = 0.0)
+
+        // Nothing is monitored, so claiming containment would let a later phantom EXIT through.
+        verify(exactly = 0) { store.reconcileEnteredIds(any(), any()) }
+    }
+
+    @Test
     fun refresh_givenBusinessGeofences_expectMovementTriggerPrependedAndRegistered() = runTest {
         every { secureUserStore.getUserId() } returns "user-42"
         every { store.getRegisteredIds() } returns emptySet()

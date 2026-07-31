@@ -25,6 +25,8 @@ import kotlinx.serialization.builtins.serializer
  *
  * Cleared on sign-out:
  *   registeredIds               — subset live in OS; drives the stale-cleanup diff.
+ *   enteredIds                  — fences the device is inside; goes with the registrations it
+ *                                  describes, since sign-out drops those from the OS.
  *   lastApiFetchLocation        — anchor for the tier-B distance check (rarely updated).
  *   lastMovementTriggerLocation — user's location at the most recent movement-trigger
  *                                  registration; used by boot restore to re-center
@@ -55,6 +57,42 @@ internal interface GeofenceRegionStore {
 
     fun saveRegisteredIds(ids: Set<String>)
     fun getRegisteredIds(): Set<String>
+
+    /** Fences the device is known to be inside. Drives the EXIT guard — see [claimExit]. */
+    fun getEnteredIds(): Set<String>
+
+    /** Records that the device is inside [geofenceId]. Idempotent. */
+    fun recordEntered(geofenceId: String)
+
+    /**
+     * Atomically drops [geofenceId] from the entered set, returning whether it was there.
+     *
+     * `false` means we have no record of the device ever being inside, so the EXIT is a GMS
+     * reconciliation artifact rather than a crossing: GMS can mark a fence INSIDE while evaluating
+     * a registration against a coarse fix, emit no initial ENTER, then report EXIT once an accurate
+     * fix arrives — observed on a fence the device was never within 500m of.
+     */
+    fun claimExit(geofenceId: String): Boolean
+
+    /**
+     * Prunes the entered set to [registeredIds] and unions in [inside], the fences our own geometry
+     * puts the device within at registration time.
+     *
+     * Union rather than replace: [inside] may be computed from the persisted anchor rather than a
+     * live fix, and a stale anchor that wrongly reports "outside" must not erase real containment —
+     * that would swallow a genuine EXIT.
+     */
+    fun reconcileEnteredIds(registeredIds: Set<String>, inside: Set<String>)
+
+    /**
+     * Whether containment has ever been recorded, i.e. whether the entered set carries data at all.
+     *
+     * False on an install upgraded from an SDK version that predates the set, until the first
+     * registration seeds it. The EXIT guard defers while this is false: an empty set and "no data
+     * yet" are indistinguishable from [getEnteredIds] alone, and treating the second as the first
+     * would drop a genuine EXIT for a fence entered before the upgrade.
+     */
+    fun hasContainmentRecord(): Boolean
 
     /** Device uptime at the last successful OS registration; null if never registered. Drives reboot detection. */
     fun getLastRegistrationUptime(): Long?
@@ -115,6 +153,31 @@ internal class GeofenceRegionStoreImpl(
     override fun getRegisteredIds(): Set<String> =
         readJson(KEY_REGISTERED_IDS, ID_SET_SERIALIZER) ?: emptySet()
 
+    override fun getEnteredIds(): Set<String> =
+        readJson(KEY_ENTERED_IDS, ID_SET_SERIALIZER) ?: emptySet()
+
+    override fun hasContainmentRecord(): Boolean = prefs.read { contains(KEY_ENTERED_IDS) } ?: false
+
+    // The three mutators share a lock because each is a read-modify-write, and transitions arrive
+    // on the receiver's coroutine while registration runs on the sync path.
+    override fun recordEntered(geofenceId: String) = synchronized(enteredLock) {
+        val current = getEnteredIds()
+        if (geofenceId !in current) {
+            writeJson(KEY_ENTERED_IDS, ID_SET_SERIALIZER, current + geofenceId)
+        }
+    }
+
+    override fun claimExit(geofenceId: String): Boolean = synchronized(enteredLock) {
+        val current = getEnteredIds()
+        if (geofenceId !in current) return@synchronized false
+        writeJson(KEY_ENTERED_IDS, ID_SET_SERIALIZER, current - geofenceId)
+        true
+    }
+
+    override fun reconcileEnteredIds(registeredIds: Set<String>, inside: Set<String>) = synchronized(enteredLock) {
+        writeJson(KEY_ENTERED_IDS, ID_SET_SERIALIZER, (getEnteredIds() intersect registeredIds) + inside)
+    }
+
     override fun getLastRegistrationUptime(): Long? = prefs.read {
         if (contains(KEY_LAST_REGISTRATION_UPTIME)) getLong(KEY_LAST_REGISTRATION_UPTIME, 0L) else null
     }
@@ -166,6 +229,7 @@ internal class GeofenceRegionStoreImpl(
             remove(KEY_LAST_API_FETCH_LOCATION)
             remove(KEY_LAST_MOVEMENT_TRIGGER_LOCATION)
             remove(KEY_REGISTERED_IDS)
+            remove(KEY_ENTERED_IDS)
             remove(KEY_LAST_REGISTRATION_UPTIME)
             remove(KEY_LAST_REGISTRATION_PACKAGE_UPDATE_TIME)
             remove(KEY_LAST_SYNC)
@@ -212,9 +276,12 @@ internal class GeofenceRegionStoreImpl(
         }
     }
 
+    private val enteredLock = Any()
+
     private companion object {
         const val KEY_CACHED_REGIONS = "cached_regions"
         const val KEY_REGISTERED_IDS = "registered_ids"
+        const val KEY_ENTERED_IDS = "entered_ids"
         const val KEY_CACHED_CONFIG = "cached_config"
         const val KEY_LAST_API_FETCH_LOCATION = "last_api_fetch_location"
         const val KEY_LAST_MOVEMENT_TRIGGER_LOCATION = "last_movement_trigger_location"

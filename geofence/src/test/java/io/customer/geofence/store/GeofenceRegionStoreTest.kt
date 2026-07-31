@@ -194,8 +194,29 @@ class GeofenceRegionStoreTest : RobolectricTest() {
         store.markEnterEmitted("biz-1")
 
         store.hasEmittedEnter("biz-1").shouldBeTrue()
-        store.clearEnterEmitted("biz-1")
+    }
+
+    @Test
+    fun claimExit_givenEnterReported_expectMarkClearedWithContainment() {
+        store.recordEntered("biz-1")
+        store.markEnterEmitted("biz-1")
+
+        store.claimExit("biz-1").shouldBeTrue()
+
+        // Both drop together: the mark can't be left behind for a delivery path that may not run.
+        store.getEnteredIds().shouldBeEmpty()
         store.hasEmittedEnter("biz-1").shouldBeFalse()
+    }
+
+    @Test
+    fun claimExit_givenNeverEntered_expectMarkRetained() {
+        store.markEnterEmitted("biz-1")
+
+        store.claimExit("biz-1").shouldBeFalse()
+
+        // An unclaimed EXIT is a GMS artifact, not a departure — re-arming on it would let the next
+        // OS re-report of ENTER through as a fresh arrival.
+        store.hasEmittedEnter("biz-1").shouldBeTrue()
     }
 
     @Test

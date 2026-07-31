@@ -78,11 +78,10 @@ internal class GeofenceTransitionEmitter(
             cooldownFilter.release(userId, geofenceId, transition)
             return false
         }
-        // Only once the rows are durable, so a rolled-back write doesn't leave a fence marked as
-        // reported (which would suppress the retry) or unmarked (which would let a duplicate through).
-        when (transition) {
-            Event.GeofenceTransition.ENTER -> regionStore.markEnterEmitted(geofenceId)
-            Event.GeofenceTransition.EXIT -> regionStore.clearEnterEmitted(geofenceId)
+        // Only once the rows are durable, so a rolled-back write can't leave a fence marked as
+        // reported and suppress its own retry. The EXIT side is cleared in `claimExit`.
+        if (transition == Event.GeofenceTransition.ENTER) {
+            regionStore.markEnterEmitted(geofenceId)
         }
         entries.forEach { entry ->
             // Isolate the scheduler so one failure can't abandon the rest of the batch.

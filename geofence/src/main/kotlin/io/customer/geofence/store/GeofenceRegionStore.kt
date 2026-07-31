@@ -67,7 +67,8 @@ internal interface GeofenceRegionStore {
     fun recordEntered(geofenceId: String)
 
     /**
-     * Atomically drops [geofenceId] from the entered set, returning whether it was there.
+     * Atomically drops [geofenceId] from the entered set, returning whether it was there. On `true`
+     * the reported-ENTER mark is dropped in the same step — see [hasEmittedEnter].
      *
      * `false` means we have no record of the device ever being inside, so the EXIT is a GMS
      * reconciliation artifact rather than a crossing: GMS can mark a fence INSIDE while evaluating
@@ -103,14 +104,13 @@ internal interface GeofenceRegionStore {
      *
      * Conflating them would swallow real crossings, because a sync seeds containment moments before
      * the OS reports the matching ENTER — measured at 20-46ms on a Pixel 6.
+     *
+     * Set by [markEnterEmitted] once an ENTER is durably persisted, cleared by [claimExit].
      */
     fun hasEmittedEnter(geofenceId: String): Boolean
 
     /** Records that an ENTER for [geofenceId] reached the delivery pipeline. Idempotent. */
     fun markEnterEmitted(geofenceId: String)
-
-    /** Records that an EXIT for [geofenceId] reached the delivery pipeline, re-arming its ENTER. */
-    fun clearEnterEmitted(geofenceId: String)
 
     /**
      * Drops reported-ENTER marks for fences no longer in [registeredIds], so the set can't outlive
@@ -199,6 +199,9 @@ internal class GeofenceRegionStoreImpl(
         val current = getEnteredIds()
         if (geofenceId !in current) return@synchronized false
         writeJson(KEY_ENTERED_IDS, ID_SET_SERIALIZER, current - geofenceId)
+        // Same step: deferring this to a successful persist strands the mark on a write failure or
+        // anonymous drop, and a stranded mark silences the next genuine arrival.
+        clearEnterEmitted(geofenceId)
         true
     }
 
@@ -218,7 +221,7 @@ internal class GeofenceRegionStoreImpl(
         }
     }
 
-    override fun clearEnterEmitted(geofenceId: String) = synchronized(enteredLock) {
+    private fun clearEnterEmitted(geofenceId: String) = synchronized(enteredLock) {
         val current = readJson(KEY_EMITTED_ENTER_IDS, ID_SET_SERIALIZER) ?: emptySet()
         if (geofenceId in current) {
             writeJson(KEY_EMITTED_ENTER_IDS, ID_SET_SERIALIZER, current - geofenceId)

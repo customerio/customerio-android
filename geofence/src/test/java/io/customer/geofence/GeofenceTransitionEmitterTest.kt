@@ -124,7 +124,7 @@ class GeofenceTransitionEmitterTest : RobolectricTest() {
     }
 
     @Test
-    fun emit_givenExitWhileEnterReported_expectDeliveredAndEnterRearmed() = runTest {
+    fun emit_givenExitWhileEnterReported_expectDelivered() = runTest {
         every { mockRegionStore.hasEmittedEnter("biz-1") } returns true
         every { mockCooldownFilter.tryAcquire(any(), any(), any()) } returns true
         every { mockPendingStore.appendAll(any()) } returns true
@@ -133,7 +133,6 @@ class GeofenceTransitionEmitterTest : RobolectricTest() {
 
         // The gate is ENTER-only: an EXIT must never be blocked by it.
         emitted.shouldBeTrue()
-        verify(exactly = 1) { mockRegionStore.clearEnterEmitted("biz-1") }
     }
 
     @Test
@@ -158,26 +157,14 @@ class GeofenceTransitionEmitterTest : RobolectricTest() {
     }
 
     @Test
-    fun emit_givenExitPersistFails_expectEnterStaysReported() = runTest {
+    fun emit_givenExitDelivered_expectMarkNotTouchedHere() = runTest {
         every { mockRegionStore.hasEmittedEnter("biz-1") } returns true
         every { mockCooldownFilter.tryAcquire(any(), any(), any()) } returns true
-        every { mockPendingStore.appendAll(any()) } returns false
+        every { mockPendingStore.appendAll(any()) } returns true
 
         emitter.emit("biz-1", Event.GeofenceTransition.EXIT, "user-1", 100L, null, emptyMap(), emptyList())
 
-        // Clearing on a failed write would let the next ENTER through while the backend still
-        // believes the user is inside.
-        verify(exactly = 0) { mockRegionStore.clearEnterEmitted(any()) }
-    }
-
-    @Test
-    fun emit_givenExitSuppressedByCooldown_expectEnterStaysReported() = runTest {
-        every { mockRegionStore.hasEmittedEnter("biz-1") } returns true
-        every { mockCooldownFilter.tryAcquire(any(), any(), any()) } returns false
-
-        emitter.emit("biz-1", Event.GeofenceTransition.EXIT, "user-1", 100L, null, emptyMap(), emptyList())
-
-        // A suppressed EXIT was never sent, so the backend's view is unchanged.
-        verify(exactly = 0) { mockRegionStore.clearEnterEmitted(any()) }
+        // Re-arming belongs to `claimExit`, which runs whether or not delivery gets this far.
+        verify(exactly = 0) { mockRegionStore.markEnterEmitted(any()) }
     }
 }

@@ -65,11 +65,12 @@ jobs:
     name: Android ${{ matrix.suite }}
     needs: prepare
     if: >-
+      (vars.MOBILE_E2E_ENABLED == 'true' || github.event_name == 'workflow_dispatch') &&
       github.actor != 'dependabot[bot]' &&
       (github.event_name != 'pull_request' ||
       github.event.pull_request.head.repo.full_name == github.repository)
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
@@ -84,9 +85,16 @@ jobs:
           repository: customerio/mobile-e2e
           ref: ${{ inputs.harness_ref || 'main' }}
           path: .e2e-harness
-          token: ${{ secrets.MOBILE_E2E_REPO_TOKEN || github.token }}
 
       - uses: ./.github/actions/setup-android
+
+      - name: Install Android emulator packages
+        run: |
+          sdkmanager \
+            "platform-tools" \
+            "emulator" \
+            "platforms;android-35" \
+            "system-images;android-35;google_apis;x86_64"
 
       - name: Enable emulator acceleration
         run: sudo chmod 666 /dev/kvm
@@ -105,6 +113,24 @@ jobs:
         run: |
           printf 'cdpApiKey=%s\nsiteId=%s\nworkspace=%s\n' \
             "$CDP_API_KEY" "$SITE_ID" "Mobile E2E" > samples/local.properties
+
+      - name: Validate E2E backend configuration
+        env:
+          SUITE: ${{ matrix.suite }}
+          MAESTRO_EXT_API_KEY: ${{ secrets.MOBILE_E2E_EXT_API_KEY }}
+          MAESTRO_APP_API_KEY: ${{ secrets.MOBILE_E2E_APP_API_KEY }}
+          INBOX_TRANSACTIONAL_MESSAGE_ID: ${{ vars.MOBILE_E2E_INBOX_TRANSACTIONAL_MESSAGE_ID }}
+        run: |
+          required=(MAESTRO_EXT_API_KEY)
+          if [[ "$SUITE" == "message-inbox" ]]; then
+            required+=(MAESTRO_APP_API_KEY INBOX_TRANSACTIONAL_MESSAGE_ID)
+          fi
+          for name in "${required[@]}"; do
+            if [[ -z "${!name}" ]]; then
+              echo "::error::$name is not configured for Maestro E2E"
+              exit 1
+            fi
+          done
 
       - name: Run SDK to backend E2E
         env:

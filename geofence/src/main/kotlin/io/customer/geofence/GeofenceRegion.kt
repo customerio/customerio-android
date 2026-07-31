@@ -63,6 +63,17 @@ internal fun GeofenceRegion.distanceTo(lat: Double, lng: Double): Float {
 }
 
 /**
+ * Straight-line distance in meters from this region's *boundary* to the given coordinates, `0` when
+ * they fall inside the region.
+ *
+ * Relevance for monitoring is proximity to the boundary, not to the center: ranking on center
+ * distance evicts a region the device currently occupies once enough regions have nearer centers,
+ * and an unmonitored region can never report its exit.
+ */
+internal fun GeofenceRegion.edgeDistanceTo(lat: Double, lng: Double): Float =
+    (distanceTo(lat, lng) - radius).coerceAtLeast(0f)
+
+/**
  * Converts the SDK transition types to a GMS bitmask for [Geofence.Builder.setTransitionTypes].
  * E.g., [ENTER, EXIT] → GEOFENCE_TRANSITION_ENTER | GEOFENCE_TRANSITION_EXIT.
  */

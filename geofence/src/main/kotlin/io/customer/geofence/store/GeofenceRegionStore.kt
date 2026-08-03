@@ -79,14 +79,28 @@ internal interface GeofenceRegionStore {
     fun claimExit(geofenceId: String): Boolean
 
     /**
+     * Counter of claimed exits, read before a sync computes its geometry and handed back to
+     * [reconcileEnteredIds] so a departure reported while that sync was in flight wins over it.
+     *
+     * In-memory: it only has to order two live coroutines, and a process that dies mid-sync never
+     * reaches the reconcile.
+     */
+    fun containmentEpoch(): Long
+
+    /**
      * Prunes the entered set to [registeredIds] and unions in [inside], the fences our own geometry
      * puts the device within at registration time.
      *
      * Union rather than replace: [inside] may be computed from the persisted anchor rather than a
      * live fix, and a stale anchor that wrongly reports "outside" must not erase real containment —
      * that would swallow a genuine EXIT.
+     *
+     * [sinceEpoch] is [containmentEpoch] as of the fix [inside] was derived from. A fence whose exit
+     * was claimed after that is dropped from [inside]: registration awaits GMS for seconds, and
+     * re-seeding from the older fix would resurrect containment the OS has since told us to drop —
+     * leaving the device recorded inside a fence it left, which disarms the EXIT guard for it.
      */
-    fun reconcileEnteredIds(registeredIds: Set<String>, inside: Set<String>)
+    fun reconcileEnteredIds(registeredIds: Set<String>, inside: Set<String>, sinceEpoch: Long)
 
     /**
      * Whether containment has ever been recorded, i.e. whether the entered set carries data at all.
@@ -206,11 +220,22 @@ internal class GeofenceRegionStoreImpl(
         // Same step: deferring this to a successful persist strands the mark on a write failure or
         // anonymous drop, and a stranded mark silences the next genuine arrival.
         clearEnterEmitted(geofenceId)
+        // Only a consumed record counts. A claim that found nothing is a suspected GMS artifact, and
+        // letting it block the geometry seed would leave the fence with no containment at all.
+        exitEpoch += 1
+        exitEpochByGeofenceId[geofenceId] = exitEpoch
         true
     }
 
-    override fun reconcileEnteredIds(registeredIds: Set<String>, inside: Set<String>) = synchronized(enteredLock) {
-        writeJson(KEY_ENTERED_IDS, ID_SET_SERIALIZER, (getEnteredIds() intersect registeredIds) + inside)
+    override fun containmentEpoch(): Long = synchronized(enteredLock) { exitEpoch }
+
+    override fun reconcileEnteredIds(
+        registeredIds: Set<String>,
+        inside: Set<String>,
+        sinceEpoch: Long
+    ) = synchronized(enteredLock) {
+        val stillInside = inside.filter { (exitEpochByGeofenceId[it] ?: 0L) <= sinceEpoch }
+        writeJson(KEY_ENTERED_IDS, ID_SET_SERIALIZER, (getEnteredIds() intersect registeredIds) + stillInside)
     }
 
     override fun hasEmittedEnter(userId: String, geofenceId: String): Boolean = synchronized(enteredLock) {
@@ -354,6 +379,12 @@ internal class GeofenceRegionStoreImpl(
     }
 
     private val enteredLock = Any()
+
+    // Guarded by [enteredLock]. Bumped per claimed exit; the per-fence value is the epoch at which
+    // that fence's exit was last claimed. Bounded by the registered set in practice, and process
+    // lifetime is the only scope that matters — see [containmentEpoch].
+    private var exitEpoch = 0L
+    private val exitEpochByGeofenceId = mutableMapOf<String, Long>()
 
     private companion object {
         const val KEY_CACHED_REGIONS = "cached_regions"

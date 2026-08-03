@@ -568,9 +568,32 @@ class GeofenceRepositoryTest : RobolectricTest() {
         verify {
             store.reconcileEnteredIds(
                 registeredIds = any(),
-                inside = setOf("biz-inside")
+                inside = setOf("biz-inside"),
+                sinceEpoch = any()
             )
         }
+    }
+
+    @Test
+    fun refresh_givenExitClaimedWhileRegistering_expectEpochFromBeforeTheAwait() = runTest {
+        // The seed must be judged against the containment state as of this sync's fix, not as of
+        // whenever GMS finished. Registration awaits GMS for seconds, and an EXIT landing in that
+        // window is newer evidence than the geometry.
+        every { secureUserStore.getUserId() } returns "user-42"
+        every { store.getRegisteredIds() } returns emptySet()
+        every { store.containmentEpoch() } returns 5L
+        coEvery { apiService.fetchGeofences(any()) } returns Result.success(sampleResponse(maxBusinessGeofences = 5))
+        every { distanceFilter.nearest(any(), any(), any(), any(), any()) } returns
+            listOf(GeofenceRegion("biz-inside", 0.0, 0.0, 500f))
+        coEvery { manager.replaceGeofences(any(), any()) } coAnswers {
+            // A transition claims an exit mid-registration, advancing the epoch.
+            every { store.containmentEpoch() } returns 7L
+            Result.success(Unit)
+        }
+
+        repository.refresh(latitude = 0.0, longitude = 0.0)
+
+        verify { store.reconcileEnteredIds(registeredIds = any(), inside = any(), sinceEpoch = 5L) }
     }
 
     @Test
@@ -585,7 +608,7 @@ class GeofenceRepositoryTest : RobolectricTest() {
         repository.refresh(latitude = 0.0, longitude = 0.0)
 
         // Nothing is monitored, so claiming containment would let a later phantom EXIT through.
-        verify(exactly = 0) { store.reconcileEnteredIds(any(), any()) }
+        verify(exactly = 0) { store.reconcileEnteredIds(any(), any(), any()) }
         verify(exactly = 0) { store.pruneEmittedEnterIds(any()) }
     }
 

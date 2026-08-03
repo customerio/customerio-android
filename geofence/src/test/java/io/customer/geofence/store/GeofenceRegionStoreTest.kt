@@ -148,11 +148,78 @@ class GeofenceRegionStoreTest : RobolectricTest() {
 
         store.reconcileEnteredIds(
             registeredIds = setOf("biz-kept", "biz-new-inside"),
-            inside = setOf("biz-new-inside")
+            inside = setOf("biz-new-inside"),
+            sinceEpoch = store.containmentEpoch()
         )
 
         // "biz-unregistered" pruned, "biz-kept" survives because it is still registered.
         store.getEnteredIds() shouldContainSame setOf("biz-kept", "biz-new-inside")
+    }
+
+    @Test
+    fun reconcileEnteredIds_givenExitClaimedAfterFixWasTaken_expectFenceNotReSeeded() {
+        store.recordEntered("biz-1")
+        // A sync captures the epoch with its fix, then awaits GMS for seconds.
+        val epochAtFix = store.containmentEpoch()
+
+        // Mid-flight the OS reports the departure and the receiver consumes the record.
+        store.claimExit("biz-1").shouldBeTrue()
+
+        // The sync now writes back geometry from the older fix, which still contained the fence.
+        store.reconcileEnteredIds(
+            registeredIds = setOf("biz-1"),
+            inside = setOf("biz-1"),
+            sinceEpoch = epochAtFix
+        )
+
+        // Resurrecting it would leave the device recorded inside a fence it left, disarming the EXIT
+        // guard for that fence until its next departure.
+        store.getEnteredIds().shouldBeEmpty()
+    }
+
+    @Test
+    fun reconcileEnteredIds_givenExitClaimedBeforeFixWasTaken_expectFenceSeeded() {
+        // Same fence, opposite order: the departure is already history when the fix is taken, so the
+        // geometry is the newer evidence — e.g. the device drove back in while the process was dead.
+        store.recordEntered("biz-1")
+        store.claimExit("biz-1").shouldBeTrue()
+        val epochAtFix = store.containmentEpoch()
+
+        store.reconcileEnteredIds(
+            registeredIds = setOf("biz-1"),
+            inside = setOf("biz-1"),
+            sinceEpoch = epochAtFix
+        )
+
+        store.getEnteredIds() shouldContainSame setOf("biz-1")
+    }
+
+    @Test
+    fun reconcileEnteredIds_givenUnclaimedExitForSameFence_expectStillSeeded() {
+        // A claim that found no record is a suspected GMS artifact, not a departure. Letting it block
+        // the seed would leave the fence with no containment at all, so its next genuine EXIT would
+        // be dropped as never-entered — the failure the seed exists to prevent.
+        val epochAtFix = store.containmentEpoch()
+
+        store.claimExit("biz-1").shouldBeFalse()
+
+        store.reconcileEnteredIds(
+            registeredIds = setOf("biz-1"),
+            inside = setOf("biz-1"),
+            sinceEpoch = epochAtFix
+        )
+
+        store.getEnteredIds() shouldContainSame setOf("biz-1")
+    }
+
+    @Test
+    fun containmentEpoch_givenClaimedExit_expectAdvanced() {
+        store.recordEntered("biz-1")
+        val before = store.containmentEpoch()
+
+        store.claimExit("biz-1")
+
+        (store.containmentEpoch() > before).shouldBeTrue()
     }
 
     @Test
@@ -166,7 +233,7 @@ class GeofenceRegionStoreTest : RobolectricTest() {
     fun hasContainmentRecord_givenReconcileWithNothingInside_expectTrue() {
         // The first registration seeds the key even when the device is inside nothing, which is what
         // ends the upgrade grace period.
-        store.reconcileEnteredIds(registeredIds = setOf("biz-1"), inside = emptySet())
+        store.reconcileEnteredIds(registeredIds = setOf("biz-1"), inside = emptySet(), sinceEpoch = store.containmentEpoch())
 
         store.hasContainmentRecord().shouldBeTrue()
         store.getEnteredIds().shouldBeEmpty()
@@ -178,7 +245,7 @@ class GeofenceRegionStoreTest : RobolectricTest() {
         // anchor wrongly says "outside", erasing containment would swallow the genuine EXIT.
         store.recordEntered("biz-1")
 
-        store.reconcileEnteredIds(registeredIds = setOf("biz-1"), inside = emptySet())
+        store.reconcileEnteredIds(registeredIds = setOf("biz-1"), inside = emptySet(), sinceEpoch = store.containmentEpoch())
 
         store.getEnteredIds() shouldContainSame setOf("biz-1")
     }
@@ -275,7 +342,7 @@ class GeofenceRegionStoreTest : RobolectricTest() {
 
         store.getEnteredIds().shouldBeEmpty()
 
-        store.reconcileEnteredIds(registeredIds = setOf("biz-2"), inside = setOf("biz-2"))
+        store.reconcileEnteredIds(registeredIds = setOf("biz-2"), inside = setOf("biz-2"), sinceEpoch = store.containmentEpoch())
 
         store.hasEmittedEnter(USER, "biz-1").shouldBeTrue()
         store.hasEmittedEnter(USER, "biz-2").shouldBeFalse()

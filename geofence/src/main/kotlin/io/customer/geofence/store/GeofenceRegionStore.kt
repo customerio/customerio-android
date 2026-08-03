@@ -233,9 +233,15 @@ internal class GeofenceRegionStoreImpl(
         registeredIds: Set<String>,
         inside: Set<String>,
         sinceEpoch: Long
-    ) = synchronized(enteredLock) {
-        val stillInside = inside.filter { (exitEpochByGeofenceId[it] ?: 0L) <= sinceEpoch }
-        writeJson(KEY_ENTERED_IDS, ID_SET_SERIALIZER, (getEnteredIds() intersect registeredIds) + stillInside)
+    ) {
+        synchronized(enteredLock) {
+            val stillInside = inside.filter { (exitEpochByGeofenceId[it] ?: 0L) <= sinceEpoch }
+            writeJson(KEY_ENTERED_IDS, ID_SET_SERIALIZER, (getEnteredIds() intersect registeredIds) + stillInside)
+            // Bound the map to what is monitored, after the filter has read it. An unregistered fence
+            // can't reach `inside` again until it is re-registered, by which point the old claim is
+            // older than any sync that could seed it.
+            exitEpochByGeofenceId.keys.retainAll(registeredIds)
+        }
     }
 
     override fun hasEmittedEnter(userId: String, geofenceId: String): Boolean = synchronized(enteredLock) {
@@ -381,8 +387,8 @@ internal class GeofenceRegionStoreImpl(
     private val enteredLock = Any()
 
     // Guarded by [enteredLock]. Bumped per claimed exit; the per-fence value is the epoch at which
-    // that fence's exit was last claimed. Bounded by the registered set in practice, and process
-    // lifetime is the only scope that matters — see [containmentEpoch].
+    // that fence's exit was last claimed. Trimmed to the registered set on every reconcile, and
+    // process lifetime is the only scope that matters — see [containmentEpoch].
     private var exitEpoch = 0L
     private val exitEpochByGeofenceId = mutableMapOf<String, Long>()
 

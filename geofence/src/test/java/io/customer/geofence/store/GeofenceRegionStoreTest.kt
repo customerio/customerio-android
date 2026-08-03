@@ -213,6 +213,23 @@ class GeofenceRegionStoreTest : RobolectricTest() {
     }
 
     @Test
+    fun reconcileEnteredIds_givenFenceUnregisteredAfterClaim_expectClaimForgottenSoLaterSeedWorks() {
+        // The claim record is per-fence state that would otherwise accumulate for the life of the
+        // process. Trimming it to the registered set is safe: a fence has to be re-registered before
+        // geometry can seed it again, and by then the old claim is older than any such sync.
+        store.recordEntered("biz-1")
+        val epochAtFix = store.containmentEpoch()
+        store.claimExit("biz-1").shouldBeTrue()
+
+        // Fence drops out of the monitored set, so its claim record is trimmed.
+        store.reconcileEnteredIds(registeredIds = setOf("biz-other"), inside = emptySet(), sinceEpoch = epochAtFix)
+        // Re-registered later with the device inside it, using the same stale epoch.
+        store.reconcileEnteredIds(registeredIds = setOf("biz-1"), inside = setOf("biz-1"), sinceEpoch = epochAtFix)
+
+        store.getEnteredIds() shouldContainSame setOf("biz-1")
+    }
+
+    @Test
     fun containmentEpoch_givenClaimedExit_expectAdvanced() {
         store.recordEntered("biz-1")
         val before = store.containmentEpoch()

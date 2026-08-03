@@ -16,15 +16,15 @@ unique to the Android sample.
 1. `maestro` CLI.
 2. Android SDK + Java 17. The runner creates/boots the emulator.
 3. `ffmpeg` and Python 3. Pillow is optional but enables annotated MP4s.
-4. An Ext API bearer token for the test-prod Customer.io workspace.
+4. An App API key for the test-prod Customer.io workspace.
 5. `cdpApiKey` + `siteId` in `samples/local.properties` set to the same
-   workspace the Ext API key targets.
+   workspace the App API key targets.
 
 ## Setup
 
 ```bash
 cp .maestro/.env.example .maestro/.env
-# Fill MAESTRO_EXT_API_KEY; message Inbox uses fixture ID 21.
+# Fill MAESTRO_APP_API_KEY; message Inbox uses fixture ID 21.
 make e2e-setup
 ```
 
@@ -62,8 +62,8 @@ summary links to those snapshots. Both locations are gitignored.
 |---|---|
 | `e2e.sh` | One-command setup/profile wrapper around the shared top-level runner |
 | `run.sh` | Starts sink + emulator capture, runs Maestro, renders HTML + annotated video |
-| `.env.example` | Template — copy to `.env` and fill in `MAESTRO_EXT_API_KEY` |
-| `.env` | Your `MAESTRO_EXT_API_KEY` (gitignored) |
+| `.env.example` | Template — copy to `.env` and fill in `MAESTRO_APP_API_KEY` |
+| `.env` | Your `MAESTRO_APP_API_KEY` (gitignored) |
 | `harness/` | Shared scripts + flows auto-cloned from [`customerio/mobile-e2e`](https://github.com/customerio/mobile-e2e) (gitignored) |
 
 ## Selector strategy
@@ -97,6 +97,7 @@ widget's matching `accessibilityIdentifier`.
 ## CI rollout
 
 The workflow is wired for PR smoke, weekday standard, and focused manual runs.
-PR/scheduled jobs require `MOBILE_E2E_ENABLED=true`, the two `MOBILE_E2E_*_API_KEY`
-secrets, and the Inbox message-ID variable. Leave the flag unset until the shared
-harness is merged and one manual dispatch has passed.
+PR/scheduled jobs require `MOBILE_E2E_ENABLED=true`, the
+`MOBILE_E2E_APP_API_KEY` secret, and the Inbox message-ID variable. Leave the
+flag unset until the shared harness is merged and one manual dispatch has
+passed.

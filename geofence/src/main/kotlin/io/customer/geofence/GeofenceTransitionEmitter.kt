@@ -36,13 +36,20 @@ internal class GeofenceTransitionEmitter(
         timestampSeconds: Long,
         geofenceName: String?,
         metadata: Map<String, JsonElement>,
-        geosetIds: List<String>
+        geosetIds: List<String>,
+        monitorsExit: Boolean
     ): Boolean {
         // Every reboot and app update re-registers with INITIAL_TRIGGER_ENTER, so the OS re-reports
         // ENTER for a fence the device never left. Ahead of the cooldown so the drop doesn't spend
         // the fence's slot. Read-then-mark isn't atomic — the mark waits for a durable write below —
         // but tryAcquire is, so two concurrent duplicates still collapse to one.
-        if (transition == Event.GeofenceTransition.ENTER && regionStore.hasEmittedEnter(geofenceId)) {
+        //
+        // Only where an EXIT can clear the mark: an enter-only fence never reports one, so the mark
+        // would stand for the life of the registration and swallow every later arrival.
+        val isRedundantEnter = transition == Event.GeofenceTransition.ENTER &&
+            monitorsExit &&
+            regionStore.hasEmittedEnter(userId, geofenceId)
+        if (isRedundantEnter) {
             logger.logEnterDroppedAlreadyReported(geofenceId)
             return false
         }
@@ -80,8 +87,8 @@ internal class GeofenceTransitionEmitter(
         }
         // Only once the rows are durable, so a rolled-back write can't leave a fence marked as
         // reported and suppress its own retry. The EXIT side is cleared in `claimExit`.
-        if (transition == Event.GeofenceTransition.ENTER) {
-            regionStore.markEnterEmitted(geofenceId)
+        if (transition == Event.GeofenceTransition.ENTER && monitorsExit) {
+            regionStore.markEnterEmitted(userId, geofenceId)
         }
         entries.forEach { entry ->
             // Isolate the scheduler so one failure can't abandon the rest of the batch.

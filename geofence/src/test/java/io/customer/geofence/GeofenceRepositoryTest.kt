@@ -1629,7 +1629,39 @@ class GeofenceRepositoryTest : RobolectricTest() {
                 timestampSeconds = any(),
                 geofenceName = any(),
                 metadata = any(),
-                geosetIds = any()
+                geosetIds = any(),
+                monitorsExit = true
+            )
+        }
+    }
+
+    @Test
+    fun refresh_givenNewlyRegisteredEnterOnlyFenceDeviceInside_expectInitialEnterNotLatched() = runTest {
+        // The synthesized ENTER must carry the fence's real monitoring shape: latching an enter-only
+        // fence would suppress every later arrival, since no EXIT can ever release it.
+        val cached = listOf(
+            GeofenceRegion("biz-1", 0.0, 0.0, 100f, transitionTypes = listOf(GeofenceTransitionType.ENTER))
+        )
+        every { secureUserStore.getUserId() } returns "user-42"
+        every { store.getLastSyncTimestamp() } returns System.currentTimeMillis() - 60_000L
+        every { store.getCachedRegions() } returns cached
+        every { store.getRegisteredIds() } returns emptySet()
+        every { store.getCachedConfig() } returns sampleConfig()
+        every { distanceFilter.nearest(cached, any(), any(), any(), any()) } returns cached
+        coEvery { manager.replaceGeofences(any(), any()) } returns Result.success(Unit)
+
+        repository.refresh(latitude = 0.0, longitude = 0.0)
+
+        coVerify(exactly = 1) {
+            transitionEmitter.emit(
+                geofenceId = "biz-1",
+                transition = Event.GeofenceTransition.ENTER,
+                userId = "user-42",
+                timestampSeconds = any(),
+                geofenceName = any(),
+                metadata = any(),
+                geosetIds = any(),
+                monitorsExit = false
             )
         }
     }
@@ -1656,7 +1688,7 @@ class GeofenceRepositoryTest : RobolectricTest() {
         repository.refresh(latitude = 0.0, longitude = 0.0)
 
         coVerify { manager.replaceGeofences(any(), emptySet()) }
-        coVerify(exactly = 0) { transitionEmitter.emit(any(), any(), any(), any(), any(), any(), any()) }
+        coVerify(exactly = 0) { transitionEmitter.emit(any(), any(), any(), any(), any(), any(), any(), any()) }
     }
 
     @Test
@@ -1678,7 +1710,7 @@ class GeofenceRepositoryTest : RobolectricTest() {
         repository.refresh(latitude = 0.0, longitude = 0.0)
 
         coVerify(exactly = 1) { apiService.fetchGeofences(any()) }
-        coVerify(exactly = 0) { transitionEmitter.emit(any(), any(), any(), any(), any(), any(), any()) }
+        coVerify(exactly = 0) { transitionEmitter.emit(any(), any(), any(), any(), any(), any(), any(), any()) }
     }
 
     @Test
@@ -1703,7 +1735,7 @@ class GeofenceRepositoryTest : RobolectricTest() {
         repository.refresh(latitude = 0.0, longitude = 0.0)
 
         coVerify(exactly = 1) { apiService.fetchGeofences(any()) }
-        coVerify(exactly = 0) { transitionEmitter.emit(any(), any(), any(), any(), any(), any(), any()) }
+        coVerify(exactly = 0) { transitionEmitter.emit(any(), any(), any(), any(), any(), any(), any(), any()) }
     }
 
     @Test
@@ -1730,7 +1762,8 @@ class GeofenceRepositoryTest : RobolectricTest() {
                 timestampSeconds = any(),
                 geofenceName = any(),
                 metadata = any(),
-                geosetIds = any()
+                geosetIds = any(),
+                monitorsExit = any()
             )
         }
     }
@@ -1758,7 +1791,7 @@ class GeofenceRepositoryTest : RobolectricTest() {
         gmsGate.complete(Unit)
         refreshJob.join()
 
-        coVerify(exactly = 0) { transitionEmitter.emit(any(), any(), any(), any(), any(), any(), any()) }
+        coVerify(exactly = 0) { transitionEmitter.emit(any(), any(), any(), any(), any(), any(), any(), any()) }
     }
 
     @Test
@@ -1779,7 +1812,7 @@ class GeofenceRepositoryTest : RobolectricTest() {
         // ~2.2 km move → local re-rank runs, and the device is inside biz-1 (radius 300 m at 0.02,0.0).
         repository.refresh(latitude = 0.02, longitude = 0.0)
 
-        coVerify(exactly = 0) { transitionEmitter.emit(any(), any(), any(), any(), any(), any(), any()) }
+        coVerify(exactly = 0) { transitionEmitter.emit(any(), any(), any(), any(), any(), any(), any(), any()) }
     }
 
     @Test
@@ -1797,7 +1830,7 @@ class GeofenceRepositoryTest : RobolectricTest() {
 
         repository.refresh(latitude = 0.0, longitude = 0.0)
 
-        coVerify(exactly = 0) { transitionEmitter.emit(any(), any(), any(), any(), any(), any(), any()) }
+        coVerify(exactly = 0) { transitionEmitter.emit(any(), any(), any(), any(), any(), any(), any(), any()) }
     }
 
     @Test
@@ -1816,7 +1849,7 @@ class GeofenceRepositoryTest : RobolectricTest() {
 
         repository.refresh(latitude = 0.0, longitude = 0.0)
 
-        coVerify(exactly = 0) { transitionEmitter.emit(any(), any(), any(), any(), any(), any(), any()) }
+        coVerify(exactly = 0) { transitionEmitter.emit(any(), any(), any(), any(), any(), any(), any(), any()) }
     }
 
     @Test
@@ -1832,7 +1865,7 @@ class GeofenceRepositoryTest : RobolectricTest() {
 
         repository.refresh(latitude = 0.0, longitude = 0.0)
 
-        coVerify(exactly = 0) { transitionEmitter.emit(any(), any(), any(), any(), any(), any(), any()) }
+        coVerify(exactly = 0) { transitionEmitter.emit(any(), any(), any(), any(), any(), any(), any(), any()) }
     }
 
     @Test
@@ -1852,7 +1885,7 @@ class GeofenceRepositoryTest : RobolectricTest() {
 
         repository.restoreFromCache()
 
-        coVerify(exactly = 0) { transitionEmitter.emit(any(), any(), any(), any(), any(), any(), any()) }
+        coVerify(exactly = 0) { transitionEmitter.emit(any(), any(), any(), any(), any(), any(), any(), any()) }
     }
 
     private fun sampleConfig(

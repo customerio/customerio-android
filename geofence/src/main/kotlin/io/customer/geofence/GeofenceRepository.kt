@@ -482,7 +482,8 @@ internal class GeofenceRepositoryImpl(
                 timestampSeconds = timestamp,
                 geofenceName = region.name,
                 metadata = region.metadata,
-                geosetIds = region.geosetIds
+                geosetIds = region.geosetIds,
+                monitorsExit = GeofenceTransitionType.EXIT in region.transitionTypes
             )
         }
     }

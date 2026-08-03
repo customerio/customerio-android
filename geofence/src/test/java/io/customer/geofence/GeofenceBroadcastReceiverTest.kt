@@ -24,6 +24,7 @@ import io.mockk.mockk
 import io.mockk.slot
 import io.mockk.verify
 import java.io.File
+import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -684,6 +685,81 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
         )
 
         coVerify(exactly = 1) { mockScheduler.schedule(any()) }
+    }
+
+    @Test
+    fun dispatchTransition_givenReportedEnterForFenceMonitoringExit_expectDropped() = runTest {
+        every { mockStore.hasEmittedEnter("user-42", "biz-geofence-2") } returns true
+
+        receiver.dispatchTransition(
+            gmsTransitionType = Geofence.GEOFENCE_TRANSITION_ENTER,
+            triggeringGeofenceIds = listOf("biz-geofence-2"),
+            latitude = 51.5074,
+            longitude = -0.1278
+        )
+
+        coVerify(exactly = 0) { mockScheduler.schedule(any()) }
+    }
+
+    @Test
+    fun dispatchTransition_givenReportedEnterForEnterOnlyFence_expectDelivered() = runTest {
+        // An enter-only fence never reports an EXIT, so nothing would ever clear its mark. Honouring
+        // the guard here would suppress every arrival after the first for the life of the
+        // registration — the mirror of the exit-only exemption above.
+        every { mockStore.hasEmittedEnter("user-42", "biz-geofence-2") } returns true
+        every { mockStore.getCachedRegion("biz-geofence-2") } returns GeofenceRegion(
+            id = "biz-geofence-2",
+            latitude = 0.0,
+            longitude = 0.0,
+            radius = 100f,
+            transitionTypes = listOf(GeofenceTransitionType.ENTER)
+        )
+
+        receiver.dispatchTransition(
+            gmsTransitionType = Geofence.GEOFENCE_TRANSITION_ENTER,
+            triggeringGeofenceIds = listOf("biz-geofence-2"),
+            latitude = 51.5074,
+            longitude = -0.1278
+        )
+
+        coVerify(exactly = 1) { mockScheduler.schedule(any()) }
+    }
+
+    @Test
+    fun dispatchTransition_givenConcurrentBroadcastsForSameFence_expectBookkeepingSerialized() = runTest {
+        // Each broadcast is handled on its own scope, so without the lock an ENTER and an EXIT for
+        // the same fence interleave their read-decide-persist: the ENTER reads the mark the EXIT is
+        // about to clear and is dropped, then the EXIT drops containment, leaving the device inside
+        // with no record and its next EXIT dropped too.
+        val inFlight = AtomicInteger()
+        val peakInFlight = AtomicInteger()
+        coEvery { mockScheduler.schedule(any()) } coAnswers {
+            val depth = inFlight.incrementAndGet()
+            peakInFlight.updateAndGet { peak -> maxOf(peak, depth) }
+            delay(100)
+            inFlight.decrementAndGet()
+        }
+
+        val enter = launch {
+            receiver.dispatchTransition(
+                gmsTransitionType = Geofence.GEOFENCE_TRANSITION_ENTER,
+                triggeringGeofenceIds = listOf("biz-1"),
+                latitude = 0.0,
+                longitude = 0.0
+            )
+        }
+        val exit = launch {
+            receiver.dispatchTransition(
+                gmsTransitionType = Geofence.GEOFENCE_TRANSITION_EXIT,
+                triggeringGeofenceIds = listOf("biz-1"),
+                latitude = 0.0,
+                longitude = 0.0
+            )
+        }
+        enter.join()
+        exit.join()
+
+        peakInFlight.get() shouldBeEqualTo 1
     }
 
     @Test

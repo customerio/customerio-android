@@ -27,8 +27,9 @@ import kotlinx.serialization.builtins.serializer
  *   registeredIds               — subset live in OS; drives the stale-cleanup diff.
  *   enteredIds                  — fences the device is inside; goes with the registrations it
  *                                  describes, since sign-out drops those from the OS.
- *   emittedEnterIds             — fences we have reported entered; the next user must not inherit
- *                                  a suppressed ENTER for a fence they were never told about.
+ *   emittedEnterIds             — fences we have reported entered, plus the userId they belong to;
+ *                                  the next user must not inherit a suppressed ENTER for a fence
+ *                                  they were never told about.
  *   lastApiFetchLocation        — anchor for the tier-B distance check (rarely updated).
  *   lastMovementTriggerLocation — user's location at the most recent movement-trigger
  *                                  registration; used by boot restore to re-center
@@ -105,12 +106,15 @@ internal interface GeofenceRegionStore {
      * Conflating them would swallow real crossings, because a sync seeds containment moments before
      * the OS reports the matching ENTER — measured at 20-46ms on a Pixel 6.
      *
+     * Scoped to [userId], since a direct A-to-B identify publishes no `ResetEvent`: without scoping,
+     * B would inherit A's marks for every fence that stayed registered and lose their first arrival.
+     *
      * Set by [markEnterEmitted] once an ENTER is durably persisted, cleared by [claimExit].
      */
-    fun hasEmittedEnter(geofenceId: String): Boolean
+    fun hasEmittedEnter(userId: String, geofenceId: String): Boolean
 
-    /** Records that an ENTER for [geofenceId] reached the delivery pipeline. Idempotent. */
-    fun markEnterEmitted(geofenceId: String)
+    /** Records that an ENTER for [geofenceId] reached the delivery pipeline for [userId]. Idempotent. */
+    fun markEnterEmitted(userId: String, geofenceId: String)
 
     /**
      * Drops reported-ENTER marks for fences no longer in [registeredIds], so the set can't outlive
@@ -209,27 +213,40 @@ internal class GeofenceRegionStoreImpl(
         writeJson(KEY_ENTERED_IDS, ID_SET_SERIALIZER, (getEnteredIds() intersect registeredIds) + inside)
     }
 
-    override fun hasEmittedEnter(geofenceId: String): Boolean =
-        geofenceId in (readJson(KEY_EMITTED_ENTER_IDS, ID_SET_SERIALIZER) ?: emptySet())
+    override fun hasEmittedEnter(userId: String, geofenceId: String): Boolean = synchronized(enteredLock) {
+        if (readEmittedEnterOwner() != userId) return@synchronized false
+        geofenceId in readEmittedEnterIds()
+    }
 
     // Shares [enteredLock] with the entered set: both are read-modify-write on the same prefs file,
     // and one transition touches both.
-    override fun markEnterEmitted(geofenceId: String) = synchronized(enteredLock) {
-        val current = readJson(KEY_EMITTED_ENTER_IDS, ID_SET_SERIALIZER) ?: emptySet()
+    override fun markEnterEmitted(userId: String, geofenceId: String) = synchronized(enteredLock) {
+        // The set belongs to one identity at a time, so a different owner makes it stale: replace it
+        // rather than add to it.
+        val sameOwner = readEmittedEnterOwner() == userId
+        val current = if (sameOwner) readEmittedEnterIds() else emptySet()
+        if (!sameOwner) {
+            prefs.edit { putString(KEY_EMITTED_ENTER_OWNER, userId) }
+        }
         if (geofenceId !in current) {
             writeJson(KEY_EMITTED_ENTER_IDS, ID_SET_SERIALIZER, current + geofenceId)
         }
     }
 
+    private fun readEmittedEnterIds(): Set<String> =
+        readJson(KEY_EMITTED_ENTER_IDS, ID_SET_SERIALIZER) ?: emptySet()
+
+    private fun readEmittedEnterOwner(): String? = prefs.read { getString(KEY_EMITTED_ENTER_OWNER, null) }
+
     private fun clearEnterEmitted(geofenceId: String) = synchronized(enteredLock) {
-        val current = readJson(KEY_EMITTED_ENTER_IDS, ID_SET_SERIALIZER) ?: emptySet()
+        val current = readEmittedEnterIds()
         if (geofenceId in current) {
             writeJson(KEY_EMITTED_ENTER_IDS, ID_SET_SERIALIZER, current - geofenceId)
         }
     }
 
     override fun pruneEmittedEnterIds(registeredIds: Set<String>) = synchronized(enteredLock) {
-        val current = readJson(KEY_EMITTED_ENTER_IDS, ID_SET_SERIALIZER) ?: emptySet()
+        val current = readEmittedEnterIds()
         val retained = current intersect registeredIds
         if (retained.size != current.size) {
             writeJson(KEY_EMITTED_ENTER_IDS, ID_SET_SERIALIZER, retained)
@@ -289,6 +306,7 @@ internal class GeofenceRegionStoreImpl(
             remove(KEY_REGISTERED_IDS)
             remove(KEY_ENTERED_IDS)
             remove(KEY_EMITTED_ENTER_IDS)
+            remove(KEY_EMITTED_ENTER_OWNER)
             remove(KEY_LAST_REGISTRATION_UPTIME)
             remove(KEY_LAST_REGISTRATION_PACKAGE_UPDATE_TIME)
             remove(KEY_LAST_SYNC)
@@ -342,6 +360,7 @@ internal class GeofenceRegionStoreImpl(
         const val KEY_REGISTERED_IDS = "registered_ids"
         const val KEY_ENTERED_IDS = "entered_ids"
         const val KEY_EMITTED_ENTER_IDS = "emitted_enter_ids"
+        const val KEY_EMITTED_ENTER_OWNER = "emitted_enter_owner"
         const val KEY_CACHED_CONFIG = "cached_config"
         const val KEY_LAST_API_FETCH_LOCATION = "last_api_fetch_location"
         const val KEY_LAST_MOVEMENT_TRIGGER_LOCATION = "last_movement_trigger_location"

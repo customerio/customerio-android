@@ -12,6 +12,7 @@ import io.customer.geofence.di.geofenceRegionStore
 import io.customer.geofence.di.geofenceServices
 import io.customer.geofence.di.geofenceTransitionEmitter
 import io.customer.sdk.communication.Event
+import io.customer.sdk.core.di.AndroidSDKComponent
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.di.clock
 import io.customer.sdk.core.di.setupAndroidComponent
@@ -20,6 +21,8 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withTimeoutOrNull
 
 /** Receives OS geofence transition callbacks and dispatches them to the SDK. */
@@ -94,7 +97,6 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
         val timestamp = SDKComponent.clock.currentTimeSeconds()
         val dispatchStartUptimeMs = SDKComponent.clock.elapsedRealtime()
         val androidComponent = SDKComponent.android()
-        val transitionEmitter = androidComponent.geofenceTransitionEmitter
         // Defense-in-depth against orphans (failed clearAll, app-data wipe, SDK
         // ID-format changes): events for unregistered IDs are dropped and the OS-side
         // registration is removed so it stops firing.
@@ -128,53 +130,17 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
                 }
             }
 
-            // Containment bookkeeping runs before the identity checks below: being inside a fence is
-            // a physical fact, independent of whether the transition is deliverable.
-            val store = androidComponent.geofenceRegionStore
-            val cachedRegion = store.getCachedRegion(geofenceId)
-            when (transition) {
-                Event.GeofenceTransition.ENTER -> store.recordEntered(geofenceId)
-                // claimExit runs first either way so the record is consumed atomically; the checks
-                // after it only decide whether an unmatched EXIT is trusted.
-                //
-                // Two cases where an absent record proves nothing, so the EXIT is delivered:
-                // a region registered without ENTER monitoring can never produce one to record, and
-                // an install upgraded from an SDK without the set has no data until the first
-                // registration seeds it. A missing cache row is treated the same way — unknown
-                // transition types can't justify dropping a crossing.
-                Event.GeofenceTransition.EXIT -> if (
-                    !store.claimExit(geofenceId) &&
-                    store.hasContainmentRecord() &&
-                    cachedRegion?.transitionTypes?.contains(GeofenceTransitionType.ENTER) == true
-                ) {
-                    // GMS reports EXIT for a fence it never reported as entered — an artifact of its
-                    // own state reconciliation, not a crossing. Delivering it fires EXIT-triggered
-                    // campaigns at people who were never there.
-                    logger.logExitDroppedNeverEntered(geofenceId)
-                    return@forEach
-                }
+            // Serialized across broadcasts: each runs on its own scope, so two transitions for the
+            // same fence would otherwise interleave read-decide-persist and lose a containment record.
+            transitionMutex.withLock {
+                handleBusinessTransition(
+                    geofenceId = geofenceId,
+                    transition = transition,
+                    timestamp = timestamp,
+                    androidComponent = androidComponent,
+                    logger = logger
+                )
             }
-
-            // Snapshot userId so a sign-out + sign-in before delivery can't reattribute this
-            // transition. Empty userId is treated as "not identified" per `isUserIdentified`.
-            val userId = androidComponent.secureUserStore.getUserId()?.takeIf { it.isNotEmpty() }
-            // Geofencing is identified-only: the backend rejects anonymous geofence tracks, so an
-            // anonymous transition has no deliverable path. Drop it before spending a cooldown slot
-            // or persisting a row neither channel could ever send.
-            if (userId == null) {
-                logger.logTransitionDroppedAnonymous(geofenceId, transition.name)
-                return@forEach
-            }
-
-            transitionEmitter.emit(
-                geofenceId = geofenceId,
-                transition = transition,
-                userId = userId,
-                timestampSeconds = timestamp,
-                geofenceName = cachedRegion?.name,
-                metadata = cachedRegion?.metadata ?: emptyMap(),
-                geosetIds = cachedRegion?.geosetIds ?: emptyList()
-            )
         }
 
         // Hold the goAsync window open until the refresh lands so the OS doesn't kill a
@@ -189,6 +155,63 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
         }
     }
 
+    private suspend fun handleBusinessTransition(
+        geofenceId: String,
+        transition: Event.GeofenceTransition,
+        timestamp: Long,
+        androidComponent: AndroidSDKComponent,
+        logger: GeofenceLogger
+    ) {
+        // Containment bookkeeping runs before the identity checks below: being inside a fence is
+        // a physical fact, independent of whether the transition is deliverable.
+        val store = androidComponent.geofenceRegionStore
+        val cachedRegion = store.getCachedRegion(geofenceId)
+        when (transition) {
+            Event.GeofenceTransition.ENTER -> store.recordEntered(geofenceId)
+            // claimExit runs first either way so the record is consumed atomically; the checks
+            // after it only decide whether an unmatched EXIT is trusted.
+            //
+            // Two cases where an absent record proves nothing, so the EXIT is delivered:
+            // a region registered without ENTER monitoring can never produce one to record, and
+            // an install upgraded from an SDK without the set has no data until the first
+            // registration seeds it. A missing cache row is treated the same way — unknown
+            // transition types can't justify dropping a crossing.
+            Event.GeofenceTransition.EXIT -> if (
+                !store.claimExit(geofenceId) &&
+                store.hasContainmentRecord() &&
+                cachedRegion?.transitionTypes?.contains(GeofenceTransitionType.ENTER) == true
+            ) {
+                // GMS reports EXIT for a fence it never reported as entered — an artifact of its
+                // own state reconciliation, not a crossing. Delivering it fires EXIT-triggered
+                // campaigns at people who were never there.
+                logger.logExitDroppedNeverEntered(geofenceId)
+                return
+            }
+        }
+
+        // Snapshot userId so a sign-out + sign-in before delivery can't reattribute this
+        // transition. Empty userId is treated as "not identified" per `isUserIdentified`.
+        val userId = androidComponent.secureUserStore.getUserId()?.takeIf { it.isNotEmpty() }
+        // Geofencing is identified-only: the backend rejects anonymous geofence tracks, so an
+        // anonymous transition has no deliverable path. Drop it before spending a cooldown slot
+        // or persisting a row neither channel could ever send.
+        if (userId == null) {
+            logger.logTransitionDroppedAnonymous(geofenceId, transition.name)
+            return
+        }
+
+        androidComponent.geofenceTransitionEmitter.emit(
+            geofenceId = geofenceId,
+            transition = transition,
+            userId = userId,
+            timestampSeconds = timestamp,
+            geofenceName = cachedRegion?.name,
+            metadata = cachedRegion?.metadata ?: emptyMap(),
+            geosetIds = cachedRegion?.geosetIds ?: emptyList(),
+            monitorsExit = cachedRegion?.transitionTypes?.contains(GeofenceTransitionType.EXIT) == true
+        )
+    }
+
     private fun transitionName(gmsTransitionType: Int): String = when (gmsTransitionType) {
         Geofence.GEOFENCE_TRANSITION_ENTER -> "ENTER"
         Geofence.GEOFENCE_TRANSITION_EXIT -> "EXIT"
@@ -200,5 +223,8 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
         // goAsync grants ~10s before the OS considers the receiver blocked; total budget for
         // one dispatch (persistence + GMS awaits + movement-refresh wait), with headroom.
         private const val DISPATCH_WAIT_BUDGET_MS = 8_000L
+
+        // Process-wide: a receiver instance lives for one broadcast, so the lock has to outlive it.
+        private val transitionMutex = Mutex()
     }
 }

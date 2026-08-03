@@ -185,49 +185,70 @@ class GeofenceRegionStoreTest : RobolectricTest() {
 
     @Test
     fun hasEmittedEnter_givenNothingReported_expectFalse() {
-        store.hasEmittedEnter("biz-1").shouldBeFalse()
+        store.hasEmittedEnter(USER, "biz-1").shouldBeFalse()
     }
 
     @Test
     fun markEnterEmitted_givenCalledTwice_expectStillReportedAndIdempotent() {
-        store.markEnterEmitted("biz-1")
-        store.markEnterEmitted("biz-1")
+        store.markEnterEmitted(USER, "biz-1")
+        store.markEnterEmitted(USER, "biz-1")
 
-        store.hasEmittedEnter("biz-1").shouldBeTrue()
+        store.hasEmittedEnter(USER, "biz-1").shouldBeTrue()
     }
 
     @Test
     fun claimExit_givenEnterReported_expectMarkClearedWithContainment() {
         store.recordEntered("biz-1")
-        store.markEnterEmitted("biz-1")
+        store.markEnterEmitted(USER, "biz-1")
 
         store.claimExit("biz-1").shouldBeTrue()
 
         // Both drop together: the mark can't be left behind for a delivery path that may not run.
         store.getEnteredIds().shouldBeEmpty()
-        store.hasEmittedEnter("biz-1").shouldBeFalse()
+        store.hasEmittedEnter(USER, "biz-1").shouldBeFalse()
     }
 
     @Test
     fun claimExit_givenNeverEntered_expectMarkRetained() {
-        store.markEnterEmitted("biz-1")
+        store.markEnterEmitted(USER, "biz-1")
 
         store.claimExit("biz-1").shouldBeFalse()
 
         // An unclaimed EXIT is a GMS artifact, not a departure — re-arming on it would let the next
         // OS re-report of ENTER through as a fresh arrival.
-        store.hasEmittedEnter("biz-1").shouldBeTrue()
+        store.hasEmittedEnter(USER, "biz-1").shouldBeTrue()
+    }
+
+    @Test
+    fun hasEmittedEnter_givenMarkOwnedByAnotherUser_expectFalse() {
+        store.markEnterEmitted(USER, "biz-1")
+
+        // A direct A-to-B identify publishes no ResetEvent, so B reaches a still-registered fence
+        // with A's mark in place. Honouring it would swallow B's first arrival.
+        store.hasEmittedEnter(OTHER_USER, "biz-1").shouldBeFalse()
+    }
+
+    @Test
+    fun markEnterEmitted_givenNewOwner_expectPreviousUsersMarksDiscarded() {
+        store.markEnterEmitted(USER, "biz-1")
+
+        store.markEnterEmitted(OTHER_USER, "biz-2")
+
+        store.hasEmittedEnter(OTHER_USER, "biz-2").shouldBeTrue()
+        store.hasEmittedEnter(OTHER_USER, "biz-1").shouldBeFalse()
+        // The set belongs to one identity at a time, so A's marks are gone rather than parked.
+        store.hasEmittedEnter(USER, "biz-1").shouldBeFalse()
     }
 
     @Test
     fun pruneEmittedEnterIds_expectMarksDroppedForUnregisteredFences() {
-        store.markEnterEmitted("biz-kept")
-        store.markEnterEmitted("biz-evicted")
+        store.markEnterEmitted(USER, "biz-kept")
+        store.markEnterEmitted(USER, "biz-evicted")
 
         store.pruneEmittedEnterIds(setOf("biz-kept"))
 
-        store.hasEmittedEnter("biz-kept").shouldBeTrue()
-        store.hasEmittedEnter("biz-evicted").shouldBeFalse()
+        store.hasEmittedEnter(USER, "biz-kept").shouldBeTrue()
+        store.hasEmittedEnter(USER, "biz-evicted").shouldBeFalse()
     }
 
     @Test
@@ -235,14 +256,14 @@ class GeofenceRegionStoreTest : RobolectricTest() {
         // Without the prune the mark outlives the monitoring that would clear it: a fence dropped
         // from the nearest set while the device is inside never reports its EXIT, so a genuine
         // revisit months later would be swallowed.
-        store.markEnterEmitted("biz-1")
+        store.markEnterEmitted(USER, "biz-1")
 
         // Evicted from the monitored set — no EXIT is ever delivered for it.
         store.pruneEmittedEnterIds(setOf("biz-other"))
         // Re-registered on a later sync when the device comes back into range.
         store.pruneEmittedEnterIds(setOf("biz-1"))
 
-        store.hasEmittedEnter("biz-1").shouldBeFalse()
+        store.hasEmittedEnter(USER, "biz-1").shouldBeFalse()
     }
 
     @Test
@@ -250,14 +271,14 @@ class GeofenceRegionStoreTest : RobolectricTest() {
         // The two sets answer different questions — where the device is vs. what we have sent — and
         // the geometry seeding writes only the former. Coupling them would let a sync's reconcile
         // suppress the OS ENTER that follows it milliseconds later.
-        store.markEnterEmitted("biz-1")
+        store.markEnterEmitted(USER, "biz-1")
 
         store.getEnteredIds().shouldBeEmpty()
 
         store.reconcileEnteredIds(registeredIds = setOf("biz-2"), inside = setOf("biz-2"))
 
-        store.hasEmittedEnter("biz-1").shouldBeTrue()
-        store.hasEmittedEnter("biz-2").shouldBeFalse()
+        store.hasEmittedEnter(USER, "biz-1").shouldBeTrue()
+        store.hasEmittedEnter(USER, "biz-2").shouldBeFalse()
     }
 
     @Test
@@ -448,7 +469,7 @@ class GeofenceRegionStoreTest : RobolectricTest() {
         store.saveCachedConfig(config)
         store.saveRegisteredIds(setOf("biz-1"))
         store.recordEntered("biz-1")
-        store.markEnterEmitted("biz-1")
+        store.markEnterEmitted(USER, "biz-1")
         store.saveLastApiFetchLocation(GeofenceLocation(1.0, 2.0))
         store.saveLastMovementTriggerLocation(GeofenceLocation(3.0, 4.0))
         store.setLastRegistrationUptime(99_999L)
@@ -462,7 +483,7 @@ class GeofenceRegionStoreTest : RobolectricTest() {
         // Goes with the registrations it describes — sign-out drops those from the OS.
         store.getEnteredIds().shouldBeEmpty()
         // The next user must not inherit a suppressed ENTER for a fence they were never told about.
-        store.hasEmittedEnter("biz-1").shouldBeFalse()
+        store.hasEmittedEnter(USER, "biz-1").shouldBeFalse()
         store.getLastApiFetchLocation().shouldBeNull()
         store.getLastMovementTriggerLocation().shouldBeNull()
         store.getLastRegistrationUptime().shouldBeNull()
@@ -588,6 +609,11 @@ class GeofenceRegionStoreTest : RobolectricTest() {
             maxBusinessGeofences = 19,
             maxMonitoringDistance = 1_000_000f
         )
+    }
+
+    private companion object {
+        private const val USER = "user-1"
+        private const val OTHER_USER = "user-2"
     }
 
     private fun writeRaw(key: String, value: String) {

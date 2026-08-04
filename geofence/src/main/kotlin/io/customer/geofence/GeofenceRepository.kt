@@ -12,8 +12,12 @@ import io.customer.sdk.communication.Event
 import io.customer.sdk.core.util.Clock
 import io.customer.sdk.data.store.SecureUserStore
 import java.util.concurrent.atomic.AtomicBoolean
+import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.seconds
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withTimeoutOrNull
 
 /**
  * Geofence sync pipeline. Two public entry points:
@@ -63,18 +67,24 @@ internal class GeofenceRepositoryImpl(
     private val logger: GeofenceLogger
 ) : GeofenceRepository {
 
-    // Dedup gate shared by refresh() and handleMovement(). If either is already running,
-    // a concurrent trigger drops fast so we don't burn redundant work. Released in
-    // `finally` so a failure or cancellation doesn't permanently latch the gate.
+    // One sync pass at a time. refresh() drops when the slot is taken — identify and app-launch
+    // fire together and only one needs to run — while a movement pass waits for it instead, see
+    // [awaitRefreshSlot]. Released in `finally` so a failure or cancellation can't latch the gate.
     private val refreshInProgress = AtomicBoolean(false)
 
     // Serializes state-mutation against reset() (sign-out). Held only around the
     // write block — the long-running API call happens outside the lock.
     private val stateMutex = Mutex()
 
+    private fun tryTakeRefreshSlot(): Boolean = refreshInProgress.compareAndSet(false, true)
+
+    private fun releaseRefreshSlot() {
+        refreshInProgress.set(false)
+    }
+
     @RequiresPermission(Manifest.permission.ACCESS_FINE_LOCATION)
     override suspend fun refresh(latitude: Double, longitude: Double): Result<Unit> {
-        if (!refreshInProgress.compareAndSet(false, true)) {
+        if (!tryTakeRefreshSlot()) {
             logger.logSyncSkipped("refresh already in progress")
             return Result.success(Unit)
         }
@@ -105,7 +115,7 @@ internal class GeofenceRepositoryImpl(
                 }
             }
         } finally {
-            refreshInProgress.set(false)
+            releaseRefreshSlot()
         }
     }
 
@@ -176,10 +186,27 @@ internal class GeofenceRepositoryImpl(
 
     private fun osStateWiped(): Boolean = osStateWipedByReboot() || osStateWipedByAppUpdate()
 
+    /**
+     * Takes the in-flight slot for a movement pass, waiting rather than dropping: the OS holds a
+     * fired trigger in the outside state, so a pass that returns without re-centring it stops
+     * discovery until the next app open, reboot or update.
+     */
+    private suspend fun awaitRefreshSlot(): Boolean {
+        if (tryTakeRefreshSlot()) return true
+        return withTimeoutOrNull(MOVEMENT_SLOT_WAIT) {
+            // Nothing suspends between a winning CAS and the return, so a timeout can't land in
+            // between and leave the flag set with nobody to clear it.
+            while (!tryTakeRefreshSlot()) {
+                delay(MOVEMENT_SLOT_POLL)
+            }
+            true
+        } == true
+    }
+
     @RequiresPermission(Manifest.permission.ACCESS_FINE_LOCATION)
     override suspend fun handleMovement(latitude: Double, longitude: Double): Result<Unit> {
-        if (!refreshInProgress.compareAndSet(false, true)) {
-            logger.logSyncSkipped("refresh already in progress")
+        if (!awaitRefreshSlot()) {
+            logger.logSyncSkipped("refresh already in progress after waiting")
             return Result.success(Unit)
         }
         try {
@@ -212,7 +239,7 @@ internal class GeofenceRepositoryImpl(
                 performLocalRefresh(userId, latitude, longitude, config, containmentEpoch)
             }
         } finally {
-            refreshInProgress.set(false)
+            releaseRefreshSlot()
         }
     }
 
@@ -530,4 +557,11 @@ internal class GeofenceRepositoryImpl(
         radius = radiusMeters,
         transitionTypes = listOf(GeofenceTransitionType.EXIT)
     )
+
+    private companion object {
+        // Bounded below by a local pass (~90ms measured), above by the receiver's
+        // DISPATCH_WAIT_BUDGET_MS — the wait still has to leave room to re-register.
+        val MOVEMENT_SLOT_WAIT = 3.seconds
+        val MOVEMENT_SLOT_POLL = 50.milliseconds
+    }
 }

@@ -2,8 +2,10 @@ package io.customer.geofence
 
 import android.annotation.SuppressLint
 import io.customer.geofence.store.GeofenceRegionStore
+import io.customer.location.LocationCoordinates
 import io.customer.sdk.data.store.SecureUserStore
 import java.util.concurrent.atomic.AtomicBoolean
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
@@ -170,7 +172,7 @@ internal class GeofenceServicesImpl(
         regionStore.clearLastMovementTriggerLocation()
         logger.logGeofenceStateResetOnSignOut()
         scope.launch {
-            repository.reset()
+            runSafely("sign-out reset") { repository.reset() }
         }
     }
 
@@ -183,6 +185,14 @@ internal class GeofenceServicesImpl(
         if (latitude == null || longitude == null) {
             lastSkippedForNoLocation.set(true)
             logger.logSyncSkippedNoLocation(reason)
+            return null
+        }
+        // NaN, infinite or out-of-range coordinates make `Location.distanceBetween` throw, which the
+        // ranking and containment maths would hit part-way through the sync. Rearm as for a missing
+        // fix so the next usable one drives a sync.
+        if (!LocationCoordinates.isValid(latitude, longitude)) {
+            lastSkippedForNoLocation.set(true)
+            logger.logSyncSkippedInvalidLocation(reason, latitude, longitude)
             return null
         }
         if (!permissionChecker.hasRequiredLocationPermissions()) {
@@ -198,9 +208,24 @@ internal class GeofenceServicesImpl(
         // permissions are revoked, so no mid-flight revocation to handle.
         @SuppressLint("MissingPermission")
         val syncJob = scope.launch {
-            action(latitude, longitude)
+            runSafely("sync ($reason)") { action(latitude, longitude) }
         }
         return syncJob
+    }
+
+    /**
+     * Backstop for work launched on [scope]. It carries a `SupervisorJob` and no exception handler,
+     * so an exception escaping here would otherwise reach the thread's default handler and take the
+     * host app down — a geofence sync must never be able to do that. Fatal [Error]s propagate.
+     */
+    private suspend fun runSafely(description: String, block: suspend () -> Unit) {
+        try {
+            block()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            logger.logSyncFailed("$description threw ${e.javaClass.simpleName}: ${e.message}")
+        }
     }
 
     private companion object {

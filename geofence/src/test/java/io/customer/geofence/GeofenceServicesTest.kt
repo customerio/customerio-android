@@ -115,6 +115,57 @@ class GeofenceServicesTest : RobolectricTest() {
     }
 
     @Test
+    fun onMovementTriggerExit_givenUnusableFix_expectSkipAndStayArmed() = runTest(StandardTestDispatcher()) {
+        // NaN, infinite and out-of-range coordinates all make Location.distanceBetween throw, part
+        // way through a sync that has no exception handler above it.
+        val services = servicesWith(this)
+
+        val unusable = listOf(
+            Double.NaN to 2.0,
+            1.0 to Double.NaN,
+            Double.POSITIVE_INFINITY to 2.0,
+            91.0 to 2.0,
+            1.0 to 181.0
+        )
+        unusable.forEach { (lat, lng) ->
+            services.onMovementTriggerExit(latitude = lat, longitude = lng).shouldBeNull()
+        }
+        advanceUntilIdle()
+
+        coVerify(exactly = 0) { repository.handleMovement(any(), any()) }
+        coVerify(exactly = 0) { repository.refresh(any(), any()) }
+        verify(exactly = unusable.size) { logger.logSyncSkippedInvalidLocation(any(), any(), any()) }
+        // Armed like a missing fix, so the next usable one drives a sync.
+        services.isAwaitingLocation() shouldBeEqualTo true
+    }
+
+    @Test
+    fun onMovementTriggerExit_givenRepositoryThrows_expectLoggedAndNotRethrown() = runTest(StandardTestDispatcher()) {
+        // The services scope carries a SupervisorJob and no exception handler, so anything escaping
+        // here would reach the thread's default handler and take the host app down.
+        coEvery { repository.handleMovement(any(), any()) } throws IllegalStateException("boom")
+        val services = servicesWith(this)
+
+        val job = services.onMovementTriggerExit(latitude = 1.0, longitude = 2.0)
+        advanceUntilIdle()
+
+        job.shouldNotBeNull()
+        job.isCancelled shouldBeEqualTo false
+        verify { logger.logSyncFailed(match { it?.contains("IllegalStateException") == true }) }
+    }
+
+    @Test
+    fun onUserSignedOut_givenResetThrows_expectLoggedAndNotRethrown() = runTest(StandardTestDispatcher()) {
+        coEvery { repository.reset() } throws IllegalStateException("boom")
+        val services = servicesWith(this)
+
+        services.onUserSignedOut()
+        advanceUntilIdle()
+
+        verify { logger.logSyncFailed(match { it?.contains("IllegalStateException") == true }) }
+    }
+
+    @Test
     fun onMovementTriggerExit_givenPermissionsNotGranted_expectSkipAndLog() = runTest(StandardTestDispatcher()) {
         every { permissionChecker.hasRequiredLocationPermissions() } returns false
         val services = servicesWith(this)

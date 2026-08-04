@@ -96,6 +96,10 @@ internal class GeofenceLogger(private val logger: Logger) {
         logger.debug("Geofence sync skipped ($reason): no location available", tag = TAG)
     }
 
+    fun logSyncSkippedInvalidLocation(reason: String, latitude: Double, longitude: Double) {
+        logger.error("Geofence sync skipped ($reason): OS reported an unusable fix ($latitude, $longitude)", tag = TAG)
+    }
+
     fun logSyncSkippedNoPermission(reason: String) {
         logger.debug("Geofence sync skipped ($reason): location permissions not granted", tag = TAG)
     }

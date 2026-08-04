@@ -87,19 +87,94 @@ class GeofenceDistanceFilterTest : RobolectricTest() {
     }
 
     @Test
-    fun nearest_givenEquallyDistantRegions_expectStableInputOrder() {
-        // Two regions equally distant from origin — Kotlin's sortedBy is stable
-        val first = region("biz-first", 1.0, 0.0)
+    fun nearest_givenEquallyDistantRegions_expectOrderedByIdNotInputOrder() {
+        // Equally distant either side of the origin, supplied in reverse id order: the id tiebreak
+        // must decide, so the result can't depend on the server's response order.
         val second = region("biz-second", -1.0, 0.0)
+        val first = region("biz-first", 1.0, 0.0)
 
-        val result = filter.nearest(listOf(first, second), latitude = 0.0, longitude = 0.0, max = 2, maxDistanceMeters = noDistanceCap)
+        val result = filter.nearest(listOf(second, first), latitude = 0.0, longitude = 0.0, max = 2, maxDistanceMeters = noDistanceCap)
 
         result.map { it.id } shouldBeEqualTo listOf("biz-first", "biz-second")
+    }
+
+    @Test
+    fun nearest_givenSubMeterDistanceDifference_expectRoundingLetsIdTiebreakDecide() {
+        // Same centre, radii chosen so the boundary distances are 1000.4 m and 1000.2 m — a sub-meter
+        // gap that rounds to the same whole meter. On raw distance "biz-b" would sort first; rounding
+        // makes it a tie so the id decides, which is what keeps the order deterministic.
+        val centreDistance = region("probe", 0.01, 0.0).distanceTo(0.0, 0.0)
+        val a = region("biz-a", 0.01, 0.0, radius = centreDistance - 1000.4f)
+        val b = region("biz-b", 0.01, 0.0, radius = centreDistance - 1000.2f)
+
+        val result = filter.nearest(listOf(a, b), latitude = 0.0, longitude = 0.0, max = 2, maxDistanceMeters = noDistanceCap)
+
+        result.map { it.id } shouldBeEqualTo listOf("biz-a", "biz-b")
+    }
+
+    @Test
+    fun nearest_givenOccupiedRegionAndNearerCenteredRegions_expectOccupiedRegionKeptAndRankedFirst() {
+        // Device sits inside a 5 km region ~2.2 km from its center, so ranking on center distance
+        // would place it 4th and the count budget would evict it — leaving it unmonitored and its
+        // exit unreportable.
+        val occupied = region("biz-occupied", 0.02, 0.0, radius = 5_000f)
+        val small1 = region("biz-small-1", 0.001, 0.0) // ~110 m center, ~10 m edge
+        val small2 = region("biz-small-2", 0.002, 0.0) // ~221 m center, ~121 m edge
+        val small3 = region("biz-small-3", 0.003, 0.0) // ~332 m center, ~232 m edge
+
+        val result = filter.nearest(
+            listOf(small1, small2, small3, occupied),
+            latitude = 0.0,
+            longitude = 0.0,
+            max = 3,
+            maxDistanceMeters = noDistanceCap
+        )
+
+        // The occupied region sorts first at edge distance 0; the farthest small region is evicted.
+        result.map { it.id } shouldBeEqualTo listOf("biz-occupied", "biz-small-1", "biz-small-2")
+    }
+
+    @Test
+    fun nearest_givenOccupiedRegionCenterBeyondDistanceCap_expectRegionStillIncluded() {
+        // Center ~5.5 km away with an 8 km radius: the device is inside, but the center falls outside
+        // the 3 km cap, so measuring to the center would filter out a region containing the device.
+        val occupied = region("biz-occupied", 0.05, 0.0, radius = 8_000f)
+        // Control: neither the center (~11 km) nor the boundary (~11 km) is within the cap.
+        val beyond = region("biz-beyond", 0.1, 0.0)
+
+        val result = filter.nearest(
+            listOf(occupied, beyond),
+            latitude = 0.0,
+            longitude = 0.0,
+            max = 5,
+            maxDistanceMeters = 3_000f
+        )
+
+        result.map { it.id } shouldBeEqualTo listOf("biz-occupied")
+    }
+
+    @Test
+    fun nearest_givenLargeRegionWithCloserBoundary_expectRankedAheadOfNearerCenteredSmallRegion() {
+        // Applies to regions the device is outside too: a 2 km region centered ~2.2 km away has its
+        // boundary ~211 m off, nearer than a 100 m region centered ~1.1 km away.
+        val bigFar = region("biz-big-far", 0.02, 0.0, radius = 2_000f)
+        val smallNear = region("biz-small-near", 0.01, 0.0)
+
+        val result = filter.nearest(
+            listOf(smallNear, bigFar),
+            latitude = 0.0,
+            longitude = 0.0,
+            max = 2,
+            maxDistanceMeters = noDistanceCap
+        )
+
+        result.map { it.id } shouldBeEqualTo listOf("biz-big-far", "biz-small-near")
     }
 
     private fun region(
         id: String,
         latitude: Double,
-        longitude: Double
-    ) = GeofenceRegion(id = id, latitude = latitude, longitude = longitude, radius = 100f)
+        longitude: Double,
+        radius: Float = 100f
+    ) = GeofenceRegion(id = id, latitude = latitude, longitude = longitude, radius = radius)
 }

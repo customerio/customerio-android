@@ -453,7 +453,7 @@ internal class GeofenceRepositoryImpl(
                 // Identity can change during the awaited GMS call, and reset doesn't clear pending
                 // delivery rows — never queue a synthetic ENTER for a signed-out/switched user.
                 if (secureUserStore.getUserId() == userId) {
-                    emitInitialEnters(nearest, unchangedRegistered, userId)
+                    emitInitialEnters(nearest, unchangedRegistered, userId, latitude, longitude)
                 } else {
                     logger.logSyncSkipped("user changed during refresh — initial-enter synthesis skipped")
                 }
@@ -469,21 +469,25 @@ internal class GeofenceRepositoryImpl(
      * an unchanged re-register stays silent. Cooldown-deduped, so a real GMS ENTER and this one
      * collapse to one event.
      *
-     * Containment is read back from the store, not recomputed: reconcile has already applied this
-     * fix's geometry and any departure reported since, so a second pass could synthesize an ENTER
-     * for a fence we were just told we left.
+     * Requires the stored containment record and this fix's geometry to agree — reconcile carries a
+     * record forward for a still-registered fence, so it can outlive the visit.
      */
     private suspend fun emitInitialEnters(
         candidates: List<GeofenceRegion>,
         unchangedRegisteredIds: Set<String>,
-        userId: String
+        userId: String,
+        latitude: Double,
+        longitude: Double
     ) {
         val timestamp = clock.currentTimeSeconds()
         val contained = store.getEnteredIds()
         candidates.forEach { region ->
             val newlyRegistered = region.id !in unchangedRegisteredIds
             val monitorsEnter = GeofenceTransitionType.ENTER in region.transitionTypes
-            if (!newlyRegistered || !monitorsEnter || region.id !in contained) return@forEach
+            // Both: a carried-forward record can outlive the visit, and geometry alone ignores an
+            // EXIT reported while GMS was awaited.
+            val insideNow = region.distanceTo(latitude, longitude) <= region.radius
+            if (!newlyRegistered || !monitorsEnter || region.id !in contained || !insideNow) return@forEach
             logger.logInitialEnterInside(region.id)
             transitionEmitter.emit(
                 geofenceId = region.id,

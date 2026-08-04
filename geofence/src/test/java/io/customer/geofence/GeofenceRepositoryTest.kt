@@ -1818,6 +1818,39 @@ class GeofenceRepositoryTest : RobolectricTest() {
     }
 
     @Test
+    fun refresh_givenStaleContainmentRecordAndDeviceOutside_expectNoInitialEnter() = runTest {
+        // reconcile carries containment forward for fences that stay registered, so a param-drift
+        // re-add can find a record that outlived the visit. Geometry has to agree before we
+        // synthesize, or we report an arrival somewhere the device left long ago.
+        every { secureUserStore.getUserId() } returns "user-42"
+        every { clock.currentTimeMillis() } returns 200_000_000_000L
+        every { store.getLastSyncTimestamp() } returns 1_000L // stale → remote fetch
+        every { store.getCachedRegions() } returns listOf(GeofenceRegion("g-1", 0.0, 0.0, 50f))
+        every { store.getRegisteredIds() } returns setOf("g-1")
+        every { store.getEnteredIds() } returns setOf("g-1") // stale: carried forward, not current
+        coEvery { apiService.fetchGeofences(any()) } returns
+            Result.success(sampleResponse(maxBusinessGeofences = 3)) // g-1 at (0,0) radius 100
+        every { distanceFilter.nearest(any(), any(), any(), any(), any()) } answers { firstArg() }
+        coEvery { manager.replaceGeofences(any(), any()) } returns Result.success(Unit)
+
+        // ~1.1 km north of g-1, far outside its 100 m radius.
+        repository.refresh(latitude = 0.01, longitude = 0.0)
+
+        coVerify(exactly = 0) {
+            transitionEmitter.emit(
+                geofenceId = "g-1",
+                transition = Event.GeofenceTransition.ENTER,
+                userId = any(),
+                timestampSeconds = any(),
+                geofenceName = any(),
+                metadata = any(),
+                geosetIds = any(),
+                monitorsExit = any()
+            )
+        }
+    }
+
+    @Test
     fun refresh_givenUserChangesDuringRegistration_expectNoInitialEnter() = runTest {
         // clearIdentify rewrites the user store without taking stateMutex, so identity can change
         // while the GMS call is awaited; synthesis must recheck before queueing a delivery row.

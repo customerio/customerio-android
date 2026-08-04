@@ -86,8 +86,7 @@ internal class GeofenceRepositoryImpl(
             }
 
             val config = store.getCachedConfigOrFallback()
-            // Captured with the coordinates, before any network or GMS await: an exit claimed while
-            // this sync is in flight must beat the geometry derived from this fix.
+            // Captured with the coordinates: an exit claimed mid-sync must beat this fix's geometry.
             val containmentEpoch = store.containmentEpoch()
             // Decided under stateMutex so a concurrent sign-out reset can't wipe state right
             // after this reads pre-wipe freshness/registrations and SKIPs — that would leave

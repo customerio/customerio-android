@@ -187,9 +187,8 @@ internal class GeofenceServicesImpl(
             logger.logSyncSkippedNoLocation(reason)
             return null
         }
-        // NaN, infinite or out-of-range coordinates make `Location.distanceBetween` throw, which the
-        // ranking and containment maths would hit part-way through the sync. Rearm as for a missing
-        // fix so the next usable one drives a sync.
+        // NaN, infinite and out-of-range coordinates all make `Location.distanceBetween` throw,
+        // part way through the sync. Rearm as for a missing fix.
         if (!LocationCoordinates.isValid(latitude, longitude)) {
             lastSkippedForNoLocation.set(true)
             logger.logSyncSkippedInvalidLocation(reason, latitude, longitude)
@@ -214,9 +213,8 @@ internal class GeofenceServicesImpl(
     }
 
     /**
-     * Backstop for work launched on [scope]. It carries a `SupervisorJob` and no exception handler,
-     * so an exception escaping here would otherwise reach the thread's default handler and take the
-     * host app down — a geofence sync must never be able to do that. Fatal [Error]s propagate.
+     * Backstop for work launched on [scope], which has no exception handler — anything escaping would
+     * reach the thread's default handler and take the host app down. Fatal [Error]s propagate.
      */
     private suspend fun runSafely(description: String, block: suspend () -> Unit) {
         try {

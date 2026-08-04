@@ -1639,6 +1639,9 @@ class GeofenceRepositoryTest : RobolectricTest() {
         every { store.getCachedRegions() } returns cached
         every { store.getRegisteredIds() } returns emptySet() // newly registered
         every { store.getCachedConfig() } returns sampleConfig()
+        // Reconcile seeded containment from this fix's geometry; synthesis follows that, not a
+        // second geometry pass.
+        every { store.getEnteredIds() } returns setOf("biz-1")
         every { distanceFilter.nearest(cached, any(), any(), any(), any()) } returns cached
         coEvery { manager.replaceGeofences(any(), any()) } returns Result.success(Unit)
 
@@ -1670,6 +1673,7 @@ class GeofenceRepositoryTest : RobolectricTest() {
         every { store.getCachedRegions() } returns cached
         every { store.getRegisteredIds() } returns emptySet()
         every { store.getCachedConfig() } returns sampleConfig()
+        every { store.getEnteredIds() } returns setOf("biz-1")
         every { distanceFilter.nearest(cached, any(), any(), any(), any()) } returns cached
         coEvery { manager.replaceGeofences(any(), any()) } returns Result.success(Unit)
 
@@ -1687,6 +1691,27 @@ class GeofenceRepositoryTest : RobolectricTest() {
                 monitorsExit = false
             )
         }
+    }
+
+    @Test
+    fun refresh_givenExitClaimedWhileRegistering_expectNoSynthesizedEnter() = runTest {
+        // The device left during the GMS await, so reconcile did not seed the fence. Synthesizing
+        // from this fix's geometry anyway would send an ENTER for a fence we were just told we left,
+        // and the phantom guard would drop its genuine EXIT — an ENTER the backend never balances.
+        val cached = listOf(GeofenceRegion("biz-1", 0.0, 0.0, 100f))
+        every { secureUserStore.getUserId() } returns "user-42"
+        every { store.getLastSyncTimestamp() } returns System.currentTimeMillis() - 60_000L
+        every { store.getCachedRegions() } returns cached
+        every { store.getRegisteredIds() } returns emptySet() // newly registered
+        every { store.getCachedConfig() } returns sampleConfig()
+        // Geometry from the fix says inside; containment says otherwise because the exit was claimed.
+        every { store.getEnteredIds() } returns emptySet()
+        every { distanceFilter.nearest(cached, any(), any(), any(), any()) } returns cached
+        coEvery { manager.replaceGeofences(any(), any()) } returns Result.success(Unit)
+
+        repository.refresh(latitude = 0.0, longitude = 0.0)
+
+        coVerify(exactly = 0) { transitionEmitter.emit(any(), any(), any(), any(), any(), any(), any(), any()) }
     }
 
     @Test
@@ -1770,6 +1795,7 @@ class GeofenceRepositoryTest : RobolectricTest() {
         every { store.getLastSyncTimestamp() } returns 1_000L // stale → remote fetch
         every { store.getCachedRegions() } returns listOf(GeofenceRegion("g-1", 0.0, 0.0, 50f))
         every { store.getRegisteredIds() } returns setOf("g-1")
+        every { store.getEnteredIds() } returns setOf("g-1")
         coEvery { apiService.fetchGeofences(any()) } returns
             Result.success(sampleResponse(maxBusinessGeofences = 3)) // g-1 at (0,0) radius 100
         every { distanceFilter.nearest(any(), any(), any(), any(), any()) } answers { firstArg() }

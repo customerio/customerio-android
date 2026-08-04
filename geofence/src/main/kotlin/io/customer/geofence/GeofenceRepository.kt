@@ -457,7 +457,7 @@ internal class GeofenceRepositoryImpl(
                 // Identity can change during the awaited GMS call, and reset doesn't clear pending
                 // delivery rows — never queue a synthetic ENTER for a signed-out/switched user.
                 if (secureUserStore.getUserId() == userId) {
-                    emitInitialEnters(nearest, unchangedRegistered, userId, latitude, longitude)
+                    emitInitialEnters(nearest, unchangedRegistered, userId)
                 } else {
                     logger.logSyncSkipped("user changed during refresh — initial-enter synthesis skipped")
                 }
@@ -472,21 +472,23 @@ internal class GeofenceRepositoryImpl(
      * "New" = not in [unchangedRegisteredIds]: brand-new fences and re-added param changes fire,
      * an unchanged re-register stays silent. Cooldown-deduped, so a real GMS ENTER and this one
      * collapse to one event.
+     *
+     * Containment is read back from the store rather than recomputed here. The reconcile above has
+     * already applied this fix's geometry *and* any departure the OS reported since it was taken, so
+     * a second geometry pass could synthesize an ENTER for a fence we have just been told we left —
+     * whose genuine EXIT the phantom guard would then drop, leaving the ENTER unbalanced.
      */
     private suspend fun emitInitialEnters(
         candidates: List<GeofenceRegion>,
         unchangedRegisteredIds: Set<String>,
-        userId: String,
-        latitude: Double,
-        longitude: Double
+        userId: String
     ) {
         val timestamp = clock.currentTimeSeconds()
+        val contained = store.getEnteredIds()
         candidates.forEach { region ->
             val newlyRegistered = region.id !in unchangedRegisteredIds
             val monitorsEnter = GeofenceTransitionType.ENTER in region.transitionTypes
-            // Compare against the full radius: GMS has no per-region monitored-radius cap.
-            val inside = region.distanceTo(latitude, longitude) <= region.radius
-            if (!newlyRegistered || !monitorsEnter || !inside) return@forEach
+            if (!newlyRegistered || !monitorsEnter || region.id !in contained) return@forEach
             logger.logInitialEnterInside(region.id)
             transitionEmitter.emit(
                 geofenceId = region.id,

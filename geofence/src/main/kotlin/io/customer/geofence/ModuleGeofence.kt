@@ -169,7 +169,11 @@ class ModuleGeofence @JvmOverloads constructor(
                     eventBus = eventBus,
                     regionStore = sdkAndroid.geofenceRegionStore,
                     logger = logger,
-                    onForeground = { retrySyncAwaitingLocation(sdkAndroid, locationModule) }
+                    onForeground = {
+                        if (!refreshOnForeground(sdkAndroid.geofenceServices, locationModule)) {
+                            retrySyncAwaitingLocation(sdkAndroid, locationModule)
+                        }
+                    }
                 )
             )
 
@@ -198,6 +202,25 @@ class ModuleGeofence @JvmOverloads constructor(
                 }
             }
         }
+    }
+
+    /**
+     * Refreshes discovery from a live fix on foreground entry: OS geofence callbacks can stop for
+     * hours, and every other path anchors at the last registration center — where the device used to
+     * be — so nothing else notices it has moved.
+     *
+     * Returns false when no fix was taken and [retrySyncAwaitingLocation] handles the entry instead:
+     * MANUAL leaves fixes to the host, and a sync already stuck without one has its own recovery.
+     */
+    @VisibleForTesting
+    @OptIn(InternalCustomerIOApi::class)
+    internal fun refreshOnForeground(services: GeofenceServices, locationModule: ModuleLocation): Boolean {
+        if (moduleConfig.locationMode != GeofenceLocationMode.AUTOMATIC) return false
+        if (services.isAwaitingLocation()) return false
+        // Arm before requesting, so the returning fix drives the sync.
+        services.onRefreshRequested()
+        locationModule.locationServices.requestLocationUpdateSilently()
+        return true
     }
 
     /**

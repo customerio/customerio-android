@@ -7,6 +7,7 @@ import io.customer.location.ModuleLocation
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
+import io.mockk.verifyOrder
 import org.amshove.kluent.shouldBeEqualTo
 import org.amshove.kluent.shouldBeNull
 import org.junit.Test
@@ -41,6 +42,44 @@ class ModuleGeofenceTest {
         moduleWith(GeofenceLocationMode.AUTOMATIC)
             .autoAcquireIfNeeded(mockLocationModule, currentLocation = LocationCoordinates(latitude = 1.0, longitude = 2.0))
 
+        verify(exactly = 0) { mockLocationServices.requestLocationUpdateSilently() }
+    }
+
+    @Test
+    fun refreshOnForeground_givenAutomatic_expectArmedAndSilentFetch() {
+        val mockServices: GeofenceServices = mockk(relaxed = true)
+
+        moduleWith(GeofenceLocationMode.AUTOMATIC)
+            .refreshOnForeground(mockServices, mockLocationModule) shouldBeEqualTo true
+
+        // Arming after the request would race the fix and drop it.
+        verifyOrder {
+            mockServices.onRefreshRequested()
+            mockLocationServices.requestLocationUpdateSilently()
+        }
+    }
+
+    @Test
+    fun refreshOnForeground_givenManual_expectNoFetchOrArm() {
+        val mockServices: GeofenceServices = mockk(relaxed = true)
+
+        moduleWith(GeofenceLocationMode.MANUAL)
+            .refreshOnForeground(mockServices, mockLocationModule) shouldBeEqualTo false
+
+        verify(exactly = 0) { mockServices.onRefreshRequested() }
+        verify(exactly = 0) { mockLocationServices.requestLocationUpdateSilently() }
+    }
+
+    @Test
+    fun refreshOnForeground_givenSyncAlreadyAwaitingLocation_expectDeferredToStuckSyncPath() {
+        val mockServices: GeofenceServices = mockk(relaxed = true) {
+            every { isAwaitingLocation() } returns true
+        }
+
+        moduleWith(GeofenceLocationMode.AUTOMATIC)
+            .refreshOnForeground(mockServices, mockLocationModule) shouldBeEqualTo false
+
+        verify(exactly = 0) { mockServices.onRefreshRequested() }
         verify(exactly = 0) { mockLocationServices.requestLocationUpdateSilently() }
     }
 

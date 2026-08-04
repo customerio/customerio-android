@@ -14,9 +14,8 @@ import kotlinx.serialization.json.JsonElement
  * Shared by the OS broadcast path ([GeofenceBroadcastReceiver]) and the synthesized initial-enter
  * path ([GeofenceRepository]) so both produce identical rows and pass the same gates.
  *
- * Two gates, in order: an ENTER already reported and not yet balanced by an EXIT is dropped
- * outright, then the time-based cooldown dedupes the rest. Both paths share the first gate, which is
- * why it lives here rather than in the receiver — the synthesized path never touches the receiver.
+ * Two gates, in order: an ENTER already reported and not yet balanced by an EXIT is dropped, then
+ * the time-based cooldown dedupes the rest. Shared by both paths, which is why they live here.
  */
 internal class GeofenceTransitionEmitter(
     private val cooldownFilter: GeofenceCooldownFilter,
@@ -39,13 +38,10 @@ internal class GeofenceTransitionEmitter(
         geosetIds: List<String>,
         monitorsExit: Boolean
     ): Boolean {
-        // Every reboot and app update re-registers with INITIAL_TRIGGER_ENTER, so the OS re-reports
+        // Reboot and app update both re-register with INITIAL_TRIGGER_ENTER, so the OS re-reports
         // ENTER for a fence the device never left. Ahead of the cooldown so the drop doesn't spend
-        // the fence's slot. Read-then-mark isn't atomic — the mark waits for a durable write below —
-        // but tryAcquire is, so two concurrent duplicates still collapse to one.
-        //
-        // Only where an EXIT can clear the mark: an enter-only fence never reports one, so the mark
-        // would stand for the life of the registration and swallow every later arrival.
+        // the fence's slot, and only where an EXIT can clear the mark — an enter-only fence never
+        // reports one, so the mark would swallow every later arrival.
         val isRedundantEnter = transition == Event.GeofenceTransition.ENTER &&
             monitorsExit &&
             regionStore.hasEmittedEnter(userId, geofenceId)
@@ -85,8 +81,7 @@ internal class GeofenceTransitionEmitter(
             cooldownFilter.release(userId, geofenceId, transition)
             return false
         }
-        // Only once the rows are durable, so a rolled-back write can't leave a fence marked as
-        // reported and suppress its own retry. The EXIT side is cleared in `claimExit`.
+        // Only once the rows are durable, so a rolled-back write can't suppress its own retry.
         if (transition == Event.GeofenceTransition.ENTER && monitorsExit) {
             regionStore.markEnterEmitted(userId, geofenceId)
         }

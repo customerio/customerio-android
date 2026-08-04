@@ -421,21 +421,18 @@ internal class GeofenceRepositoryImpl(
                         newIds + staleIds
                     }
                     store.saveRegisteredIds(idsToSave)
-                    // Seed containment from our own geometry rather than waiting on a GMS ENTER:
-                    // synthesis is suppressed after a reboot or app update, so no ENTER is emitted
-                    // for a fence the device is already sitting inside, and its later genuine EXIT
-                    // would otherwise look unentered and be dropped.
+                    // Seed containment from our own geometry: synthesis is suppressed after a
+                    // reboot or app update, and without a record the later genuine EXIT looks
+                    // unentered and gets dropped.
                     store.reconcileEnteredIds(
                         registeredIds = idsToSave,
                         inside = nearest.filter { it.distanceTo(latitude, longitude) <= it.radius }
                             .map { it.id }
                             .toSet(),
-                        // Registration awaited GMS, so an EXIT can have landed since this fix: that
-                        // report is newer evidence than the geometry and must not be undone here.
+                        // Registration awaited GMS, so an EXIT since this fix is newer evidence.
                         sinceEpoch = containmentEpoch
                     )
-                    // Same snapshot: a fence dropped from the monitored set never reports the EXIT
-                    // that would re-arm it, so its mark must go with its registration.
+                    // Same snapshot: a dropped fence never reports the EXIT that would re-arm it.
                     store.pruneEmittedEnterIds(idsToSave)
                     // Stamp uptime and package update time so the next refresh detects a reboot or
                     // app update (both wipe OS geofences) and re-registers instead of trusting ids.
@@ -473,10 +470,9 @@ internal class GeofenceRepositoryImpl(
      * an unchanged re-register stays silent. Cooldown-deduped, so a real GMS ENTER and this one
      * collapse to one event.
      *
-     * Containment is read back from the store rather than recomputed here. The reconcile above has
-     * already applied this fix's geometry *and* any departure the OS reported since it was taken, so
-     * a second geometry pass could synthesize an ENTER for a fence we have just been told we left —
-     * whose genuine EXIT the phantom guard would then drop, leaving the ENTER unbalanced.
+     * Containment is read back from the store, not recomputed: reconcile has already applied this
+     * fix's geometry and any departure reported since, so a second pass could synthesize an ENTER
+     * for a fence we were just told we left.
      */
     private suspend fun emitInitialEnters(
         candidates: List<GeofenceRegion>,

@@ -26,7 +26,7 @@ import kotlinx.serialization.builtins.serializer
  * Cleared on sign-out:
  *   registeredIds               — subset live in OS; drives the stale-cleanup diff.
  *   enteredIds                  — fences the device is inside; goes with the registrations it
- *                                  describes, since sign-out drops those from the OS.
+ *                                  describes.
  *   emittedEnterIds             — fences reported entered, plus the userId they belong to.
  *   lastApiFetchLocation        — anchor for the tier-B distance check (rarely updated).
  *   lastMovementTriggerLocation — user's location at the most recent movement-trigger
@@ -74,10 +74,7 @@ internal interface GeofenceRegionStore {
      */
     fun claimExit(geofenceId: String): Boolean
 
-    /**
-     * Counter of claimed exits, read before a sync computes its geometry and handed back to
-     * [reconcileEnteredIds]. In-memory: it only has to order two live coroutines.
-     */
+    /** Claimed-exit counter, read before a sync computes its geometry and passed to [reconcileEnteredIds]. */
     fun containmentEpoch(): Long
 
     /**

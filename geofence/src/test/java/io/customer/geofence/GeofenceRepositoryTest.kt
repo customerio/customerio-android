@@ -1847,6 +1847,109 @@ class GeofenceRepositoryTest : RobolectricTest() {
     }
 
     @Test
+    fun refresh_givenFenceMovedAwayFromDevice_expectContainmentAndMarkReset() = runTest {
+        // g-1's circle moved while the device was recorded inside the old one. GMS promises no EXIT
+        // for a circle it no longer holds, so carrying the record and the reported-ENTER mark forward
+        // would drop the first genuine arrival at the new circle and deliver its EXIT unmatched.
+        every { secureUserStore.getUserId() } returns "user-42"
+        every { clock.currentTimeMillis() } returns 200_000_000_000L
+        every { store.getLastSyncTimestamp() } returns 1_000L // stale → remote fetch
+        every { store.getCachedRegions() } returns listOf(GeofenceRegion("g-1", 0.0, 0.0, 50f))
+        every { store.getRegisteredIds() } returns setOf("g-1")
+        every { store.getEnteredIds() } returns setOf("g-1")
+        coEvery { apiService.fetchGeofences(any()) } returns
+            Result.success(sampleResponse(maxBusinessGeofences = 3)) // g-1 at (0,0) radius 100
+        every { distanceFilter.nearest(any(), any(), any(), any(), any()) } answers { firstArg() }
+        coEvery { manager.replaceGeofences(any(), any()) } returns Result.success(Unit)
+        every { store.reconcileEnteredIds(any(), any(), any(), any()) } returns setOf("g-1")
+
+        // Device ~1.1 km away: outside the new circle, so the old record cannot be trusted.
+        repository.refresh(latitude = 0.01, longitude = 0.0)
+
+        verify { store.reconcileEnteredIds(any(), any(), any(), setOf("g-1")) }
+        // Mark dropped, so the arrival at the new circle is not mistaken for a repeat.
+        verify { store.pruneEmittedEnterIds(match { "g-1" !in it }) }
+    }
+
+    @Test
+    fun refresh_givenArrivalReportedWhileRegistrationAwaited_expectMarkKeptWithRecord() = runTest {
+        // Same moved circle, but GMS reported an arrival at it while registration was awaited, so the
+        // store keeps the record. The mark has to follow: it belongs to that reported arrival, and
+        // clearing it would let the next report through as a fresh one.
+        every { secureUserStore.getUserId() } returns "user-42"
+        every { clock.currentTimeMillis() } returns 200_000_000_000L
+        every { store.getLastSyncTimestamp() } returns 1_000L
+        every { store.getCachedRegions() } returns listOf(GeofenceRegion("g-1", 0.0, 0.0, 50f))
+        every { store.getRegisteredIds() } returns setOf("g-1")
+        every { store.getEnteredIds() } returns setOf("g-1")
+        coEvery { apiService.fetchGeofences(any()) } returns
+            Result.success(sampleResponse(maxBusinessGeofences = 3))
+        every { distanceFilter.nearest(any(), any(), any(), any(), any()) } answers { firstArg() }
+        coEvery { manager.replaceGeofences(any(), any()) } returns Result.success(Unit)
+        // Store declines the reset because the arrival is newer than the fix that asked for it.
+        every { store.reconcileEnteredIds(any(), any(), any(), any()) } returns emptySet()
+
+        repository.refresh(latitude = 0.01, longitude = 0.0)
+
+        verify { store.reconcileEnteredIds(any(), any(), any(), setOf("g-1")) }
+        verify { store.pruneEmittedEnterIds(match { "g-1" in it }) }
+    }
+
+    @Test
+    fun refresh_givenFenceReRegisteredWhileDeviceInside_expectRecordAndMarkKept() = runTest {
+        // Radius grew 50 → 100 m with the device inside throughout. Resetting here would let the
+        // synthesized ENTER fire for a visit already reported.
+        every { secureUserStore.getUserId() } returns "user-42"
+        every { clock.currentTimeMillis() } returns 200_000_000_000L
+        every { store.getLastSyncTimestamp() } returns 1_000L
+        every { store.getCachedRegions() } returns listOf(GeofenceRegion("g-1", 0.0, 0.0, 50f))
+        every { store.getRegisteredIds() } returns setOf("g-1")
+        every { store.getEnteredIds() } returns setOf("g-1")
+        coEvery { apiService.fetchGeofences(any()) } returns
+            Result.success(sampleResponse(maxBusinessGeofences = 3))
+        every { distanceFilter.nearest(any(), any(), any(), any(), any()) } answers { firstArg() }
+        coEvery { manager.replaceGeofences(any(), any()) } returns Result.success(Unit)
+
+        repository.refresh(latitude = 0.0, longitude = 0.0)
+
+        verify { store.reconcileEnteredIds(any(), any(), any(), emptySet()) }
+        verify { store.pruneEmittedEnterIds(match { "g-1" in it }) }
+    }
+
+    @Test
+    fun refresh_givenStaleContainmentRecordAndDeviceOutside_expectNoInitialEnter() = runTest {
+        // reconcile carries containment forward for fences that stay registered, so a param-drift
+        // re-add can find a record that outlived the visit. Geometry has to agree before we
+        // synthesize, or we report an arrival somewhere the device left long ago.
+        every { secureUserStore.getUserId() } returns "user-42"
+        every { clock.currentTimeMillis() } returns 200_000_000_000L
+        every { store.getLastSyncTimestamp() } returns 1_000L // stale → remote fetch
+        every { store.getCachedRegions() } returns listOf(GeofenceRegion("g-1", 0.0, 0.0, 50f))
+        every { store.getRegisteredIds() } returns setOf("g-1")
+        every { store.getEnteredIds() } returns setOf("g-1") // stale: carried forward, not current
+        coEvery { apiService.fetchGeofences(any()) } returns
+            Result.success(sampleResponse(maxBusinessGeofences = 3)) // g-1 at (0,0) radius 100
+        every { distanceFilter.nearest(any(), any(), any(), any(), any()) } answers { firstArg() }
+        coEvery { manager.replaceGeofences(any(), any()) } returns Result.success(Unit)
+
+        // ~1.1 km north of g-1, far outside its 100 m radius.
+        repository.refresh(latitude = 0.01, longitude = 0.0)
+
+        coVerify(exactly = 0) {
+            transitionEmitter.emit(
+                geofenceId = "g-1",
+                transition = Event.GeofenceTransition.ENTER,
+                userId = any(),
+                timestampSeconds = any(),
+                geofenceName = any(),
+                metadata = any(),
+                geosetIds = any(),
+                monitorsExit = any()
+            )
+        }
+    }
+
+    @Test
     @OptIn(ExperimentalCoroutinesApi::class)
     fun refresh_givenUserChangesDuringRegistration_expectNoInitialEnter() = runTest {
         // clearIdentify rewrites the user store without taking stateMutex, so identity can change

@@ -142,6 +142,36 @@ class GeofenceRegionStoreTest : RobolectricTest() {
     }
 
     @Test
+    fun reconcileEnteredIds_givenReRegisteredFenceDeviceNoLongerInside_expectRecordDropped() {
+        // The circle moved but kept its ID, so the old record describes somewhere else.
+        store.recordEntered("biz-moved")
+
+        store.reconcileEnteredIds(
+            registeredIds = setOf("biz-moved"),
+            inside = emptySet(),
+            sinceEpoch = store.containmentEpoch(),
+            resetIds = setOf("biz-moved")
+        )
+
+        store.getEnteredIds().shouldBeEmpty()
+    }
+
+    @Test
+    fun reconcileEnteredIds_givenReRegisteredFenceStillInside_expectRecordKept() {
+        // A radius edit made while the device is inside must not manufacture a fresh arrival.
+        store.recordEntered("biz-widened")
+
+        store.reconcileEnteredIds(
+            registeredIds = setOf("biz-widened"),
+            inside = setOf("biz-widened"),
+            sinceEpoch = store.containmentEpoch(),
+            resetIds = setOf("biz-widened")
+        )
+
+        store.getEnteredIds() shouldContainSame setOf("biz-widened")
+    }
+
+    @Test
     fun reconcileEnteredIds_expectPrunedToRegisteredAndUnionedWithInside() {
         store.recordEntered("biz-kept")
         store.recordEntered("biz-unregistered")

@@ -401,6 +401,11 @@ internal class GeofenceRepositoryImpl(
             // override here (unlike the registration diff): callers disable synthesis outright
             // while the reboot flag is up — the anchor can predate the reboot.
             val unchangedRegistered = unchangedRegisteredIds(nearest)
+            // Registered before this pass but not cache-equal: the ID survived a geometry edit.
+            val previouslyRegistered = store.getRegisteredIds()
+            val reRegisteredIds = nearest.map { it.id }
+                .filter { it in previouslyRegistered && it !in unchangedRegistered }
+                .toSet()
             val registrationResult = register(regionsToRegister).also { result ->
                 if (result.isSuccess) {
                     // Stale cleanup — Manager added new−existing, we remove
@@ -423,16 +428,22 @@ internal class GeofenceRepositoryImpl(
                     // Seed containment from our own geometry: synthesis is suppressed after a
                     // reboot or app update, and without a record the later genuine EXIT looks
                     // unentered and gets dropped.
+                    val insideIds = nearest.filter { it.distanceTo(latitude, longitude) <= it.radius }
+                        .map { it.id }
+                        .toSet()
+                    // A moved circle keeps its ID, so containment and the reported-ENTER mark can
+                    // describe where the fence used to be. Reset both, but only once the new geometry
+                    // agrees the device is out, or trimming a radius manufactures a second arrival.
+                    val movedAwayIds = reRegisteredIds - insideIds
                     store.reconcileEnteredIds(
                         registeredIds = idsToSave,
-                        inside = nearest.filter { it.distanceTo(latitude, longitude) <= it.radius }
-                            .map { it.id }
-                            .toSet(),
+                        inside = insideIds,
                         // Registration awaited GMS, so an EXIT since this fix is newer evidence.
-                        sinceEpoch = containmentEpoch
+                        sinceEpoch = containmentEpoch,
+                        resetIds = movedAwayIds
                     )
                     // Same snapshot: a dropped fence never reports the EXIT that would re-arm it.
-                    store.pruneEmittedEnterIds(idsToSave)
+                    store.pruneEmittedEnterIds(idsToSave - movedAwayIds)
                     // Stamp uptime and package update time so the next refresh detects a reboot or
                     // app update (both wipe OS geofences) and re-registers instead of trusting ids.
                     store.setLastRegistrationUptime(clock.elapsedRealtime())

@@ -85,8 +85,16 @@ internal interface GeofenceRegionStore {
      * [sinceEpoch] is [containmentEpoch] as of the fix [inside] was derived from; a fence whose exit
      * was claimed after that is dropped, so a departure reported during the sync's GMS await wins
      * over the older geometry.
+     *
+     * [resetIds] have their carried record dropped rather than pruned and kept, for fences the caller
+     * knows the stored containment no longer describes; [inside] still re-adds them.
      */
-    fun reconcileEnteredIds(registeredIds: Set<String>, inside: Set<String>, sinceEpoch: Long)
+    fun reconcileEnteredIds(
+        registeredIds: Set<String>,
+        inside: Set<String>,
+        sinceEpoch: Long,
+        resetIds: Set<String> = emptySet()
+    )
 
     /**
      * Whether containment has ever been recorded. False on an install upgraded from a version that
@@ -206,11 +214,13 @@ internal class GeofenceRegionStoreImpl(
     override fun reconcileEnteredIds(
         registeredIds: Set<String>,
         inside: Set<String>,
-        sinceEpoch: Long
+        sinceEpoch: Long,
+        resetIds: Set<String>
     ) {
         synchronized(enteredLock) {
             val stillInside = inside.filter { (exitEpochByGeofenceId[it] ?: 0L) <= sinceEpoch }
-            writeJson(KEY_ENTERED_IDS, ID_SET_SERIALIZER, (getEnteredIds() intersect registeredIds) + stillInside)
+            val carried = (getEnteredIds() intersect registeredIds) - resetIds
+            writeJson(KEY_ENTERED_IDS, ID_SET_SERIALIZER, carried + stillInside)
             // Bound the map, after the filter has read it.
             exitEpochByGeofenceId.keys.retainAll(registeredIds)
         }

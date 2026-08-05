@@ -22,6 +22,7 @@ import io.mockk.verify
 import java.io.IOException
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.coroutineScope
@@ -1486,6 +1487,36 @@ class GeofenceRepositoryTest : RobolectricTest() {
         initPass.join()
 
         // Re-centred on the movement fix, not the anchor the init pass was using.
+        verify { store.saveLastMovementTriggerLocation(GeofenceLocation(0.001, 0.0)) }
+        verify(exactly = 0) { logger.logSyncSkipped(match { it.contains("already in progress") }) }
+    }
+
+    @Test
+    @OptIn(ExperimentalCoroutinesApi::class)
+    fun handleMovement_givenSlowHolderThatRegistersNothing_expectWaitOutlastsIt() = runTest {
+        // The holder can sit in a remote fetch for the HTTP client's whole timeout and then fail,
+        // registering nothing — so it never re-centres the fired trigger on its way out. Waiting only
+        // as long as a local pass would hand that job back to nobody.
+        every { secureUserStore.getUserId() } returns "user-42"
+        every { clock.currentTimeMillis() } returns 200_000_000_000L
+        every { store.getLastApiFetchLocation() } returns GeofenceLocation(0.0, 0.0)
+        every { store.getCachedConfig() } returns sampleConfig()
+        every { store.getLastSyncTimestamp() } returns 1_000L // stale → the holder goes remote
+        every { store.getCachedRegions() } returns listOf(GeofenceRegion("biz-1", 0.0, 0.0, 100f))
+        every { store.getRegisteredIds() } returns emptySet()
+        every { distanceFilter.nearest(any(), any(), any(), any(), any()) } returns emptyList()
+        coEvery { apiService.fetchGeofences(any()) } coAnswers {
+            delay(20.seconds)
+            Result.failure(RuntimeException("read timeout"))
+        }
+        coEvery { manager.replaceGeofences(any(), any()) } returns Result.success(Unit)
+
+        val holder = launch { repository.refresh(latitude = 0.0, longitude = 0.0) }
+        runCurrent()
+
+        repository.handleMovement(latitude = 0.001, longitude = 0.0)
+        holder.join()
+
         verify { store.saveLastMovementTriggerLocation(GeofenceLocation(0.001, 0.0)) }
         verify(exactly = 0) { logger.logSyncSkipped(match { it.contains("already in progress") }) }
     }

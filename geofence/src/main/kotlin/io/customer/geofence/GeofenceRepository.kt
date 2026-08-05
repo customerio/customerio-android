@@ -576,9 +576,12 @@ internal class GeofenceRepositoryImpl(
     )
 
     private companion object {
-        // Bounded below by a local pass (~90ms measured), above by the receiver's
-        // DISPATCH_WAIT_BUDGET_MS — the wait still has to leave room to re-register.
-        val MOVEMENT_SLOT_WAIT = 3.seconds
+        // Long enough to outlast the slowest holder: a remote pass can spend the HTTP client's
+        // connect plus read timeout (10s each) before it releases, and giving up on one that then
+        // fails to register is the case that strands the trigger. Deliberately past the receiver's
+        // DISPATCH_WAIT_BUDGET_MS — the receiver only bounds how long it joins, and a pass that
+        // lands late still re-centres, whereas a dropped one leaves nothing to re-centre.
+        val MOVEMENT_SLOT_WAIT = 30.seconds
         val MOVEMENT_SLOT_POLL = 50.milliseconds
     }
 }

@@ -124,10 +124,10 @@ class GeofenceManagerTest : RobolectricTest() {
     }
 
     @Test
-    fun replaceGeofences_givenMovementTrigger_expectInitialTriggerEnter() = runTest {
-        // Movement trigger registered with INITIAL_TRIGGER_ENTER so GMS records
-        // state as INSIDE at the new center — without this, prior OUTSIDE state
-        // from the previous EXIT would block future EXITs from firing.
+    fun replaceGeofences_givenMovementTrigger_expectInitialTriggerExit() = runTest {
+        // The trigger evaluates position at register time, so a stale center fires EXIT immediately
+        // and handleMovement re-centers. Device-verified: adding ENTER alongside stops GMS
+        // delivering the trigger's later EXIT entirely.
         grantAllPermissions()
 
         val requestSlot = slot<GeofencingRequest>()
@@ -138,7 +138,7 @@ class GeofenceManagerTest : RobolectricTest() {
             listOf(buildRegion(id = GeofenceConstants.MOVEMENT_TRIGGER_ID))
         )
 
-        requestSlot.captured.initialTrigger shouldContainFlag GeofencingRequest.INITIAL_TRIGGER_ENTER
+        requestSlot.captured.initialTrigger shouldBeEqualTo GeofencingRequest.INITIAL_TRIGGER_EXIT
     }
 
     @Test
@@ -203,9 +203,9 @@ class GeofenceManagerTest : RobolectricTest() {
         )
 
         requests.size shouldBeEqualTo 2
-        requests[0].initialTrigger shouldContainFlag GeofencingRequest.INITIAL_TRIGGER_ENTER
+        requests[0].initialTrigger shouldBeEqualTo GeofencingRequest.INITIAL_TRIGGER_EXIT
         requests[0].geofences.first().requestId shouldBeEqualTo GeofenceConstants.MOVEMENT_TRIGGER_ID
-        requests[1].initialTrigger shouldContainFlag GeofencingRequest.INITIAL_TRIGGER_ENTER
+        requests[1].initialTrigger shouldBeEqualTo GeofencingRequest.INITIAL_TRIGGER_ENTER
         requests[1].geofences.first().requestId shouldBeEqualTo "business-1"
     }
 

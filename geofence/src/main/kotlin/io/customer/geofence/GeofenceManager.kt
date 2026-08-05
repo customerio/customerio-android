@@ -51,20 +51,18 @@ internal class GeofenceManager(
         existingBusinessIds: Set<String> = emptySet()
     ): Result<Unit> = replaceGeofencesInternal(
         regions = regions,
-        movementInitialTrigger = GeofencingRequest.INITIAL_TRIGGER_ENTER,
+        // The movement trigger evaluates the device's position at register time, so a stale center
+        // fires EXIT straight away and the next handleMovement re-centers on a real fix. ENTER is
+        // not used: it only delivers a transition the receiver ignores, and combining the two stops
+        // GMS delivering the trigger's later EXIT at all.
+        movementInitialTrigger = GeofencingRequest.INITIAL_TRIGGER_EXIT,
         existingBusinessIds = existingBusinessIds
     )
 
-    /**
-     * Boot-restore variant of [replaceGeofences]: registers the movement
-     * trigger with `INITIAL_TRIGGER_EXIT` so the OS evaluates current
-     * location at register time. If the user moved beyond the cached circle
-     * while the device was off, EXIT fires immediately and the next
-     * handleMovement self-heals with real coordinates.
-     */
+    /** Boot-restore entry point; registration is identical to [replaceGeofences]. */
     @RequiresPermission(Manifest.permission.ACCESS_FINE_LOCATION)
     suspend fun replaceGeofencesForBootRestore(regions: List<GeofenceRegion>): Result<Unit> =
-        replaceGeofencesInternal(regions, movementInitialTrigger = GeofencingRequest.INITIAL_TRIGGER_EXIT)
+        replaceGeofences(regions)
 
     @RequiresPermission(Manifest.permission.ACCESS_FINE_LOCATION)
     private suspend fun replaceGeofencesInternal(

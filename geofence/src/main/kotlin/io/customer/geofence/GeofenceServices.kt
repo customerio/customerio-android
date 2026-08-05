@@ -142,7 +142,14 @@ internal class GeofenceServicesImpl(
         val userId = secureUserStore.getUserId()
         // No user yet: skip; a later identify re-triggers.
         if (userId.isNullOrEmpty()) return
-        onUserIdentified(latitude, longitude)
+        // Not onUserIdentified: the flags above are already consumed, so a pass dropped for a
+        // collision spends this fix without using it and nothing requests another.
+        triggerSync(
+            reason = REASON_LOCATION_ACQUIRED,
+            latitude = latitude,
+            longitude = longitude,
+            action = repository::refreshFromLiveFix
+        )
     }
 
     override fun onForegroundRetry(latitude: Double?, longitude: Double?) {
@@ -231,5 +238,6 @@ internal class GeofenceServicesImpl(
         const val REASON_USER_IDENTIFIED = "user-identified"
         const val REASON_APP_LAUNCH = "app-launch"
         const val REASON_FOREGROUND_RETRY = "foreground-retry"
+        const val REASON_LOCATION_ACQUIRED = "location-acquired"
     }
 }

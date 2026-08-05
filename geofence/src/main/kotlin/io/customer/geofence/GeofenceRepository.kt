@@ -12,20 +12,35 @@ import io.customer.sdk.communication.Event
 import io.customer.sdk.core.util.Clock
 import io.customer.sdk.data.store.SecureUserStore
 import java.util.concurrent.atomic.AtomicBoolean
+import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.seconds
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withTimeoutOrNull
 
 /**
  * Geofence sync pipeline. Two public entry points:
  *
  * - [refresh] — for identify / app-launch. Reuses the cached set within the freshness window
  *   (re-registering locally or skipping); otherwise fetches fresh from the API.
+ * - [refreshFromLiveFix] — same pass, for a fix the SDK asked for and received.
  * - [handleMovement] — for movement-trigger EXIT. Re-ranks the cached regions for the new
  *   location.
  */
 internal interface GeofenceRepository {
     @RequiresPermission(Manifest.permission.ACCESS_FINE_LOCATION)
     suspend fun refresh(latitude: Double, longitude: Double): Result<Unit>
+
+    /**
+     * [refresh] for a just-acquired fix, which waits for an in-flight sync instead of dropping.
+     * The two run the same pass; they differ only in what a collision costs. Identify and
+     * app-launch collide constantly and share one anchor, so dropping loses nothing — but this
+     * caller holds the device's real position while the sync in flight is working from a stored
+     * anchor that can be kilometres stale, and the fix is consumed whether or not it is used.
+     */
+    @RequiresPermission(Manifest.permission.ACCESS_FINE_LOCATION)
+    suspend fun refreshFromLiveFix(latitude: Double, longitude: Double): Result<Unit>
 
     @RequiresPermission(Manifest.permission.ACCESS_FINE_LOCATION)
     suspend fun handleMovement(latitude: Double, longitude: Double): Result<Unit>
@@ -63,21 +78,42 @@ internal class GeofenceRepositoryImpl(
     private val logger: GeofenceLogger
 ) : GeofenceRepository {
 
-    // Dedup gate shared by refresh() and handleMovement(). If either is already running,
-    // a concurrent trigger drops fast so we don't burn redundant work. Released in
-    // `finally` so a failure or cancellation doesn't permanently latch the gate.
+    // One sync pass at a time. A pass carrying its own live fix waits for the slot rather than
+    // dropping — see [awaitRefreshSlot]; [refresh] drops, because identify and app-launch fire
+    // together on the same anchor and only one needs to run. Released in `finally` so a failure
+    // or cancellation can't latch the gate.
     private val refreshInProgress = AtomicBoolean(false)
 
     // Serializes state-mutation against reset() (sign-out). Held only around the
     // write block — the long-running API call happens outside the lock.
     private val stateMutex = Mutex()
 
+    private fun tryTakeRefreshSlot(): Boolean = refreshInProgress.compareAndSet(false, true)
+
+    private fun releaseRefreshSlot() {
+        refreshInProgress.set(false)
+    }
+
     @RequiresPermission(Manifest.permission.ACCESS_FINE_LOCATION)
     override suspend fun refresh(latitude: Double, longitude: Double): Result<Unit> {
-        if (!refreshInProgress.compareAndSet(false, true)) {
+        if (!tryTakeRefreshSlot()) {
             logger.logSyncSkipped("refresh already in progress")
             return Result.success(Unit)
         }
+        return runRefresh(latitude, longitude)
+    }
+
+    @RequiresPermission(Manifest.permission.ACCESS_FINE_LOCATION)
+    override suspend fun refreshFromLiveFix(latitude: Double, longitude: Double): Result<Unit> {
+        if (!awaitRefreshSlot()) {
+            logger.logSyncSkipped("refresh already in progress after waiting")
+            return Result.success(Unit)
+        }
+        return runRefresh(latitude, longitude)
+    }
+
+    @RequiresPermission(Manifest.permission.ACCESS_FINE_LOCATION)
+    private suspend fun runRefresh(latitude: Double, longitude: Double): Result<Unit> {
         try {
             val userId = secureUserStore.getUserId()
             if (userId.isNullOrBlank()) {
@@ -105,7 +141,7 @@ internal class GeofenceRepositoryImpl(
                 }
             }
         } finally {
-            refreshInProgress.set(false)
+            releaseRefreshSlot()
         }
     }
 
@@ -176,10 +212,28 @@ internal class GeofenceRepositoryImpl(
 
     private fun osStateWiped(): Boolean = osStateWipedByReboot() || osStateWipedByAppUpdate()
 
+    /**
+     * Takes the in-flight slot for a pass that can't be dropped, waiting for the holder instead.
+     * For a movement pass, the OS holds a fired trigger in the outside state, so returning without
+     * re-centring it stops discovery until the next app open, reboot or update; for a live fix, the
+     * fix is spent on arrival and nothing re-requests one.
+     */
+    private suspend fun awaitRefreshSlot(): Boolean {
+        if (tryTakeRefreshSlot()) return true
+        return withTimeoutOrNull(MOVEMENT_SLOT_WAIT) {
+            // Nothing suspends between a winning CAS and the return, so a timeout can't land in
+            // between and leave the flag set with nobody to clear it.
+            while (!tryTakeRefreshSlot()) {
+                delay(MOVEMENT_SLOT_POLL)
+            }
+            true
+        } == true
+    }
+
     @RequiresPermission(Manifest.permission.ACCESS_FINE_LOCATION)
     override suspend fun handleMovement(latitude: Double, longitude: Double): Result<Unit> {
-        if (!refreshInProgress.compareAndSet(false, true)) {
-            logger.logSyncSkipped("refresh already in progress")
+        if (!awaitRefreshSlot()) {
+            logger.logSyncSkipped("refresh already in progress after waiting")
             return Result.success(Unit)
         }
         try {
@@ -212,7 +266,7 @@ internal class GeofenceRepositoryImpl(
                 performLocalRefresh(userId, latitude, longitude, config, containmentEpoch)
             }
         } finally {
-            refreshInProgress.set(false)
+            releaseRefreshSlot()
         }
     }
 
@@ -547,4 +601,14 @@ internal class GeofenceRepositoryImpl(
         radius = radiusMeters,
         transitionTypes = listOf(GeofenceTransitionType.EXIT)
     )
+
+    private companion object {
+        // Long enough to outlast the slowest holder: a remote pass can spend the HTTP client's
+        // connect plus read timeout (10s each) before it releases, and giving up on one that then
+        // fails to register is the case that strands the trigger. Deliberately past the receiver's
+        // DISPATCH_WAIT_BUDGET_MS — the receiver only bounds how long it joins, and a pass that
+        // lands late still re-centres, whereas a dropped one leaves nothing to re-centre.
+        val MOVEMENT_SLOT_WAIT = 30.seconds
+        val MOVEMENT_SLOT_POLL = 50.milliseconds
+    }
 }

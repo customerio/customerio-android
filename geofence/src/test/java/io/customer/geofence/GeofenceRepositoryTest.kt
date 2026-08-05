@@ -21,6 +21,8 @@ import io.mockk.unmockkStatic
 import io.mockk.verify
 import java.io.IOException
 import java.util.concurrent.atomic.AtomicInteger
+import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.coroutineScope
@@ -1432,10 +1434,9 @@ class GeofenceRepositoryTest : RobolectricTest() {
     }
 
     @Test
-    fun handleMovement_givenSecondCallWhileFirstInFlight_expectSecondDropped() = runTest {
-        // handleMovement and refresh share the same in-flight gate. A movement
-        // EXIT arriving while a refresh is mid-API call must drop fast — same
-        // dedup guarantee.
+    fun handleMovement_givenSecondCallWhileFirstInFlight_expectSerializedNotDropped() = runTest {
+        // Movement passes serialize rather than drop: each carries its own live fix and each has to
+        // re-centre the trigger, so dropping one strands it.
         every { secureUserStore.getUserId() } returns "user-42"
         every { store.getLastApiFetchLocation() } returns null
         every { store.getCachedConfig() } returns null
@@ -1458,7 +1459,98 @@ class GeofenceRepositoryTest : RobolectricTest() {
         }
 
         maxObservedConcurrency.get() shouldBeEqualTo 1
-        coVerify(exactly = 1) { apiService.fetchGeofences(any()) }
+        coVerify(exactly = 2) { apiService.fetchGeofences(any()) }
+    }
+
+    @Test
+    @OptIn(ExperimentalCoroutinesApi::class)
+    fun handleMovement_givenRefreshHoldingTheSlot_expectTriggerStillReCentredAtLiveFix() = runTest {
+        // Field failure: a trigger EXIT cold-starts the process, init's refresh takes the slot and
+        // skips (anchored on the registration center, so it measures zero movement), and the movement
+        // pass was dropped — leaving the fired trigger un-recentred, so nothing can fire again.
+        every { secureUserStore.getUserId() } returns "user-42"
+        every { store.getLastApiFetchLocation() } returns GeofenceLocation(0.0, 0.0)
+        every { store.getCachedConfig() } returns sampleConfig()
+        every { store.getLastSyncTimestamp() } returns System.currentTimeMillis()
+        every { store.getCachedRegions() } returns listOf(GeofenceRegion("biz-1", 0.0, 0.0, 100f))
+        // Cache present, nothing registered: init's pass re-ranks locally, holding the slot.
+        every { store.getRegisteredIds() } returns emptySet()
+        every { distanceFilter.nearest(any(), any(), any(), any(), any()) } returns emptyList()
+        coEvery { manager.replaceGeofences(any(), any()) } coAnswers {
+            delay(200.milliseconds)
+            Result.success(Unit)
+        }
+        val initPass = launch { repository.refresh(latitude = 0.0, longitude = 0.0) }
+        runCurrent()
+
+        repository.handleMovement(latitude = 0.001, longitude = 0.0)
+        initPass.join()
+
+        // Re-centred on the movement fix, not the anchor the init pass was using.
+        verify { store.saveLastMovementTriggerLocation(GeofenceLocation(0.001, 0.0)) }
+        verify(exactly = 0) { logger.logSyncSkipped(match { it.contains("already in progress") }) }
+    }
+
+    @Test
+    @OptIn(ExperimentalCoroutinesApi::class)
+    fun handleMovement_givenSlowHolderThatRegistersNothing_expectWaitOutlastsIt() = runTest {
+        // The holder can sit in a remote fetch for the HTTP client's whole timeout and then fail,
+        // registering nothing — so it never re-centres the fired trigger on its way out. Waiting only
+        // as long as a local pass would hand that job back to nobody.
+        every { secureUserStore.getUserId() } returns "user-42"
+        every { clock.currentTimeMillis() } returns 200_000_000_000L
+        every { store.getLastApiFetchLocation() } returns GeofenceLocation(0.0, 0.0)
+        every { store.getCachedConfig() } returns sampleConfig()
+        every { store.getLastSyncTimestamp() } returns 1_000L // stale → the holder goes remote
+        every { store.getCachedRegions() } returns listOf(GeofenceRegion("biz-1", 0.0, 0.0, 100f))
+        every { store.getRegisteredIds() } returns emptySet()
+        every { distanceFilter.nearest(any(), any(), any(), any(), any()) } returns emptyList()
+        coEvery { apiService.fetchGeofences(any()) } coAnswers {
+            delay(20.seconds)
+            Result.failure(RuntimeException("read timeout"))
+        }
+        coEvery { manager.replaceGeofences(any(), any()) } returns Result.success(Unit)
+
+        val holder = launch { repository.refresh(latitude = 0.0, longitude = 0.0) }
+        runCurrent()
+
+        repository.handleMovement(latitude = 0.001, longitude = 0.0)
+        holder.join()
+
+        verify { store.saveLastMovementTriggerLocation(GeofenceLocation(0.001, 0.0)) }
+        verify(exactly = 0) { logger.logSyncSkipped(match { it.contains("already in progress") }) }
+    }
+
+    @Test
+    @OptIn(ExperimentalCoroutinesApi::class)
+    fun refreshFromLiveFix_givenRefreshHoldingTheSlot_expectRegisteredAroundTheLiveFix() = runTest {
+        // Field failure: a cold start's identify refresh took the slot working from the stored
+        // anchor, the fix the SDK had asked for arrived 285ms later and was dropped, and the set
+        // was registered 2 km from the device. The arming flag is spent on arrival, so nothing
+        // requested another fix.
+        every { secureUserStore.getUserId() } returns "user-42"
+        every { clock.currentTimeMillis() } returns 200_000_000_000L
+        every { store.getLastApiFetchLocation() } returns GeofenceLocation(0.0, 0.0)
+        every { store.getLastSyncTimestamp() } returns 1_000L // stale → both passes go remote
+        every { store.getCachedConfig() } returns sampleConfig()
+        every { store.getCachedRegions() } returns listOf(GeofenceRegion("biz-1", 0.0, 0.0, 100f))
+        every { store.getRegisteredIds() } returns emptySet()
+        every { distanceFilter.nearest(any(), any(), any(), any(), any()) } returns emptyList()
+        coEvery { apiService.fetchGeofences(any()) } coAnswers {
+            delay(2.seconds)
+            Result.success(sampleResponse(maxBusinessGeofences = 3))
+        }
+        coEvery { manager.replaceGeofences(any(), any()) } returns Result.success(Unit)
+
+        val identifyPass = launch { repository.refresh(latitude = 0.0, longitude = 0.0) }
+        runCurrent()
+
+        // ~2.2 km from the anchor the holder is using, as in the field log.
+        repository.refreshFromLiveFix(latitude = 0.02, longitude = 0.0)
+        identifyPass.join()
+
+        verify { store.saveLastMovementTriggerLocation(GeofenceLocation(0.02, 0.0)) }
+        verify(exactly = 0) { logger.logSyncSkipped(match { it.contains("already in progress") }) }
     }
 
     // ---------- restoreFromCache (boot path) ----------

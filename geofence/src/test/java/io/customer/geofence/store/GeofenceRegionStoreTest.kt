@@ -142,6 +142,63 @@ class GeofenceRegionStoreTest : RobolectricTest() {
     }
 
     @Test
+    fun reconcileEnteredIds_givenReRegisteredFenceDeviceNoLongerInside_expectRecordDropped() {
+        // The circle moved but kept its ID, so the old record describes somewhere else.
+        store.recordEntered("biz-moved")
+
+        val dropped = store.reconcileEnteredIds(
+            registeredIds = setOf("biz-moved"),
+            inside = emptySet(),
+            sinceEpoch = store.containmentEpoch(),
+            resetIds = setOf("biz-moved")
+        )
+
+        store.getEnteredIds().shouldBeEmpty()
+        // Reported back so the caller resets the matching mark on the same decision.
+        dropped shouldContainSame setOf("biz-moved")
+    }
+
+    @Test
+    fun reconcileEnteredIds_givenEnterReportedAfterFixWasTaken_expectRecordKeptDespiteReset() {
+        store.recordEntered("biz-moved")
+        // A sync captures the epoch with its fix, then awaits GMS for seconds.
+        val epochAtFix = store.containmentEpoch()
+
+        // Mid-flight the OS reports an arrival at the circle being registered — our fix said the
+        // device was outside it, GMS says otherwise and is looking at the newer position.
+        store.recordEntered("biz-moved")
+
+        val dropped = store.reconcileEnteredIds(
+            registeredIds = setOf("biz-moved"),
+            inside = emptySet(),
+            sinceEpoch = epochAtFix,
+            resetIds = setOf("biz-moved")
+        )
+
+        // Dropping it here would leave the device inside with no record, so its genuine EXIT would
+        // be discarded as never-entered.
+        store.getEnteredIds() shouldContainSame setOf("biz-moved")
+        dropped.shouldBeEmpty()
+    }
+
+    @Test
+    fun reconcileEnteredIds_givenReRegisteredFenceStillInside_expectRecordKept() {
+        // A radius edit made while the device is inside must not manufacture a fresh arrival.
+        store.recordEntered("biz-widened")
+
+        val dropped = store.reconcileEnteredIds(
+            registeredIds = setOf("biz-widened"),
+            inside = setOf("biz-widened"),
+            sinceEpoch = store.containmentEpoch(),
+            resetIds = setOf("biz-widened")
+        )
+
+        store.getEnteredIds() shouldContainSame setOf("biz-widened")
+        // Nothing was dropped, so the caller must not drop the mark either.
+        dropped.shouldBeEmpty()
+    }
+
+    @Test
     fun reconcileEnteredIds_expectPrunedToRegisteredAndUnionedWithInside() {
         store.recordEntered("biz-kept")
         store.recordEntered("biz-unregistered")

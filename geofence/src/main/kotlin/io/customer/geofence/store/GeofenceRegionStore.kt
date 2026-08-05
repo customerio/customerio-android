@@ -74,7 +74,7 @@ internal interface GeofenceRegionStore {
      */
     fun claimExit(geofenceId: String): Boolean
 
-    /** Claimed-exit counter, read before a sync computes its geometry and passed to [reconcileEnteredIds]. */
+    /** Reported-transition counter, read before a sync computes its geometry and passed to [reconcileEnteredIds]. */
     fun containmentEpoch(): Long
 
     /**
@@ -85,8 +85,21 @@ internal interface GeofenceRegionStore {
      * [sinceEpoch] is [containmentEpoch] as of the fix [inside] was derived from; a fence whose exit
      * was claimed after that is dropped, so a departure reported during the sync's GMS await wins
      * over the older geometry.
+     *
+     * [resetIds] have their carried record dropped rather than pruned and kept, for fences the caller
+     * knows the stored containment no longer describes; [inside] still re-adds them. A fence that
+     * reported an entry after [sinceEpoch] keeps its record — the OS placing the device inside
+     * outranks the caller's older geometry.
+     *
+     * Returns the [resetIds] whose record was actually dropped, so a caller resetting related state
+     * can act on the same decision instead of its own guess.
      */
-    fun reconcileEnteredIds(registeredIds: Set<String>, inside: Set<String>, sinceEpoch: Long)
+    fun reconcileEnteredIds(
+        registeredIds: Set<String>,
+        inside: Set<String>,
+        sinceEpoch: Long,
+        resetIds: Set<String> = emptySet()
+    ): Set<String>
 
     /**
      * Whether containment has ever been recorded. False on an install upgraded from a version that
@@ -186,6 +199,10 @@ internal class GeofenceRegionStoreImpl(
         if (geofenceId !in current) {
             writeJson(KEY_ENTERED_IDS, ID_SET_SERIALIZER, current + geofenceId)
         }
+        // Stamped even when the id is already recorded: a repeat report still says the OS puts the
+        // device inside now, which a sync holding an older fix has to defer to.
+        epoch += 1
+        enterEpochByGeofenceId[geofenceId] = epoch
     }
 
     override fun claimExit(geofenceId: String): Boolean = synchronized(enteredLock) {
@@ -196,24 +213,29 @@ internal class GeofenceRegionStoreImpl(
         clearEnterEmitted(geofenceId)
         // Only a consumed record bumps the epoch; a claim that found nothing is a suspected GMS
         // artifact and must not block the geometry seed.
-        exitEpoch += 1
-        exitEpochByGeofenceId[geofenceId] = exitEpoch
+        epoch += 1
+        exitEpochByGeofenceId[geofenceId] = epoch
         true
     }
 
-    override fun containmentEpoch(): Long = synchronized(enteredLock) { exitEpoch }
+    override fun containmentEpoch(): Long = synchronized(enteredLock) { epoch }
 
     override fun reconcileEnteredIds(
         registeredIds: Set<String>,
         inside: Set<String>,
-        sinceEpoch: Long
-    ) {
-        synchronized(enteredLock) {
-            val stillInside = inside.filter { (exitEpochByGeofenceId[it] ?: 0L) <= sinceEpoch }
-            writeJson(KEY_ENTERED_IDS, ID_SET_SERIALIZER, (getEnteredIds() intersect registeredIds) + stillInside)
-            // Bound the map, after the filter has read it.
-            exitEpochByGeofenceId.keys.retainAll(registeredIds)
-        }
+        sinceEpoch: Long,
+        resetIds: Set<String>
+    ): Set<String> = synchronized(enteredLock) {
+        val stillInside = inside.filter { (exitEpochByGeofenceId[it] ?: 0L) <= sinceEpoch }
+        // An entry reported since the caller's fix describes the geometry being registered now, so
+        // it survives a reset aimed at the geometry it replaced.
+        val dropped = resetIds.filter { (enterEpochByGeofenceId[it] ?: 0L) <= sinceEpoch }.toSet() - stillInside
+        val carried = (getEnteredIds() intersect registeredIds) - dropped
+        writeJson(KEY_ENTERED_IDS, ID_SET_SERIALIZER, carried + stillInside)
+        // Bound the maps, after the filters have read them.
+        exitEpochByGeofenceId.keys.retainAll(registeredIds)
+        enterEpochByGeofenceId.keys.retainAll(registeredIds)
+        dropped
     }
 
     override fun hasEmittedEnter(userId: String, geofenceId: String): Boolean = synchronized(enteredLock) {
@@ -355,10 +377,12 @@ internal class GeofenceRegionStoreImpl(
 
     private val enteredLock = Any()
 
-    // Guarded by [enteredLock]. Bumped per claimed exit; the per-fence value is the epoch at which
-    // that fence's exit was last claimed.
-    private var exitEpoch = 0L
+    // Guarded by [enteredLock]. Bumped per reported transition, so a sync can tell which of the two
+    // directions a fence reported most recently against the fix the sync is holding. Per-fence
+    // values are the epoch at which that fence last reported in that direction.
+    private var epoch = 0L
     private val exitEpochByGeofenceId = mutableMapOf<String, Long>()
+    private val enterEpochByGeofenceId = mutableMapOf<String, Long>()
 
     private companion object {
         const val KEY_CACHED_REGIONS = "cached_regions"

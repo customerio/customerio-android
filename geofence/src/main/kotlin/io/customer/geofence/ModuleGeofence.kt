@@ -17,6 +17,7 @@ import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.module.CustomerIOModule
 import io.customer.sdk.core.util.HandlerMainThreadPoster
 import io.customer.sdk.core.util.MainThreadPoster
+import io.customer.sdk.data.store.SecureUserStore
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 
@@ -169,7 +170,20 @@ class ModuleGeofence @JvmOverloads constructor(
                     eventBus = eventBus,
                     regionStore = sdkAndroid.geofenceRegionStore,
                     logger = logger,
-                    onForeground = { retrySyncAwaitingLocation(sdkAndroid, locationModule) }
+                    onForeground = {
+                        // Off the main thread: deciding whether to take a fix needs the identity read,
+                        // a Keystore decrypt that can block for hundreds of ms on some OEMs.
+                        val foregroundScope = SDKComponent.scopeProvider.geofenceScope
+                        foregroundScope.launch {
+                            try {
+                                if (!refreshOnForeground(sdkAndroid.geofenceServices, sdkAndroid.secureUserStore, locationModule)) {
+                                    retrySyncAwaitingLocation(sdkAndroid, locationModule)
+                                }
+                            } finally {
+                                foregroundScope.cancel()
+                            }
+                        }
+                    }
                 )
             )
 
@@ -198,6 +212,32 @@ class ModuleGeofence @JvmOverloads constructor(
                 }
             }
         }
+    }
+
+    /**
+     * Refreshes discovery from a live fix on foreground entry: OS geofence callbacks can stop for
+     * hours, and every other path anchors at the last registration center — where the device used to
+     * be — so nothing else notices it has moved.
+     *
+     * Returns false when no fix was taken: MANUAL leaves fixes to the host, nobody is identified to
+     * sync for, or a sync is already stuck without one and [retrySyncAwaitingLocation] owns that case.
+     */
+    @VisibleForTesting
+    @OptIn(InternalCustomerIOApi::class)
+    internal fun refreshOnForeground(
+        services: GeofenceServices,
+        secureUserStore: SecureUserStore,
+        locationModule: ModuleLocation
+    ): Boolean {
+        if (moduleConfig.locationMode != GeofenceLocationMode.AUTOMATIC) return false
+        if (services.isAwaitingLocation()) return false
+        // The sync drops a fix that arrives with nobody identified, so taking one before the first
+        // identify — or on every resume after sign-out — spends location and battery on nothing.
+        if (secureUserStore.getUserId().isNullOrEmpty()) return false
+        // Arm before requesting, so the returning fix drives the sync.
+        services.onRefreshRequested()
+        locationModule.locationServices.requestLocationUpdateSilently()
+        return true
     }
 
     /**

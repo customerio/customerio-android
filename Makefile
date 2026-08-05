@@ -1,5 +1,20 @@
 SHELL = /bin/sh
 
+.PHONY: e2e e2e-setup e2e-quick e2e-inbox
+
+# One-command deterministic Android SDK → backend → SDK validation.
+e2e:
+	./.maestro/e2e.sh
+
+e2e-setup:
+	./.maestro/e2e.sh setup
+
+e2e-quick:
+	./.maestro/e2e.sh --profile quick
+
+e2e-inbox:
+	./.maestro/e2e.sh --suite message-inbox
+
 lint-error-message:
 	echo "\n\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\nLooks like there are lint errors to fix.\nRead the LINT.md document in this project to learn how to fix these problems.\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
 

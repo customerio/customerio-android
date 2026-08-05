@@ -10,7 +10,7 @@ import io.customer.messaginginbox.NotificationInboxOverlay
 
 // Host-supplied custom fonts for the Visual Inbox. Keys must match the workspace theme's `fontFamily`
 // tokens; Jist resolves a theme font ONLY from this map (falls back to the system font otherwise).
-private val jistCustomFonts: Map<String, FontFamily> = mapOf(
+internal val visualInboxFonts: Map<String, FontFamily> = mapOf(
     "Abril Fatface" to FontFamily(Font(R.font.abril_fatface, FontWeight.Normal)),
     "DM Sans" to FontFamily(
         Font(R.font.dm_sans_regular, FontWeight.Normal),
@@ -37,7 +37,7 @@ object NotificationInboxOverlayView {
     fun mount(composeView: ComposeView) {
         composeView.setContent {
             ComposeTheme {
-                NotificationInboxOverlay(fonts = jistCustomFonts)
+                NotificationInboxOverlay(fonts = visualInboxFonts)
             }
         }
     }

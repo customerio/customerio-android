@@ -435,15 +435,17 @@ internal class GeofenceRepositoryImpl(
                     // describe where the fence used to be. Reset both, but only once the new geometry
                     // agrees the device is out, or trimming a radius manufactures a second arrival.
                     val movedAwayIds = reRegisteredIds - insideIds
-                    store.reconcileEnteredIds(
+                    val resetApplied = store.reconcileEnteredIds(
                         registeredIds = idsToSave,
                         inside = insideIds,
-                        // Registration awaited GMS, so an EXIT since this fix is newer evidence.
+                        // Registration awaited GMS, so a transition since this fix is newer evidence.
                         sinceEpoch = containmentEpoch,
                         resetIds = movedAwayIds
                     )
-                    // Same snapshot: a dropped fence never reports the EXIT that would re-arm it.
-                    store.pruneEmittedEnterIds(idsToSave - movedAwayIds)
+                    // What the store actually reset, not what we asked it to: an arrival reported
+                    // during the await keeps its record, and the mark that record was reported with.
+                    // A fence dropped from the set never reports the EXIT that would re-arm it.
+                    store.pruneEmittedEnterIds(idsToSave - resetApplied)
                     // Stamp uptime and package update time so the next refresh detects a reboot or
                     // app update (both wipe OS geofences) and re-registers instead of trusting ids.
                     store.setLastRegistrationUptime(clock.elapsedRealtime())

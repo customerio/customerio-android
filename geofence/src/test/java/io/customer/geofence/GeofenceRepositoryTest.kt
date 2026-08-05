@@ -1832,6 +1832,7 @@ class GeofenceRepositoryTest : RobolectricTest() {
             Result.success(sampleResponse(maxBusinessGeofences = 3)) // g-1 at (0,0) radius 100
         every { distanceFilter.nearest(any(), any(), any(), any(), any()) } answers { firstArg() }
         coEvery { manager.replaceGeofences(any(), any()) } returns Result.success(Unit)
+        every { store.reconcileEnteredIds(any(), any(), any(), any()) } returns setOf("g-1")
 
         // Device ~1.1 km away: outside the new circle, so the old record cannot be trusted.
         repository.refresh(latitude = 0.01, longitude = 0.0)
@@ -1839,6 +1840,30 @@ class GeofenceRepositoryTest : RobolectricTest() {
         verify { store.reconcileEnteredIds(any(), any(), any(), setOf("g-1")) }
         // Mark dropped, so the arrival at the new circle is not mistaken for a repeat.
         verify { store.pruneEmittedEnterIds(match { "g-1" !in it }) }
+    }
+
+    @Test
+    fun refresh_givenArrivalReportedWhileRegistrationAwaited_expectMarkKeptWithRecord() = runTest {
+        // Same moved circle, but GMS reported an arrival at it while registration was awaited, so the
+        // store keeps the record. The mark has to follow: it belongs to that reported arrival, and
+        // clearing it would let the next report through as a fresh one.
+        every { secureUserStore.getUserId() } returns "user-42"
+        every { clock.currentTimeMillis() } returns 200_000_000_000L
+        every { store.getLastSyncTimestamp() } returns 1_000L
+        every { store.getCachedRegions() } returns listOf(GeofenceRegion("g-1", 0.0, 0.0, 50f))
+        every { store.getRegisteredIds() } returns setOf("g-1")
+        every { store.getEnteredIds() } returns setOf("g-1")
+        coEvery { apiService.fetchGeofences(any()) } returns
+            Result.success(sampleResponse(maxBusinessGeofences = 3))
+        every { distanceFilter.nearest(any(), any(), any(), any(), any()) } answers { firstArg() }
+        coEvery { manager.replaceGeofences(any(), any()) } returns Result.success(Unit)
+        // Store declines the reset because the arrival is newer than the fix that asked for it.
+        every { store.reconcileEnteredIds(any(), any(), any(), any()) } returns emptySet()
+
+        repository.refresh(latitude = 0.01, longitude = 0.0)
+
+        verify { store.reconcileEnteredIds(any(), any(), any(), setOf("g-1")) }
+        verify { store.pruneEmittedEnterIds(match { "g-1" in it }) }
     }
 
     @Test

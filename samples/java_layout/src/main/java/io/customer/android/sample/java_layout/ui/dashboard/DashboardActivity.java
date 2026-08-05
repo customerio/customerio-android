@@ -33,6 +33,7 @@ import io.customer.android.sample.java_layout.databinding.ActivityDashboardBindi
 import io.customer.android.sample.java_layout.sdk.CustomerIORepository;
 import io.customer.android.sample.java_layout.ui.core.BaseActivity;
 import io.customer.android.sample.java_layout.ui.inbox.InboxMessagesActivity;
+import io.customer.android.sample.java_layout.ui.inbox.VisualInboxActivity;
 import io.customer.android.sample.java_layout.ui.inline.InlineExamplesActivity;
 import io.customer.android.sample.java_layout.ui.livenotification.LiveNotificationDemoActivity;
 import io.customer.android.sample.java_layout.ui.location.LocationTestActivity;
@@ -160,6 +161,9 @@ public class DashboardActivity extends BaseActivity<ActivityDashboardBinding> {
         });
         binding.inboxMessagesButton.setOnClickListener(view -> {
             startInboxMessagesActivity();
+        });
+        binding.visualInboxButton.setOnClickListener(view -> {
+            startActivity(new Intent(DashboardActivity.this, VisualInboxActivity.class));
         });
         binding.liveNotificationDemoButton.setOnClickListener(view -> {
             startActivity(new Intent(DashboardActivity.this, LiveNotificationDemoActivity.class));

@@ -13,34 +13,40 @@ unique to the Android sample.
 
 ## Prereqs
 
-1. `maestro` CLI (tested with 2.0.9).
-2. Android SDK + a booted Pixel emulator.
-3. `ffmpeg`, Python 3 with Pillow (`pip3 install pillow`).
-4. An Ext API bearer token for the test-prod Customer.io workspace.
+1. `maestro` CLI.
+2. Android SDK + Java 17. The runner creates/boots the emulator.
+3. `ffmpeg` and Python 3. Pillow is optional but enables annotated MP4s.
+4. An App API key for the test-prod Customer.io workspace.
 5. `cdpApiKey` + `siteId` in `samples/local.properties` set to the same
-   workspace the Ext API key targets (currently
-   `cdpApiKey=a898c13577974eabf608`, `siteId=38eda114ab3f4593e11f`).
+   workspace the App API key targets.
 
 ## Setup
 
 ```bash
 cp .maestro/.env.example .maestro/.env
-# paste MAESTRO_EXT_API_KEY into .maestro/.env
-
-./gradlew :samples:java_layout:installDebug
+# Fill MAESTRO_APP_API_KEY; message Inbox uses fixture ID 21.
+make e2e-setup
 ```
 
 ## Run
 
 ```bash
-./.maestro/run.sh                             # default: campaign_141 (shared)
-./.maestro/run.sh smoke_login_event.yaml      # also shared (in harness)
-./.maestro/run.sh inline_messages.yaml        # also shared (in harness)
+make e2e          # smoke + geofence + message Inbox; one build
+make e2e-quick    # smoke only
+make e2e-inbox    # message Inbox only
 ```
 
-All three flows live in [customerio/mobile-e2e/flows/](https://github.com/customerio/mobile-e2e/tree/main/flows) — the `run.sh` wrapper resolves them from `.maestro/harness/flows/` automatically.
+`make e2e` clones/updates the shared harness, provisions the emulator, builds
+and installs the sample, runs the deterministic Android profile, and prints one
+combined summary. Nothing needs to be started manually.
 
-Outputs land in `artifacts/<flow>/` (gitignored):
+`./.maestro/run.sh <flow.yaml>` remains available when an app is already
+installed and a single low-level flow is being debugged.
+
+The latest focused artifacts land in `artifacts/e2e/android/<flow>/`. Profile
+runs also archive immutable snapshots beneath
+`.maestro/harness/artifacts/e2e/profile-<timestamp>/android/<flow>/`; the printed
+summary links to those snapshots. Both locations are gitignored.
 
 | File | What it is |
 |---|---|
@@ -54,9 +60,10 @@ Outputs land in `artifacts/<flow>/` (gitignored):
 
 | File | Purpose |
 |---|---|
+| `e2e.sh` | One-command setup/profile wrapper around the shared top-level runner |
 | `run.sh` | Starts sink + emulator capture, runs Maestro, renders HTML + annotated video |
-| `.env.example` | Template — copy to `.env` and fill in `MAESTRO_EXT_API_KEY` |
-| `.env` | Your `MAESTRO_EXT_API_KEY` (gitignored) |
+| `.env.example` | Template — copy to `.env` and fill in `MAESTRO_APP_API_KEY` |
+| `.env` | Your `MAESTRO_APP_API_KEY` (gitignored) |
 | `harness/` | Shared scripts + flows auto-cloned from [`customerio/mobile-e2e`](https://github.com/customerio/mobile-e2e) (gitignored) |
 
 ## Selector strategy
@@ -86,3 +93,11 @@ widget's matching `accessibilityIdentifier`.
   to a 5 fps `screenshot` poll — see the iOS sample's `capture_frames.sh`.
 - No cleanup of created Customer.io customers. Test-prod workspace is
   fine for now.
+
+## CI rollout
+
+The workflow is wired for PR smoke, weekday standard, and focused manual runs.
+PR/scheduled jobs require `MOBILE_E2E_ENABLED=true`, the
+`MOBILE_E2E_APP_API_KEY` secret, and the Inbox message-ID variable. Leave the
+flag unset until the shared harness is merged and one manual dispatch has
+passed.

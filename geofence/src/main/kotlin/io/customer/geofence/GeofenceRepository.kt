@@ -24,12 +24,23 @@ import kotlinx.coroutines.withTimeoutOrNull
  *
  * - [refresh] — for identify / app-launch. Reuses the cached set within the freshness window
  *   (re-registering locally or skipping); otherwise fetches fresh from the API.
+ * - [refreshFromLiveFix] — same pass, for a fix the SDK asked for and received.
  * - [handleMovement] — for movement-trigger EXIT. Re-ranks the cached regions for the new
  *   location.
  */
 internal interface GeofenceRepository {
     @RequiresPermission(Manifest.permission.ACCESS_FINE_LOCATION)
     suspend fun refresh(latitude: Double, longitude: Double): Result<Unit>
+
+    /**
+     * [refresh] for a just-acquired fix, which waits for an in-flight sync instead of dropping.
+     * The two run the same pass; they differ only in what a collision costs. Identify and
+     * app-launch collide constantly and share one anchor, so dropping loses nothing — but this
+     * caller holds the device's real position while the sync in flight is working from a stored
+     * anchor that can be kilometres stale, and the fix is consumed whether or not it is used.
+     */
+    @RequiresPermission(Manifest.permission.ACCESS_FINE_LOCATION)
+    suspend fun refreshFromLiveFix(latitude: Double, longitude: Double): Result<Unit>
 
     @RequiresPermission(Manifest.permission.ACCESS_FINE_LOCATION)
     suspend fun handleMovement(latitude: Double, longitude: Double): Result<Unit>
@@ -67,9 +78,10 @@ internal class GeofenceRepositoryImpl(
     private val logger: GeofenceLogger
 ) : GeofenceRepository {
 
-    // One sync pass at a time. refresh() drops when the slot is taken — identify and app-launch
-    // fire together and only one needs to run — while a movement pass waits for it instead, see
-    // [awaitRefreshSlot]. Released in `finally` so a failure or cancellation can't latch the gate.
+    // One sync pass at a time. A pass carrying its own live fix waits for the slot rather than
+    // dropping — see [awaitRefreshSlot]; [refresh] drops, because identify and app-launch fire
+    // together on the same anchor and only one needs to run. Released in `finally` so a failure
+    // or cancellation can't latch the gate.
     private val refreshInProgress = AtomicBoolean(false)
 
     // Serializes state-mutation against reset() (sign-out). Held only around the
@@ -88,6 +100,20 @@ internal class GeofenceRepositoryImpl(
             logger.logSyncSkipped("refresh already in progress")
             return Result.success(Unit)
         }
+        return runRefresh(latitude, longitude)
+    }
+
+    @RequiresPermission(Manifest.permission.ACCESS_FINE_LOCATION)
+    override suspend fun refreshFromLiveFix(latitude: Double, longitude: Double): Result<Unit> {
+        if (!awaitRefreshSlot()) {
+            logger.logSyncSkipped("refresh already in progress after waiting")
+            return Result.success(Unit)
+        }
+        return runRefresh(latitude, longitude)
+    }
+
+    @RequiresPermission(Manifest.permission.ACCESS_FINE_LOCATION)
+    private suspend fun runRefresh(latitude: Double, longitude: Double): Result<Unit> {
         try {
             val userId = secureUserStore.getUserId()
             if (userId.isNullOrBlank()) {
@@ -187,9 +213,10 @@ internal class GeofenceRepositoryImpl(
     private fun osStateWiped(): Boolean = osStateWipedByReboot() || osStateWipedByAppUpdate()
 
     /**
-     * Takes the in-flight slot for a movement pass, waiting rather than dropping: the OS holds a
-     * fired trigger in the outside state, so a pass that returns without re-centring it stops
-     * discovery until the next app open, reboot or update.
+     * Takes the in-flight slot for a pass that can't be dropped, waiting for the holder instead.
+     * For a movement pass, the OS holds a fired trigger in the outside state, so returning without
+     * re-centring it stops discovery until the next app open, reboot or update; for a live fix, the
+     * fix is spent on arrival and nothing re-requests one.
      */
     private suspend fun awaitRefreshSlot(): Boolean {
         if (tryTakeRefreshSlot()) return true

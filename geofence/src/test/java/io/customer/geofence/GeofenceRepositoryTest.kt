@@ -1521,6 +1521,38 @@ class GeofenceRepositoryTest : RobolectricTest() {
         verify(exactly = 0) { logger.logSyncSkipped(match { it.contains("already in progress") }) }
     }
 
+    @Test
+    @OptIn(ExperimentalCoroutinesApi::class)
+    fun refreshFromLiveFix_givenRefreshHoldingTheSlot_expectRegisteredAroundTheLiveFix() = runTest {
+        // Field failure: a cold start's identify refresh took the slot working from the stored
+        // anchor, the fix the SDK had asked for arrived 285ms later and was dropped, and the set
+        // was registered 2 km from the device. The arming flag is spent on arrival, so nothing
+        // requested another fix.
+        every { secureUserStore.getUserId() } returns "user-42"
+        every { clock.currentTimeMillis() } returns 200_000_000_000L
+        every { store.getLastApiFetchLocation() } returns GeofenceLocation(0.0, 0.0)
+        every { store.getLastSyncTimestamp() } returns 1_000L // stale → both passes go remote
+        every { store.getCachedConfig() } returns sampleConfig()
+        every { store.getCachedRegions() } returns listOf(GeofenceRegion("biz-1", 0.0, 0.0, 100f))
+        every { store.getRegisteredIds() } returns emptySet()
+        every { distanceFilter.nearest(any(), any(), any(), any(), any()) } returns emptyList()
+        coEvery { apiService.fetchGeofences(any()) } coAnswers {
+            delay(2.seconds)
+            Result.success(sampleResponse(maxBusinessGeofences = 3))
+        }
+        coEvery { manager.replaceGeofences(any(), any()) } returns Result.success(Unit)
+
+        val identifyPass = launch { repository.refresh(latitude = 0.0, longitude = 0.0) }
+        runCurrent()
+
+        // ~2.2 km from the anchor the holder is using, as in the field log.
+        repository.refreshFromLiveFix(latitude = 0.02, longitude = 0.0)
+        identifyPass.join()
+
+        verify { store.saveLastMovementTriggerLocation(GeofenceLocation(0.02, 0.0)) }
+        verify(exactly = 0) { logger.logSyncSkipped(match { it.contains("already in progress") }) }
+    }
+
     // ---------- restoreFromCache (boot path) ----------
 
     @Test

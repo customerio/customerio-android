@@ -2,8 +2,10 @@ package io.customer.geofence
 
 import android.annotation.SuppressLint
 import io.customer.geofence.store.GeofenceRegionStore
+import io.customer.location.LocationCoordinates
 import io.customer.sdk.data.store.SecureUserStore
 import java.util.concurrent.atomic.AtomicBoolean
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
@@ -140,7 +142,14 @@ internal class GeofenceServicesImpl(
         val userId = secureUserStore.getUserId()
         // No user yet: skip; a later identify re-triggers.
         if (userId.isNullOrEmpty()) return
-        onUserIdentified(latitude, longitude)
+        // Not onUserIdentified: the flags above are already consumed, so a pass dropped for a
+        // collision spends this fix without using it and nothing requests another.
+        triggerSync(
+            reason = REASON_LOCATION_ACQUIRED,
+            latitude = latitude,
+            longitude = longitude,
+            action = repository::refreshFromLiveFix
+        )
     }
 
     override fun onForegroundRetry(latitude: Double?, longitude: Double?) {
@@ -170,7 +179,7 @@ internal class GeofenceServicesImpl(
         regionStore.clearLastMovementTriggerLocation()
         logger.logGeofenceStateResetOnSignOut()
         scope.launch {
-            repository.reset()
+            runSafely("sign-out reset") { repository.reset() }
         }
     }
 
@@ -183,6 +192,13 @@ internal class GeofenceServicesImpl(
         if (latitude == null || longitude == null) {
             lastSkippedForNoLocation.set(true)
             logger.logSyncSkippedNoLocation(reason)
+            return null
+        }
+        // NaN, infinite and out-of-range coordinates all make `Location.distanceBetween` throw,
+        // part way through the sync. Rearm as for a missing fix.
+        if (!LocationCoordinates.isValid(latitude, longitude)) {
+            lastSkippedForNoLocation.set(true)
+            logger.logSyncSkippedInvalidLocation(reason, latitude, longitude)
             return null
         }
         if (!permissionChecker.hasRequiredLocationPermissions()) {
@@ -198,9 +214,23 @@ internal class GeofenceServicesImpl(
         // permissions are revoked, so no mid-flight revocation to handle.
         @SuppressLint("MissingPermission")
         val syncJob = scope.launch {
-            action(latitude, longitude)
+            runSafely("sync ($reason)") { action(latitude, longitude) }
         }
         return syncJob
+    }
+
+    /**
+     * Backstop for work launched on [scope], which has no exception handler — anything escaping would
+     * reach the thread's default handler and take the host app down. Fatal [Error]s propagate.
+     */
+    private suspend fun runSafely(description: String, block: suspend () -> Unit) {
+        try {
+            block()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            logger.logSyncFailed("$description threw ${e.javaClass.simpleName}: ${e.message}")
+        }
     }
 
     private companion object {
@@ -208,5 +238,6 @@ internal class GeofenceServicesImpl(
         const val REASON_USER_IDENTIFIED = "user-identified"
         const val REASON_APP_LAUNCH = "app-launch"
         const val REASON_FOREGROUND_RETRY = "foreground-retry"
+        const val REASON_LOCATION_ACQUIRED = "location-acquired"
     }
 }

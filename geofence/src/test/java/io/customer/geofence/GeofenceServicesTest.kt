@@ -115,6 +115,57 @@ class GeofenceServicesTest : RobolectricTest() {
     }
 
     @Test
+    fun onMovementTriggerExit_givenUnusableFix_expectSkipAndStayArmed() = runTest(StandardTestDispatcher()) {
+        // NaN, infinite and out-of-range coordinates all make Location.distanceBetween throw, part
+        // way through a sync that has no exception handler above it.
+        val services = servicesWith(this)
+
+        val unusable = listOf(
+            Double.NaN to 2.0,
+            1.0 to Double.NaN,
+            Double.POSITIVE_INFINITY to 2.0,
+            91.0 to 2.0,
+            1.0 to 181.0
+        )
+        unusable.forEach { (lat, lng) ->
+            services.onMovementTriggerExit(latitude = lat, longitude = lng).shouldBeNull()
+        }
+        advanceUntilIdle()
+
+        coVerify(exactly = 0) { repository.handleMovement(any(), any()) }
+        coVerify(exactly = 0) { repository.refresh(any(), any()) }
+        verify(exactly = unusable.size) { logger.logSyncSkippedInvalidLocation(any(), any(), any()) }
+        // Armed like a missing fix, so the next usable one drives a sync.
+        services.isAwaitingLocation() shouldBeEqualTo true
+    }
+
+    @Test
+    fun onMovementTriggerExit_givenRepositoryThrows_expectLoggedAndNotRethrown() = runTest(StandardTestDispatcher()) {
+        // The services scope carries a SupervisorJob and no exception handler, so anything escaping
+        // here would reach the thread's default handler and take the host app down.
+        coEvery { repository.handleMovement(any(), any()) } throws IllegalStateException("boom")
+        val services = servicesWith(this)
+
+        val job = services.onMovementTriggerExit(latitude = 1.0, longitude = 2.0)
+        advanceUntilIdle()
+
+        job.shouldNotBeNull()
+        job.isCancelled shouldBeEqualTo false
+        verify { logger.logSyncFailed(match { it?.contains("IllegalStateException") == true }) }
+    }
+
+    @Test
+    fun onUserSignedOut_givenResetThrows_expectLoggedAndNotRethrown() = runTest(StandardTestDispatcher()) {
+        coEvery { repository.reset() } throws IllegalStateException("boom")
+        val services = servicesWith(this)
+
+        services.onUserSignedOut()
+        advanceUntilIdle()
+
+        verify { logger.logSyncFailed(match { it?.contains("IllegalStateException") == true }) }
+    }
+
+    @Test
     fun onMovementTriggerExit_givenPermissionsNotGranted_expectSkipAndLog() = runTest(StandardTestDispatcher()) {
         every { permissionChecker.hasRequiredLocationPermissions() } returns false
         val services = servicesWith(this)
@@ -145,7 +196,7 @@ class GeofenceServicesTest : RobolectricTest() {
     @Test
     fun onLocationAcquired_givenPriorSkipAndUserIdentified_expectRefresh() = runTest(StandardTestDispatcher()) {
         every { secureUserStore.getUserId() } returns "user-1"
-        coEvery { repository.refresh(any(), any()) } returns Result.success(Unit)
+        coEvery { repository.refreshFromLiveFix(any(), any()) } returns Result.success(Unit)
         val services = servicesWith(this)
 
         // Skip first, then deliver the fix.
@@ -154,13 +205,13 @@ class GeofenceServicesTest : RobolectricTest() {
         services.onLocationAcquired(latitude = 12.0, longitude = 34.0)
         advanceUntilIdle()
 
-        coVerify { repository.refresh(12.0, 34.0) }
+        coVerify { repository.refreshFromLiveFix(12.0, 34.0) }
     }
 
     @Test
     fun onLocationAcquired_givenExplicitRefreshRequested_expectRefreshWithoutPriorSkip() = runTest(StandardTestDispatcher()) {
         every { secureUserStore.getUserId() } returns "user-1"
-        coEvery { repository.refresh(any(), any()) } returns Result.success(Unit)
+        coEvery { repository.refreshFromLiveFix(any(), any()) } returns Result.success(Unit)
         val services = servicesWith(this)
 
         // Host-initiated refresh arms the pipeline; the returning fix drives the sync
@@ -169,13 +220,13 @@ class GeofenceServicesTest : RobolectricTest() {
         services.onLocationAcquired(latitude = 12.0, longitude = 34.0)
         advanceUntilIdle()
 
-        coVerify { repository.refresh(12.0, 34.0) }
+        coVerify { repository.refreshFromLiveFix(12.0, 34.0) }
     }
 
     @Test
     fun onLocationAcquired_givenExplicitRefreshRequested_expectConsumedOnce() = runTest(StandardTestDispatcher()) {
         every { secureUserStore.getUserId() } returns "user-1"
-        coEvery { repository.refresh(any(), any()) } returns Result.success(Unit)
+        coEvery { repository.refreshFromLiveFix(any(), any()) } returns Result.success(Unit)
         val services = servicesWith(this)
 
         services.onRefreshRequested()
@@ -183,8 +234,8 @@ class GeofenceServicesTest : RobolectricTest() {
         services.onLocationAcquired(latitude = 56.0, longitude = 78.0)
         advanceUntilIdle()
 
-        coVerify(exactly = 1) { repository.refresh(any(), any()) }
-        coVerify(exactly = 0) { repository.refresh(56.0, 78.0) }
+        coVerify(exactly = 1) { repository.refreshFromLiveFix(any(), any()) }
+        coVerify(exactly = 0) { repository.refreshFromLiveFix(56.0, 78.0) }
     }
 
     @Test
@@ -195,7 +246,7 @@ class GeofenceServicesTest : RobolectricTest() {
         services.onLocationAcquired(latitude = 12.0, longitude = 34.0)
         advanceUntilIdle()
 
-        coVerify(exactly = 0) { repository.refresh(any(), any()) }
+        coVerify(exactly = 0) { repository.refreshFromLiveFix(any(), any()) }
         coVerify(exactly = 0) { repository.handleMovement(any(), any()) }
     }
 
@@ -209,7 +260,7 @@ class GeofenceServicesTest : RobolectricTest() {
         services.onLocationAcquired(latitude = 12.0, longitude = 34.0)
         advanceUntilIdle()
 
-        coVerify(exactly = 0) { repository.refresh(any(), any()) }
+        coVerify(exactly = 0) { repository.refreshFromLiveFix(any(), any()) }
     }
 
     @Test
@@ -227,7 +278,7 @@ class GeofenceServicesTest : RobolectricTest() {
 
         // Only the initial identify call should reach the repository.
         coVerify(exactly = 1) { repository.refresh(any(), any()) }
-        coVerify(exactly = 0) { repository.refresh(3.0, 4.0) }
+        coVerify(exactly = 0) { repository.refreshFromLiveFix(any(), any()) }
     }
 
     @Test
@@ -245,7 +296,7 @@ class GeofenceServicesTest : RobolectricTest() {
         services.onLocationAcquired(latitude = 12.0, longitude = 34.0)
         advanceUntilIdle()
 
-        coVerify(exactly = 0) { repository.refresh(any(), any()) }
+        coVerify(exactly = 0) { repository.refreshFromLiveFix(any(), any()) }
     }
 
     @Test
@@ -278,6 +329,7 @@ class GeofenceServicesTest : RobolectricTest() {
     fun onForegroundRetry_givenStillNoLocation_expectStaysArmed() = runTest(StandardTestDispatcher()) {
         every { secureUserStore.getUserId() } returns "user-1"
         coEvery { repository.refresh(any(), any()) } returns Result.success(Unit)
+        coEvery { repository.refreshFromLiveFix(any(), any()) } returns Result.success(Unit)
         val services = servicesWith(this)
 
         // A retry that still has no anchor must leave the flag up, or the fix it kicks off
@@ -290,7 +342,7 @@ class GeofenceServicesTest : RobolectricTest() {
         services.onLocationAcquired(latitude = 12.0, longitude = 34.0)
         advanceUntilIdle()
 
-        coVerify { repository.refresh(12.0, 34.0) }
+        coVerify { repository.refreshFromLiveFix(12.0, 34.0) }
     }
 
     @Test
@@ -327,6 +379,7 @@ class GeofenceServicesTest : RobolectricTest() {
     fun isAwaitingLocation_expectPeekLeavesFlagForTheReturningFix() = runTest(StandardTestDispatcher()) {
         every { secureUserStore.getUserId() } returns "user-1"
         coEvery { repository.refresh(any(), any()) } returns Result.success(Unit)
+        coEvery { repository.refreshFromLiveFix(any(), any()) } returns Result.success(Unit)
         val services = servicesWith(this)
 
         services.onUserIdentified(latitude = null, longitude = null)
@@ -338,7 +391,7 @@ class GeofenceServicesTest : RobolectricTest() {
         services.onLocationAcquired(latitude = 12.0, longitude = 34.0)
         advanceUntilIdle()
 
-        coVerify { repository.refresh(12.0, 34.0) }
+        coVerify { repository.refreshFromLiveFix(12.0, 34.0) }
         services.isAwaitingLocation() shouldBeEqualTo false
     }
 

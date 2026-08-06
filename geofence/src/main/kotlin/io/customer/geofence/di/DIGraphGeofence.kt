@@ -100,6 +100,7 @@ internal val AndroidSDKComponent.geofenceTransitionEmitter: GeofenceTransitionEm
             cooldownFilter = geofenceCooldownFilter,
             pendingStore = pendingGeofenceDeliveryStore,
             scheduler = geofenceEventScheduler,
+            regionStore = geofenceRegionStore,
             logger = SDKComponent.geofenceLogger
         )
     }

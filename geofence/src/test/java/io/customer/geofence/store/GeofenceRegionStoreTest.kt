@@ -13,7 +13,9 @@ import io.customer.geofence.GeofenceTransitionType
 import io.mockk.mockk
 import org.amshove.kluent.shouldBeEmpty
 import org.amshove.kluent.shouldBeEqualTo
+import org.amshove.kluent.shouldBeFalse
 import org.amshove.kluent.shouldBeNull
+import org.amshove.kluent.shouldBeTrue
 import org.amshove.kluent.shouldContain
 import org.amshove.kluent.shouldContainSame
 import org.junit.Test
@@ -113,6 +115,311 @@ class GeofenceRegionStoreTest : RobolectricTest() {
         store.saveRegisteredIds(emptySet())
 
         store.getRegisteredIds().shouldBeEmpty()
+    }
+
+    @Test
+    fun claimExit_givenNeverEntered_expectFalse() {
+        // The phantom-EXIT guard: no containment record means GMS is reconciling its own
+        // state rather than reporting a crossing.
+        store.claimExit("biz-1") shouldBeEqualTo false
+    }
+
+    @Test
+    fun claimExit_givenEntered_expectTrueThenFalseOnSecondCall() {
+        store.recordEntered("biz-1")
+
+        store.claimExit("biz-1") shouldBeEqualTo true
+        // Consumed: a duplicate EXIT for the same crossing doesn't pass twice.
+        store.claimExit("biz-1") shouldBeEqualTo false
+    }
+
+    @Test
+    fun recordEntered_givenCalledTwice_expectSingleEntry() {
+        store.recordEntered("biz-1")
+        store.recordEntered("biz-1")
+
+        store.getEnteredIds() shouldContainSame setOf("biz-1")
+    }
+
+    @Test
+    fun reconcileEnteredIds_givenReRegisteredFenceDeviceNoLongerInside_expectRecordDropped() {
+        // The circle moved but kept its ID, so the old record describes somewhere else.
+        store.recordEntered("biz-moved")
+
+        val dropped = store.reconcileEnteredIds(
+            registeredIds = setOf("biz-moved"),
+            inside = emptySet(),
+            sinceEpoch = store.containmentEpoch(),
+            resetIds = setOf("biz-moved")
+        )
+
+        store.getEnteredIds().shouldBeEmpty()
+        // Reported back so the caller resets the matching mark on the same decision.
+        dropped shouldContainSame setOf("biz-moved")
+    }
+
+    @Test
+    fun reconcileEnteredIds_givenEnterReportedAfterFixWasTaken_expectRecordKeptDespiteReset() {
+        store.recordEntered("biz-moved")
+        // A sync captures the epoch with its fix, then awaits GMS for seconds.
+        val epochAtFix = store.containmentEpoch()
+
+        // Mid-flight the OS reports an arrival at the circle being registered — our fix said the
+        // device was outside it, GMS says otherwise and is looking at the newer position.
+        store.recordEntered("biz-moved")
+
+        val dropped = store.reconcileEnteredIds(
+            registeredIds = setOf("biz-moved"),
+            inside = emptySet(),
+            sinceEpoch = epochAtFix,
+            resetIds = setOf("biz-moved")
+        )
+
+        // Dropping it here would leave the device inside with no record, so its genuine EXIT would
+        // be discarded as never-entered.
+        store.getEnteredIds() shouldContainSame setOf("biz-moved")
+        dropped.shouldBeEmpty()
+    }
+
+    @Test
+    fun reconcileEnteredIds_givenReRegisteredFenceStillInside_expectRecordKept() {
+        // A radius edit made while the device is inside must not manufacture a fresh arrival.
+        store.recordEntered("biz-widened")
+
+        val dropped = store.reconcileEnteredIds(
+            registeredIds = setOf("biz-widened"),
+            inside = setOf("biz-widened"),
+            sinceEpoch = store.containmentEpoch(),
+            resetIds = setOf("biz-widened")
+        )
+
+        store.getEnteredIds() shouldContainSame setOf("biz-widened")
+        // Nothing was dropped, so the caller must not drop the mark either.
+        dropped.shouldBeEmpty()
+    }
+
+    @Test
+    fun reconcileEnteredIds_expectPrunedToRegisteredAndUnionedWithInside() {
+        store.recordEntered("biz-kept")
+        store.recordEntered("biz-unregistered")
+
+        store.reconcileEnteredIds(
+            registeredIds = setOf("biz-kept", "biz-new-inside"),
+            inside = setOf("biz-new-inside"),
+            sinceEpoch = store.containmentEpoch()
+        )
+
+        // "biz-unregistered" pruned, "biz-kept" survives because it is still registered.
+        store.getEnteredIds() shouldContainSame setOf("biz-kept", "biz-new-inside")
+    }
+
+    @Test
+    fun reconcileEnteredIds_givenExitClaimedAfterFixWasTaken_expectFenceNotReSeeded() {
+        store.recordEntered("biz-1")
+        // A sync captures the epoch with its fix, then awaits GMS for seconds.
+        val epochAtFix = store.containmentEpoch()
+
+        // Mid-flight the OS reports the departure and the receiver consumes the record.
+        store.claimExit("biz-1").shouldBeTrue()
+
+        // The sync now writes back geometry from the older fix, which still contained the fence.
+        store.reconcileEnteredIds(
+            registeredIds = setOf("biz-1"),
+            inside = setOf("biz-1"),
+            sinceEpoch = epochAtFix
+        )
+
+        // Resurrecting it would leave the device recorded inside a fence it left, disarming the EXIT
+        // guard for that fence until its next departure.
+        store.getEnteredIds().shouldBeEmpty()
+    }
+
+    @Test
+    fun reconcileEnteredIds_givenExitClaimedBeforeFixWasTaken_expectFenceSeeded() {
+        // Same fence, opposite order: the departure is already history when the fix is taken, so the
+        // geometry is the newer evidence — e.g. the device drove back in while the process was dead.
+        store.recordEntered("biz-1")
+        store.claimExit("biz-1").shouldBeTrue()
+        val epochAtFix = store.containmentEpoch()
+
+        store.reconcileEnteredIds(
+            registeredIds = setOf("biz-1"),
+            inside = setOf("biz-1"),
+            sinceEpoch = epochAtFix
+        )
+
+        store.getEnteredIds() shouldContainSame setOf("biz-1")
+    }
+
+    @Test
+    fun reconcileEnteredIds_givenUnclaimedExitForSameFence_expectStillSeeded() {
+        // A claim that found no record is a suspected GMS artifact, not a departure. Letting it block
+        // the seed would leave the fence with no containment at all, so its next genuine EXIT would
+        // be dropped as never-entered — the failure the seed exists to prevent.
+        val epochAtFix = store.containmentEpoch()
+
+        store.claimExit("biz-1").shouldBeFalse()
+
+        store.reconcileEnteredIds(
+            registeredIds = setOf("biz-1"),
+            inside = setOf("biz-1"),
+            sinceEpoch = epochAtFix
+        )
+
+        store.getEnteredIds() shouldContainSame setOf("biz-1")
+    }
+
+    @Test
+    fun reconcileEnteredIds_givenFenceUnregisteredAfterClaim_expectClaimForgottenSoLaterSeedWorks() {
+        // The claim record is per-fence state that would otherwise accumulate for the life of the
+        // process. Trimming it to the registered set is safe: a fence has to be re-registered before
+        // geometry can seed it again, and by then the old claim is older than any such sync.
+        store.recordEntered("biz-1")
+        val epochAtFix = store.containmentEpoch()
+        store.claimExit("biz-1").shouldBeTrue()
+
+        // Fence drops out of the monitored set, so its claim record is trimmed.
+        store.reconcileEnteredIds(registeredIds = setOf("biz-other"), inside = emptySet(), sinceEpoch = epochAtFix)
+        // Re-registered later with the device inside it, using the same stale epoch.
+        store.reconcileEnteredIds(registeredIds = setOf("biz-1"), inside = setOf("biz-1"), sinceEpoch = epochAtFix)
+
+        store.getEnteredIds() shouldContainSame setOf("biz-1")
+    }
+
+    @Test
+    fun containmentEpoch_givenClaimedExit_expectAdvanced() {
+        store.recordEntered("biz-1")
+        val before = store.containmentEpoch()
+
+        store.claimExit("biz-1")
+
+        (store.containmentEpoch() > before).shouldBeTrue()
+    }
+
+    @Test
+    fun hasContainmentRecord_givenNothingEverRecorded_expectFalse() {
+        // Upgraded install: distinguishable from "recorded, and nothing is entered".
+        store.hasContainmentRecord().shouldBeFalse()
+        store.getEnteredIds().shouldBeEmpty()
+    }
+
+    @Test
+    fun hasContainmentRecord_givenReconcileWithNothingInside_expectTrue() {
+        // The first registration seeds the key even when the device is inside nothing, which is what
+        // ends the upgrade grace period.
+        store.reconcileEnteredIds(registeredIds = setOf("biz-1"), inside = emptySet(), sinceEpoch = store.containmentEpoch())
+
+        store.hasContainmentRecord().shouldBeTrue()
+        store.getEnteredIds().shouldBeEmpty()
+    }
+
+    @Test
+    fun reconcileEnteredIds_givenStaleAnchorReportsOutside_expectExistingContainmentPreserved() {
+        // A launch refresh can run off the persisted anchor rather than a live fix. If that
+        // anchor wrongly says "outside", erasing containment would swallow the genuine EXIT.
+        store.recordEntered("biz-1")
+
+        store.reconcileEnteredIds(registeredIds = setOf("biz-1"), inside = emptySet(), sinceEpoch = store.containmentEpoch())
+
+        store.getEnteredIds() shouldContainSame setOf("biz-1")
+    }
+
+    @Test
+    fun hasEmittedEnter_givenNothingReported_expectFalse() {
+        store.hasEmittedEnter(USER, "biz-1").shouldBeFalse()
+    }
+
+    @Test
+    fun markEnterEmitted_givenCalledTwice_expectStillReportedAndIdempotent() {
+        store.markEnterEmitted(USER, "biz-1")
+        store.markEnterEmitted(USER, "biz-1")
+
+        store.hasEmittedEnter(USER, "biz-1").shouldBeTrue()
+    }
+
+    @Test
+    fun claimExit_givenEnterReported_expectMarkClearedWithContainment() {
+        store.recordEntered("biz-1")
+        store.markEnterEmitted(USER, "biz-1")
+
+        store.claimExit("biz-1").shouldBeTrue()
+
+        // Both drop together: the mark can't be left behind for a delivery path that may not run.
+        store.getEnteredIds().shouldBeEmpty()
+        store.hasEmittedEnter(USER, "biz-1").shouldBeFalse()
+    }
+
+    @Test
+    fun claimExit_givenNeverEntered_expectMarkRetained() {
+        store.markEnterEmitted(USER, "biz-1")
+
+        store.claimExit("biz-1").shouldBeFalse()
+
+        // An unclaimed EXIT is a GMS artifact, not a departure — re-arming on it would let the next
+        // OS re-report of ENTER through as a fresh arrival.
+        store.hasEmittedEnter(USER, "biz-1").shouldBeTrue()
+    }
+
+    @Test
+    fun hasEmittedEnter_givenMarkOwnedByAnotherUser_expectFalse() {
+        store.markEnterEmitted(USER, "biz-1")
+
+        // A direct A-to-B identify publishes no ResetEvent, so B reaches a still-registered fence
+        // with A's mark in place. Honouring it would swallow B's first arrival.
+        store.hasEmittedEnter(OTHER_USER, "biz-1").shouldBeFalse()
+    }
+
+    @Test
+    fun markEnterEmitted_givenNewOwner_expectPreviousUsersMarksDiscarded() {
+        store.markEnterEmitted(USER, "biz-1")
+
+        store.markEnterEmitted(OTHER_USER, "biz-2")
+
+        store.hasEmittedEnter(OTHER_USER, "biz-2").shouldBeTrue()
+        store.hasEmittedEnter(OTHER_USER, "biz-1").shouldBeFalse()
+        // The set belongs to one identity at a time, so A's marks are gone rather than parked.
+        store.hasEmittedEnter(USER, "biz-1").shouldBeFalse()
+    }
+
+    @Test
+    fun pruneEmittedEnterIds_expectMarksDroppedForUnregisteredFences() {
+        store.markEnterEmitted(USER, "biz-kept")
+        store.markEnterEmitted(USER, "biz-evicted")
+
+        store.pruneEmittedEnterIds(setOf("biz-kept"))
+
+        store.hasEmittedEnter(USER, "biz-kept").shouldBeTrue()
+        store.hasEmittedEnter(USER, "biz-evicted").shouldBeFalse()
+    }
+
+    @Test
+    fun pruneEmittedEnterIds_givenFenceEvictedWhileInside_expectLaterRevisitNotSuppressed() {
+        // Without the prune the mark outlives the monitoring that would clear it: a fence dropped
+        // from the nearest set while the device is inside never reports its EXIT, so a genuine
+        // revisit months later would be swallowed.
+        store.markEnterEmitted(USER, "biz-1")
+
+        // Evicted from the monitored set — no EXIT is ever delivered for it.
+        store.pruneEmittedEnterIds(setOf("biz-other"))
+        // Re-registered on a later sync when the device comes back into range.
+        store.pruneEmittedEnterIds(setOf("biz-1"))
+
+        store.hasEmittedEnter(USER, "biz-1").shouldBeFalse()
+    }
+
+    @Test
+    fun markEnterEmitted_expectIndependentOfEnteredSet() {
+        // The two sets answer different questions — where the device is vs. what we have sent — and
+        // the geometry seeding writes only the former. Coupling them would let a sync's reconcile
+        // suppress the OS ENTER that follows it milliseconds later.
+        store.markEnterEmitted(USER, "biz-1")
+
+        store.getEnteredIds().shouldBeEmpty()
+
+        store.reconcileEnteredIds(registeredIds = setOf("biz-2"), inside = setOf("biz-2"), sinceEpoch = store.containmentEpoch())
+
+        store.hasEmittedEnter(USER, "biz-1").shouldBeTrue()
+        store.hasEmittedEnter(USER, "biz-2").shouldBeFalse()
     }
 
     @Test
@@ -273,11 +580,13 @@ class GeofenceRegionStoreTest : RobolectricTest() {
         store.saveLastApiFetchLocation(GeofenceLocation(1.0, 2.0))
         store.saveLastMovementTriggerLocation(GeofenceLocation(3.0, 4.0))
         store.setLastSyncTimestamp(12_345L)
+        store.recordEntered("biz-1")
 
         store.clearAll()
 
         store.getCachedRegions().shouldBeEmpty()
         store.getRegisteredIds().shouldBeEmpty()
+        store.getEnteredIds().shouldBeEmpty()
         store.getCachedConfig().shouldBeNull()
         store.getLastApiFetchLocation().shouldBeNull()
         store.getLastMovementTriggerLocation().shouldBeNull()
@@ -300,6 +609,8 @@ class GeofenceRegionStoreTest : RobolectricTest() {
         store.saveCachedRegions(regions)
         store.saveCachedConfig(config)
         store.saveRegisteredIds(setOf("biz-1"))
+        store.recordEntered("biz-1")
+        store.markEnterEmitted(USER, "biz-1")
         store.saveLastApiFetchLocation(GeofenceLocation(1.0, 2.0))
         store.saveLastMovementTriggerLocation(GeofenceLocation(3.0, 4.0))
         store.setLastRegistrationUptime(99_999L)
@@ -310,6 +621,10 @@ class GeofenceRegionStoreTest : RobolectricTest() {
 
         // User-specific: wiped.
         store.getRegisteredIds().shouldBeEmpty()
+        // Goes with the registrations it describes — sign-out drops those from the OS.
+        store.getEnteredIds().shouldBeEmpty()
+        // The next user must not inherit a suppressed ENTER for a fence they were never told about.
+        store.hasEmittedEnter(USER, "biz-1").shouldBeFalse()
         store.getLastApiFetchLocation().shouldBeNull()
         store.getLastMovementTriggerLocation().shouldBeNull()
         store.getLastRegistrationUptime().shouldBeNull()
@@ -435,6 +750,11 @@ class GeofenceRegionStoreTest : RobolectricTest() {
             maxBusinessGeofences = 19,
             maxMonitoringDistance = 1_000_000f
         )
+    }
+
+    private companion object {
+        private const val USER = "user-1"
+        private const val OTHER_USER = "user-2"
     }
 
     private fun writeRaw(key: String, value: String) {

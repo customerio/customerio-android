@@ -24,6 +24,7 @@ import io.mockk.mockk
 import io.mockk.slot
 import io.mockk.verify
 import java.io.File
+import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -102,6 +103,15 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
             "biz-geofence-1",
             "biz-geofence-2"
         )
+        // Default: the device counts as inside every fence, so the EXIT guard is a no-op.
+        // Tests for the guard override.
+        every { mockStore.claimExit(any()) } returns true
+        // Default: containment has been recorded, i.e. not a freshly-upgraded install.
+        every { mockStore.hasContainmentRecord() } returns true
+        // Default: fences monitor both transitions, so the EXIT guard applies. Exit-only fences and
+        // uncached ids are exempt from it and have their own tests.
+        every { mockStore.getCachedRegion(any()) } returns
+            GeofenceRegion("biz-geofence-2", 0.0, 0.0, 100f)
         pendingStore.removeAll()
         receiver = GeofenceBroadcastReceiver()
     }
@@ -598,6 +608,203 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
         // Both transitions were appended before their schedule attempt.
         pendingStore.loadAll().map { it.geofenceId } shouldBeEqualTo listOf("biz-1", "biz-2")
         coVerify { mockScheduler.schedule(match { it.geofenceId == "biz-2" }) }
+    }
+
+    @Test
+    fun dispatchTransition_givenExitForFenceNeverEntered_expectDroppedAndOsRegistrationKept() = runTest {
+        // GMS reports EXIT for a fence it never reported as entered — its own state
+        // reconciliation, not a crossing. Unlike an orphan ID the registration is still
+        // wanted, so it must NOT be removed from the OS.
+        every { mockStore.claimExit("biz-geofence-2") } returns false
+
+        receiver.dispatchTransition(
+            gmsTransitionType = Geofence.GEOFENCE_TRANSITION_EXIT,
+            triggeringGeofenceIds = listOf("biz-geofence-2"),
+            latitude = 51.5074,
+            longitude = -0.1278
+        )
+
+        coVerify(exactly = 0) { mockScheduler.schedule(any()) }
+        pendingStore.loadAll() shouldBeEqualTo emptyList()
+        verify(exactly = 0) { mockCooldownFilter.tryAcquire(any(), any(), any()) }
+        coVerify(exactly = 0) { mockManager.removeGeofencesByIds(any()) }
+    }
+
+    @Test
+    fun dispatchTransition_givenUnmatchedExitForExitOnlyFence_expectDeliveredNotDropped() = runTest {
+        // An exit-only fence is registered without ENTER monitoring, so the OS can never report an
+        // ENTER for the guard to record. Applying the guard would drop every one of its EXITs.
+        every { mockStore.claimExit("biz-geofence-2") } returns false
+        every { mockStore.getCachedRegion("biz-geofence-2") } returns GeofenceRegion(
+            id = "biz-geofence-2",
+            latitude = 0.0,
+            longitude = 0.0,
+            radius = 100f,
+            transitionTypes = listOf(GeofenceTransitionType.EXIT)
+        )
+
+        receiver.dispatchTransition(
+            gmsTransitionType = Geofence.GEOFENCE_TRANSITION_EXIT,
+            triggeringGeofenceIds = listOf("biz-geofence-2"),
+            latitude = 51.5074,
+            longitude = -0.1278
+        )
+
+        coVerify(exactly = 1) { mockScheduler.schedule(any()) }
+    }
+
+    @Test
+    fun dispatchTransition_givenUnmatchedExitForUncachedFence_expectDeliveredNotDropped() = runTest {
+        // No cache row means unknown transition types, which can't justify dropping a crossing.
+        every { mockStore.claimExit("biz-geofence-2") } returns false
+        every { mockStore.getCachedRegion("biz-geofence-2") } returns null
+
+        receiver.dispatchTransition(
+            gmsTransitionType = Geofence.GEOFENCE_TRANSITION_EXIT,
+            triggeringGeofenceIds = listOf("biz-geofence-2"),
+            latitude = 51.5074,
+            longitude = -0.1278
+        )
+
+        coVerify(exactly = 1) { mockScheduler.schedule(any()) }
+    }
+
+    @Test
+    fun dispatchTransition_givenUnmatchedExitOnUpgradedInstall_expectDeliveredNotDropped() = runTest {
+        // Upgrade path: the install predates the entered set, so there is no containment data to
+        // judge against until the first registration seeds it. A fence entered before the upgrade
+        // must still report its EXIT.
+        every { mockStore.claimExit("biz-geofence-2") } returns false
+        every { mockStore.hasContainmentRecord() } returns false
+
+        receiver.dispatchTransition(
+            gmsTransitionType = Geofence.GEOFENCE_TRANSITION_EXIT,
+            triggeringGeofenceIds = listOf("biz-geofence-2"),
+            latitude = 51.5074,
+            longitude = -0.1278
+        )
+
+        coVerify(exactly = 1) { mockScheduler.schedule(any()) }
+    }
+
+    @Test
+    fun dispatchTransition_givenReportedEnterForFenceMonitoringExit_expectDropped() = runTest {
+        every { mockStore.hasEmittedEnter("user-42", "biz-geofence-2") } returns true
+
+        receiver.dispatchTransition(
+            gmsTransitionType = Geofence.GEOFENCE_TRANSITION_ENTER,
+            triggeringGeofenceIds = listOf("biz-geofence-2"),
+            latitude = 51.5074,
+            longitude = -0.1278
+        )
+
+        coVerify(exactly = 0) { mockScheduler.schedule(any()) }
+    }
+
+    @Test
+    fun dispatchTransition_givenReportedEnterForEnterOnlyFence_expectDelivered() = runTest {
+        // An enter-only fence never reports an EXIT, so nothing would ever clear its mark. Honouring
+        // the guard here would suppress every arrival after the first for the life of the
+        // registration — the mirror of the exit-only exemption above.
+        every { mockStore.hasEmittedEnter("user-42", "biz-geofence-2") } returns true
+        every { mockStore.getCachedRegion("biz-geofence-2") } returns GeofenceRegion(
+            id = "biz-geofence-2",
+            latitude = 0.0,
+            longitude = 0.0,
+            radius = 100f,
+            transitionTypes = listOf(GeofenceTransitionType.ENTER)
+        )
+
+        receiver.dispatchTransition(
+            gmsTransitionType = Geofence.GEOFENCE_TRANSITION_ENTER,
+            triggeringGeofenceIds = listOf("biz-geofence-2"),
+            latitude = 51.5074,
+            longitude = -0.1278
+        )
+
+        coVerify(exactly = 1) { mockScheduler.schedule(any()) }
+    }
+
+    @Test
+    fun dispatchTransition_givenConcurrentBroadcastsForSameFence_expectBookkeepingSerialized() = runTest {
+        // Each broadcast is handled on its own scope, so without the lock an ENTER and an EXIT for
+        // the same fence interleave their read-decide-persist: the ENTER reads the mark the EXIT is
+        // about to clear and is dropped, then the EXIT drops containment, leaving the device inside
+        // with no record and its next EXIT dropped too.
+        val inFlight = AtomicInteger()
+        val peakInFlight = AtomicInteger()
+        coEvery { mockScheduler.schedule(any()) } coAnswers {
+            val depth = inFlight.incrementAndGet()
+            peakInFlight.updateAndGet { peak -> maxOf(peak, depth) }
+            delay(100)
+            inFlight.decrementAndGet()
+        }
+
+        val enter = launch {
+            receiver.dispatchTransition(
+                gmsTransitionType = Geofence.GEOFENCE_TRANSITION_ENTER,
+                triggeringGeofenceIds = listOf("biz-1"),
+                latitude = 0.0,
+                longitude = 0.0
+            )
+        }
+        val exit = launch {
+            receiver.dispatchTransition(
+                gmsTransitionType = Geofence.GEOFENCE_TRANSITION_EXIT,
+                triggeringGeofenceIds = listOf("biz-1"),
+                latitude = 0.0,
+                longitude = 0.0
+            )
+        }
+        enter.join()
+        exit.join()
+
+        peakInFlight.get() shouldBeEqualTo 1
+    }
+
+    @Test
+    fun dispatchTransition_givenEnterTransition_expectContainmentRecorded() = runTest {
+        receiver.dispatchTransition(
+            gmsTransitionType = Geofence.GEOFENCE_TRANSITION_ENTER,
+            triggeringGeofenceIds = listOf("biz-geofence-2"),
+            latitude = 51.5074,
+            longitude = -0.1278
+        )
+
+        // Recording the ENTER is what lets the matching EXIT through later.
+        verify { mockStore.recordEntered("biz-geofence-2") }
+    }
+
+    @Test
+    fun dispatchTransition_givenAnonymousEnter_expectContainmentStillRecorded() = runTest {
+        // Containment is physical, so it is tracked even when the event isn't deliverable —
+        // otherwise identifying between a crossing's ENTER and EXIT would lose the EXIT.
+        every { mockSecureUserStore.getUserId() } returns null
+
+        receiver.dispatchTransition(
+            gmsTransitionType = Geofence.GEOFENCE_TRANSITION_ENTER,
+            triggeringGeofenceIds = listOf("biz-geofence-2"),
+            latitude = 51.5074,
+            longitude = -0.1278
+        )
+
+        verify { mockStore.recordEntered("biz-geofence-2") }
+        coVerify(exactly = 0) { mockScheduler.schedule(any()) }
+    }
+
+    @Test
+    fun dispatchTransition_givenMovementTriggerExit_expectGuardNotApplied() = runTest {
+        // The movement trigger is internal plumbing and is never "entered", so running it
+        // through the guard would permanently stall movement-driven refreshes.
+        receiver.dispatchTransition(
+            gmsTransitionType = Geofence.GEOFENCE_TRANSITION_EXIT,
+            triggeringGeofenceIds = listOf(GeofenceConstants.MOVEMENT_TRIGGER_ID),
+            latitude = 0.0,
+            longitude = 0.0
+        )
+
+        verify(exactly = 0) { mockStore.claimExit(any()) }
+        verify { mockServices.onMovementTriggerExit(any(), any()) }
     }
 
     @Test

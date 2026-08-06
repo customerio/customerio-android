@@ -25,6 +25,9 @@ import kotlinx.serialization.builtins.serializer
  *
  * Cleared on sign-out:
  *   registeredIds               — subset live in OS; drives the stale-cleanup diff.
+ *   enteredIds                  — fences the device is inside; goes with the registrations it
+ *                                  describes.
+ *   emittedEnterIds             — fences reported entered, plus the userId they belong to.
  *   lastApiFetchLocation        — anchor for the tier-B distance check (rarely updated).
  *   lastMovementTriggerLocation — user's location at the most recent movement-trigger
  *                                  registration; used by boot restore to re-center
@@ -55,6 +58,75 @@ internal interface GeofenceRegionStore {
 
     fun saveRegisteredIds(ids: Set<String>)
     fun getRegisteredIds(): Set<String>
+
+    /** Fences the device is known to be inside. Drives the EXIT guard — see [claimExit]. */
+    fun getEnteredIds(): Set<String>
+
+    /** Records that the device is inside [geofenceId]. Idempotent. */
+    fun recordEntered(geofenceId: String)
+
+    /**
+     * Atomically drops [geofenceId] from the entered set, returning whether it was there, and on
+     * `true` drops the reported-ENTER mark in the same step.
+     *
+     * `false` means no record of the device ever being inside, so the EXIT is a GMS reconciliation
+     * artifact rather than a crossing.
+     */
+    fun claimExit(geofenceId: String): Boolean
+
+    /** Reported-transition counter, read before a sync computes its geometry and passed to [reconcileEnteredIds]. */
+    fun containmentEpoch(): Long
+
+    /**
+     * Prunes the entered set to [registeredIds] and unions in [inside], the fences our own geometry
+     * puts the device within at registration time. Union rather than replace, because [inside] may
+     * come from a stale anchor whose "outside" must not erase real containment.
+     *
+     * [sinceEpoch] is [containmentEpoch] as of the fix [inside] was derived from; a fence whose exit
+     * was claimed after that is dropped, so a departure reported during the sync's GMS await wins
+     * over the older geometry.
+     *
+     * [resetIds] have their carried record dropped rather than pruned and kept, for fences the caller
+     * knows the stored containment no longer describes; [inside] still re-adds them. A fence that
+     * reported an entry after [sinceEpoch] keeps its record — the OS placing the device inside
+     * outranks the caller's older geometry.
+     *
+     * Returns the [resetIds] whose record was actually dropped, so a caller resetting related state
+     * can act on the same decision instead of its own guess.
+     */
+    fun reconcileEnteredIds(
+        registeredIds: Set<String>,
+        inside: Set<String>,
+        sinceEpoch: Long,
+        resetIds: Set<String> = emptySet()
+    ): Set<String>
+
+    /**
+     * Whether containment has ever been recorded. False on an install upgraded from a version that
+     * predates the set, until the first registration seeds it — the EXIT guard defers while it is,
+     * since "empty" and "no data yet" are otherwise indistinguishable.
+     */
+    fun hasContainmentRecord(): Boolean
+
+    /**
+     * Fences reported entered with no EXIT reported since — what the backend currently believes.
+     * Distinct from [getEnteredIds], which tracks where the device *is*: a sync seeds containment
+     * 20-46ms before the OS reports the matching ENTER, so one set would swallow real crossings.
+     *
+     * Scoped to [userId] because a direct A-to-B identify publishes no `ResetEvent`. Set by
+     * [markEnterEmitted], cleared by [claimExit].
+     */
+    fun hasEmittedEnter(userId: String, geofenceId: String): Boolean
+
+    /** Records that an ENTER for [geofenceId] reached the delivery pipeline for [userId]. Idempotent. */
+    fun markEnterEmitted(userId: String, geofenceId: String)
+
+    /**
+     * Drops reported-ENTER marks for fences no longer in [registeredIds]. A fence dropped while the
+     * device is inside never reports the EXIT that would clear its mark, which would then swallow a
+     * genuine revisit.
+     */
+    fun pruneEmittedEnterIds(registeredIds: Set<String>)
 
     /** Device uptime at the last successful OS registration; null if never registered. Drives reboot detection. */
     fun getLastRegistrationUptime(): Long?
@@ -115,6 +187,94 @@ internal class GeofenceRegionStoreImpl(
     override fun getRegisteredIds(): Set<String> =
         readJson(KEY_REGISTERED_IDS, ID_SET_SERIALIZER) ?: emptySet()
 
+    override fun getEnteredIds(): Set<String> =
+        readJson(KEY_ENTERED_IDS, ID_SET_SERIALIZER) ?: emptySet()
+
+    override fun hasContainmentRecord(): Boolean = prefs.read { contains(KEY_ENTERED_IDS) } ?: false
+
+    // The mutators share a lock: each is a read-modify-write, and transitions arrive on the
+    // receiver's coroutine while registration runs on the sync path.
+    override fun recordEntered(geofenceId: String) = synchronized(enteredLock) {
+        val current = getEnteredIds()
+        if (geofenceId !in current) {
+            writeJson(KEY_ENTERED_IDS, ID_SET_SERIALIZER, current + geofenceId)
+        }
+        // Stamped even when the id is already recorded: a repeat report still says the OS puts the
+        // device inside now, which a sync holding an older fix has to defer to.
+        epoch += 1
+        enterEpochByGeofenceId[geofenceId] = epoch
+    }
+
+    override fun claimExit(geofenceId: String): Boolean = synchronized(enteredLock) {
+        val current = getEnteredIds()
+        if (geofenceId !in current) return@synchronized false
+        writeJson(KEY_ENTERED_IDS, ID_SET_SERIALIZER, current - geofenceId)
+        // Same step: a mark stranded by a later failure would silence the next genuine arrival.
+        clearEnterEmitted(geofenceId)
+        // Only a consumed record bumps the epoch; a claim that found nothing is a suspected GMS
+        // artifact and must not block the geometry seed.
+        epoch += 1
+        exitEpochByGeofenceId[geofenceId] = epoch
+        true
+    }
+
+    override fun containmentEpoch(): Long = synchronized(enteredLock) { epoch }
+
+    override fun reconcileEnteredIds(
+        registeredIds: Set<String>,
+        inside: Set<String>,
+        sinceEpoch: Long,
+        resetIds: Set<String>
+    ): Set<String> = synchronized(enteredLock) {
+        val stillInside = inside.filter { (exitEpochByGeofenceId[it] ?: 0L) <= sinceEpoch }
+        // An entry reported since the caller's fix describes the geometry being registered now, so
+        // it survives a reset aimed at the geometry it replaced.
+        val dropped = resetIds.filter { (enterEpochByGeofenceId[it] ?: 0L) <= sinceEpoch }.toSet() - stillInside
+        val carried = (getEnteredIds() intersect registeredIds) - dropped
+        writeJson(KEY_ENTERED_IDS, ID_SET_SERIALIZER, carried + stillInside)
+        // Bound the maps, after the filters have read them.
+        exitEpochByGeofenceId.keys.retainAll(registeredIds)
+        enterEpochByGeofenceId.keys.retainAll(registeredIds)
+        dropped
+    }
+
+    override fun hasEmittedEnter(userId: String, geofenceId: String): Boolean = synchronized(enteredLock) {
+        if (readEmittedEnterOwner() != userId) return@synchronized false
+        geofenceId in readEmittedEnterIds()
+    }
+
+    override fun markEnterEmitted(userId: String, geofenceId: String) = synchronized(enteredLock) {
+        // One identity owns the set at a time, so a different owner makes it stale — replace, not add.
+        val sameOwner = readEmittedEnterOwner() == userId
+        val current = if (sameOwner) readEmittedEnterIds() else emptySet()
+        if (!sameOwner) {
+            prefs.edit { putString(KEY_EMITTED_ENTER_OWNER, userId) }
+        }
+        if (geofenceId !in current) {
+            writeJson(KEY_EMITTED_ENTER_IDS, ID_SET_SERIALIZER, current + geofenceId)
+        }
+    }
+
+    private fun readEmittedEnterIds(): Set<String> =
+        readJson(KEY_EMITTED_ENTER_IDS, ID_SET_SERIALIZER) ?: emptySet()
+
+    private fun readEmittedEnterOwner(): String? = prefs.read { getString(KEY_EMITTED_ENTER_OWNER, null) }
+
+    private fun clearEnterEmitted(geofenceId: String) = synchronized(enteredLock) {
+        val current = readEmittedEnterIds()
+        if (geofenceId in current) {
+            writeJson(KEY_EMITTED_ENTER_IDS, ID_SET_SERIALIZER, current - geofenceId)
+        }
+    }
+
+    override fun pruneEmittedEnterIds(registeredIds: Set<String>) = synchronized(enteredLock) {
+        val current = readEmittedEnterIds()
+        val retained = current intersect registeredIds
+        if (retained.size != current.size) {
+            writeJson(KEY_EMITTED_ENTER_IDS, ID_SET_SERIALIZER, retained)
+        }
+    }
+
     override fun getLastRegistrationUptime(): Long? = prefs.read {
         if (contains(KEY_LAST_REGISTRATION_UPTIME)) getLong(KEY_LAST_REGISTRATION_UPTIME, 0L) else null
     }
@@ -166,6 +326,9 @@ internal class GeofenceRegionStoreImpl(
             remove(KEY_LAST_API_FETCH_LOCATION)
             remove(KEY_LAST_MOVEMENT_TRIGGER_LOCATION)
             remove(KEY_REGISTERED_IDS)
+            remove(KEY_ENTERED_IDS)
+            remove(KEY_EMITTED_ENTER_IDS)
+            remove(KEY_EMITTED_ENTER_OWNER)
             remove(KEY_LAST_REGISTRATION_UPTIME)
             remove(KEY_LAST_REGISTRATION_PACKAGE_UPDATE_TIME)
             remove(KEY_LAST_SYNC)
@@ -212,9 +375,21 @@ internal class GeofenceRegionStoreImpl(
         }
     }
 
+    private val enteredLock = Any()
+
+    // Guarded by [enteredLock]. Bumped per reported transition, so a sync can tell which of the two
+    // directions a fence reported most recently against the fix the sync is holding. Per-fence
+    // values are the epoch at which that fence last reported in that direction.
+    private var epoch = 0L
+    private val exitEpochByGeofenceId = mutableMapOf<String, Long>()
+    private val enterEpochByGeofenceId = mutableMapOf<String, Long>()
+
     private companion object {
         const val KEY_CACHED_REGIONS = "cached_regions"
         const val KEY_REGISTERED_IDS = "registered_ids"
+        const val KEY_ENTERED_IDS = "entered_ids"
+        const val KEY_EMITTED_ENTER_IDS = "emitted_enter_ids"
+        const val KEY_EMITTED_ENTER_OWNER = "emitted_enter_owner"
         const val KEY_CACHED_CONFIG = "cached_config"
         const val KEY_LAST_API_FETCH_LOCATION = "last_api_fetch_location"
         const val KEY_LAST_MOVEMENT_TRIGGER_LOCATION = "last_movement_trigger_location"

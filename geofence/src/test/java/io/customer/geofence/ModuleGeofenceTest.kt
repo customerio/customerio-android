@@ -4,9 +4,11 @@ import io.customer.base.internal.InternalCustomerIOApi
 import io.customer.location.LocationCoordinates
 import io.customer.location.LocationServices
 import io.customer.location.ModuleLocation
+import io.customer.sdk.data.store.SecureUserStore
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
+import io.mockk.verifyOrder
 import org.amshove.kluent.shouldBeEqualTo
 import org.amshove.kluent.shouldBeNull
 import org.junit.Test
@@ -17,6 +19,9 @@ class ModuleGeofenceTest {
     private val mockLocationServices: LocationServices = mockk(relaxed = true)
     private val mockLocationModule: ModuleLocation = mockk {
         every { locationServices } returns mockLocationServices
+    }
+    private val identifiedUserStore: SecureUserStore = mockk {
+        every { getUserId() } returns "user-42"
     }
 
     private fun moduleWith(mode: GeofenceLocationMode) =
@@ -41,6 +46,60 @@ class ModuleGeofenceTest {
         moduleWith(GeofenceLocationMode.AUTOMATIC)
             .autoAcquireIfNeeded(mockLocationModule, currentLocation = LocationCoordinates(latitude = 1.0, longitude = 2.0))
 
+        verify(exactly = 0) { mockLocationServices.requestLocationUpdateSilently() }
+    }
+
+    @Test
+    fun refreshOnForeground_givenAutomatic_expectArmedAndSilentFetch() {
+        val mockServices: GeofenceServices = mockk(relaxed = true)
+
+        moduleWith(GeofenceLocationMode.AUTOMATIC)
+            .refreshOnForeground(mockServices, identifiedUserStore, mockLocationModule) shouldBeEqualTo true
+
+        // Arming after the request would race the fix and drop it.
+        verifyOrder {
+            mockServices.onRefreshRequested()
+            mockLocationServices.requestLocationUpdateSilently()
+        }
+    }
+
+    @Test
+    fun refreshOnForeground_givenManual_expectNoFetchOrArm() {
+        val mockServices: GeofenceServices = mockk(relaxed = true)
+
+        moduleWith(GeofenceLocationMode.MANUAL)
+            .refreshOnForeground(mockServices, identifiedUserStore, mockLocationModule) shouldBeEqualTo false
+
+        verify(exactly = 0) { mockServices.onRefreshRequested() }
+        verify(exactly = 0) { mockLocationServices.requestLocationUpdateSilently() }
+    }
+
+    @Test
+    fun refreshOnForeground_givenSyncAlreadyAwaitingLocation_expectDeferredToStuckSyncPath() {
+        val mockServices: GeofenceServices = mockk(relaxed = true) {
+            every { isAwaitingLocation() } returns true
+        }
+
+        moduleWith(GeofenceLocationMode.AUTOMATIC)
+            .refreshOnForeground(mockServices, identifiedUserStore, mockLocationModule) shouldBeEqualTo false
+
+        verify(exactly = 0) { mockServices.onRefreshRequested() }
+        verify(exactly = 0) { mockLocationServices.requestLocationUpdateSilently() }
+    }
+
+    @Test
+    fun refreshOnForeground_givenNoIdentifiedUser_expectNoFetchOrArm() {
+        // Resume before the first identify, and every resume after sign-out. The sync discards a fix
+        // that arrives with nobody identified, so requesting one is spent battery.
+        val mockServices: GeofenceServices = mockk(relaxed = true)
+        val signedOutStore: SecureUserStore = mockk {
+            every { getUserId() } returns null
+        }
+
+        moduleWith(GeofenceLocationMode.AUTOMATIC)
+            .refreshOnForeground(mockServices, signedOutStore, mockLocationModule) shouldBeEqualTo false
+
+        verify(exactly = 0) { mockServices.onRefreshRequested() }
         verify(exactly = 0) { mockLocationServices.requestLocationUpdateSilently() }
     }
 

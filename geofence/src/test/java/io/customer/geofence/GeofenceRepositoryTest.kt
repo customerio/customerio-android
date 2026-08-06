@@ -1523,6 +1523,40 @@ class GeofenceRepositoryTest : RobolectricTest() {
 
     @Test
     @OptIn(ExperimentalCoroutinesApi::class)
+    fun handleMovement_givenHolderOutlastingTheWait_expectSlotLeftFreeForTheNextPass() = runTest {
+        // The wait has to end at its bound and leave the slot usable: the flag is process-scoped and
+        // nothing else clears it, so a pass that gave up while still holding it would silently drop
+        // every later refresh — a worse failure than the stranding the wait exists to prevent.
+        every { secureUserStore.getUserId() } returns "user-42"
+        every { clock.currentTimeMillis() } returns 200_000_000_000L
+        every { store.getLastApiFetchLocation() } returns GeofenceLocation(0.0, 0.0)
+        every { store.getCachedConfig() } returns sampleConfig()
+        every { store.getLastSyncTimestamp() } returns 1_000L
+        every { store.getCachedRegions() } returns listOf(GeofenceRegion("biz-1", 0.0, 0.0, 100f))
+        every { store.getRegisteredIds() } returns emptySet()
+        every { distanceFilter.nearest(any(), any(), any(), any(), any()) } returns emptyList()
+        coEvery { apiService.fetchGeofences(any()) } coAnswers {
+            delay(60.seconds) // outlasts the wait, so the movement pass gives up
+            Result.success(sampleResponse(maxBusinessGeofences = 3))
+        }
+        coEvery { manager.replaceGeofences(any(), any()) } returns Result.success(Unit)
+
+        val holder = launch { repository.refresh(latitude = 0.0, longitude = 0.0) }
+        runCurrent()
+
+        repository.handleMovement(latitude = 0.001, longitude = 0.0)
+        verify(exactly = 1) { logger.logSyncSkipped(match { it.contains("already in progress") }) }
+        holder.join()
+
+        repository.handleMovement(latitude = 0.002, longitude = 0.0)
+
+        // Still one: the second pass took the slot rather than finding it latched.
+        verify(exactly = 1) { logger.logSyncSkipped(match { it.contains("already in progress") }) }
+        verify { store.saveLastMovementTriggerLocation(GeofenceLocation(0.002, 0.0)) }
+    }
+
+    @Test
+    @OptIn(ExperimentalCoroutinesApi::class)
     fun refreshFromLiveFix_givenRefreshHoldingTheSlot_expectRegisteredAroundTheLiveFix() = runTest {
         // Field failure: a cold start's identify refresh took the slot working from the stored
         // anchor, the fix the SDK had asked for arrived 285ms later and was dropped, and the set

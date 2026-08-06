@@ -17,7 +17,6 @@ import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import kotlinx.coroutines.withTimeoutOrNull
 
 /**
  * Geofence sync pipeline. Two public entry points:
@@ -219,15 +218,17 @@ internal class GeofenceRepositoryImpl(
      * fix is spent on arrival and nothing re-requests one.
      */
     private suspend fun awaitRefreshSlot(): Boolean {
-        if (tryTakeRefreshSlot()) return true
-        return withTimeoutOrNull(MOVEMENT_SLOT_WAIT) {
-            // Nothing suspends between a winning CAS and the return, so a timeout can't land in
-            // between and leave the flag set with nobody to clear it.
-            while (!tryTakeRefreshSlot()) {
-                delay(MOVEMENT_SLOT_POLL)
-            }
-            true
-        } == true
+        // Bounded polling rather than a timeout around the wait: a deadline enforced by cancellation
+        // can land between a winning CAS and the block's completion, discarding the result while the
+        // slot stays taken — latching the flag so every later pass drops for the life of the process.
+        // Here the CAS result is the return value, so a slot can only be held by a caller that got
+        // `true`. Scheduling delay stretches the wait rather than shortening it, which is the safe
+        // direction: the point is to outlast the holder, not to give up on time.
+        repeat(MOVEMENT_SLOT_ATTEMPTS) {
+            if (tryTakeRefreshSlot()) return true
+            delay(MOVEMENT_SLOT_POLL)
+        }
+        return tryTakeRefreshSlot()
     }
 
     @RequiresPermission(Manifest.permission.ACCESS_FINE_LOCATION)
@@ -610,5 +611,6 @@ internal class GeofenceRepositoryImpl(
         // lands late still re-centres, whereas a dropped one leaves nothing to re-centre.
         val MOVEMENT_SLOT_WAIT = 30.seconds
         val MOVEMENT_SLOT_POLL = 50.milliseconds
+        val MOVEMENT_SLOT_ATTEMPTS = (MOVEMENT_SLOT_WAIT / MOVEMENT_SLOT_POLL).toInt()
     }
 }

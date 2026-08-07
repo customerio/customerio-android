@@ -54,6 +54,10 @@ internal abstract class InAppMessageViewController<ViewCallback : InAppMessageVi
         logger.debug("[InApp][$type] $message")
     }
 
+    protected fun logViewError(message: String) {
+        logger.error("[InApp][$type] $message")
+    }
+
     /**
      * Attaches a new EngineWebView instance to the view hierarchy if not already attached.
      * Initializes the delegate, sets its alpha and listener, and adds it to the view.

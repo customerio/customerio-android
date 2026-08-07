@@ -1,26 +1,21 @@
 package io.customer.messaginginapp.ui.controller
 
-import androidx.annotation.VisibleForTesting
 import io.customer.messaginginapp.gist.data.model.Message
 import io.customer.messaginginapp.state.InAppMessagingAction
 import io.customer.messaginginapp.ui.bridge.InAppHostViewDelegate
 import io.customer.messaginginapp.ui.bridge.InAppPlatformDelegate
 import io.customer.messaginginapp.ui.bridge.ModalInAppMessageViewCallback
-import io.customer.sdk.core.di.SDKComponent
 
 internal class ModalInAppMessageViewController(
     viewDelegate: InAppHostViewDelegate,
-    platformDelegate: InAppPlatformDelegate
+    platformDelegate: InAppPlatformDelegate,
+    /** Injectable so tests can drive the guard's clock instead of sleeping. */
+    private val sizePolicy: ModalSizePolicy = ModalSizePolicy()
 ) : InAppMessageViewController<ModalInAppMessageViewCallback>(
     type = "Modal",
     viewDelegate = viewDelegate,
     platformDelegate = platformDelegate
 ) {
-    private val logger = SDKComponent.logger
-
-    @VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
-    internal val sizePolicy: ModalSizePolicy = ModalSizePolicy()
-
     init {
         attachEngineWebView()
     }
@@ -35,18 +30,29 @@ internal class ModalInAppMessageViewController(
 
     override fun onRouteLoaded(message: Message, route: String) {
         engineWebViewDelegate?.setAlpha(1.0F)
-        // Only start judging reported heights once the message is on screen. While it loads the
-        // WebView is still detached and legitimately measures zero.
+        // Start judging reported heights from the point the message is handed over for display.
+        // Heights measured before this belong to a WebView that may not be laid out yet, and the
+        // policy additionally requires the collapsed reports to span real time so the ones that
+        // arrive while the modal is still being laid out cannot fail a healthy message.
         sizePolicy.arm()
         super.onRouteLoaded(message, route)
     }
 
     override fun onWebViewSizeUpdated(widthInDp: Double, heightInDp: Double) {
+        val message = currentMessage
+        if (message == null) {
+            // Without a message there is nothing to fail, and consuming a verdict we cannot act on
+            // would disable the guard for the rest of this message's life.
+            super.onWebViewSizeUpdated(widthInDp, heightInDp)
+            return
+        }
+
         when (val verdict = sizePolicy.onHeightReported(heightInDp)) {
-            is ModalSizeVerdict.Degenerate -> failCollapsedMessage()
+            is ModalSizeVerdict.Degenerate -> failCollapsedMessage(message)
 
             is ModalSizeVerdict.ViewportDependent -> {
-                logViewportDependentHeight(verdict.deltaInDp)
+                logViewportDependentHeight(message, verdict.deltaInDp)
+                sizePolicy.onViewportDependentHandled()
                 super.onWebViewSizeUpdated(widthInDp, heightInDp)
             }
 
@@ -57,25 +63,34 @@ internal class ModalInAppMessageViewController(
     /**
      * The message is displayed but collapsed, so it covers the screen and swallows touches without
      * ever showing anything. Failing it dismisses the overlay and tells the host app why.
+     *
+     * [InAppMessagingAction.EngineAction.MessageLoadingFailed.suppressRetry] is required here: a
+     * message whose CSS cannot resolve will collapse again every time, and persistent messages are
+     * never marked as shown when displayed, so without it the message would be fetched and shown
+     * again indefinitely.
      */
-    private fun failCollapsedMessage() {
-        val message = currentMessage ?: return
-        logger.error(
-            "In-app message ${message.messageId} reported a collapsed height " +
-                "(<= ${ModalSizePolicy.DEGENERATE_MAX_DP.toInt()}dp) for " +
-                "${ModalSizePolicy.SAMPLE_COUNT} consecutive updates, so it can never become " +
-                "visible while still blocking the screen. Dismissing it. $VIEWPORT_HEIGHT_HINT"
+    private fun failCollapsedMessage(message: Message) {
+        logViewError(
+            "Message ${message.messageId} reported a collapsed height " +
+                "(<= ${sizePolicy.degenerateMaxDp.toInt()}dp) for ${sizePolicy.sampleCount} " +
+                "consecutive updates over ${sizePolicy.degenerateMinElapsedMs}ms, so it can never " +
+                "become visible while still blocking the screen. Dismissing it and not retrying it. " +
+                VIEWPORT_HEIGHT_HINT
         )
         inAppMessagingManager.dispatch(
-            InAppMessagingAction.EngineAction.MessageLoadingFailed(message)
+            InAppMessagingAction.EngineAction.MessageLoadingFailed(
+                message = message,
+                suppressRetry = true
+            )
         )
+        sizePolicy.onDegenerateHandled()
     }
 
-    private fun logViewportDependentHeight(deltaInDp: Double) {
-        logger.error(
-            "In-app message ${currentMessage?.messageId} keeps growing by ${deltaInDp}dp per " +
-                "update, so its height tracks the WebView height instead of its content. It will " +
-                "be clamped to the screen and its content may not be positioned as designed. " +
+    private fun logViewportDependentHeight(message: Message, deltaInDp: Double) {
+        logViewError(
+            "Message ${message.messageId} keeps growing by ${deltaInDp}dp per update, so its " +
+                "height tracks the WebView height instead of its content. It will grow until the " +
+                "layout can grow no further, and its content may not be positioned as designed. " +
                 VIEWPORT_HEIGHT_HINT
         )
     }

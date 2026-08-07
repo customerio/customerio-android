@@ -25,7 +25,16 @@ internal sealed class InAppMessagingAction {
 
     sealed class EngineAction {
         data class Tap(val message: Message, val route: String, val name: String, val action: String) : InAppMessagingAction()
-        data class MessageLoadingFailed(val message: Message) : InAppMessagingAction()
+
+        /**
+         * @param suppressRetry when true, the message is marked as shown so it is not fetched and
+         * displayed again. Use it only when the failure is a property of the message itself and
+         * retrying can never succeed; a transient load failure should stay retryable.
+         */
+        data class MessageLoadingFailed(
+            val message: Message,
+            val suppressRetry: Boolean = false
+        ) : InAppMessagingAction()
     }
 
     sealed class InboxAction(open val message: InboxMessage) : InAppMessagingAction() {
@@ -48,6 +57,12 @@ internal fun InAppMessagingAction.shouldMarkMessageAsShown(): Boolean {
         is InAppMessagingAction.DismissMessage -> {
             // Mark the message as shown if it's persistent and should be logged and dismissed via close action only
             message.gistProperties.persistent && shouldLog && viaCloseAction
+        }
+
+        is InAppMessagingAction.EngineAction.MessageLoadingFailed -> {
+            // Persistent messages are not marked as shown when displayed, so a failure that can
+            // never succeed has to mark them here or the message is fetched and shown again forever.
+            suppressRetry
         }
 
         else -> false

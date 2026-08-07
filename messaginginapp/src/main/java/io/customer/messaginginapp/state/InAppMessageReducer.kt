@@ -105,7 +105,7 @@ internal val inAppMessagingReducer: Reducer<InAppMessagingState> = { state, acti
 
         is InAppMessagingAction.EngineAction.MessageLoadingFailed -> state.withMessageDismissed(
             message = action.message,
-            shouldMarkAsShown = false
+            shouldMarkAsShown = action.shouldMarkMessageAsShown()
         )
 
         is InAppMessagingAction.LoadMessage ->

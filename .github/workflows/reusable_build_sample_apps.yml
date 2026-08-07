@@ -9,6 +9,9 @@ on:
         required: false
         default: false
 
+env:
+  RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
 jobs:
   build_sample_apps:
     runs-on: ubuntu-latest
@@ -18,6 +21,7 @@ jobs:
         sample-app:
           # List all sample apps you want to have compiled.
           # List item is name of directory inside of "samples" directory for the corresponding app to compile.
+          # Adding an app here? Add a matching line to "outputs" below so it shows up in the PR comment too.
           - "java_layout"
           - "kotlin_compose"
         include: # Add additional variables to each sample app build: https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-actions#jobsjob_idstrategymatrixinclude
@@ -32,9 +36,12 @@ jobs:
             cio-siteid-secret-key: "CUSTOMERIO_KOTLIN_WORKSPACE_SITE_ID"
             firebase-app-id-secret-key: "SAMPLE_APPS_KOTLIN_FIREBASE_APP_ID"
 
+    # Matrix legs share one outputs map, so each app needs its own key to avoid overwriting the others.
+    outputs:
+      java_layout: ${{ steps.build-result.outputs.java_layout }}
+      kotlin_compose: ${{ steps.build-result.outputs.kotlin_compose }}
+
     name: Building app...${{ matrix.sample-app }}
-    permissions:
-      pull-requests: write # comment on pull request with build information
     steps:
       - name: Check out code with conditional fetch-depth
         uses: actions/checkout@v4
@@ -176,23 +183,50 @@ jobs:
           sdk_version: ${{ env.APP_SDK_BUILD_VERSION }}
           slack_webhook_url: ${{ secrets.SLACK_NOTIFY_RELEASES_WEBHOOK_URL }}
 
-      - name: Update sample builds PR comment with build information
-        if: ${{ github.event_name == 'pull_request' }}
-        uses: peter-evans/create-or-update-comment@71345be0265236311c031f5c7866368bd1eff043 # v4.0.0
-        with:
-          comment-id: ${{ needs.update-pr-comment.outputs.comment-id }}
-          issue-number: ${{ github.event.pull_request.number }}
-          # the variables APP_BUILD_NUMBER, APP_VERSION_STRING are created when fastlane runs "build".
-          body: |
-            * ${{ matrix.sample-app }}: `${{ env.APP_VERSION_STRING }} (${{ env.APP_BUILD_NUMBER }})`
-          edit-mode: append # append new line to the existing PR comment to build a list of all sample app builds.
+      # Reporting a result instead of commenting here stops parallel apps clobbering each other's edits.
+      - name: Record build result for the PR comment
+        id: build-result
+        if: ${{ always() && github.event_name == 'pull_request' }}
+        shell: bash
+        env:
+          SAMPLE_APP: ${{ matrix.sample-app }}
+          JOB_STATUS: ${{ job.status }}
+        run: |
+          if [[ "$JOB_STATUS" == "success" ]]; then
+            # the variables APP_BUILD_NUMBER, APP_VERSION_STRING are created when fastlane runs "build".
+            result="* $SAMPLE_APP: \`$APP_VERSION_STRING ($APP_BUILD_NUMBER)\`"
+          else
+            result="* $SAMPLE_APP: Build failed. See [CI job logs]($RUN_URL) to determine the issue and try re-building."
+          fi
+          echo "$SAMPLE_APP=$result" >> "$GITHUB_OUTPUT"
 
-      - name: Update sample builds PR comment with build failure message
-        if: ${{ failure() }}
-        uses: peter-evans/create-or-update-comment@71345be0265236311c031f5c7866368bd1eff043 # v4.0.0
+  update_pr_comment:
+    name: Update sample builds PR comment
+    if: ${{ always() && github.event_name == 'pull_request' }}
+    needs: [ build_sample_apps ]
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write # comment on pull request with build information
+    steps:
+      - uses: actions/checkout@v4 # required to use the local action below
+
+      - name: Build the list of sample app builds
+        id: build-log
+        shell: bash
+        env:
+          BUILD_RESULTS: ${{ toJSON(needs.build_sample_apps.outputs) }}
+        run: |
+          # Sorted by app name for a stable order; apps that reported nothing (cancelled) are dropped.
+          build_log="$(jq -r 'to_entries | sort_by(.key) | map(.value) | map(select(. != "")) | join("\n")' <<< "$BUILD_RESULTS" 2>/dev/null || true)"
+          if [[ -z "$build_log" ]]; then
+            build_log="No sample app builds were produced. See [CI job logs]($RUN_URL)."
+          fi
+          {
+            echo "build-log<<GITHUB_OUTPUT_EOF"
+            echo "$build_log"
+            echo "GITHUB_OUTPUT_EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - uses: ./.github/actions/update-sample-app-comment
         with:
-          comment-id: ${{ needs.update-pr-comment.outputs.comment-id }}
-          issue-number: ${{ github.event.pull_request.number }}
-          body: |
-            * ${{ matrix.sample-app }}: Build failed. See [CI job logs](https://github.com/${{github.repository}}/actions/runs/${{github.run_id}}) to determine the issue and try re-building.
-          edit-mode: append # append new line to the existing PR comment to build a list of all sample app builds.
+          status: ${{ steps.build-log.outputs.build-log }}

@@ -1,0 +1,35 @@
+name: Update sample app builds PR comment
+description: Create or rewrite the single PR comment that lists the latest sample app builds.
+
+inputs:
+  status:
+    description: "Markdown placed under the heading. Either a progress message or the list of built apps."
+    required: true
+
+runs:
+  using: "composite"
+  steps:
+    - name: Find existing sample builds comment
+      uses: peter-evans/find-comment@3eae4d37986fb5a8592848f6a574fdf654e61f9e # v3.1.0
+      id: existing-comment
+      with:
+        issue-number: ${{ github.event.pull_request.number }}
+        comment-author: 'github-actions[bot]'
+        body-includes: <!-- sample app builds -->
+
+    - name: Create or update sample builds comment
+      uses: peter-evans/create-or-update-comment@71345be0265236311c031f5c7866368bd1eff043 # v4.0.0
+      with:
+        comment-id: ${{ steps.existing-comment.outputs.comment-id }}
+        issue-number: ${{ github.event.pull_request.number }}
+        body: |
+          <!-- sample app builds -->
+          # Sample app builds 📱
+
+          Below you will find the list of the latest versions of the sample apps. It's recommended to always download the latest builds of the sample apps to accurately test the pull request.
+
+          ---
+          ${{ inputs.status }}
+
+          Commit ${{ github.event.pull_request.head.sha }} · [CI run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+        edit-mode: replace

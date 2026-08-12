@@ -12,6 +12,7 @@ class NetworkUtilities {
         internal const val CIO_DATACENTER_HEADER = "X-CIO-Datacenter"
         internal const val CIO_CLIENT_PLATFORM = "X-CIO-Client-Platform"
         internal const val CIO_CLIENT_VERSION = "X-CIO-Client-Version"
+        internal const val CIO_APP_IDENTIFIER_HEADER = "X-CIO-App-Identifier"
         internal const val GIST_USER_ANONYMOUS_HEADER = "X-Gist-User-Anonymous"
 
         // SSE-specific headers
@@ -47,10 +48,13 @@ class NetworkUtilities {
         ): Request.Builder {
             builder.addHeader(CIO_SITE_ID_HEADER, state.siteId)
             builder.addHeader(CIO_DATACENTER_HEADER, state.dataCenter)
-            builder.addHeader(CIO_CLIENT_PLATFORM, SDKComponent.android().client.source.lowercase() + "-android")
-            builder.addHeader(CIO_CLIENT_VERSION, SDKComponent.android().client.sdkVersion)
-            builder.addHeader(GIST_USER_ANONYMOUS_HEADER, (state.userId == null).toString())
 
+            val androidSDKComponent = SDKComponent.android()
+            builder.addHeader(CIO_CLIENT_PLATFORM, androidSDKComponent.client.source.lowercase() + "-android")
+            builder.addHeader(CIO_CLIENT_VERSION, androidSDKComponent.client.sdkVersion)
+            builder.addHeader(CIO_APP_IDENTIFIER_HEADER, androidSDKComponent.applicationStore.customerPackageName)
+
+            builder.addHeader(GIST_USER_ANONYMOUS_HEADER, (state.userId == null).toString())
             if (includeUserToken) {
                 val userToken = state.userId ?: state.anonymousId
                 userToken?.let { token ->

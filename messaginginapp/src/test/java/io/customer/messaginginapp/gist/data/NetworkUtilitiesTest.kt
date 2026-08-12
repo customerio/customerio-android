@@ -19,6 +19,10 @@ class NetworkUtilitiesTest : IntegrationTest() {
 
     private val hostPackageName = "com.example.test_app"
 
+    // Spelled out rather than read from the constant: gist matches on the wire name, so a
+    // test that reuses the constant would pass straight through a rename of its value.
+    private val appIdentifierHeader = "X-CIO-Client-App-Identifier"
+
     private fun buildHeaders(includeUserToken: Boolean = true) = NetworkUtilities.addCommonHeaders(
         builder = Request.Builder().url("https://gist.example.com/api/v4/users"),
         state = InAppMessagingState(siteId = "site", dataCenter = "us"),
@@ -29,7 +33,7 @@ class NetworkUtilitiesTest : IntegrationTest() {
     fun addCommonHeaders_givenFetchRequest_expectAppIdentifierIsHostPackageName() {
         val headers = buildHeaders()
 
-        headers[NetworkUtilities.CIO_APP_IDENTIFIER_HEADER] shouldBeEqualTo hostPackageName
+        headers[appIdentifierHeader] shouldBeEqualTo hostPackageName
     }
 
     @Test
@@ -37,7 +41,7 @@ class NetworkUtilitiesTest : IntegrationTest() {
         // SSE passes the user token in the URL instead of a header, but shares every other header.
         val headers = buildHeaders(includeUserToken = false)
 
-        headers[NetworkUtilities.CIO_APP_IDENTIFIER_HEADER] shouldBeEqualTo hostPackageName
+        headers[appIdentifierHeader] shouldBeEqualTo hostPackageName
         headers[NetworkUtilities.USER_TOKEN_HEADER] shouldBeEqualTo null
     }
 
@@ -49,7 +53,7 @@ class NetworkUtilitiesTest : IntegrationTest() {
 
         val headers = buildHeaders()
 
-        headers[NetworkUtilities.CIO_APP_IDENTIFIER_HEADER] shouldBeEqualTo hostPackageName
+        headers[appIdentifierHeader] shouldBeEqualTo hostPackageName
         headers[NetworkUtilities.CIO_CLIENT_PLATFORM] shouldBeEqualTo "reactnative-android"
     }
 }

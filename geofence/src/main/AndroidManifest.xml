@@ -26,6 +26,11 @@
             android:enabled="false"
             android:exported="false" />
 
+        <!-- Receives the displacement-gated polygon approach fixes registered with GMS. -->
+        <receiver
+            android:name="io.customer.geofence.polygon.PolygonApproachReceiver"
+            android:exported="false" />
+
         <!-- Disabled by default; enabled alongside GeofenceBroadcastReceiver -->
         <receiver
             android:name="io.customer.geofence.GeofenceBootReceiver"

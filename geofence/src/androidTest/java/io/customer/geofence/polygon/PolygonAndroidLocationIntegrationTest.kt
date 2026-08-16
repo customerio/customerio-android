@@ -14,6 +14,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.rule.GrantPermissionRule
 import com.google.android.gms.location.Geofence
+import com.google.android.gms.location.LocationResult
 import com.google.android.gms.tasks.Tasks
 import io.customer.base.internal.InternalCustomerIOApi
 import io.customer.geofence.GeofenceBroadcastReceiver
@@ -22,6 +23,7 @@ import io.customer.geofence.di.geofenceManager
 import io.customer.geofence.di.geofenceRegionStore
 import io.customer.geofence.di.pendingGeofenceDeliveryStore
 import io.customer.geofence.di.polygonFusedLocationClient
+import io.customer.geofence.di.polygonGeofenceServiceController
 import io.customer.sdk.communication.Event
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.di.setupAndroidComponent
@@ -268,6 +270,74 @@ class PolygonAndroidLocationIntegrationTest {
             pendingStore.removeAll()
             android.secureUserStore.clearAll()
             shell("appops set ${context.packageName} android:mock_location deny")
+        }
+    }
+
+    @OptIn(InternalCustomerIOApi::class)
+    @Test
+    fun polygonApproachReceiver_whenPassiveBatchIsInjected_thenCommitsPolygonEntry() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        SDKComponent.setupAndroidComponent(context)
+        val android = SDKComponent.android()
+        val store = android.geofenceRegionStore
+        val pendingStore = android.pendingGeofenceDeliveryStore
+        val region = GeofenceRegion(
+            id = "approach-campus",
+            latitude = 37.7750,
+            longitude = -122.4194,
+            radius = 1_200f,
+            polygonVertices = fence.geometry.vertices
+        )
+        store.clearAll()
+        pendingStore.removeAll()
+        android.secureUserStore.saveUserId("approach-integration-user")
+        store.beginUserSession("approach-integration-user")
+        store.saveCachedRegions(listOf(region))
+        store.saveRegisteredIds(setOf(region.id))
+        store.saveRoutableRegisteredIds(setOf(region.id))
+        val generation = store.userStateGeneration()
+        val now = SystemClock.elapsedRealtimeNanos()
+        val batch = listOf(
+            location(37.7750, -122.4196, 5f, now - 4_000_000_000L),
+            location(37.7750, -122.4194, 5f, now - 2_000_000_000L),
+            location(37.7750, -122.4192, 5f, now)
+        )
+
+        try {
+            context.sendBroadcast(
+                Intent(context, PolygonApproachReceiver::class.java)
+                    .putExtra(
+                        PolygonApproachMonitor.EXTRA_USER_STATE_GENERATION,
+                        generation
+                    )
+                    .putExtra(
+                        "com.google.android.gms.location.EXTRA_LOCATION_RESULT",
+                        LocationResult.create(batch)
+                    )
+            )
+
+            for (attempt in 0 until 40) {
+                if (
+                    region.id in store.getEnteredIds() &&
+                    pendingStore.loadAll().any {
+                        it.geofenceId == region.id && it.transition == Event.GeofenceTransition.ENTER
+                    }
+                ) {
+                    break
+                }
+                SystemClock.sleep(250)
+            }
+
+            store.getEnteredIds() shouldBeEqualTo setOf(region.id)
+            pendingStore.loadAll().single { it.geofenceId == region.id }.let { entry ->
+                entry.transition shouldBeEqualTo Event.GeofenceTransition.ENTER
+                entry.userId shouldBeEqualTo "approach-integration-user"
+            }
+        } finally {
+            android.polygonGeofenceServiceController.stopAll()
+            store.clearAll()
+            pendingStore.removeAll()
+            android.secureUserStore.clearAll()
         }
     }
 

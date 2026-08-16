@@ -19,6 +19,7 @@ import io.customer.geofence.GeofenceServicesImpl
 import io.customer.geofence.GeofenceTransitionEmitter
 import io.customer.geofence.api.GeofenceApiService
 import io.customer.geofence.api.GeofenceApiServiceImpl
+import io.customer.geofence.polygon.PolygonApproachMonitor
 import io.customer.geofence.polygon.PolygonGeofenceServiceController
 import io.customer.geofence.polygon.PolygonLocationEngine
 import io.customer.geofence.store.GeofenceCooldownStore
@@ -134,12 +135,23 @@ internal val AndroidSDKComponent.polygonLocationEngine: PolygonLocationEngine
         )
     }
 
+internal val AndroidSDKComponent.polygonApproachMonitor: PolygonApproachMonitor
+    get() = singleton {
+        PolygonApproachMonitor(
+            context = applicationContext,
+            client = polygonFusedLocationClient,
+            logger = SDKComponent.geofenceLogger,
+            backgroundContext = SDKComponent.dispatchersProvider.background
+        )
+    }
+
 internal val AndroidSDKComponent.polygonGeofenceServiceController: PolygonGeofenceServiceController
     get() = singleton {
         PolygonGeofenceServiceController(
             context = applicationContext,
             store = geofenceRegionStore,
             engine = polygonLocationEngine,
+            approachMonitor = polygonApproachMonitor,
             secureUserStore = secureUserStore,
             logger = SDKComponent.geofenceLogger
         )

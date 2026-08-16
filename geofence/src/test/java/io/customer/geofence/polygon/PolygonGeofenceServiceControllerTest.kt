@@ -29,9 +29,17 @@ class PolygonGeofenceServiceControllerTest {
     private val context: Context = mockk(relaxed = true)
     private val store: GeofenceRegionStore = mockk(relaxed = true)
     private val engine: PolygonLocationEngine = mockk(relaxed = true)
+    private val approachMonitor: PolygonApproachMonitor = mockk(relaxed = true)
     private val secureUserStore: SecureUserStore = mockk(relaxed = true)
     private val logger: GeofenceLogger = mockk(relaxed = true)
-    private val controller = PolygonGeofenceServiceController(context, store, engine, secureUserStore, logger)
+    private val controller = PolygonGeofenceServiceController(
+        context,
+        store,
+        engine,
+        approachMonitor,
+        secureUserStore,
+        logger
+    )
 
     @Before
     fun setUp() {
@@ -314,6 +322,106 @@ class PolygonGeofenceServiceControllerTest {
             engine.stop()
             context.stopService(any())
         }
+    }
+
+    @Test
+    fun reconcileRegisteredPolygons_givenPolygon_expectStartsResponsiveApproachMonitoring() {
+        controller.reconcileRegisteredPolygons(setOf("campus"))
+
+        verify { approachMonitor.start(0L) }
+    }
+
+    @Test
+    fun processApproachLocations_givenFixInsideTrigger_expectStartsFineEvaluationWithoutClaimingOsCircle() = runTest {
+        var activeIds = emptySet<String>()
+        every { store.getActivePolygonIds() } answers { activeIds }
+        every { store.activatePolygon(any()) } answers { activeIds = activeIds + firstArg<String>() }
+
+        val accepted = controller.processApproachLocations(
+            locations = listOf(location(elapsedRealtimeNanos = 100L)),
+            expectedUserStateGeneration = 0L
+        )
+
+        accepted shouldBeEqualTo true
+        verify { store.activatePolygon("campus") }
+        verify { engine.activate("campus") }
+        coVerify { engine.processLocation(any(), 0L) }
+        verify { context.startForegroundService(any<Intent>()) }
+        verify(exactly = 0) { store.recordPolygonCoarseInside(any()) }
+    }
+
+    @Test
+    fun processApproachLocations_givenApproachSessionMovesOutsideTrigger_expectStopsIt() = runTest {
+        var activeIds = setOf("campus")
+        every { store.getActivePolygonIds() } answers { activeIds }
+        every { store.deactivatePolygon(any()) } answers { activeIds = activeIds - firstArg<String>() }
+        val outside = location(elapsedRealtimeNanos = 100L).apply {
+            latitude = 38.0
+            longitude = -122.0
+        }
+
+        val accepted = controller.processApproachLocations(
+            locations = listOf(outside),
+            expectedUserStateGeneration = 0L
+        )
+
+        accepted shouldBeEqualTo true
+        verify { store.deactivatePolygon("campus") }
+        verify { engine.deactivate("campus") }
+        verify { context.stopService(any()) }
+    }
+
+    @Test
+    fun processApproachLocations_givenUncertainFixAtTrigger_expectDoesNotStartFineSession() = runTest {
+        val uncertain = location(elapsedRealtimeNanos = 100L).apply { accuracy = 500f }
+
+        controller.processApproachLocations(listOf(uncertain), 0L)
+
+        verify(exactly = 0) { store.activatePolygon(any()) }
+        verify(exactly = 0) { engine.activate(any()) }
+        coVerify(exactly = 0) { engine.processLocation(any(), any()) }
+        verify(exactly = 0) { context.startForegroundService(any<Intent>()) }
+    }
+
+    @Test
+    fun processApproachLocations_givenNoActiveOrNearbyPolygon_expectSkipsFineEvaluator() = runTest {
+        val farAway = location(elapsedRealtimeNanos = 100L).apply {
+            latitude = 38.0
+            longitude = -122.0
+        }
+
+        controller.processApproachLocations(listOf(farAway), 0L)
+
+        coVerify(exactly = 0) { engine.processLocation(any(), any()) }
+    }
+
+    @Test
+    fun processApproachLocations_givenOsCircleStillInside_expectDoesNotStopSession() = runTest {
+        every { store.getActivePolygonIds() } returns setOf("campus")
+        every { store.getCoarseInsidePolygonIds() } returns setOf("campus")
+        val outside = location(elapsedRealtimeNanos = 100L).apply {
+            latitude = 38.0
+            longitude = -122.0
+        }
+
+        controller.processApproachLocations(listOf(outside), 0L)
+
+        verify(exactly = 0) { store.deactivatePolygon("campus") }
+        verify(exactly = 0) { engine.deactivate("campus") }
+    }
+
+    @Test
+    fun processApproachLocations_givenPreviousUserGeneration_expectRejectsWithoutLocationWork() = runTest {
+        every { store.userStateGeneration() } returns 1L
+
+        val accepted = controller.processApproachLocations(
+            locations = listOf(location(elapsedRealtimeNanos = 100L)),
+            expectedUserStateGeneration = 0L
+        )
+
+        accepted shouldBeEqualTo false
+        verify(exactly = 0) { store.activatePolygon(any()) }
+        coVerify(exactly = 0) { engine.processLocation(any(), any()) }
     }
 
     private fun location(elapsedRealtimeNanos: Long = 0L) = Location("test").apply {

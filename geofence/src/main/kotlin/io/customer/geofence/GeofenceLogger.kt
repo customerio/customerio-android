@@ -60,6 +60,10 @@ internal class GeofenceLogger(private val logger: Logger) {
         logger.debug("Geofence '$geofenceId' transition dropped — id not in registered store", tag = TAG)
     }
 
+    fun logTransitionDroppedRetiredId(geofenceId: String) {
+        logger.debug("Geofence '$geofenceId' transition dropped — backend removed it and OS cleanup is pending", tag = TAG)
+    }
+
     fun logEnterDroppedAlreadyReported(geofenceId: String) {
         logger.debug("Geofence '$geofenceId' ENTER: dropped — already reported as entered and no exit since, so the OS is re-reporting a state we already sent", tag = TAG)
     }
@@ -170,7 +174,7 @@ internal class GeofenceLogger(private val logger: Logger) {
     }
 
     fun logPersistFailed(geofenceId: String, transitionName: String) {
-        logger.error("Geofence '$geofenceId' $transitionName: failed to persist pending transition — skipped delivery and rolled back cooldown so a later crossing can retry", tag = TAG)
+        logger.error("Geofence '$geofenceId' $transitionName: file outbox unavailable — kept durable staging for recovery", tag = TAG)
     }
 
     fun logEventWorkerEntryMissing(key: String) {
@@ -206,6 +210,10 @@ internal class GeofenceLogger(private val logger: Logger) {
             "ModuleGeofence requires ModuleLocation to be registered alongside it. Add ModuleLocation to CustomerIOConfigBuilder; geofencing will not function until then.",
             tag = TAG
         )
+    }
+
+    fun logPolygonMonitoringFailed(message: String?) {
+        logger.error("Polygon location monitoring unavailable: $message", tag = TAG)
     }
 
     companion object {

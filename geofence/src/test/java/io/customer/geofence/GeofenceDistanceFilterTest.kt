@@ -3,8 +3,10 @@ package io.customer.geofence
 import io.customer.commontest.config.TestConfig
 import io.customer.commontest.config.testConfigurationDefault
 import io.customer.commontest.core.RobolectricTest
+import io.customer.geofence.polygon.PolygonCoordinate
 import org.amshove.kluent.shouldBeEmpty
 import org.amshove.kluent.shouldBeEqualTo
+import org.amshove.kluent.shouldBeGreaterThan
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -169,6 +171,61 @@ class GeofenceDistanceFilterTest : RobolectricTest() {
         )
 
         result.map { it.id } shouldBeEqualTo listOf("biz-big-far", "biz-small-near")
+    }
+
+    @Test
+    fun nearest_givenPointInPolygonEnclosingCircleDeadSpace_expectUsesPolygonBoundaryDistance() {
+        val concave = GeofenceRegion(
+            id = "concave",
+            latitude = 1.5,
+            longitude = 1.5,
+            radius = 300_000f,
+            polygonVertices = listOf(
+                PolygonCoordinate(0.0, 0.0),
+                PolygonCoordinate(0.0, 3.0),
+                PolygonCoordinate(1.0, 3.0),
+                PolygonCoordinate(1.0, 1.0),
+                PolygonCoordinate(3.0, 1.0),
+                PolygonCoordinate(3.0, 0.0)
+            )
+        )
+
+        concave.edgeDistanceTo(2.0, 2.0) shouldBeGreaterThan 100_000f
+    }
+
+    @Test
+    fun nearest_givenPinnedPolygonBeyondDistanceCap_expectRetainedAheadOfNearbyCircle() {
+        val pinned = region("pinned", 10.0, 0.0)
+        val nearby = region("nearby", 0.01, 0.0)
+
+        val result = filter.nearest(
+            regions = listOf(nearby, pinned),
+            latitude = 0.0,
+            longitude = 0.0,
+            max = 1,
+            maxDistanceMeters = 1_000f,
+            pinnedIds = setOf("pinned")
+        )
+
+        result.map(GeofenceRegion::id) shouldBeEqualTo listOf("pinned")
+    }
+
+    @Test
+    fun nearest_givenMorePinnedPolygonsThanPositiveCap_expectAllPinnedRetainedForExitMonitoring() {
+        val result = filter.nearest(
+            regions = listOf(
+                region("nearby", 0.01, 0.0),
+                region("active-a", 10.0, 0.0),
+                region("active-b", 11.0, 0.0)
+            ),
+            latitude = 0.0,
+            longitude = 0.0,
+            max = 1,
+            maxDistanceMeters = 1_000f,
+            pinnedIds = setOf("active-a", "active-b")
+        )
+
+        result.map(GeofenceRegion::id) shouldBeEqualTo listOf("active-a", "active-b")
     }
 
     private fun region(

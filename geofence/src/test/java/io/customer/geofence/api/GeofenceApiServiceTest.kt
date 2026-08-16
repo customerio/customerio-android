@@ -41,6 +41,7 @@ class GeofenceApiServiceTest {
         val body = capturedParams.captured.body.shouldNotBeNull()
         body shouldContain "\"latitude\":37.7749295"
         body shouldContain "\"longitude\":-122.4194155"
+        body shouldContain "\"capabilities\":[\"polygon-v1\"]"
         // radius is optional on the endpoint and no longer sent.
         body shouldNotContain "radius"
         capturedParams.captured.headers["Content-Type"] shouldBeEqualTo "application/json"

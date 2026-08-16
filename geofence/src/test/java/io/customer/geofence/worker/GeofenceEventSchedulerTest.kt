@@ -69,11 +69,11 @@ class GeofenceEventSchedulerTest : RobolectricTest() {
                 capture(workRequestSlot)
             )
         }
-        uniqueKeySlot.captured shouldBeEqualTo "biz-geofence-1_ENTER_1234_none"
+        uniqueKeySlot.captured shouldBeEqualTo "biz-geofence-1_ENTER_tid-sched_none"
 
         // inputData carries only the store key; the worker loads the full row from the pending store.
         val input = workRequestSlot.captured.workSpec.input
-        input.getString("entry_key") shouldBeEqualTo "biz-geofence-1_ENTER_1234_none"
+        input.getString("entry_key") shouldBeEqualTo "biz-geofence-1_ENTER_tid-sched_none"
         input.hasKeyWithValueOfType("geofence_id", String::class.java) shouldBeEqualTo false
         input.hasKeyWithValueOfType("metadata", String::class.java) shouldBeEqualTo false
 
@@ -104,8 +104,9 @@ class GeofenceEventSchedulerTest : RobolectricTest() {
         }
         // Key carries the geoset so per-geoset workers don't collide under ExistingWorkPolicy.KEEP,
         // and it's the same key inputData carries for the worker's store lookup.
-        uniqueKeySlot.captured shouldBeEqualTo "biz-geofence-1_ENTER_1234_9"
-        workRequestSlot.captured.workSpec.input.getString("entry_key") shouldBeEqualTo "biz-geofence-1_ENTER_1234_9"
+        uniqueKeySlot.captured shouldBeEqualTo "biz-geofence-1_ENTER_tid-sched_9"
+        workRequestSlot.captured.workSpec.input.getString("entry_key") shouldBeEqualTo
+            "biz-geofence-1_ENTER_tid-sched_9"
     }
 
     @Test

@@ -105,10 +105,38 @@ class GeofenceEventWorkerTest : RobolectricTest() {
     fun doWork_givenEntryAlreadyDelivered_expectSuccessWithoutTracking() = runTest {
         // No matching entry in the store (the foreground flush already delivered + removed it):
         // the worker sees it's gone, so it must not send a duplicate.
-        val result = createWorker(inputDataFor("biz-already-delivered_ENTER_0_none")).doWork()
+        val result = createWorker(inputDataFor("biz-already-delivered_ENTER_tid-missing_none")).doWork()
 
         result shouldBeEqualTo ListenableWorker.Result.success()
         coVerify(exactly = 0) { tracker.trackEvent(any()) }
+    }
+
+    @Test
+    fun doWork_givenPreUpgradeLegacyKey_expectFindsAndDeliversPersistedEntry() = runTest {
+        val entry = seed("biz-legacy", Event.GeofenceTransition.ENTER, timestamp = 42L)
+        coEvery { tracker.trackEvent(any()) } returns Result.success(Unit)
+
+        val result = createWorker(inputDataFor(entry.legacyKey)).doWork()
+
+        result shouldBeEqualTo ListenableWorker.Result.success()
+        coVerify(exactly = 1) { tracker.trackEvent(entry) }
+        store.loadAll().isEmpty().shouldBeTrue()
+    }
+
+    @Test
+    fun pendingStore_givenDistinctSameSecondCrossings_expectBothSurvive() {
+        val first = PendingGeofenceDelivery(
+            "biz",
+            Event.GeofenceTransition.ENTER,
+            42L,
+            "user-42",
+            transitionId = "tid-first"
+        )
+        val second = first.copy(transitionId = "tid-second")
+
+        store.appendAll(listOf(first, second))
+
+        store.loadAll() shouldBeEqualTo listOf(first, second)
     }
 
     @Test
@@ -129,7 +157,7 @@ class GeofenceEventWorkerTest : RobolectricTest() {
 
         result shouldBeEqualTo ListenableWorker.Result.retry()
         // Left in place so a WorkManager retry — or the foreground flush — can deliver later.
-        store.loadAll().map { it.key } shouldBeEqualTo listOf("biz_ENTER_0_none")
+        store.loadAll().map { it.key } shouldBeEqualTo listOf("biz_ENTER_tid-seed_none")
     }
 
     @Test
@@ -141,7 +169,7 @@ class GeofenceEventWorkerTest : RobolectricTest() {
         val result = createWorker(inputDataFor(entry.key)).doWork()
 
         result shouldBeEqualTo ListenableWorker.Result.failure()
-        store.loadAll().map { it.key } shouldBeEqualTo listOf("biz_ENTER_0_none")
+        store.loadAll().map { it.key } shouldBeEqualTo listOf("biz_ENTER_tid-seed_none")
     }
 
     @Test
@@ -156,7 +184,7 @@ class GeofenceEventWorkerTest : RobolectricTest() {
         result shouldBeEqualTo ListenableWorker.Result.success()
         coVerify(exactly = 0) { tracker.trackEvent(any()) }
         // Entry must NOT be removed — flush still needs it.
-        store.loadAll().map { it.key } shouldBeEqualTo listOf("biz-anon_ENTER_0_none")
+        store.loadAll().map { it.key } shouldBeEqualTo listOf("biz-anon_ENTER_tid-seed_none")
     }
 
     private fun inputDataFor(key: String): Data =

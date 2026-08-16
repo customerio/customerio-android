@@ -1,7 +1,9 @@
 package io.customer.geofence.di
 
+import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.GeofencingClient
 import com.google.android.gms.location.LocationServices
+import io.customer.geofence.GeofenceBusinessTransitionProcessor
 import io.customer.geofence.GeofenceCooldownFilter
 import io.customer.geofence.GeofenceDistanceFilter
 import io.customer.geofence.GeofenceJsonSerializer
@@ -17,6 +19,8 @@ import io.customer.geofence.GeofenceServicesImpl
 import io.customer.geofence.GeofenceTransitionEmitter
 import io.customer.geofence.api.GeofenceApiService
 import io.customer.geofence.api.GeofenceApiServiceImpl
+import io.customer.geofence.polygon.PolygonGeofenceServiceController
+import io.customer.geofence.polygon.PolygonLocationEngine
 import io.customer.geofence.store.GeofenceCooldownStore
 import io.customer.geofence.store.GeofenceCooldownStoreImpl
 import io.customer.geofence.store.GeofenceRegionStore
@@ -39,6 +43,9 @@ internal val SDKComponent.geofenceLogger: GeofenceLogger
 
 internal val AndroidSDKComponent.geofencingClient: GeofencingClient
     get() = newInstance { LocationServices.getGeofencingClient(applicationContext) }
+
+internal val AndroidSDKComponent.polygonFusedLocationClient: FusedLocationProviderClient
+    get() = singleton { LocationServices.getFusedLocationProviderClient(applicationContext) }
 
 internal val AndroidSDKComponent.geofenceReceiverToggle: GeofenceReceiverToggle
     get() = newInstance { GeofenceReceiverToggle(applicationContext) }
@@ -105,6 +112,39 @@ internal val AndroidSDKComponent.geofenceTransitionEmitter: GeofenceTransitionEm
         )
     }
 
+internal val AndroidSDKComponent.geofenceBusinessTransitionProcessor: GeofenceBusinessTransitionProcessor
+    get() = singleton {
+        GeofenceBusinessTransitionProcessor(
+            store = geofenceRegionStore,
+            secureUserStore = secureUserStore,
+            transitionEmitter = geofenceTransitionEmitter,
+            logger = SDKComponent.geofenceLogger
+        )
+    }
+
+internal val AndroidSDKComponent.polygonLocationEngine: PolygonLocationEngine
+    get() = singleton {
+        PolygonLocationEngine(
+            client = polygonFusedLocationClient,
+            store = geofenceRegionStore,
+            transitionProcessor = geofenceBusinessTransitionProcessor,
+            clock = SDKComponent.clock,
+            dispatchersProvider = SDKComponent.dispatchersProvider,
+            logger = SDKComponent.geofenceLogger
+        )
+    }
+
+internal val AndroidSDKComponent.polygonGeofenceServiceController: PolygonGeofenceServiceController
+    get() = singleton {
+        PolygonGeofenceServiceController(
+            context = applicationContext,
+            store = geofenceRegionStore,
+            engine = polygonLocationEngine,
+            secureUserStore = secureUserStore,
+            logger = SDKComponent.geofenceLogger
+        )
+    }
+
 internal val SDKComponent.geofenceDistanceFilter: GeofenceDistanceFilter
     get() = newInstance<GeofenceDistanceFilter> { GeofenceDistanceFilter() }
 
@@ -146,7 +186,8 @@ internal val AndroidSDKComponent.geofenceRepository: GeofenceRepository
             transitionEmitter = geofenceTransitionEmitter,
             clock = SDKComponent.clock,
             packageInfo = geofencePackageInfo,
-            logger = SDKComponent.geofenceLogger
+            logger = SDKComponent.geofenceLogger,
+            polygonController = polygonGeofenceServiceController
         )
     }
 
@@ -159,6 +200,8 @@ internal val AndroidSDKComponent.geofenceServices: GeofenceServices
             repository = geofenceRepository,
             secureUserStore = secureUserStore,
             regionStore = geofenceRegionStore,
+            cooldownFilter = geofenceCooldownFilter,
+            polygonController = polygonGeofenceServiceController,
             scope = SDKComponent.scopeProvider.geofenceScope,
             logger = SDKComponent.geofenceLogger,
             permissionChecker = geofencePermissionChecker

@@ -10,6 +10,8 @@ import io.customer.geofence.GeofenceJsonSerializer
 import io.customer.geofence.GeofenceLocation
 import io.customer.geofence.GeofenceRegion
 import io.customer.geofence.GeofenceTransitionType
+import io.customer.geofence.polygon.PolygonCoordinate
+import io.customer.sdk.communication.Event
 import io.mockk.mockk
 import org.amshove.kluent.shouldBeEmpty
 import org.amshove.kluent.shouldBeEqualTo
@@ -69,6 +71,26 @@ class GeofenceRegionStoreTest : RobolectricTest() {
     }
 
     @Test
+    fun saveCachedRegions_givenPolygon_expectGeometryRoundTrip() {
+        val polygon = GeofenceRegion(
+            id = "campus",
+            latitude = 37.0,
+            longitude = -122.0,
+            radius = 500f,
+            polygonVertices = listOf(
+                PolygonCoordinate(37.0, -122.0),
+                PolygonCoordinate(37.0, -121.99),
+                PolygonCoordinate(37.01, -121.99),
+                PolygonCoordinate(37.01, -122.0)
+            )
+        )
+
+        store.saveCachedRegions(listOf(polygon))
+
+        store.getCachedRegions() shouldBeEqualTo listOf(polygon)
+    }
+
+    @Test
     fun getCachedRegion_givenCachedId_expectRegion() {
         val region = GeofenceRegion("biz-1", 37.7749, -122.4194, 100f, name = "Coffee", geosetIds = listOf("3", "4"))
         store.saveCachedRegions(listOf(region))
@@ -81,6 +103,209 @@ class GeofenceRegionStoreTest : RobolectricTest() {
         store.saveCachedRegions(listOf(GeofenceRegion("biz-1", 37.7749, -122.4194, 100f, name = "Coffee")))
 
         store.getCachedRegion("biz-missing") shouldBeEqualTo null
+    }
+
+    @Test
+    fun getRegisteredRegion_givenRetainedRegistration_expectRoutingFallbackWithoutAddingToCatalog() {
+        val stale = GeofenceRegion("biz-stale", 37.7749, -122.4194, 100f, name = "Old")
+
+        store.saveRetainedRegisteredRegions(listOf(stale))
+
+        store.getCachedRegion("biz-stale") shouldBeEqualTo null
+        store.getRegisteredRegion("biz-stale") shouldBeEqualTo stale
+        store.getCachedRegions().shouldBeEmpty()
+    }
+
+    @Test
+    fun pendingTransition_givenCommittedEnter_expectContainmentAndStageUpdatedAtomically() {
+        val staged = PendingGeofenceDelivery(
+            geofenceId = "biz-1",
+            transition = Event.GeofenceTransition.ENTER,
+            timestamp = 100L,
+            userId = "user-1",
+            transitionId = "transition-1",
+            marksEnterReported = true
+        )
+        val generation = store.userStateGeneration()
+        store.savePendingTransitionEntries(listOf(staged), generation).shouldBeTrue()
+
+        store.getEnteredIds() shouldContain "biz-1"
+        store.hasEmittedEnter("user-1", "biz-1").shouldBeTrue()
+        store.getAllPendingTransitionEntries() shouldBeEqualTo listOf(staged)
+
+        store.completePendingTransition("transition-1").shouldBeTrue()
+
+        store.getAllPendingTransitionEntries().shouldBeEmpty()
+    }
+
+    @Test
+    fun pendingTransition_givenOppositeStageBeforeOlderDeliveryCompletes_expectOlderCompletionCannotResurrectState() {
+        val generation = store.userStateGeneration()
+        val enter = PendingGeofenceDelivery(
+            geofenceId = "biz-1",
+            transition = Event.GeofenceTransition.ENTER,
+            timestamp = 100L,
+            userId = "user-1",
+            transitionId = "transition-enter"
+        )
+        val exit = enter.copy(
+            transition = Event.GeofenceTransition.EXIT,
+            timestamp = 101L,
+            transitionId = "transition-exit"
+        )
+
+        store.savePendingTransitionEntries(listOf(enter), generation).shouldBeTrue()
+        store.savePendingTransitionEntries(listOf(exit), generation).shouldBeTrue()
+        store.getEnteredIds().shouldBeEmpty()
+
+        store.completePendingTransition("transition-enter").shouldBeTrue()
+
+        store.getEnteredIds().shouldBeEmpty()
+        store.getAllPendingTransitionEntries() shouldBeEqualTo listOf(exit)
+    }
+
+    @Test
+    fun pendingTransition_givenAlternatingEdgesWhileDeliveryBlocked_expectEveryAttemptAndLatestContainmentPreserved() {
+        val generation = store.userStateGeneration()
+        val enterOne = PendingGeofenceDelivery(
+            geofenceId = "polygon",
+            transition = Event.GeofenceTransition.ENTER,
+            timestamp = 100L,
+            userId = "user-1",
+            transitionId = "enter-1"
+        )
+        val exit = enterOne.copy(
+            transition = Event.GeofenceTransition.EXIT,
+            timestamp = 101L,
+            transitionId = "exit-1"
+        )
+        val enterTwo = enterOne.copy(timestamp = 102L, transitionId = "enter-2")
+
+        store.savePendingTransitionEntries(listOf(enterOne), generation).shouldBeTrue()
+        store.savePendingTransitionEntries(listOf(exit), generation).shouldBeTrue()
+        store.savePendingTransitionEntries(listOf(enterTwo), generation).shouldBeTrue()
+
+        store.getAllPendingTransitionEntries() shouldBeEqualTo listOf(enterOne, exit, enterTwo)
+        store.getEnteredIds() shouldBeEqualTo setOf("polygon")
+    }
+
+    @Test
+    fun pendingTransition_givenSignOutBeforeDelayedCommit_expectGenerationRejectsStateResurrection() {
+        val generation = store.userStateGeneration()
+        store.clearUserScopedState()
+
+        store.commitBusinessTransition(
+            geofenceId = "biz-1",
+            transition = Event.GeofenceTransition.ENTER,
+            transitionId = null,
+            expectedUserStateGeneration = generation
+        ).shouldBeFalse()
+
+        store.getEnteredIds().shouldBeEmpty()
+    }
+
+    @Test
+    fun pendingTransition_givenSignOutBeforeDelayedStage_expectDurableGenerationRejectsWrite() {
+        val oldGeneration = store.userStateGeneration()
+        store.clearUserScopedState()
+        val staged = PendingGeofenceDelivery(
+            geofenceId = "biz-1",
+            transition = Event.GeofenceTransition.ENTER,
+            timestamp = 100L,
+            userId = "old-user",
+            transitionId = "transition-1",
+            stateGeneration = oldGeneration
+        )
+
+        store.savePendingTransitionEntries(listOf(staged), oldGeneration).shouldBeFalse()
+        store.getAllPendingTransitionEntries().shouldBeEmpty()
+    }
+
+    @Test
+    fun beginUserSession_givenProcessRecreation_expectGenerationRemainsDurable() {
+        store.beginUserSession("user-1")
+        val generation = store.userStateGeneration()
+        store.saveRegisteredIds(setOf("biz-1"))
+        store.saveRoutableRegisteredIds(setOf("biz-1"))
+        store.activatePolygon("biz-1")
+        val recreated = GeofenceRegionStoreImpl(
+            context = applicationMock,
+            jsonSerializer = GeofenceJsonSerializer(),
+            logger = mockk(relaxed = true)
+        )
+
+        recreated.userStateGeneration() shouldBeEqualTo generation
+        recreated.beginUserSession("user-1")
+        recreated.userStateGeneration() shouldBeEqualTo generation
+        recreated.beginUserSession("user-2")
+        recreated.userStateGeneration() shouldBeEqualTo generation + 1L
+        recreated.activeUserSessionId() shouldBeEqualTo "user-2"
+        recreated.getRegisteredIds() shouldBeEqualTo setOf("biz-1")
+        recreated.getRoutableRegisteredIds().shouldBeEmpty()
+        recreated.getActivePolygonIds().shouldBeEmpty()
+    }
+
+    @Test
+    fun beginUserSession_givenLegacyRegistrationsWithoutOwnerOrRoutingKey_expectAdoptsWithoutCoverageLoss() {
+        store.saveRegisteredIds(setOf("biz-1"))
+        store.recordEntered("biz-1")
+        val recreated = GeofenceRegionStoreImpl(
+            context = applicationMock,
+            jsonSerializer = GeofenceJsonSerializer(),
+            logger = mockk(relaxed = true)
+        )
+
+        recreated.beginUserSession("user-1")
+
+        recreated.activeUserSessionId() shouldBeEqualTo "user-1"
+        recreated.getRegisteredIds() shouldBeEqualTo setOf("biz-1")
+        recreated.getRoutableRegisteredIds() shouldBeEqualTo setOf("biz-1")
+        recreated.getEnteredIds() shouldBeEqualTo setOf("biz-1")
+    }
+
+    @Test
+    fun completeUserReset_givenNewUserBeganWhileOsClearWasInFlight_expectPreservesNewOwner() {
+        store.beginUserSession("user-A")
+        val resetGeneration = store.userStateGeneration()
+        store.saveRegisteredIds(setOf("biz-1"))
+        store.saveRoutableRegisteredIds(setOf("biz-1"))
+        store.activatePolygon("biz-1")
+        store.recordPolygonCoarseInside("biz-1")
+        store.recordEntered("biz-1")
+        store.setLastSyncTimestamp(100L)
+
+        store.beginUserSession("user-B")
+        val userBGeneration = store.userStateGeneration()
+        store.completeUserReset(resetGeneration, osRegistrationsCleared = true)
+
+        store.activeUserSessionId() shouldBeEqualTo "user-B"
+        store.userStateGeneration() shouldBeEqualTo userBGeneration
+        store.getRegisteredIds().shouldBeEmpty()
+        store.getRoutableRegisteredIds().shouldBeEmpty()
+        store.getActivePolygonIds().shouldBeEmpty()
+        store.getCoarseInsidePolygonIds().shouldBeEmpty()
+        store.getEnteredIds().shouldBeEmpty()
+        store.getLastSyncTimestamp().shouldBeNull()
+    }
+
+    @Test
+    fun completeUserReset_givenNewUserBeganAndOsClearFailed_expectPreservesOwnerAndCleanupIds() {
+        val retained = GeofenceRegion("biz-old", 1.0, 2.0, 50f)
+        store.beginUserSession("user-A")
+        val resetGeneration = store.userStateGeneration()
+        store.saveRegisteredIds(setOf(retained.id))
+        store.saveRoutableRegisteredIds(setOf(retained.id))
+        store.saveRetainedRegisteredRegions(listOf(retained))
+
+        store.beginUserSession("user-B")
+        val userBGeneration = store.userStateGeneration()
+        store.completeUserReset(resetGeneration, osRegistrationsCleared = false)
+
+        store.activeUserSessionId() shouldBeEqualTo "user-B"
+        store.userStateGeneration() shouldBeEqualTo userBGeneration
+        store.getRegisteredIds() shouldBeEqualTo setOf(retained.id)
+        store.getRetainedRegisteredRegions() shouldBeEqualTo listOf(retained)
+        store.getRoutableRegisteredIds().shouldBeEmpty()
     }
 
     @Test
@@ -115,6 +340,54 @@ class GeofenceRegionStoreTest : RobolectricTest() {
         store.saveRegisteredIds(emptySet())
 
         store.getRegisteredIds().shouldBeEmpty()
+    }
+
+    @Test
+    fun getRoutableRegisteredIds_givenPreFeatureStore_expectFallsBackToRegisteredIds() {
+        store.saveRegisteredIds(setOf("biz-legacy"))
+
+        store.getRoutableRegisteredIds() shouldBeEqualTo setOf("biz-legacy")
+    }
+
+    @Test
+    fun polygonSessionState_givenProcessStyleStoreRecreation_expectPersistsActiveAndCoarseState() {
+        store.activatePolygon("campus")
+        store.recordPolygonCoarseInside("campus")
+
+        val recreated = GeofenceRegionStoreImpl(
+            context = applicationMock,
+            jsonSerializer = GeofenceJsonSerializer(),
+            logger = mockk(relaxed = true)
+        )
+
+        recreated.getActivePolygonIds() shouldContainSame setOf("campus")
+        recreated.getCoarseInsidePolygonIds() shouldContainSame setOf("campus")
+    }
+
+    @Test
+    fun retainPolygonSessionState_givenRegionRemoved_expectBothSetsPruned() {
+        store.activatePolygon("kept")
+        store.activatePolygon("removed")
+        store.recordPolygonCoarseInside("kept")
+        store.recordPolygonCoarseInside("removed")
+
+        store.retainActivePolygonIds(setOf("kept"))
+        store.retainCoarseInsidePolygonIds(setOf("kept"))
+
+        store.getActivePolygonIds() shouldContainSame setOf("kept")
+        store.getCoarseInsidePolygonIds() shouldContainSame setOf("kept")
+    }
+
+    @Test
+    fun deactivatePolygonIfCurrent_givenPreviousUserGeneration_expectKeepsNewSessionActive() {
+        store.beginUserSession("user-1")
+        val previousGeneration = store.userStateGeneration()
+        store.beginUserSession("user-2")
+        store.activatePolygon("campus")
+
+        store.deactivatePolygonIfCurrent("campus", previousGeneration) shouldBeEqualTo false
+
+        store.getActivePolygonIds() shouldContainSame setOf("campus")
     }
 
     @Test
@@ -567,6 +840,8 @@ class GeofenceRegionStoreTest : RobolectricTest() {
     fun clearAll_expectEverythingRemoved() {
         store.saveCachedRegions(listOf(GeofenceRegion("biz-1", 0.0, 0.0, 50f)))
         store.saveRegisteredIds(setOf("biz-1"))
+        store.saveRoutableRegisteredIds(setOf("biz-1"))
+        store.saveRetainedRegisteredRegions(listOf(GeofenceRegion("biz-stale", 1.0, 1.0, 50f)))
         store.saveCachedConfig(
             GeofenceConfig(
                 localRefreshTriggerRadius = 1_000f,
@@ -586,6 +861,8 @@ class GeofenceRegionStoreTest : RobolectricTest() {
 
         store.getCachedRegions().shouldBeEmpty()
         store.getRegisteredIds().shouldBeEmpty()
+        store.getRoutableRegisteredIds().shouldBeEmpty()
+        store.getRetainedRegisteredRegions().shouldBeEmpty()
         store.getEnteredIds().shouldBeEmpty()
         store.getCachedConfig().shouldBeNull()
         store.getLastApiFetchLocation().shouldBeNull()
@@ -609,6 +886,8 @@ class GeofenceRegionStoreTest : RobolectricTest() {
         store.saveCachedRegions(regions)
         store.saveCachedConfig(config)
         store.saveRegisteredIds(setOf("biz-1"))
+        store.saveRoutableRegisteredIds(setOf("biz-1"))
+        store.saveRetainedRegisteredRegions(listOf(GeofenceRegion("biz-stale", 1.0, 1.0, 50f)))
         store.recordEntered("biz-1")
         store.markEnterEmitted(USER, "biz-1")
         store.saveLastApiFetchLocation(GeofenceLocation(1.0, 2.0))
@@ -621,6 +900,8 @@ class GeofenceRegionStoreTest : RobolectricTest() {
 
         // User-specific: wiped.
         store.getRegisteredIds().shouldBeEmpty()
+        store.getRoutableRegisteredIds().shouldBeEmpty()
+        store.getRetainedRegisteredRegions().shouldBeEmpty()
         // Goes with the registrations it describes — sign-out drops those from the OS.
         store.getEnteredIds().shouldBeEmpty()
         // The next user must not inherit a suppressed ENTER for a fence they were never told about.
@@ -634,6 +915,46 @@ class GeofenceRegionStoreTest : RobolectricTest() {
         // Cached regions/config: preserved.
         store.getCachedRegions() shouldBeEqualTo regions
         store.getCachedConfig() shouldBeEqualTo config
+    }
+
+    @Test
+    fun clearUserSessionRetainingOsRegistrations_expectSamplingStopsButCleanupStateSurvives() {
+        val registered = GeofenceRegion("biz-1", 0.0, 0.0, 50f)
+        val retained = GeofenceRegion("biz-stale", 1.0, 1.0, 50f)
+        store.beginUserSession(USER)
+        val generation = store.userStateGeneration()
+        store.saveCachedRegions(listOf(registered))
+        store.saveRegisteredIds(setOf(registered.id))
+        store.saveRoutableRegisteredIds(setOf(registered.id))
+        store.saveRetainedRegisteredRegions(listOf(retained))
+        store.activatePolygon(registered.id)
+        store.recordPolygonCoarseInside(registered.id)
+        store.recordEntered(registered.id)
+        store.markEnterEmitted(USER, registered.id)
+        store.setLastSyncTimestamp(12_345L)
+
+        store.clearUserSessionRetainingOsRegistrations()
+
+        store.getRegisteredIds() shouldBeEqualTo setOf(registered.id)
+        store.getRoutableRegisteredIds().shouldBeEmpty()
+        store.getRetainedRegisteredRegions() shouldBeEqualTo listOf(retained)
+        store.getCachedRegions() shouldBeEqualTo listOf(registered)
+        store.getActivePolygonIds().shouldBeEmpty()
+        store.getCoarseInsidePolygonIds().shouldBeEmpty()
+        store.getEnteredIds().shouldBeEmpty()
+        store.hasEmittedEnter(USER, registered.id).shouldBeFalse()
+        store.hasActiveUserSession().shouldBeFalse()
+        store.userStateGeneration() shouldBeEqualTo generation + 1L
+        store.getLastSyncTimestamp().shouldBeNull()
+
+        val recreated = GeofenceRegionStoreImpl(
+            context = applicationMock,
+            jsonSerializer = GeofenceJsonSerializer(),
+            logger = mockk(relaxed = true)
+        )
+        recreated.beginUserSession("user-B")
+        recreated.getRegisteredIds() shouldBeEqualTo setOf(registered.id)
+        recreated.getRoutableRegisteredIds().shouldBeEmpty()
     }
 
     // --- Schema-drift / corruption safety ---

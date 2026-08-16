@@ -1,6 +1,7 @@
 package io.customer.geofence
 
 import android.annotation.SuppressLint
+import io.customer.geofence.polygon.PolygonGeofenceServiceController
 import io.customer.geofence.store.GeofenceRegionStore
 import io.customer.location.LocationCoordinates
 import io.customer.sdk.data.store.SecureUserStore
@@ -88,6 +89,8 @@ internal class GeofenceServicesImpl(
     private val repository: GeofenceRepository,
     private val secureUserStore: SecureUserStore,
     private val regionStore: GeofenceRegionStore,
+    private val cooldownFilter: GeofenceCooldownFilter,
+    private val polygonController: PolygonGeofenceServiceController,
     private val scope: CoroutineScope,
     private val logger: GeofenceLogger,
     private val permissionChecker: GeofencePermissionChecker
@@ -171,6 +174,11 @@ internal class GeofenceServicesImpl(
         // sync for the next user — sign-out wipes user-scoped session state.
         explicitRefreshRequested.set(false)
         lastSkippedForNoLocation.set(false)
+        cooldownFilter.clearAll()
+        // SecureUserStore is already anonymous when ResetEvent arrives. Fence the old generation
+        // and stop FLP/FGS synchronously, before a stalled GMS registration or repository lock can
+        // delay the eventual OS cleanup.
+        polygonController.clearUserSessionRetainingOsRegistrations()
         // Clear the registration-center anchor synchronously: repository.reset() also
         // clears it but runs on `scope`, so an in-process re-login (ResetEvent then
         // UserChangedEvent) would read the previous user's center and rank the new

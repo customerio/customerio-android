@@ -2,6 +2,9 @@ package io.customer.geofence
 
 import android.location.Location
 import com.google.android.gms.location.Geofence
+import io.customer.geofence.polygon.PolygonCoordinate
+import io.customer.geofence.polygon.PolygonGeometry
+import io.customer.geofence.polygon.PolygonPointRelation
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonElement
@@ -36,8 +39,16 @@ internal data class GeofenceRegion(
     @SerialName("geosetIds")
     val geosetIds: List<String> = emptyList(),
     @SerialName("metadata")
-    val metadata: Map<String, JsonElement> = emptyMap()
-)
+    val metadata: Map<String, JsonElement> = emptyMap(),
+    @SerialName("polygonVertices")
+    val polygonVertices: List<PolygonCoordinate>? = null
+) {
+    val isPolygon: Boolean
+        get() = polygonVertices != null
+
+    fun polygonGeometryOrNull(): PolygonGeometry? =
+        polygonVertices?.let(PolygonGeometry::from)
+}
 
 /** Transition types a geofence can monitor, mapped to GMS constants. */
 @Serializable
@@ -71,13 +82,39 @@ internal fun GeofenceRegion.distanceTo(lat: Double, lng: Double): Float {
  * and an unmonitored region can never report its exit.
  */
 internal fun GeofenceRegion.edgeDistanceTo(lat: Double, lng: Double): Float =
-    (distanceTo(lat, lng) - radius).coerceAtLeast(0f)
+    edgeDistanceTo(lat, lng, polygonGeometryOrNull())
+
+internal fun GeofenceRegion.edgeDistanceTo(
+    lat: Double,
+    lng: Double,
+    polygonGeometry: PolygonGeometry?
+): Float {
+    if (!isPolygon) return (distanceTo(lat, lng) - radius).coerceAtLeast(0f)
+    val geometry = requireNotNull(polygonGeometry) { "polygon geometry is required" }
+    return geometry.let {
+        val point = PolygonCoordinate(lat, lng)
+        if (it.relationTo(point) != PolygonPointRelation.OUTSIDE) {
+            0f
+        } else {
+            it.boundaryDistanceMeters(point).toFloat()
+        }
+    }
+}
+
+internal fun GeofenceRegion.contains(latitude: Double, longitude: Double): Boolean = if (isPolygon) {
+    polygonGeometryOrNull()?.relationTo(PolygonCoordinate(latitude, longitude)) != PolygonPointRelation.OUTSIDE
+} else {
+    distanceTo(latitude, longitude) <= radius
+}
 
 /**
  * Converts the SDK transition types to a GMS bitmask for [Geofence.Builder.setTransitionTypes].
  * E.g., [ENTER, EXIT] → GEOFENCE_TRANSITION_ENTER | GEOFENCE_TRANSITION_EXIT.
  */
 internal fun GeofenceRegion.toGmsTransitionTypes(): Int {
+    if (isPolygon) {
+        return Geofence.GEOFENCE_TRANSITION_ENTER or Geofence.GEOFENCE_TRANSITION_EXIT
+    }
     var mask = 0
     transitionTypes.forEach { mask = mask or it.gmsValue }
     return mask
@@ -93,4 +130,15 @@ internal fun GeofenceRegion.equalsForRegistration(other: GeofenceRegion): Boolea
         latitude == other.latitude &&
         longitude == other.longitude &&
         radius == other.radius &&
-        transitionTypes == other.transitionTypes
+        isPolygon == other.isPolygon &&
+        (isPolygon || transitionTypes == other.transitionTypes)
+
+/** Stable, process-independent revision for invalidating detections produced by replaced geometry. */
+internal fun GeofenceRegion.transitionRevision(): Int {
+    var result = id.hashCode()
+    result = 31 * result + latitude.hashCode()
+    result = 31 * result + longitude.hashCode()
+    result = 31 * result + radius.hashCode()
+    result = 31 * result + (polygonVertices?.hashCode() ?: 0)
+    return result
+}

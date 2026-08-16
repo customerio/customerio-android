@@ -49,9 +49,9 @@ internal class GeofenceEventScheduler(
             .addTag(WORK_MANAGER_TAG_GEOFENCE)
             .build()
 
-        // entry.key doubles as the unique-work name so the foreground flush can cancel this worker by key.
-        // Second-precision timestamp: same-second bursts collide (KEEP dedupes them);
-        // later transitions get distinct keys so an offline-queued worker can't block legitimate re-entries.
+        // entry.key doubles as the unique-work name so the foreground flush can cancel this worker
+        // by key. Its stable transition ID makes recovery idempotent without conflating distinct
+        // crossings that happen in the same second.
         val workManager = workManagerProvider.getWorkManager()
         if (workManager != null) {
             // Await persistence so the BroadcastReceiver doesn't finish() before WM commits the work spec.
@@ -87,7 +87,7 @@ internal class GeofenceEventWorker(
         // The receiver persists the row before scheduling, so it's normally present. A miss means the
         // foreground flush already delivered and removed it — nothing to do.
         val store = SDKComponent.android().pendingGeofenceDeliveryStore
-        val entry = store.get(entryKey)
+        val entry = store.get(entryKey) ?: store.loadAll().firstOrNull { it.legacyKey == entryKey }
         if (entry == null) {
             logger.logEventWorkerEntryMissing(entryKey)
             return Result.success()

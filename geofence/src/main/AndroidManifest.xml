@@ -1,5 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
 
     <!--
         Geofence monitoring requires these permissions declared in the host app:
@@ -11,6 +15,11 @@
     -->
 
     <application>
+        <service
+            android:name="io.customer.geofence.polygon.PolygonLocationService"
+            android:exported="false"
+            android:foregroundServiceType="location"
+            tools:ignore="ForegroundServicePermission" />
         <!-- Disabled by default; dynamically enabled by GeofenceManager when geofences are registered -->
         <receiver
             android:name="io.customer.geofence.GeofenceBroadcastReceiver"

@@ -20,6 +20,7 @@ import io.customer.sdk.data.store.PendingDeliveryResult
 import io.customer.sdk.data.store.sendRemoveOnSuccess
 
 private const val KEY_ENTRY_KEY = "entry_key"
+private const val ORDERED_GEOFENCE_DELIVERY_QUEUE = "cio-geofence-delivery-queue"
 
 /**
  * Schedules a [GeofenceEventWorker] for guaranteed delivery of a geofence transition event.
@@ -49,13 +50,17 @@ internal class GeofenceEventScheduler(
             .addTag(WORK_MANAGER_TAG_GEOFENCE)
             .build()
 
-        // entry.key doubles as the unique-work name so the foreground flush can cancel this worker
-        // by key. Its stable transition ID makes recovery idempotent without conflating distinct
-        // crossings that happen in the same second.
+        // Every transition joins one durable continuation chain. This prevents a later EXIT from
+        // overtaking an earlier ENTER when WorkManager has multiple workers eligible at once.
+        // APPEND_OR_REPLACE also creates a fresh chain if a prior terminal failure cancelled it.
         val workManager = workManagerProvider.getWorkManager()
         if (workManager != null) {
             // Await persistence so the BroadcastReceiver doesn't finish() before WM commits the work spec.
-            workManager.enqueueUniqueWork(entry.key, ExistingWorkPolicy.KEEP, workRequest).await()
+            workManager.enqueueUniqueWork(
+                ORDERED_GEOFENCE_DELIVERY_QUEUE,
+                ExistingWorkPolicy.APPEND_OR_REPLACE,
+                workRequest
+            ).await()
         } else {
             asyncTracker.trackEvent(entry)
         }

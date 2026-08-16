@@ -600,6 +600,12 @@ internal class GeofenceRepositoryImpl(
                     // during the await keeps its record, and the mark that record was reported with.
                     // A fence dropped from the set never reports the EXIT that would re-arm it.
                     store.pruneEmittedEnterIds(newIds - resetApplied)
+                    // Re-registration after a reboot or package replacement establishes a new OS
+                    // monitoring session. Publish its stamps before recovery starts any passive or
+                    // fine polygon monitor; otherwise recover() still observes the previous session
+                    // and immediately tears down the monitor that reconciliation just started.
+                    store.setLastRegistrationUptime(clock.elapsedRealtime())
+                    packageInfo.lastUpdateTimeMs()?.let { store.setLastRegistrationPackageUpdateTime(it) }
                     val registeredPolygonIds = nearest.filter(GeofenceRegion::isPolygon)
                         .mapTo(mutableSetOf(), GeofenceRegion::id)
                     polygonController?.reconcileRegisteredPolygons(registeredPolygonIds)
@@ -621,10 +627,6 @@ internal class GeofenceRepositoryImpl(
                         }
                     }
                     polygonController?.recover()
-                    // Stamp uptime and package update time so the next refresh detects a reboot or
-                    // app update (both wipe OS geofences) and re-registers instead of trusting ids.
-                    store.setLastRegistrationUptime(clock.elapsedRealtime())
-                    packageInfo.lastUpdateTimeMs()?.let { store.setLastRegistrationPackageUpdateTime(it) }
                     // Track the user's location at each successful registration so boot restore can
                     // re-center close to their real position. Clear only when nothing is registered
                     // (kill switch) — the trigger, and thus its location, is gone.

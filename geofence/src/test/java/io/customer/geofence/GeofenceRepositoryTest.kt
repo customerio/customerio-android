@@ -21,6 +21,7 @@ import io.mockk.mockkStatic
 import io.mockk.slot
 import io.mockk.unmockkStatic
 import io.mockk.verify
+import io.mockk.verifyOrder
 import java.io.IOException
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.time.Duration.Companion.milliseconds
@@ -920,6 +921,11 @@ class GeofenceRepositoryTest : RobolectricTest() {
 
         existingSlot.captured.shouldBeEmpty()
         verify { store.setLastRegistrationPackageUpdateTime(2_000L) }
+        verifyOrder {
+            store.setLastRegistrationUptime(10_000L)
+            store.setLastRegistrationPackageUpdateTime(2_000L)
+            polygonController.recover()
+        }
     }
 
     @Test

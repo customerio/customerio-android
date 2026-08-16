@@ -4,6 +4,7 @@ import android.Manifest
 import android.annotation.SuppressLint
 import android.location.Location
 import android.os.Looper
+import android.os.SystemClock
 import androidx.annotation.RequiresPermission
 import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.LocationCallback
@@ -395,7 +396,7 @@ internal class PolygonLocationEngine(
                 transitionProcessor.process(
                     geofenceId = detection.polygonId,
                     transition = transition,
-                    timestampSeconds = clock.currentTimeSeconds(),
+                    timestampSeconds = observedTimestampSeconds(fix),
                     enforceConfiguredTransition = true,
                     expectedRegionRevision = detection.regionRevision,
                     expectedUserStateGeneration = expectedUserStateGeneration,
@@ -422,6 +423,26 @@ internal class PolygonLocationEngine(
                 }
             }
         }
+    }
+
+    private fun observedTimestampSeconds(fix: AndroidPolygonLocationFix): Long {
+        val nowMillis = clock.currentTimeMillis()
+        val monotonicAgeMillis =
+            (SystemClock.elapsedRealtimeNanos() - fix.elapsedRealtimeNanos).coerceAtLeast(0L) /
+                NANOS_PER_MILLISECOND
+        val monotonicTimestampMillis = (nowMillis - monotonicAgeMillis).coerceAtLeast(0L)
+        val sourceTimestampMillis = fix.timestampMillis
+        val earliestSaneSourceMillis =
+            (monotonicTimestampMillis - MAX_SOURCE_CLOCK_DRIFT_MILLIS).coerceAtLeast(1L)
+        val latestSaneSourceMillis = monotonicTimestampMillis + MAX_SOURCE_CLOCK_DRIFT_MILLIS
+        val normalizedMillis = if (
+            sourceTimestampMillis in earliestSaneSourceMillis..latestSaneSourceMillis
+        ) {
+            sourceTimestampMillis
+        } else {
+            monotonicTimestampMillis
+        }
+        return normalizedMillis / MILLIS_PER_SECOND
     }
 
     private fun activePolygonFencesLocked(): List<PolygonFence> {
@@ -547,6 +568,9 @@ internal class PolygonLocationEngine(
     }
 
     private companion object {
+        const val NANOS_PER_MILLISECOND = 1_000_000L
+        const val MILLIS_PER_SECOND = 1_000L
+        const val MAX_SOURCE_CLOCK_DRIFT_MILLIS = 5 * 60 * 1_000L
         const val HIGH_ACCURACY_UPDATE_INTERVAL_MS = 2_000L
         const val HIGH_ACCURACY_MINIMUM_UPDATE_INTERVAL_MS = 1_000L
         const val HIGH_ACCURACY_MAXIMUM_BATCH_DELAY_MS = 5_000L

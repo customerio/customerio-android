@@ -7,13 +7,13 @@ import android.location.Location
 import com.google.android.gms.location.LocationResult
 import io.customer.geofence.di.geofenceLogger
 import io.customer.geofence.di.polygonApproachMonitor
+import io.customer.geofence.di.polygonApproachWorkScheduler
 import io.customer.geofence.di.polygonGeofenceServiceController
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.di.setupAndroidComponent
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withTimeoutOrNull
 
 /** Receives the low-power approach fixes delivered by Google Play services. */
 class PolygonApproachReceiver : BroadcastReceiver() {
@@ -30,27 +30,22 @@ class PolygonApproachReceiver : BroadcastReceiver() {
         try {
             SDKComponent.setupAndroidComponent(context = context)
             val workScope = SDKComponent.scopeProvider.geofenceScope
-            val work = workScope.launch {
+            workScope.launch {
                 try {
-                    handleLocations(result.locations, expectedUserStateGeneration)
+                    val scheduled = SDKComponent.android().polygonApproachWorkScheduler.enqueue(
+                        result.locations,
+                        expectedUserStateGeneration
+                    )
+                    if (!scheduled) {
+                        handleLocations(result.locations, expectedUserStateGeneration)
+                    }
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {
                     SDKComponent.geofenceLogger.logPolygonApproachMonitoringFailed(e.message)
                 } finally {
-                    workScope.cancel()
-                }
-            }
-            val dispatchScope = SDKComponent.scopeProvider.geofenceScope
-            dispatchScope.launch {
-                try {
-                    // Finishing goAsync on time is independent of completing an accepted batch.
-                    // Once a fix activates fine evaluation, its foreground service keeps the
-                    // process alive while durable transition work continues in workScope.
-                    withTimeoutOrNull(DISPATCH_WAIT_BUDGET_MS) { work.join() }
-                } finally {
                     pendingResult.finish()
-                    dispatchScope.cancel()
+                    workScope.cancel()
                 }
             }
         } catch (e: Throwable) {
@@ -82,9 +77,5 @@ class PolygonApproachReceiver : BroadcastReceiver() {
             }
         }
         monitor.removeStaleGeneration(expectedUserStateGeneration)
-    }
-
-    private companion object {
-        val DISPATCH_WAIT_BUDGET_MS = 8_000L
     }
 }

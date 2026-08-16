@@ -3,6 +3,7 @@ package io.customer.geofence.polygon
 import android.content.Context
 import android.content.Intent
 import android.location.Location
+import android.os.Looper
 import io.customer.geofence.GeofenceLogger
 import io.customer.geofence.GeofenceRegion
 import io.customer.geofence.store.GeofenceRegionStore
@@ -14,6 +15,7 @@ import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
 import io.mockk.verifyOrder
+import java.time.Duration
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.async
 import kotlinx.coroutines.test.runTest
@@ -22,6 +24,7 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 
 @Config(sdk = [34])
@@ -91,6 +94,22 @@ class PolygonGeofenceServiceControllerTest {
         controller.onServiceDestroyed(1L)
         controller.deactivate("campus")
 
+        verify(exactly = 1) { context.stopService(any()) }
+    }
+
+    @Test
+    fun activate_givenServiceNeverAcknowledgesPromotion_expectOneBoundedRetryThenGateReopens() {
+        every { store.getActivePolygonIds() } returns setOf("campus")
+
+        controller.activate("campus")
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofSeconds(10))
+        verify(exactly = 2) { context.startForegroundService(any<Intent>()) }
+
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofSeconds(10))
+        verify(exactly = 2) { context.startForegroundService(any<Intent>()) }
+
+        every { store.getActivePolygonIds() } returns emptySet()
+        controller.deactivate("campus")
         verify(exactly = 1) { context.stopService(any()) }
     }
 

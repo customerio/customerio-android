@@ -65,11 +65,11 @@ class GeofenceEventSchedulerTest : RobolectricTest() {
         verify(exactly = 1) {
             workManager.enqueueUniqueWork(
                 capture(uniqueKeySlot),
-                ExistingWorkPolicy.KEEP,
+                ExistingWorkPolicy.APPEND_OR_REPLACE,
                 capture(workRequestSlot)
             )
         }
-        uniqueKeySlot.captured shouldBeEqualTo "biz-geofence-1_ENTER_tid-sched_none"
+        uniqueKeySlot.captured shouldBeEqualTo "cio-geofence-delivery-queue"
 
         // inputData carries only the store key; the worker loads the full row from the pending store.
         val input = workRequestSlot.captured.workSpec.input
@@ -100,11 +100,14 @@ class GeofenceEventSchedulerTest : RobolectricTest() {
         )
 
         verify(exactly = 1) {
-            workManager.enqueueUniqueWork(capture(uniqueKeySlot), ExistingWorkPolicy.KEEP, capture(workRequestSlot))
+            workManager.enqueueUniqueWork(
+                capture(uniqueKeySlot),
+                ExistingWorkPolicy.APPEND_OR_REPLACE,
+                capture(workRequestSlot)
+            )
         }
-        // Key carries the geoset so per-geoset workers don't collide under ExistingWorkPolicy.KEEP,
-        // and it's the same key inputData carries for the worker's store lookup.
-        uniqueKeySlot.captured shouldBeEqualTo "biz-geofence-1_ENTER_tid-sched_9"
+        // All transitions share one continuation chain, while the row key remains the worker input.
+        uniqueKeySlot.captured shouldBeEqualTo "cio-geofence-delivery-queue"
         workRequestSlot.captured.workSpec.input.getString("entry_key") shouldBeEqualTo
             "biz-geofence-1_ENTER_tid-sched_9"
     }

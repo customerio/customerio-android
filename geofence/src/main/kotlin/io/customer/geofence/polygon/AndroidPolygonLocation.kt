@@ -4,7 +4,8 @@ import android.location.Location
 
 internal data class AndroidPolygonLocationFix(
     val sample: PolygonLocationSample,
-    val elapsedRealtimeNanos: Long
+    val elapsedRealtimeNanos: Long,
+    val timestampMillis: Long
 )
 
 internal fun Location.toPolygonLocationFix(): AndroidPolygonLocationFix? {
@@ -16,7 +17,8 @@ internal fun Location.toPolygonLocationFix(): AndroidPolygonLocationFix? {
                 coordinate = PolygonCoordinate(latitude, longitude),
                 horizontalAccuracyMeters = accuracy.toDouble()
             ),
-            elapsedRealtimeNanos = elapsedRealtimeNanos
+            elapsedRealtimeNanos = elapsedRealtimeNanos,
+            timestampMillis = time
         )
     } catch (_: IllegalArgumentException) {
         null

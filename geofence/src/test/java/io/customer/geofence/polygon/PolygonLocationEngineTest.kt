@@ -80,6 +80,7 @@ class PolygonLocationEngineTest : RobolectricTest() {
         store.recordPolygonCoarseInside(POLYGON_ID)
         every { secureUserStore.getUserId() } returns "user-1"
         every { clock.currentTimeSeconds() } returns 100L
+        every { clock.currentTimeMillis() } returns 100_000L
         coEvery { emitter.emitWithRetainedAttempt(any(), any(), any(), any(), any(), any(), any(), any(), any(), any()) } returns
             GeofenceTransitionEmitter.Result.PERSISTED
         coEvery { emitter.recoverPendingTransitions() } returns true
@@ -143,6 +144,36 @@ class PolygonLocationEngineTest : RobolectricTest() {
         )
 
         store.getEnteredIds() shouldContainSame setOf(POLYGON_ID)
+    }
+
+    @Test
+    fun processLocations_givenDelayedBatch_expectTransitionUsesOriginalFixTime() = runTest {
+        val base = SystemClock.elapsedRealtimeNanos() - 50_000_000_000L
+        every { clock.currentTimeMillis() } returns 200_000L
+        engine.activateFromApproach(POLYGON_ID, base)
+
+        engine.processLocations(
+            listOf(
+                location(37.7750, -122.4194, base, 150_000L),
+                location(37.7750, -122.4194, base + 2_000_000_000L, 152_000L),
+                location(37.7750, -122.4194, base + 4_000_000_000L, 154_000L)
+            )
+        )
+
+        coVerify(exactly = 1) {
+            emitter.emitWithRetainedAttempt(
+                POLYGON_ID,
+                Event.GeofenceTransition.ENTER,
+                "user-1",
+                154L,
+                any(),
+                any(),
+                any(),
+                any(),
+                any(),
+                any()
+            )
+        }
     }
 
     @Test
@@ -554,13 +585,18 @@ class PolygonLocationEngineTest : RobolectricTest() {
         )
     }
 
-    private fun location(latitude: Double, longitude: Double, elapsedRealtimeNanos: Long) =
+    private fun location(
+        latitude: Double,
+        longitude: Double,
+        elapsedRealtimeNanos: Long,
+        timestampMillis: Long = 100_000L
+    ) =
         Location("test").apply {
             this.latitude = latitude
             this.longitude = longitude
             accuracy = 5f
             this.elapsedRealtimeNanos = elapsedRealtimeNanos
-            time = System.currentTimeMillis()
+            time = timestampMillis
         }
 
     private fun polygonRegion() = GeofenceRegion(

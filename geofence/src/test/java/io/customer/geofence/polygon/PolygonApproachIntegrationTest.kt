@@ -60,6 +60,7 @@ class PolygonApproachIntegrationTest : RobolectricTest() {
         val logger: GeofenceLogger = mockk(relaxed = true)
         val clock: Clock = mockk {
             every { currentTimeSeconds() } returns 100L
+            every { currentTimeMillis() } returns 100_000L
         }
         coEvery { emitter.recoverPendingTransitions() } returns true
         coEvery {

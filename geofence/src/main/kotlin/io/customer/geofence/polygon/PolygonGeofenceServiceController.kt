@@ -4,6 +4,8 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.content.Intent
 import android.location.Location
+import android.os.Handler
+import android.os.Looper
 import android.os.SystemClock
 import androidx.core.content.ContextCompat
 import io.customer.geofence.GeofenceLogger
@@ -27,8 +29,11 @@ internal class PolygonGeofenceServiceController(
     private val controllerLock = Any()
     private val coarseTransitionMutex = Mutex()
     private val lastCoarseTransitionElapsedNanos = mutableMapOf<String, Long>()
+    private val servicePromotionHandler = Handler(Looper.getMainLooper())
+    private val servicePromotionWatchdogs = mutableMapOf<Long, Runnable>()
     private var serviceStartGeneration = 0L
     private var pendingServicePromotionGeneration: Long? = null
+    private var servicePromotionRetryCount = 0
 
     suspend fun activate(
         polygonId: String,
@@ -229,6 +234,14 @@ internal class PolygonGeofenceServiceController(
 
     private companion object {
         const val APPROACH_EXIT_HYSTERESIS_METERS = 100.0
+        const val SERVICE_PROMOTION_TIMEOUT_MS = 10_000L
+        const val MAXIMUM_SERVICE_PROMOTION_RETRIES = 1
+    }
+
+    private enum class PromotionTimeoutAction {
+        NONE,
+        RETRY,
+        STOP
     }
 
     @SuppressLint("MissingPermission")
@@ -252,12 +265,15 @@ internal class PolygonGeofenceServiceController(
 
     fun onServicePromoted(serviceGeneration: Long) = synchronized(controllerLock) {
         if (pendingServicePromotionGeneration == serviceGeneration) {
+            clearServicePromotionWatchdogLocked(serviceGeneration)
             pendingServicePromotionGeneration = null
+            servicePromotionRetryCount = 0
         }
     }
 
     fun onServiceDestroyed(serviceGeneration: Long?) = synchronized(controllerLock) {
         if (serviceGeneration != null && pendingServicePromotionGeneration == serviceGeneration) {
+            clearServicePromotionWatchdogLocked(serviceGeneration)
             pendingServicePromotionGeneration = null
         }
     }
@@ -402,9 +418,17 @@ internal class PolygonGeofenceServiceController(
                     generation
                 )
             )
+            val watchdog = Runnable { onServicePromotionTimedOut(generation) }
+            synchronized(controllerLock) {
+                if (pendingServicePromotionGeneration == generation) {
+                    servicePromotionWatchdogs[generation] = watchdog
+                    servicePromotionHandler.postDelayed(watchdog, SERVICE_PROMOTION_TIMEOUT_MS)
+                }
+            }
         } catch (e: RuntimeException) {
             synchronized(controllerLock) {
                 if (pendingServicePromotionGeneration == generation) {
+                    clearServicePromotionWatchdogLocked(generation)
                     pendingServicePromotionGeneration = null
                 }
             }
@@ -417,8 +441,39 @@ internal class PolygonGeofenceServiceController(
             pendingServicePromotionGeneration == null
         }
         if (canStopSafely) {
+            synchronized(controllerLock) { servicePromotionRetryCount = 0 }
             context.stopService(Intent(context, PolygonLocationService::class.java))
         }
+    }
+
+    private fun onServicePromotionTimedOut(generation: Long) {
+        val action = synchronized(controllerLock) {
+            if (pendingServicePromotionGeneration != generation) {
+                return@synchronized PromotionTimeoutAction.NONE
+            }
+            clearServicePromotionWatchdogLocked(generation)
+            pendingServicePromotionGeneration = null
+            val canRetry = servicePromotionRetryCount < MAXIMUM_SERVICE_PROMOTION_RETRIES &&
+                hasMatchingIdentifiedUserLocked() &&
+                store.getActivePolygonIds().isNotEmpty()
+            if (canRetry) servicePromotionRetryCount += 1
+            when {
+                canRetry -> PromotionTimeoutAction.RETRY
+                store.getActivePolygonIds().isEmpty() -> PromotionTimeoutAction.STOP
+                else -> PromotionTimeoutAction.NONE
+            }
+        }
+        logger.logPolygonMonitoringFailed("foreground service promotion timed out")
+        when (action) {
+            PromotionTimeoutAction.RETRY -> startService()
+            PromotionTimeoutAction.STOP ->
+                context.stopService(Intent(context, PolygonLocationService::class.java))
+            PromotionTimeoutAction.NONE -> Unit
+        }
+    }
+
+    private fun clearServicePromotionWatchdogLocked(generation: Long) {
+        servicePromotionWatchdogs.remove(generation)?.let(servicePromotionHandler::removeCallbacks)
     }
 
     private fun osStateWasWiped(): Boolean {

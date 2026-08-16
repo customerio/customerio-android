@@ -22,7 +22,7 @@ internal class PolygonRouteProcessor(
     private val stateMachine: PolygonTransitionStateMachine = PolygonTransitionStateMachine(),
     private val minimumEvidenceIntervalNanos: Long = 0L
 ) {
-    private var latestElapsedRealtimeNanos: Long? = null
+    private val latestElapsedRealtimeNanos = mutableMapOf<String, Long>()
 
     fun process(
         fences: List<PolygonFence>,
@@ -35,17 +35,17 @@ internal class PolygonRouteProcessor(
             "polygon ids must be unique"
         }
 
-        val latest = latestElapsedRealtimeNanos
-        if (latest != null && elapsedRealtimeNanos <= latest) return emptyList()
-        latestElapsedRealtimeNanos = elapsedRealtimeNanos
-
         val activeIds = fences.mapTo(mutableSetOf(), PolygonFence::id)
         trackedFenceIds.filterNot(activeIds::contains).forEach(stateMachine::clear)
+        latestElapsedRealtimeNanos.keys.retainAll(activeIds)
         lastEvidenceElapsedNanos.keys.retainAll(activeIds)
         trackedFenceIds.clear()
         trackedFenceIds.addAll(activeIds)
 
         return fences.mapNotNull { fence ->
+            val latest = latestElapsedRealtimeNanos[fence.id]
+            if (latest != null && elapsedRealtimeNanos <= latest) return@mapNotNull null
+            latestElapsedRealtimeNanos[fence.id] = elapsedRealtimeNanos
             val committedState = committedStates[fence.id] ?: PolygonCommittedState.OUTSIDE
             val evidence = accuracyEvaluator.evidenceFor(fence.geometry, sample, committedState)
             val isTransitionEvidence =
@@ -71,7 +71,7 @@ internal class PolygonRouteProcessor(
     }
 
     fun clear() {
-        latestElapsedRealtimeNanos = null
+        latestElapsedRealtimeNanos.clear()
         trackedFenceIds.clear()
         lastEvidenceElapsedNanos.clear()
         stateMachine.clearAll()
@@ -79,6 +79,7 @@ internal class PolygonRouteProcessor(
 
     fun clear(polygonId: String) {
         trackedFenceIds.remove(polygonId)
+        latestElapsedRealtimeNanos.remove(polygonId)
         lastEvidenceElapsedNanos.remove(polygonId)
         stateMachine.clear(polygonId)
     }

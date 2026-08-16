@@ -63,20 +63,25 @@ internal class PolygonLocationEngine(
     private var cachedFences: List<PolygonFence> = emptyList()
 
     @RequiresPermission(anyOf = [Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION])
-    fun start(onUnavailable: () -> Unit) {
+    fun start(onUnavailable: () -> Unit): Long? {
         if (store.getActivePolygonIds().isEmpty()) {
             onUnavailable()
-            return
+            return null
         }
         val registration = synchronized(stateLock) {
-            if (locationCallback != null) return
-            armSessionLocked(forceHighAccuracyBurst = true)
+            if (locationCallback != null) return registrationGeneration
+            // A passive approach batch can arm this engine before the service reaches onCreate.
+            // Preserve that observed session start; replacing it with the normal 30-second grace
+            // would discard a valid delayed crossing. Cold recovery still has no session and arms
+            // from the current trigger window.
+            armSessionLocked(forceHighAccuracyBurst = sessionStartElapsedRealtimeNanos == null)
             ensureScopeLocked()
             samplingMode = PolygonSamplingMode.HIGH_ACCURACY
             onUnavailableCallback = onUnavailable
             createRegistrationLocked()
         }
         requestLocationUpdates(registration.callback, registration.generation)
+        return registration.generation
     }
 
     private fun createRegistrationLocked(): LocationRegistration {
@@ -218,6 +223,10 @@ internal class PolygonLocationEngine(
         stopCurrent()
     }
 
+    fun stopIfCurrent(expectedRegistrationGeneration: Long) {
+        stopCurrent(expectedGeneration = expectedRegistrationGeneration)
+    }
+
     private fun stopCurrent(
         expectedCallback: LocationCallback? = null,
         expectedGeneration: Long? = null
@@ -290,6 +299,22 @@ internal class PolygonLocationEngine(
         synchronized(stateLock) {
             resetEvidenceLocked(polygonId)
             armSessionLocked(forceHighAccuracyBurst = true)
+        }
+        switchSamplingMode(PolygonSamplingMode.HIGH_ACCURACY)
+    }
+
+    /**
+     * Arms evaluation from the fix that caused a passive approach session to begin. Background
+     * delivery can batch recent locations, so using only the normal trigger grace would discard an
+     * observed crossing merely because Play services delivered the batch late.
+     */
+    fun activateFromApproach(polygonId: String, firstFixElapsedRealtimeNanos: Long) {
+        synchronized(stateLock) {
+            resetEvidenceLocked(polygonId)
+            armSessionLocked(
+                forceHighAccuracyBurst = true,
+                observedSessionStartElapsedRealtimeNanos = firstFixElapsedRealtimeNanos
+            )
         }
         switchSamplingMode(PolygonSamplingMode.HIGH_ACCURACY)
     }
@@ -425,11 +450,17 @@ internal class PolygonLocationEngine(
         cachedFences = emptyList()
     }
 
-    private fun armSessionLocked(forceHighAccuracyBurst: Boolean = false) {
+    private fun armSessionLocked(
+        forceHighAccuracyBurst: Boolean = false,
+        observedSessionStartElapsedRealtimeNanos: Long? = null
+    ) {
         if (sessionStartElapsedRealtimeNanos == null || forceHighAccuracyBurst) {
-            sessionStartElapsedRealtimeNanos = android.os.SystemClock.elapsedRealtimeNanos() -
-                TRIGGER_LOCATION_GRACE_NANOS
-            lastMeaningfulMotionElapsedRealtimeNanos = android.os.SystemClock.elapsedRealtimeNanos()
+            val now = android.os.SystemClock.elapsedRealtimeNanos()
+            val normalTriggerStart = now - TRIGGER_LOCATION_GRACE_NANOS
+            sessionStartElapsedRealtimeNanos = observedSessionStartElapsedRealtimeNanos
+                ?.let { minOf(it, normalTriggerStart) }
+                ?: normalTriggerStart
+            lastMeaningfulMotionElapsedRealtimeNanos = now
         }
         ensureScopeLocked()
     }

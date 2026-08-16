@@ -36,7 +36,7 @@ class PolygonLocationServiceTest : RobolectricTest() {
                 }
             }
         )
-        every { polygonController.startEngineForService(any()) } returns true
+        every { polygonController.startEngineForService(any()) } returns 7L
         shadowOf(applicationMock).grantPermissions(
             Manifest.permission.ACCESS_FINE_LOCATION,
             Manifest.permission.ACCESS_BACKGROUND_LOCATION
@@ -46,20 +46,24 @@ class PolygonLocationServiceTest : RobolectricTest() {
     @Test
     fun onCreate_givenPermissionsAndActiveSession_expectForegroundNotificationAndLocationEngine() {
         val controller = Robolectric.buildService(PolygonLocationService::class.java).create()
+        val service = controller.get()
+        service.onStartCommand(serviceStartIntent(11L), 0, 1)
 
+        verify { polygonController.onServicePromoted(11L) }
         verify { polygonController.startEngineForService(any()) }
         val manager = applicationMock.getSystemService(NotificationManager::class.java)
         manager.activeNotifications.size shouldBeEqualTo 1
 
         controller.destroy()
-        verify { engine.stop() }
+        verify { engine.stopIfCurrent(7L) }
+        verify { polygonController.onServiceDestroyed(11L) }
     }
 
     @Test
     fun onStartCommand_expectStickyRecoveryMode() {
         val service = Robolectric.buildService(PolygonLocationService::class.java).create().get()
 
-        service.onStartCommand(Intent(), 0, 1) shouldBeEqualTo android.app.Service.START_STICKY
+        service.onStartCommand(serviceStartIntent(1L), 0, 1) shouldBeEqualTo android.app.Service.START_STICKY
     }
 
     @Test
@@ -73,11 +77,17 @@ class PolygonLocationServiceTest : RobolectricTest() {
 
     @Test
     fun onCreate_givenPersistedSessionIsNotRoutable_expectServiceStopsWithoutStartingEngine() {
-        every { polygonController.startEngineForService(any()) } returns false
+        every { polygonController.startEngineForService(any()) } returns null
 
-        Robolectric.buildService(PolygonLocationService::class.java).create()
+        val service = Robolectric.buildService(PolygonLocationService::class.java).create().get()
+        service.onStartCommand(serviceStartIntent(1L), 0, 1)
 
         verify { polygonController.startEngineForService(any()) }
         verify(exactly = 0) { engine.start(any()) }
     }
+
+    private fun serviceStartIntent(generation: Long) = Intent().putExtra(
+        PolygonLocationService.EXTRA_SERVICE_START_GENERATION,
+        generation
+    )
 }

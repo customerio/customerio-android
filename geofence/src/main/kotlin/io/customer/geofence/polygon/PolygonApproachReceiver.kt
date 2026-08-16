@@ -29,19 +29,28 @@ class PolygonApproachReceiver : BroadcastReceiver() {
         val pendingResult = goAsync()
         try {
             SDKComponent.setupAndroidComponent(context = context)
-            val scope = SDKComponent.scopeProvider.geofenceScope
-            scope.launch {
+            val workScope = SDKComponent.scopeProvider.geofenceScope
+            val work = workScope.launch {
                 try {
-                    withTimeoutOrNull(DISPATCH_WAIT_BUDGET_MS) {
-                        handleLocations(result.locations, expectedUserStateGeneration)
-                    }
+                    handleLocations(result.locations, expectedUserStateGeneration)
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {
                     SDKComponent.geofenceLogger.logPolygonApproachMonitoringFailed(e.message)
                 } finally {
+                    workScope.cancel()
+                }
+            }
+            val dispatchScope = SDKComponent.scopeProvider.geofenceScope
+            dispatchScope.launch {
+                try {
+                    // Finishing goAsync on time is independent of completing an accepted batch.
+                    // Once a fix activates fine evaluation, its foreground service keeps the
+                    // process alive while durable transition work continues in workScope.
+                    withTimeoutOrNull(DISPATCH_WAIT_BUDGET_MS) { work.join() }
+                } finally {
                     pendingResult.finish()
-                    scope.cancel()
+                    dispatchScope.cancel()
                 }
             }
         } catch (e: Throwable) {

@@ -8,6 +8,7 @@ import io.customer.geofence.GeofenceRegion
 import io.customer.geofence.store.GeofenceRegionStore
 import io.customer.geofence.transitionRevision
 import io.customer.sdk.data.store.SecureUserStore
+import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
@@ -64,6 +65,33 @@ class PolygonGeofenceServiceControllerTest {
             engine.activate("campus")
             context.startForegroundService(any<Intent>())
         }
+    }
+
+    @Test
+    fun deactivate_givenForegroundPromotionPending_expectServiceStopsOnlyAfterPromotion() {
+        controller.activate("campus")
+
+        controller.deactivate("campus")
+
+        verify(exactly = 0) { context.stopService(any()) }
+
+        controller.onServicePromoted(1L)
+        controller.deactivate("campus")
+
+        verify(exactly = 1) { context.stopService(any()) }
+    }
+
+    @Test
+    fun deactivate_givenOlderServiceIsDestroyedDuringNewPromotion_expectNewPromotionRemainsProtected() {
+        controller.activate("campus")
+        controller.onServicePromoted(1L)
+        controller.deactivate("campus")
+        controller.activate("campus")
+
+        controller.onServiceDestroyed(1L)
+        controller.deactivate("campus")
+
+        verify(exactly = 1) { context.stopService(any()) }
     }
 
     @Test
@@ -294,7 +322,7 @@ class PolygonGeofenceServiceControllerTest {
 
         val started = controller.startEngineForService {}
 
-        started shouldBeEqualTo false
+        started shouldBeEqualTo null
         verify { store.clearActivePolygonIds() }
         verify { store.retainCoarseInsidePolygonIds(emptySet()) }
         verify { engine.stop() }
@@ -304,10 +332,11 @@ class PolygonGeofenceServiceControllerTest {
     @Test
     fun startEngineForService_givenMatchingIdentifiedRoutableSession_expectStartsSampling() {
         every { store.getActivePolygonIds() } returns setOf("campus")
+        every { engine.start(any()) } returns 7L
 
         val started = controller.startEngineForService {}
 
-        started shouldBeEqualTo true
+        started shouldBeEqualTo 7L
         verify { engine.start(any()) }
     }
 
@@ -334,8 +363,14 @@ class PolygonGeofenceServiceControllerTest {
     @Test
     fun processApproachLocations_givenFixInsideTrigger_expectStartsFineEvaluationWithoutClaimingOsCircle() = runTest {
         var activeIds = emptySet<String>()
+        val operations = mutableListOf<String>()
         every { store.getActivePolygonIds() } answers { activeIds }
         every { store.activatePolygon(any()) } answers { activeIds = activeIds + firstArg<String>() }
+        coEvery { engine.processLocation(any(), 0L) } answers { operations += "process" }
+        every { context.startForegroundService(any<Intent>()) } answers {
+            operations += "start-service"
+            null
+        }
 
         val accepted = controller.processApproachLocations(
             locations = listOf(location(elapsedRealtimeNanos = 100L)),
@@ -344,10 +379,11 @@ class PolygonGeofenceServiceControllerTest {
 
         accepted shouldBeEqualTo true
         verify { store.activatePolygon("campus") }
-        verify { engine.activate("campus") }
+        verify { engine.activateFromApproach("campus", 100L) }
         coVerify { engine.processLocation(any(), 0L) }
         verify { context.startForegroundService(any<Intent>()) }
         verify(exactly = 0) { store.recordPolygonCoarseInside(any()) }
+        operations shouldBeEqualTo listOf("process", "start-service")
     }
 
     @Test

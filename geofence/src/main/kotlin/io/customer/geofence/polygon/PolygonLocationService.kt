@@ -22,7 +22,8 @@ import io.customer.sdk.core.di.setupAndroidComponent
 
 /** Foreground service that keeps polygon evaluation alive while inside a coarse trigger circle. */
 internal class PolygonLocationService : Service() {
-    private var engineStarted = false
+    private var engineRegistrationGeneration: Long? = null
+    private var serviceStartGeneration: Long? = null
 
     @SuppressLint("MissingPermission")
     override fun onCreate() {
@@ -33,25 +34,51 @@ internal class PolygonLocationService : Service() {
         }
         try {
             SDKComponent.setupAndroidComponent(context = this)
-            val android = SDKComponent.android()
             if (!hasFineLocationPermission()) {
                 SDKComponent.geofenceLogger.logPolygonMonitoringFailed("ACCESS_FINE_LOCATION not granted")
                 stopSelf()
                 return
             }
-            engineStarted = android.polygonGeofenceServiceController.startEngineForService(::stopSelf)
-            if (!engineStarted) stopSelf()
         } catch (e: RuntimeException) {
             SDKComponent.geofenceLogger.logPolygonMonitoringFailed(e.message)
             stopSelf()
         }
     }
 
-    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int = START_STICKY
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        intent?.getLongExtra(EXTRA_SERVICE_START_GENERATION, Long.MIN_VALUE)
+            ?.takeIf { it != Long.MIN_VALUE }
+            ?.let { generation ->
+                serviceStartGeneration = generation
+                runCatching {
+                    SDKComponent.android().polygonGeofenceServiceController
+                        .onServicePromoted(generation)
+                }
+            }
+        try {
+            if (!hasFineLocationPermission()) {
+                stopSelf()
+                return START_STICKY
+            }
+            engineRegistrationGeneration =
+                SDKComponent.android().polygonGeofenceServiceController
+                    .startEngineForService(::stopSelf)
+            if (engineRegistrationGeneration == null) stopSelf()
+        } catch (e: RuntimeException) {
+            SDKComponent.geofenceLogger.logPolygonMonitoringFailed(e.message)
+            stopSelf()
+        }
+        return START_STICKY
+    }
 
     override fun onDestroy() {
-        if (engineStarted) {
-            runCatching { SDKComponent.android().polygonLocationEngine.stop() }
+        engineRegistrationGeneration?.let { generation ->
+            runCatching { SDKComponent.android().polygonLocationEngine.stopIfCurrent(generation) }
+        }
+        runCatching {
+            SDKComponent.android().polygonGeofenceServiceController.onServiceDestroyed(
+                serviceStartGeneration
+            )
         }
         ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
         super.onDestroy()
@@ -99,7 +126,9 @@ internal class PolygonLocationService : Service() {
         Manifest.permission.ACCESS_FINE_LOCATION
     ) == PackageManager.PERMISSION_GRANTED
 
-    private companion object {
+    internal companion object {
+        const val EXTRA_SERVICE_START_GENERATION =
+            "io.customer.geofence.extra.POLYGON_SERVICE_START_GENERATION"
         const val NOTIFICATION_CHANNEL_ID = "io.customer.geofence.polygon_monitoring"
         const val NOTIFICATION_ID = 0xC10
     }

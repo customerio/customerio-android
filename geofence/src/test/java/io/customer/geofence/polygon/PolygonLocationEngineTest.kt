@@ -126,6 +126,26 @@ class PolygonLocationEngineTest : RobolectricTest() {
     }
 
     @Test
+    fun processLocations_givenDelayedApproachBatch_expectObservedFixCanArmSession() = runTest {
+        val base = SystemClock.elapsedRealtimeNanos() - 50_000_000_000L
+        every { client.requestLocationUpdates(any(), any<LocationCallback>(), any()) } returns
+            Tasks.forResult(null)
+        engine.activateFromApproach(POLYGON_ID, base)
+        engine.start {}
+        shadowOf(Looper.getMainLooper()).idle()
+
+        engine.processLocations(
+            listOf(
+                location(37.7750, -122.4194, base),
+                location(37.7750, -122.4194, base + 2_000_000_000L),
+                location(37.7750, -122.4194, base + 4_000_000_000L)
+            )
+        )
+
+        store.getEnteredIds() shouldContainSame setOf(POLYGON_ID)
+    }
+
+    @Test
     fun processLocations_givenBatchFromPreviousUserGeneration_expectDoesNotAffectNewSession() = runTest {
         val previousGeneration = store.userStateGeneration()
         store.beginUserSession("user-2")
@@ -315,6 +335,23 @@ class PolygonLocationEngineTest : RobolectricTest() {
         shadowOf(Looper.getMainLooper()).idle()
 
         verify(exactly = 2) { client.removeLocationUpdates(callback.captured) }
+    }
+
+    @Test
+    fun stopIfCurrent_givenOlderServiceIsDestroyed_expectNewRegistrationSurvives() {
+        val callbacks = mutableListOf<LocationCallback>()
+        every { client.requestLocationUpdates(any(), capture(callbacks), any()) } returns
+            Tasks.forResult(null)
+
+        val previousGeneration = checkNotNull(engine.start {})
+        engine.stop()
+        engine.start {}
+
+        engine.stopIfCurrent(previousGeneration)
+
+        callbacks.size shouldBeEqualTo 2
+        verify(exactly = 1) { client.removeLocationUpdates(callbacks[0]) }
+        verify(exactly = 0) { client.removeLocationUpdates(callbacks[1]) }
     }
 
     @Test

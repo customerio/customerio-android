@@ -74,6 +74,32 @@ class PolygonRouteIntegrationTest {
     }
 
     @Test
+    fun route_whenOlderBatchActivatesAnotherPolygon_thenUsesThatPolygonsOwnTimeline() {
+        val eastCampus = campus.copy(id = "east-campus")
+        val processor = PolygonRouteProcessor()
+        val inside = PolygonLocationSample(point(37.7750, -122.4194), 5.0)
+
+        processor.process(
+            fences = listOf(campus),
+            sample = inside,
+            elapsedRealtimeNanos = 100L,
+            committedStates = emptyMap()
+        )
+        val detections = listOf(10L, 20L, 30L).flatMap { timestamp ->
+            processor.process(
+                fences = listOf(campus, eastCampus),
+                sample = inside,
+                elapsedRealtimeNanos = timestamp,
+                committedStates = emptyMap()
+            )
+        }
+
+        detections shouldBeEqualTo listOf(
+            PolygonTransitionDetection("east-campus", PolygonTransition.ENTER)
+        )
+    }
+
+    @Test
     fun route_whenAccuracyIsPoorNearBoundary_thenWaitsForClearEvidence() {
         val route = RouteHarness(listOf(campus))
 

@@ -3,9 +3,10 @@ package io.customer.geofence
 import io.customer.commontest.config.TestConfig
 import io.customer.commontest.config.testConfigurationDefault
 import io.customer.commontest.core.RobolectricTest
-import io.customer.geofence.polygon.EnabledPolygonSupport
 import io.customer.geofence.polygon.PolygonCoordinate
 import io.customer.geofence.polygon.PolygonGeometry
+import io.customer.geofence.polygon.PolygonSupport
+import io.mockk.mockk
 import io.mockk.mockkObject
 import io.mockk.unmockkObject
 import io.mockk.verify
@@ -209,7 +210,7 @@ class GeofenceDistanceFilterTest : RobolectricTest() {
     fun nearest_givenPolygonRegionAndPolygonMonitoringEnabled_expectRankedByPolygonBoundary() {
         // The same input with the opt-in supplied ranks on the ring, proving the drop above is the
         // opt-in and not a missing capability.
-        val enabled = GeofenceDistanceFilter(polygonSupport = EnabledPolygonSupport)
+        val enabled = GeofenceDistanceFilter(polygonSupport = PolygonSupport.Enabled)
 
         val result = enabled.nearest(
             listOf(concaveRegion()),
@@ -226,7 +227,7 @@ class GeofenceDistanceFilterTest : RobolectricTest() {
     fun nearest_givenCachedPolygonRingThatFailsValidation_expectRegionDroppedWithoutFailingTheRest() {
         // A ring corrupted in the cache must not throw out of ranking (which would strand the whole
         // catalog) and must not silently degrade into its circle fields.
-        val enabled = GeofenceDistanceFilter(polygonSupport = EnabledPolygonSupport)
+        val enabled = GeofenceDistanceFilter(polygonSupport = PolygonSupport.Enabled)
         val broken = GeofenceRegion(
             id = "broken-polygon",
             latitude = 0.0,
@@ -256,7 +257,7 @@ class GeofenceDistanceFilterTest : RobolectricTest() {
     fun nearest_givenRepeatedPassesOverUnchangedCatalog_expectRingValidatedOnce() {
         // Ring validation is O(V²) and ranking re-runs on every movement trigger, so the result is
         // memoized per id + ring rather than recomputed per pass.
-        val enabled = GeofenceDistanceFilter(polygonSupport = EnabledPolygonSupport)
+        val enabled = GeofenceDistanceFilter(polygonSupport = PolygonSupport.Enabled)
         val regions = listOf(concaveRegion())
         mockkObject(PolygonGeometry.Companion)
         try {
@@ -305,6 +306,96 @@ class GeofenceDistanceFilterTest : RobolectricTest() {
         )
 
         result.map(GeofenceRegion::id) shouldBeEqualTo listOf("active-a", "active-b")
+    }
+
+    // ---------- pinning outranks the server cap, never the OS ceiling ----------
+
+    @Test
+    fun nearest_givenMorePinnedRegionsThanOsBusinessSlots_expectFarthestReleasedAndLogged() {
+        // GMS rejects the whole addGeofences batch past 100 fences, so honouring every pin here would
+        // lose every fence rather than the farthest pin. Nearest pins are kept: they are the ones whose
+        // EXIT is most imminent.
+        val logger: GeofenceLogger = mockk(relaxed = true)
+        val slotLimited = GeofenceDistanceFilter(maxOsBusinessSlots = 2, logger = logger)
+        val regions = listOf(
+            region("pinned-far", 12.0, 0.0),
+            region("pinned-near", 10.0, 0.0),
+            region("pinned-mid", 11.0, 0.0),
+            region("nearby", 0.01, 0.0)
+        )
+
+        val result = slotLimited.nearest(
+            regions = regions,
+            latitude = 0.0,
+            longitude = 0.0,
+            max = 50,
+            maxDistanceMeters = noDistanceCap,
+            pinnedIds = setOf("pinned-near", "pinned-mid", "pinned-far")
+        )
+
+        result.map(GeofenceRegion::id) shouldBeEqualTo listOf("pinned-near", "pinned-mid")
+        verify { logger.logPinnedRegionDroppedAtOsLimit("pinned-far", 2) }
+    }
+
+    @Test
+    fun nearest_givenPinsFillingEverySlot_expectNoDiscoveryEvenBelowServerCap() {
+        // The server cap still has room, but the OS does not. Discovery must yield to the pins rather
+        // than push the batch over the platform limit.
+        val slotLimited = GeofenceDistanceFilter(maxOsBusinessSlots = 2, logger = mockk(relaxed = true))
+
+        val result = slotLimited.nearest(
+            regions = listOf(
+                region("nearby-a", 0.01, 0.0),
+                region("nearby-b", 0.02, 0.0),
+                region("pinned-a", 10.0, 0.0),
+                region("pinned-b", 11.0, 0.0)
+            ),
+            latitude = 0.0,
+            longitude = 0.0,
+            max = 50,
+            maxDistanceMeters = noDistanceCap,
+            pinnedIds = setOf("pinned-a", "pinned-b")
+        )
+
+        result.map(GeofenceRegion::id) shouldBeEqualTo listOf("pinned-a", "pinned-b")
+    }
+
+    @Test
+    fun nearest_givenNoPins_expectResultStillBoundedByOsBusinessSlots() {
+        // The unpinned overload shares the same body, so the ceiling can't be bypassed by omitting pins.
+        val slotLimited = GeofenceDistanceFilter(maxOsBusinessSlots = 2, logger = mockk(relaxed = true))
+        val regions = (1..5).map { region("biz-$it", it * 0.01, 0.0) }
+
+        val result = slotLimited.nearest(
+            regions = regions,
+            latitude = 0.0,
+            longitude = 0.0,
+            max = 50,
+            maxDistanceMeters = noDistanceCap
+        )
+
+        result.map(GeofenceRegion::id) shouldBeEqualTo listOf("biz-1", "biz-2")
+    }
+
+    @Test
+    fun nearest_givenDefaultConstruction_expectLeavesOneOsSlotForTheMovementTrigger() {
+        // The repository prepends the movement trigger to whatever this returns, so the default ceiling
+        // has to be one below the platform limit or that trigger has nowhere to go.
+        val regions = (1..GeofenceConstants.MAX_OS_GEOFENCES + 20).map {
+            region("biz-%03d".format(it), it * 0.001, 0.0)
+        }
+
+        val result = filter.nearest(
+            regions = regions,
+            latitude = 0.0,
+            longitude = 0.0,
+            max = Int.MAX_VALUE,
+            maxDistanceMeters = noDistanceCap,
+            pinnedIds = regions.map(GeofenceRegion::id).toSet()
+        )
+
+        result.size shouldBeEqualTo GeofenceConstants.MAX_OS_GEOFENCES - 1
+        (result.size + 1) shouldBeEqualTo GeofenceConstants.MAX_OS_GEOFENCES
     }
 
     // Concave L-shape whose enclosing circle covers a large area the polygon excludes.

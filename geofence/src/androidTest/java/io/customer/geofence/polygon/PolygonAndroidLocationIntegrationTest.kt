@@ -31,6 +31,15 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 
+/**
+ * Runs on a real device/emulator, not Robolectric.
+ *
+ * Executed by the `module-instrumentation-test` job in `.github/workflows/test.yml`
+ * (`./gradlew :geofence:connectedDebugAndroidTest`, API 31 on the `google_apis` image, so Play
+ * services location is present). That job requires test results to exist, because
+ * `assembleDebugAndroidTest` only proves this file compiles — which is not the same as these
+ * assertions having run.
+ */
 @RunWith(AndroidJUnit4::class)
 class PolygonAndroidLocationIntegrationTest {
     @get:Rule

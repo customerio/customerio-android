@@ -3,7 +3,6 @@ package io.customer.geofence.polygon
 import android.content.Context
 import android.location.Location
 import android.os.SystemClock
-import com.google.android.gms.location.FusedLocationProviderClient
 import io.customer.commontest.config.ApplicationArgument
 import io.customer.commontest.config.TestConfig
 import io.customer.commontest.config.testConfigurationDefault
@@ -16,7 +15,6 @@ import io.customer.geofence.GeofenceTransitionEmitter
 import io.customer.geofence.store.GeofenceRegionStoreImpl
 import io.customer.sdk.communication.Event
 import io.customer.sdk.core.util.Clock
-import io.customer.sdk.core.util.DispatchersProvider
 import io.customer.sdk.data.store.SecureUserStore
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -24,7 +22,6 @@ import io.mockk.every
 import io.mockk.mockk
 import java.time.Duration
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 import org.amshove.kluent.shouldContainSame
 import org.junit.Test
@@ -73,9 +70,7 @@ class PolygonApproachIntegrationTest : RobolectricTest() {
         store.saveRegisteredIds(setOf(POLYGON_ID))
         store.saveRoutableRegisteredIds(setOf(POLYGON_ID))
 
-        val dispatcher = UnconfinedTestDispatcher(testScheduler)
         val engine = PolygonLocationEngine(
-            client = mockk<FusedLocationProviderClient>(relaxed = true),
             store = store,
             transitionProcessor = GeofenceBusinessTransitionProcessor(
                 store = store,
@@ -84,11 +79,6 @@ class PolygonApproachIntegrationTest : RobolectricTest() {
                 logger = logger
             ),
             clock = clock,
-            dispatchersProvider = object : DispatchersProvider {
-                override val background = dispatcher
-                override val main = dispatcher
-                override val default = dispatcher
-            },
             logger = logger
         )
         val controller = PolygonGeofenceServiceController(

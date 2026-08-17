@@ -10,7 +10,6 @@ import io.customer.geofence.GeofenceLogger
 import io.customer.geofence.GeofenceRegion
 import io.customer.geofence.GeofenceTransitionType
 import io.customer.geofence.distanceTo
-import io.customer.geofence.polygon.EnabledPolygonSupport
 import io.customer.geofence.polygon.PolygonCoordinate
 import io.customer.geofence.polygon.PolygonSupport
 import io.mockk.every
@@ -107,7 +106,7 @@ class GeofenceApiResponseTest : RobolectricTest() {
     fun parseAndMap_givenPolygonAndOptIn_expectValidatedPolygonAndEnclosingCircle() {
         // The same record with the runtime's opt-in supplied: proves the drop above is the opt-in,
         // not a gap in the wire contract or the geometry.
-        val region = parseRegions(polygonAndCircleJson(), EnabledPolygonSupport)
+        val region = parseRegions(polygonAndCircleJson(), PolygonSupport.Enabled)
             .single { it.id == "campus" }
 
         region.isPolygon.shouldBeTrue()
@@ -138,7 +137,7 @@ class GeofenceApiResponseTest : RobolectricTest() {
     fun parseAndMap_givenUnknownGeometryTypeWithCircleFields_expectDroppedNotDegradedToCircle() {
         // A shape the SDK doesn't understand is dropped and logged, with or without the opt-in —
         // silently monitoring its bounding circle would report transitions for the wrong area.
-        listOf(PolygonSupport.Disabled, EnabledPolygonSupport).forEach { support ->
+        listOf(PolygonSupport.Disabled, PolygonSupport.Enabled).forEach { support ->
             val regions = parseRegions(
                 """
                 {
@@ -191,7 +190,7 @@ class GeofenceApiResponseTest : RobolectricTest() {
               ]
             }
             """.trimIndent(),
-            EnabledPolygonSupport
+            PolygonSupport.Enabled
         )
 
         regions.map(GeofenceRegion::id) shouldBeEqualTo listOf("circle")
@@ -217,7 +216,7 @@ class GeofenceApiResponseTest : RobolectricTest() {
               ]
             }
             """.trimIndent(),
-            EnabledPolygonSupport
+            PolygonSupport.Enabled
         )
 
         regions.map(GeofenceRegion::id) shouldBeEqualTo listOf("circle")
@@ -243,7 +242,7 @@ class GeofenceApiResponseTest : RobolectricTest() {
               ]
             }
             """.trimIndent(),
-            EnabledPolygonSupport
+            PolygonSupport.Enabled
         )
 
         regions.map(GeofenceRegion::id) shouldBeEqualTo listOf("circle")
@@ -265,7 +264,7 @@ class GeofenceApiResponseTest : RobolectricTest() {
               ]
             }
             """.trimIndent(),
-            EnabledPolygonSupport
+            PolygonSupport.Enabled
         )
 
         regions.map(GeofenceRegion::id) shouldBeEqualTo listOf("circle")

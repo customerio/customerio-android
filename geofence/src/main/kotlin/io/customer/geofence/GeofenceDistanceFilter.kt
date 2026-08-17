@@ -29,6 +29,16 @@ import kotlin.math.round
  */
 internal class GeofenceDistanceFilter(
     private val polygonSupport: PolygonSupport = PolygonSupport.Disabled,
+    /**
+     * Hard ceiling on how many regions any [nearest] call may return.
+     *
+     * Play services rejects an entire `addGeofences` batch once the app would pass
+     * [GeofenceConstants.MAX_OS_GEOFENCES], and one of those slots is always spent on the movement
+     * trigger that [GeofenceRepository] prepends — so this filter, which only ever ranks *business*
+     * regions, may never hand back more than [GeofenceConstants.MAX_OS_BUSINESS_GEOFENCE_SLOTS].
+     * Server config can lower the count further via `max`; nothing can raise it past this.
+     */
+    private val maxOsBusinessSlots: Int = GeofenceConstants.MAX_OS_BUSINESS_GEOFENCE_SLOTS,
     private val logger: GeofenceLogger = SDKComponent.geofenceLogger
 ) {
     private val geometryCache = mutableMapOf<String, CachedPolygonGeometry>()
@@ -48,6 +58,19 @@ internal class GeofenceDistanceFilter(
         pinnedIds = emptySet()
     )
 
+    /**
+     * @param max server-configured discovery cap. Bounds how many *new* regions this pass may pick
+     * up; `0` is the explicit kill switch. Pinned regions are exempt (see below).
+     * @param pinnedIds regions that must survive discovery caps because a business EXIT is still
+     * outstanding for them — a polygon with an active fine session or a committed INSIDE state.
+     * Evicting one guarantees its EXIT is never observed, so pinning outranks [max].
+     *
+     * Pinning cannot outrank the platform, though: [maxOsBusinessSlots] still bounds the result,
+     * because over-pinning would make Play services reject the whole batch and lose *every* fence
+     * rather than the farthest one. When more regions are pinned than there are slots, the nearest
+     * pinned regions are kept — the farthest are least likely to produce an imminent EXIT — and each
+     * released region is logged.
+     */
     fun nearest(
         regions: List<GeofenceRegion>,
         latitude: Double,
@@ -56,7 +79,9 @@ internal class GeofenceDistanceFilter(
         maxDistanceMeters: Float,
         pinnedIds: Set<String>
     ): List<GeofenceRegion> {
-        if (max <= 0 || regions.isEmpty()) return emptyList()
+        val availableSlots = maxOsBusinessSlots.coerceAtLeast(0)
+        if (max <= 0 || availableSlots == 0 || regions.isEmpty()) return emptyList()
+        // Same body for both overloads, so a caller that passes no pins is bounded identically.
         pruneGeometryCache(regions)
         val sorted = regions
             .mapNotNull { region ->
@@ -72,7 +97,17 @@ internal class GeofenceDistanceFilter(
         // A positive server cap controls discovery, but it must not evict a polygon whose fine
         // session or committed INSIDE state is already active. Such an eviction can never observe
         // the matching EXIT. max=0 remains the explicit kill switch above.
-        return (pinned + candidates.take((max - pinned.size).coerceAtLeast(0)))
+        val retainedPinned = pinned.take(availableSlots)
+        pinned.drop(availableSlots).forEach { (region, _) ->
+            logger.logPinnedRegionDroppedAtOsLimit(region.id, availableSlots)
+        }
+        // Discovery gets whatever the *lower* of the two ceilings leaves over: the server cap it was
+        // configured with, and the OS slots the pinned set didn't already consume.
+        val discoveryBudget = minOf(
+            (max - retainedPinned.size).coerceAtLeast(0),
+            availableSlots - retainedPinned.size
+        )
+        return (retainedPinned + candidates.take(discoveryBudget))
             .map { (region, _) -> region }
     }
 

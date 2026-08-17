@@ -25,6 +25,7 @@ import io.customer.geofence.polygon.PolygonApproachWorkScheduler
 import io.customer.geofence.polygon.PolygonBootSessionProvider
 import io.customer.geofence.polygon.PolygonGeofenceServiceController
 import io.customer.geofence.polygon.PolygonLocationEngine
+import io.customer.geofence.polygon.PolygonSupport
 import io.customer.geofence.store.GeofenceCooldownStore
 import io.customer.geofence.store.GeofenceCooldownStoreImpl
 import io.customer.geofence.store.GeofenceRegionStore
@@ -44,6 +45,19 @@ import io.customer.sdk.data.store.PendingDeliveryStore
 
 internal val SDKComponent.geofenceLogger: GeofenceLogger
     get() = singleton { GeofenceLogger(logger) }
+
+/**
+ * The build's single polygon opt-in, handed to every seam that turns wire data into monitored state:
+ * the request builder ([geofenceApiService]), the mapper ([GeofenceRepositoryImpl]) and the ranker
+ * ([geofenceDistanceFilter]).
+ *
+ * One value, three seams, no partial path — a build cannot ask the backend for polygons it would drop,
+ * nor rank a polygon it never asked for. [PolygonSupport.Enabled] here because this build ships the
+ * responsive runtime in `io.customer.geofence.polygon`; the seams themselves still default to
+ * [PolygonSupport.Disabled], so a future seam that forgets this wiring fails closed.
+ */
+internal val SDKComponent.polygonSupport: PolygonSupport
+    get() = singleton { PolygonSupport.Enabled }
 
 internal val AndroidSDKComponent.geofencingClient: GeofencingClient
     get() = newInstance { LocationServices.getGeofencingClient(applicationContext) }
@@ -146,11 +160,9 @@ internal val AndroidSDKComponent.geofenceBusinessTransitionProcessor: GeofenceBu
 internal val AndroidSDKComponent.polygonLocationEngine: PolygonLocationEngine
     get() = singleton {
         PolygonLocationEngine(
-            client = polygonFusedLocationClient,
             store = geofenceRegionStore,
             transitionProcessor = geofenceBusinessTransitionProcessor,
             clock = SDKComponent.clock,
-            dispatchersProvider = SDKComponent.dispatchersProvider,
             logger = SDKComponent.geofenceLogger
         )
     }
@@ -177,13 +189,17 @@ internal val AndroidSDKComponent.polygonGeofenceServiceController: PolygonGeofen
     }
 
 internal val SDKComponent.geofenceDistanceFilter: GeofenceDistanceFilter
-    get() = newInstance<GeofenceDistanceFilter> { GeofenceDistanceFilter() }
+    get() = newInstance<GeofenceDistanceFilter> {
+        GeofenceDistanceFilter(polygonSupport = polygonSupport)
+    }
 
 internal val SDKComponent.geofenceJsonSerializer: GeofenceJsonSerializer
     get() = singleton { GeofenceJsonSerializer() }
 
 internal val SDKComponent.geofenceApiService: GeofenceApiService
-    get() = newInstance<GeofenceApiService> { GeofenceApiServiceImpl(httpClient, geofenceJsonSerializer) }
+    get() = newInstance<GeofenceApiService> {
+        GeofenceApiServiceImpl(httpClient, geofenceJsonSerializer, polygonSupport)
+    }
 
 internal val AndroidSDKComponent.geofenceCooldownStore: GeofenceCooldownStore
     get() = singleton<GeofenceCooldownStore> { GeofenceCooldownStoreImpl(applicationContext) }
@@ -218,7 +234,8 @@ internal val AndroidSDKComponent.geofenceRepository: GeofenceRepository
             clock = SDKComponent.clock,
             packageInfo = geofencePackageInfo,
             logger = SDKComponent.geofenceLogger,
-            polygonController = polygonGeofenceServiceController
+            polygonController = polygonGeofenceServiceController,
+            polygonSupport = SDKComponent.polygonSupport
         )
     }
 

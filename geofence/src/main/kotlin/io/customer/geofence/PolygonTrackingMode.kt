@@ -5,8 +5,9 @@ package io.customer.geofence
  */
 enum class PolygonTrackingMode {
     /**
-     * Uses passive, displacement-gated location batches without starting a foreground service.
-     * This is the default and favors Play-policy compatibility and battery life over immediacy.
+     * Uses low-frequency, displacement-gated balanced-power location updates without starting a
+     * foreground service. This is the default and favors Play-policy compatibility and battery
+     * life over immediacy.
      */
     RESPONSIVE,
 

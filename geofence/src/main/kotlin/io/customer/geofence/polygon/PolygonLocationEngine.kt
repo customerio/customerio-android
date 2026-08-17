@@ -339,18 +339,42 @@ internal class PolygonLocationEngine(
     suspend fun processLocation(
         location: Location,
         expectedUserStateGeneration: Long = store.userStateGeneration()
-    ) = processLocations(listOf(location), null, null, expectedUserStateGeneration)
+    ) = processLocations(
+        listOf(location),
+        null,
+        null,
+        expectedUserStateGeneration,
+        PolygonEvidencePolicy.CONFIRMED
+    )
+
+    suspend fun processResponsiveLocation(
+        location: Location,
+        expectedUserStateGeneration: Long = store.userStateGeneration()
+    ) = processLocations(
+        listOf(location),
+        null,
+        null,
+        expectedUserStateGeneration,
+        PolygonEvidencePolicy.DECISIVE_SINGLE_FIX
+    )
 
     suspend fun processLocations(
         locations: List<Location>,
         expectedUserStateGeneration: Long = store.userStateGeneration()
-    ) = processLocations(locations, null, null, expectedUserStateGeneration)
+    ) = processLocations(
+        locations,
+        null,
+        null,
+        expectedUserStateGeneration,
+        PolygonEvidencePolicy.CONFIRMED
+    )
 
     private suspend fun processLocations(
         locations: List<Location>,
         expectedCallback: LocationCallback?,
         expectedGeneration: Long?,
-        expectedUserStateGeneration: Long
+        expectedUserStateGeneration: Long,
+        evidencePolicy: PolygonEvidencePolicy = PolygonEvidencePolicy.CONFIRMED
     ) = processingMutex.withLock {
         if (locations.isEmpty()) return
         if (!isCurrentRegistration(expectedCallback, expectedGeneration)) return
@@ -383,7 +407,8 @@ internal class PolygonLocationEngine(
                     fences = fences,
                     sample = fix.sample,
                     elapsedRealtimeNanos = fix.elapsedRealtimeNanos,
-                    committedStates = committedStates
+                    committedStates = committedStates,
+                    evidencePolicy = evidencePolicy
                 )
             }
             detections.forEach { detection ->

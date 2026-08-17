@@ -52,7 +52,7 @@ class PolygonApproachIntegrationTest : RobolectricTest() {
     }
 
     @Test
-    fun passiveApproachFixes_givenPolygonEnter_expectDurableFineGrainedTransition() = runTest {
+    fun passiveApproachFix_givenDecisivePolygonEnter_expectDurableTransition() = runTest {
         val emitter: GeofenceTransitionEmitter = mockk(relaxed = true)
         val secureUserStore: SecureUserStore = mockk {
             every { getUserId() } returns USER_ID
@@ -100,11 +100,7 @@ class PolygonApproachIntegrationTest : RobolectricTest() {
             logger = logger
         )
         val now = SystemClock.elapsedRealtimeNanos()
-        val locations = listOf(
-            insideLocation(now - 4_000_000_000L),
-            insideLocation(now - 2_000_000_000L),
-            insideLocation(now)
-        )
+        val locations = listOf(insideLocation(now))
 
         controller.processApproachLocations(
             locations = locations,

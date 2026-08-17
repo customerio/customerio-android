@@ -140,10 +140,10 @@ class GeofenceEventWorkerTest : RobolectricTest() {
     }
 
     @Test
-    fun doWork_givenMissingEntryKey_expectFailureWithoutTracking() = runTest {
+    fun doWork_givenEmptyOutbox_expectSuccessWithoutTracking() = runTest {
         val result = createWorker(Data.EMPTY).doWork()
 
-        result shouldBeEqualTo ListenableWorker.Result.failure()
+        result shouldBeEqualTo ListenableWorker.Result.success()
         coVerify(exactly = 0) { tracker.trackEvent(any()) }
     }
 
@@ -161,15 +161,47 @@ class GeofenceEventWorkerTest : RobolectricTest() {
     }
 
     @Test
-    fun doWork_givenNonIOException_expectFailureAndEntryRestored() = runTest {
+    fun doWork_givenNonIOException_expectChainContinuesAndEntryRestored() = runTest {
         val entry = seed("biz", Event.GeofenceTransition.ENTER, timestamp = 0L)
         coEvery { tracker.trackEvent(any()) } returns
             Result.failure(IllegalStateException("bad state"))
 
         val result = createWorker(inputDataFor(entry.key)).doWork()
 
-        result shouldBeEqualTo ListenableWorker.Result.failure()
+        result shouldBeEqualTo ListenableWorker.Result.success()
         store.loadAll().map { it.key } shouldBeEqualTo listOf("biz_ENTER_tid-seed_none")
+    }
+
+    @Test
+    fun doWork_givenOlderFailure_expectNewerEntryCannotOvertakeIt() = runTest {
+        val enter = seed(
+            "biz",
+            Event.GeofenceTransition.ENTER,
+            timestamp = 1L,
+            transitionId = "tid-enter"
+        )
+        val exit = seed(
+            "biz",
+            Event.GeofenceTransition.EXIT,
+            timestamp = 2L,
+            transitionId = "tid-exit"
+        )
+        val attempts = mutableListOf<PendingGeofenceDelivery>()
+        coEvery { tracker.trackEvent(any()) } coAnswers {
+            val entry = firstArg<PendingGeofenceDelivery>().also(attempts::add)
+            if (attempts.size == 1) {
+                Result.failure(IllegalStateException("temporary bad state"))
+            } else {
+                Result.success(Unit)
+            }
+        }
+
+        createWorker(Data.EMPTY).doWork() shouldBeEqualTo ListenableWorker.Result.success()
+        createWorker(Data.EMPTY).doWork() shouldBeEqualTo ListenableWorker.Result.success()
+        createWorker(Data.EMPTY).doWork() shouldBeEqualTo ListenableWorker.Result.success()
+
+        attempts shouldBeEqualTo listOf(enter, enter, exit)
+        store.loadAll().isEmpty().shouldBeTrue()
     }
 
     @Test

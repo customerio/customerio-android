@@ -34,7 +34,8 @@ class PendingDeliveryFlusher<T : PendingDeliveryStore.PendingDeliveryEntry>(
     private val store: PendingDeliveryStore<T>,
     private val workManagerProvider: CustomerIOWorkManagerProvider,
     private val dispatchersProvider: DispatchersProvider,
-    private val uniqueWorkName: (T) -> String? = { it.key }
+    private val uniqueWorkName: (T) -> String? = { it.key },
+    private val stopOnFailure: Boolean = false
 ) {
 
     /**
@@ -100,7 +101,7 @@ class PendingDeliveryFlusher<T : PendingDeliveryStore.PendingDeliveryEntry>(
 
                 val workManager = workManagerProvider.getWorkManager()
                 var publishedCount = 0
-                pending.forEach { entry ->
+                for (entry in pending) {
                     try {
                         suspend fun cancelWorker() {
                             val workName = uniqueWorkName(entry)
@@ -114,7 +115,7 @@ class PendingDeliveryFlusher<T : PendingDeliveryStore.PendingDeliveryEntry>(
                                 // A false claim (already gone, or the removing write failed) means we don't own
                                 // the send — back off; the row is retried on the next flush.
                                 cancelWorker()
-                                if (!store.claim(entry.key)) return@forEach
+                                if (!store.claim(entry.key)) continue
                                 publish(entry)
                             }
                             DeliveryGuarantee.AT_LEAST_ONCE -> {
@@ -137,6 +138,7 @@ class PendingDeliveryFlusher<T : PendingDeliveryStore.PendingDeliveryEntry>(
                         throw ce
                     } catch (ex: Exception) {
                         callbacks.onEntryFailed(entry, ex)
+                        if (stopOnFailure) break
                     }
                 }
                 callbacks.onComplete(publishedCount)

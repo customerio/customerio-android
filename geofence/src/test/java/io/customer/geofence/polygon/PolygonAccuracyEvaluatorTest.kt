@@ -78,6 +78,30 @@ class PolygonAccuracyEvaluatorTest {
             PolygonEvidence.AMBIGUOUS
     }
 
+    @Test
+    fun decisiveEvidenceFor_whenAccuracyCircleAndMarginAreInside_thenReturnsEnter() {
+        val sample = sample(latitude = 0.0, longitude = 0.0, accuracyMeters = 10.0)
+
+        evaluator.decisiveEvidenceFor(geometry, sample, PolygonCommittedState.OUTSIDE) shouldBeEqualTo
+            PolygonEvidence.ENTER
+    }
+
+    @Test
+    fun decisiveEvidenceFor_whenFixIsNearBoundary_thenRemainsAmbiguous() {
+        val sample = sample(latitude = 0.0, longitude = 0.0009, accuracyMeters = 5.0)
+
+        evaluator.decisiveEvidenceFor(geometry, sample, PolygonCommittedState.OUTSIDE) shouldBeEqualTo
+            PolygonEvidence.AMBIGUOUS
+    }
+
+    @Test
+    fun decisiveEvidenceFor_whenAccuracyIsTooLow_thenRemainsAmbiguous() {
+        val sample = sample(latitude = 0.0, longitude = 0.0, accuracyMeters = 60.0)
+
+        evaluator.decisiveEvidenceFor(geometry, sample, PolygonCommittedState.OUTSIDE) shouldBeEqualTo
+            PolygonEvidence.AMBIGUOUS
+    }
+
     private fun sample(
         latitude: Double,
         longitude: Double,

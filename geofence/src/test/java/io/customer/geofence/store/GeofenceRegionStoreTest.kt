@@ -65,6 +65,67 @@ class GeofenceRegionStoreTest : RobolectricTest() {
     }
 
     @Test
+    fun polygonApproachBatches_givenMultipleAppends_expectOrderedRoundTrip() {
+        val encryptedStore = encryptedStore().also { it.beginUserSession(USER) }
+        val generation = encryptedStore.userStateGeneration()
+        val first = approachBatch("first", 37.0, generation)
+        val second = approachBatch("second", 38.0, generation)
+
+        encryptedStore.appendPendingPolygonApproachBatches(listOf(first)).shouldBeTrue()
+        encryptedStore.appendPendingPolygonApproachBatches(listOf(second)).shouldBeTrue()
+
+        encryptedStore.getPendingPolygonApproachBatches() shouldBeEqualTo listOf(first, second)
+        val raw = readRaw("pending_polygon_approach_batches")
+        raw.isNotEmpty().shouldBeTrue()
+        raw.contains("\"latitude\"").shouldBeFalse()
+        raw.contains("37.0").shouldBeFalse()
+        encryptedStore.removePendingPolygonApproachBatch(first.id).shouldBeTrue()
+        encryptedStore.getPendingPolygonApproachBatches() shouldBeEqualTo listOf(second)
+    }
+
+    @Test
+    fun polygonApproachBatches_givenSignOut_expectExactLocationsCleared() {
+        val encryptedStore = encryptedStore().also { it.beginUserSession(USER) }
+        encryptedStore.appendPendingPolygonApproachBatches(
+            listOf(approachBatch("pending", 37.0, encryptedStore.userStateGeneration()))
+        ).shouldBeTrue()
+
+        encryptedStore.clearUserSessionRetainingOsRegistrations()
+
+        encryptedStore.getPendingPolygonApproachBatches().shouldBeEmpty()
+    }
+
+    @Test
+    fun polygonApproachBatches_givenOldGenerationAfterSignOut_expectRejected() {
+        val encryptedStore = encryptedStore().also { it.beginUserSession(USER) }
+        val stale = approachBatch("stale", 37.0, encryptedStore.userStateGeneration())
+        encryptedStore.clearUserSessionRetainingOsRegistrations()
+
+        encryptedStore.appendPendingPolygonApproachBatches(listOf(stale)).shouldBeFalse()
+
+        encryptedStore.getPendingPolygonApproachBatches().shouldBeEmpty()
+    }
+
+    @Test
+    fun polygonApproachBatches_givenEncryptionFallbackToPlaintext_expectNotPersisted() {
+        val plaintextStore = GeofenceRegionStoreImpl(
+            context = applicationMock,
+            jsonSerializer = GeofenceJsonSerializer(),
+            logger = mockk(relaxed = true),
+            locationCrypto = object : GeofenceLocationCrypto {
+                override fun encrypt(plaintext: String): String = plaintext
+                override fun decrypt(encoded: String): String = encoded
+            }
+        ).also { it.beginUserSession(USER) }
+
+        plaintextStore.appendPendingPolygonApproachBatches(
+            listOf(approachBatch("unsafe", 37.0, plaintextStore.userStateGeneration()))
+        ).shouldBeFalse()
+
+        readRaw("pending_polygon_approach_batches") shouldBeEqualTo ""
+    }
+
+    @Test
     fun getCachedRegions_givenNothingStored_expectEmpty() {
         store.getCachedRegions().shouldBeEmpty()
     }
@@ -1096,6 +1157,37 @@ class GeofenceRegionStoreTest : RobolectricTest() {
         private const val USER = "user-1"
         private const val OTHER_USER = "user-2"
     }
+
+    private fun approachBatch(
+        id: String,
+        latitude: Double,
+        generation: Long = store.userStateGeneration()
+    ) = PendingPolygonApproachBatch(
+        id = id,
+        userStateGeneration = generation,
+        bootSessionId = "boot-1",
+        locations = listOf(
+            PendingPolygonApproachLocation(
+                latitude = latitude,
+                longitude = -122.0,
+                accuracy = 5f,
+                speed = null,
+                timestampMillis = 1_000L,
+                elapsedRealtimeNanos = 2_000L
+            )
+        )
+    )
+
+    private fun encryptedStore() = GeofenceRegionStoreImpl(
+        context = applicationMock,
+        jsonSerializer = GeofenceJsonSerializer(),
+        logger = mockk(relaxed = true),
+        locationCrypto = object : GeofenceLocationCrypto {
+            override fun encrypt(plaintext: String): String = "encrypted:${plaintext.reversed()}"
+            override fun decrypt(encoded: String): String =
+                encoded.removePrefix("encrypted:").reversed()
+        }
+    )
 
     private fun writeRaw(key: String, value: String) {
         applicationMock.getSharedPreferences(

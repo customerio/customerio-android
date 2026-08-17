@@ -71,11 +71,9 @@ class GeofenceEventSchedulerTest : RobolectricTest() {
         }
         uniqueKeySlot.captured shouldBeEqualTo "cio-geofence-delivery-queue"
 
-        // inputData carries only the store key; the worker loads the full row from the pending store.
+        // WorkManager carries no event data; every node drains the oldest durable store row.
         val input = workRequestSlot.captured.workSpec.input
-        input.getString("entry_key") shouldBeEqualTo "biz-geofence-1_ENTER_tid-sched_none"
-        input.hasKeyWithValueOfType("geofence_id", String::class.java) shouldBeEqualTo false
-        input.hasKeyWithValueOfType("metadata", String::class.java) shouldBeEqualTo false
+        input.keyValueMap.size shouldBeEqualTo 0
 
         val constraints = workRequestSlot.captured.workSpec.constraints
         constraints shouldNotBe null
@@ -106,10 +104,9 @@ class GeofenceEventSchedulerTest : RobolectricTest() {
                 capture(workRequestSlot)
             )
         }
-        // All transitions share one continuation chain, while the row key remains the worker input.
+        // All transitions share one continuation chain and the outbox owns their order.
         uniqueKeySlot.captured shouldBeEqualTo "cio-geofence-delivery-queue"
-        workRequestSlot.captured.workSpec.input.getString("entry_key") shouldBeEqualTo
-            "biz-geofence-1_ENTER_tid-sched_9"
+        workRequestSlot.captured.workSpec.input.keyValueMap.size shouldBeEqualTo 0
     }
 
     @Test

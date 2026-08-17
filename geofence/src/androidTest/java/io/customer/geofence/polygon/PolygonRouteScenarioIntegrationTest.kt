@@ -12,6 +12,7 @@ import com.google.android.gms.location.LocationResult
 import io.customer.base.internal.InternalCustomerIOApi
 import io.customer.geofence.GeofenceRegion
 import io.customer.geofence.di.geofenceCooldownFilter
+import io.customer.geofence.di.geofenceCooldownStore
 import io.customer.geofence.di.geofenceRegionStore
 import io.customer.geofence.di.pendingGeofenceDeliveryStore
 import io.customer.geofence.di.polygonGeofenceServiceController
@@ -310,6 +311,7 @@ class PolygonRouteScenarioIntegrationTest {
         android.geofenceRegionStore.saveRoutableRegisteredIds(setOf(id))
         return Scenario(
             id = id,
+            userId = userId,
             generation = android.geofenceRegionStore.userStateGeneration(),
             region = region
         )
@@ -367,6 +369,7 @@ class PolygonRouteScenarioIntegrationTest {
 
     private inner class Scenario(
         val id: String,
+        private val userId: String,
         private val generation: Long,
         val region: GeofenceRegion
     ) {
@@ -394,10 +397,14 @@ class PolygonRouteScenarioIntegrationTest {
         }
 
         fun transitions(): List<Event.GeofenceTransition> =
-            SDKComponent.android().pendingGeofenceDeliveryStore.loadAll()
-                .filter { it.geofenceId == id }
-                .sortedBy { it.timestamp }
-                .map { it.transition }
+            Event.GeofenceTransition.entries
+                .mapNotNull { transition ->
+                    SDKComponent.android().geofenceCooldownStore
+                        .getLastEmitTimestamp(userId, id, transition)
+                        ?.let { timestamp -> timestamp to transition }
+                }
+                .sortedBy { it.first }
+                .map { it.second }
     }
 
     private data class RoutePoint(

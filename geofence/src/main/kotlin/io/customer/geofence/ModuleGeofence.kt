@@ -65,6 +65,12 @@ class ModuleGeofence @JvmOverloads constructor(
         // installing subscriptions that would silently never deliver.
         val locationModule = runCatching { ModuleLocation.instance() }.getOrNull()
         if (locationModule == null) {
+            runCatching {
+                SDKComponent.android().polygonGeofenceServiceController.apply {
+                    setTrackingMode(PolygonTrackingMode.RESPONSIVE)
+                    stopAll()
+                }
+            }
             logger.logMissingLocationModule()
             return
         }

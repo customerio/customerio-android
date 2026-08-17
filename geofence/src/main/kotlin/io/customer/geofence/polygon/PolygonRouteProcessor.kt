@@ -16,6 +16,11 @@ internal data class PolygonTransitionDetection(
     val regionRevision: Int = 0
 )
 
+internal enum class PolygonEvidencePolicy {
+    CONFIRMED,
+    DECISIVE_SINGLE_FIX
+}
+
 /** Evaluates one ordered location stream against the currently active polygons. */
 internal class PolygonRouteProcessor(
     private val accuracyEvaluator: PolygonAccuracyEvaluator = PolygonAccuracyEvaluator(),
@@ -28,7 +33,8 @@ internal class PolygonRouteProcessor(
         fences: List<PolygonFence>,
         sample: PolygonLocationSample,
         elapsedRealtimeNanos: Long,
-        committedStates: Map<String, PolygonCommittedState>
+        committedStates: Map<String, PolygonCommittedState>,
+        evidencePolicy: PolygonEvidencePolicy = PolygonEvidencePolicy.CONFIRMED
     ): List<PolygonTransitionDetection> {
         require(elapsedRealtimeNanos >= 0L) { "elapsed realtime must be non-negative" }
         require(fences.map(PolygonFence::id).distinct().size == fences.size) {
@@ -47,7 +53,12 @@ internal class PolygonRouteProcessor(
             if (latest != null && elapsedRealtimeNanos <= latest) return@mapNotNull null
             latestElapsedRealtimeNanos[fence.id] = elapsedRealtimeNanos
             val committedState = committedStates[fence.id] ?: PolygonCommittedState.OUTSIDE
-            val evidence = accuracyEvaluator.evidenceFor(fence.geometry, sample, committedState)
+            val evidence = when (evidencePolicy) {
+                PolygonEvidencePolicy.CONFIRMED ->
+                    accuracyEvaluator.evidenceFor(fence.geometry, sample, committedState)
+                PolygonEvidencePolicy.DECISIVE_SINGLE_FIX ->
+                    accuracyEvaluator.decisiveEvidenceFor(fence.geometry, sample, committedState)
+            }
             val isTransitionEvidence =
                 committedState == PolygonCommittedState.OUTSIDE && evidence == PolygonEvidence.ENTER ||
                     committedState == PolygonCommittedState.INSIDE && evidence == PolygonEvidence.EXIT
@@ -55,6 +66,20 @@ internal class PolygonRouteProcessor(
                 lastEvidenceElapsedNanos.remove(fence.id)
                 stateMachine.evaluate(fence.id, committedState, evidence)
                 return@mapNotNull null
+            }
+            if (evidencePolicy == PolygonEvidencePolicy.DECISIVE_SINGLE_FIX) {
+                lastEvidenceElapsedNanos.remove(fence.id)
+                stateMachine.clear(fence.id)
+                val transition = when (evidence) {
+                    PolygonEvidence.ENTER -> PolygonTransition.ENTER
+                    PolygonEvidence.EXIT -> PolygonTransition.EXIT
+                    PolygonEvidence.AMBIGUOUS -> return@mapNotNull null
+                }
+                return@mapNotNull PolygonTransitionDetection(
+                    fence.id,
+                    transition,
+                    fence.regionRevision
+                )
             }
             val previousEvidenceTime = lastEvidenceElapsedNanos[fence.id]
             if (

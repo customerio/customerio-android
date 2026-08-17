@@ -38,6 +38,7 @@ import kotlinx.serialization.builtins.serializer
  *                                  registration; used by boot restore to re-center
  *                                  closer to the user's real position than the anchor.
  *   lastSyncTimestamp           — freshness throttle; cleared so the next login re-fetches.
+ *   pendingPolygonApproachBatches — exact responsive-mode fixes awaiting ordered evaluation.
  *
  * Rationale: the backend geofence fetch is workspace-scoped (no userId on
  * the wire), so cached regions/config stay valid for any user in the workspace
@@ -51,13 +52,19 @@ import kotlinx.serialization.builtins.serializer
  *
  * Storage: SharedPreferences. Workspace configuration (geofence IDs, names,
  * lat/lng, radii, external IDs) is plaintext — UID isolation keeps it
- * app-private. The two user-location snapshots are encrypted at rest via
- * [PreferenceCrypto] (AES-256-GCM, Android Keystore) and cleared on sign-out.
+ * app-private. User-location snapshots and queued polygon approach fixes are encrypted at rest
+ * via [PreferenceCrypto] (AES-256-GCM, Android Keystore) and cleared on sign-out.
  */
 internal interface GeofenceRegionStore {
     /** Process-stable polygon acquisition policy used by receivers and services after cold start. */
     fun savePolygonTrackingMode(mode: PolygonTrackingMode)
     fun getPolygonTrackingMode(): PolygonTrackingMode
+
+    /** Ordered exact-location batches used by responsive polygon evaluation. */
+    fun appendPendingPolygonApproachBatches(entries: List<PendingPolygonApproachBatch>): Boolean
+    fun getPendingPolygonApproachBatches(): List<PendingPolygonApproachBatch>
+    fun removePendingPolygonApproachBatch(id: String): Boolean
+    fun clearPendingPolygonApproachBatches()
 
     fun saveCachedRegions(regions: List<GeofenceRegion>)
     fun getCachedRegions(): List<GeofenceRegion>
@@ -247,17 +254,28 @@ internal interface GeofenceRegionStore {
 internal fun GeofenceRegionStore.getCachedConfigOrFallback(): GeofenceConfig =
     getCachedConfig() ?: GeofenceConfig.fallback()
 
+internal interface GeofenceLocationCrypto {
+    fun encrypt(plaintext: String): String
+    fun decrypt(encoded: String): String
+}
+
+private class PreferenceGeofenceLocationCrypto(logger: Logger) : GeofenceLocationCrypto {
+    private val delegate = PreferenceCrypto("cio_geofence_location_key", logger)
+
+    override fun encrypt(plaintext: String): String = delegate.encrypt(plaintext)
+    override fun decrypt(encoded: String): String = delegate.decrypt(encoded)
+}
+
 internal class GeofenceRegionStoreImpl(
     context: Context,
     private val jsonSerializer: GeofenceJsonSerializer,
-    logger: Logger
+    logger: Logger,
+    private val locationCrypto: GeofenceLocationCrypto = PreferenceGeofenceLocationCrypto(logger)
 ) : PreferenceStore(context), GeofenceRegionStore {
 
     override val prefsName: String by lazy {
         "io.customer.sdk.geofence_regions.${context.packageName}"
     }
-
-    private val crypto = PreferenceCrypto(CRYPTO_KEY_ALIAS, logger)
 
     override fun savePolygonTrackingMode(mode: PolygonTrackingMode) {
         prefs.edit { putString(KEY_POLYGON_TRACKING_MODE, mode.name) }
@@ -267,6 +285,55 @@ internal class GeofenceRegionStoreImpl(
         val stored = prefs.read { getString(KEY_POLYGON_TRACKING_MODE, null) }
         return stored?.let { runCatching { PolygonTrackingMode.valueOf(it) }.getOrNull() }
             ?: PolygonTrackingMode.RESPONSIVE
+    }
+
+    override fun appendPendingPolygonApproachBatches(
+        entries: List<PendingPolygonApproachBatch>
+    ): Boolean = synchronized(enteredLock) {
+        if (entries.isEmpty()) return@synchronized true
+        val expectedGeneration = entries.first().userStateGeneration
+        if (
+            entries.any { it.userStateGeneration != expectedGeneration } ||
+            expectedGeneration != currentUserStateGenerationLocked() ||
+            !hasActiveUserSession()
+        ) {
+            return@synchronized false
+        }
+        val incomingIds = entries.mapTo(mutableSetOf(), PendingPolygonApproachBatch::id)
+        val combined = readPendingPolygonApproachBatches()
+            .filterNot { it.id in incomingIds }
+            .plus(entries)
+            // Preserve the oldest evidence when storage is under sustained pressure. Newer fixes
+            // may be dropped, but they must never overtake an already-persisted route segment.
+            .take(MAXIMUM_PENDING_APPROACH_BATCHES)
+        writeEncryptedJsonCommitted(
+            KEY_PENDING_POLYGON_APPROACH_BATCHES,
+            PENDING_APPROACH_BATCHES_SERIALIZER,
+            combined
+        )
+    }
+
+    override fun getPendingPolygonApproachBatches(): List<PendingPolygonApproachBatch> =
+        synchronized(enteredLock) { readPendingPolygonApproachBatches() }
+
+    override fun removePendingPolygonApproachBatch(id: String): Boolean = synchronized(enteredLock) {
+        val entries = readPendingPolygonApproachBatches()
+        val retained = entries.filterNot { it.id == id }
+        if (retained.size == entries.size) return@synchronized true
+        if (retained.isEmpty()) {
+            prefs.edit().remove(KEY_PENDING_POLYGON_APPROACH_BATCHES).commit()
+        } else {
+            writeEncryptedJsonCommitted(
+                KEY_PENDING_POLYGON_APPROACH_BATCHES,
+                PENDING_APPROACH_BATCHES_SERIALIZER,
+                retained
+            )
+        }
+    }
+
+    override fun clearPendingPolygonApproachBatches() = synchronized(enteredLock) {
+        prefs.edit().remove(KEY_PENDING_POLYGON_APPROACH_BATCHES).commit()
+        Unit
     }
 
     override fun saveCachedRegions(regions: List<GeofenceRegion>) = synchronized(enteredLock) {
@@ -418,6 +485,7 @@ internal class GeofenceRegionStoreImpl(
             .remove(KEY_LAST_API_FETCH_LOCATION)
             .remove(KEY_LAST_MOVEMENT_TRIGGER_LOCATION)
             .remove(KEY_PENDING_TRANSITION_ENTRIES)
+            .remove(KEY_PENDING_POLYGON_APPROACH_BATCHES)
             .remove(KEY_ACTIVE_POLYGON_IDS)
             .remove(KEY_COARSE_INSIDE_POLYGON_IDS)
             .remove(KEY_ENTERED_IDS)
@@ -724,6 +792,7 @@ internal class GeofenceRegionStoreImpl(
             .remove(KEY_LAST_API_FETCH_LOCATION)
             .remove(KEY_LAST_MOVEMENT_TRIGGER_LOCATION)
             .remove(KEY_PENDING_TRANSITION_ENTRIES)
+            .remove(KEY_PENDING_POLYGON_APPROACH_BATCHES)
             .remove(KEY_ACTIVE_POLYGON_IDS)
             .remove(KEY_COARSE_INSIDE_POLYGON_IDS)
             .remove(KEY_ENTERED_IDS)
@@ -774,7 +843,20 @@ internal class GeofenceRegionStoreImpl(
     }
 
     private fun <T> writeEncryptedJson(key: String, serializer: KSerializer<T>, value: T) {
-        prefs.edit { putString(key, crypto.encrypt(jsonSerializer.encode(serializer, value))) }
+        prefs.edit { putString(key, locationCrypto.encrypt(jsonSerializer.encode(serializer, value))) }
+    }
+
+    private fun <T> writeEncryptedJsonCommitted(
+        key: String,
+        serializer: KSerializer<T>,
+        value: T
+    ): Boolean {
+        val plaintext = jsonSerializer.encode(serializer, value)
+        val encrypted = locationCrypto.encrypt(plaintext)
+        // Exact route history must never take PreferenceCrypto's API 21/OEM plaintext fallback.
+        // The receiver can evaluate the batch immediately when durable encryption is unavailable.
+        if (encrypted == plaintext) return false
+        return prefs.edit().putString(key, encrypted).commit()
     }
 
     /**
@@ -785,7 +867,7 @@ internal class GeofenceRegionStoreImpl(
      */
     private fun <T> readEncryptedJson(key: String, serializer: KSerializer<T>): T? {
         val raw = prefs.read { getString(key, null) } ?: return null
-        return jsonSerializer.decodeOrNull(serializer, crypto.decrypt(raw)) ?: run {
+        return jsonSerializer.decodeOrNull(serializer, locationCrypto.decrypt(raw)) ?: run {
             prefs.edit { remove(key) }
             null
         }
@@ -793,6 +875,12 @@ internal class GeofenceRegionStoreImpl(
 
     private val enteredLock = Any()
     private val activePolygonLock = Any()
+
+    private fun readPendingPolygonApproachBatches(): List<PendingPolygonApproachBatch> =
+        readEncryptedJson(
+            KEY_PENDING_POLYGON_APPROACH_BATCHES,
+            PENDING_APPROACH_BATCHES_SERIALIZER
+        ) ?: emptyList()
 
     // Guarded by [enteredLock]. Bumped per reported transition, so a sync can tell which of the two
     // directions a fence reported most recently against the fix the sync is holding. Per-fence
@@ -808,6 +896,7 @@ internal class GeofenceRegionStoreImpl(
         const val KEY_ROUTABLE_REGISTERED_IDS = "routable_registered_ids"
         const val KEY_RETAINED_REGISTERED_REGIONS = "retained_registered_regions"
         const val KEY_PENDING_TRANSITION_ENTRIES = "pending_transition_entries"
+        const val KEY_PENDING_POLYGON_APPROACH_BATCHES = "pending_polygon_approach_batches"
         const val KEY_USER_STATE_GENERATION = "user_state_generation"
         const val KEY_USER_STATE_OWNER = "user_state_owner"
         const val KEY_ACTIVE_POLYGON_IDS = "active_polygon_ids"
@@ -821,9 +910,11 @@ internal class GeofenceRegionStoreImpl(
         const val KEY_LAST_SYNC = "last_sync_timestamp"
         const val KEY_LAST_REGISTRATION_UPTIME = "last_registration_uptime"
         const val KEY_LAST_REGISTRATION_PACKAGE_UPDATE_TIME = "last_registration_package_update_time"
-        const val CRYPTO_KEY_ALIAS = "cio_geofence_location_key"
+        const val MAXIMUM_PENDING_APPROACH_BATCHES = 128
         val REGIONS_SERIALIZER = ListSerializer(GeofenceRegion.serializer())
         val PENDING_TRANSITIONS_SERIALIZER = ListSerializer(PendingGeofenceDelivery.serializer())
+        val PENDING_APPROACH_BATCHES_SERIALIZER =
+            ListSerializer(PendingPolygonApproachBatch.serializer())
         val ID_SET_SERIALIZER = SetSerializer(String.serializer())
     }
 }

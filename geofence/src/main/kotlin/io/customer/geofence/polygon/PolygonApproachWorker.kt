@@ -3,40 +3,69 @@ package io.customer.geofence.polygon
 import android.content.Context
 import android.location.Location
 import androidx.work.CoroutineWorker
-import androidx.work.Data
 import androidx.work.ExistingWorkPolicy
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkerParameters
 import androidx.work.await
 import io.customer.geofence.di.geofenceLogger
+import io.customer.geofence.di.geofenceRegionStore
+import io.customer.geofence.di.polygonBootSessionProvider
+import io.customer.geofence.store.GeofenceRegionStore
+import io.customer.geofence.store.PendingPolygonApproachBatch
+import io.customer.geofence.store.PendingPolygonApproachLocation
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.di.setupAndroidComponent
 import io.customer.sdk.core.util.CustomerIOWorkManagerProvider
+import java.util.UUID
+import kotlinx.coroutines.CancellationException
 
 internal class PolygonApproachWorkScheduler(
-    private val workManagerProvider: CustomerIOWorkManagerProvider
+    private val workManagerProvider: CustomerIOWorkManagerProvider,
+    private val store: GeofenceRegionStore,
+    private val bootSessionProvider: PolygonBootSessionProvider
 ) {
     suspend fun enqueue(locations: List<Location>, userStateGeneration: Long): Boolean {
+        if (locations.isEmpty()) return true
         val workManager = workManagerProvider.getWorkManager() ?: return false
-        PolygonApproachWorkCodec.encode(locations, userStateGeneration).forEach { input ->
-            val request = OneTimeWorkRequestBuilder<PolygonApproachWorker>()
-                .setInputData(input)
-                .addTag(WORK_MANAGER_TAG_CIO)
-                .addTag(WORK_MANAGER_TAG_POLYGON_APPROACH)
-                .build()
-            workManager.enqueueUniqueWork(
-                ORDERED_POLYGON_APPROACH_QUEUE,
-                ExistingWorkPolicy.APPEND_OR_REPLACE,
-                request
-            ).await()
+        val bootSessionId = bootSessionProvider.currentSessionId()
+        val batches = locations.chunked(MAXIMUM_LOCATIONS_PER_BATCH).map { locationsInBatch ->
+            PendingPolygonApproachBatch(
+                id = UUID.randomUUID().toString(),
+                userStateGeneration = userStateGeneration,
+                bootSessionId = bootSessionId,
+                locations = locationsInBatch.map(Location::toPendingApproachLocation)
+            )
         }
-        return true
+        if (!store.appendPendingPolygonApproachBatches(batches)) return false
+
+        return try {
+            batches.forEach {
+                val request = OneTimeWorkRequestBuilder<PolygonApproachWorker>()
+                    .addTag(WORK_MANAGER_TAG_CIO)
+                    .addTag(WORK_MANAGER_TAG_POLYGON_APPROACH)
+                    .build()
+                workManager.enqueueUniqueWork(
+                    ORDERED_POLYGON_APPROACH_QUEUE,
+                    ExistingWorkPolicy.APPEND_OR_REPLACE,
+                    request
+                ).await()
+            }
+            true
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            // A partially-created chain must not later replay a batch that the receiver processes
+            // directly as its fallback.
+            batches.forEach { store.removePendingPolygonApproachBatch(it.id) }
+            false
+        }
     }
 
     internal companion object {
         const val ORDERED_POLYGON_APPROACH_QUEUE = "cio-polygon-approach-queue"
         const val WORK_MANAGER_TAG_CIO = "cio-requests"
         const val WORK_MANAGER_TAG_POLYGON_APPROACH = "cio-polygon-approach"
+        const val MAXIMUM_LOCATIONS_PER_BATCH = 32
     }
 }
 
@@ -46,20 +75,39 @@ internal class PolygonApproachWorker(
 ) : CoroutineWorker(appContext, params) {
     override suspend fun doWork(): Result {
         SDKComponent.setupAndroidComponent(context = applicationContext)
-        val decoded = PolygonApproachWorkCodec.decode(inputData)
-        if (decoded == null) {
-            SDKComponent.geofenceLogger.logPolygonApproachMonitoringFailed("invalid durable location batch")
-            return Result.failure()
+        val store = SDKComponent.android().geofenceRegionStore
+        val batch = store.getPendingPolygonApproachBatches().firstOrNull() ?: return Result.success()
+        if (batch.bootSessionId != SDKComponent.android().polygonBootSessionProvider.currentSessionId()) {
+            return if (store.removePendingPolygonApproachBatch(batch.id)) {
+                Result.success()
+            } else {
+                Result.retry()
+            }
         }
         return try {
             PolygonApproachReceiver().handleLocations(
-                locations = decoded.locations,
-                expectedUserStateGeneration = decoded.userStateGeneration
+                locations = batch.locations.map(PendingPolygonApproachLocation::toLocation),
+                expectedUserStateGeneration = batch.userStateGeneration
             )
-            Result.success()
+            if (store.removePendingPolygonApproachBatch(batch.id)) {
+                Result.success()
+            } else {
+                Result.retry()
+            }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             SDKComponent.geofenceLogger.logPolygonApproachMonitoringFailed(e.message)
-            if (runAttemptCount + 1 < MAXIMUM_ATTEMPTS) Result.retry() else Result.failure()
+            if (runAttemptCount + 1 < MAXIMUM_ATTEMPTS) {
+                Result.retry()
+            } else {
+                // A poison batch cannot cancel the dependent chain and strand newer locations.
+                if (store.removePendingPolygonApproachBatch(batch.id)) {
+                    Result.success()
+                } else {
+                    Result.retry()
+                }
+            }
         }
     }
 
@@ -68,79 +116,22 @@ internal class PolygonApproachWorker(
     }
 }
 
-internal object PolygonApproachWorkCodec {
-    private const val KEY_USER_STATE_GENERATION = "user_state_generation"
-    private const val KEY_LATITUDES = "latitudes"
-    private const val KEY_LONGITUDES = "longitudes"
-    private const val KEY_ACCURACIES = "accuracies"
-    private const val KEY_HAS_ACCURACY = "has_accuracy"
-    private const val KEY_SPEEDS = "speeds"
-    private const val KEY_HAS_SPEED = "has_speed"
-    private const val KEY_TIMESTAMPS = "timestamps"
-    private const val KEY_ELAPSED_REALTIME_NANOS = "elapsed_realtime_nanos"
-    private const val MAXIMUM_LOCATIONS_PER_WORK = 32
+private fun Location.toPendingApproachLocation() = PendingPolygonApproachLocation(
+    latitude = latitude,
+    longitude = longitude,
+    accuracy = if (hasAccuracy()) accuracy else null,
+    speed = if (hasSpeed()) speed else null,
+    timestampMillis = time,
+    elapsedRealtimeNanos = elapsedRealtimeNanos
+)
 
-    data class DecodedBatch(
-        val locations: List<Location>,
-        val userStateGeneration: Long
-    )
-
-    fun encode(locations: List<Location>, userStateGeneration: Long): List<Data> =
-        locations.chunked(MAXIMUM_LOCATIONS_PER_WORK).map { batch ->
-            Data.Builder()
-                .putLong(KEY_USER_STATE_GENERATION, userStateGeneration)
-                .putDoubleArray(KEY_LATITUDES, batch.map(Location::getLatitude).toDoubleArray())
-                .putDoubleArray(KEY_LONGITUDES, batch.map(Location::getLongitude).toDoubleArray())
-                .putFloatArray(KEY_ACCURACIES, batch.map(Location::getAccuracy).toFloatArray())
-                .putBooleanArray(KEY_HAS_ACCURACY, batch.map(Location::hasAccuracy).toBooleanArray())
-                .putFloatArray(KEY_SPEEDS, batch.map(Location::getSpeed).toFloatArray())
-                .putBooleanArray(KEY_HAS_SPEED, batch.map(Location::hasSpeed).toBooleanArray())
-                .putLongArray(KEY_TIMESTAMPS, batch.map(Location::getTime).toLongArray())
-                .putLongArray(
-                    KEY_ELAPSED_REALTIME_NANOS,
-                    batch.map(Location::getElapsedRealtimeNanos).toLongArray()
-                )
-                .build()
-        }
-
-    fun decode(data: Data): DecodedBatch? {
-        val latitudes = data.getDoubleArray(KEY_LATITUDES) ?: return null
-        val longitudes = data.getDoubleArray(KEY_LONGITUDES) ?: return null
-        val accuracies = data.getFloatArray(KEY_ACCURACIES) ?: return null
-        val hasAccuracy = data.getBooleanArray(KEY_HAS_ACCURACY) ?: return null
-        val speeds = data.getFloatArray(KEY_SPEEDS) ?: return null
-        val hasSpeed = data.getBooleanArray(KEY_HAS_SPEED) ?: return null
-        val timestamps = data.getLongArray(KEY_TIMESTAMPS) ?: return null
-        val elapsedRealtimeNanos = data.getLongArray(KEY_ELAPSED_REALTIME_NANOS) ?: return null
-        val size = latitudes.size
-        if (
-            size == 0 ||
-            listOf(
-                longitudes.size,
-                accuracies.size,
-                hasAccuracy.size,
-                speeds.size,
-                hasSpeed.size,
-                timestamps.size,
-                elapsedRealtimeNanos.size
-            ).any { it != size }
-        ) {
-            return null
-        }
-        val generation = data.getLong(KEY_USER_STATE_GENERATION, Long.MIN_VALUE)
-        if (generation == Long.MIN_VALUE) return null
-        val locations = List(size) { index ->
-            Location(PROVIDER).apply {
-                latitude = latitudes[index]
-                longitude = longitudes[index]
-                if (hasAccuracy[index]) accuracy = accuracies[index]
-                if (hasSpeed[index]) speed = speeds[index]
-                time = timestamps[index]
-                this.elapsedRealtimeNanos = elapsedRealtimeNanos[index]
-            }
-        }
-        return DecodedBatch(locations, generation)
-    }
-
-    private const val PROVIDER = "cio-polygon-approach"
+private fun PendingPolygonApproachLocation.toLocation() = Location(PROVIDER).apply {
+    latitude = this@toLocation.latitude
+    longitude = this@toLocation.longitude
+    this@toLocation.accuracy?.let { accuracy = it }
+    this@toLocation.speed?.let { speed = it }
+    time = timestampMillis
+    elapsedRealtimeNanos = this@toLocation.elapsedRealtimeNanos
 }
+
+private const val PROVIDER = "cio-polygon-approach"

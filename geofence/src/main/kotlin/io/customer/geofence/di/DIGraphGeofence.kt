@@ -19,8 +19,10 @@ import io.customer.geofence.GeofenceServicesImpl
 import io.customer.geofence.GeofenceTransitionEmitter
 import io.customer.geofence.api.GeofenceApiService
 import io.customer.geofence.api.GeofenceApiServiceImpl
+import io.customer.geofence.polygon.AndroidPolygonBootSessionProvider
 import io.customer.geofence.polygon.PolygonApproachMonitor
 import io.customer.geofence.polygon.PolygonApproachWorkScheduler
+import io.customer.geofence.polygon.PolygonBootSessionProvider
 import io.customer.geofence.polygon.PolygonGeofenceServiceController
 import io.customer.geofence.polygon.PolygonLocationEngine
 import io.customer.geofence.store.GeofenceCooldownStore
@@ -50,7 +52,16 @@ internal val AndroidSDKComponent.polygonFusedLocationClient: FusedLocationProvid
     get() = singleton { LocationServices.getFusedLocationProviderClient(applicationContext) }
 
 internal val AndroidSDKComponent.polygonApproachWorkScheduler: PolygonApproachWorkScheduler
-    get() = singleton { PolygonApproachWorkScheduler(SDKComponent.workManagerProvider) }
+    get() = singleton {
+        PolygonApproachWorkScheduler(
+            workManagerProvider = SDKComponent.workManagerProvider,
+            store = geofenceRegionStore,
+            bootSessionProvider = polygonBootSessionProvider
+        )
+    }
+
+internal val AndroidSDKComponent.polygonBootSessionProvider: PolygonBootSessionProvider
+    get() = singleton { AndroidPolygonBootSessionProvider(applicationContext) }
 
 internal val AndroidSDKComponent.geofenceReceiverToggle: GeofenceReceiverToggle
     get() = newInstance { GeofenceReceiverToggle(applicationContext) }
@@ -93,7 +104,8 @@ internal val AndroidSDKComponent.geofenceDeliveryFlusher: PendingDeliveryFlusher
             // Geofence workers form one ordered continuation chain. A foreground flush removes
             // rows from the shared outbox; queued workers then observe the miss and finish safely.
             // Cancelling the shared chain for one row could strand a transition appended mid-flush.
-            uniqueWorkName = { null }
+            uniqueWorkName = { null },
+            stopOnFailure = true
         )
     }
 

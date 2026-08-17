@@ -9,7 +9,6 @@ import android.os.Looper
 import android.os.SystemClock
 import androidx.core.content.ContextCompat
 import io.customer.geofence.GeofenceLogger
-import io.customer.geofence.GeofenceRegion
 import io.customer.geofence.PolygonTrackingMode
 import io.customer.geofence.distanceTo
 import io.customer.geofence.store.GeofenceRegionStore
@@ -25,7 +24,9 @@ internal class PolygonGeofenceServiceController(
     private val engine: PolygonLocationEngine,
     private val approachMonitor: PolygonApproachMonitor,
     private val secureUserStore: SecureUserStore,
-    private val logger: GeofenceLogger
+    private val logger: GeofenceLogger,
+    private val continuousModeValidator: PolygonContinuousModeValidator =
+        PolygonContinuousModeValidator(context)
 ) {
     private val controllerLock = Any()
     private val coarseTransitionMutex = Mutex()
@@ -48,7 +49,7 @@ internal class PolygonGeofenceServiceController(
         if (!acceptCoarseTransition(polygonId, triggeringLocation)) return@withLock
         activate(polygonId, expectedUserStateGeneration, expectedRegionRevision)
         if (triggeringLocation != null) {
-            engine.processLocation(triggeringLocation, expectedUserStateGeneration)
+            processTriggeredLocation(triggeringLocation, expectedUserStateGeneration)
         }
     }
 
@@ -104,7 +105,7 @@ internal class PolygonGeofenceServiceController(
         }
         if (!recordedCoarseExit) return@withLock
         if (triggeringLocation != null) {
-            engine.processLocation(triggeringLocation, expectedUserStateGeneration)
+            processTriggeredLocation(triggeringLocation, expectedUserStateGeneration)
         }
         synchronized(controllerLock) {
             if (!isCurrentRegisteredPolygonLocked(
@@ -184,8 +185,10 @@ internal class PolygonGeofenceServiceController(
                 ) {
                     return false
                 }
-                val polygons = store.getRoutableRegisteredIds().mapNotNull(store::getCachedRegion)
-                    .filter(GeofenceRegion::isPolygon)
+                val routableIds = store.getRoutableRegisteredIds()
+                val polygons = store.getCachedRegions().filter {
+                    it.id in routableIds && it.isPolygon
+                }
                 polygons.filter {
                     it.distanceTo(location.latitude, location.longitude) +
                         fix.sample.horizontalAccuracyMeters <= it.radius
@@ -199,7 +202,7 @@ internal class PolygonGeofenceServiceController(
                 store.getActivePolygonIds().isNotEmpty()
             }
             if (!shouldProcess) continue
-            engine.processLocation(location, expectedUserStateGeneration)
+            processTriggeredLocation(location, expectedUserStateGeneration)
             synchronized(controllerLock) {
                 if (!hasMatchingIdentifiedUserLocked() ||
                     store.userStateGeneration() != expectedUserStateGeneration
@@ -273,6 +276,9 @@ internal class PolygonGeofenceServiceController(
     }
 
     fun setTrackingMode(mode: PolygonTrackingMode) = synchronized(controllerLock) {
+        if (mode == PolygonTrackingMode.CONTINUOUS) {
+            continuousModeValidator.configurationError()?.let(logger::logPolygonMonitoringFailed)
+        }
         val previous = store.getPolygonTrackingMode()
         store.savePolygonTrackingMode(mode)
         if (mode == PolygonTrackingMode.RESPONSIVE) {
@@ -417,6 +423,17 @@ internal class PolygonGeofenceServiceController(
         return store.activeUserSessionId() == currentUserId
     }
 
+    private suspend fun processTriggeredLocation(
+        location: Location,
+        expectedUserStateGeneration: Long
+    ) {
+        if (store.getPolygonTrackingMode() == PolygonTrackingMode.RESPONSIVE) {
+            engine.processResponsiveLocation(location, expectedUserStateGeneration)
+        } else {
+            engine.processLocation(location, expectedUserStateGeneration)
+        }
+    }
+
     private fun acceptCoarseTransition(polygonId: String, location: Location?): Boolean =
         synchronized(controllerLock) {
             val elapsedRealtimeNanos = location?.elapsedRealtimeNanos?.takeIf { it > 0L }
@@ -428,6 +445,10 @@ internal class PolygonGeofenceServiceController(
         }
 
     private fun startService() {
+        continuousModeValidator.configurationError()?.let {
+            logger.logPolygonMonitoringFailed(it)
+            return
+        }
         val generation = synchronized(controllerLock) {
             if (!isContinuousTrackingEnabledLocked() || pendingServicePromotionGeneration != null) {
                 null

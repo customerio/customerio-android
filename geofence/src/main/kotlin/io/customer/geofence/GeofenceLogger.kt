@@ -154,7 +154,10 @@ internal class GeofenceLogger(private val logger: Logger) {
     }
 
     fun logEventDeliveryFailed(geofenceId: String, transitionName: String, message: String?) {
-        logger.error("Geofence '$geofenceId' $transitionName: HTTP delivery failed and will not retry — $message", tag = TAG)
+        logger.error(
+            "Geofence '$geofenceId' $transitionName: HTTP delivery failed; retained at the head of the ordered outbox — $message",
+            tag = TAG
+        )
     }
 
     fun logEventInvalidInput(geofenceId: String?, transitionName: String?) {

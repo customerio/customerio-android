@@ -35,7 +35,9 @@ internal data class PolygonEvaluatorConfig(
     val enterConfidenceThreshold: Double = 0.4,
     val exitAccuracyInflationMeters: Double = 2.0,
     val maximumExitAccuracyMeters: Double = 50.0,
-    val maximumAcceptedAccuracyMeters: Double = 200.0
+    val maximumAcceptedAccuracyMeters: Double = 200.0,
+    val decisiveMaximumAccuracyMeters: Double = 50.0,
+    val decisiveBoundaryMarginMeters: Double = 10.0
 ) {
     init {
         require(perimeterSampleCount in 8..64) { "perimeter sample count is outside safe bounds" }
@@ -43,6 +45,12 @@ internal data class PolygonEvaluatorConfig(
         require(exitAccuracyInflationMeters in 0.0..10.0) { "exit accuracy inflation is outside safe bounds" }
         require(maximumExitAccuracyMeters in 10.0..100.0) { "maximum exit accuracy is outside safe bounds" }
         require(maximumAcceptedAccuracyMeters in 50.0..500.0) { "accepted accuracy is outside safe bounds" }
+        require(decisiveMaximumAccuracyMeters in 10.0..100.0) {
+            "decisive accuracy is outside safe bounds"
+        }
+        require(decisiveBoundaryMarginMeters in 0.0..50.0) {
+            "decisive boundary margin is outside safe bounds"
+        }
     }
 }
 
@@ -81,6 +89,33 @@ internal class PolygonAccuracyEvaluator(
                 confidence >= config.enterConfidenceThreshold -> PolygonEvidence.ENTER
             centerRelation == PolygonPointRelation.OUTSIDE &&
                 geometry.boundaryDistanceMeters(sample.coordinate) > accuracy ->
+                PolygonEvidence.EXIT
+            else -> PolygonEvidence.AMBIGUOUS
+        }
+    }
+
+    /**
+     * Classifies a sparse background fix only when its complete accuracy circle, plus an
+     * additional anti-jitter margin, is on the candidate side of the polygon boundary.
+     */
+    fun decisiveEvidenceFor(
+        geometry: PolygonGeometry,
+        sample: PolygonLocationSample,
+        committedState: PolygonCommittedState
+    ): PolygonEvidence {
+        if (sample.horizontalAccuracyMeters > config.decisiveMaximumAccuracyMeters) {
+            return PolygonEvidence.AMBIGUOUS
+        }
+        val relation = geometry.relationTo(sample.coordinate)
+        if (relation == PolygonPointRelation.BOUNDARY) return PolygonEvidence.AMBIGUOUS
+        val requiredDistance = sample.horizontalAccuracyMeters + config.decisiveBoundaryMarginMeters
+        if (geometry.boundaryDistanceMeters(sample.coordinate) <= requiredDistance) {
+            return PolygonEvidence.AMBIGUOUS
+        }
+        return when {
+            committedState == PolygonCommittedState.OUTSIDE && relation == PolygonPointRelation.INSIDE ->
+                PolygonEvidence.ENTER
+            committedState == PolygonCommittedState.INSIDE && relation == PolygonPointRelation.OUTSIDE ->
                 PolygonEvidence.EXIT
             else -> PolygonEvidence.AMBIGUOUS
         }

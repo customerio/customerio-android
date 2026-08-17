@@ -25,6 +25,8 @@ import io.customer.geofence.di.geofenceRegionStore
 import io.customer.geofence.di.pendingGeofenceDeliveryStore
 import io.customer.geofence.di.polygonFusedLocationClient
 import io.customer.geofence.di.polygonGeofenceServiceController
+import io.customer.geofence.store.PendingPolygonApproachBatch
+import io.customer.geofence.store.PendingPolygonApproachLocation
 import io.customer.sdk.communication.Event
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.di.setupAndroidComponent
@@ -56,6 +58,46 @@ class PolygonAndroidLocationIntegrationTest {
             )
         )
     )
+
+    @OptIn(InternalCustomerIOApi::class)
+    @Test
+    fun polygonApproachQueue_whenPersistedOnDevice_thenCoordinatesAreEncryptedAtRest() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        SDKComponent.setupAndroidComponent(context)
+        val store = SDKComponent.android().geofenceRegionStore
+        store.clearAll()
+        store.beginUserSession("encrypted-queue-user")
+        val batch = PendingPolygonApproachBatch(
+            id = "encrypted-batch",
+            userStateGeneration = store.userStateGeneration(),
+            bootSessionId = "boot-test",
+            locations = listOf(
+                PendingPolygonApproachLocation(
+                    latitude = 37.123456,
+                    longitude = -122.654321,
+                    accuracy = 5f,
+                    speed = null,
+                    timestampMillis = 1_000L,
+                    elapsedRealtimeNanos = 2_000L
+                )
+            )
+        )
+
+        try {
+            store.appendPendingPolygonApproachBatches(listOf(batch)) shouldBeEqualTo true
+            store.getPendingPolygonApproachBatches() shouldBeEqualTo listOf(batch)
+            val raw = context.getSharedPreferences(
+                "io.customer.sdk.geofence_regions.${context.packageName}",
+                Context.MODE_PRIVATE
+            ).getString("pending_polygon_approach_batches", "").orEmpty()
+            check(raw.isNotEmpty()) { "encrypted polygon approach queue was not persisted" }
+            check(!raw.contains("37.123456") && !raw.contains("-122.654321")) {
+                "polygon approach coordinates were stored in plaintext"
+            }
+        } finally {
+            store.clearAll()
+        }
+    }
 
     @Test
     fun androidLocationBatch_whenFixesAreOrdered_thenEmitsPolygonEntry() {

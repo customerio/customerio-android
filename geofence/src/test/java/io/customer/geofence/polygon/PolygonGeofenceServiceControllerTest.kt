@@ -38,13 +38,15 @@ class PolygonGeofenceServiceControllerTest {
     private val approachMonitor: PolygonApproachMonitor = mockk(relaxed = true)
     private val secureUserStore: SecureUserStore = mockk(relaxed = true)
     private val logger: GeofenceLogger = mockk(relaxed = true)
+    private val continuousModeValidator: PolygonContinuousModeValidator = mockk(relaxed = true)
     private val controller = PolygonGeofenceServiceController(
         context,
         store,
         engine,
         approachMonitor,
         secureUserStore,
-        logger
+        logger,
+        continuousModeValidator
     )
 
     @Before
@@ -56,9 +58,11 @@ class PolygonGeofenceServiceControllerTest {
         every { store.getRegisteredIds() } returns setOf("campus")
         every { store.getRoutableRegisteredIds() } returns setOf("campus")
         every { store.getCachedRegion("campus") } returns polygonRegion()
+        every { store.getCachedRegions() } returns listOf(polygonRegion())
         every { store.getActivePolygonIds() } returns emptySet()
         every { store.getEnteredIds() } returns emptySet()
         every { store.getPolygonTrackingMode() } returns PolygonTrackingMode.CONTINUOUS
+        every { continuousModeValidator.configurationError() } returns null
     }
 
     @Test
@@ -95,6 +99,16 @@ class PolygonGeofenceServiceControllerTest {
         controller.activate("campus")
 
         verify { logger.logPolygonMonitoringFailed("continuous service not declared") }
+    }
+
+    @Test
+    fun activate_givenContinuousHostConfigurationMissing_expectDoesNotAttemptServiceStart() {
+        every { continuousModeValidator.configurationError() } returns "missing foreground service"
+
+        controller.activate("campus")
+
+        verify { logger.logPolygonMonitoringFailed("missing foreground service") }
+        verify(exactly = 0) { context.startForegroundService(any<Intent>()) }
     }
 
     @Test
@@ -499,7 +513,7 @@ class PolygonGeofenceServiceControllerTest {
         )
 
         verify { engine.activateFromApproach("campus", 100L) }
-        coVerify { engine.processLocation(any(), 0L) }
+        coVerify { engine.processResponsiveLocation(any(), 0L) }
         verify(exactly = 0) { context.startForegroundService(any<Intent>()) }
     }
 

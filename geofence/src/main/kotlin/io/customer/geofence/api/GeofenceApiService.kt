@@ -25,7 +25,11 @@ internal class GeofenceApiServiceImpl(
         // `radius`/`limit` are optional server-side and omitted.
         val body = jsonSerializer.encode(
             GeofenceNearestRequest.serializer(),
-            GeofenceNearestRequest(latitude = location.latitude, longitude = location.longitude)
+            GeofenceNearestRequest(
+                latitude = location.latitude,
+                longitude = location.longitude,
+                capabilities = listOf(POLYGON_CAPABILITY)
+            )
         )
         val params = HttpRequestParams(
             path = ENDPOINT_PATH,
@@ -42,6 +46,7 @@ internal class GeofenceApiServiceImpl(
 
     private companion object {
         private const val ENDPOINT_PATH = "/geofences/nearest"
+        private const val POLYGON_CAPABILITY = "polygon-v1"
     }
 }
 
@@ -51,5 +56,7 @@ private data class GeofenceNearestRequest(
     @SerialName("latitude")
     val latitude: Double,
     @SerialName("longitude")
-    val longitude: Double
+    val longitude: Double,
+    @SerialName("capabilities")
+    val capabilities: List<String>
 )

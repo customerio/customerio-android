@@ -7,6 +7,8 @@ import io.customer.geofence.di.geofenceDeliveryFlusher
 import io.customer.geofence.di.geofenceLogger
 import io.customer.geofence.di.geofenceRegionStore
 import io.customer.geofence.di.geofenceServices
+import io.customer.geofence.di.geofenceTransitionEmitter
+import io.customer.geofence.di.polygonGeofenceServiceController
 import io.customer.location.LocationCoordinates
 import io.customer.location.ModuleLocation
 import io.customer.sdk.communication.Event
@@ -28,7 +30,10 @@ private const val MODULE_NAME = "Geofence"
  *
  * Registering this module enables on-device geofence monitoring: server-defined
  * geofences are registered with the OS, transitions are persisted and forwarded
- * to the CDP, and the local set is refreshed when the user moves far enough.
+ * to the CDP, and the local set is refreshed when the user moves far enough. Polygon
+ * registrations use displacement-gated, balanced-power approach fixes so the
+ * fine evaluator can wake before a delayed enclosing-circle callback. This responsive mode
+ * does not start a foreground service.
  *
  * Requires [ModuleLocation] to be registered alongside it — geofencing uses its
  * location provider regardless of the location tracking mode, and works even when
@@ -59,6 +64,7 @@ class ModuleGeofence @JvmOverloads constructor(
         // installing subscriptions that would silently never deliver.
         val locationModule = runCatching { ModuleLocation.instance() }.getOrNull()
         if (locationModule == null) {
+            runCatching { SDKComponent.android().polygonGeofenceServiceController.stopAll() }
             logger.logMissingLocationModule()
             return
         }
@@ -124,7 +130,9 @@ class ModuleGeofence @JvmOverloads constructor(
         // On identify, prime the geofence pipeline so the new user's session has its
         // nearby set fetched, anchored at the current registration center.
         eventBus.subscribe<Event.UserChangedEvent> {
-            if (!it.userId.isNullOrEmpty()) {
+            val userId = it.userId
+            if (!userId.isNullOrEmpty()) {
+                sdkAndroid.polygonGeofenceServiceController.beginUserSession(userId)
                 val anchor = refreshAnchor(sdkAndroid, locationModule)
                 sdkAndroid.geofenceServices.onUserIdentified(
                     latitude = anchor?.latitude,
@@ -176,6 +184,7 @@ class ModuleGeofence @JvmOverloads constructor(
                         val foregroundScope = SDKComponent.scopeProvider.geofenceScope
                         foregroundScope.launch {
                             try {
+                                sdkAndroid.polygonGeofenceServiceController.recover()
                                 if (!refreshOnForeground(sdkAndroid.geofenceServices, sdkAndroid.secureUserStore, locationModule)) {
                                     retrySyncAwaitingLocation(sdkAndroid, locationModule)
                                 }
@@ -196,8 +205,10 @@ class ModuleGeofence @JvmOverloads constructor(
             val launchScope = SDKComponent.scopeProvider.geofenceScope
             launchScope.launch {
                 try {
+                    sdkAndroid.geofenceTransitionEmitter.recoverPendingTransitions()
                     val existingUserId = sdkAndroid.secureUserStore.getUserId()
                     if (!existingUserId.isNullOrEmpty()) {
+                        sdkAndroid.polygonGeofenceServiceController.beginUserSession(existingUserId)
                         val anchor = refreshAnchor(sdkAndroid, locationModule)
                         sdkAndroid.geofenceServices.onAppLaunch(
                             latitude = anchor?.latitude,

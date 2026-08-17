@@ -2,12 +2,15 @@ package io.customer.geofence
 
 import android.location.Location
 import com.google.android.gms.location.Geofence
+import com.google.android.gms.location.GeofenceStatusCodes
 import com.google.android.gms.location.GeofencingEvent
 import io.customer.commontest.config.ApplicationArgument
 import io.customer.commontest.config.TestConfig
 import io.customer.commontest.config.testConfigurationDefault
 import io.customer.commontest.core.RobolectricTest
 import io.customer.geofence.di.pendingGeofenceDeliveryStore
+import io.customer.geofence.polygon.PolygonCoordinate
+import io.customer.geofence.polygon.PolygonGeofenceServiceController
 import io.customer.geofence.store.GeofenceRegionStore
 import io.customer.geofence.store.PendingGeofenceDelivery
 import io.customer.geofence.worker.GeofenceEventScheduler
@@ -53,6 +56,7 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
     private val mockStore: GeofenceRegionStore = mockk(relaxed = true)
     private val mockManager: GeofenceManager = mockk(relaxed = true)
     private val mockSecureUserStore: SecureUserStore = mockk(relaxed = true)
+    private val mockPolygonController: PolygonGeofenceServiceController = mockk(relaxed = true)
 
     // Real-time behavior by default so entry timestamps stay realistic; the dispatch-budget
     // test re-stubs elapsedRealtime to simulate time already spent inside a dispatch.
@@ -84,12 +88,15 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
                         overrideDependency<GeofenceRegionStore>(mockStore)
                         overrideDependency<GeofenceManager>(mockManager)
                         overrideDependency<SecureUserStore>(mockSecureUserStore)
+                        overrideDependency<PolygonGeofenceServiceController>(mockPolygonController)
                     }
                 }
             }
         )
         // Default: cooldown allows emission. Tests override this to test suppression.
-        every { mockCooldownFilter.tryAcquire(any(), any(), any()) } returns true
+        every { mockCooldownFilter.isAllowed(any(), any(), any()) } returns true
+        every { mockStore.savePendingTransitionEntries(any(), any()) } returns true
+        every { mockStore.commitBusinessTransition(any(), any(), any(), any(), any()) } returns true
         // Default: an identified user is the common case; the snapshot lands on the entry.
         // Tests that need an anonymous-at-queue-time scenario override this to null.
         every { mockSecureUserStore.getUserId() } returns "user-42"
@@ -101,17 +108,29 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
             "biz-2",
             "biz-geofence",
             "biz-geofence-1",
-            "biz-geofence-2"
+            "biz-geofence-2",
+            "polygon"
         )
+        every { mockStore.getRoutableRegisteredIds() } answers { mockStore.getRegisteredIds() }
+        every { mockStore.userStateGeneration() } returns 0L
+        every { mockStore.activeUserSessionId() } returns "user-42"
         // Default: the device counts as inside every fence, so the EXIT guard is a no-op.
         // Tests for the guard override.
         every { mockStore.claimExit(any()) } returns true
         // Default: containment has been recorded, i.e. not a freshly-upgraded install.
         every { mockStore.hasContainmentRecord() } returns true
+        every { mockStore.getEnteredIds() } returns setOf(
+            "biz-1",
+            "biz-2",
+            "biz-geofence",
+            "biz-geofence-1",
+            "biz-geofence-2"
+        )
         // Default: fences monitor both transitions, so the EXIT guard applies. Exit-only fences and
         // uncached ids are exempt from it and have their own tests.
         every { mockStore.getCachedRegion(any()) } returns
             GeofenceRegion("biz-geofence-2", 0.0, 0.0, 100f)
+        every { mockStore.getRegisteredRegion(any()) } returns null
         pendingStore.removeAll()
         receiver = GeofenceBroadcastReceiver()
     }
@@ -135,6 +154,19 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
 
         coVerify(exactly = 0) { mockScheduler.schedule(any()) }
         pendingStore.loadAll() shouldBeEqualTo emptyList()
+    }
+
+    @Test
+    fun handleGeofencingEvent_givenGeofencingUnavailable_expectInvalidatesOsRegistrationTruth() = runTest {
+        val event = mockk<GeofencingEvent>(relaxed = true) {
+            every { hasError() } returns true
+            every { errorCode } returns GeofenceStatusCodes.GEOFENCE_NOT_AVAILABLE
+        }
+
+        receiver.handleGeofencingEvent(event)
+
+        verify { mockPolygonController.invalidateOsRegistrationState() }
+        coVerify(exactly = 0) { mockScheduler.schedule(any()) }
     }
 
     @Test
@@ -183,6 +215,124 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
     }
 
     @Test
+    fun handleGeofencingEvent_givenPolygonOuterEnter_expectStartsFineEvaluationWithoutBusinessEvent() = runTest {
+        val location = realLocation(37.7750, -122.4194)
+        every { mockStore.getCachedRegion("polygon") } returns polygonRegion()
+        val event = buildGeofencingEvent(
+            transition = Geofence.GEOFENCE_TRANSITION_ENTER,
+            geofenceIds = listOf("polygon"),
+            location = location
+        )
+
+        receiver.handleGeofencingEvent(event)
+
+        coVerify {
+            mockPolygonController.activate(
+                "polygon",
+                location,
+                0L,
+                polygonRegion().transitionRevision()
+            )
+        }
+        coVerify(exactly = 0) { mockScheduler.schedule(any()) }
+        pendingStore.loadAll().shouldBeEmpty()
+    }
+
+    @Test
+    fun handleGeofencingEvent_givenPolygonOuterExit_expectContinuesFineEvaluationWithoutBusinessEvent() = runTest {
+        val location = realLocation(37.7760, -122.4180)
+        every { mockStore.getCachedRegion("polygon") } returns polygonRegion()
+        val event = buildGeofencingEvent(
+            transition = Geofence.GEOFENCE_TRANSITION_EXIT,
+            geofenceIds = listOf("polygon"),
+            location = location
+        )
+
+        receiver.handleGeofencingEvent(event)
+
+        coVerify {
+            mockPolygonController.onCoarseExit(
+                "polygon",
+                location,
+                0L,
+                polygonRegion().transitionRevision()
+            )
+        }
+        coVerify(exactly = 0) { mockScheduler.schedule(any()) }
+        pendingStore.loadAll().shouldBeEmpty()
+    }
+
+    @Test
+    fun dispatchTransition_givenCircleWasReplacedByPolygonDuringCallback_expectNoCoarseBusinessEvent() = runTest {
+        val oldCircle = GeofenceRegion(
+            id = "polygon",
+            latitude = 37.7750,
+            longitude = -122.4194,
+            radius = 200f
+        )
+        every { mockStore.getCachedRegion("polygon") } returnsMany listOf(
+            oldCircle,
+            polygonRegion()
+        )
+
+        receiver.dispatchTransition(
+            gmsTransitionType = Geofence.GEOFENCE_TRANSITION_ENTER,
+            triggeringGeofenceIds = listOf("polygon"),
+            latitude = 37.7750,
+            longitude = -122.4194
+        )
+
+        coVerify(exactly = 0) { mockScheduler.schedule(any()) }
+        pendingStore.loadAll().shouldBeEmpty()
+        coVerify(exactly = 0) {
+            mockPolygonController.activate(any<String>(), any<Location>(), any<Long>(), any<Int>())
+        }
+    }
+
+    @Test
+    fun dispatchTransition_givenCircleEnterWasDisabledDuringCallback_expectNoStaleEnterEvent() = runTest {
+        val oldCircle = GeofenceRegion(
+            id = "biz-1",
+            latitude = 37.7750,
+            longitude = -122.4194,
+            radius = 200f,
+            transitionTypes = listOf(GeofenceTransitionType.ENTER, GeofenceTransitionType.EXIT)
+        )
+        val exitOnlyCircle = oldCircle.copy(transitionTypes = listOf(GeofenceTransitionType.EXIT))
+        every { mockStore.getCachedRegion("biz-1") } returnsMany listOf(oldCircle, exitOnlyCircle)
+
+        receiver.dispatchTransition(
+            gmsTransitionType = Geofence.GEOFENCE_TRANSITION_ENTER,
+            triggeringGeofenceIds = listOf("biz-1"),
+            latitude = 37.7750,
+            longitude = -122.4194
+        )
+
+        coVerify(exactly = 0) { mockScheduler.schedule(any()) }
+        pendingStore.loadAll().shouldBeEmpty()
+    }
+
+    @Test
+    fun dispatchTransition_givenRetiredPolygonCallback_expectCleanupRetryWithoutBusinessEvent() = runTest {
+        every { mockStore.getCachedRegion("polygon") } returns null
+        every { mockStore.getRegisteredRegion("polygon") } returns polygonRegion()
+        coEvery { mockManager.removeGeofencesByIds(listOf("polygon")) } returns Result.success(Unit)
+
+        receiver.dispatchTransition(
+            gmsTransitionType = Geofence.GEOFENCE_TRANSITION_ENTER,
+            triggeringGeofenceIds = listOf("polygon"),
+            latitude = 37.7750,
+            longitude = -122.4194
+        )
+
+        coVerify { mockManager.removeGeofencesByIds(listOf("polygon")) }
+        coVerify(exactly = 0) {
+            mockPolygonController.activate(any<String>(), any<Location>(), any<Long>(), any<Int>())
+        }
+        coVerify(exactly = 0) { mockScheduler.schedule(any()) }
+    }
+
+    @Test
     fun dispatchTransition_givenEnterTransition_expectEntryAppendedAndScheduledButNotPublished() = runTest {
         val entrySlot = slot<PendingGeofenceDelivery>()
 
@@ -214,6 +364,7 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
         // Snapshotting at queue time is what protects A's events from being
         // reattributed to B if A signs out + B signs in before delivery.
         every { mockSecureUserStore.getUserId() } returns "user-A"
+        every { mockStore.activeUserSessionId() } returns "user-A"
         val entrySlot = slot<PendingGeofenceDelivery>()
 
         receiver.dispatchTransition(
@@ -225,6 +376,25 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
 
         coVerify(exactly = 1) { mockScheduler.schedule(capture(entrySlot)) }
         entrySlot.captured.userId shouldBeEqualTo "user-A"
+    }
+
+    @Test
+    fun dispatchTransition_givenLegacyColdStartWithoutSessionOwner_expectAdoptsUserAndProcessesCallback() = runTest {
+        var sessionOwner: String? = null
+        every { mockStore.activeUserSessionId() } answers { sessionOwner }
+        every { mockPolygonController.beginUserSession(any()) } answers {
+            sessionOwner = firstArg()
+        }
+
+        receiver.dispatchTransition(
+            gmsTransitionType = Geofence.GEOFENCE_TRANSITION_ENTER,
+            triggeringGeofenceIds = listOf("biz-geofence"),
+            latitude = 1.0,
+            longitude = 2.0
+        )
+
+        verify { mockPolygonController.beginUserSession("user-42") }
+        coVerify(exactly = 1) { mockScheduler.schedule(any()) }
     }
 
     @Test
@@ -452,12 +622,13 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
         scheduled.map { it.transitionId }.toSet().size shouldBeEqualTo 1
         scheduled.map { it.key }.toSet().size shouldBeEqualTo 3
         // Cooldown is a single gate for the crossing, not per geoset.
-        verify(exactly = 1) { mockCooldownFilter.tryAcquire("user-42", "biz-geofence", Event.GeofenceTransition.ENTER) }
+        verify(exactly = 1) { mockCooldownFilter.isAllowed("user-42", "biz-geofence", Event.GeofenceTransition.ENTER) }
+        verify(exactly = 1) { mockCooldownFilter.record("user-42", "biz-geofence", Event.GeofenceTransition.ENTER) }
         pendingStore.loadAll().size shouldBeEqualTo 3
     }
 
     @Test
-    fun dispatchTransition_givenPersistFails_expectNoScheduleAndCooldownReleased() = runTest {
+    fun dispatchTransition_givenOutboxPersistFails_expectStagedAttemptKeptAndNoSchedule() = runTest {
         every { mockStore.getCachedRegion("biz-geofence") } returns
             GeofenceRegion("biz-geofence", 0.0, 0.0, 100f)
         // Force the pending store's write to fail by turning its backing file into a directory.
@@ -472,10 +643,10 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
             longitude = 0.0
         )
 
-        // Nothing durably queued: don't schedule a worker that would find no row, and roll back the
-        // cooldown so a later crossing can retry instead of being suppressed.
+        // The SharedPreferences stage is durable even though the file outbox is unavailable. Do not
+        // spend cooldown or schedule a worker; a later callback/launch recovers the stable attempt.
         coVerify(exactly = 0) { mockScheduler.schedule(any()) }
-        verify(exactly = 1) { mockCooldownFilter.release("user-42", "biz-geofence", Event.GeofenceTransition.ENTER) }
+        verify(exactly = 0) { mockCooldownFilter.record(any(), any(), any()) }
     }
 
     @Test
@@ -534,7 +705,7 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
 
     @Test
     fun dispatchTransition_givenCooldownSuppresses_expectNothingScheduled() = runTest {
-        every { mockCooldownFilter.tryAcquire("user-42", "biz-geofence", Event.GeofenceTransition.ENTER) } returns false
+        every { mockCooldownFilter.isAllowed("user-42", "biz-geofence", Event.GeofenceTransition.ENTER) } returns false
 
         receiver.dispatchTransition(
             gmsTransitionType = Geofence.GEOFENCE_TRANSITION_ENTER,
@@ -548,7 +719,7 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
     }
 
     @Test
-    fun dispatchTransition_givenCooldownAllows_expectTryAcquireBeforeSchedule() = runTest {
+    fun dispatchTransition_givenCooldownAllows_expectCheckAndRecordBeforeSchedule() = runTest {
         receiver.dispatchTransition(
             gmsTransitionType = Geofence.GEOFENCE_TRANSITION_ENTER,
             triggeringGeofenceIds = listOf("biz-geofence"),
@@ -557,7 +728,8 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
         )
 
         coVerifyOrder {
-            mockCooldownFilter.tryAcquire("user-42", "biz-geofence", Event.GeofenceTransition.ENTER)
+            mockCooldownFilter.isAllowed("user-42", "biz-geofence", Event.GeofenceTransition.ENTER)
+            mockCooldownFilter.record("user-42", "biz-geofence", Event.GeofenceTransition.ENTER)
             mockScheduler.schedule(any())
         }
     }
@@ -616,6 +788,7 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
         // reconciliation, not a crossing. Unlike an orphan ID the registration is still
         // wanted, so it must NOT be removed from the OS.
         every { mockStore.claimExit("biz-geofence-2") } returns false
+        every { mockStore.getEnteredIds() } returns emptySet()
 
         receiver.dispatchTransition(
             gmsTransitionType = Geofence.GEOFENCE_TRANSITION_EXIT,
@@ -635,6 +808,7 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
         // An exit-only fence is registered without ENTER monitoring, so the OS can never report an
         // ENTER for the guard to record. Applying the guard would drop every one of its EXITs.
         every { mockStore.claimExit("biz-geofence-2") } returns false
+        every { mockStore.getEnteredIds() } returns emptySet()
         every { mockStore.getCachedRegion("biz-geofence-2") } returns GeofenceRegion(
             id = "biz-geofence-2",
             latitude = 0.0,
@@ -657,6 +831,7 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
     fun dispatchTransition_givenUnmatchedExitForUncachedFence_expectDeliveredNotDropped() = runTest {
         // No cache row means unknown transition types, which can't justify dropping a crossing.
         every { mockStore.claimExit("biz-geofence-2") } returns false
+        every { mockStore.getEnteredIds() } returns emptySet()
         every { mockStore.getCachedRegion("biz-geofence-2") } returns null
 
         receiver.dispatchTransition(
@@ -675,6 +850,7 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
         // judge against until the first registration seeds it. A fence entered before the upgrade
         // must still report its EXIT.
         every { mockStore.claimExit("biz-geofence-2") } returns false
+        every { mockStore.getEnteredIds() } returns emptySet()
         every { mockStore.hasContainmentRecord() } returns false
 
         receiver.dispatchTransition(
@@ -771,8 +947,18 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
             longitude = -0.1278
         )
 
-        // Recording the ENTER is what lets the matching EXIT through later.
-        verify { mockStore.recordEntered("biz-geofence-2") }
+        // The stage and physical ENTER are one synchronous store transaction.
+        verify {
+            mockStore.savePendingTransitionEntries(
+                match { entries ->
+                    entries.all {
+                        it.geofenceId == "biz-geofence-2" &&
+                            it.transition == Event.GeofenceTransition.ENTER
+                    }
+                },
+                any()
+            )
+        }
     }
 
     @Test
@@ -788,7 +974,15 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
             longitude = -0.1278
         )
 
-        verify { mockStore.recordEntered("biz-geofence-2") }
+        verify {
+            mockStore.commitBusinessTransition(
+                "biz-geofence-2",
+                Event.GeofenceTransition.ENTER,
+                null,
+                any(),
+                any()
+            )
+        }
         coVerify(exactly = 0) { mockScheduler.schedule(any()) }
     }
 
@@ -824,6 +1018,27 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
         pendingStore.loadAll() shouldBeEqualTo emptyList()
         verify(exactly = 0) { mockCooldownFilter.tryAcquire(any(), any(), any()) }
         coVerify { mockManager.removeGeofencesByIds(listOf("biz-orphan")) }
+    }
+
+    @Test
+    fun dispatchTransition_givenCleanupOnlyPolygonAfterUserHandoff_expectNoEventOrFineMonitoring() = runTest {
+        every { mockStore.getRegisteredIds() } returns setOf("polygon")
+        every { mockStore.getRoutableRegisteredIds() } returns emptySet()
+        every { mockStore.getCachedRegion("polygon") } returns polygonRegion()
+
+        receiver.dispatchTransition(
+            gmsTransitionType = Geofence.GEOFENCE_TRANSITION_ENTER,
+            triggeringGeofenceIds = listOf("polygon"),
+            latitude = 37.7750,
+            longitude = -122.4194,
+            triggeringLocation = realLocation(37.7750, -122.4194)
+        )
+
+        coVerify(exactly = 0) {
+            mockPolygonController.activate(any<String>(), any<Location>(), any<Long>(), any<Int>())
+        }
+        coVerify(exactly = 0) { mockScheduler.schedule(any()) }
+        coVerify { mockManager.removeGeofencesByIds(listOf("polygon")) }
     }
 
     @Test
@@ -901,4 +1116,17 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
             longitude = lng
             time = System.currentTimeMillis()
         }
+
+    private fun polygonRegion() = GeofenceRegion(
+        id = "polygon",
+        latitude = 37.7750,
+        longitude = -122.4194,
+        radius = 200f,
+        polygonVertices = listOf(
+            PolygonCoordinate(37.7745, -122.4200),
+            PolygonCoordinate(37.7745, -122.4188),
+            PolygonCoordinate(37.7755, -122.4188),
+            PolygonCoordinate(37.7755, -122.4200)
+        )
+    )
 }

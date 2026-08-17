@@ -39,16 +39,40 @@ internal class GeofenceDistanceFilter(
         longitude: Double,
         max: Int,
         maxDistanceMeters: Float
+    ): List<GeofenceRegion> = nearest(
+        regions = regions,
+        latitude = latitude,
+        longitude = longitude,
+        max = max,
+        maxDistanceMeters = maxDistanceMeters,
+        pinnedIds = emptySet()
+    )
+
+    fun nearest(
+        regions: List<GeofenceRegion>,
+        latitude: Double,
+        longitude: Double,
+        max: Int,
+        maxDistanceMeters: Float,
+        pinnedIds: Set<String>
     ): List<GeofenceRegion> {
         if (max <= 0 || regions.isEmpty()) return emptyList()
         pruneGeometryCache(regions)
-        return regions
+        val sorted = regions
             .mapNotNull { region ->
                 rankingDistanceOrNull(region, latitude, longitude)?.let { distance -> region to distance }
             }
-            .filter { (_, distance) -> distance <= maxDistanceMeters }
-            .sortedWith(compareBy({ (_, distance) -> distance }, { (region, _) -> region.id }))
-            .take(max)
+            .filter { (region, distance) -> region.id in pinnedIds || distance <= maxDistanceMeters }
+            .sortedWith(
+                compareByDescending<Pair<GeofenceRegion, Float>> { (region, _) -> region.id in pinnedIds }
+                    .thenBy { (_, distance) -> distance }
+                    .thenBy { (region, _) -> region.id }
+            )
+        val (pinned, candidates) = sorted.partition { (region, _) -> region.id in pinnedIds }
+        // A positive server cap controls discovery, but it must not evict a polygon whose fine
+        // session or committed INSIDE state is already active. Such an eviction can never observe
+        // the matching EXIT. max=0 remains the explicit kill switch above.
+        return (pinned + candidates.take((max - pinned.size).coerceAtLeast(0)))
             .map { (region, _) -> region }
     }
 

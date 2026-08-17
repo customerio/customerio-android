@@ -38,6 +38,11 @@ tasks.withType(KotlinCompile).all {
     }
 }
 
+configurations.matching { it.name.endsWith("AndroidTestRuntimeClasspath") }.configureEach {
+    exclude group: "org.junit.jupiter"
+    exclude group: "org.junit.platform"
+}
+
 dependencies {
     api project(":base")
     api project(":core")

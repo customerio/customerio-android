@@ -270,6 +270,43 @@ class GeofenceDistanceFilterTest : RobolectricTest() {
         }
     }
 
+    // ---------- pinned regions survive discovery caps so their EXIT can still be observed ----------
+
+    @Test
+    fun nearest_givenPinnedPolygonBeyondDistanceCap_expectRetainedAheadOfNearbyCircle() {
+        val pinned = region("pinned", 10.0, 0.0)
+        val nearby = region("nearby", 0.01, 0.0)
+
+        val result = filter.nearest(
+            regions = listOf(nearby, pinned),
+            latitude = 0.0,
+            longitude = 0.0,
+            max = 1,
+            maxDistanceMeters = 1_000f,
+            pinnedIds = setOf("pinned")
+        )
+
+        result.map(GeofenceRegion::id) shouldBeEqualTo listOf("pinned")
+    }
+
+    @Test
+    fun nearest_givenMorePinnedPolygonsThanPositiveCap_expectAllPinnedRetainedForExitMonitoring() {
+        val result = filter.nearest(
+            regions = listOf(
+                region("nearby", 0.01, 0.0),
+                region("active-a", 10.0, 0.0),
+                region("active-b", 11.0, 0.0)
+            ),
+            latitude = 0.0,
+            longitude = 0.0,
+            max = 1,
+            maxDistanceMeters = 1_000f,
+            pinnedIds = setOf("active-a", "active-b")
+        )
+
+        result.map(GeofenceRegion::id) shouldBeEqualTo listOf("active-a", "active-b")
+    }
+
     // Concave L-shape whose enclosing circle covers a large area the polygon excludes.
     private fun concaveRegion() = GeofenceRegion(
         id = "concave",

@@ -74,7 +74,10 @@ class PendingDeliveryStore<T : PendingDeliveryStore.PendingDeliveryEntry>(
     fun appendAll(entries: List<T>): Boolean {
         if (entries.isEmpty()) return true
         return lock.withLock {
-            val all = readAll().toMutableList()
+            // A caller recovering a staged outbox attempt may append the same stable keys again.
+            // Replace those rows atomically instead of duplicating one physical delivery.
+            val incomingKeys = entries.mapTo(mutableSetOf(), PendingDeliveryEntry::key)
+            val all = readAll().filterNot { it.key in incomingKeys }.toMutableList()
             all.addAll(entries)
             while (all.size > maxEntries) {
                 all.removeAt(0)

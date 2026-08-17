@@ -9,6 +9,8 @@ import io.customer.geofence.GeofenceJsonSerializer
 import io.customer.geofence.GeofenceLogger
 import io.customer.geofence.GeofenceRegion
 import io.customer.geofence.GeofenceTransitionType
+import io.customer.geofence.distanceTo
+import io.customer.geofence.polygon.PolygonCoordinate
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkStatic
@@ -19,6 +21,7 @@ import org.amshove.kluent.invoking
 import org.amshove.kluent.shouldBeEmpty
 import org.amshove.kluent.shouldBeEqualTo
 import org.amshove.kluent.shouldBeNull
+import org.amshove.kluent.shouldBeTrue
 import org.amshove.kluent.shouldContainSame
 import org.amshove.kluent.shouldThrow
 import org.junit.Test
@@ -42,6 +45,85 @@ class GeofenceApiResponseTest : RobolectricTest() {
     }
 
     // ---------- region shape ----------
+
+    @Test
+    fun parseAndMap_givenGeoJsonPolygon_expectValidatedPolygonAndEnclosingCircle() {
+        val region = parseRegions(
+            """
+            {
+              "geofences": [{
+                "id": "campus",
+                "geometry": {
+                  "type": "Polygon",
+                  "coordinates": [[
+                    [-122.4200, 37.7745],
+                    [-122.4188, 37.7745],
+                    [-122.4188, 37.7755],
+                    [-122.4200, 37.7755],
+                    [-122.4200, 37.7745]
+                  ]]
+                }
+              }]
+            }
+            """.trimIndent()
+        ).single()
+
+        region.isPolygon.shouldBeTrue()
+        region.polygonVertices?.size shouldBeEqualTo 4
+        region.polygonVertices?.first() shouldBeEqualTo PolygonCoordinate(37.7745, -122.4200)
+        region.polygonVertices.orEmpty().forEach { vertex ->
+            (region.distanceTo(vertex.latitude, vertex.longitude) <= region.radius).shouldBeTrue()
+        }
+    }
+
+    @Test
+    fun parseAndMap_givenPolygonWithHole_expectOnlyInvalidPolygonDropped() {
+        val regions = parseRegions(
+            """
+            {
+              "geofences": [
+                {
+                  "id": "hole",
+                  "geometry": {
+                    "type": "Polygon",
+                    "coordinates": [
+                      [[0, 0], [0.01, 0], [0.01, 0.01], [0, 0.01], [0, 0]],
+                      [[0.002, 0.002], [0.003, 0.002], [0.003, 0.003], [0.002, 0.002]]
+                    ]
+                  }
+                },
+                { "id": "circle", "latitude": 0, "longitude": 0, "radius": 100 }
+              ]
+            }
+            """.trimIndent()
+        )
+
+        regions.map(GeofenceRegion::id) shouldBeEqualTo listOf("circle")
+        verify { mockLogger.logInvalidRegionDropped("hole") }
+    }
+
+    @Test
+    fun parseAndMap_givenSelfIntersectingPolygon_expectMappingFailureIsIsolated() {
+        val regions = parseRegions(
+            """
+            {
+              "geofences": [
+                {
+                  "id": "bow-tie",
+                  "geometry": {
+                    "type": "Polygon",
+                    "coordinates": [[[0, 0], [0.01, 0.01], [0, 0.01], [0.01, 0], [0, 0]]]
+                  }
+                },
+                { "id": "circle", "latitude": 0, "longitude": 0, "radius": 100 }
+              ]
+            }
+            """.trimIndent()
+        )
+
+        regions.map(GeofenceRegion::id) shouldBeEqualTo listOf("circle")
+        verify { mockLogger.logRegionMappingFailed("bow-tie", any()) }
+    }
 
     @Test
     fun parseAndMap_givenFullSampleRegion_expectDomainValues() {

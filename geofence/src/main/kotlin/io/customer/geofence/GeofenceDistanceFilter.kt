@@ -1,5 +1,7 @@
 package io.customer.geofence
 
+import io.customer.geofence.polygon.PolygonCoordinate
+import io.customer.geofence.polygon.PolygonGeometry
 import kotlin.math.round
 
 /**
@@ -20,6 +22,8 @@ import kotlin.math.round
  * order. Matches iOS so both platforms pick the same set at the cap.
  */
 internal class GeofenceDistanceFilter {
+    private val geometryCache = mutableMapOf<String, CachedPolygonGeometry>()
+
     fun nearest(
         regions: List<GeofenceRegion>,
         latitude: Double,
@@ -28,11 +32,39 @@ internal class GeofenceDistanceFilter {
         maxDistanceMeters: Float
     ): List<GeofenceRegion> {
         if (max <= 0 || regions.isEmpty()) return emptyList()
+        pruneGeometryCache(regions)
         return regions
-            .map { it to round(it.edgeDistanceTo(latitude, longitude)) }
+            .map { region ->
+                region to round(
+                    region.edgeDistanceTo(latitude, longitude, cachedGeometry(region))
+                )
+            }
             .filter { (_, distance) -> distance <= maxDistanceMeters }
             .sortedWith(compareBy({ (_, distance) -> distance }, { (region, _) -> region.id }))
             .take(max)
             .map { (region, _) -> region }
     }
+
+    @Synchronized
+    private fun cachedGeometry(region: GeofenceRegion): PolygonGeometry? {
+        val vertices = region.polygonVertices ?: return null
+        val cached = geometryCache[region.id]
+        if (cached?.vertices == vertices) return cached.geometry
+        return PolygonGeometry.from(vertices).also { geometry ->
+            geometryCache[region.id] = CachedPolygonGeometry(vertices, geometry)
+        }
+    }
+
+    @Synchronized
+    private fun pruneGeometryCache(regions: List<GeofenceRegion>) {
+        val polygonIds = regions.asSequence()
+            .filter(GeofenceRegion::isPolygon)
+            .mapTo(mutableSetOf(), GeofenceRegion::id)
+        geometryCache.keys.retainAll(polygonIds)
+    }
+
+    private data class CachedPolygonGeometry(
+        val vertices: List<PolygonCoordinate>,
+        val geometry: PolygonGeometry
+    )
 }

@@ -3,8 +3,10 @@ package io.customer.geofence
 import io.customer.commontest.config.TestConfig
 import io.customer.commontest.config.testConfigurationDefault
 import io.customer.commontest.core.RobolectricTest
+import io.customer.geofence.polygon.PolygonCoordinate
 import org.amshove.kluent.shouldBeEmpty
 import org.amshove.kluent.shouldBeEqualTo
+import org.amshove.kluent.shouldBeGreaterThan
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -169,6 +171,26 @@ class GeofenceDistanceFilterTest : RobolectricTest() {
         )
 
         result.map { it.id } shouldBeEqualTo listOf("biz-big-far", "biz-small-near")
+    }
+
+    @Test
+    fun nearest_givenPointInPolygonEnclosingCircleDeadSpace_expectUsesPolygonBoundaryDistance() {
+        val concave = GeofenceRegion(
+            id = "concave",
+            latitude = 1.5,
+            longitude = 1.5,
+            radius = 300_000f,
+            polygonVertices = listOf(
+                PolygonCoordinate(0.0, 0.0),
+                PolygonCoordinate(0.0, 3.0),
+                PolygonCoordinate(1.0, 3.0),
+                PolygonCoordinate(1.0, 1.0),
+                PolygonCoordinate(3.0, 1.0),
+                PolygonCoordinate(3.0, 0.0)
+            )
+        )
+
+        concave.edgeDistanceTo(2.0, 2.0) shouldBeGreaterThan 100_000f
     }
 
     private fun region(

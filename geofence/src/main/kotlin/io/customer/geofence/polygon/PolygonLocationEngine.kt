@@ -40,11 +40,13 @@ import kotlinx.coroutines.sync.withLock
  *   reporting typical background accuracy it will produce none. That is a reported limitation, not a
  *   defect to be tuned around here.
  *
- * A continuous high-accuracy stream — which is what would close those gaps, at a real battery cost —
- * is **not** part of this SDK build. It lands with the foreground-service runtime and will
- * feed this same engine through [processLocations] with
+ * A continuous high-accuracy stream — which is what closes those gaps, at a real battery cost — is
+ * the opt-in [io.customer.geofence.PolygonTrackingMode.CONTINUOUS] runtime. It is owned by
+ * [PolygonFineLocationStream], never by this engine: the engine still asks the OS for nothing. That
+ * stream feeds whole batches to [processContinuousLocations] under
  * [PolygonEvidencePolicy.CONFIRMED], the multi-fix policy [PolygonRouteProcessor] already
- * implements. Nothing here claims or attempts that stream today.
+ * implements. Every other source — coarse triggers and approach batches — keeps using
+ * [processResponsiveLocation], in both modes, so opting in can only add evidence.
  */
 internal class PolygonLocationEngine(
     private val store: GeofenceRegionStore,
@@ -52,7 +54,9 @@ internal class PolygonLocationEngine(
     private val clock: Clock,
     private val logger: GeofenceLogger
 ) {
-    private val routeProcessor = PolygonRouteProcessor()
+    private val routeProcessor = PolygonRouteProcessor(
+        minimumEvidenceIntervalNanos = MINIMUM_EVIDENCE_INTERVAL_NANOS
+    )
     private var sessionStartElapsedRealtimeNanos: Long? = null
     private val processingMutex = Mutex()
     private val stateLock = Any()
@@ -119,13 +123,38 @@ internal class PolygonLocationEngine(
     )
 
     /**
-     * Ordered evaluation of a batch of fixes under [evidencePolicy].
+     * Ordered evaluation of a whole high-accuracy batch under the multi-fix
+     * [PolygonEvidencePolicy.CONFIRMED] policy.
      *
-     * The only caller today is [processResponsiveLocation], which passes one fix and
-     * [PolygonEvidencePolicy.DECISIVE_SINGLE_FIX]. This is the seam the continuous runtime
-     * plugs into: it will hand whole [android.location.LocationResult] batches here under
-     * [PolygonEvidencePolicy.CONFIRMED] without changing anything below.
+     * Only [PolygonFineLocationStream] may call this, and only from a stream registration that
+     * Play services has accepted: CONFIRMED needs several fixes seconds apart to move containment,
+     * which is a worse trade than [processResponsiveLocation] for anything sparser. Nothing else
+     * in the runtime hands fixes here, so a denied or failed foreground promotion simply leaves
+     * every fix on the responsive path.
      */
+    suspend fun processContinuousLocations(
+        locations: List<Location>,
+        expectedUserStateGeneration: Long
+    ) = processLocations(
+        locations = locations,
+        expectedUserStateGeneration = expectedUserStateGeneration,
+        evidencePolicy = PolygonEvidencePolicy.CONFIRMED
+    )
+
+    /**
+     * Metres from the given coordinate to the nearest active polygon boundary, or `null` when no
+     * active polygon has usable geometry. Lets [PolygonFineLocationStream] relax its sampling rate
+     * far from every boundary without duplicating the geometry the engine already caches.
+     */
+    fun minimumBoundaryDistanceMeters(latitude: Double, longitude: Double): Double? =
+        synchronized(stateLock) {
+            val coordinate = PolygonCoordinate(latitude, longitude)
+            activePolygonFencesLocked().minOfOrNull {
+                it.geometry.boundaryDistanceMeters(coordinate)
+            }
+        }
+
+    /** Ordered evaluation of [locations] under [evidencePolicy]. */
     private suspend fun processLocations(
         locations: List<Location>,
         expectedUserStateGeneration: Long,
@@ -284,6 +313,10 @@ internal class PolygonLocationEngine(
         const val NANOS_PER_MILLISECOND = 1_000_000L
         const val MILLIS_PER_SECOND = 1_000L
         const val MAX_SOURCE_CLOCK_DRIFT_MILLIS = 5 * 60 * 1_000L
+
+        // Only CONFIRMED evidence is debounced. Two fixes a few hundred milliseconds apart describe
+        // one moment, not two independent observations, so a dense stream must not confirm from them.
+        const val MINIMUM_EVIDENCE_INTERVAL_NANOS = 1_500_000_000L
         const val TRIGGER_LOCATION_GRACE_NANOS = 30_000_000_000L
         const val MAXIMUM_FIX_AGE_NANOS = 120_000_000_000L
         const val FUTURE_FIX_TOLERANCE_NANOS = 5_000_000_000L

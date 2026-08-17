@@ -23,6 +23,7 @@ import io.customer.geofence.polygon.AndroidPolygonBootSessionProvider
 import io.customer.geofence.polygon.PolygonApproachMonitor
 import io.customer.geofence.polygon.PolygonApproachWorkScheduler
 import io.customer.geofence.polygon.PolygonBootSessionProvider
+import io.customer.geofence.polygon.PolygonFineLocationStream
 import io.customer.geofence.polygon.PolygonGeofenceServiceController
 import io.customer.geofence.polygon.PolygonLocationEngine
 import io.customer.geofence.polygon.PolygonSupport
@@ -167,6 +168,17 @@ internal val AndroidSDKComponent.polygonLocationEngine: PolygonLocationEngine
         )
     }
 
+internal val AndroidSDKComponent.polygonFineLocationStream: PolygonFineLocationStream
+    get() = singleton {
+        PolygonFineLocationStream(
+            client = polygonFusedLocationClient,
+            engine = polygonLocationEngine,
+            store = geofenceRegionStore,
+            logger = SDKComponent.geofenceLogger,
+            backgroundContext = SDKComponent.dispatchersProvider.background
+        )
+    }
+
 internal val AndroidSDKComponent.polygonApproachMonitor: PolygonApproachMonitor
     get() = singleton {
         PolygonApproachMonitor(
@@ -183,6 +195,7 @@ internal val AndroidSDKComponent.polygonGeofenceServiceController: PolygonGeofen
             context = applicationContext,
             store = geofenceRegionStore,
             engine = polygonLocationEngine,
+            fineStream = polygonFineLocationStream,
             approachMonitor = polygonApproachMonitor,
             secureUserStore = secureUserStore,
             logger = SDKComponent.geofenceLogger

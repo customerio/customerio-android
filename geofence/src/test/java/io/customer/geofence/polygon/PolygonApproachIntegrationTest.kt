@@ -85,6 +85,7 @@ class PolygonApproachIntegrationTest : RobolectricTest() {
             context = mockk<Context>(relaxed = true),
             store = store,
             engine = engine,
+            fineStream = mockk(relaxed = true),
             approachMonitor = mockk(relaxed = true),
             secureUserStore = secureUserStore,
             logger = logger

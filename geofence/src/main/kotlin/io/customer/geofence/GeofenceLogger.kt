@@ -261,6 +261,21 @@ internal class GeofenceLogger(private val logger: Logger) {
         )
     }
 
+    /**
+     * Continuous mode could not reach — or could not keep — its high-accuracy stream. Responsive
+     * evaluation continues from approach fixes, so this degrades reliability rather than ending it.
+     */
+    fun logPolygonMonitoringFailed(message: String?) {
+        logger.error(
+            "Continuous polygon monitoring unavailable: $message. Falling back to responsive evaluation from passive approach fixes.",
+            tag = TAG
+        )
+    }
+
+    fun logPolygonContinuousMonitoringStarted() {
+        logger.debug("Continuous polygon monitoring registered a high-accuracy location stream", tag = TAG)
+    }
+
     fun logPolygonApproachMonitoringStarted() {
         logger.debug("Polygon responsive approach monitoring registered", tag = TAG)
     }

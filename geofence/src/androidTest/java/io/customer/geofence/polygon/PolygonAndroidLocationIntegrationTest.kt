@@ -1,8 +1,11 @@
 package io.customer.geofence.polygon
 
 import android.Manifest
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.content.pm.ServiceInfo
 import android.location.Location
 import android.location.LocationListener
 import android.location.LocationManager
@@ -67,6 +70,38 @@ class PolygonAndroidLocationIntegrationTest {
             )
         )
     )
+
+    /**
+     * The merged manifest is the only place the continuous runtime's declaration can be verified:
+     * a `<service>` that the SDK ships but a build strips, or that loses its
+     * `foregroundServiceType`, fails at `startForeground` on a device and nowhere else.
+     */
+    @Test
+    fun mergedManifest_whenContinuousModeIsConfigured_thenDeclaresLocationForegroundService() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val serviceInfo = context.packageManager.getServiceInfo(
+            ComponentName(context, PolygonLocationService::class.java),
+            0
+        )
+
+        serviceInfo.exported shouldBeEqualTo false
+        (
+            serviceInfo.foregroundServiceType and
+                ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION
+            ) shouldBeEqualTo ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION
+        listOf(
+            Manifest.permission.FOREGROUND_SERVICE,
+            Manifest.permission.FOREGROUND_SERVICE_LOCATION,
+            Manifest.permission.ACCESS_FINE_LOCATION
+        ).forEach { permission ->
+            context.packageManager.checkPermission(
+                permission,
+                context.packageName
+            ) shouldBeEqualTo PackageManager.PERMISSION_GRANTED
+        }
+        // The same decision the runtime makes before it will attempt a start.
+        PolygonContinuousModeValidator(context).configurationError() shouldBeEqualTo null
+    }
 
     @OptIn(InternalCustomerIOApi::class)
     @Test

@@ -65,12 +65,7 @@ class ModuleGeofence @JvmOverloads constructor(
         // installing subscriptions that would silently never deliver.
         val locationModule = runCatching { ModuleLocation.instance() }.getOrNull()
         if (locationModule == null) {
-            runCatching {
-                SDKComponent.android().polygonGeofenceServiceController.apply {
-                    setTrackingMode(PolygonTrackingMode.RESPONSIVE)
-                    stopAll()
-                }
-            }
+            applyPolygonTrackingMode(PolygonTrackingMode.RESPONSIVE, alsoStopMonitoring = true)
             logger.logMissingLocationModule()
             return
         }
@@ -78,12 +73,42 @@ class ModuleGeofence @JvmOverloads constructor(
         val eventBus = SDKComponent.eventBus
         val sdkAndroid = SDKComponent.android()
 
-        sdkAndroid.polygonGeofenceServiceController.setTrackingMode(
-            moduleConfig.polygonTrackingMode
-        )
+        applyPolygonTrackingMode(moduleConfig.polygonTrackingMode, alsoStopMonitoring = false)
 
         subscribeToEvents(eventBus, sdkAndroid, locationModule)
         scheduleForegroundWork(eventBus, sdkAndroid, logger, locationModule)
+    }
+
+    /**
+     * Persists the configured polygon mode off the caller's thread.
+     *
+     * `initialize()` runs inline on the host's main thread, and applying the mode reads and writes
+     * SharedPreferences, decrypts the identified user through the Keystore, and asks the package
+     * manager about the foreground service — hundreds of milliseconds on some OEMs, all of it
+     * before the host's own `onCreate` continues.
+     *
+     * Deferring it cannot resurrect a session: the controller re-reads the identified user, the
+     * routable catalog and the active polygons under its own lock when this runs, so a sign-out,
+     * identity switch or catalog wipe that lands first is what the mode is applied against. The
+     * only cost of the delay is that a process configured for CONTINUOUS reaches its foreground
+     * service a moment later, which the same call starts as soon as it does run.
+     */
+    private fun applyPolygonTrackingMode(mode: PolygonTrackingMode, alsoStopMonitoring: Boolean) {
+        val scope = SDKComponent.scopeProvider.geofenceScope
+        scope.launch {
+            try {
+                runCatching {
+                    SDKComponent.android().polygonGeofenceServiceController.apply {
+                        setTrackingMode(mode)
+                        if (alsoStopMonitoring) stopAll()
+                    }
+                }
+            } finally {
+                // One-shot: geofenceScope mints a fresh scope per access, so cancel it once this
+                // completes rather than leaking its Job.
+                scope.cancel()
+            }
+        }
     }
 
     /**

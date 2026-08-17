@@ -62,22 +62,27 @@ ModuleGeofence(
 )
 ```
 
-The host manifest must then opt into the service and permissions:
+The SDK declares the service itself. The host only adds the two foreground-service permissions,
+which are deliberately not in the SDK manifest so apps that never opt in do not inherit a
+location foreground-service declaration:
 
 ```xml
 <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
 <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
-
-<application>
-    <service
-        android:name="io.customer.geofence.polygon.PolygonLocationService"
-        android:exported="false"
-        android:foregroundServiceType="location" />
-</application>
 ```
 
-Background use also requires the applicable location permissions and a persistent
-foreground-service notification.
+Without them the SDK logs `Continuous polygon monitoring unavailable: …` and keeps evaluating on
+the responsive path — that fallback is worth verifying deliberately, by opting into CONTINUOUS
+with the permissions omitted and confirming transitions still arrive with no notification shown.
+
+Things to check while CONTINUOUS is active:
+
+- the ongoing notification appears while inside a polygon's trigger circle, and disappears on exit,
+  sign-out and identity switch;
+- backgrounding the app during the first seconds of a start (before the notification appears) does
+  not leave a stranded service or a notification with no session behind it;
+- revoking location permission while the notification is showing stops the service rather than
+  leaving it running with no stream.
 
 ### Helper commands
 

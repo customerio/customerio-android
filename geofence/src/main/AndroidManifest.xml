@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <!--
         Geofence monitoring requires these permissions declared in the host app:
@@ -7,12 +8,12 @@
         - android.permission.ACCESS_BACKGROUND_LOCATION
         - android.permission.RECEIVE_BOOT_COMPLETED
 
-        PolygonTrackingMode.CONTINUOUS additionally requires the host to declare the SDK's
-        PolygonLocationService plus:
+        PolygonTrackingMode.CONTINUOUS additionally requires the host to declare:
         - android.permission.FOREGROUND_SERVICE
         - android.permission.FOREGROUND_SERVICE_LOCATION
-        The SDK does not declare them to avoid adding permissions for customers
-        not using geofencing.
+        The SDK does not declare those two, because every app shipping this module would then
+        inherit a location foreground-service declaration it may never opt into. Hosts that do opt
+        in are told what is missing at runtime by PolygonContinuousModeValidator.
     -->
 
     <application>
@@ -26,6 +27,19 @@
         <receiver
             android:name="io.customer.geofence.polygon.PolygonApproachReceiver"
             android:exported="false" />
+
+        <!--
+            Started only by PolygonTrackingMode.CONTINUOUS, and only while the device is inside a
+            polygon's trigger circle. Declared here rather than in a debug-only manifest so the
+            release artifact carries exactly what the production path starts; the permissions it
+            needs stay with the host, and PolygonContinuousModeValidator refuses to start it until
+            they are granted.
+        -->
+        <service
+            android:name="io.customer.geofence.polygon.PolygonLocationService"
+            android:exported="false"
+            android:foregroundServiceType="location"
+            tools:ignore="ForegroundServicePermission" />
 
         <!-- Disabled by default; enabled alongside GeofenceBroadcastReceiver -->
         <receiver

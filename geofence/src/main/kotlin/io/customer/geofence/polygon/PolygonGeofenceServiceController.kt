@@ -1,6 +1,5 @@
 package io.customer.geofence.polygon
 
-import android.annotation.SuppressLint
 import android.content.Context
 import android.content.Intent
 import android.location.Location
@@ -17,11 +16,23 @@ import io.customer.sdk.data.store.SecureUserStore
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
-/** Persists coarse-circle activity before controlling the process-lifetime location service. */
+/**
+ * Persists coarse-circle activity, then drives whichever acquisition the configured
+ * [PolygonTrackingMode] allows.
+ *
+ * Both modes share one path: coarse triggers and passive approach batches are evaluated by
+ * [PolygonLocationEngine] on the responsive, single-decisive-fix policy. [PolygonTrackingMode
+ * .CONTINUOUS] adds — never replaces — a location foreground service whose
+ * [PolygonFineLocationStream] contributes multi-fix evidence while the device is inside a trigger
+ * circle. Every way that service can fail (host configuration, an OS background-start restriction,
+ * a refused promotion, a revoked permission) ends in the same place: the stream stops and the
+ * responsive path carries on alone.
+ */
 internal class PolygonGeofenceServiceController(
     private val context: Context,
     private val store: GeofenceRegionStore,
     private val engine: PolygonLocationEngine,
+    private val fineStream: PolygonFineLocationStream,
     private val approachMonitor: PolygonApproachMonitor,
     private val secureUserStore: SecureUserStore,
     private val logger: GeofenceLogger,
@@ -36,6 +47,15 @@ internal class PolygonGeofenceServiceController(
     private var serviceStartGeneration = 0L
     private var pendingServicePromotionGeneration: Long? = null
     private var servicePromotionRetryCount = 0
+    private var promotionDeniedUntilElapsedMs: Long? = null
+
+    /**
+     * The highest start generation that no longer owns the runtime, because a newer start replaced
+     * it or [stopService] cancelled it. Service callbacks are asynchronous and are raised from the
+     * service main thread and from [startService]'s own caller thread, so one can land long after
+     * its generation stopped being the reason a stream is running.
+     */
+    private var supersededServiceGeneration = 0L
 
     suspend fun activate(
         polygonId: String,
@@ -159,6 +179,9 @@ internal class PolygonGeofenceServiceController(
             store.getCachedRegion(it)?.isPolygon == true
         }
         if (polygonIds.isEmpty()) approachMonitor.stop() else approachMonitor.start(store.userStateGeneration())
+        // Foreground entry is exactly when a background-start restriction stops applying, so a
+        // previous denial must not keep the gate shut through the one window that would succeed.
+        promotionDeniedUntilElapsedMs = null
         if (store.getActivePolygonIds().isNotEmpty()) startServiceIfContinuous()
     }
 
@@ -240,6 +263,7 @@ internal class PolygonGeofenceServiceController(
         const val APPROACH_EXIT_HYSTERESIS_METERS = 100.0
         const val SERVICE_PROMOTION_TIMEOUT_MS = 10_000L
         const val MAXIMUM_SERVICE_PROMOTION_RETRIES = 1
+        const val PROMOTION_DENIED_BACKOFF_MS = 300_000L
     }
 
     private enum class PromotionTimeoutAction {
@@ -248,10 +272,15 @@ internal class PolygonGeofenceServiceController(
         STOP
     }
 
-    @SuppressLint("MissingPermission")
-    fun startEngineForService(onUnavailable: () -> Unit): Long? = synchronized(controllerLock) {
+    /**
+     * Registers the fine stream for a service that has already promoted itself, or returns `null`
+     * when nothing should be sampled — which the caller answers by stopping the service. Never
+     * called before [startForeground][android.app.Service.startForeground] succeeds, so a stream
+     * can only exist behind a live location foreground service.
+     */
+    fun startFineLocationStream(onUnavailable: () -> Unit): Long? = synchronized(controllerLock) {
         if (!isContinuousTrackingEnabledLocked()) {
-            engine.stop()
+            fineStream.stop()
             return@synchronized null
         }
         val identifiedUserId = secureUserStore.getUserId()?.takeIf { it.isNotEmpty() }
@@ -265,40 +294,78 @@ internal class PolygonGeofenceServiceController(
             store.clearActivePolygonIds()
             store.retainCoarseInsidePolygonIds(emptySet())
             engine.stop()
+            fineStream.stop()
             lastCoarseTransitionElapsedNanos.clear()
             return@synchronized null
         }
-        engine.start(onUnavailable)
+        fineStream.start(onUnavailable)
     }
 
     fun isContinuousTrackingEnabled(): Boolean = synchronized(controllerLock) {
         isContinuousTrackingEnabledLocked()
     }
 
+    /**
+     * Persists the configured mode and reconciles the runtime to it. Does blocking preference,
+     * Keystore and binder work, so hosts must call it off the main thread.
+     */
     fun setTrackingMode(mode: PolygonTrackingMode) = synchronized(controllerLock) {
         if (mode == PolygonTrackingMode.CONTINUOUS) {
             continuousModeValidator.configurationError()?.let(logger::logPolygonMonitoringFailed)
         }
-        val previous = store.getPolygonTrackingMode()
         store.savePolygonTrackingMode(mode)
         if (mode == PolygonTrackingMode.RESPONSIVE) {
+            // Multi-fix evidence gathered under the previous mode has no owner once the stream is
+            // gone, so it is discarded rather than left to confirm from a sparser source.
             engine.stop()
-            pendingServicePromotionGeneration?.let(::clearServicePromotionWatchdogLocked)
-            pendingServicePromotionGeneration = null
-            servicePromotionRetryCount = 0
-            context.stopService(Intent(context, PolygonLocationService::class.java))
-        } else if (
-            previous != PolygonTrackingMode.CONTINUOUS &&
-            hasMatchingIdentifiedUserLocked() &&
-            store.getActivePolygonIds().isNotEmpty()
-        ) {
+            promotionDeniedUntilElapsedMs = null
+            stopService()
+        } else if (hasMatchingIdentifiedUserLocked() && store.getActivePolygonIds().isNotEmpty()) {
+            // Unconditional rather than only on a mode change: the mode is now applied
+            // asynchronously, so a process that starts already configured for CONTINUOUS has to
+            // reach a running service from here too.
             startService()
         }
     }
 
+    /** Acknowledges a promotion the service has already completed. */
     fun onServicePromoted(serviceGeneration: Long) = synchronized(controllerLock) {
+        // Deliberately not generation-gated: this callback is only raised after startForeground has
+        // returned, so even a superseded generation proves that starting is allowed right now and
+        // that an earlier denial no longer describes the device. Only the latch, which is about one
+        // specific start, is matched below.
+        promotionDeniedUntilElapsedMs = null
         if (pendingServicePromotionGeneration == serviceGeneration) {
             clearServicePromotionWatchdogLocked(serviceGeneration)
+            pendingServicePromotionGeneration = null
+            servicePromotionRetryCount = 0
+        }
+    }
+
+    /**
+     * The service reached no usable state — an OS background-start restriction, a refused
+     * `startForeground`, or a location permission that is no longer granted. Releases the latch
+     * without ever marking the generation promoted, and holds further attempts off for a bounded
+     * window (reopened by [recover] on foreground entry, when a background-start restriction stops
+     * applying) so a denial is not re-requested on every approach batch. Responsive evaluation,
+     * including approach monitoring, is untouched.
+     *
+     * A `null` generation is a sticky restart, whose intent carries no generation: it can only
+     * describe whatever service is running now, so it always fails closed.
+     */
+    fun onServicePromotionFailed(serviceGeneration: Long?, reason: String?) = synchronized(controllerLock) {
+        logger.logPolygonMonitoringFailed(reason)
+        // A failure that a newer start or a deliberate stop has already replaced describes nothing
+        // that is running: acting on it would stop the newer generation's stream and hold its
+        // restart behind a backoff it never earned. Whatever superseded it reports its own outcome,
+        // and a generation that stays silent is still caught by its promotion watchdog.
+        if (serviceGeneration != null && serviceGeneration <= supersededServiceGeneration) {
+            return@synchronized
+        }
+        promotionDeniedUntilElapsedMs = SystemClock.elapsedRealtime() + PROMOTION_DENIED_BACKOFF_MS
+        fineStream.stop()
+        if (serviceGeneration == null || pendingServicePromotionGeneration == serviceGeneration) {
+            pendingServicePromotionGeneration?.let(::clearServicePromotionWatchdogLocked)
             pendingServicePromotionGeneration = null
             servicePromotionRetryCount = 0
         }
@@ -423,15 +490,18 @@ internal class PolygonGeofenceServiceController(
         return store.activeUserSessionId() == currentUserId
     }
 
+    /**
+     * Coarse triggers and passive approach batches are single, widely spaced fixes whichever mode
+     * is configured, so they are always judged on the decisive-single-fix policy. Routing them
+     * through the multi-fix policy because CONTINUOUS is selected would make the opt-in *lose*
+     * transitions that responsive mode commits — the fine stream, not the mode flag, is what earns
+     * multi-fix evidence.
+     */
     private suspend fun processTriggeredLocation(
         location: Location,
         expectedUserStateGeneration: Long
     ) {
-        if (store.getPolygonTrackingMode() == PolygonTrackingMode.RESPONSIVE) {
-            engine.processResponsiveLocation(location, expectedUserStateGeneration)
-        } else {
-            engine.processLocation(location, expectedUserStateGeneration)
-        }
+        engine.processResponsiveLocation(location, expectedUserStateGeneration)
     }
 
     private fun acceptCoarseTransition(polygonId: String, location: Location?): Boolean =
@@ -450,11 +520,16 @@ internal class PolygonGeofenceServiceController(
             return
         }
         val generation = synchronized(controllerLock) {
-            if (!isContinuousTrackingEnabledLocked() || pendingServicePromotionGeneration != null) {
-                null
-            } else {
-                serviceStartGeneration += 1L
-                serviceStartGeneration.also { pendingServicePromotionGeneration = it }
+            val deniedUntil = promotionDeniedUntilElapsedMs
+            when {
+                !isContinuousTrackingEnabledLocked() -> null
+                pendingServicePromotionGeneration != null -> null
+                deniedUntil != null && SystemClock.elapsedRealtime() < deniedUntil -> null
+                else -> {
+                    supersededServiceGeneration = serviceStartGeneration
+                    serviceStartGeneration += 1L
+                    serviceStartGeneration.also { pendingServicePromotionGeneration = it }
+                }
             }
         }
         if (generation == null) return
@@ -474,31 +549,48 @@ internal class PolygonGeofenceServiceController(
                 }
             }
         } catch (e: RuntimeException) {
-            synchronized(controllerLock) {
-                if (pendingServicePromotionGeneration == generation) {
-                    clearServicePromotionWatchdogLocked(generation)
-                    pendingServicePromotionGeneration = null
-                }
-            }
+            // Android 12+ refuses background foreground-service starts outright. Nothing was
+            // promoted, so release the latch, back off, and leave the responsive path running.
+            onServicePromotionFailed(generation, e.message)
+        }
+    }
+
+    /**
+     * Stops the service and the fine stream, including while a promotion is still pending.
+     *
+     * The pending case used to be skipped, to avoid stopping a service before it could promote
+     * itself. That left fine sampling alive through sign-out, an identity switch and catalog
+     * removal, which is the worse failure by far. [PolygonLocationService] promotes before it
+     * evaluates anything and stops itself when the state it finds is no longer worth sampling, so a
+     * cancelled start ends as a foreground service that lives for a few milliseconds.
+     */
+    private fun stopService() {
+        synchronized(controllerLock) {
+            pendingServicePromotionGeneration?.let(::clearServicePromotionWatchdogLocked)
+            pendingServicePromotionGeneration = null
+            servicePromotionRetryCount = 0
+            // Every start issued so far is cancelled here, so a failure any of them reports late
+            // must not back off the next start this teardown is making room for.
+            supersededServiceGeneration = serviceStartGeneration
+        }
+        fineStream.stop()
+        try {
+            context.stopService(Intent(context, PolygonLocationService::class.java))
+        } catch (e: RuntimeException) {
             logger.logPolygonMonitoringFailed(e.message)
         }
     }
 
-    private fun stopService() {
-        val canStopSafely = synchronized(controllerLock) {
-            pendingServicePromotionGeneration == null
-        }
-        if (canStopSafely) {
-            synchronized(controllerLock) { servicePromotionRetryCount = 0 }
-            context.stopService(Intent(context, PolygonLocationService::class.java))
-        }
-    }
-
+    /**
+     * The service never reported a successful promotion. Reopens the start gate so a later coarse
+     * trigger is not permanently blocked by one silent start, retries once, and otherwise leaves
+     * the responsive path to carry the session.
+     */
     private fun onServicePromotionTimedOut(generation: Long) {
         val action = synchronized(controllerLock) {
-            if (pendingServicePromotionGeneration != generation) {
-                return@synchronized PromotionTimeoutAction.NONE
-            }
+            // A watchdog for a generation that has already been promoted, destroyed or torn down
+            // has nothing to say about the current state.
+            if (pendingServicePromotionGeneration != generation) return
             clearServicePromotionWatchdogLocked(generation)
             pendingServicePromotionGeneration = null
             val canRetry = servicePromotionRetryCount < MAXIMUM_SERVICE_PROMOTION_RETRIES &&
@@ -512,11 +604,10 @@ internal class PolygonGeofenceServiceController(
                 else -> PromotionTimeoutAction.NONE
             }
         }
-        logger.logPolygonMonitoringFailed("foreground service promotion timed out")
+        logger.logPolygonMonitoringFailed("the foreground service did not acknowledge promotion")
         when (action) {
             PromotionTimeoutAction.RETRY -> startService()
-            PromotionTimeoutAction.STOP ->
-                context.stopService(Intent(context, PolygonLocationService::class.java))
+            PromotionTimeoutAction.STOP -> stopService()
             PromotionTimeoutAction.NONE -> Unit
         }
     }

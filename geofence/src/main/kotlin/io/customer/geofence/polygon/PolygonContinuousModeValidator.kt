@@ -7,9 +7,19 @@ import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
 import android.os.Build
 
+/**
+ * Decides whether continuous mode may attempt a foreground-service start at all.
+ *
+ * The SDK's own manifest declares [PolygonLocationService] with `foregroundServiceType=location`,
+ * so a missing declaration means a host removed or overrode it in the merged manifest. The two
+ * foreground-service permissions are deliberately the host's to declare, and Android 14+ throws at
+ * `startForeground` without them — checking here turns that crash-shaped failure into one log line
+ * and an unchanged responsive session.
+ */
 internal class PolygonContinuousModeValidator(
     private val context: Context
 ) {
+    /** Returns `null` when a start may be attempted, otherwise what the host still has to do. */
     fun configurationError(): String? {
         val serviceInfo = runCatching {
             val component = ComponentName(context, PolygonLocationService::class.java)
@@ -24,7 +34,7 @@ internal class PolygonContinuousModeValidator(
             }
         }.getOrNull()
         if (serviceInfo == null) {
-            return "continuous polygon tracking requires PolygonLocationService in the host manifest"
+            return "the SDK's PolygonLocationService is missing from the merged manifest"
         }
         if (
             Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q &&

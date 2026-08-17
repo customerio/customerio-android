@@ -35,6 +35,7 @@ class PolygonGeofenceServiceControllerTest {
     private val context: Context = mockk(relaxed = true)
     private val store: GeofenceRegionStore = mockk(relaxed = true)
     private val engine: PolygonLocationEngine = mockk(relaxed = true)
+    private val fineStream: PolygonFineLocationStream = mockk(relaxed = true)
     private val approachMonitor: PolygonApproachMonitor = mockk(relaxed = true)
     private val secureUserStore: SecureUserStore = mockk(relaxed = true)
     private val logger: GeofenceLogger = mockk(relaxed = true)
@@ -43,6 +44,7 @@ class PolygonGeofenceServiceControllerTest {
         context,
         store,
         engine,
+        fineStream,
         approachMonitor,
         secureUserStore,
         logger,
@@ -112,30 +114,147 @@ class PolygonGeofenceServiceControllerTest {
     }
 
     @Test
-    fun deactivate_givenForegroundPromotionPending_expectServiceStopsOnlyAfterPromotion() {
+    fun activate_givenAndroidRefusesBackgroundStart_expectNoPromotionLatchAndNoRetryLoop() {
+        every { context.startForegroundService(any()) } throws
+            IllegalStateException("startForegroundService not allowed in background")
+
         controller.activate("campus")
 
-        controller.deactivate("campus")
-
-        verify(exactly = 0) { context.stopService(any()) }
-
-        controller.onServicePromoted(1L)
-        controller.deactivate("campus")
-
-        verify(exactly = 1) { context.stopService(any()) }
+        verify { logger.logPolygonMonitoringFailed("startForegroundService not allowed in background") }
+        verify { fineStream.stop() }
+        // A cleared watchdog is what proves the latch was released rather than left pending: a
+        // still-armed promotion would fire a retry once the timeout elapses.
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofSeconds(30))
+        verify(exactly = 1) { context.startForegroundService(any<Intent>()) }
     }
 
     @Test
-    fun deactivate_givenOlderServiceIsDestroyedDuringNewPromotion_expectNewPromotionRemainsProtected() {
-        controller.activate("campus")
-        controller.onServicePromoted(1L)
-        controller.deactivate("campus")
+    fun onServicePromotionFailed_givenRefusedPromotion_expectFallsBackToResponsiveWithoutStartLoop() {
+        every { store.getActivePolygonIds() } returns setOf("campus")
         controller.activate("campus")
 
+        controller.onServicePromotionFailed(1L, "foreground service type not allowed")
+
+        verify { logger.logPolygonMonitoringFailed("foreground service type not allowed") }
+        verify { fineStream.stop() }
+        // Responsive acquisition is untouched by the denial.
+        verify(exactly = 0) { approachMonitor.stop() }
+        // Further coarse triggers keep evaluating, but must not re-request a start that was just
+        // denied on every batch.
+        controller.activate("campus")
+        verify(exactly = 1) { context.startForegroundService(any<Intent>()) }
+    }
+
+    @Test
+    fun onServicePromotionFailed_givenPromotedGenerationLosesPermission_expectFailsClosedWithoutPendingLatch() {
+        every { store.getActivePolygonIds() } returns setOf("campus")
+        controller.activate("campus")
+        // Promotion succeeded, so the latch is already released: this generation is still the one
+        // that owns the running service, and its later failure must not be mistaken for a stale one.
+        controller.onServicePromoted(1L)
+
+        controller.onServicePromotionFailed(1L, "ACCESS_FINE_LOCATION is not granted")
+
+        verify(exactly = 1) { fineStream.stop() }
+        controller.activate("campus")
+        verify(exactly = 1) { context.startForegroundService(any<Intent>()) }
+    }
+
+    @Test
+    fun onServicePromotionFailed_givenGenerationSupersededByNewerStart_expectCurrentStreamKeepsSampling() {
+        every { store.getActivePolygonIds() } returns setOf("campus")
+        controller.activate("campus")
+        controller.onServicePromoted(1L)
+        controller.activate("campus")
+        controller.onServicePromoted(2L)
+
+        // The refused start of the first generation only reaches the controller now, after a newer
+        // generation promoted and registered the stream.
+        controller.onServicePromotionFailed(1L, "startForegroundService not allowed in background")
+
+        verify { logger.logPolygonMonitoringFailed("startForegroundService not allowed in background") }
+        verify(exactly = 0) { fineStream.stop() }
+        controller.activate("campus")
+        verify(exactly = 3) { context.startForegroundService(any<Intent>()) }
+    }
+
+    @Test
+    fun onServicePromotionFailed_givenGenerationCancelledByStop_expectDoesNotBackOffTheNextStart() {
+        controller.activate("campus")
+        controller.deactivate("campus")
+        verify(exactly = 1) { fineStream.stop() }
+        every { store.getActivePolygonIds() } returns setOf("campus")
+        controller.activate("campus")
+
+        // The cancelled generation's refusal lands after the replacement start was requested.
+        controller.onServicePromotionFailed(1L, "startForegroundService not allowed in background")
+
+        verify(exactly = 1) { fineStream.stop() }
+        // The replacement is still gated only by its own outcome: its watchdog can still retry.
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofSeconds(10))
+        verify(exactly = 3) { context.startForegroundService(any<Intent>()) }
+    }
+
+    @Test
+    fun onServicePromotionFailed_givenStickyRestartWithoutGeneration_expectFailsClosedAndReleasesLatch() {
+        every { store.getActivePolygonIds() } returns setOf("campus")
+        controller.activate("campus")
+        controller.onServicePromoted(1L)
+        controller.activate("campus")
+
+        // A sticky restart carries no generation, so it can only describe the service running now.
+        controller.onServicePromotionFailed(null, "sticky restart could not promote")
+
+        verify { fineStream.stop() }
+        controller.activate("campus")
+        verify(exactly = 2) { context.startForegroundService(any<Intent>()) }
+        // The latch went with it: no watchdog is left to announce a promotion nobody is waiting for.
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofSeconds(30))
+        verify(exactly = 0) {
+            logger.logPolygonMonitoringFailed("the foreground service did not acknowledge promotion")
+        }
+        verify(exactly = 2) { context.startForegroundService(any<Intent>()) }
+    }
+
+    @Test
+    fun onServiceDestroyed_givenSupersededGeneration_expectNewerPendingStartKeepsItsWatchdog() {
+        every { store.getActivePolygonIds() } returns setOf("campus")
+        controller.activate("campus")
+        controller.onServicePromoted(1L)
+        controller.activate("campus")
+
+        // The previous service instance is torn down after the replacement start was requested.
         controller.onServiceDestroyed(1L)
+
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofSeconds(10))
+        verify(exactly = 3) { context.startForegroundService(any<Intent>()) }
+    }
+
+    @Test
+    fun deactivate_givenPromotionStillPending_expectServiceAndStreamStopImmediately() {
+        controller.activate("campus")
+
         controller.deactivate("campus")
 
         verify(exactly = 1) { context.stopService(any()) }
+        verify { fineStream.stop() }
+    }
+
+    @Test
+    fun clearUserScopedState_givenPromotionStillPending_expectLateAcknowledgementCannotResumeSampling() {
+        every { store.getActivePolygonIds() } returns setOf("campus")
+        controller.activate("campus")
+
+        controller.clearUserScopedState()
+
+        verify { fineStream.stop() }
+        verify { context.stopService(any()) }
+
+        // The service reaches onStartCommand after the wipe: acknowledging the cancelled generation
+        // must not re-arm anything, and the watchdog it belonged to must already be gone.
+        controller.onServicePromoted(1L)
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofSeconds(30))
+        verify(exactly = 1) { context.startForegroundService(any<Intent>()) }
     }
 
     @Test
@@ -168,7 +287,7 @@ class PolygonGeofenceServiceControllerTest {
             store.getActivePolygonIds()
             context.stopService(any())
         }
-        coVerify { engine.processLocation(location, 0L) }
+        coVerify { engine.processResponsiveLocation(location, 0L) }
     }
 
     @Test
@@ -178,7 +297,7 @@ class PolygonGeofenceServiceControllerTest {
 
         controller.onCoarseExit("campus", location)
 
-        coVerify { engine.processLocation(location, 0L) }
+        coVerify { engine.processResponsiveLocation(location, 0L) }
         verify { store.activatePolygon("campus") }
         verify { context.startForegroundService(any()) }
         verify(exactly = 0) { store.deactivatePolygon(any()) }
@@ -198,7 +317,7 @@ class PolygonGeofenceServiceControllerTest {
         val processingStarted = CompletableDeferred<Unit>()
         val finishProcessing = CompletableDeferred<Unit>()
         val exitLocation = location(elapsedRealtimeNanos = 100L)
-        io.mockk.coEvery { engine.processLocation(exitLocation, any()) } coAnswers {
+        io.mockk.coEvery { engine.processResponsiveLocation(exitLocation, any()) } coAnswers {
             processingStarted.complete(Unit)
             finishProcessing.await()
         }
@@ -388,40 +507,42 @@ class PolygonGeofenceServiceControllerTest {
     }
 
     @Test
-    fun startEngineForService_givenPersistedSessionButNoIdentifiedUser_expectClearsWithoutSampling() {
+    fun startFineLocationStream_givenPersistedSessionButNoIdentifiedUser_expectClearsWithoutSampling() {
         every { secureUserStore.getUserId() } returns null
         every { store.getActivePolygonIds() } returns setOf("campus")
 
-        val started = controller.startEngineForService {}
+        val started = controller.startFineLocationStream {}
 
         started shouldBeEqualTo null
         verify { store.clearActivePolygonIds() }
         verify { store.retainCoarseInsidePolygonIds(emptySet()) }
         verify { engine.stop() }
-        verify(exactly = 0) { engine.start(any()) }
+        verify(exactly = 0) { fineStream.start(any()) }
     }
 
     @Test
-    fun startEngineForService_givenMatchingIdentifiedRoutableSession_expectStartsSampling() {
+    fun startFineLocationStream_givenMatchingIdentifiedRoutableSession_expectStartsSampling() {
         every { store.getActivePolygonIds() } returns setOf("campus")
-        every { engine.start(any()) } returns 7L
+        every { fineStream.start(any()) } returns 7L
 
-        val started = controller.startEngineForService {}
+        val started = controller.startFineLocationStream {}
 
         started shouldBeEqualTo 7L
-        verify { engine.start(any()) }
+        verify { fineStream.start(any()) }
     }
 
     @Test
-    fun startEngineForService_givenResponsiveMode_expectRejectsStickyServiceWithoutClearingPassiveState() {
+    fun startFineLocationStream_givenResponsiveMode_expectRejectsStickyServiceWithoutClearingPassiveState() {
         every { store.getPolygonTrackingMode() } returns PolygonTrackingMode.RESPONSIVE
         every { store.getActivePolygonIds() } returns setOf("campus")
 
-        val started = controller.startEngineForService {}
+        val started = controller.startFineLocationStream {}
 
         started shouldBeEqualTo null
-        verify { engine.stop() }
-        verify(exactly = 0) { engine.start(any()) }
+        verify { fineStream.stop() }
+        verify(exactly = 0) { fineStream.start(any()) }
+        // The responsive session owns these; a sticky service start must not take them down with it.
+        verify(exactly = 0) { engine.stop() }
         verify(exactly = 0) { store.clearActivePolygonIds() }
         verify(exactly = 0) { store.retainCoarseInsidePolygonIds(any()) }
     }
@@ -480,7 +601,7 @@ class PolygonGeofenceServiceControllerTest {
         val operations = mutableListOf<String>()
         every { store.getActivePolygonIds() } answers { activeIds }
         every { store.activatePolygon(any()) } answers { activeIds = activeIds + firstArg<String>() }
-        coEvery { engine.processLocation(any(), 0L) } answers { operations += "process" }
+        coEvery { engine.processResponsiveLocation(any(), 0L) } answers { operations += "process" }
         every { context.startForegroundService(any<Intent>()) } answers {
             operations += "start-service"
             null
@@ -494,7 +615,7 @@ class PolygonGeofenceServiceControllerTest {
         accepted shouldBeEqualTo true
         verify { store.activatePolygon("campus") }
         verify { engine.activateFromApproach("campus", 100L) }
-        coVerify { engine.processLocation(any(), 0L) }
+        coVerify { engine.processResponsiveLocation(any(), 0L) }
         verify { context.startForegroundService(any<Intent>()) }
         verify(exactly = 0) { store.recordPolygonCoarseInside(any()) }
         operations shouldBeEqualTo listOf("process", "start-service")
@@ -546,7 +667,7 @@ class PolygonGeofenceServiceControllerTest {
 
         verify(exactly = 0) { store.activatePolygon(any()) }
         verify(exactly = 0) { engine.activate(any()) }
-        coVerify(exactly = 0) { engine.processLocation(any(), any()) }
+        coVerify(exactly = 0) { engine.processResponsiveLocation(any(), any()) }
         verify(exactly = 0) { context.startForegroundService(any<Intent>()) }
     }
 
@@ -559,7 +680,7 @@ class PolygonGeofenceServiceControllerTest {
 
         controller.processApproachLocations(listOf(farAway), 0L)
 
-        coVerify(exactly = 0) { engine.processLocation(any(), any()) }
+        coVerify(exactly = 0) { engine.processResponsiveLocation(any(), any()) }
     }
 
     @Test
@@ -588,7 +709,7 @@ class PolygonGeofenceServiceControllerTest {
 
         accepted shouldBeEqualTo false
         verify(exactly = 0) { store.activatePolygon(any()) }
-        coVerify(exactly = 0) { engine.processLocation(any(), any()) }
+        coVerify(exactly = 0) { engine.processResponsiveLocation(any(), any()) }
     }
 
     private fun location(elapsedRealtimeNanos: Long = 0L) = Location("test").apply {

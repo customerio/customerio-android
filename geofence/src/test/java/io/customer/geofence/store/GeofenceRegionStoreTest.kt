@@ -10,6 +10,7 @@ import io.customer.geofence.GeofenceJsonSerializer
 import io.customer.geofence.GeofenceLocation
 import io.customer.geofence.GeofenceRegion
 import io.customer.geofence.GeofenceTransitionType
+import io.customer.geofence.polygon.PolygonCoordinate
 import io.mockk.mockk
 import org.amshove.kluent.shouldBeEmpty
 import org.amshove.kluent.shouldBeEqualTo
@@ -66,6 +67,26 @@ class GeofenceRegionStoreTest : RobolectricTest() {
         store.saveCachedRegions(regions)
 
         store.getCachedRegions() shouldBeEqualTo regions
+    }
+
+    @Test
+    fun saveCachedRegions_givenPolygon_expectGeometryRoundTrip() {
+        val polygon = GeofenceRegion(
+            id = "campus",
+            latitude = 37.775,
+            longitude = -122.419,
+            radius = 1_000f,
+            polygonVertices = listOf(
+                PolygonCoordinate(37.7745, -122.4200),
+                PolygonCoordinate(37.7745, -122.4188),
+                PolygonCoordinate(37.7755, -122.4188),
+                PolygonCoordinate(37.7755, -122.4200)
+            )
+        )
+
+        store.saveCachedRegions(listOf(polygon))
+
+        store.getCachedRegions() shouldBeEqualTo listOf(polygon)
     }
 
     @Test

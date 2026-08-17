@@ -5,14 +5,19 @@ import io.customer.geofence.GeofenceConstants
 import io.customer.geofence.GeofenceRegion
 import io.customer.geofence.GeofenceTransitionType
 import io.customer.geofence.di.geofenceLogger
+import io.customer.geofence.polygon.PolygonCoordinate
+import io.customer.geofence.polygon.PolygonEnclosingCircle
+import io.customer.geofence.polygon.PolygonGeometry
 import io.customer.location.LocationCoordinates
 import io.customer.sdk.core.di.SDKComponent
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.doubleOrNull
 
 /**
  * Wire shape of `POST /geofences/nearest`. `config` and the per-region
@@ -59,12 +64,14 @@ internal data class GeofenceApiRegion(
     @SerialName("name")
     val name: String? = null,
     @SerialName("latitude")
-    val latitude: Double,
+    val latitude: Double? = null,
     @SerialName("longitude")
-    val longitude: Double,
+    val longitude: Double? = null,
     // Double (not Int) so a fractional radius can't fail the whole response decode.
     @SerialName("radius")
-    val radius: Double,
+    val radius: Double? = null,
+    @SerialName("geometry")
+    val geometry: GeofenceApiGeometry? = null,
     @SerialName("external_id")
     val externalId: String? = null,
     @SerialName("transition_types")
@@ -78,6 +85,14 @@ internal data class GeofenceApiRegion(
     // anything that isn't a scalar object to empty.
     @SerialName("metadata")
     val metadata: JsonElement? = null
+)
+
+@Serializable
+internal data class GeofenceApiGeometry(
+    @SerialName("type")
+    val type: String,
+    @SerialName("coordinates")
+    val coordinates: JsonElement
 )
 
 /** Returns `null` when backend didn't send a `config` block — gates the cache save. */
@@ -149,19 +164,50 @@ private fun GeofenceApiConfig.toDomain(): GeofenceConfig {
 
 // Null when the region violates Geofence.Builder preconditions; one bad region must not cost the whole sync.
 internal fun GeofenceApiRegion.toDomain(): GeofenceRegion? {
-    if (radius <= 0 || !LocationCoordinates.isValid(latitude, longitude)) return null
+    if (id.isBlank()) return null
+    val polygonVertices = geometry?.takeIf { it.type.equals("Polygon", ignoreCase = true) }
+        ?.coordinates
+        ?.toPolygonVertices()
+    if (geometry?.type.equals("Polygon", ignoreCase = true) && polygonVertices == null) return null
+
+    val polygon = polygonVertices?.let(PolygonGeometry::from)
+    val trigger = polygon?.let(PolygonEnclosingCircle()::calculate)
+    val resolvedLatitude = trigger?.center?.latitude ?: latitude
+    val resolvedLongitude = trigger?.center?.longitude ?: longitude
+    val resolvedRadius = trigger?.radiusMeters?.toDouble() ?: radius
+    if (
+        resolvedRadius == null || resolvedRadius <= 0 ||
+        resolvedLatitude == null || resolvedLongitude == null ||
+        !LocationCoordinates.isValid(resolvedLatitude, resolvedLongitude)
+    ) {
+        return null
+    }
     return GeofenceRegion(
         id = id,
         name = name,
         externalId = externalId,
-        latitude = latitude,
-        longitude = longitude,
-        radius = radius.toFloat(),
+        latitude = resolvedLatitude,
+        longitude = resolvedLongitude,
+        radius = resolvedRadius.toFloat(),
         transitionTypes = resolveTransitionTypes(transitionTypes),
         lastUpdated = lastUpdated ?: 0L,
         geosetIds = geosetIds,
-        metadata = sanitizeMetadata(metadata)
+        metadata = sanitizeMetadata(metadata),
+        polygonVertices = polygon?.vertices
     )
+}
+
+private fun JsonElement.toPolygonVertices(): List<PolygonCoordinate>? {
+    val rings = this as? JsonArray ?: return null
+    if (rings.size != 1) return null
+    val outerRing = rings.singleOrNull() as? JsonArray ?: return null
+    return outerRing.map { rawPosition ->
+        val position = rawPosition as? JsonArray ?: return null
+        if (position.size < 2) return null
+        val longitude = (position[0] as? JsonPrimitive)?.doubleOrNull ?: return null
+        val latitude = (position[1] as? JsonPrimitive)?.doubleOrNull ?: return null
+        runCatching { PolygonCoordinate(latitude, longitude) }.getOrNull() ?: return null
+    }
 }
 
 /**

@@ -45,6 +45,40 @@ The delivery arbitration logic itself is also covered by automated tests:
 | SDK log level | **DEBUG** (Settings → Log level = Debug) |
 | Precondition | Profile identified; workspace has ≥1 geofence configured; `ModuleLocation` registered with background-location permission granted so transitions fire in the background |
 
+### Polygon tracking modes
+
+Polygon evaluation defaults to `PolygonTrackingMode.RESPONSIVE`. It consumes passive,
+displacement-gated location batches and must not show a foreground-service notification.
+Android can delay or omit samples, so validate observed latency separately from transition delivery.
+
+`PolygonTrackingMode.CONTINUOUS` is an explicit host opt-in for an independently eligible,
+user-visible continuous-location use case. Configure it with:
+
+```kotlin
+ModuleGeofence(
+    GeofenceModuleConfig.Builder()
+        .setPolygonTrackingMode(PolygonTrackingMode.CONTINUOUS)
+        .build()
+)
+```
+
+The host manifest must then opt into the service and permissions:
+
+```xml
+<uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+<uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
+
+<application>
+    <service
+        android:name="io.customer.geofence.polygon.PolygonLocationService"
+        android:exported="false"
+        android:foregroundServiceType="location" />
+</application>
+```
+
+Background use also requires the applicable location permissions and a persistent
+foreground-service notification.
+
 ### Helper commands
 
 ```bash

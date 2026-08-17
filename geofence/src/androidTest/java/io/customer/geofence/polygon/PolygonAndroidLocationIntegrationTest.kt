@@ -19,6 +19,7 @@ import com.google.android.gms.tasks.Tasks
 import io.customer.base.internal.InternalCustomerIOApi
 import io.customer.geofence.GeofenceBroadcastReceiver
 import io.customer.geofence.GeofenceRegion
+import io.customer.geofence.PolygonTrackingMode
 import io.customer.geofence.di.geofenceManager
 import io.customer.geofence.di.geofenceRegionStore
 import io.customer.geofence.di.pendingGeofenceDeliveryStore
@@ -197,6 +198,7 @@ class PolygonAndroidLocationIntegrationTest {
         val pendingStore = android.pendingGeofenceDeliveryStore
         val client = android.polygonFusedLocationClient
         store.clearAll()
+        store.savePolygonTrackingMode(PolygonTrackingMode.CONTINUOUS)
         pendingStore.removeAll()
         android.secureUserStore.saveUserId("integration-user")
         store.beginUserSession("integration-user")
@@ -360,6 +362,7 @@ class PolygonAndroidLocationIntegrationTest {
         )
         val locationWasEnabled = shell("cmd location is-location-enabled").trim().toBoolean()
         store.clearAll()
+        store.savePolygonTrackingMode(PolygonTrackingMode.CONTINUOUS)
         pendingStore.removeAll()
         android.secureUserStore.saveUserId("gms-integration-user")
         store.beginUserSession("gms-integration-user")

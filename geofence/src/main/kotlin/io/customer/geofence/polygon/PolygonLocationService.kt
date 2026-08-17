@@ -28,12 +28,19 @@ internal class PolygonLocationService : Service() {
     @SuppressLint("MissingPermission")
     override fun onCreate() {
         super.onCreate()
-        if (!startForegroundSafely()) {
-            stopSelf()
-            return
-        }
         try {
             SDKComponent.setupAndroidComponent(context = this)
+            if (!SDKComponent.android().polygonGeofenceServiceController.isContinuousTrackingEnabled()) {
+                stopSelf()
+                return
+            }
+            if (!startForegroundSafely()) {
+                SDKComponent.geofenceLogger.logPolygonMonitoringFailed(
+                    "continuous polygon monitoring could not start its foreground service"
+                )
+                stopSelf()
+                return
+            }
             if (!hasFineLocationPermission()) {
                 SDKComponent.geofenceLogger.logPolygonMonitoringFailed("ACCESS_FINE_LOCATION not granted")
                 stopSelf()

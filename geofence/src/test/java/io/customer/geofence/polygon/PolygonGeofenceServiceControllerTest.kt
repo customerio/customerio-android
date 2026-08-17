@@ -1,11 +1,13 @@
 package io.customer.geofence.polygon
 
+import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import android.location.Location
 import android.os.Looper
 import io.customer.geofence.GeofenceLogger
 import io.customer.geofence.GeofenceRegion
+import io.customer.geofence.PolygonTrackingMode
 import io.customer.geofence.store.GeofenceRegionStore
 import io.customer.geofence.transitionRevision
 import io.customer.sdk.data.store.SecureUserStore
@@ -56,6 +58,21 @@ class PolygonGeofenceServiceControllerTest {
         every { store.getCachedRegion("campus") } returns polygonRegion()
         every { store.getActivePolygonIds() } returns emptySet()
         every { store.getEnteredIds() } returns emptySet()
+        every { store.getPolygonTrackingMode() } returns PolygonTrackingMode.CONTINUOUS
+    }
+
+    @Test
+    fun activate_givenDefaultResponsiveMode_expectEvaluatesWithoutForegroundService() {
+        every { store.getPolygonTrackingMode() } returns PolygonTrackingMode.RESPONSIVE
+
+        controller.activate("campus")
+
+        verifyOrder {
+            store.recordPolygonCoarseInside("campus")
+            store.activatePolygon("campus")
+            engine.activate("campus")
+        }
+        verify(exactly = 0) { context.startForegroundService(any<Intent>()) }
     }
 
     @Test
@@ -68,6 +85,16 @@ class PolygonGeofenceServiceControllerTest {
             engine.activate("campus")
             context.startForegroundService(any<Intent>())
         }
+    }
+
+    @Test
+    fun activate_givenContinuousServiceNotDeclaredByHost_expectFailsClosedWithoutCrash() {
+        every { context.startForegroundService(any()) } throws
+            ActivityNotFoundException("continuous service not declared")
+
+        controller.activate("campus")
+
+        verify { logger.logPolygonMonitoringFailed("continuous service not declared") }
     }
 
     @Test
@@ -240,6 +267,18 @@ class PolygonGeofenceServiceControllerTest {
     }
 
     @Test
+    fun recover_givenResponsiveMode_expectRestoresPassiveMonitorWithoutForegroundService() {
+        every { store.getPolygonTrackingMode() } returns PolygonTrackingMode.RESPONSIVE
+        every { store.getActivePolygonIds() } returns setOf("campus")
+        every { store.getLastRegistrationUptime() } returns 0L
+
+        controller.recover()
+
+        verify { approachMonitor.start(0L) }
+        verify(exactly = 0) { context.startForegroundService(any()) }
+    }
+
+    @Test
     fun recover_givenPersistedSessionFromBeforeReboot_expectClearsInsteadOfRestarting() {
         every { store.getActivePolygonIds() } returns setOf("campus")
         every { store.getLastRegistrationUptime() } returns Long.MAX_VALUE
@@ -360,6 +399,48 @@ class PolygonGeofenceServiceControllerTest {
     }
 
     @Test
+    fun startEngineForService_givenResponsiveMode_expectRejectsStickyServiceWithoutClearingPassiveState() {
+        every { store.getPolygonTrackingMode() } returns PolygonTrackingMode.RESPONSIVE
+        every { store.getActivePolygonIds() } returns setOf("campus")
+
+        val started = controller.startEngineForService {}
+
+        started shouldBeEqualTo null
+        verify { engine.stop() }
+        verify(exactly = 0) { engine.start(any()) }
+        verify(exactly = 0) { store.clearActivePolygonIds() }
+        verify(exactly = 0) { store.retainCoarseInsidePolygonIds(any()) }
+    }
+
+    @Test
+    fun setTrackingMode_givenContinuousSessionChangedToResponsive_expectPersistsAndStopsService() {
+        every { store.getPolygonTrackingMode() } returns PolygonTrackingMode.CONTINUOUS
+
+        controller.setTrackingMode(PolygonTrackingMode.RESPONSIVE)
+
+        verifyOrder {
+            store.savePolygonTrackingMode(PolygonTrackingMode.RESPONSIVE)
+            engine.stop()
+            context.stopService(any())
+        }
+    }
+
+    @Test
+    fun setTrackingMode_givenResponsiveActiveSessionChangedToContinuous_expectStartsService() {
+        var trackingMode = PolygonTrackingMode.RESPONSIVE
+        every { store.getPolygonTrackingMode() } answers { trackingMode }
+        every { store.savePolygonTrackingMode(any()) } answers {
+            trackingMode = firstArg()
+        }
+        every { store.getActivePolygonIds() } returns setOf("campus")
+
+        controller.setTrackingMode(PolygonTrackingMode.CONTINUOUS)
+
+        verify { store.savePolygonTrackingMode(PolygonTrackingMode.CONTINUOUS) }
+        verify { context.startForegroundService(any()) }
+    }
+
+    @Test
     fun beginUserSession_givenDifferentUser_expectStopsOldFineSessionBeforeRefresh() {
         every { store.activeUserSessionId() } returns "user-A"
 
@@ -403,6 +484,23 @@ class PolygonGeofenceServiceControllerTest {
         verify { context.startForegroundService(any<Intent>()) }
         verify(exactly = 0) { store.recordPolygonCoarseInside(any()) }
         operations shouldBeEqualTo listOf("process", "start-service")
+    }
+
+    @Test
+    fun processApproachLocations_givenResponsiveMode_expectEvaluatesBatchWithoutForegroundService() = runTest {
+        every { store.getPolygonTrackingMode() } returns PolygonTrackingMode.RESPONSIVE
+        var activeIds = emptySet<String>()
+        every { store.getActivePolygonIds() } answers { activeIds }
+        every { store.activatePolygon(any()) } answers { activeIds = activeIds + firstArg<String>() }
+
+        controller.processApproachLocations(
+            locations = listOf(location(elapsedRealtimeNanos = 100L)),
+            expectedUserStateGeneration = 0L
+        )
+
+        verify { engine.activateFromApproach("campus", 100L) }
+        coVerify { engine.processLocation(any(), 0L) }
+        verify(exactly = 0) { context.startForegroundService(any<Intent>()) }
     }
 
     @Test

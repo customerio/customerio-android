@@ -36,6 +36,7 @@ class PolygonLocationServiceTest : RobolectricTest() {
                 }
             }
         )
+        every { polygonController.isContinuousTrackingEnabled() } returns true
         every { polygonController.startEngineForService(any()) } returns 7L
         shadowOf(applicationMock).grantPermissions(
             Manifest.permission.ACCESS_FINE_LOCATION,
@@ -84,6 +85,17 @@ class PolygonLocationServiceTest : RobolectricTest() {
 
         verify { polygonController.startEngineForService(any()) }
         verify(exactly = 0) { engine.start(any()) }
+    }
+
+    @Test
+    fun onCreate_givenResponsiveModeStickyRestart_expectDoesNotPromoteOrStartEngine() {
+        every { polygonController.isContinuousTrackingEnabled() } returns false
+
+        Robolectric.buildService(PolygonLocationService::class.java).create()
+
+        verify(exactly = 0) { polygonController.startEngineForService(any()) }
+        val manager = applicationMock.getSystemService(NotificationManager::class.java)
+        manager.activeNotifications.size shouldBeEqualTo 0
     }
 
     private fun serviceStartIntent(generation: Long) = Intent().putExtra(

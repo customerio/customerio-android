@@ -31,8 +31,10 @@ private const val MODULE_NAME = "Geofence"
  * Registering this module enables on-device geofence monitoring: server-defined
  * geofences are registered with the OS, transitions are persisted and forwarded
  * to the CDP, and the local set is refreshed when the user moves far enough. Polygon
- * registrations also use displacement-gated, balanced-power approach fixes so the
- * fine evaluator can wake before a delayed enclosing-circle callback.
+ * registrations use displacement-gated, balanced-power approach fixes so the
+ * fine evaluator can wake before a delayed enclosing-circle callback. This responsive mode
+ * does not start a foreground service. Hosts with an independently eligible continuous-location
+ * use case can opt into [PolygonTrackingMode.CONTINUOUS] through [GeofenceModuleConfig].
  *
  * Requires [ModuleLocation] to be registered alongside it — geofencing uses its
  * location provider regardless of the location tracking mode, and works even when
@@ -69,6 +71,10 @@ class ModuleGeofence @JvmOverloads constructor(
 
         val eventBus = SDKComponent.eventBus
         val sdkAndroid = SDKComponent.android()
+
+        sdkAndroid.polygonGeofenceServiceController.setTrackingMode(
+            moduleConfig.polygonTrackingMode
+        )
 
         subscribeToEvents(eventBus, sdkAndroid, locationModule)
         scheduleForegroundWork(eventBus, sdkAndroid, logger, locationModule)

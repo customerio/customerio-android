@@ -145,7 +145,7 @@ class PendingDeliveryStoreTest : RobolectricTest() {
         store.append(keep)
         store.append(drop)
 
-        store.remove(drop.key)
+        store.remove(drop.key) shouldBeEqualTo true
 
         val remaining = store.loadAll()
         remaining.size shouldBeEqualTo 1
@@ -210,9 +210,30 @@ class PendingDeliveryStoreTest : RobolectricTest() {
         val keep = entry("keep")
         store.append(keep)
 
-        store.remove("not-a-real-id")
+        // Already absent counts as removed: the caller's postcondition — "this key is not queued" — holds.
+        store.remove("not-a-real-id") shouldBeEqualTo true
 
         store.loadAll() shouldBeEqualTo listOf(keep)
+    }
+
+    @Test
+    fun remove_givenWriteFailure_expectFalseAndEntryStillQueued() {
+        // A caller that removes to mark work done must be able to tell this apart from success, or it
+        // will treat the still-queued entry as gone and repeat that work on its next pass.
+        val store = newStore()
+        val stuck = entry("stuck")
+        store.append(stuck)
+
+        val dir = contextMock.applicationContext.filesDir
+        dir.setReadOnly()
+        val removed = try {
+            store.remove(stuck.key)
+        } finally {
+            dir.setWritable(true)
+        }
+
+        removed shouldBeEqualTo false
+        store.loadAll() shouldBeEqualTo listOf(stuck)
     }
 
     @Test

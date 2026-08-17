@@ -31,6 +31,14 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 
+/**
+ * Runs on a real device/emulator, not Robolectric.
+ *
+ * Executed by the `module-instrumentation-test` job in `.github/workflows/test.yml`
+ * (`./gradlew :geofence:connectedDebugAndroidTest`, API 31 on the `google_apis` image). The job
+ * requires test results to exist, so a run that compiled but executed nothing fails rather than
+ * reporting green.
+ */
 @OptIn(InternalCustomerIOApi::class)
 @RunWith(AndroidJUnit4::class)
 class PolygonRouteScenarioIntegrationTest {

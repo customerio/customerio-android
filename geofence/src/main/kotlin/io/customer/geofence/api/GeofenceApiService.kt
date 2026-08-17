@@ -2,6 +2,7 @@ package io.customer.geofence.api
 
 import io.customer.geofence.GeofenceJsonSerializer
 import io.customer.geofence.GeofenceLocation
+import io.customer.geofence.polygon.PolygonSupport
 import io.customer.sdk.core.network.CustomerIOHttpClient
 import io.customer.sdk.core.network.HttpMethod
 import io.customer.sdk.core.network.HttpRequestParams
@@ -18,7 +19,10 @@ internal interface GeofenceApiService {
 
 internal class GeofenceApiServiceImpl(
     private val httpClient: CustomerIOHttpClient,
-    private val jsonSerializer: GeofenceJsonSerializer
+    private val jsonSerializer: GeofenceJsonSerializer,
+    // Derived from the same opt-in the mapper and ranker use, so this build can never ask the backend
+    // to spend response slots on a shape it would then drop. Defaults off with every other seam.
+    private val polygonSupport: PolygonSupport = PolygonSupport.Disabled
 ) : GeofenceApiService {
 
     override suspend fun fetchGeofences(location: GeofenceLocation): Result<GeofenceApiResponse> {
@@ -28,7 +32,7 @@ internal class GeofenceApiServiceImpl(
             GeofenceNearestRequest(
                 latitude = location.latitude,
                 longitude = location.longitude,
-                capabilities = listOf(POLYGON_CAPABILITY)
+                capabilities = polygonSupport.requestedCapabilities
             )
         )
         val params = HttpRequestParams(
@@ -46,7 +50,6 @@ internal class GeofenceApiServiceImpl(
 
     private companion object {
         private const val ENDPOINT_PATH = "/geofences/nearest"
-        private const val POLYGON_CAPABILITY = "polygon-v1"
     }
 }
 

@@ -78,12 +78,15 @@ internal class GeofenceEventWorker(
         while (true) {
             val entry = store.loadAll().firstOrNull() ?: return Result.success()
 
-            // Shouldn't happen — the receiver drops anonymous transitions before
-            // persisting. Defensive: leave the row rather than send a track the
-            // backend would reject.
+            // Shouldn't happen — the receiver drops anonymous transitions before persisting. It is
+            // also unrecoverable: the userId was snapshotted at queue time and no later attempt can
+            // supply one, so the row is undeliverable forever. Leaving it in place would strand the
+            // head of an ordered queue and with it every transition queued behind it, so drop it and
+            // carry on. A failed removal falls through to a backed-off retry rather than spinning.
             if (entry.userId.isNullOrEmpty()) {
                 logger.logEventDeliveryDeferredAnonymous(entry.geofenceId, entry.transition.name)
-                return Result.success()
+                if (store.remove(entry.key)) continue
+                return Result.retry()
             }
 
             // At-least-once delivery: keep the row until the send is confirmed, so a process death
@@ -102,6 +105,14 @@ internal class GeofenceEventWorker(
                     )
                 PendingDeliveryResult.Delivered ->
                     logger.logEventDelivered(entry.geofenceId, entry.transition.name)
+                PendingDeliveryResult.DeliveredNotRemoved -> {
+                    // Sent, but the row that proves it is still on disk. Continuing the loop would
+                    // re-read this same head entry and resend it, and again, without bound. Hand the
+                    // problem to WorkManager's backoff: at worst one delayed duplicate, deduped
+                    // backend-side on transitionId, instead of an unbounded burst of them.
+                    logger.logEventDeliveredButNotRemoved(entry.geofenceId, entry.transition.name)
+                    return Result.retry()
+                }
                 is PendingDeliveryResult.Retryable -> {
                     logger.logEventDeliveryRetryable(
                         entry.geofenceId,
@@ -116,9 +127,14 @@ internal class GeofenceEventWorker(
                         entry.transition.name,
                         outcome.cause?.message
                     )
-                    // A terminal node failure cancels every existing dependent in a WorkManager
-                    // chain. Leave the oldest row and let the next queued node retry it instead.
-                    return Result.success()
+                    // Deliberately not Result.failure(): a terminal node cancels every existing
+                    // dependent in a WorkManager chain, which would discard the transitions queued
+                    // behind this one. Deliberately not Result.success() either — this node may be the
+                    // last in the chain, and then nothing would ever come back for the row, stranding
+                    // the head of an ordered queue permanently. Result.retry() re-runs this same node
+                    // on a backoff, which is the only outcome that both preserves the chain and
+                    // guarantees another attempt.
+                    return Result.retry()
                 }
             }
         }

@@ -6,6 +6,7 @@ import io.customer.geofence.api.GeofenceApiService
 import io.customer.geofence.api.toDomainConfig
 import io.customer.geofence.api.toDomainRegions
 import io.customer.geofence.polygon.PolygonGeofenceServiceController
+import io.customer.geofence.polygon.PolygonSupport
 import io.customer.geofence.store.GeofenceRegionStore
 import io.customer.geofence.store.getCachedConfigOrFallback
 import io.customer.location.LocationCoordinates
@@ -74,7 +75,10 @@ internal class GeofenceRepositoryImpl(
     private val clock: Clock,
     private val packageInfo: GeofencePackageInfo,
     private val logger: GeofenceLogger,
-    private val polygonController: PolygonGeofenceServiceController? = null
+    private val polygonController: PolygonGeofenceServiceController? = null,
+    // Same instance the request builder and the ranker hold, so a polygon that is asked for is also
+    // mapped, ranked and registered — or none of the three. Defaults off with every other seam.
+    private val polygonSupport: PolygonSupport = PolygonSupport.Disabled
 ) : GeofenceRepository {
 
     // One sync pass at a time. Every caller waits for the slot: duplicate app-launch/identify work
@@ -328,7 +332,7 @@ internal class GeofenceRepositoryImpl(
                 // An unusable response throws (see toDomainRegions) — fail the refresh and
                 // keep current registrations; never let it escape the handler-less scope.
                 val mapped = runCatching {
-                    response.toDomainRegions() to response.toDomainConfig()
+                    response.toDomainRegions(polygonSupport) to response.toDomainConfig()
                 }.getOrElse { e ->
                     logger.logSyncFailed("response mapping failed: ${e.message}")
                     return@fold Result.failure(e)
@@ -465,6 +469,8 @@ internal class GeofenceRepositoryImpl(
     ): Result<Unit> {
         // Pure mapping + filter — no shared state, kept outside the lock.
         val pinnedPolygonIds = polygonIdsToPin(regions)
+        // Both overloads land under GeofenceConstants.MAX_OS_BUSINESS_GEOFENCE_SLOTS, so the movement
+        // trigger prepended below always has an OS slot left even when many polygons are pinned.
         val nearest = if (pinnedPolygonIds.isEmpty()) {
             distanceFilter.nearest(
                 regions = regions,
@@ -775,6 +781,6 @@ internal class GeofenceRepositoryImpl(
         val MOVEMENT_SLOT_WAIT = 30.seconds
         val MOVEMENT_SLOT_POLL = 50.milliseconds
         val MOVEMENT_SLOT_ATTEMPTS = (MOVEMENT_SLOT_WAIT / MOVEMENT_SLOT_POLL).toInt()
-        const val MAX_GMS_GEOFENCES = 100
+        const val MAX_GMS_GEOFENCES = GeofenceConstants.MAX_OS_GEOFENCES
     }
 }

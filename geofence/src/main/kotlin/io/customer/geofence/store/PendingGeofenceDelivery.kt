@@ -50,10 +50,6 @@ internal data class PendingGeofenceDelivery(
     override val key: String
         get() = "${geofenceId}_${transition.name}_${transitionId}_${geosetId ?: "none"}"
 
-    /** Pre-transitionId key used only to find WorkManager jobs queued by an older SDK build. */
-    val legacyKey: String
-        get() = "${geofenceId}_${transition.name}_${timestamp}_${geosetId ?: "none"}"
-
     /**
      * Properties carried on the tracked "Geofence Transition" event. Kept here
      * so the worker's direct-HTTP send and the foreground flush build an

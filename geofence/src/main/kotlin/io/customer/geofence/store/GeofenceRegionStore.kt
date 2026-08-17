@@ -285,16 +285,19 @@ internal class GeofenceRegionStoreImpl(
             return@synchronized false
         }
         val incomingIds = entries.mapTo(mutableSetOf(), PendingPolygonApproachBatch::id)
-        val combined = readPendingPolygonApproachBatches()
-            .filterNot { it.id in incomingIds }
-            .plus(entries)
-            // Preserve the oldest evidence when storage is under sustained pressure. Newer fixes
-            // may be dropped, but they must never overtake an already-persisted route segment.
-            .take(MAXIMUM_PENDING_APPROACH_BATCHES)
+        val retained = readPendingPolygonApproachBatches().filterNot { it.id in incomingIds }
+        // Preserve the oldest evidence when storage is under sustained pressure: a newer fix must
+        // never overtake an already-persisted route segment. But a batch that doesn't fit is a batch
+        // nothing will ever replay, and reporting success for it would tell the scheduler to enqueue
+        // work for locations that are not on disk — silently losing them. Report failure instead, so
+        // PolygonApproachReceiver evaluates these locations in-process while it still holds them.
+        if (retained.size + entries.size > MAXIMUM_PENDING_APPROACH_BATCHES) {
+            return@synchronized false
+        }
         writeEncryptedJsonCommitted(
             KEY_PENDING_POLYGON_APPROACH_BATCHES,
             PENDING_APPROACH_BATCHES_SERIALIZER,
-            combined
+            retained + entries
         )
     }
 
@@ -874,7 +877,7 @@ internal class GeofenceRegionStoreImpl(
     private val exitEpochByGeofenceId = mutableMapOf<String, Long>()
     private val enterEpochByGeofenceId = mutableMapOf<String, Long>()
 
-    private companion object {
+    internal companion object {
         const val KEY_CACHED_REGIONS = "cached_regions"
         const val KEY_REGISTERED_IDS = "registered_ids"
         const val KEY_ROUTABLE_REGISTERED_IDS = "routable_registered_ids"

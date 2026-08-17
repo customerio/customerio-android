@@ -1,16 +1,15 @@
 package io.customer.geofence.polygon
 
-import android.Manifest
 import android.annotation.SuppressLint
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
-import androidx.annotation.RequiresPermission
 import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.LocationRequest
 import com.google.android.gms.location.Priority
+import com.google.android.gms.tasks.Task
 import io.customer.geofence.GeofenceLogger
 import kotlin.coroutines.CoroutineContext
 import kotlinx.coroutines.CoroutineScope
@@ -41,7 +40,18 @@ internal class PolygonApproachMonitor(
     private val removalRetryAttempts = mutableMapOf<PendingIntent, Int>()
     private val removalRetryJobs = mutableMapOf<PendingIntent, Job>()
 
-    @RequiresPermission(anyOf = [Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION])
+    /**
+     * Asks Play services for approach fixes, best-effort.
+     *
+     * Deliberately **not** `@RequiresPermission`: holding a location permission is not a
+     * precondition callers must satisfy. Permission can be revoked between any check and this call,
+     * and the three callers (a broadcast in a cold process, and two catalog-reconciliation paths)
+     * cannot meaningfully hold one either way. Instead the missing-permission case is a handled
+     * outcome: the request fails with [SecurityException], [retryRegistration] logs it and clears
+     * `desired` so nothing is retried and no fixes are expected. Annotating it would push a
+     * requirement onto callers that this class does not actually have, and the only honest way to
+     * satisfy it there would be to suppress the warning at each site.
+     */
     fun start(expectedUserStateGeneration: Long) {
         val registration = synchronized(lock) {
             if (desired && userStateGeneration == expectedUserStateGeneration) return
@@ -82,10 +92,9 @@ internal class PolygonApproachMonitor(
         if (!isCurrent) removeUpdates(pendingIntent(applicationContext, staleUserStateGeneration))
     }
 
-    @SuppressLint("MissingPermission")
     private fun requestUpdates(pendingIntent: PendingIntent, requestGeneration: Long) {
         try {
-            client.requestLocationUpdates(LOCATION_REQUEST, pendingIntent)
+            requestApproachUpdates(pendingIntent)
                 .addOnSuccessListener {
                     val stale = synchronized(lock) {
                         !desired || userStateGeneration != requestGeneration ||
@@ -108,6 +117,19 @@ internal class PolygonApproachMonitor(
             retryRegistration(pendingIntent, requestGeneration, e)
         }
     }
+
+    /**
+     * The one statement in this class that can throw [SecurityException].
+     *
+     * The suppression covers exactly that call and nothing else, because the missing-permission case
+     * is not ignored: both the synchronous throw and the asynchronous failure route to
+     * [retryRegistration], which fails closed on [SecurityException]. Lint cannot see that, so the
+     * annotation states it here rather than at the three call sites of [start], which would hide a
+     * genuine unchecked permission use somewhere else in the file.
+     */
+    @SuppressLint("MissingPermission")
+    private fun requestApproachUpdates(pendingIntent: PendingIntent): Task<Void> =
+        client.requestLocationUpdates(LOCATION_REQUEST, pendingIntent)
 
     private fun retryRegistration(
         pendingIntent: PendingIntent,

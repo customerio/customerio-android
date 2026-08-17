@@ -11,9 +11,12 @@ import io.customer.geofence.di.pendingGeofenceDeliveryStore
 import io.customer.geofence.store.PendingGeofenceDelivery
 import io.customer.sdk.communication.Event
 import io.customer.sdk.core.di.SDKComponent
+import io.customer.sdk.data.store.PendingDeliveryStore
 import io.mockk.coEvery
 import io.mockk.coVerify
+import io.mockk.every
 import io.mockk.mockk
+import io.mockk.spyk
 import java.io.IOException
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.JsonElement
@@ -112,18 +115,6 @@ class GeofenceEventWorkerTest : RobolectricTest() {
     }
 
     @Test
-    fun doWork_givenPreUpgradeLegacyKey_expectFindsAndDeliversPersistedEntry() = runTest {
-        val entry = seed("biz-legacy", Event.GeofenceTransition.ENTER, timestamp = 42L)
-        coEvery { tracker.trackEvent(any()) } returns Result.success(Unit)
-
-        val result = createWorker(inputDataFor(entry.legacyKey)).doWork()
-
-        result shouldBeEqualTo ListenableWorker.Result.success()
-        coVerify(exactly = 1) { tracker.trackEvent(entry) }
-        store.loadAll().isEmpty().shouldBeTrue()
-    }
-
-    @Test
     fun pendingStore_givenDistinctSameSecondCrossings_expectBothSurvive() {
         val first = PendingGeofenceDelivery(
             "biz",
@@ -161,15 +152,41 @@ class GeofenceEventWorkerTest : RobolectricTest() {
     }
 
     @Test
-    fun doWork_givenNonIOException_expectChainContinuesAndEntryRestored() = runTest {
+    fun doWork_givenNonIOException_expectRetryScheduledAndChainPreserved() = runTest {
+        // Not Result.failure(): that cancels the dependents and discards everything queued behind
+        // this row. Not Result.success() either: this node can be the last in the chain, and then
+        // nothing would ever come back for the head, stranding it and every later transition.
         val entry = seed("biz", Event.GeofenceTransition.ENTER, timestamp = 0L)
         coEvery { tracker.trackEvent(any()) } returns
             Result.failure(IllegalStateException("bad state"))
 
         val result = createWorker(inputDataFor(entry.key)).doWork()
 
-        result shouldBeEqualTo ListenableWorker.Result.success()
+        result shouldBeEqualTo ListenableWorker.Result.retry()
         store.loadAll().map { it.key } shouldBeEqualTo listOf("biz_ENTER_tid-seed_none")
+    }
+
+    @Test
+    fun doWork_givenTerminalFailureThenRecovery_expectHeadAndLaterTransitionsBothDelivered() = runTest {
+        // The retry a terminal failure schedules must be able to drain the whole queue, not just the
+        // row that failed.
+        val enter = seed("biz", Event.GeofenceTransition.ENTER, timestamp = 1L, transitionId = "tid-enter")
+        val exit = seed("biz", Event.GeofenceTransition.EXIT, timestamp = 2L, transitionId = "tid-exit")
+        val attempts = mutableListOf<PendingGeofenceDelivery>()
+        coEvery { tracker.trackEvent(any()) } coAnswers {
+            firstArg<PendingGeofenceDelivery>().also(attempts::add)
+            if (attempts.size == 1) {
+                Result.failure(IllegalStateException("terminal for now"))
+            } else {
+                Result.success(Unit)
+            }
+        }
+
+        createWorker(Data.EMPTY).doWork() shouldBeEqualTo ListenableWorker.Result.retry()
+        createWorker(Data.EMPTY).doWork() shouldBeEqualTo ListenableWorker.Result.success()
+
+        attempts shouldBeEqualTo listOf(enter, enter, exit)
+        store.loadAll().isEmpty().shouldBeTrue()
     }
 
     @Test
@@ -196,8 +213,7 @@ class GeofenceEventWorkerTest : RobolectricTest() {
             }
         }
 
-        createWorker(Data.EMPTY).doWork() shouldBeEqualTo ListenableWorker.Result.success()
-        createWorker(Data.EMPTY).doWork() shouldBeEqualTo ListenableWorker.Result.success()
+        createWorker(Data.EMPTY).doWork() shouldBeEqualTo ListenableWorker.Result.retry()
         createWorker(Data.EMPTY).doWork() shouldBeEqualTo ListenableWorker.Result.success()
 
         attempts shouldBeEqualTo listOf(enter, enter, exit)
@@ -205,18 +221,43 @@ class GeofenceEventWorkerTest : RobolectricTest() {
     }
 
     @Test
-    fun doWork_givenNullUserId_expectDeferredWithoutTracking() = runTest {
-        // Defensive-only: the receiver drops anonymous transitions before persisting, so a
-        // null-userId row shouldn't exist. If one does, leave it rather than send a track
-        // the backend would reject.
-        val entry = seed("biz-anon", Event.GeofenceTransition.ENTER, timestamp = 0L, userId = null)
+    fun doWork_givenNullUserId_expectDroppedWithoutTrackingSoQueueDrains() = runTest {
+        // Defensive-only: the receiver drops anonymous transitions before persisting, so a null-userId
+        // row shouldn't exist. If one does it is also undeliverable forever, because the userId was
+        // snapshotted at queue time and no retry can supply one. Leaving it at the head of an ordered
+        // queue would block every later transition, so it is dropped instead.
+        val anonymous = seed("biz-anon", Event.GeofenceTransition.ENTER, timestamp = 0L, userId = null)
+        val deliverable = seed(
+            "biz-next",
+            Event.GeofenceTransition.ENTER,
+            timestamp = 1L,
+            transitionId = "tid-next"
+        )
+        coEvery { tracker.trackEvent(any()) } returns Result.success(Unit)
+
+        val result = createWorker(inputDataFor(anonymous.key)).doWork()
+
+        result shouldBeEqualTo ListenableWorker.Result.success()
+        coVerify(exactly = 1) { tracker.trackEvent(deliverable) }
+        store.loadAll().isEmpty().shouldBeTrue()
+    }
+
+    @Test
+    fun doWork_givenSuccessfulSendWhoseRemovalNeverPersists_expectOneSendThenBackedOffRetry() = runTest {
+        // The worker drains "the oldest row" in a loop, so a delivered row that stays on disk is read
+        // again on the next iteration. Without distinguishing "sent" from "sent and recorded" that
+        // loop resends the same transition as fast as the network allows, forever.
+        val entry = seed("biz-stuck", Event.GeofenceTransition.ENTER, timestamp = 7L)
+        coEvery { tracker.trackEvent(any()) } returns Result.success(Unit)
+        val removalNeverPersists = spyk(store) { every { remove(any()) } returns false }
+        SDKComponent.android()
+            .overrideDependency<PendingDeliveryStore<PendingGeofenceDelivery>>(removalNeverPersists)
 
         val result = createWorker(inputDataFor(entry.key)).doWork()
 
-        result shouldBeEqualTo ListenableWorker.Result.success()
-        coVerify(exactly = 0) { tracker.trackEvent(any()) }
-        // Entry must NOT be removed — flush still needs it.
-        store.loadAll().map { it.key } shouldBeEqualTo listOf("biz-anon_ENTER_tid-seed_none")
+        result shouldBeEqualTo ListenableWorker.Result.retry()
+        coVerify(exactly = 1) { tracker.trackEvent(entry) }
+        removalNeverPersists.loadAll().map { it.key } shouldBeEqualTo listOf("biz-stuck_ENTER_tid-seed_none")
     }
 
     private fun inputDataFor(key: String): Data =

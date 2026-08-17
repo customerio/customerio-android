@@ -88,6 +88,46 @@ class GeofenceRegionStoreTest : RobolectricTest() {
     }
 
     @Test
+    fun polygonApproachBatches_givenCapReached_expectRejectedInsteadOfSilentlyDropped() {
+        // Reporting success here would tell the scheduler to enqueue a worker for locations that never
+        // reached disk; the worker finds nothing and the fixes are lost. Failing lets the receiver
+        // evaluate them in-process while it still holds them.
+        val encryptedStore = encryptedStore().also { it.beginUserSession(USER) }
+        val generation = encryptedStore.userStateGeneration()
+        val atCapacity = List(GeofenceRegionStoreImpl.MAXIMUM_PENDING_APPROACH_BATCHES) { index ->
+            approachBatch("existing-$index", 37.0 + index, generation)
+        }
+        encryptedStore.appendPendingPolygonApproachBatches(atCapacity).shouldBeTrue()
+
+        encryptedStore.appendPendingPolygonApproachBatches(
+            listOf(approachBatch("overflow", 12.0, generation))
+        ).shouldBeFalse()
+
+        // The oldest evidence is still intact, and the rejected batch was not partially written.
+        val stored = encryptedStore.getPendingPolygonApproachBatches()
+        stored.size shouldBeEqualTo GeofenceRegionStoreImpl.MAXIMUM_PENDING_APPROACH_BATCHES
+        stored.none { it.id == "overflow" }.shouldBeTrue()
+        stored.first().id shouldBeEqualTo "existing-0"
+    }
+
+    @Test
+    fun polygonApproachBatches_givenReplayOfAlreadyStoredBatchAtCapacity_expectStillAccepted() {
+        // An idempotent re-append of a batch already on disk doesn't grow the queue, so the cap must
+        // not reject it and push a batch that *is* durable onto the in-process fallback.
+        val encryptedStore = encryptedStore().also { it.beginUserSession(USER) }
+        val generation = encryptedStore.userStateGeneration()
+        val atCapacity = List(GeofenceRegionStoreImpl.MAXIMUM_PENDING_APPROACH_BATCHES) { index ->
+            approachBatch("existing-$index", 37.0 + index, generation)
+        }
+        encryptedStore.appendPendingPolygonApproachBatches(atCapacity).shouldBeTrue()
+
+        encryptedStore.appendPendingPolygonApproachBatches(listOf(atCapacity.first())).shouldBeTrue()
+
+        encryptedStore.getPendingPolygonApproachBatches().size shouldBeEqualTo
+            GeofenceRegionStoreImpl.MAXIMUM_PENDING_APPROACH_BATCHES
+    }
+
+    @Test
     fun polygonApproachBatches_givenEncryptionFallbackToPlaintext_expectNotPersisted() {
         val plaintextStore = GeofenceRegionStoreImpl(
             context = applicationMock,

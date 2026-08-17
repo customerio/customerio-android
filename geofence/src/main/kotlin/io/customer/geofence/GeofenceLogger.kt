@@ -197,6 +197,13 @@ internal class GeofenceLogger(private val logger: Logger) {
         logger.debug("Geofence '$geofenceId' $transitionName: delivered via WorkManager (direct HTTP); removed from pending store", tag = TAG)
     }
 
+    fun logEventDeliveredButNotRemoved(geofenceId: String, transitionName: String) {
+        logger.error(
+            "Geofence '$geofenceId' $transitionName: delivered, but removing it from the pending store failed, so it is still queued. Retrying on a backoff; the backend deduplicates the repeat send on transitionId.",
+            tag = TAG
+        )
+    }
+
     fun logEventDeliverySkippedAlreadyDelivered(geofenceId: String, transitionName: String) {
         logger.debug("Geofence '$geofenceId' $transitionName: worker skipped — entry no longer in store (already delivered via the analytics pipeline)", tag = TAG)
     }
@@ -240,8 +247,18 @@ internal class GeofenceLogger(private val logger: Logger) {
         )
     }
 
-    fun logPolygonMonitoringFailed(message: String?) {
-        logger.error("Polygon location monitoring unavailable: $message", tag = TAG)
+    fun logPinnedRegionDroppedAtOsLimit(geofenceId: String, availableSlots: Int) {
+        logger.error(
+            "Geofence '$geofenceId' was pinned for exit monitoring but dropped — more regions are pinned than the $availableSlots business slots Google Play services allows. Keeping it would make the OS reject every geofence in the batch, so the farthest pinned regions are released first; their exits may be missed.",
+            tag = TAG
+        )
+    }
+
+    fun logPolygonFixNotUsable(reason: String) {
+        logger.debug(
+            "Polygon fix ignored — $reason. Responsive monitoring is best-effort: it decides only from fixes that are decisive on their own.",
+            tag = TAG
+        )
     }
 
     fun logPolygonApproachMonitoringStarted() {

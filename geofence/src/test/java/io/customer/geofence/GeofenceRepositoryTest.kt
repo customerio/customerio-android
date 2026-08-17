@@ -8,6 +8,7 @@ import io.customer.geofence.api.GeofenceApiService
 import io.customer.geofence.api.toDomainRegions
 import io.customer.geofence.polygon.PolygonCoordinate
 import io.customer.geofence.polygon.PolygonGeofenceServiceController
+import io.customer.geofence.polygon.PolygonSupport
 import io.customer.geofence.store.GeofenceRegionStore
 import io.customer.sdk.communication.Event
 import io.customer.sdk.core.util.Clock
@@ -96,7 +97,10 @@ class GeofenceRepositoryTest : RobolectricTest() {
         clock = clock,
         packageInfo = packageInfo,
         logger = logger,
-        polygonController = polygonController
+        polygonController = polygonController,
+        // The production graph wires the enabled opt-in; without it every polygon test below would
+        // exercise the fail-closed path instead of the runtime this PR adds.
+        polygonSupport = PolygonSupport.Enabled
     )
 
     @Test
@@ -476,7 +480,7 @@ class GeofenceRepositoryTest : RobolectricTest() {
             Result.success(sampleResponse(maxBusinessGeofences = 3))
         mockkStatic("io.customer.geofence.api.GeofenceApiResponseKt")
         try {
-            every { any<GeofenceApiResponse>().toDomainRegions() } throws IllegalStateException("mapper defect")
+            every { any<GeofenceApiResponse>().toDomainRegions(any()) } throws IllegalStateException("mapper defect")
 
             val result = repository.refresh(latitude = 12.34, longitude = 56.78)
 

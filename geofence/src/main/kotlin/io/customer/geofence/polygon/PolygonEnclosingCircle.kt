@@ -57,6 +57,17 @@ internal class PolygonEnclosingCircle {
         )
     }
 
+    /**
+     * [calculate] without the throw. A ring that is geometrically valid can still be unusable as a
+     * trigger — too large for the OS circle, or sitting on a pole where the projection degenerates —
+     * and that must drop the single record rather than the response around it.
+     */
+    fun calculateOrNull(geometry: PolygonGeometry): PolygonTriggerCircle? = try {
+        calculate(geometry)
+    } catch (_: IllegalArgumentException) {
+        null
+    }
+
     private fun PolygonCoordinate.distanceUpperBoundMeters(other: PolygonCoordinate): Double {
         val firstLatitude = Math.toRadians(latitude)
         val secondLatitude = Math.toRadians(other.latitude)

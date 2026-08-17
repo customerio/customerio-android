@@ -8,6 +8,7 @@ import io.customer.geofence.di.geofenceLogger
 import io.customer.geofence.polygon.PolygonCoordinate
 import io.customer.geofence.polygon.PolygonEnclosingCircle
 import io.customer.geofence.polygon.PolygonGeometry
+import io.customer.geofence.polygon.PolygonSupport
 import io.customer.location.LocationCoordinates
 import io.customer.sdk.core.di.SDKComponent
 import kotlinx.serialization.SerialName
@@ -100,14 +101,22 @@ internal fun GeofenceApiResponse.toDomainConfig(): GeofenceConfig? =
     config?.toDomain()
 
 // One bad region costs itself (dropped + logged). A non-empty response whose regions ALL drop
-// is unusable — throw so the caller fails the refresh instead of clearing live state.
-internal fun GeofenceApiResponse.toDomainRegions(): List<GeofenceRegion> {
+// is unusable — throw so the caller fails the refresh instead of clearing live state. That holds
+// for a response this build can't use at all (e.g. every region a polygon while [polygonSupport] is
+// off): failing keeps whatever is already registered rather than replacing it with nothing.
+internal fun GeofenceApiResponse.toDomainRegions(
+    polygonSupport: PolygonSupport = PolygonSupport.Disabled
+): List<GeofenceRegion> {
     if (geofences.isEmpty()) return emptyList()
 
     val mapped = geofences.mapNotNull { region ->
         try {
-            region.toDomain() ?: run {
-                SDKComponent.geofenceLogger.logInvalidRegionDropped(region.id)
+            region.toDomain(polygonSupport) ?: run {
+                // A geometry-bearing record logs its own, more specific reason inside [toDomain];
+                // a blank id never reaches that branch, so it still reports here.
+                if (region.geometry == null || region.id.isBlank()) {
+                    SDKComponent.geofenceLogger.logInvalidRegionDropped(region.id)
+                }
                 null
             }
         } catch (e: Exception) {
@@ -162,23 +171,28 @@ private fun GeofenceApiConfig.toDomain(): GeofenceConfig {
     )
 }
 
-// Null when the region violates Geofence.Builder preconditions; one bad region must not cost the whole sync.
-internal fun GeofenceApiRegion.toDomain(): GeofenceRegion? {
+/**
+ * Null when the region violates Geofence.Builder preconditions, or when it carries geometry this
+ * build can't monitor; one bad region must not cost the whole sync.
+ *
+ * A record that carries a `geometry` block is a shape record and is mapped only as that shape. It
+ * never falls back to the flat `latitude`/`longitude`/`radius` fields: a shape the SDK can't honour
+ * would then quietly register — and report business ENTER/EXIT — for a circle the backend never
+ * asked to monitor.
+ */
+internal fun GeofenceApiRegion.toDomain(
+    polygonSupport: PolygonSupport = PolygonSupport.Disabled
+): GeofenceRegion? {
     if (id.isBlank()) return null
-    val polygonVertices = geometry?.takeIf { it.type.equals("Polygon", ignoreCase = true) }
-        ?.coordinates
-        ?.toPolygonVertices()
-    if (geometry?.type.equals("Polygon", ignoreCase = true) && polygonVertices == null) return null
+    val geometry = geometry ?: return toCircleRegionOrNull()
+    return toPolygonRegionOrNull(geometry, polygonSupport)
+}
 
-    val polygon = polygonVertices?.let(PolygonGeometry::from)
-    val trigger = polygon?.let(PolygonEnclosingCircle()::calculate)
-    val resolvedLatitude = trigger?.center?.latitude ?: latitude
-    val resolvedLongitude = trigger?.center?.longitude ?: longitude
-    val resolvedRadius = trigger?.radiusMeters?.toDouble() ?: radius
+private fun GeofenceApiRegion.toCircleRegionOrNull(): GeofenceRegion? {
     if (
-        resolvedRadius == null || resolvedRadius <= 0 ||
-        resolvedLatitude == null || resolvedLongitude == null ||
-        !LocationCoordinates.isValid(resolvedLatitude, resolvedLongitude)
+        radius == null || radius <= 0 ||
+        latitude == null || longitude == null ||
+        !LocationCoordinates.isValid(latitude, longitude)
     ) {
         return null
     }
@@ -186,18 +200,80 @@ internal fun GeofenceApiRegion.toDomain(): GeofenceRegion? {
         id = id,
         name = name,
         externalId = externalId,
-        latitude = resolvedLatitude,
-        longitude = resolvedLongitude,
-        radius = resolvedRadius.toFloat(),
+        latitude = latitude,
+        longitude = longitude,
+        radius = radius.toFloat(),
+        transitionTypes = resolveTransitionTypes(transitionTypes),
+        lastUpdated = lastUpdated ?: 0L,
+        geosetIds = geosetIds,
+        metadata = sanitizeMetadata(metadata)
+    )
+}
+
+/**
+ * The polygon live path, which fails closed at every step: an unknown shape, a build without polygon
+ * monitoring, a ring that doesn't validate and a trigger circle that's too large all drop the record
+ * with a reason. Each returns null alone, so the surrounding regions still map.
+ */
+private fun GeofenceApiRegion.toPolygonRegionOrNull(
+    geometry: GeofenceApiGeometry,
+    polygonSupport: PolygonSupport
+): GeofenceRegion? {
+    val logger = SDKComponent.geofenceLogger
+    if (!geometry.isPolygonType) {
+        logger.logUnsupportedGeometryDropped(id, geometry.type)
+        return null
+    }
+    if (!polygonSupport.isPolygonMonitoringEnabled) {
+        logger.logPolygonDroppedUnsupportedRuntime(id)
+        return null
+    }
+    val polygon = geometry.toPolygonGeometryOrNull()
+    if (polygon == null) {
+        logger.logPolygonDropped(id, "ring is malformed, unsupported or fails validation")
+        return null
+    }
+    // The polygon is the fence; this circle only decides when the device is close enough to be
+    // worth evaluating finely, which is why it's padded well beyond the ring.
+    val trigger = PolygonEnclosingCircle().calculateOrNull(polygon)
+    if (trigger == null || !LocationCoordinates.isValid(trigger.center.latitude, trigger.center.longitude)) {
+        logger.logPolygonDropped(id, "no usable enclosing trigger circle (too large or unsupported location)")
+        return null
+    }
+    return GeofenceRegion(
+        id = id,
+        name = name,
+        externalId = externalId,
+        latitude = trigger.center.latitude,
+        longitude = trigger.center.longitude,
+        radius = trigger.radiusMeters,
         transitionTypes = resolveTransitionTypes(transitionTypes),
         lastUpdated = lastUpdated ?: 0L,
         geosetIds = geosetIds,
         metadata = sanitizeMetadata(metadata),
-        polygonVertices = polygon?.vertices
+        polygonVertices = polygon.vertices
     )
 }
 
-private fun JsonElement.toPolygonVertices(): List<PolygonCoordinate>? {
+private val GeofenceApiGeometry.isPolygonType: Boolean
+    get() = type.equals(POLYGON_GEOMETRY_TYPE, ignoreCase = true)
+
+/**
+ * Decodes a GeoJSON `Polygon` block into validated geometry, or `null` when it isn't one the SDK
+ * supports (wrong type, holes, malformed positions, out-of-range or degenerate ring).
+ *
+ * Wire contract only: turning the result into a monitored region additionally requires
+ * [PolygonSupport], which this module never enables.
+ */
+internal fun GeofenceApiGeometry.toPolygonGeometryOrNull(): PolygonGeometry? {
+    if (!isPolygonType) return null
+    val vertices = coordinates.toPolygonVerticesOrNull() ?: return null
+    return PolygonGeometry.fromOrNull(vertices)
+}
+
+// GeoJSON positions are [longitude, latitude]; extra elements (elevation) are ignored. A ring count
+// other than one means holes, which V1 doesn't support.
+private fun JsonElement.toPolygonVerticesOrNull(): List<PolygonCoordinate>? {
     val rings = this as? JsonArray ?: return null
     if (rings.size != 1) return null
     val outerRing = rings.singleOrNull() as? JsonArray ?: return null
@@ -209,6 +285,8 @@ private fun JsonElement.toPolygonVertices(): List<PolygonCoordinate>? {
         runCatching { PolygonCoordinate(latitude, longitude) }.getOrNull() ?: return null
     }
 }
+
+private const val POLYGON_GEOMETRY_TYPE = "Polygon"
 
 /**
  * Reduces the raw wire value to the scalar map the event can carry: anything that isn't a JSON object

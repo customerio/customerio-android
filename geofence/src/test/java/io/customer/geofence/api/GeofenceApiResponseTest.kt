@@ -10,7 +10,9 @@ import io.customer.geofence.GeofenceLogger
 import io.customer.geofence.GeofenceRegion
 import io.customer.geofence.GeofenceTransitionType
 import io.customer.geofence.distanceTo
+import io.customer.geofence.polygon.EnabledPolygonSupport
 import io.customer.geofence.polygon.PolygonCoordinate
+import io.customer.geofence.polygon.PolygonSupport
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkStatic
@@ -44,29 +46,69 @@ class GeofenceApiResponseTest : RobolectricTest() {
         )
     }
 
-    // ---------- region shape ----------
+    // ---------- polygon records: decoded here, monitored only with the runtime opt-in ----------
 
     @Test
-    fun parseAndMap_givenGeoJsonPolygon_expectValidatedPolygonAndEnclosingCircle() {
-        val region = parseRegions(
+    fun parseAndMap_givenPolygonAndNoOptIn_expectDroppedAndCirclesKept() {
+        // The default at the seam — what the repository calls today. The record decodes, but this
+        // build can't evaluate a polygon, and its enclosing circle is a proximity trigger rather
+        // than the fence, so the region must not survive into the registerable set.
+        val regions = parseRegions(polygonAndCircleJson())
+
+        regions.map(GeofenceRegion::id) shouldBeEqualTo listOf("circle")
+        verify { mockLogger.logPolygonDroppedUnsupportedRuntime("campus") }
+        // No generic "invalid region" noise: the polygon drop reports its own reason.
+        verify(exactly = 0) { mockLogger.logInvalidRegionDropped("campus") }
+    }
+
+    @Test
+    fun parseAndMap_givenPolygonWithCircleFieldsAndNoOptIn_expectNotDegradedToCircle() {
+        // The dangerous shape: a polygon record that also carries lat/lng/radius. Falling back to
+        // those fields would register (and report business transitions for) a fence the backend
+        // never described.
+        val regions = parseRegions(
             """
             {
-              "geofences": [{
-                "id": "campus",
-                "geometry": {
-                  "type": "Polygon",
-                  "coordinates": [[
-                    [-122.4200, 37.7745],
-                    [-122.4188, 37.7745],
-                    [-122.4188, 37.7755],
-                    [-122.4200, 37.7755],
-                    [-122.4200, 37.7745]
-                  ]]
-                }
-              }]
+              "geofences": [
+                {
+                  "id": "campus",
+                  "latitude": 37.775,
+                  "longitude": -122.419,
+                  "radius": 250,
+                  "geometry": {
+                    "type": "Polygon",
+                    "coordinates": [[
+                      [-122.4200, 37.7745],
+                      [-122.4188, 37.7745],
+                      [-122.4188, 37.7755],
+                      [-122.4200, 37.7755],
+                      [-122.4200, 37.7745]
+                    ]]
+                  }
+                },
+                { "id": "circle", "latitude": 0, "longitude": 0, "radius": 100 }
+              ]
             }
             """.trimIndent()
-        ).single()
+        )
+
+        regions.map(GeofenceRegion::id) shouldBeEqualTo listOf("circle")
+    }
+
+    @Test
+    fun parseAndMap_givenOnlyPolygonsAndNoOptIn_expectThrowsSoLiveCatalogSurvives() {
+        // Every region dropped = unusable response. Throwing fails the refresh and leaves the
+        // previously registered set in place; returning an empty list would wipe it.
+        invoking { parseRegions(polygonOnlyJson()) } shouldThrow IllegalStateException::class
+        verify { mockLogger.logPolygonDroppedUnsupportedRuntime("campus") }
+    }
+
+    @Test
+    fun parseAndMap_givenPolygonAndOptIn_expectValidatedPolygonAndEnclosingCircle() {
+        // The same record with the runtime's opt-in supplied: proves the drop above is the opt-in,
+        // not a gap in the wire contract or the geometry.
+        val region = parseRegions(polygonAndCircleJson(), EnabledPolygonSupport)
+            .single { it.id == "campus" }
 
         region.isPolygon.shouldBeTrue()
         region.polygonVertices?.size shouldBeEqualTo 4
@@ -74,6 +116,59 @@ class GeofenceApiResponseTest : RobolectricTest() {
         region.polygonVertices.orEmpty().forEach { vertex ->
             (region.distanceTo(vertex.latitude, vertex.longitude) <= region.radius).shouldBeTrue()
         }
+    }
+
+    @Test
+    fun toPolygonGeometryOrNull_givenGeoJsonPolygon_expectDecodedRing() {
+        // The wire contract itself needs no opt-in: decoding and validating a polygon block is what
+        // this module ships. Only turning it into a monitored region is gated.
+        val geometry = parseResponse(polygonAndCircleJson()).geofences
+            .single { it.id == "campus" }
+            .geometry
+
+        geometry?.toPolygonGeometryOrNull()?.vertices shouldBeEqualTo listOf(
+            PolygonCoordinate(37.7745, -122.4200),
+            PolygonCoordinate(37.7745, -122.4188),
+            PolygonCoordinate(37.7755, -122.4188),
+            PolygonCoordinate(37.7755, -122.4200)
+        )
+    }
+
+    @Test
+    fun parseAndMap_givenUnknownGeometryTypeWithCircleFields_expectDroppedNotDegradedToCircle() {
+        // A shape the SDK doesn't understand is dropped and logged, with or without the opt-in —
+        // silently monitoring its bounding circle would report transitions for the wrong area.
+        listOf(PolygonSupport.Disabled, EnabledPolygonSupport).forEach { support ->
+            val regions = parseRegions(
+                """
+                {
+                  "geofences": [
+                    {
+                      "id": "multi",
+                      "latitude": 0, "longitude": 0, "radius": 100,
+                      "geometry": { "type": "MultiPolygon", "coordinates": [[[[0, 0], [0, 1], [1, 1], [0, 0]]]] }
+                    },
+                    { "id": "circle", "latitude": 0, "longitude": 0, "radius": 100 }
+                  ]
+                }
+                """.trimIndent(),
+                support
+            )
+
+            regions.map(GeofenceRegion::id) shouldBeEqualTo listOf("circle")
+        }
+        verify(exactly = 2) { mockLogger.logUnsupportedGeometryDropped("multi", "MultiPolygon") }
+    }
+
+    @Test
+    fun parseAndMap_givenNullGeometryType_expectRegionDecodesAsCircle() {
+        // Absent geometry is the circle contract and must stay byte-for-byte the old behaviour.
+        val regions = parseRegions(
+            """{ "geofences": [ { "id": "circle", "latitude": 1.5, "longitude": 2.5, "radius": 100, "geometry": null } ] }"""
+        )
+
+        regions.single().isPolygon shouldBeEqualTo false
+        regions.single().latitude shouldBeEqualTo 1.5
     }
 
     @Test
@@ -95,15 +190,18 @@ class GeofenceApiResponseTest : RobolectricTest() {
                 { "id": "circle", "latitude": 0, "longitude": 0, "radius": 100 }
               ]
             }
-            """.trimIndent()
+            """.trimIndent(),
+            EnabledPolygonSupport
         )
 
         regions.map(GeofenceRegion::id) shouldBeEqualTo listOf("circle")
-        verify { mockLogger.logInvalidRegionDropped("hole") }
+        verify { mockLogger.logPolygonDropped(eq("hole"), any()) }
     }
 
     @Test
-    fun parseAndMap_givenSelfIntersectingPolygon_expectMappingFailureIsIsolated() {
+    fun parseAndMap_givenSelfIntersectingPolygon_expectDropIsIsolatedNotThrown() {
+        // A ring that fails validation drops itself with a reason — no exception, so the rest of
+        // the response still maps.
         val regions = parseRegions(
             """
             {
@@ -118,12 +216,63 @@ class GeofenceApiResponseTest : RobolectricTest() {
                 { "id": "circle", "latitude": 0, "longitude": 0, "radius": 100 }
               ]
             }
-            """.trimIndent()
+            """.trimIndent(),
+            EnabledPolygonSupport
         )
 
         regions.map(GeofenceRegion::id) shouldBeEqualTo listOf("circle")
-        verify { mockLogger.logRegionMappingFailed("bow-tie", any()) }
+        verify { mockLogger.logPolygonDropped(eq("bow-tie"), any()) }
+        verify(exactly = 0) { mockLogger.logRegionMappingFailed(eq("bow-tie"), any()) }
     }
+
+    @Test
+    fun parseAndMap_givenOversizedPolygon_expectDroppedWithoutCostingOtherRegions() {
+        // A continent-sized ring has no usable OS trigger circle (well past the 100 km ceiling).
+        val regions = parseRegions(
+            """
+            {
+              "geofences": [
+                {
+                  "id": "continent",
+                  "geometry": {
+                    "type": "Polygon",
+                    "coordinates": [[[0, 0], [30, 0], [30, 20], [0, 20], [0, 0]]]
+                  }
+                },
+                { "id": "circle", "latitude": 0, "longitude": 0, "radius": 100 }
+              ]
+            }
+            """.trimIndent(),
+            EnabledPolygonSupport
+        )
+
+        regions.map(GeofenceRegion::id) shouldBeEqualTo listOf("circle")
+        verify { mockLogger.logPolygonDropped(eq("continent"), any()) }
+    }
+
+    @Test
+    fun parseAndMap_givenPolygonBeyondMaxVertexCount_expectDroppedWithoutCostingOtherRegions() {
+        val ring = (0 until 600).joinToString(",") { index ->
+            val angle = 2.0 * Math.PI * index / 600.0
+            "[${0.002 * kotlin.math.cos(angle)}, ${0.002 * kotlin.math.sin(angle)}]"
+        }
+        val regions = parseRegions(
+            """
+            {
+              "geofences": [
+                { "id": "too-many", "geometry": { "type": "Polygon", "coordinates": [[$ring]] } },
+                { "id": "circle", "latitude": 0, "longitude": 0, "radius": 100 }
+              ]
+            }
+            """.trimIndent(),
+            EnabledPolygonSupport
+        )
+
+        regions.map(GeofenceRegion::id) shouldBeEqualTo listOf("circle")
+        verify { mockLogger.logPolygonDropped(eq("too-many"), any()) }
+    }
+
+    // ---------- region shape ----------
 
     @Test
     fun parseAndMap_givenFullSampleRegion_expectDomainValues() {
@@ -200,7 +349,7 @@ class GeofenceApiResponseTest : RobolectricTest() {
         val response = parseResponse(twoValidRegionsJson())
         mockkStatic("io.customer.geofence.api.GeofenceApiResponseKt")
         try {
-            every { any<GeofenceApiRegion>().toDomain() } answers {
+            every { any<GeofenceApiRegion>().toDomain(any()) } answers {
                 val region = firstArg<GeofenceApiRegion>()
                 if (region.id == "1") throw IllegalStateException("metadata defect") else callOriginal()
             }
@@ -220,7 +369,7 @@ class GeofenceApiResponseTest : RobolectricTest() {
         val response = parseResponse(twoValidRegionsJson())
         mockkStatic("io.customer.geofence.api.GeofenceApiResponseKt")
         try {
-            every { any<GeofenceApiRegion>().toDomain() } throws IllegalStateException("mapper defect")
+            every { any<GeofenceApiRegion>().toDomain(any()) } throws IllegalStateException("mapper defect")
 
             invoking { response.toDomainRegions() } shouldThrow IllegalStateException::class
         } finally {
@@ -719,8 +868,52 @@ class GeofenceApiResponseTest : RobolectricTest() {
     private fun parseResponse(raw: String): GeofenceApiResponse =
         jsonSerializer.decode(GeofenceApiResponse.serializer(), raw, lenient = true)
 
-    private fun parseRegions(raw: String): List<GeofenceRegion> =
-        parseResponse(raw).toDomainRegions()
+    // Defaults to the seam's fail-closed value, which is what the repository passes today.
+    private fun parseRegions(
+        raw: String,
+        polygonSupport: PolygonSupport = PolygonSupport.Disabled
+    ): List<GeofenceRegion> = parseResponse(raw).toDomainRegions(polygonSupport)
+
+    private fun polygonAndCircleJson(): String = """
+        {
+          "geofences": [
+            {
+              "id": "campus",
+              "geometry": {
+                "type": "Polygon",
+                "coordinates": [[
+                  [-122.4200, 37.7745],
+                  [-122.4188, 37.7745],
+                  [-122.4188, 37.7755],
+                  [-122.4200, 37.7755],
+                  [-122.4200, 37.7745]
+                ]]
+              }
+            },
+            { "id": "circle", "latitude": 0, "longitude": 0, "radius": 100 }
+          ]
+        }
+    """.trimIndent()
+
+    private fun polygonOnlyJson(): String = """
+        {
+          "geofences": [
+            {
+              "id": "campus",
+              "geometry": {
+                "type": "Polygon",
+                "coordinates": [[
+                  [-122.4200, 37.7745],
+                  [-122.4188, 37.7745],
+                  [-122.4188, 37.7755],
+                  [-122.4200, 37.7755],
+                  [-122.4200, 37.7745]
+                ]]
+              }
+            }
+          ]
+        }
+    """.trimIndent()
 
     private fun twoValidRegionsJson(): String = """
         {

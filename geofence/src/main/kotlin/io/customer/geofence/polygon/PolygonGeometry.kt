@@ -145,6 +145,19 @@ internal class PolygonGeometry private constructor(
             return PolygonGeometry(canonical.toList())
         }
 
+        /**
+         * [from] without the throw, for the callers that must isolate one unusable ring rather than
+         * fail around it: wire mapping (one bad record costs itself) and ranking (a region whose
+         * stored ring no longer validates is skipped, not ranked as its enclosing circle).
+         *
+         * Validation is identical — only the failure signal differs.
+         */
+        fun fromOrNull(vertices: List<PolygonCoordinate>): PolygonGeometry? = try {
+            from(vertices)
+        } catch (_: IllegalArgumentException) {
+            null
+        }
+
         private fun List<PolygonCoordinate>.hasNonCollinearVertices(): Boolean {
             for (firstIndex in indices) {
                 val first = this[firstIndex]

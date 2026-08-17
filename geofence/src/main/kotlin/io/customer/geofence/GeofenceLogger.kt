@@ -52,6 +52,31 @@ internal class GeofenceLogger(private val logger: Logger) {
         logger.debug("Geofence '$geofenceId' dropped — invalid coordinates or radius, not registerable with the OS", tag = TAG)
     }
 
+    fun logPolygonDroppedUnsupportedRuntime(geofenceId: String) {
+        logger.info(
+            "Geofence '$geofenceId' dropped — it is a polygon, and this SDK build monitors circles only. The record was decoded and validated but never registered; its enclosing circle is a proximity trigger, not the fence, so registering it would report transitions for the wrong area.",
+            tag = TAG
+        )
+    }
+
+    fun logUnsupportedGeometryDropped(geofenceId: String, type: String) {
+        logger.error(
+            "Geofence '$geofenceId' dropped — unsupported geometry type='$type' (only Polygon is understood). Not degraded to a circle; check SDK / backend version alignment.",
+            tag = TAG
+        )
+    }
+
+    fun logPolygonDropped(geofenceId: String, reason: String) {
+        logger.error("Geofence '$geofenceId' dropped — polygon rejected: $reason", tag = TAG)
+    }
+
+    fun logPolygonRegionNotRanked(geofenceId: String, reason: String) {
+        logger.debug(
+            "Geofence '$geofenceId' excluded from ranking — $reason. It stays cached and is never registered as its enclosing circle.",
+            tag = TAG
+        )
+    }
+
     fun logRegionMappingFailed(geofenceId: String, message: String?) {
         logger.error("Geofence '$geofenceId' dropped — mapping failed unexpectedly: $message", tag = TAG)
     }

@@ -46,8 +46,16 @@ internal data class GeofenceRegion(
     val isPolygon: Boolean
         get() = polygonVertices != null
 
+    /**
+     * Validated geometry for the stored ring, or `null` when it doesn't validate.
+     *
+     * Vertices reach a region already validated, but they also survive a round trip through the
+     * cache, so this re-checks rather than trusting the file. Callers must handle `null` by skipping
+     * the region: falling back to the circle fields would monitor the enclosing trigger circle as
+     * though it were the polygon.
+     */
     fun polygonGeometryOrNull(): PolygonGeometry? =
-        polygonVertices?.let(PolygonGeometry::from)
+        polygonVertices?.let(PolygonGeometry::fromOrNull)
 }
 
 /** Transition types a geofence can monitor, mapped to GMS constants. */
@@ -75,34 +83,38 @@ internal fun GeofenceRegion.distanceTo(lat: Double, lng: Double): Float {
 
 /**
  * Straight-line distance in meters from this region's *boundary* to the given coordinates, `0` when
- * they fall inside the region.
+ * they fall inside the region; `null` when the region is a polygon whose geometry is unusable.
  *
  * Relevance for monitoring is proximity to the boundary, not to the center: ranking on center
  * distance evicts a region the device currently occupies once enough regions have nearer centers,
  * and an unmonitored region can never report its exit.
+ *
+ * A polygon with no usable geometry has no boundary to measure to, and its circle fields describe
+ * the coarse trigger rather than the fence — so it reports no distance at all and the caller drops
+ * it, instead of ranking (and then registering) an area the backend never sent.
+ *
+ * [polygonGeometry] lets a caller that already validated this region's ring pass it back in; the
+ * default re-derives it.
  */
-internal fun GeofenceRegion.edgeDistanceTo(lat: Double, lng: Double): Float =
-    edgeDistanceTo(lat, lng, polygonGeometryOrNull())
-
-internal fun GeofenceRegion.edgeDistanceTo(
+internal fun GeofenceRegion.edgeDistanceToOrNull(
     lat: Double,
     lng: Double,
-    polygonGeometry: PolygonGeometry?
-): Float {
+    polygonGeometry: PolygonGeometry? = polygonGeometryOrNull()
+): Float? {
     if (!isPolygon) return (distanceTo(lat, lng) - radius).coerceAtLeast(0f)
-    val geometry = requireNotNull(polygonGeometry) { "polygon geometry is required" }
-    return geometry.let {
-        val point = PolygonCoordinate(lat, lng)
-        if (it.relationTo(point) != PolygonPointRelation.OUTSIDE) {
-            0f
-        } else {
-            it.boundaryDistanceMeters(point).toFloat()
-        }
+    val geometry = polygonGeometry ?: return null
+    val point = PolygonCoordinate(lat, lng)
+    return if (geometry.relationTo(point) != PolygonPointRelation.OUTSIDE) {
+        0f
+    } else {
+        geometry.boundaryDistanceMeters(point).toFloat()
     }
 }
 
+/** Containment against the real shape. Unusable polygon geometry answers `false` — never "inside". */
 internal fun GeofenceRegion.contains(latitude: Double, longitude: Double): Boolean = if (isPolygon) {
-    polygonGeometryOrNull()?.relationTo(PolygonCoordinate(latitude, longitude)) != PolygonPointRelation.OUTSIDE
+    val relation = polygonGeometryOrNull()?.relationTo(PolygonCoordinate(latitude, longitude))
+    relation != null && relation != PolygonPointRelation.OUTSIDE
 } else {
     distanceTo(latitude, longitude) <= radius
 }

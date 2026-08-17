@@ -92,6 +92,16 @@ class PendingDeliveryStoreTest : RobolectricTest() {
     }
 
     @Test
+    fun appendAll_givenExistingStableKeys_expectAtomicReplacementWithoutDuplicates() {
+        val store = newStore()
+        store.appendAll(listOf(entry("a", "old"), entry("b", "keep")))
+
+        store.appendAll(listOf(entry("a", "recovered")))
+
+        store.loadAll() shouldBeEqualTo listOf(entry("b", "keep"), entry("a", "recovered"))
+    }
+
+    @Test
     fun appendAll_givenWriteSucceeds_expectTrue() {
         val store = newStore()
 

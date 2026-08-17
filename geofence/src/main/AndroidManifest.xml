@@ -6,6 +6,7 @@
         - android.permission.ACCESS_FINE_LOCATION
         - android.permission.ACCESS_BACKGROUND_LOCATION
         - android.permission.RECEIVE_BOOT_COMPLETED
+
         The SDK does not declare them to avoid adding permissions for customers
         not using geofencing.
     -->
@@ -15,6 +16,11 @@
         <receiver
             android:name="io.customer.geofence.GeofenceBroadcastReceiver"
             android:enabled="false"
+            android:exported="false" />
+
+        <!-- Receives the displacement-gated polygon approach fixes registered with GMS. -->
+        <receiver
+            android:name="io.customer.geofence.polygon.PolygonApproachReceiver"
             android:exported="false" />
 
         <!-- Disabled by default; enabled alongside GeofenceBroadcastReceiver -->

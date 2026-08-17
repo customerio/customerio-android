@@ -86,7 +86,8 @@ class PolygonApproachIntegrationTest : RobolectricTest() {
             store = store,
             engine = engine,
             approachMonitor = mockk(relaxed = true),
-            secureUserStore = secureUserStore
+            secureUserStore = secureUserStore,
+            logger = logger
         )
         val now = SystemClock.elapsedRealtimeNanos()
         val locations = listOf(insideLocation(now))

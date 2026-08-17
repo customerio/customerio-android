@@ -6,6 +6,7 @@ import io.customer.geofence.GeofenceConfig
 import io.customer.geofence.GeofenceJsonSerializer
 import io.customer.geofence.GeofenceLocation
 import io.customer.geofence.GeofenceRegion
+import io.customer.geofence.PolygonTrackingMode
 import io.customer.geofence.transitionRevision
 import io.customer.sdk.communication.Event
 import io.customer.sdk.core.util.Logger
@@ -55,6 +56,10 @@ import kotlinx.serialization.builtins.serializer
  * via [PreferenceCrypto] (AES-256-GCM, Android Keystore) and cleared on sign-out.
  */
 internal interface GeofenceRegionStore {
+    /** Process-stable polygon acquisition policy used by receivers and services after cold start. */
+    fun savePolygonTrackingMode(mode: PolygonTrackingMode)
+    fun getPolygonTrackingMode(): PolygonTrackingMode
+
     /** Ordered exact-location batches used by responsive polygon evaluation. */
     fun appendPendingPolygonApproachBatches(entries: List<PendingPolygonApproachBatch>): Boolean
     fun getPendingPolygonApproachBatches(): List<PendingPolygonApproachBatch>
@@ -270,6 +275,16 @@ internal class GeofenceRegionStoreImpl(
 
     override val prefsName: String by lazy {
         "io.customer.sdk.geofence_regions.${context.packageName}"
+    }
+
+    override fun savePolygonTrackingMode(mode: PolygonTrackingMode) {
+        prefs.edit { putString(KEY_POLYGON_TRACKING_MODE, mode.name) }
+    }
+
+    override fun getPolygonTrackingMode(): PolygonTrackingMode {
+        val stored = prefs.read { getString(KEY_POLYGON_TRACKING_MODE, null) }
+        return stored?.let { runCatching { PolygonTrackingMode.valueOf(it) }.getOrNull() }
+            ?: PolygonTrackingMode.RESPONSIVE
     }
 
     override fun appendPendingPolygonApproachBatches(
@@ -878,6 +893,7 @@ internal class GeofenceRegionStoreImpl(
     private val enterEpochByGeofenceId = mutableMapOf<String, Long>()
 
     internal companion object {
+        const val KEY_POLYGON_TRACKING_MODE = "polygon_tracking_mode"
         const val KEY_CACHED_REGIONS = "cached_regions"
         const val KEY_REGISTERED_IDS = "registered_ids"
         const val KEY_ROUTABLE_REGISTERED_IDS = "routable_registered_ids"

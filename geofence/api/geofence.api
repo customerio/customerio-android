@@ -17,8 +17,9 @@ public final class io/customer/geofence/GeofenceLocationMode : java/lang/Enum {
 }
 
 public final class io/customer/geofence/GeofenceModuleConfig : io/customer/sdk/core/module/CustomerIOModuleConfig {
-	public synthetic fun <init> (Lio/customer/geofence/GeofenceLocationMode;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public synthetic fun <init> (Lio/customer/geofence/GeofenceLocationMode;Lio/customer/geofence/PolygonTrackingMode;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public final fun getLocationMode ()Lio/customer/geofence/GeofenceLocationMode;
+	public final fun getPolygonTrackingMode ()Lio/customer/geofence/PolygonTrackingMode;
 }
 
 public final class io/customer/geofence/GeofenceModuleConfig$Builder : io/customer/sdk/core/module/CustomerIOModuleConfig$Builder {
@@ -26,6 +27,7 @@ public final class io/customer/geofence/GeofenceModuleConfig$Builder : io/custom
 	public fun build ()Lio/customer/geofence/GeofenceModuleConfig;
 	public synthetic fun build ()Lio/customer/sdk/core/module/CustomerIOModuleConfig;
 	public final fun setLocationMode (Lio/customer/geofence/GeofenceLocationMode;)Lio/customer/geofence/GeofenceModuleConfig$Builder;
+	public final fun setPolygonTrackingMode (Lio/customer/geofence/PolygonTrackingMode;)Lio/customer/geofence/GeofenceModuleConfig$Builder;
 }
 
 public final class io/customer/geofence/ModuleGeofence : io/customer/sdk/core/module/CustomerIOModule {
@@ -43,6 +45,14 @@ public final class io/customer/geofence/ModuleGeofence : io/customer/sdk/core/mo
 
 public final class io/customer/geofence/ModuleGeofence$Companion {
 	public final fun instance ()Lio/customer/geofence/ModuleGeofence;
+}
+
+public final class io/customer/geofence/PolygonTrackingMode : java/lang/Enum {
+	public static final field CONTINUOUS Lio/customer/geofence/PolygonTrackingMode;
+	public static final field RESPONSIVE Lio/customer/geofence/PolygonTrackingMode;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lio/customer/geofence/PolygonTrackingMode;
+	public static fun values ()[Lio/customer/geofence/PolygonTrackingMode;
 }
 
 public final class io/customer/geofence/polygon/PolygonApproachReceiver : android/content/BroadcastReceiver {

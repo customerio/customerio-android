@@ -10,6 +10,7 @@ import io.customer.geofence.GeofenceJsonSerializer
 import io.customer.geofence.GeofenceLocation
 import io.customer.geofence.GeofenceRegion
 import io.customer.geofence.GeofenceTransitionType
+import io.customer.geofence.PolygonTrackingMode
 import io.customer.geofence.polygon.PolygonCoordinate
 import io.customer.sdk.communication.Event
 import io.mockk.mockk
@@ -44,6 +45,24 @@ class GeofenceRegionStoreTest : RobolectricTest() {
     }
 
     // --- Cached regions (full backend response) ---
+
+    @Test
+    fun polygonTrackingMode_givenNothingStored_expectResponsiveDefault() {
+        store.getPolygonTrackingMode() shouldBeEqualTo PolygonTrackingMode.RESPONSIVE
+    }
+
+    @Test
+    fun polygonTrackingMode_givenContinuousSaved_expectSurvivesProcessRecreation() {
+        store.savePolygonTrackingMode(PolygonTrackingMode.CONTINUOUS)
+
+        val recreated = GeofenceRegionStoreImpl(
+            context = applicationMock,
+            jsonSerializer = GeofenceJsonSerializer(),
+            logger = mockk(relaxed = true)
+        )
+
+        recreated.getPolygonTrackingMode() shouldBeEqualTo PolygonTrackingMode.CONTINUOUS
+    }
 
     @Test
     fun polygonApproachBatches_givenMultipleAppends_expectOrderedRoundTrip() {

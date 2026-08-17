@@ -1,8 +1,15 @@
 package io.customer.geofence.polygon
 
+import android.annotation.SuppressLint
 import android.content.Context
+import android.content.Intent
 import android.location.Location
+import android.os.Handler
+import android.os.Looper
 import android.os.SystemClock
+import androidx.core.content.ContextCompat
+import io.customer.geofence.GeofenceLogger
+import io.customer.geofence.PolygonTrackingMode
 import io.customer.geofence.distanceTo
 import io.customer.geofence.store.GeofenceRegionStore
 import io.customer.geofence.transitionRevision
@@ -10,17 +17,25 @@ import io.customer.sdk.data.store.SecureUserStore
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
-/** Persists coarse-circle activity and coordinates responsive polygon evaluation. */
+/** Persists coarse-circle activity before controlling the process-lifetime location service. */
 internal class PolygonGeofenceServiceController(
     private val context: Context,
     private val store: GeofenceRegionStore,
     private val engine: PolygonLocationEngine,
     private val approachMonitor: PolygonApproachMonitor,
-    private val secureUserStore: SecureUserStore
+    private val secureUserStore: SecureUserStore,
+    private val logger: GeofenceLogger,
+    private val continuousModeValidator: PolygonContinuousModeValidator =
+        PolygonContinuousModeValidator(context)
 ) {
     private val controllerLock = Any()
     private val coarseTransitionMutex = Mutex()
     private val lastCoarseTransitionElapsedNanos = mutableMapOf<String, Long>()
+    private val servicePromotionHandler = Handler(Looper.getMainLooper())
+    private val servicePromotionWatchdogs = mutableMapOf<Long, Runnable>()
+    private var serviceStartGeneration = 0L
+    private var pendingServicePromotionGeneration: Long? = null
+    private var servicePromotionRetryCount = 0
 
     suspend fun activate(
         polygonId: String,
@@ -55,13 +70,14 @@ internal class PolygonGeofenceServiceController(
         store.recordPolygonCoarseInside(polygonId)
         store.activatePolygon(polygonId)
         if (!alreadyActive) engine.activate(polygonId)
+        startServiceIfContinuous()
     }
 
     fun deactivate(polygonId: String) = synchronized(controllerLock) {
         store.recordPolygonCoarseOutside(polygonId)
         store.deactivatePolygon(polygonId)
         engine.deactivate(polygonId)
-        if (store.getActivePolygonIds().isEmpty()) engine.stop()
+        if (store.getActivePolygonIds().isEmpty()) stopService()
     }
 
     suspend fun onCoarseExit(
@@ -105,6 +121,7 @@ internal class PolygonGeofenceServiceController(
             if (polygonId in store.getCoarseInsidePolygonIds()) return@synchronized
             if (polygonId in store.getEnteredIds()) {
                 store.activatePolygon(polygonId)
+                startServiceIfContinuous()
             } else {
                 deactivate(polygonId)
             }
@@ -126,7 +143,7 @@ internal class PolygonGeofenceServiceController(
         } else {
             approachMonitor.start(store.userStateGeneration())
         }
-        if (store.getActivePolygonIds().isEmpty()) engine.stop()
+        if (store.getActivePolygonIds().isEmpty()) stopService()
     }
 
     fun recover() = synchronized(controllerLock) {
@@ -142,6 +159,7 @@ internal class PolygonGeofenceServiceController(
             store.getCachedRegion(it)?.isPolygon == true
         }
         if (polygonIds.isEmpty()) approachMonitor.stop() else approachMonitor.start(store.userStateGeneration())
+        if (store.getActivePolygonIds().isNotEmpty()) startServiceIfContinuous()
     }
 
     /**
@@ -213,13 +231,84 @@ internal class PolygonGeofenceServiceController(
             ) {
                 return@synchronized false
             }
-            if (store.getActivePolygonIds().isEmpty()) engine.stop()
+            if (store.getActivePolygonIds().isEmpty()) stopService() else startServiceIfContinuous()
             true
         }
     }
 
     private companion object {
         const val APPROACH_EXIT_HYSTERESIS_METERS = 100.0
+        const val SERVICE_PROMOTION_TIMEOUT_MS = 10_000L
+        const val MAXIMUM_SERVICE_PROMOTION_RETRIES = 1
+    }
+
+    private enum class PromotionTimeoutAction {
+        NONE,
+        RETRY,
+        STOP
+    }
+
+    @SuppressLint("MissingPermission")
+    fun startEngineForService(onUnavailable: () -> Unit): Long? = synchronized(controllerLock) {
+        if (!isContinuousTrackingEnabledLocked()) {
+            engine.stop()
+            return@synchronized null
+        }
+        val identifiedUserId = secureUserStore.getUserId()?.takeIf { it.isNotEmpty() }
+        if (identifiedUserId != null && store.activeUserSessionId() == null) {
+            store.beginUserSession(identifiedUserId)
+        }
+        if (!hasMatchingIdentifiedUserLocked() ||
+            store.getRoutableRegisteredIds().isEmpty() ||
+            store.getActivePolygonIds().isEmpty()
+        ) {
+            store.clearActivePolygonIds()
+            store.retainCoarseInsidePolygonIds(emptySet())
+            engine.stop()
+            lastCoarseTransitionElapsedNanos.clear()
+            return@synchronized null
+        }
+        engine.start(onUnavailable)
+    }
+
+    fun isContinuousTrackingEnabled(): Boolean = synchronized(controllerLock) {
+        isContinuousTrackingEnabledLocked()
+    }
+
+    fun setTrackingMode(mode: PolygonTrackingMode) = synchronized(controllerLock) {
+        if (mode == PolygonTrackingMode.CONTINUOUS) {
+            continuousModeValidator.configurationError()?.let(logger::logPolygonMonitoringFailed)
+        }
+        val previous = store.getPolygonTrackingMode()
+        store.savePolygonTrackingMode(mode)
+        if (mode == PolygonTrackingMode.RESPONSIVE) {
+            engine.stop()
+            pendingServicePromotionGeneration?.let(::clearServicePromotionWatchdogLocked)
+            pendingServicePromotionGeneration = null
+            servicePromotionRetryCount = 0
+            context.stopService(Intent(context, PolygonLocationService::class.java))
+        } else if (
+            previous != PolygonTrackingMode.CONTINUOUS &&
+            hasMatchingIdentifiedUserLocked() &&
+            store.getActivePolygonIds().isNotEmpty()
+        ) {
+            startService()
+        }
+    }
+
+    fun onServicePromoted(serviceGeneration: Long) = synchronized(controllerLock) {
+        if (pendingServicePromotionGeneration == serviceGeneration) {
+            clearServicePromotionWatchdogLocked(serviceGeneration)
+            pendingServicePromotionGeneration = null
+            servicePromotionRetryCount = 0
+        }
+    }
+
+    fun onServiceDestroyed(serviceGeneration: Long?) = synchronized(controllerLock) {
+        if (serviceGeneration != null && pendingServicePromotionGeneration == serviceGeneration) {
+            clearServicePromotionWatchdogLocked(serviceGeneration)
+            pendingServicePromotionGeneration = null
+        }
     }
 
     fun invalidatePersistedCoarseState() = synchronized(controllerLock) {
@@ -228,6 +317,7 @@ internal class PolygonGeofenceServiceController(
         engine.stop()
         lastCoarseTransitionElapsedNanos.clear()
         approachMonitor.stop()
+        stopService()
     }
 
     fun invalidateOsRegistrationState() = synchronized(controllerLock) {
@@ -239,6 +329,7 @@ internal class PolygonGeofenceServiceController(
         engine.stop()
         lastCoarseTransitionElapsedNanos.clear()
         approachMonitor.stop()
+        stopService()
     }
 
     fun stopAll() = synchronized(controllerLock) {
@@ -247,6 +338,7 @@ internal class PolygonGeofenceServiceController(
         engine.stop()
         lastCoarseTransitionElapsedNanos.clear()
         approachMonitor.stop()
+        stopService()
     }
 
     fun clearUserScopedState() = synchronized(controllerLock) {
@@ -257,6 +349,7 @@ internal class PolygonGeofenceServiceController(
         engine.stop()
         lastCoarseTransitionElapsedNanos.clear()
         approachMonitor.stop()
+        stopService()
     }
 
     fun clearUserSessionRetainingOsRegistrations() = synchronized(controllerLock) {
@@ -264,6 +357,7 @@ internal class PolygonGeofenceServiceController(
         engine.stop()
         lastCoarseTransitionElapsedNanos.clear()
         approachMonitor.stop()
+        stopService()
     }
 
     fun completeUserReset(
@@ -274,6 +368,7 @@ internal class PolygonGeofenceServiceController(
         engine.stop()
         lastCoarseTransitionElapsedNanos.clear()
         approachMonitor.stop()
+        stopService()
     }
 
     fun beginUserSession(userId: String) = synchronized(controllerLock) {
@@ -283,6 +378,7 @@ internal class PolygonGeofenceServiceController(
             engine.stop()
             approachMonitor.stop()
             lastCoarseTransitionElapsedNanos.clear()
+            stopService()
         }
     }
 
@@ -330,7 +426,13 @@ internal class PolygonGeofenceServiceController(
     private suspend fun processTriggeredLocation(
         location: Location,
         expectedUserStateGeneration: Long
-    ) = engine.processResponsiveLocation(location, expectedUserStateGeneration)
+    ) {
+        if (store.getPolygonTrackingMode() == PolygonTrackingMode.RESPONSIVE) {
+            engine.processResponsiveLocation(location, expectedUserStateGeneration)
+        } else {
+            engine.processLocation(location, expectedUserStateGeneration)
+        }
+    }
 
     private fun acceptCoarseTransition(polygonId: String, location: Location?): Boolean =
         synchronized(controllerLock) {
@@ -342,6 +444,87 @@ internal class PolygonGeofenceServiceController(
             true
         }
 
+    private fun startService() {
+        continuousModeValidator.configurationError()?.let {
+            logger.logPolygonMonitoringFailed(it)
+            return
+        }
+        val generation = synchronized(controllerLock) {
+            if (!isContinuousTrackingEnabledLocked() || pendingServicePromotionGeneration != null) {
+                null
+            } else {
+                serviceStartGeneration += 1L
+                serviceStartGeneration.also { pendingServicePromotionGeneration = it }
+            }
+        }
+        if (generation == null) return
+        try {
+            ContextCompat.startForegroundService(
+                context,
+                Intent(context, PolygonLocationService::class.java).putExtra(
+                    PolygonLocationService.EXTRA_SERVICE_START_GENERATION,
+                    generation
+                )
+            )
+            val watchdog = Runnable { onServicePromotionTimedOut(generation) }
+            synchronized(controllerLock) {
+                if (pendingServicePromotionGeneration == generation) {
+                    servicePromotionWatchdogs[generation] = watchdog
+                    servicePromotionHandler.postDelayed(watchdog, SERVICE_PROMOTION_TIMEOUT_MS)
+                }
+            }
+        } catch (e: RuntimeException) {
+            synchronized(controllerLock) {
+                if (pendingServicePromotionGeneration == generation) {
+                    clearServicePromotionWatchdogLocked(generation)
+                    pendingServicePromotionGeneration = null
+                }
+            }
+            logger.logPolygonMonitoringFailed(e.message)
+        }
+    }
+
+    private fun stopService() {
+        val canStopSafely = synchronized(controllerLock) {
+            pendingServicePromotionGeneration == null
+        }
+        if (canStopSafely) {
+            synchronized(controllerLock) { servicePromotionRetryCount = 0 }
+            context.stopService(Intent(context, PolygonLocationService::class.java))
+        }
+    }
+
+    private fun onServicePromotionTimedOut(generation: Long) {
+        val action = synchronized(controllerLock) {
+            if (pendingServicePromotionGeneration != generation) {
+                return@synchronized PromotionTimeoutAction.NONE
+            }
+            clearServicePromotionWatchdogLocked(generation)
+            pendingServicePromotionGeneration = null
+            val canRetry = servicePromotionRetryCount < MAXIMUM_SERVICE_PROMOTION_RETRIES &&
+                isContinuousTrackingEnabledLocked() &&
+                hasMatchingIdentifiedUserLocked() &&
+                store.getActivePolygonIds().isNotEmpty()
+            if (canRetry) servicePromotionRetryCount += 1
+            when {
+                canRetry -> PromotionTimeoutAction.RETRY
+                store.getActivePolygonIds().isEmpty() -> PromotionTimeoutAction.STOP
+                else -> PromotionTimeoutAction.NONE
+            }
+        }
+        logger.logPolygonMonitoringFailed("foreground service promotion timed out")
+        when (action) {
+            PromotionTimeoutAction.RETRY -> startService()
+            PromotionTimeoutAction.STOP ->
+                context.stopService(Intent(context, PolygonLocationService::class.java))
+            PromotionTimeoutAction.NONE -> Unit
+        }
+    }
+
+    private fun clearServicePromotionWatchdogLocked(generation: Long) {
+        servicePromotionWatchdogs.remove(generation)?.let(servicePromotionHandler::removeCallbacks)
+    }
+
     private fun osStateWasWiped(): Boolean {
         val rebooted = store.getLastRegistrationUptime()?.let { SystemClock.elapsedRealtime() < it } == true
         val currentPackageUpdate = runCatching {
@@ -352,4 +535,11 @@ internal class PolygonGeofenceServiceController(
         } == true
         return rebooted || replaced
     }
+
+    private fun startServiceIfContinuous() {
+        if (isContinuousTrackingEnabledLocked()) startService()
+    }
+
+    private fun isContinuousTrackingEnabledLocked(): Boolean =
+        store.getPolygonTrackingMode() == PolygonTrackingMode.CONTINUOUS
 }

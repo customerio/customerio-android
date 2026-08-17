@@ -13,11 +13,17 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.rule.GrantPermissionRule
+import com.google.android.gms.location.Geofence
 import com.google.android.gms.location.LocationResult
+import com.google.android.gms.tasks.Tasks
 import io.customer.base.internal.InternalCustomerIOApi
+import io.customer.geofence.GeofenceBroadcastReceiver
 import io.customer.geofence.GeofenceRegion
+import io.customer.geofence.PolygonTrackingMode
+import io.customer.geofence.di.geofenceManager
 import io.customer.geofence.di.geofenceRegionStore
 import io.customer.geofence.di.pendingGeofenceDeliveryStore
+import io.customer.geofence.di.polygonFusedLocationClient
 import io.customer.geofence.di.polygonGeofenceServiceController
 import io.customer.geofence.store.PendingPolygonApproachBatch
 import io.customer.geofence.store.PendingPolygonApproachLocation
@@ -26,6 +32,7 @@ import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.di.setupAndroidComponent
 import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.TimeUnit
+import kotlinx.coroutines.runBlocking
 import org.amshove.kluent.shouldBeEqualTo
 import org.junit.Rule
 import org.junit.Test
@@ -234,6 +241,93 @@ class PolygonAndroidLocationIntegrationTest {
 
     @OptIn(InternalCustomerIOApi::class)
     @Test
+    fun polygonReceiverAndForegroundService_whenFusedRouteIsInjected_thenCommitsPolygonEntry() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        SDKComponent.setupAndroidComponent(context)
+        val android = SDKComponent.android()
+        val store = android.geofenceRegionStore
+        val pendingStore = android.pendingGeofenceDeliveryStore
+        val client = android.polygonFusedLocationClient
+        store.clearAll()
+        store.savePolygonTrackingMode(PolygonTrackingMode.CONTINUOUS)
+        pendingStore.removeAll()
+        android.secureUserStore.saveUserId("integration-user")
+        store.beginUserSession("integration-user")
+        store.saveCachedRegions(
+            listOf(
+                GeofenceRegion(
+                    id = "campus",
+                    latitude = 37.7750,
+                    longitude = -122.4194,
+                    radius = 200f,
+                    polygonVertices = fence.geometry.vertices
+                )
+            )
+        )
+        store.saveRegisteredIds(setOf("campus"))
+        store.saveRoutableRegisteredIds(setOf("campus"))
+        shell("appops set ${context.packageName} android:mock_location allow")
+
+        try {
+            Tasks.await(client.setMockMode(true))
+            runBlocking {
+                GeofenceBroadcastReceiver().dispatchTransition(
+                    gmsTransitionType = Geofence.GEOFENCE_TRANSITION_ENTER,
+                    triggeringGeofenceIds = listOf("campus"),
+                    latitude = 37.7750,
+                    longitude = -122.4205,
+                    triggeringLocation = location(
+                        latitude = 37.7750,
+                        longitude = -122.4205,
+                        accuracyMeters = 5f,
+                        elapsedRealtimeNanos = SystemClock.elapsedRealtimeNanos()
+                    )
+                )
+            }
+            SystemClock.sleep(500)
+            listOf(-122.4196, -122.4194, -122.4192).forEachIndexed { index, longitude ->
+                Tasks.await(
+                    client.setMockLocation(
+                        location(
+                            latitude = 37.7750,
+                            longitude = longitude,
+                            accuracyMeters = 5f,
+                            elapsedRealtimeNanos = SystemClock.elapsedRealtimeNanos()
+                        )
+                    )
+                )
+                if (index < 2) SystemClock.sleep(2_000)
+            }
+
+            for (attempt in 0 until 40) {
+                if (
+                    "campus" in store.getEnteredIds() &&
+                    pendingStore.loadAll().any {
+                        it.geofenceId == "campus" && it.transition == Event.GeofenceTransition.ENTER
+                    }
+                ) {
+                    break
+                }
+                SystemClock.sleep(250)
+            }
+
+            store.getEnteredIds() shouldBeEqualTo setOf("campus")
+            pendingStore.loadAll().single { it.geofenceId == "campus" }.let { entry ->
+                entry.transition shouldBeEqualTo Event.GeofenceTransition.ENTER
+                entry.userId shouldBeEqualTo "integration-user"
+            }
+        } finally {
+            context.stopService(Intent(context, PolygonLocationService::class.java))
+            Tasks.await(client.setMockMode(false))
+            store.clearAll()
+            pendingStore.removeAll()
+            android.secureUserStore.clearAll()
+            shell("appops set ${context.packageName} android:mock_location deny")
+        }
+    }
+
+    @OptIn(InternalCustomerIOApi::class)
+    @Test
     fun polygonApproachReceiver_whenPassiveBatchIsInjected_thenCommitsPolygonEntry() {
         val context = ApplicationProvider.getApplicationContext<Context>()
         SDKComponent.setupAndroidComponent(context)
@@ -297,6 +391,90 @@ class PolygonAndroidLocationIntegrationTest {
             store.clearAll()
             pendingStore.removeAll()
             android.secureUserStore.clearAll()
+        }
+    }
+
+    @OptIn(InternalCustomerIOApi::class)
+    @Test
+    fun googlePlayServicesGeofence_whenMockRouteEntersTrigger_thenCommitsPolygonEntry() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        SDKComponent.setupAndroidComponent(context)
+        val android = SDKComponent.android()
+        val store = android.geofenceRegionStore
+        val pendingStore = android.pendingGeofenceDeliveryStore
+        val client = android.polygonFusedLocationClient
+        val manager = android.geofenceManager
+        val region = GeofenceRegion(
+            id = "campus",
+            latitude = 37.7750,
+            longitude = -122.4194,
+            radius = 200f,
+            polygonVertices = fence.geometry.vertices
+        )
+        val locationWasEnabled = shell("cmd location is-location-enabled").trim().toBoolean()
+        store.clearAll()
+        store.savePolygonTrackingMode(PolygonTrackingMode.CONTINUOUS)
+        pendingStore.removeAll()
+        android.secureUserStore.saveUserId("gms-integration-user")
+        store.beginUserSession("gms-integration-user")
+        store.saveCachedRegions(listOf(region))
+        store.saveRegisteredIds(setOf(region.id))
+        store.saveRoutableRegisteredIds(setOf(region.id))
+        shell("appops set ${context.packageName} android:mock_location allow")
+
+        try {
+            if (!locationWasEnabled) shell("cmd location set-location-enabled true")
+            Tasks.await(client.setMockMode(true))
+            Tasks.await(client.setMockLocation(location(37.7750, -122.4235)))
+            SystemClock.sleep(500)
+
+            check(runBlocking { manager.replaceGeofences(listOf(region)) }.isSuccess) {
+                "Google Play services rejected polygon trigger registration"
+            }
+
+            for (attempt in 0 until 8) {
+                Tasks.await(client.setMockLocation(location(37.7750, -122.4205)))
+                if (region.id in store.getActivePolygonIds()) break
+                SystemClock.sleep(2_000)
+            }
+            check(region.id in store.getActivePolygonIds()) {
+                "Google Play services did not deliver the enclosing-circle ENTER"
+            }
+
+            // GMS applies the request's minimum interval to mock fixes too. Leave a full interval
+            // after the coarse fix so the first fine sample is not throttled as "too fast".
+            SystemClock.sleep(2_000)
+            listOf(-122.4196, -122.4194, -122.4192).forEachIndexed { index, longitude ->
+                Tasks.await(client.setMockLocation(location(37.7750, longitude)))
+                if (index < 2) SystemClock.sleep(2_000)
+            }
+
+            for (attempt in 0 until 40) {
+                if (
+                    region.id in store.getEnteredIds() &&
+                    pendingStore.loadAll().any {
+                        it.geofenceId == region.id && it.transition == Event.GeofenceTransition.ENTER
+                    }
+                ) {
+                    break
+                }
+                SystemClock.sleep(250)
+            }
+
+            store.getEnteredIds() shouldBeEqualTo setOf(region.id)
+            pendingStore.loadAll().single { it.geofenceId == region.id }.let { entry ->
+                entry.transition shouldBeEqualTo Event.GeofenceTransition.ENTER
+                entry.userId shouldBeEqualTo "gms-integration-user"
+            }
+        } finally {
+            runBlocking { manager.clearAll() }
+            context.stopService(Intent(context, PolygonLocationService::class.java))
+            Tasks.await(client.setMockMode(false))
+            store.clearAll()
+            pendingStore.removeAll()
+            android.secureUserStore.clearAll()
+            shell("appops set ${context.packageName} android:mock_location deny")
+            if (!locationWasEnabled) shell("cmd location set-location-enabled false")
         }
     }
 

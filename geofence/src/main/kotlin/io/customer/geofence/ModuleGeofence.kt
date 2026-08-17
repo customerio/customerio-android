@@ -33,7 +33,8 @@ private const val MODULE_NAME = "Geofence"
  * to the CDP, and the local set is refreshed when the user moves far enough. Polygon
  * registrations use displacement-gated, balanced-power approach fixes so the
  * fine evaluator can wake before a delayed enclosing-circle callback. This responsive mode
- * does not start a foreground service.
+ * does not start a foreground service. Hosts with an independently eligible continuous-location
+ * use case can opt into [PolygonTrackingMode.CONTINUOUS] through [GeofenceModuleConfig].
  *
  * Requires [ModuleLocation] to be registered alongside it — geofencing uses its
  * location provider regardless of the location tracking mode, and works even when
@@ -64,13 +65,22 @@ class ModuleGeofence @JvmOverloads constructor(
         // installing subscriptions that would silently never deliver.
         val locationModule = runCatching { ModuleLocation.instance() }.getOrNull()
         if (locationModule == null) {
-            runCatching { SDKComponent.android().polygonGeofenceServiceController.stopAll() }
+            runCatching {
+                SDKComponent.android().polygonGeofenceServiceController.apply {
+                    setTrackingMode(PolygonTrackingMode.RESPONSIVE)
+                    stopAll()
+                }
+            }
             logger.logMissingLocationModule()
             return
         }
 
         val eventBus = SDKComponent.eventBus
         val sdkAndroid = SDKComponent.android()
+
+        sdkAndroid.polygonGeofenceServiceController.setTrackingMode(
+            moduleConfig.polygonTrackingMode
+        )
 
         subscribeToEvents(eventBus, sdkAndroid, locationModule)
         scheduleForegroundWork(eventBus, sdkAndroid, logger, locationModule)

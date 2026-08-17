@@ -7,6 +7,10 @@
         - android.permission.ACCESS_BACKGROUND_LOCATION
         - android.permission.RECEIVE_BOOT_COMPLETED
 
+        PolygonTrackingMode.CONTINUOUS additionally requires the host to declare the SDK's
+        PolygonLocationService plus:
+        - android.permission.FOREGROUND_SERVICE
+        - android.permission.FOREGROUND_SERVICE_LOCATION
         The SDK does not declare them to avoid adding permissions for customers
         not using geofencing.
     -->

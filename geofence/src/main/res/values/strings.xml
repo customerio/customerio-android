@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="cio_polygon_geofence_notification_channel">Location-based messages</string>
+    <string name="cio_polygon_geofence_notification_title">Location monitoring active</string>
+    <string name="cio_polygon_geofence_notification_text">Checking entry and exit for a nearby area</string>
+</resources>

@@ -52,8 +52,12 @@ internal class PolygonLocationService : Service() {
 
         // The one check that runs before promotion: a sticky restart, or a start racing a switch
         // back to responsive mode, must not put a location notification in front of a host that has
-        // not opted in. It is a single preference read, so the promotion deadline is never at risk.
-        val continuousEnabled = runCatching { controller.isContinuousTrackingEnabled() }
+        // not opted in. It is a lock-free read of the persisted mode — the controller lock is held
+        // across catalog work by recovery and approach batches, and blocking this thread on it would
+        // trade a stray notification for a missed promotion deadline, which kills the process. The
+        // snapshot can therefore be one write stale; the locked recheck inside
+        // startFineLocationStream below is what decides whether anything is actually sampled.
+        val continuousEnabled = runCatching { controller.isContinuousTrackingModeSnapshot() }
             .getOrDefault(false)
         if (!continuousEnabled) {
             stopSelf()

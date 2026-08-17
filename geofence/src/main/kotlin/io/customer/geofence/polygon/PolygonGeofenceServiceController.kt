@@ -8,6 +8,7 @@ import android.os.Looper
 import android.os.SystemClock
 import androidx.core.content.ContextCompat
 import io.customer.geofence.GeofenceLogger
+import io.customer.geofence.GeofenceRegion
 import io.customer.geofence.PolygonTrackingMode
 import io.customer.geofence.distanceTo
 import io.customer.geofence.store.GeofenceRegionStore
@@ -175,10 +176,11 @@ internal class PolygonGeofenceServiceController(
             invalidatePersistedCoarseState()
             return@synchronized
         }
-        val polygonIds = store.getRoutableRegisteredIds().filterTo(mutableSetOf()) {
-            store.getCachedRegion(it)?.isPolygon == true
+        val cachedRegions = cachedRegionsByIdLocked()
+        val hasRoutablePolygon = store.getRoutableRegisteredIds().any {
+            cachedRegions[it]?.isPolygon == true
         }
-        if (polygonIds.isEmpty()) approachMonitor.stop() else approachMonitor.start(store.userStateGeneration())
+        if (!hasRoutablePolygon) approachMonitor.stop() else approachMonitor.start(store.userStateGeneration())
         // Foreground entry is exactly when a background-start restriction stops applying, so a
         // previous denial must not keep the gate shut through the one window that would succeed.
         promotionDeniedUntilElapsedMs = null
@@ -235,8 +237,9 @@ internal class PolygonGeofenceServiceController(
                 val coarseInside = store.getCoarseInsidePolygonIds()
                 val committedInside = store.getEnteredIds()
                 val approachOnly = store.getActivePolygonIds() - coarseInside - committedInside
+                val cachedRegions = if (approachOnly.isEmpty()) emptyMap() else cachedRegionsByIdLocked()
                 approachOnly.forEach { id ->
-                    val region = store.getCachedRegion(id)
+                    val region = cachedRegions[id]
                     val confidentlyOutside = region?.isPolygon != true ||
                         region.distanceTo(location.latitude, location.longitude) -
                         fix.sample.horizontalAccuracyMeters >
@@ -301,9 +304,21 @@ internal class PolygonGeofenceServiceController(
         fineStream.start(onUnavailable)
     }
 
-    fun isContinuousTrackingEnabled(): Boolean = synchronized(controllerLock) {
-        isContinuousTrackingEnabledLocked()
-    }
+    /**
+     * The persisted mode, read without taking [controllerLock], for [PolygonLocationService] only.
+     *
+     * That caller has to reach [startForeground][android.app.Service.startForeground] inside the
+     * Android promotion deadline, and this lock is held across catalog work by [recover] and
+     * [processApproachLocations]; waiting for it there risks the deadline — and with it the process —
+     * instead of the notification this check exists to suppress. Lock-free is sound because the mode
+     * is a single [android.content.SharedPreferences] string key, whose reads and writes are
+     * internally synchronized, so the answer is always one complete mode rather than a torn one.
+     *
+     * It can be one write stale, so it only gates the notification. The authoritative decision stays
+     * the locked recheck in [startFineLocationStream], which runs after promotion and stops a start
+     * that raced a switch back to responsive before anything is sampled.
+     */
+    fun isContinuousTrackingModeSnapshot(): Boolean = isContinuousTrackingModePersisted()
 
     /**
      * Persists the configured mode and reconciles the runtime to it. Does blocking preference,
@@ -631,6 +646,23 @@ internal class PolygonGeofenceServiceController(
         if (isContinuousTrackingEnabledLocked()) startService()
     }
 
-    private fun isContinuousTrackingEnabledLocked(): Boolean =
+    private fun isContinuousTrackingEnabledLocked(): Boolean = isContinuousTrackingModePersisted()
+
+    /** Reads only persisted state, so it is correct with or without [controllerLock]. */
+    private fun isContinuousTrackingModePersisted(): Boolean =
         store.getPolygonTrackingMode() == PolygonTrackingMode.CONTINUOUS
+
+    /**
+     * The current catalog keyed by id, decoded once. [GeofenceRegionStore.getCachedRegion] decodes
+     * the whole catalog on every call, so looking regions up one id at a time inside a loop turns it
+     * into O(N²) JSON work — done while holding [controllerLock], which the service start path must
+     * not wait on. First entry wins for a duplicated id, matching [GeofenceRegionStore.getCachedRegion].
+     */
+    private fun cachedRegionsByIdLocked(): Map<String, GeofenceRegion> {
+        val regionsById = mutableMapOf<String, GeofenceRegion>()
+        for (region in store.getCachedRegions()) {
+            if (region.id !in regionsById) regionsById[region.id] = region
+        }
+        return regionsById
+    }
 }

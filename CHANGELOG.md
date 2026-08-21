@@ -1,3 +1,9 @@
+## [4.20.2](https://github.com/customerio/customerio-android/compare/4.20.1...4.20.2) (2026-08-21)
+
+### Bug Fixes
+
+* **in-app:** send app identifier header to gist ([#812](https://github.com/customerio/customerio-android/issues/812)) ([bbd5616](https://github.com/customerio/customerio-android/commit/bbd561674b0c0ad46ae191d20166fda70a5e102e))
+
 ## [4.20.1](https://github.com/customerio/customerio-android/compare/4.20.0...4.20.1) (2026-08-06)
 
 ## [4.20.0](https://github.com/customerio/customerio-android/compare/4.19.0...4.20.0) (2026-07-30)

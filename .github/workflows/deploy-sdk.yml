@@ -65,9 +65,11 @@ jobs:
         id: semantic-release
         with:
           dry_run: false
-          semantic_version: latest
+          # Pinned: the conventionalcommits preset's 10.x line renders via
+          # conventional-changelog-writer@9, which no released semantic-release ships.
+          semantic_version: 25.0.9
           extra_plugins: |
-            conventional-changelog-conventionalcommits
+            conventional-changelog-conventionalcommits@9.3.1
             @semantic-release/github
             @semantic-release/exec
         env:

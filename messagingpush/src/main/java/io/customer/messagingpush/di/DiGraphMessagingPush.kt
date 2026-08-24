@@ -3,6 +3,7 @@
 package io.customer.messagingpush.di
 
 import com.google.android.gms.common.GoogleApiAvailability
+import com.google.firebase.installations.FirebaseInstallations
 import com.google.firebase.messaging.FirebaseMessaging
 import io.customer.base.internal.InternalCustomerIOApi
 import io.customer.messagingpush.AsyncPushDeliveryTracker
@@ -44,6 +45,7 @@ internal val AndroidSDKComponent.fcmTokenProvider: DeviceTokenProvider
             context = applicationContext,
             googleApiAvailabilityProvider = { GoogleApiAvailability.getInstance() },
             firebaseMessagingProvider = { FirebaseMessaging.getInstance() },
+            firebaseInstallationsProvider = { FirebaseInstallations.getInstance() },
             pushLogger = SDKComponent.pushLogger
         )
     }

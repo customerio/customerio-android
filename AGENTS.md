@@ -14,10 +14,10 @@ After making changes to Unit Tests, ALWAYS test the changed test classes. Avoid 
 - Test single class: `./gradlew :MODULE_NAME:test --tests "ClassName"`
 - Lint: `make lint` or `./gradlew lintDebug`
 - Format: `make format` (run before lint)
-- Install local Maven artifacts: `make install-local-sdk`
+- Install local Maven artifacts: `./gradlew publishToMavenLocal`
 
 ## Code Style
-- **Kotlin 1.8.21** with object-oriented and functional programming patterns
+- **Kotlin 2.1.21** with object-oriented and functional programming patterns
 - Naming: PascalCase for classes, camelCase for properties/methods/variables
 - Package naming: `io.customer.sdk.*` for public APIs, `io.customer.MODULE.*` for module-specific code
 - Always use dependency injection via `DIGraphShared` and module-specific DI graphs
@@ -40,9 +40,9 @@ After making changes to Unit Tests, ALWAYS test the changed test classes. Avoid 
 
 ## Android-Specific Considerations
 - **Minimum SDK**: API 21 (Android 5.0)
-- **Target SDK**: API 33+ (follow current Android recommendations)
-- **Kotlin Version**: 1.8.21 - when adding new dependencies, ensure they're compatible with this Kotlin version
-- **Compose BOM**: 2023.03.00 (compatible with compileSdk 33)
+- **Target SDK**: API 36 (compileSdk 36, targetSdk 36)
+- **Kotlin Version**: 2.1.21 - when adding new dependencies, ensure they're compatible with this Kotlin version
+- **Compose BOM**: 2025.10.00 (compatible with compileSdk 36)
 - Always check API level compatibility when using newer Android features
 - Use AndroidX libraries instead of deprecated support libraries
 - Handle Android lifecycle properly (Activities, Fragments, Services)
@@ -201,7 +201,7 @@ CustomerIO.instance().track("event-name")
 4. Run tests: `./gradlew test`
 
 ### Making Changes
-1. Create feature branch from `develop`
+1. Create feature branch from `main`
 2. Implement changes following code style guidelines
 3. Add/update tests for new functionality
 4. Run `make format` and `make lint`
@@ -230,7 +230,7 @@ The SDK includes two sample applications for testing and demonstration:
 #### Using Sample Apps for Development
 ```bash
 # Install local SDK artifacts first
-make install-local-sdk
+./gradlew publishToMavenLocal
 
 # Run Java sample app
 cd samples/java_layout
@@ -247,7 +247,7 @@ adb logcat -s CustomerIO
 #### Sample App Configuration
 - Both apps require `google-services.json` for Firebase integration
 - Test credentials should be configured in the app's initialization code
-- Sample apps automatically use local SDK artifacts when `make install-local-sdk` is run
+- Sample apps automatically use local SDK artifacts when `./gradlew publishToMavenLocal` is run
 - Use sample apps to test new features before writing unit tests
 - Sample apps serve as integration tests for the SDK
 

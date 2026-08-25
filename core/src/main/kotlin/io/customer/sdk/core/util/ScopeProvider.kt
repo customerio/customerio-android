@@ -18,7 +18,9 @@ class SdkScopeProvider(private val dispatchers: DispatchersProvider) : ScopeProv
     // Last-resort net: an exception escaping a coroutine on an SDK scope would crash the
     // host app. This only logs and drops — call sites still own their error handling.
     private val exceptionHandler = CoroutineExceptionHandler { _, throwable ->
-        SDKComponent.logger.error("Uncaught exception in SDK coroutine", throwable = throwable)
+        // Exception spelled into the message: custom log dispatchers (wrapper SDKs) receive only
+        // the message string, not the throwable.
+        SDKComponent.logger.error("Uncaught exception in SDK coroutine: $throwable", throwable = throwable)
     }
 
     override val eventBusScope: CoroutineScope

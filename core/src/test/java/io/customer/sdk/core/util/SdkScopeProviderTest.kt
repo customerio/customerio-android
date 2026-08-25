@@ -42,7 +42,14 @@ class SdkScopeProviderTest : JUnit5Test() {
             scope.launch { throw IllegalStateException("uncaught SDK failure") }.join()
         }
 
-        verify(exactly = scopes.size) { mockLogger.error(any(), any(), any<IllegalStateException>()) }
+        // Message must carry the exception itself: custom log dispatchers only receive the string.
+        verify(exactly = scopes.size) {
+            mockLogger.error(
+                match { it.contains("IllegalStateException") && it.contains("uncaught SDK failure") },
+                any(),
+                any<IllegalStateException>()
+            )
+        }
     }
 
     @Test

@@ -197,6 +197,10 @@ internal class GeofenceLogger(private val logger: Logger) {
         logger.debug("Geofence foreground flush complete: $count transition(s) handed off this run", tag = TAG)
     }
 
+    fun logAsyncDeliveryFailed(geofenceId: String, transitionName: String, message: String?) {
+        logger.error("Geofence '$geofenceId' $transitionName: async delivery failed unexpectedly; left in pending store for the foreground flush — $message", tag = TAG)
+    }
+
     fun logSchedulerFailed(geofenceId: String, transitionName: String, message: String?) {
         logger.error("Geofence '$geofenceId' $transitionName: WorkManager scheduling failed; left in pending store for the foreground flush — $message", tag = TAG)
     }

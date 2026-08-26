@@ -114,6 +114,7 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
         every { mockStore.getRoutableRegisteredIds() } answers { mockStore.getRegisteredIds() }
         every { mockStore.userStateGeneration() } returns 0L
         every { mockStore.activeUserSessionId() } returns "user-42"
+        coEvery { mockPolygonController.onMovementTriggerExit(any(), any()) } returns null
         // Default: the device counts as inside every fence, so the EXIT guard is a no-op.
         // Tests for the guard override.
         every { mockStore.claimExit(any()) } returns true

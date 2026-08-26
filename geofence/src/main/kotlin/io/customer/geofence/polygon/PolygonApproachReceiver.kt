@@ -4,6 +4,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.location.Location
+import android.os.SystemClock
 import com.google.android.gms.location.LocationResult
 import io.customer.geofence.di.geofenceLogger
 import io.customer.geofence.di.polygonApproachMonitor
@@ -25,6 +26,10 @@ class PolygonApproachReceiver : BroadcastReceiver() {
             Long.MIN_VALUE
         )
         if (expectedUserStateGeneration == Long.MIN_VALUE) return
+        val deliveredSessionDeadlineElapsedRealtimeMs = intent.getLongExtra(
+            PolygonApproachMonitor.EXTRA_SESSION_DEADLINE_ELAPSED_REALTIME_MS,
+            Long.MIN_VALUE
+        )
 
         val pendingResult = goAsync()
         try {
@@ -32,12 +37,23 @@ class PolygonApproachReceiver : BroadcastReceiver() {
             val workScope = SDKComponent.scopeProvider.geofenceScope
             workScope.launch {
                 try {
-                    val scheduled = SDKComponent.android().polygonApproachWorkScheduler.enqueue(
-                        result.locations,
-                        expectedUserStateGeneration
-                    )
+                    val sessionDeadlineElapsedRealtimeMs =
+                        deliveredSessionDeadlineElapsedRealtimeMs.takeUnless {
+                            it == Long.MIN_VALUE
+                        } ?: PolygonApproachMonitor.newSessionDeadlineElapsedRealtimeMs()
+                    val expired = sessionDeadlineElapsedRealtimeMs <= SystemClock.elapsedRealtime()
+                    val scheduled = !expired &&
+                        SDKComponent.android().polygonApproachWorkScheduler.enqueue(
+                            result.locations,
+                            expectedUserStateGeneration,
+                            sessionDeadlineElapsedRealtimeMs
+                        )
                     if (!scheduled) {
-                        handleLocations(result.locations, expectedUserStateGeneration)
+                        handleLocations(
+                            result.locations,
+                            expectedUserStateGeneration,
+                            sessionDeadlineElapsedRealtimeMs
+                        )
                     }
                 } catch (e: CancellationException) {
                     throw e
@@ -57,25 +73,49 @@ class PolygonApproachReceiver : BroadcastReceiver() {
     internal suspend fun handleLocations(
         locations: List<Location>,
         expectedUserStateGeneration: Long,
+        sessionDeadlineElapsedRealtimeMs: Long = Long.MAX_VALUE,
         userId: String? = SDKComponent.android().secureUserStore.getUserId(),
         controller: PolygonGeofenceServiceController =
             SDKComponent.android().polygonGeofenceServiceController,
         monitor: PolygonApproachMonitor = SDKComponent.android().polygonApproachMonitor
     ) {
+        val effectiveDeadline = sessionDeadlineElapsedRealtimeMs.takeUnless {
+            it == Long.MIN_VALUE
+        } ?: PolygonApproachMonitor.newSessionDeadlineElapsedRealtimeMs()
+        val expired = effectiveDeadline <= SystemClock.elapsedRealtime()
         val identifiedUserId = userId?.takeIf { it.isNotEmpty() }
         if (identifiedUserId != null) {
             controller.beginUserSession(identifiedUserId)
-            val accepted = controller.processApproachLocations(
-                locations,
-                expectedUserStateGeneration
-            )
-            if (accepted) {
-                // A PendingIntent can cold-start a fresh SDK process. Adopt/re-register the live
-                // request so a later sign-out can remove it immediately in this process.
-                monitor.start(expectedUserStateGeneration)
-                return
+            when (
+                controller.processApproachLocations(
+                    locations,
+                    expectedUserStateGeneration
+                )
+            ) {
+                PolygonSamplingDecision.CONTINUE -> {
+                    if (expired) {
+                        monitor.stop(expectedUserStateGeneration, effectiveDeadline)
+                        return
+                    }
+                    // A PendingIntent can cold-start a fresh SDK process. Adopt the bounded session
+                    // so a later sign-out can remove it immediately in this process.
+                    monitor.start(
+                        expectedUserStateGeneration,
+                        effectiveDeadline
+                    )
+                    return
+                }
+                PolygonSamplingDecision.STOP -> {
+                    monitor.stop(expectedUserStateGeneration, effectiveDeadline)
+                    return
+                }
+                PolygonSamplingDecision.STALE -> Unit
             }
         }
-        monitor.removeStaleGeneration(expectedUserStateGeneration)
+        if (expired) {
+            monitor.stop(expectedUserStateGeneration, effectiveDeadline)
+        } else {
+            monitor.removeStaleGeneration(expectedUserStateGeneration)
+        }
     }
 }

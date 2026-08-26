@@ -8,6 +8,7 @@ internal data class PendingPolygonApproachBatch(
     val id: String,
     val userStateGeneration: Long,
     val bootSessionId: String,
+    val sessionDeadlineElapsedRealtimeMs: Long = Long.MIN_VALUE,
     val locations: List<PendingPolygonApproachLocation>
 )
 

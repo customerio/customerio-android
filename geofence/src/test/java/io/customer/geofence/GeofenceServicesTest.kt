@@ -63,6 +63,22 @@ class GeofenceServicesTest : RobolectricTest() {
     }
 
     @Test
+    fun onMovementTriggerExit_givenAdaptiveRadius_expectForwardsItToRegistrationPass() =
+        runTest(StandardTestDispatcher()) {
+            coEvery { repository.handleMovement(any(), any(), any()) } returns Result.success(Unit)
+            val services = servicesWith(this)
+
+            services.onMovementTriggerExit(
+                latitude = 12.34,
+                longitude = 56.78,
+                movementTriggerRadiusMeters = 725f
+            )
+            advanceUntilIdle()
+
+            coVerify { repository.handleMovement(12.34, 56.78, 725f) }
+        }
+
+    @Test
     fun onUserIdentified_expectRefreshCalled() = runTest(StandardTestDispatcher()) {
         coEvery { repository.refresh(any(), any()) } returns Result.success(Unit)
         val services = servicesWith(this)

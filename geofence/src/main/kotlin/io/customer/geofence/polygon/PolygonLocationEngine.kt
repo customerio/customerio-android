@@ -13,23 +13,20 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
 /**
- * Decides polygon containment from the sparse fixes the *responsive* runtime already receives.
+ * Decides polygon containment from fixes admitted by the wake-scoped responsive runtime.
  *
  * ## What this engine is
  *
- * It never asks the OS for location. Every fix it sees was delivered for another reason: a
- * GMS enclosing-circle callback ([PolygonGeofenceServiceController.activate]/`onCoarseExit`) or a
- * low-power displacement-gated approach batch ([PolygonApproachMonitor]). The engine's job is to
- * decide, per fix, whether that single fix *alone* is decisive enough to move committed containment
- * ([PolygonEvidencePolicy.DECISIVE_SINGLE_FIX]).
+ * It never asks the OS for location. Every fix it sees came from a GMS wake callback or the bounded
+ * [PolygonApproachMonitor] session opened after that callback. The engine decides whether a fix is
+ * decisive enough to move committed containment ([PolygonEvidencePolicy.DECISIVE_SINGLE_FIX]).
  *
  * ## Best-effort boundary — read before relying on it
  *
- * This is deliberately low-power, and that has consequences it does not hide:
+ * This is deliberately bounded, and that has consequences it does not hide:
  *
- * - **Unobserved crossings are missed.** Between two approach fixes the device can enter and leave a
- *   polygon entirely. No fix means no evidence means no transition. The engine reports what it saw,
- *   not what happened.
+ * - **Unobserved crossings are missed.** If neither an enclosing-circle nor adaptive-movement wake
+ *   produces a usable fix, the engine has no evidence and emits no transition.
  * - **A fix near the boundary decides nothing.** [PolygonAccuracyEvaluator.decisiveEvidenceFor]
  *   requires the whole accuracy circle, plus an anti-jitter margin, to be on one side of the ring.
  *   Fixes coarser than the decisive accuracy ceiling, and fixes whose uncertainty straddles the
@@ -40,11 +37,8 @@ import kotlinx.coroutines.sync.withLock
  *   reporting typical background accuracy it will produce none. That is a reported limitation, not a
  *   defect to be tuned around here.
  *
- * A continuous high-accuracy stream — which is what would close those gaps, at a real battery cost —
- * is **not** part of this SDK build. It lands with the foreground-service runtime and will
- * feed this same engine through [processLocations] with
- * [PolygonEvidencePolicy.CONFIRMED], the multi-fix policy [PolygonRouteProcessor] already
- * implements. Nothing here claims or attempts that stream today.
+ * V1 deliberately has no continuous or foreground-service mode. The bounded session stops as soon
+ * as a safe adaptive movement trigger can take over, or when its time budget expires.
  */
 internal class PolygonLocationEngine(
     private val store: GeofenceRegionStore,
@@ -112,7 +106,7 @@ internal class PolygonLocationEngine(
     suspend fun processResponsiveLocation(
         location: Location,
         expectedUserStateGeneration: Long = store.userStateGeneration()
-    ) = processLocations(
+    ): Boolean = processLocations(
         locations = listOf(location),
         expectedUserStateGeneration = expectedUserStateGeneration,
         evidencePolicy = PolygonEvidencePolicy.DECISIVE_SINGLE_FIX
@@ -121,22 +115,20 @@ internal class PolygonLocationEngine(
     /**
      * Ordered evaluation of a batch of fixes under [evidencePolicy].
      *
-     * The only caller today is [processResponsiveLocation], which passes one fix and
-     * [PolygonEvidencePolicy.DECISIVE_SINGLE_FIX]. This is the seam the continuous runtime
-     * plugs into: it will hand whole [android.location.LocationResult] batches here under
-     * [PolygonEvidencePolicy.CONFIRMED] without changing anything below.
+     * V1 calls this through [processResponsiveLocation], one fix at a time under
+     * [PolygonEvidencePolicy.DECISIVE_SINGLE_FIX].
      */
     private suspend fun processLocations(
         locations: List<Location>,
         expectedUserStateGeneration: Long,
         evidencePolicy: PolygonEvidencePolicy
-    ) = processingMutex.withLock {
-        if (locations.isEmpty()) return
-        if (store.userStateGeneration() != expectedUserStateGeneration) return
+    ): Boolean = processingMutex.withLock {
+        if (locations.isEmpty()) return@withLock false
+        if (store.userStateGeneration() != expectedUserStateGeneration) return@withLock false
         // Every active location batch is also an autonomous outbox-recovery opportunity. Do not
         // evaluate a newer edge while an older one is still unable to reach the durable file queue.
-        if (!transitionProcessor.recoverPendingTransitions()) return
-        if (store.userStateGeneration() != expectedUserStateGeneration) return
+        if (!transitionProcessor.recoverPendingTransitions()) return@withLock false
+        if (store.userStateGeneration() != expectedUserStateGeneration) return@withLock false
         val sessionArmed = synchronized(stateLock) {
             if (store.userStateGeneration() != expectedUserStateGeneration) {
                 false
@@ -145,33 +137,40 @@ internal class PolygonLocationEngine(
                 true
             }
         }
-        if (!sessionArmed) return
-        locations.sortedBy(Location::getElapsedRealtimeNanos).forEach { location ->
-            if (store.userStateGeneration() != expectedUserStateGeneration) return@withLock
+        if (!sessionArmed) return@withLock false
+        var acceptedFix = false
+        for (location in locations.sortedBy(Location::getElapsedRealtimeNanos)) {
+            if (store.userStateGeneration() != expectedUserStateGeneration) return@withLock false
             val fix = location.toPolygonLocationFix()
             if (fix == null) {
                 logger.logPolygonFixNotUsable("it carries no usable accuracy or monotonic timestamp")
-                return@forEach
+                continue
             }
             val detections = synchronized(stateLock) {
-                if (store.userStateGeneration() != expectedUserStateGeneration) return@forEach
+                if (store.userStateGeneration() != expectedUserStateGeneration) return@withLock false
                 if (!isCurrentSessionFixLocked(fix.elapsedRealtimeNanos)) {
                     logger.logPolygonFixNotUsable("it predates the current evaluation session or is too old")
-                    return@forEach
+                    null
+                } else {
+                    val fences = activePolygonFencesLocked()
+                    if (fences.isEmpty()) {
+                        emptyList()
+                    } else {
+                        acceptedFix = true
+                        val committedStates = store.getEnteredIds()
+                            .associateWith { PolygonCommittedState.INSIDE }
+                        routeProcessor.process(
+                            fences = fences,
+                            sample = fix.sample,
+                            elapsedRealtimeNanos = fix.elapsedRealtimeNanos,
+                            committedStates = committedStates,
+                            evidencePolicy = evidencePolicy
+                        )
+                    }
                 }
-                val fences = activePolygonFencesLocked()
-                if (fences.isEmpty()) return@forEach
-                val committedStates = store.getEnteredIds().associateWith { PolygonCommittedState.INSIDE }
-                routeProcessor.process(
-                    fences = fences,
-                    sample = fix.sample,
-                    elapsedRealtimeNanos = fix.elapsedRealtimeNanos,
-                    committedStates = committedStates,
-                    evidencePolicy = evidencePolicy
-                )
-            }
+            } ?: continue
             detections.forEach { detection ->
-                if (store.userStateGeneration() != expectedUserStateGeneration) return@withLock
+                if (store.userStateGeneration() != expectedUserStateGeneration) return@withLock false
                 val transition = when (detection.transition) {
                     PolygonTransition.ENTER -> Event.GeofenceTransition.ENTER
                     PolygonTransition.EXIT -> Event.GeofenceTransition.EXIT
@@ -185,11 +184,11 @@ internal class PolygonLocationEngine(
                     expectedUserStateGeneration = expectedUserStateGeneration,
                     requireRegistered = true
                 )
-                if (store.userStateGeneration() != expectedUserStateGeneration) return@withLock
+                if (store.userStateGeneration() != expectedUserStateGeneration) return@withLock false
                 if (detection.transition == PolygonTransition.EXIT) {
                     synchronized(stateLock) {
                         if (store.userStateGeneration() != expectedUserStateGeneration) {
-                            return@withLock
+                            return@withLock false
                         }
                         if (
                             detection.polygonId !in store.getCoarseInsidePolygonIds() &&
@@ -205,6 +204,7 @@ internal class PolygonLocationEngine(
                 }
             }
         }
+        acceptedFix
     }
 
     private fun observedTimestampSeconds(fix: AndroidPolygonLocationFix): Long {

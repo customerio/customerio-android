@@ -24,7 +24,11 @@ internal class PolygonApproachWorkScheduler(
     private val store: GeofenceRegionStore,
     private val bootSessionProvider: PolygonBootSessionProvider
 ) {
-    suspend fun enqueue(locations: List<Location>, userStateGeneration: Long): Boolean {
+    suspend fun enqueue(
+        locations: List<Location>,
+        userStateGeneration: Long,
+        sessionDeadlineElapsedRealtimeMs: Long
+    ): Boolean {
         if (locations.isEmpty()) return true
         val workManager = workManagerProvider.getWorkManager() ?: return false
         val bootSessionId = bootSessionProvider.currentSessionId()
@@ -33,6 +37,7 @@ internal class PolygonApproachWorkScheduler(
                 id = UUID.randomUUID().toString(),
                 userStateGeneration = userStateGeneration,
                 bootSessionId = bootSessionId,
+                sessionDeadlineElapsedRealtimeMs = sessionDeadlineElapsedRealtimeMs,
                 locations = locationsInBatch.map(Location::toPendingApproachLocation)
             )
         }
@@ -87,7 +92,8 @@ internal class PolygonApproachWorker(
         return try {
             PolygonApproachReceiver().handleLocations(
                 locations = batch.locations.map(PendingPolygonApproachLocation::toLocation),
-                expectedUserStateGeneration = batch.userStateGeneration
+                expectedUserStateGeneration = batch.userStateGeneration,
+                sessionDeadlineElapsedRealtimeMs = batch.sessionDeadlineElapsedRealtimeMs
             )
             if (store.removePendingPolygonApproachBatch(batch.id)) {
                 Result.success()

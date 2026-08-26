@@ -159,6 +159,24 @@ class GeofenceManagerTest : RobolectricTest() {
     }
 
     @Test
+    fun replaceMovementTrigger_expectReplacesOnlyReservedRegionWithExitWake() = runTest {
+        grantAllPermissions()
+        val requestSlot = slot<GeofencingRequest>()
+        stubClientRemoveByIdsSuccess()
+        stubClientAddSuccess(requestSlot)
+
+        val result = manager.replaceMovementTrigger(
+            buildRegion(id = GeofenceConstants.MOVEMENT_TRIGGER_ID, radius = 725f)
+        )
+
+        result.isSuccess.shouldBeTrue()
+        verify { client.removeGeofences(listOf(GeofenceConstants.MOVEMENT_TRIGGER_ID)) }
+        requestSlot.captured.geofences.single().requestId shouldBeEqualTo
+            GeofenceConstants.MOVEMENT_TRIGGER_ID
+        requestSlot.captured.initialTrigger shouldBeEqualTo GeofencingRequest.INITIAL_TRIGGER_EXIT
+    }
+
+    @Test
     fun replaceGeofencesForBootRestore_givenMovementTrigger_expectInitialTriggerExit() = runTest {
         grantAllPermissions()
 

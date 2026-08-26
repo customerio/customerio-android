@@ -323,6 +323,29 @@ class GeofenceRepositoryTest : RobolectricTest() {
     }
 
     @Test
+    fun handleMovement_givenAdaptivePolygonRadius_expectPreservesItDuringLocalRerank() = runTest {
+        val cached = listOf(GeofenceRegion("biz-1", 0.0, 0.0, 100f))
+        every { secureUserStore.getUserId() } returns "user-42"
+        every { store.getLastApiFetchLocation() } returns GeofenceLocation(0.0, 0.0)
+        every { store.getCachedConfig() } returns sampleConfig()
+        every { store.getCachedRegions() } returns cached
+        every { store.getRegisteredIds() } returns setOf("biz-1")
+        every { distanceFilter.nearest(any(), any(), any(), any(), any()) } returns cached
+        val registered = slot<List<GeofenceRegion>>()
+        coEvery { manager.replaceGeofences(capture(registered), any()) } returns Result.success(Unit)
+
+        repository.handleMovement(
+            latitude = 0.01,
+            longitude = 0.0,
+            movementTriggerRadiusMeters = 725f
+        )
+
+        registered.captured.single {
+            it.id == GeofenceConstants.MOVEMENT_TRIGGER_ID
+        }.radius shouldBeEqualTo 725f
+    }
+
+    @Test
     fun refresh_givenFreshAndNotMoved_expectSkip() = runTest {
         every { secureUserStore.getUserId() } returns "user-42"
         every { store.getLastSyncTimestamp() } returns System.currentTimeMillis() - 60_000L
@@ -2396,7 +2419,7 @@ class GeofenceRepositoryTest : RobolectricTest() {
     )
 
     @Test
-    fun refresh_givenPolygonResponseAndFixInsideTrigger_expectArmsEvaluatorWithoutSyntheticBusinessEnter() = runTest {
+    fun refresh_givenPolygonResponseAndFixInsideTrigger_expectRegistersWithoutStartingSampling() = runTest {
         every { secureUserStore.getUserId() } returns "user-42"
         every { clock.currentTimeMillis() } returns 200_000_000_000L
         every { store.getLastSyncTimestamp() } returns 1_000L
@@ -2409,13 +2432,7 @@ class GeofenceRepositoryTest : RobolectricTest() {
         repository.refresh(latitude = 37.7750, longitude = -122.4194)
 
         verify { polygonController.reconcileRegisteredPolygons(setOf("campus")) }
-        verify {
-            polygonController.activate(
-                "campus",
-                0L,
-                any<Int>()
-            )
-        }
+        verify(exactly = 0) { polygonController.activate(any(), any<Long>(), any<Int>()) }
         coVerify(exactly = 0) {
             transitionEmitter.emitWithExpectedState(
                 geofenceId = "campus",
@@ -2526,6 +2543,12 @@ class GeofenceRepositoryTest : RobolectricTest() {
           },
           "geofences": [{
             "id": "campus",
+            "shape": "polygon",
+            "enclosing_circle": {
+              "latitude": 37.775,
+              "longitude": -122.4194,
+              "base_radius_m": 100
+            },
             "geometry": {
               "type": "Polygon",
               "coordinates": [[

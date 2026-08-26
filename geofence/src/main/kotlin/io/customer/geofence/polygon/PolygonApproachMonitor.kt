@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
+import android.os.SystemClock
 import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.LocationRequest
 import com.google.android.gms.location.Priority
@@ -19,9 +20,9 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /**
- * Keeps a low-power, displacement-gated location request active while polygons are registered.
- * Its PendingIntent survives process death and gives the SDK a second chance to wake before a
- * delayed enclosing-circle callback. Exact polygon decisions remain in [PolygonLocationEngine].
+ * Runs a bounded location session after an OS polygon or shared-movement wake cannot establish a
+ * safely passive state. Merely registering polygons never starts this request. Exact polygon
+ * decisions remain in [PolygonLocationEngine].
  */
 internal class PolygonApproachMonitor(
     context: Context,
@@ -32,11 +33,13 @@ internal class PolygonApproachMonitor(
     private val lock = Any()
     private var desired = false
     private var userStateGeneration: Long? = null
+    private var sessionDeadlineElapsedRealtimeMs: Long? = null
     private var activePendingIntent: PendingIntent? = null
     private val applicationContext = context.applicationContext
     private val retryScope = CoroutineScope(SupervisorJob() + backgroundContext)
     private var registrationRetryAttempt = 0
     private var registrationRetryJob: Job? = null
+    private var sessionTimeoutJob: Job? = null
     private val removalRetryAttempts = mutableMapOf<PendingIntent, Int>()
     private val removalRetryJobs = mutableMapOf<PendingIntent, Job>()
 
@@ -52,16 +55,42 @@ internal class PolygonApproachMonitor(
      * requirement onto callers that this class does not actually have, and the only honest way to
      * satisfy it there would be to suppress the warning at each site.
      */
-    fun start(expectedUserStateGeneration: Long) {
+    fun start(
+        expectedUserStateGeneration: Long,
+        sessionDeadlineElapsedRealtimeMs: Long = newSessionDeadlineElapsedRealtimeMs()
+    ) {
+        if (sessionDeadlineElapsedRealtimeMs <= SystemClock.elapsedRealtime()) {
+            stop(expectedUserStateGeneration, sessionDeadlineElapsedRealtimeMs)
+            return
+        }
         val registration = synchronized(lock) {
-            if (desired && userStateGeneration == expectedUserStateGeneration) return
+            if (
+                desired &&
+                userStateGeneration == expectedUserStateGeneration &&
+                this.sessionDeadlineElapsedRealtimeMs.orExpired() > SystemClock.elapsedRealtime()
+            ) {
+                return
+            }
             val previous = activePendingIntent
             desired = true
             userStateGeneration = expectedUserStateGeneration
+            this.sessionDeadlineElapsedRealtimeMs = sessionDeadlineElapsedRealtimeMs
             registrationRetryAttempt = 0
             registrationRetryJob?.cancel()
             registrationRetryJob = null
-            val current = pendingIntent(applicationContext, expectedUserStateGeneration).also {
+            sessionTimeoutJob?.cancel()
+            sessionTimeoutJob = retryScope.launch {
+                delay(
+                    (sessionDeadlineElapsedRealtimeMs - SystemClock.elapsedRealtime())
+                        .coerceAtLeast(0L)
+                )
+                stop(expectedUserStateGeneration, sessionDeadlineElapsedRealtimeMs)
+            }
+            val current = pendingIntent(
+                applicationContext,
+                expectedUserStateGeneration,
+                sessionDeadlineElapsedRealtimeMs
+            ).also {
                 activePendingIntent = it
             }
             removalRetryJobs.remove(current)?.cancel()
@@ -72,17 +101,39 @@ internal class PolygonApproachMonitor(
         requestUpdates(registration.second, expectedUserStateGeneration)
     }
 
-    fun stop() {
+    fun stop(
+        expectedUserStateGeneration: Long? = null,
+        expectedSessionDeadlineElapsedRealtimeMs: Long? = null
+    ) {
         val pendingIntent = synchronized(lock) {
+            if (
+                expectedSessionDeadlineElapsedRealtimeMs != null &&
+                desired &&
+                (
+                    userStateGeneration != expectedUserStateGeneration ||
+                        sessionDeadlineElapsedRealtimeMs != expectedSessionDeadlineElapsedRealtimeMs
+                    )
+            ) {
+                return
+            }
+            val generationToRemove = userStateGeneration ?: expectedUserStateGeneration
             desired = false
             userStateGeneration = null
+            sessionDeadlineElapsedRealtimeMs = null
             registrationRetryAttempt = 0
             registrationRetryJob?.cancel()
             registrationRetryJob = null
+            sessionTimeoutJob?.cancel()
+            sessionTimeoutJob = null
             activePendingIntent.also { activePendingIntent = null }
+                ?: generationToRemove?.let {
+                    pendingIntent(applicationContext, it, sessionDeadlineElapsedRealtimeMs = 0L)
+                }
         }
         pendingIntent?.let(::removeUpdates)
     }
+
+    private fun Long?.orExpired(): Long = this ?: Long.MIN_VALUE
 
     /** Removes a request delivered after the user generation it belonged to was invalidated. */
     fun removeStaleGeneration(staleUserStateGeneration: Long) {
@@ -213,9 +264,12 @@ internal class PolygonApproachMonitor(
         internal const val EXTRA_USER_STATE_GENERATION =
             "io.customer.geofence.extra.POLYGON_APPROACH_USER_STATE_GENERATION"
         private const val PENDING_INTENT_SCHEME = "customerio-polygon-approach"
-        private const val UPDATE_INTERVAL_MS = 150_000L
-        private const val FASTEST_UPDATE_INTERVAL_MS = 30_000L
-        private const val MINIMUM_DISPLACEMENT_METERS = 100f
+        internal const val EXTRA_SESSION_DEADLINE_ELAPSED_REALTIME_MS =
+            "io.customer.geofence.extra.POLYGON_APPROACH_SESSION_DEADLINE_ELAPSED_REALTIME_MS"
+        private const val UPDATE_INTERVAL_MS = 15_000L
+        private const val FASTEST_UPDATE_INTERVAL_MS = 5_000L
+        private const val MINIMUM_DISPLACEMENT_METERS = 25f
+        private const val MAXIMUM_SESSION_DURATION_MS = 2 * 60_000L
         private const val INITIAL_RETRY_MS = 5_000L
         private const val MAXIMUM_RETRY_MS = 300_000L
 
@@ -228,7 +282,14 @@ internal class PolygonApproachMonitor(
             .setWaitForAccurateLocation(false)
             .build()
 
-        internal fun pendingIntent(context: Context, userStateGeneration: Long): PendingIntent {
+        internal fun newSessionDeadlineElapsedRealtimeMs(): Long =
+            SystemClock.elapsedRealtime() + MAXIMUM_SESSION_DURATION_MS
+
+        internal fun pendingIntent(
+            context: Context,
+            userStateGeneration: Long,
+            sessionDeadlineElapsedRealtimeMs: Long = 0L
+        ): PendingIntent {
             val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
             } else {
@@ -237,6 +298,10 @@ internal class PolygonApproachMonitor(
             val intent = Intent(context, PolygonApproachReceiver::class.java)
                 .setData(Uri.parse("$PENDING_INTENT_SCHEME://$userStateGeneration"))
                 .putExtra(EXTRA_USER_STATE_GENERATION, userStateGeneration)
+                .putExtra(
+                    EXTRA_SESSION_DEADLINE_ELAPSED_REALTIME_MS,
+                    sessionDeadlineElapsedRealtimeMs
+                )
             return PendingIntent.getBroadcast(
                 context,
                 PENDING_INTENT_REQUEST_CODE,

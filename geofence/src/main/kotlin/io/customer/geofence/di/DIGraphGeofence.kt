@@ -184,6 +184,7 @@ internal val AndroidSDKComponent.polygonGeofenceServiceController: PolygonGeofen
             store = geofenceRegionStore,
             engine = polygonLocationEngine,
             approachMonitor = polygonApproachMonitor,
+            manager = geofenceManager,
             secureUserStore = secureUserStore
         )
     }

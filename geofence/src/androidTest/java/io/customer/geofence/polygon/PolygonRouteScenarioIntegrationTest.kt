@@ -67,30 +67,28 @@ class PolygonRouteScenarioIntegrationTest {
     }
 
     @Test
-    fun lShape_whenRouteWaitsInEnclosingCircleDeadSpace_thenOnlyTheArmProducesEntry() {
+    fun oversizedWakeCircle_whenRouteWaitsInDeadSpace_thenOnlyPolygonProducesEntry() {
         val vertices = listOf(
-            point(-200.0, -200.0),
-            point(-200.0, 200.0),
-            point(-50.0, 200.0),
-            point(-50.0, -50.0),
-            point(200.0, -50.0),
-            point(200.0, -200.0)
+            point(-200.0, -50.0),
+            point(-200.0, 50.0),
+            point(200.0, 50.0),
+            point(200.0, -50.0)
         )
-        val scenario = prepareScenario("l-shape", vertices)
+        val scenario = prepareScenario("wake-dead-space", vertices)
 
         val route = route(
             RoutePoint(95.0, 95.0, accuracy = 5f),
             RoutePoint(100.0, 100.0, accuracy = 5f),
             RoutePoint(105.0, 105.0, accuracy = 5f),
-            RoutePoint(95.0, -100.0, accuracy = 5f),
-            RoutePoint(100.0, -100.0, accuracy = 5f),
-            RoutePoint(105.0, -100.0, accuracy = 5f)
+            RoutePoint(95.0, 0.0, accuracy = 5f),
+            RoutePoint(100.0, 0.0, accuracy = 5f),
+            RoutePoint(105.0, 0.0, accuracy = 5f)
         )
         check(
             route.take(3).all {
                 scenario.region.distanceTo(it.latitude, it.longitude) + it.accuracy <= scenario.region.radius
             }
-        ) { "the concave dead-space fixes must remain inside the enclosing trigger circle" }
+        ) { "the dead-space fixes must remain inside the backend-provided wake circle" }
 
         scenario.processSynchronously(route)
 
@@ -303,7 +301,13 @@ class PolygonRouteScenarioIntegrationTest {
     private fun prepareScenario(id: String, vertices: List<PolygonCoordinate>): Scenario {
         val android = SDKComponent.android()
         val geometry = PolygonGeometry.from(vertices)
-        val trigger = PolygonEnclosingCircle().calculate(geometry)
+        val trigger = PolygonWakeCircleValidator().prepare(
+            geometry = geometry,
+            wakeCircle = PolygonWakeCircle(
+                center = point(0.0, 0.0),
+                baseRadiusMeters = 500.0
+            )
+        )
         val region = GeofenceRegion(
             id = id,
             latitude = trigger.center.latitude,
@@ -401,7 +405,9 @@ class PolygonRouteScenarioIntegrationTest {
                     generation
                 )
             }
-            check(accepted) { "route was rejected by the current user session" }
+            check(accepted != PolygonSamplingDecision.STALE) {
+                "route was rejected by the current user session"
+            }
         }
 
         fun transitions(): List<Event.GeofenceTransition> =

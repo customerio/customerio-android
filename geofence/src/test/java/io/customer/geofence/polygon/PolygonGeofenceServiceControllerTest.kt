@@ -2,6 +2,7 @@ package io.customer.geofence.polygon
 
 import android.content.Context
 import android.location.Location
+import io.customer.geofence.GeofenceManager
 import io.customer.geofence.GeofenceRegion
 import io.customer.geofence.store.GeofenceRegionStore
 import io.customer.geofence.transitionRevision
@@ -29,12 +30,14 @@ class PolygonGeofenceServiceControllerTest {
     private val store: GeofenceRegionStore = mockk(relaxed = true)
     private val engine: PolygonLocationEngine = mockk(relaxed = true)
     private val approachMonitor: PolygonApproachMonitor = mockk(relaxed = true)
+    private val manager: GeofenceManager = mockk(relaxed = true)
     private val secureUserStore: SecureUserStore = mockk(relaxed = true)
     private val controller = PolygonGeofenceServiceController(
         context,
         store,
         engine,
         approachMonitor,
+        manager,
         secureUserStore
     )
 
@@ -89,6 +92,7 @@ class PolygonGeofenceServiceControllerTest {
 
         coVerify { engine.processResponsiveLocation(location, 0L) }
         verify { store.activatePolygon("campus") }
+        verify { approachMonitor.start(0L, any()) }
         verify(exactly = 0) { store.deactivatePolygon(any()) }
         verify(exactly = 0) { engine.deactivate(any()) }
     }
@@ -109,6 +113,7 @@ class PolygonGeofenceServiceControllerTest {
         io.mockk.coEvery { engine.processResponsiveLocation(exitLocation, any()) } coAnswers {
             processingStarted.complete(Unit)
             finishProcessing.await()
+            true
         }
 
         val exit = async { controller.onCoarseExit("campus", exitLocation) }
@@ -177,13 +182,13 @@ class PolygonGeofenceServiceControllerTest {
     }
 
     @Test
-    fun recover_givenPersistedSession_expectRestoresPassiveMonitor() {
+    fun recover_givenPersistedPolygonState_expectDoesNotCreateSamplingSession() {
         every { store.getActivePolygonIds() } returns setOf("campus")
         every { store.getLastRegistrationUptime() } returns 0L
 
         controller.recover()
 
-        verify { approachMonitor.start(0L) }
+        verify(exactly = 0) { approachMonitor.start(any(), any()) }
     }
 
     @Test
@@ -288,10 +293,62 @@ class PolygonGeofenceServiceControllerTest {
     }
 
     @Test
-    fun reconcileRegisteredPolygons_givenPolygon_expectStartsResponsiveApproachMonitoring() {
+    fun reconcileRegisteredPolygons_givenPolygonWithoutWake_expectRemainsPassive() {
         controller.reconcileRegisteredPolygons(setOf("campus"))
 
-        verify { approachMonitor.start(0L) }
+        verify { approachMonitor.stop(0L) }
+        verify(exactly = 0) { approachMonitor.start(any(), any()) }
+    }
+
+    @Test
+    fun onMovementTriggerExit_givenOnlyFarPolygon_expectDoesNotStartSampling() = runTest {
+        val farAway = location(elapsedRealtimeNanos = 100L).apply {
+            latitude = 0.0
+            longitude = 0.0
+            accuracy = 60f
+        }
+
+        controller.onMovementTriggerExit(farAway, 0L)
+
+        verify(exactly = 0) { approachMonitor.start(any(), any()) }
+        verify(exactly = 0) { engine.activate(any()) }
+        coVerify(exactly = 0) { engine.processResponsiveLocation(any(), any()) }
+    }
+
+    @Test
+    fun onMovementTriggerExit_givenFixOverlapsPolygonWakeCircle_expectStartsBoundedSampling() =
+        runTest {
+            val nearby = location(elapsedRealtimeNanos = 100L).apply { accuracy = 60f }
+
+            controller.onMovementTriggerExit(nearby, 0L)
+
+            verify { store.activatePolygon("campus") }
+            verify { engine.activate("campus") }
+            verify { approachMonitor.start(0L, any()) }
+            coVerify { engine.processResponsiveLocation(nearby, 0L) }
+        }
+
+    @Test
+    fun onMovementTriggerExit_givenUnusableFixForActivePolygon_expectStillRequestsFollowUp() =
+        runTest {
+            every { store.getActivePolygonIds() } returns setOf("campus")
+            val missingMonotonicTimestamp = location(elapsedRealtimeNanos = 0L)
+
+            controller.onMovementTriggerExit(missingMonotonicTimestamp, 0L)
+
+            verify { approachMonitor.start(0L, any()) }
+            coVerify { engine.processResponsiveLocation(missingMonotonicTimestamp, 0L) }
+        }
+
+    @Test
+    fun deactivate_givenLastActivePolygon_expectStopsBoundedSession() {
+        var activeIds = setOf("campus")
+        every { store.getActivePolygonIds() } answers { activeIds }
+        every { store.deactivatePolygon("campus") } answers { activeIds = emptySet() }
+
+        controller.deactivate("campus", 0L)
+
+        verify { approachMonitor.stop(0L) }
     }
 
     @Test
@@ -305,7 +362,7 @@ class PolygonGeofenceServiceControllerTest {
             expectedUserStateGeneration = 0L
         )
 
-        accepted shouldBeEqualTo true
+        accepted shouldBeEqualTo PolygonSamplingDecision.CONTINUE
         verify { store.activatePolygon("campus") }
         verify { engine.activateFromApproach("campus", 100L) }
         coVerify { engine.processResponsiveLocation(any(), 0L) }
@@ -327,7 +384,7 @@ class PolygonGeofenceServiceControllerTest {
             expectedUserStateGeneration = 0L
         )
 
-        accepted shouldBeEqualTo true
+        accepted shouldBeEqualTo PolygonSamplingDecision.STOP
         verify { store.deactivatePolygon("campus") }
         verify { engine.deactivate("campus") }
     }
@@ -379,7 +436,7 @@ class PolygonGeofenceServiceControllerTest {
             expectedUserStateGeneration = 0L
         )
 
-        accepted shouldBeEqualTo false
+        accepted shouldBeEqualTo PolygonSamplingDecision.STALE
         verify(exactly = 0) { store.activatePolygon(any()) }
         coVerify(exactly = 0) { engine.processResponsiveLocation(any(), any()) }
     }

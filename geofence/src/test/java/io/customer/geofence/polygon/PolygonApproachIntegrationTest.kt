@@ -10,6 +10,7 @@ import io.customer.commontest.core.RobolectricTest
 import io.customer.geofence.GeofenceBusinessTransitionProcessor
 import io.customer.geofence.GeofenceJsonSerializer
 import io.customer.geofence.GeofenceLogger
+import io.customer.geofence.GeofenceManager
 import io.customer.geofence.GeofenceRegion
 import io.customer.geofence.GeofenceTransitionEmitter
 import io.customer.geofence.store.GeofenceRegionStoreImpl
@@ -86,6 +87,7 @@ class PolygonApproachIntegrationTest : RobolectricTest() {
             store = store,
             engine = engine,
             approachMonitor = mockk(relaxed = true),
+            manager = mockk<GeofenceManager>(relaxed = true),
             secureUserStore = secureUserStore
         )
         val now = SystemClock.elapsedRealtimeNanos()

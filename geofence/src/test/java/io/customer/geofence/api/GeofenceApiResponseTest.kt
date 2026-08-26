@@ -152,7 +152,7 @@ class GeofenceApiResponseTest : RobolectricTest() {
               ]
             }
             """.trimIndent(),
-            EnabledPolygonSupport
+            PolygonSupport.Enabled
         )
 
         regions.map(GeofenceRegion::id) shouldBeEqualTo listOf("circle")
@@ -177,7 +177,7 @@ class GeofenceApiResponseTest : RobolectricTest() {
               ]
             }
             """.trimIndent(),
-            EnabledPolygonSupport
+            PolygonSupport.Enabled
         )
 
         regions.map(GeofenceRegion::id) shouldBeEqualTo listOf("circle")
@@ -203,7 +203,7 @@ class GeofenceApiResponseTest : RobolectricTest() {
               ]
             }
             """.trimIndent(),
-            EnabledPolygonSupport
+            PolygonSupport.Enabled
         )
 
         regions.map(GeofenceRegion::id) shouldBeEqualTo listOf("circle")

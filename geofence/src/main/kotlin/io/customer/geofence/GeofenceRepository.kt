@@ -42,7 +42,11 @@ internal interface GeofenceRepository {
     suspend fun refreshFromLiveFix(latitude: Double, longitude: Double): Result<Unit>
 
     @RequiresPermission(Manifest.permission.ACCESS_FINE_LOCATION)
-    suspend fun handleMovement(latitude: Double, longitude: Double): Result<Unit>
+    suspend fun handleMovement(
+        latitude: Double,
+        longitude: Double,
+        movementTriggerRadiusMeters: Float? = null
+    ): Result<Unit>
 
     /**
      * Re-registers the cached geofences with the OS after a device reboot
@@ -237,7 +241,11 @@ internal class GeofenceRepositoryImpl(
     }
 
     @RequiresPermission(Manifest.permission.ACCESS_FINE_LOCATION)
-    override suspend fun handleMovement(latitude: Double, longitude: Double): Result<Unit> {
+    override suspend fun handleMovement(
+        latitude: Double,
+        longitude: Double,
+        movementTriggerRadiusMeters: Float?
+    ): Result<Unit> {
         if (!awaitRefreshSlot()) {
             logger.logSyncSkipped("refresh already in progress after waiting")
             return Result.success(Unit)
@@ -260,16 +268,36 @@ internal class GeofenceRepositoryImpl(
             // Initial-enter synthesis stays on here (unlike refresh): containment is judged against
             // the OS's live triggering fix, so a reboot/app-update wipe can't make it stale.
             return if (needsRemoteFetch) {
-                val remote = performRemoteRefresh(userId, latitude, longitude, containmentEpoch)
+                val remote = performRemoteRefresh(
+                    userId,
+                    latitude,
+                    longitude,
+                    containmentEpoch,
+                    movementTriggerRadiusMeters = movementTriggerRadiusMeters
+                )
                 if (remote.isFailure) {
                     // The trigger already fired, and a failed pass never re-centres it — leaving it
                     // where the device just exited, so nothing can fire again. Re-rank to re-arm it.
                     logger.logMovementRearmedAfterFailedRefresh()
-                    performLocalRefresh(userId, latitude, longitude, config, containmentEpoch)
+                    performLocalRefresh(
+                        userId,
+                        latitude,
+                        longitude,
+                        config,
+                        containmentEpoch,
+                        movementTriggerRadiusMeters = movementTriggerRadiusMeters
+                    )
                 }
                 remote
             } else {
-                performLocalRefresh(userId, latitude, longitude, config, containmentEpoch)
+                performLocalRefresh(
+                    userId,
+                    latitude,
+                    longitude,
+                    config,
+                    containmentEpoch,
+                    movementTriggerRadiusMeters = movementTriggerRadiusMeters
+                )
             }
         } finally {
             releaseRefreshSlot()
@@ -310,8 +338,7 @@ internal class GeofenceRepositoryImpl(
             register = manager::replaceGeofencesForBootRestore,
             // No initial-enter on boot restore: the cached anchor may be stale if the device moved
             // while off, so containment can't be trusted.
-            emitInitialEnter = false,
-            armPolygonsFromFix = false
+            emitInitialEnter = false
         )
     }
 
@@ -321,7 +348,8 @@ internal class GeofenceRepositoryImpl(
         latitude: Double,
         longitude: Double,
         containmentEpoch: Long,
-        emitInitialEnter: Boolean = true
+        emitInitialEnter: Boolean = true,
+        movementTriggerRadiusMeters: Float? = null
     ): Result<Unit> {
         // The device location lets the backend return the nearby set; the request carries no user
         // identity, so it isn't attributable to a user.
@@ -348,6 +376,7 @@ internal class GeofenceRepositoryImpl(
                     config = config,
                     containmentEpoch = containmentEpoch,
                     emitInitialEnter = emitInitialEnter,
+                    movementTriggerRadiusMeters = movementTriggerRadiusMeters,
                     // Cache + anchor + timestamp only on remote fetch; Tier A reuses them.
                     // Skip the config save when backend didn't ship one this response —
                     // a null parse must not clobber a previously cached value.
@@ -375,7 +404,7 @@ internal class GeofenceRepositoryImpl(
         containmentEpoch: Long,
         register: suspend (List<GeofenceRegion>) -> Result<Unit> = ::registerWithBusinessDiff,
         emitInitialEnter: Boolean = true,
-        armPolygonsFromFix: Boolean = true
+        movementTriggerRadiusMeters: Float? = null
     ): Result<Unit> = registerNearestAndPersist(
         userId = userId,
         latitude = latitude,
@@ -385,7 +414,7 @@ internal class GeofenceRepositoryImpl(
         containmentEpoch = containmentEpoch,
         register = register,
         emitInitialEnter = emitInitialEnter,
-        armPolygonsFromFix = armPolygonsFromFix
+        movementTriggerRadiusMeters = movementTriggerRadiusMeters
     )
 
     /**
@@ -465,7 +494,7 @@ internal class GeofenceRepositoryImpl(
         register: suspend (List<GeofenceRegion>) -> Result<Unit> = ::registerWithBusinessDiff,
         onRegistered: () -> Unit = {},
         emitInitialEnter: Boolean = true,
-        armPolygonsFromFix: Boolean = true
+        movementTriggerRadiusMeters: Float? = null
     ): Result<Unit> {
         // Pure mapping + filter — no shared state, kept outside the lock.
         val pinnedPolygonIds = polygonIdsToPin(regions)
@@ -496,7 +525,13 @@ internal class GeofenceRepositoryImpl(
         val regionsToRegister = if (!monitoringEnabled) {
             emptyList()
         } else {
-            listOf(buildMovementTrigger(latitude, longitude, config.localRefreshTriggerRadius)) + nearest
+            listOf(
+                buildMovementTrigger(
+                    latitude,
+                    longitude,
+                    movementTriggerRadiusMeters ?: config.localRefreshTriggerRadius
+                )
+            ) + nearest
         }
         return stateMutex.withLock {
             // Recheck userId — sign-out or user switch may have happened during
@@ -616,22 +651,6 @@ internal class GeofenceRepositoryImpl(
                         .mapTo(mutableSetOf(), GeofenceRegion::id)
                     polygonController?.reconcileRegisteredPolygons(registeredPolygonIds)
                     changedPolygonIds.forEach { polygonController?.resetEvidence(it) }
-                    if (armPolygonsFromFix && emitInitialEnter) {
-                        val committedInside = store.getEnteredIds()
-                        nearest.filter { region ->
-                            region.isPolygon &&
-                                (
-                                    region.id in committedInside ||
-                                        region.distanceTo(latitude, longitude) <= region.radius
-                                    )
-                        }.forEach {
-                            polygonController?.activate(
-                                polygonId = it.id,
-                                expectedUserStateGeneration = syncUserStateGeneration,
-                                expectedRegionRevision = it.transitionRevision()
-                            )
-                        }
-                    }
                     polygonController?.recover()
                     // Track the user's location at each successful registration so boot restore can
                     // re-center close to their real position. Clear only when nothing is registered

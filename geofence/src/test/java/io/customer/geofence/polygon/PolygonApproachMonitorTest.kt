@@ -29,7 +29,7 @@ class PolygonApproachMonitorTest : RobolectricTest() {
     private val logger: GeofenceLogger = mockk(relaxed = true)
 
     @Test
-    fun start_expectRadarStyleResponsiveDisplacementRequestBoundToUserGeneration() {
+    fun start_expectBoundedResponsiveRequestBoundToUserGeneration() {
         val request = slot<LocationRequest>()
         val pendingIntent = slot<PendingIntent>()
         every {
@@ -41,9 +41,9 @@ class PolygonApproachMonitorTest : RobolectricTest() {
         shadowOf(Looper.getMainLooper()).idle()
 
         request.captured.priority shouldBeEqualTo Priority.PRIORITY_BALANCED_POWER_ACCURACY
-        request.captured.intervalMillis shouldBeEqualTo 150_000L
-        request.captured.minUpdateIntervalMillis shouldBeEqualTo 30_000L
-        request.captured.minUpdateDistanceMeters shouldBeEqualTo 100f
+        request.captured.intervalMillis shouldBeEqualTo 15_000L
+        request.captured.minUpdateIntervalMillis shouldBeEqualTo 5_000L
+        request.captured.minUpdateDistanceMeters shouldBeEqualTo 25f
         shadowOf(pendingIntent.captured).savedIntent.getLongExtra(
             PolygonApproachMonitor.EXTRA_USER_STATE_GENERATION,
             -1L
@@ -100,6 +100,54 @@ class PolygonApproachMonitorTest : RobolectricTest() {
     }
 
     @Test
+    fun stop_givenColdProcessGeneration_expectReconstructsAndRemovesPendingIntent() {
+        val pendingIntent = slot<PendingIntent>()
+        every { client.removeLocationUpdates(capture(pendingIntent)) } returns Tasks.forResult(null)
+        val monitor = monitor()
+
+        monitor.stop(expectedUserStateGeneration = 7L)
+        shadowOf(Looper.getMainLooper()).idle()
+
+        shadowOf(pendingIntent.captured).savedIntent.getLongExtra(
+            PolygonApproachMonitor.EXTRA_USER_STATE_GENERATION,
+            -1L
+        ) shouldBeEqualTo 7L
+        verify { logger.logPolygonApproachMonitoringStopped() }
+    }
+
+    @Test
+    fun start_givenExistingDeadline_expectCarriesItAcrossProcessDelivery() {
+        val pendingIntent = slot<PendingIntent>()
+        every {
+            client.requestLocationUpdates(any<LocationRequest>(), capture(pendingIntent))
+        } returns Tasks.forResult(null)
+        val monitor = monitor()
+        val deadline = android.os.SystemClock.elapsedRealtime() + 60_000L
+
+        monitor.start(7L, deadline)
+
+        shadowOf(pendingIntent.captured).savedIntent.getLongExtra(
+            PolygonApproachMonitor.EXTRA_SESSION_DEADLINE_ELAPSED_REALTIME_MS,
+            -1L
+        ) shouldBeEqualTo deadline
+    }
+
+    @Test
+    fun stop_givenExpiredBatchFromOlderSession_expectKeepsCurrentSameUserSession() {
+        every {
+            client.requestLocationUpdates(any<LocationRequest>(), any<PendingIntent>())
+        } returns Tasks.forResult(null)
+        every { client.removeLocationUpdates(any<PendingIntent>()) } returns Tasks.forResult(null)
+        val monitor = monitor()
+        val currentDeadline = android.os.SystemClock.elapsedRealtime() + 60_000L
+
+        monitor.start(7L, currentDeadline)
+        monitor.stop(7L, expectedSessionDeadlineElapsedRealtimeMs = currentDeadline - 1L)
+
+        verify(exactly = 0) { client.removeLocationUpdates(any<PendingIntent>()) }
+    }
+
+    @Test
     fun start_givenTransientRegistrationFailure_expectRetriesCurrentUserGeneration() {
         var attempts = 0
         every {
@@ -130,6 +178,28 @@ class PolygonApproachMonitorTest : RobolectricTest() {
             client.requestLocationUpdates(any<LocationRequest>(), any<PendingIntent>())
         }
         verify { logger.logPolygonApproachMonitoringStarted() }
+    }
+
+    @Test
+    fun start_givenNoDecisiveFix_expectSessionStopsAfterTwoMinutes() {
+        every {
+            client.requestLocationUpdates(any<LocationRequest>(), any<PendingIntent>())
+        } returns Tasks.forResult(null)
+        every { client.removeLocationUpdates(any<PendingIntent>()) } returns Tasks.forResult(null)
+        val scheduler = TestCoroutineScheduler()
+        val monitor = PolygonApproachMonitor(
+            context = applicationMock,
+            client = client,
+            logger = logger,
+            backgroundContext = StandardTestDispatcher(scheduler)
+        )
+
+        monitor.start(7L)
+        scheduler.advanceTimeBy(120_000L)
+        scheduler.runCurrent()
+        shadowOf(Looper.getMainLooper()).idle()
+
+        verify { client.removeLocationUpdates(any<PendingIntent>()) }
     }
 
     private fun monitor() = PolygonApproachMonitor(

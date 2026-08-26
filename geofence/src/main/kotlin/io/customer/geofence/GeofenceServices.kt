@@ -27,7 +27,11 @@ internal interface GeofenceServices {
      * movement trigger usually fires with the app backgrounded, where the process
      * is fair game for the OS the moment the receiver finishes.
      */
-    fun onMovementTriggerExit(latitude: Double?, longitude: Double?): Job?
+    fun onMovementTriggerExit(
+        latitude: Double?,
+        longitude: Double?,
+        movementTriggerRadiusMeters: Float? = null
+    ): Job?
 
     /** Honours the freshness threshold — repeated identify within the window is a no-op. */
     fun onUserIdentified(latitude: Double?, longitude: Double?)
@@ -105,12 +109,22 @@ internal class GeofenceServicesImpl(
     // regardless of the no-location rearm flag.
     private val explicitRefreshRequested = AtomicBoolean(false)
 
-    override fun onMovementTriggerExit(latitude: Double?, longitude: Double?): Job? =
+    override fun onMovementTriggerExit(
+        latitude: Double?,
+        longitude: Double?,
+        movementTriggerRadiusMeters: Float?
+    ): Job? =
         triggerSync(
             reason = REASON_MOVEMENT_EXIT,
             latitude = latitude,
             longitude = longitude,
-            action = repository::handleMovement
+            action = { lat, lng ->
+                repository.handleMovement(
+                    latitude = lat,
+                    longitude = lng,
+                    movementTriggerRadiusMeters = movementTriggerRadiusMeters
+                )
+            }
         )
 
     override fun onUserIdentified(latitude: Double?, longitude: Double?) {

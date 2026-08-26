@@ -3,8 +3,14 @@ package io.customer.geofence.polygon
 import android.content.Context
 import android.location.Location
 import android.os.SystemClock
+import io.customer.geofence.GeofenceConstants
+import io.customer.geofence.GeofenceLocation
+import io.customer.geofence.GeofenceManager
+import io.customer.geofence.GeofenceRegion
+import io.customer.geofence.GeofenceTransitionType
 import io.customer.geofence.distanceTo
 import io.customer.geofence.store.GeofenceRegionStore
+import io.customer.geofence.store.getCachedConfigOrFallback
 import io.customer.geofence.transitionRevision
 import io.customer.sdk.data.store.SecureUserStore
 import kotlinx.coroutines.sync.Mutex
@@ -16,8 +22,10 @@ internal class PolygonGeofenceServiceController(
     private val store: GeofenceRegionStore,
     private val engine: PolygonLocationEngine,
     private val approachMonitor: PolygonApproachMonitor,
+    private val manager: GeofenceManager,
     private val secureUserStore: SecureUserStore
 ) {
+    private val movementTriggerPolicy = PolygonMovementTriggerPolicy()
     private val controllerLock = Any()
     private val coarseTransitionMutex = Mutex()
     private val lastCoarseTransitionElapsedNanos = mutableMapOf<String, Long>()
@@ -34,7 +42,13 @@ internal class PolygonGeofenceServiceController(
         if (!acceptCoarseTransition(polygonId, triggeringLocation)) return@withLock
         activate(polygonId, expectedUserStateGeneration, expectedRegionRevision)
         if (triggeringLocation != null) {
-            processTriggeredLocation(triggeringLocation, expectedUserStateGeneration)
+            val accepted = processTriggeredLocation(triggeringLocation, expectedUserStateGeneration)
+            if (accepted) {
+                updateMovementTriggerFromAcceptedFix(
+                    triggeringLocation,
+                    expectedUserStateGeneration
+                )
+            }
         }
     }
 
@@ -55,13 +69,20 @@ internal class PolygonGeofenceServiceController(
         store.recordPolygonCoarseInside(polygonId)
         store.activatePolygon(polygonId)
         if (!alreadyActive) engine.activate(polygonId)
+        approachMonitor.start(expectedUserStateGeneration)
     }
 
-    fun deactivate(polygonId: String) = synchronized(controllerLock) {
+    fun deactivate(
+        polygonId: String,
+        expectedUserStateGeneration: Long = store.userStateGeneration()
+    ) = synchronized(controllerLock) {
         store.recordPolygonCoarseOutside(polygonId)
         store.deactivatePolygon(polygonId)
         engine.deactivate(polygonId)
-        if (store.getActivePolygonIds().isEmpty()) engine.stop()
+        if (store.getActivePolygonIds().isEmpty()) {
+            engine.stop()
+            approachMonitor.stop(expectedUserStateGeneration)
+        }
     }
 
     suspend fun onCoarseExit(
@@ -89,7 +110,13 @@ internal class PolygonGeofenceServiceController(
         }
         if (!recordedCoarseExit) return@withLock
         if (triggeringLocation != null) {
-            processTriggeredLocation(triggeringLocation, expectedUserStateGeneration)
+            val accepted = processTriggeredLocation(triggeringLocation, expectedUserStateGeneration)
+            if (accepted) {
+                updateMovementTriggerFromAcceptedFix(
+                    triggeringLocation,
+                    expectedUserStateGeneration
+                )
+            }
         }
         synchronized(controllerLock) {
             if (!isCurrentRegisteredPolygonLocked(
@@ -105,8 +132,9 @@ internal class PolygonGeofenceServiceController(
             if (polygonId in store.getCoarseInsidePolygonIds()) return@synchronized
             if (polygonId in store.getEnteredIds()) {
                 store.activatePolygon(polygonId)
+                approachMonitor.start(expectedUserStateGeneration)
             } else {
-                deactivate(polygonId)
+                deactivate(polygonId, expectedUserStateGeneration)
             }
         }
     }
@@ -115,16 +143,63 @@ internal class PolygonGeofenceServiceController(
         engine.resetEvidence(polygonId)
     }
 
+    /** Evaluates the accepted fix that fired the SDK-wide shared movement trigger. */
+    suspend fun onMovementTriggerExit(
+        triggeringLocation: Location?,
+        expectedUserStateGeneration: Long = store.userStateGeneration()
+    ): Float? {
+        if (triggeringLocation == null) return null
+        val fix = triggeringLocation.toPolygonLocationFix()
+        val activated = synchronized(controllerLock) {
+            if (!hasMatchingIdentifiedUserLocked() ||
+                store.userStateGeneration() != expectedUserStateGeneration
+            ) {
+                return@synchronized false
+            }
+            val activeIds = store.getActivePolygonIds()
+            val enteredIds = store.getEnteredIds()
+            val polygonIds = store.getRoutableRegisteredIds().filterTo(mutableSetOf()) { id ->
+                val region = store.getCachedRegion(id)
+                region?.isPolygon == true &&
+                    (
+                        id in activeIds ||
+                            id in enteredIds ||
+                            fix != null &&
+                            region.distanceTo(
+                                triggeringLocation.latitude,
+                                triggeringLocation.longitude
+                            ) - fix.sample.horizontalAccuracyMeters <= region.radius
+                        )
+            }
+            polygonIds.forEach { polygonId ->
+                if (polygonId !in store.getActivePolygonIds()) {
+                    store.activatePolygon(polygonId)
+                    engine.activate(polygonId)
+                }
+            }
+            if (polygonIds.isNotEmpty()) approachMonitor.start(expectedUserStateGeneration)
+            polygonIds.isNotEmpty()
+        }
+        if (!activated) return null
+        val accepted = processTriggeredLocation(triggeringLocation, expectedUserStateGeneration)
+        return if (accepted) {
+            updateMovementTriggerFromAcceptedFix(
+                triggeringLocation,
+                expectedUserStateGeneration
+            )
+        } else {
+            null
+        }
+    }
+
     fun reconcileRegisteredPolygons(ids: Set<String>) = synchronized(controllerLock) {
         val removed = store.getActivePolygonIds() - ids
         store.retainActivePolygonIds(ids)
         store.retainCoarseInsidePolygonIds(ids)
         removed.forEach(engine::deactivate)
         lastCoarseTransitionElapsedNanos.keys.retainAll(ids)
-        if (ids.isEmpty() || !hasMatchingIdentifiedUserLocked()) {
-            approachMonitor.stop()
-        } else {
-            approachMonitor.start(store.userStateGeneration())
+        if (store.getActivePolygonIds().isEmpty() || !hasMatchingIdentifiedUserLocked()) {
+            approachMonitor.stop(store.userStateGeneration())
         }
         if (store.getActivePolygonIds().isEmpty()) engine.stop()
     }
@@ -138,34 +213,30 @@ internal class PolygonGeofenceServiceController(
             invalidatePersistedCoarseState()
             return@synchronized
         }
-        val polygonIds = store.getRoutableRegisteredIds().filterTo(mutableSetOf()) {
-            store.getCachedRegion(it)?.isPolygon == true
+        if (store.getActivePolygonIds().isEmpty()) {
+            approachMonitor.stop(store.userStateGeneration())
         }
-        if (polygonIds.isEmpty()) approachMonitor.stop() else approachMonitor.start(store.userStateGeneration())
     }
 
-    /**
-     * Uses passive background fixes to enter the existing fine evaluator before a delayed GMS
-     * enclosing-circle callback arrives. These activations deliberately do not claim the OS circle
-     * is inside; a later fix outside the trigger can therefore retire them without waiting for GMS.
-     */
+    /** Processes fixes from the bounded session opened by a polygon or movement-trigger wake. */
     suspend fun processApproachLocations(
         locations: List<Location>,
         expectedUserStateGeneration: Long
-    ): Boolean {
-        if (locations.isEmpty()) return true
+    ): PolygonSamplingDecision {
+        if (locations.isEmpty()) return PolygonSamplingDecision.CONTINUE
         val admitted = synchronized(controllerLock) {
             hasMatchingIdentifiedUserLocked() &&
                 store.userStateGeneration() == expectedUserStateGeneration
         }
-        if (!admitted) return false
+        if (!admitted) return PolygonSamplingDecision.STALE
+        var lastAcceptedLocation: Location? = null
         for (location in locations.sortedBy(Location::getElapsedRealtimeNanos)) {
             val fix = location.toPolygonLocationFix() ?: continue
             val shouldProcess = synchronized(controllerLock) {
                 if (!hasMatchingIdentifiedUserLocked() ||
                     store.userStateGeneration() != expectedUserStateGeneration
                 ) {
-                    return false
+                    return PolygonSamplingDecision.STALE
                 }
                 val routableIds = store.getRoutableRegisteredIds()
                 val polygons = store.getCachedRegions().filter {
@@ -184,12 +255,14 @@ internal class PolygonGeofenceServiceController(
                 store.getActivePolygonIds().isNotEmpty()
             }
             if (!shouldProcess) continue
-            processTriggeredLocation(location, expectedUserStateGeneration)
+            if (processTriggeredLocation(location, expectedUserStateGeneration)) {
+                lastAcceptedLocation = location
+            }
             synchronized(controllerLock) {
                 if (!hasMatchingIdentifiedUserLocked() ||
                     store.userStateGeneration() != expectedUserStateGeneration
                 ) {
-                    return false
+                    return PolygonSamplingDecision.STALE
                 }
                 val coarseInside = store.getCoarseInsidePolygonIds()
                 val committedInside = store.getEnteredIds()
@@ -207,7 +280,7 @@ internal class PolygonGeofenceServiceController(
                 }
             }
         }
-        return synchronized(controllerLock) {
+        val sessionIsCurrent = synchronized(controllerLock) {
             if (!hasMatchingIdentifiedUserLocked() ||
                 store.userStateGeneration() != expectedUserStateGeneration
             ) {
@@ -216,6 +289,15 @@ internal class PolygonGeofenceServiceController(
             if (store.getActivePolygonIds().isEmpty()) engine.stop()
             true
         }
+        if (!sessionIsCurrent) return PolygonSamplingDecision.STALE
+        val safelyPassive = lastAcceptedLocation?.let {
+            updateMovementTriggerFromAcceptedFix(it, expectedUserStateGeneration)
+        } != null
+        return if (safelyPassive || store.getActivePolygonIds().isEmpty()) {
+            PolygonSamplingDecision.STOP
+        } else {
+            PolygonSamplingDecision.CONTINUE
+        }
     }
 
     private companion object {
@@ -223,14 +305,16 @@ internal class PolygonGeofenceServiceController(
     }
 
     fun invalidatePersistedCoarseState() = synchronized(controllerLock) {
+        val generation = store.userStateGeneration()
         store.clearActivePolygonIds()
         store.retainCoarseInsidePolygonIds(emptySet())
         engine.stop()
         lastCoarseTransitionElapsedNanos.clear()
-        approachMonitor.stop()
+        approachMonitor.stop(generation)
     }
 
     fun invalidateOsRegistrationState() = synchronized(controllerLock) {
+        val generation = store.userStateGeneration()
         store.saveRegisteredIds(emptySet())
         store.saveRoutableRegisteredIds(emptySet())
         store.saveRetainedRegisteredRegions(emptyList())
@@ -238,32 +322,35 @@ internal class PolygonGeofenceServiceController(
         store.retainCoarseInsidePolygonIds(emptySet())
         engine.stop()
         lastCoarseTransitionElapsedNanos.clear()
-        approachMonitor.stop()
+        approachMonitor.stop(generation)
     }
 
     fun stopAll() = synchronized(controllerLock) {
+        val generation = store.userStateGeneration()
         store.clearActivePolygonIds()
         store.retainCoarseInsidePolygonIds(emptySet())
         engine.stop()
         lastCoarseTransitionElapsedNanos.clear()
-        approachMonitor.stop()
+        approachMonitor.stop(generation)
     }
 
     fun clearUserScopedState() = synchronized(controllerLock) {
         // The generation/registration wipe shares this lock with coarse callbacks. A callback that
         // GMS queued before sign-out can therefore neither pass its generation check after the wipe
         // nor re-arm exact-location monitoring between the wipe and service teardown.
+        val generation = store.userStateGeneration()
         store.clearUserScopedState()
         engine.stop()
         lastCoarseTransitionElapsedNanos.clear()
-        approachMonitor.stop()
+        approachMonitor.stop(generation)
     }
 
     fun clearUserSessionRetainingOsRegistrations() = synchronized(controllerLock) {
+        val generation = store.userStateGeneration()
         store.clearUserSessionRetainingOsRegistrations()
         engine.stop()
         lastCoarseTransitionElapsedNanos.clear()
-        approachMonitor.stop()
+        approachMonitor.stop(generation)
     }
 
     fun completeUserReset(
@@ -273,15 +360,16 @@ internal class PolygonGeofenceServiceController(
         store.completeUserReset(expectedUserStateGeneration, osRegistrationsCleared)
         engine.stop()
         lastCoarseTransitionElapsedNanos.clear()
-        approachMonitor.stop()
+        approachMonitor.stop(expectedUserStateGeneration)
     }
 
     fun beginUserSession(userId: String) = synchronized(controllerLock) {
         val changed = store.activeUserSessionId() != userId
+        val previousGeneration = store.userStateGeneration()
         store.beginUserSession(userId)
         if (changed) {
             engine.stop()
-            approachMonitor.stop()
+            approachMonitor.stop(previousGeneration)
             lastCoarseTransitionElapsedNanos.clear()
         }
     }
@@ -330,7 +418,36 @@ internal class PolygonGeofenceServiceController(
     private suspend fun processTriggeredLocation(
         location: Location,
         expectedUserStateGeneration: Long
-    ) = engine.processResponsiveLocation(location, expectedUserStateGeneration)
+    ): Boolean = engine.processResponsiveLocation(location, expectedUserStateGeneration)
+
+    private suspend fun updateMovementTriggerFromAcceptedFix(
+        location: Location,
+        expectedUserStateGeneration: Long
+    ): Float? {
+        val fix = location.toPolygonLocationFix() ?: return null
+        val registeredPolygons = store.getRoutableRegisteredIds().mapNotNull { id ->
+            store.getCachedRegion(id)?.takeIf(GeofenceRegion::isPolygon)
+        }
+        val normalRadius = store.getCachedConfigOrFallback().localRefreshTriggerRadius
+        val safeRadius = movementTriggerPolicy.safeRadiusMeters(
+            regions = registeredPolygons,
+            committedInsideIds = store.getEnteredIds(),
+            sample = fix.sample,
+            normalRadiusMeters = normalRadius
+        ) ?: return null
+        val trigger = GeofenceRegion(
+            id = GeofenceConstants.MOVEMENT_TRIGGER_ID,
+            latitude = location.latitude,
+            longitude = location.longitude,
+            radius = safeRadius,
+            transitionTypes = listOf(GeofenceTransitionType.EXIT)
+        )
+        val result = manager.replaceMovementTrigger(trigger)
+        if (result.isFailure) return null
+        store.saveLastMovementTriggerLocation(GeofenceLocation(location.latitude, location.longitude))
+        approachMonitor.stop(expectedUserStateGeneration)
+        return safeRadius
+    }
 
     private fun acceptCoarseTransition(polygonId: String, location: Location?): Boolean =
         synchronized(controllerLock) {
@@ -352,4 +469,10 @@ internal class PolygonGeofenceServiceController(
         } == true
         return rebooted || replaced
     }
+}
+
+internal enum class PolygonSamplingDecision {
+    CONTINUE,
+    STOP,
+    STALE
 }

@@ -84,12 +84,18 @@ class PolygonApproachWorkerTest : RobolectricTest() {
         val locations = List(33) { index -> location(index) }
         val generation = store.userStateGeneration()
 
-        scheduler.enqueue(locations, generation) shouldBeEqualTo true
+        scheduler.enqueue(
+            locations,
+            generation,
+            sessionDeadlineElapsedRealtimeMs = 123_456L
+        ) shouldBeEqualTo true
 
         val pending = store.getPendingPolygonApproachBatches()
         pending.size shouldBeEqualTo 2
         pending.map { it.userStateGeneration } shouldBeEqualTo listOf(generation, generation)
         pending.map { it.bootSessionId } shouldBeEqualTo listOf(CURRENT_BOOT, CURRENT_BOOT)
+        pending.map { it.sessionDeadlineElapsedRealtimeMs } shouldBeEqualTo
+            listOf(123_456L, 123_456L)
         pending.flatMap { it.locations }.map { it.latitude } shouldBeEqualTo
             locations.map(Location::getLatitude)
         requests.size shouldBeEqualTo 2

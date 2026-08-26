@@ -30,10 +30,10 @@ private const val MODULE_NAME = "Geofence"
  *
  * Registering this module enables on-device geofence monitoring: server-defined
  * geofences are registered with the OS, transitions are persisted and forwarded
- * to the CDP, and the local set is refreshed when the user moves far enough. Polygon
- * registrations use displacement-gated, balanced-power approach fixes so the
- * fine evaluator can wake before a delayed enclosing-circle callback. This responsive mode
- * does not start a foreground service.
+ * to the CDP, and the local set is refreshed when the user moves far enough. A polygon or shared
+ * movement-trigger callback may open a bounded, balanced-power location session when its triggering
+ * fix is not decisive. Merely registering polygons does not start sampling, and V1 does not start a
+ * foreground service.
  *
  * Requires [ModuleLocation] to be registered alongside it — geofencing uses its
  * location provider regardless of the location tracking mode, and works even when

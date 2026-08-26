@@ -1,6 +1,7 @@
 package io.customer.geofence.polygon
 
 import android.location.Location
+import android.os.SystemClock
 import io.customer.commontest.core.RobolectricTest
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -19,11 +20,14 @@ class PolygonApproachReceiverTest : RobolectricTest() {
     @Test
     fun handleLocations_givenCurrentUserGeneration_expectRoutesFixesToController() = runTest {
         val locations = listOf(location())
-        coEvery { controller.processApproachLocations(locations, 7L) } returns true
+        coEvery {
+            controller.processApproachLocations(locations, 7L)
+        } returns PolygonSamplingDecision.CONTINUE
 
         PolygonApproachReceiver().handleLocations(
             locations,
             7L,
+            sessionDeadlineElapsedRealtimeMs = Long.MAX_VALUE,
             userId = "user-1",
             controller = controller,
             monitor = monitor
@@ -31,14 +35,16 @@ class PolygonApproachReceiverTest : RobolectricTest() {
 
         verify { controller.beginUserSession("user-1") }
         coVerify { controller.processApproachLocations(locations, 7L) }
-        verify { monitor.start(7L) }
+        verify { monitor.start(7L, Long.MAX_VALUE) }
         verify(exactly = 0) { monitor.removeStaleGeneration(any()) }
     }
 
     @Test
     fun handleLocations_givenStaleUserGeneration_expectRemovesOldBackgroundRequest() = runTest {
         val locations = listOf(location())
-        coEvery { controller.processApproachLocations(locations, 7L) } returns false
+        coEvery {
+            controller.processApproachLocations(locations, 7L)
+        } returns PolygonSamplingDecision.STALE
 
         PolygonApproachReceiver().handleLocations(
             locations,
@@ -65,6 +71,46 @@ class PolygonApproachReceiverTest : RobolectricTest() {
 
         coVerify(exactly = 0) { controller.processApproachLocations(any(), any()) }
         verify { monitor.removeStaleGeneration(7L) }
+    }
+
+    @Test
+    fun handleLocations_givenExpiredSession_expectEvaluatesDeliveredFixThenRemovesMatchingRequest() = runTest {
+        val locations = listOf(location())
+        coEvery {
+            controller.processApproachLocations(locations, 7L)
+        } returns PolygonSamplingDecision.CONTINUE
+        val deadline = SystemClock.elapsedRealtime()
+
+        PolygonApproachReceiver().handleLocations(
+            locations,
+            7L,
+            sessionDeadlineElapsedRealtimeMs = deadline,
+            userId = "user-1",
+            controller = controller,
+            monitor = monitor
+        )
+
+        coVerify { controller.processApproachLocations(locations, 7L) }
+        verify { monitor.stop(7L, deadline) }
+    }
+
+    @Test
+    fun handleLocations_givenSafeDecision_expectColdProcessRequestIsRemoved() = runTest {
+        val locations = listOf(location())
+        coEvery {
+            controller.processApproachLocations(locations, 7L)
+        } returns PolygonSamplingDecision.STOP
+
+        PolygonApproachReceiver().handleLocations(
+            locations,
+            7L,
+            sessionDeadlineElapsedRealtimeMs = Long.MAX_VALUE,
+            userId = "user-1",
+            controller = controller,
+            monitor = monitor
+        )
+
+        verify { monitor.stop(7L, Long.MAX_VALUE) }
     }
 
     private fun location() = Location("test").apply {

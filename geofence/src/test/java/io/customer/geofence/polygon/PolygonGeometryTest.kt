@@ -7,20 +7,19 @@ import org.junit.Test
 
 class PolygonGeometryTest {
     @Test
-    fun relationTo_whenPolygonIsConcave_thenClassifiesBodyAndCutout() {
-        val geometry = PolygonGeometry.from(
-            listOf(
-                point(0.0, 0.0),
-                point(0.0, 3.0),
-                point(1.0, 3.0),
-                point(1.0, 1.0),
-                point(3.0, 1.0),
-                point(3.0, 0.0)
+    fun from_whenPolygonIsConcave_thenRejectsV1Geometry() {
+        invoking {
+            PolygonGeometry.from(
+                listOf(
+                    point(0.0, 0.0),
+                    point(0.0, 3.0),
+                    point(1.0, 3.0),
+                    point(1.0, 1.0),
+                    point(3.0, 1.0),
+                    point(3.0, 0.0)
+                )
             )
-        )
-
-        geometry.relationTo(point(0.5, 2.0)) shouldBeEqualTo PolygonPointRelation.INSIDE
-        geometry.relationTo(point(2.0, 2.0)) shouldBeEqualTo PolygonPointRelation.OUTSIDE
+        } shouldThrow IllegalArgumentException::class
     }
 
     @Test

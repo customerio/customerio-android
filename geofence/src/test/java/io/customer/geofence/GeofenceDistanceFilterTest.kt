@@ -179,10 +179,10 @@ class GeofenceDistanceFilterTest : RobolectricTest() {
     }
 
     @Test
-    fun edgeDistanceToOrNull_givenPointInPolygonEnclosingCircleDeadSpace_expectUsesPolygonBoundaryDistance() {
-        // The point sits inside the region's enclosing circle but in the polygon's concave dead
-        // space: measuring against the circle would call it "inside" (distance 0).
-        concaveRegion().edgeDistanceToOrNull(2.0, 2.0)!! shouldBeGreaterThan 100_000f
+    fun edgeDistanceToOrNull_givenPointInWakeCircleDeadSpace_expectUsesPolygonBoundaryDistance() {
+        // The backend wake circle can contain substantial space outside even a convex polygon.
+        // Measuring against that circle would incorrectly report distance zero.
+        polygonRegion().edgeDistanceToOrNull(2.0, 2.0)!! shouldBeGreaterThan 100_000f
     }
 
     // ---------- polygons never reach the registered set from this build ----------
@@ -195,7 +195,7 @@ class GeofenceDistanceFilterTest : RobolectricTest() {
         val circle = region("biz-circle", 1.4, 1.4)
 
         val result = filter.nearest(
-            listOf(concaveRegion(), circle),
+            listOf(polygonRegion(), circle),
             latitude = 1.4,
             longitude = 1.4,
             max = 5,
@@ -212,14 +212,14 @@ class GeofenceDistanceFilterTest : RobolectricTest() {
         val enabled = GeofenceDistanceFilter(polygonSupport = EnabledPolygonSupport)
 
         val result = enabled.nearest(
-            listOf(concaveRegion()),
+            listOf(polygonRegion()),
             latitude = 0.5,
             longitude = 0.5,
             max = 5,
             maxDistanceMeters = noDistanceCap
         )
 
-        result.map { it.id } shouldBeEqualTo listOf("concave")
+        result.map { it.id } shouldBeEqualTo listOf("polygon")
     }
 
     @Test
@@ -257,7 +257,7 @@ class GeofenceDistanceFilterTest : RobolectricTest() {
         // Ring validation is O(V²) and ranking re-runs on every movement trigger, so the result is
         // memoized per id + ring rather than recomputed per pass.
         val enabled = GeofenceDistanceFilter(polygonSupport = EnabledPolygonSupport)
-        val regions = listOf(concaveRegion())
+        val regions = listOf(polygonRegion())
         mockkObject(PolygonGeometry.Companion)
         try {
             repeat(3) {
@@ -270,19 +270,17 @@ class GeofenceDistanceFilterTest : RobolectricTest() {
         }
     }
 
-    // Concave L-shape whose enclosing circle covers a large area the polygon excludes.
-    private fun concaveRegion() = GeofenceRegion(
-        id = "concave",
+    // Convex square whose backend wake circle covers a larger area than the business boundary.
+    private fun polygonRegion() = GeofenceRegion(
+        id = "polygon",
         latitude = 1.5,
         longitude = 1.5,
         radius = 300_000f,
         polygonVertices = listOf(
             PolygonCoordinate(0.0, 0.0),
-            PolygonCoordinate(0.0, 3.0),
-            PolygonCoordinate(1.0, 3.0),
+            PolygonCoordinate(0.0, 1.0),
             PolygonCoordinate(1.0, 1.0),
-            PolygonCoordinate(3.0, 1.0),
-            PolygonCoordinate(3.0, 0.0)
+            PolygonCoordinate(1.0, 0.0)
         )
     )
 

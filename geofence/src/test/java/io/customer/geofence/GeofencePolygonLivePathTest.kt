@@ -164,6 +164,14 @@ class GeofencePolygonLivePathTest : RobolectricTest() {
         jsonSerializer.decode(GeofenceApiResponse.serializer(), raw, lenient = true)
 
     private companion object {
+        const val CAMPUS_WAKE_CIRCLE = """
+            {
+              "latitude": 37.775,
+              "longitude": -122.4194,
+              "base_radius_m": 100
+            }
+        """
+
         const val CAMPUS_GEOMETRY = """
             {
               "type": "Polygon",
@@ -181,7 +189,12 @@ class GeofencePolygonLivePathTest : RobolectricTest() {
             {
               "config": { "android": { "max_business_geofence": 19 } },
               "geofences": [
-                { "id": "campus", "geometry": $CAMPUS_GEOMETRY },
+                {
+                  "id": "campus",
+                  "shape": "polygon",
+                  "geometry": $CAMPUS_GEOMETRY,
+                  "enclosing_circle": $CAMPUS_WAKE_CIRCLE
+                },
                 { "id": "circle", "latitude": 37.775, "longitude": -122.419, "radius": 100 }
               ]
             }
@@ -191,7 +204,12 @@ class GeofencePolygonLivePathTest : RobolectricTest() {
             {
               "config": { "android": { "max_business_geofence": 19 } },
               "geofences": [
-                { "id": "campus", "geometry": $CAMPUS_GEOMETRY }
+                {
+                  "id": "campus",
+                  "shape": "polygon",
+                  "geometry": $CAMPUS_GEOMETRY,
+                  "enclosing_circle": $CAMPUS_WAKE_CIRCLE
+                }
               ]
             }
         """.trimIndent()

@@ -141,6 +141,7 @@ internal class PolygonGeometry private constructor(
             }
             require(canonical.hasNonCollinearVertices()) { "polygon cannot have zero area" }
             require(!canonical.hasSelfIntersection()) { "polygon cannot intersect itself" }
+            require(canonical.isConvex()) { "concave polygons are unsupported in v1" }
 
             return PolygonGeometry(canonical.toList())
         }
@@ -180,6 +181,25 @@ internal class PolygonGeometry private constructor(
                 }
             }
             return false
+        }
+
+        private fun List<PolygonCoordinate>.isConvex(): Boolean {
+            var direction = 0
+            for (index in indices) {
+                val turn = orientation(
+                    this[index],
+                    this[(index + 1) % size],
+                    this[(index + 2) % size]
+                )
+                if (abs(turn) <= BOUNDARY_EPSILON) continue
+                val currentDirection = if (turn > 0.0) 1 else -1
+                if (direction == 0) {
+                    direction = currentDirection
+                } else if (direction != currentDirection) {
+                    return false
+                }
+            }
+            return direction != 0
         }
 
         private fun segmentsAreAdjacent(firstIndex: Int, secondIndex: Int, size: Int): Boolean =

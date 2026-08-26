@@ -6,8 +6,8 @@ package io.customer.geofence.polygon
  * This module ships the polygon geometry and the wire contract only. It can decode a polygon record
  * and answer geometric questions about it, but it cannot acquire the fine-grained fixes a polygon
  * needs to be evaluated — so a polygon must never reach OS registration or business transitions from
- * this code alone. The enclosing circle ([PolygonEnclosingCircle]) is a coarse proximity trigger,
- * kilometres wider than the ring; registering it as a business fence would report ENTER for an area
+ * this code alone. The backend-provided enclosing circle is a coarse proximity trigger wider than
+ * the ring; registering it as a business fence would report ENTER for an area
  * the polygon does not describe.
  *
  * Every seam that turns wire data into monitored state takes one of these and defaults to

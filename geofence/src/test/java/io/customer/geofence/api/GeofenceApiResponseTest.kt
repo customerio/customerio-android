@@ -75,6 +75,12 @@ class GeofenceApiResponseTest : RobolectricTest() {
                   "latitude": 37.775,
                   "longitude": -122.419,
                   "radius": 250,
+                  "shape": "polygon",
+                  "enclosing_circle": {
+                    "latitude": 37.775,
+                    "longitude": -122.4194,
+                    "base_radius_m": 100
+                  },
                   "geometry": {
                     "type": "Polygon",
                     "coordinates": [[
@@ -111,11 +117,98 @@ class GeofenceApiResponseTest : RobolectricTest() {
             .single { it.id == "campus" }
 
         region.isPolygon.shouldBeTrue()
+        region.latitude shouldBeEqualTo 37.775
+        region.longitude shouldBeEqualTo -122.4194
+        region.radius shouldBeEqualTo 1_100f
         region.polygonVertices?.size shouldBeEqualTo 4
         region.polygonVertices?.first() shouldBeEqualTo PolygonCoordinate(37.7745, -122.4200)
         region.polygonVertices.orEmpty().forEach { vertex ->
             (region.distanceTo(vertex.latitude, vertex.longitude) <= region.radius).shouldBeTrue()
         }
+    }
+
+    @Test
+    fun parseAndMap_givenGeometryWithoutPolygonShape_expectDroppedNotDegradedToCircle() {
+        val regions = parseRegions(
+            """
+            {
+              "geofences": [
+                {
+                  "id": "missing-shape",
+                  "latitude": 37.775,
+                  "longitude": -122.419,
+                  "radius": 250,
+                  "geometry": {
+                    "type": "Polygon",
+                    "coordinates": [[
+                      [-122.4200, 37.7745],
+                      [-122.4188, 37.7745],
+                      [-122.4188, 37.7755],
+                      [-122.4200, 37.7755],
+                      [-122.4200, 37.7745]
+                    ]]
+                  }
+                },
+                { "id": "circle", "latitude": 0, "longitude": 0, "radius": 100 }
+              ]
+            }
+            """.trimIndent(),
+            EnabledPolygonSupport
+        )
+
+        regions.map(GeofenceRegion::id) shouldBeEqualTo listOf("circle")
+        verify { mockLogger.logPolygonDropped("missing-shape", "shape discriminator is missing or inconsistent") }
+    }
+
+    @Test
+    fun parseAndMap_givenPolygonWithoutBackendWakeCircle_expectDropped() {
+        val regions = parseRegions(
+            """
+            {
+              "geofences": [
+                {
+                  "id": "missing-circle",
+                  "shape": "polygon",
+                  "geometry": {
+                    "type": "Polygon",
+                    "coordinates": [[[0, 0], [0.01, 0], [0.01, 0.01], [0, 0.01], [0, 0]]]
+                  }
+                },
+                { "id": "circle", "latitude": 0, "longitude": 0, "radius": 100 }
+              ]
+            }
+            """.trimIndent(),
+            EnabledPolygonSupport
+        )
+
+        regions.map(GeofenceRegion::id) shouldBeEqualTo listOf("circle")
+        verify { mockLogger.logPolygonDropped("missing-circle", "polygon geometry or enclosing circle is missing") }
+    }
+
+    @Test
+    fun parseAndMap_givenConcavePolygon_expectDroppedByV1Envelope() {
+        val regions = parseRegions(
+            """
+            {
+              "geofences": [
+                {
+                  "id": "concave",
+                  "shape": "polygon",
+                  "enclosing_circle": { "latitude": 0.005, "longitude": 0.005, "base_radius_m": 2000 },
+                  "geometry": {
+                    "type": "Polygon",
+                    "coordinates": [[[0, 0], [0.01, 0], [0.004, 0.004], [0.01, 0.01], [0, 0.01], [0, 0]]]
+                  }
+                },
+                { "id": "circle", "latitude": 0, "longitude": 0, "radius": 100 }
+              ]
+            }
+            """.trimIndent(),
+            EnabledPolygonSupport
+        )
+
+        regions.map(GeofenceRegion::id) shouldBeEqualTo listOf("circle")
+        verify { mockLogger.logPolygonDropped(eq("concave"), any()) }
     }
 
     @Test
@@ -146,6 +239,8 @@ class GeofenceApiResponseTest : RobolectricTest() {
                     {
                       "id": "multi",
                       "latitude": 0, "longitude": 0, "radius": 100,
+                      "shape": "polygon",
+                      "enclosing_circle": { "latitude": 0, "longitude": 0, "base_radius_m": 1000 },
                       "geometry": { "type": "MultiPolygon", "coordinates": [[[[0, 0], [0, 1], [1, 1], [0, 0]]]] }
                     },
                     { "id": "circle", "latitude": 0, "longitude": 0, "radius": 100 }
@@ -179,6 +274,8 @@ class GeofenceApiResponseTest : RobolectricTest() {
               "geofences": [
                 {
                   "id": "hole",
+                  "shape": "polygon",
+                  "enclosing_circle": { "latitude": 0.005, "longitude": 0.005, "base_radius_m": 1000 },
                   "geometry": {
                     "type": "Polygon",
                     "coordinates": [
@@ -208,6 +305,8 @@ class GeofenceApiResponseTest : RobolectricTest() {
               "geofences": [
                 {
                   "id": "bow-tie",
+                  "shape": "polygon",
+                  "enclosing_circle": { "latitude": 0.005, "longitude": 0.005, "base_radius_m": 1000 },
                   "geometry": {
                     "type": "Polygon",
                     "coordinates": [[[0, 0], [0.01, 0.01], [0, 0.01], [0.01, 0], [0, 0]]]
@@ -234,6 +333,8 @@ class GeofenceApiResponseTest : RobolectricTest() {
               "geofences": [
                 {
                   "id": "continent",
+                  "shape": "polygon",
+                  "enclosing_circle": { "latitude": 10, "longitude": 15, "base_radius_m": 2000000 },
                   "geometry": {
                     "type": "Polygon",
                     "coordinates": [[[0, 0], [30, 0], [30, 20], [0, 20], [0, 0]]]
@@ -260,7 +361,12 @@ class GeofenceApiResponseTest : RobolectricTest() {
             """
             {
               "geofences": [
-                { "id": "too-many", "geometry": { "type": "Polygon", "coordinates": [[$ring]] } },
+                {
+                  "id": "too-many",
+                  "shape": "polygon",
+                  "enclosing_circle": { "latitude": 0, "longitude": 0, "base_radius_m": 1000 },
+                  "geometry": { "type": "Polygon", "coordinates": [[$ring]] }
+                },
                 { "id": "circle", "latitude": 0, "longitude": 0, "radius": 100 }
               ]
             }
@@ -879,6 +985,12 @@ class GeofenceApiResponseTest : RobolectricTest() {
           "geofences": [
             {
               "id": "campus",
+              "shape": "polygon",
+              "enclosing_circle": {
+                "latitude": 37.775,
+                "longitude": -122.4194,
+                "base_radius_m": 100
+              },
               "geometry": {
                 "type": "Polygon",
                 "coordinates": [[
@@ -900,6 +1012,12 @@ class GeofenceApiResponseTest : RobolectricTest() {
           "geofences": [
             {
               "id": "campus",
+              "shape": "polygon",
+              "enclosing_circle": {
+                "latitude": 37.775,
+                "longitude": -122.4194,
+                "base_radius_m": 100
+              },
               "geometry": {
                 "type": "Polygon",
                 "coordinates": [[

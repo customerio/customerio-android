@@ -6,9 +6,10 @@ import io.customer.geofence.GeofenceRegion
 import io.customer.geofence.GeofenceTransitionType
 import io.customer.geofence.di.geofenceLogger
 import io.customer.geofence.polygon.PolygonCoordinate
-import io.customer.geofence.polygon.PolygonEnclosingCircle
 import io.customer.geofence.polygon.PolygonGeometry
 import io.customer.geofence.polygon.PolygonSupport
+import io.customer.geofence.polygon.PolygonWakeCircle
+import io.customer.geofence.polygon.PolygonWakeCircleValidator
 import io.customer.location.LocationCoordinates
 import io.customer.sdk.core.di.SDKComponent
 import kotlinx.serialization.SerialName
@@ -71,8 +72,12 @@ internal data class GeofenceApiRegion(
     // Double (not Int) so a fractional radius can't fail the whole response decode.
     @SerialName("radius")
     val radius: Double? = null,
+    @SerialName("shape")
+    val shape: String? = null,
     @SerialName("geometry")
     val geometry: GeofenceApiGeometry? = null,
+    @SerialName("enclosing_circle")
+    val enclosingCircle: GeofenceApiEnclosingCircle? = null,
     @SerialName("external_id")
     val externalId: String? = null,
     @SerialName("transition_types")
@@ -94,6 +99,16 @@ internal data class GeofenceApiGeometry(
     val type: String,
     @SerialName("coordinates")
     val coordinates: JsonElement
+)
+
+@Serializable
+internal data class GeofenceApiEnclosingCircle(
+    @SerialName("latitude")
+    val latitude: Double,
+    @SerialName("longitude")
+    val longitude: Double,
+    @SerialName("base_radius_m")
+    val baseRadiusMeters: Double
 )
 
 /** Returns `null` when backend didn't send a `config` block — gates the cache save. */
@@ -184,8 +199,30 @@ internal fun GeofenceApiRegion.toDomain(
     polygonSupport: PolygonSupport = PolygonSupport.Disabled
 ): GeofenceRegion? {
     if (id.isBlank()) return null
-    val geometry = geometry ?: return toCircleRegionOrNull()
-    return toPolygonRegionOrNull(geometry, polygonSupport)
+    return when (shape?.lowercase()) {
+        null, CIRCLE_SHAPE -> {
+            if (geometry != null || enclosingCircle != null) {
+                SDKComponent.geofenceLogger.logPolygonDropped(id, "shape discriminator is missing or inconsistent")
+                null
+            } else {
+                toCircleRegionOrNull()
+            }
+        }
+        POLYGON_SHAPE -> {
+            val polygonGeometry = geometry
+            val polygonWakeCircle = enclosingCircle
+            if (polygonGeometry == null || polygonWakeCircle == null) {
+                SDKComponent.geofenceLogger.logPolygonDropped(id, "polygon geometry or enclosing circle is missing")
+                null
+            } else {
+                toPolygonRegionOrNull(polygonGeometry, polygonWakeCircle, polygonSupport)
+            }
+        }
+        else -> {
+            SDKComponent.geofenceLogger.logUnsupportedGeometryDropped(id, shape)
+            null
+        }
+    }
 }
 
 private fun GeofenceApiRegion.toCircleRegionOrNull(): GeofenceRegion? {
@@ -217,6 +254,7 @@ private fun GeofenceApiRegion.toCircleRegionOrNull(): GeofenceRegion? {
  */
 private fun GeofenceApiRegion.toPolygonRegionOrNull(
     geometry: GeofenceApiGeometry,
+    enclosingCircle: GeofenceApiEnclosingCircle,
     polygonSupport: PolygonSupport
 ): GeofenceRegion? {
     val logger = SDKComponent.geofenceLogger
@@ -233,11 +271,17 @@ private fun GeofenceApiRegion.toPolygonRegionOrNull(
         logger.logPolygonDropped(id, "ring is malformed, unsupported or fails validation")
         return null
     }
-    // The polygon is the fence; this circle only decides when the device is close enough to be
-    // worth evaluating finely, which is why it's padded well beyond the ring.
-    val trigger = PolygonEnclosingCircle().calculateOrNull(polygon)
-    if (trigger == null || !LocationCoordinates.isValid(trigger.center.latitude, trigger.center.longitude)) {
-        logger.logPolygonDropped(id, "no usable enclosing trigger circle (too large or unsupported location)")
+    val wakeCenter = runCatching {
+        PolygonCoordinate(enclosingCircle.latitude, enclosingCircle.longitude)
+    }.getOrNull()
+    val trigger = wakeCenter?.let { center ->
+        PolygonWakeCircleValidator().prepareOrNull(
+            geometry = polygon,
+            wakeCircle = PolygonWakeCircle(center, enclosingCircle.baseRadiusMeters)
+        )
+    }
+    if (trigger == null) {
+        logger.logPolygonDropped(id, "backend-provided enclosing circle is invalid or does not contain the polygon")
         return null
     }
     return GeofenceRegion(
@@ -287,6 +331,8 @@ private fun JsonElement.toPolygonVerticesOrNull(): List<PolygonCoordinate>? {
 }
 
 private const val POLYGON_GEOMETRY_TYPE = "Polygon"
+private const val CIRCLE_SHAPE = "circle"
+private const val POLYGON_SHAPE = "polygon"
 
 /**
  * Reduces the raw wire value to the scalar map the event can carry: anything that isn't a JSON object

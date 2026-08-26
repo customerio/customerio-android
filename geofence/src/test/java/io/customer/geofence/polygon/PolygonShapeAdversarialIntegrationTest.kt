@@ -5,33 +5,24 @@ import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.sin
 import kotlin.math.sqrt
+import org.amshove.kluent.invoking
 import org.amshove.kluent.shouldBeEqualTo
-import org.amshove.kluent.shouldBeLessThan
+import org.amshove.kluent.shouldThrow
 import org.junit.Test
 
 class PolygonShapeAdversarialIntegrationTest {
     @Test
-    fun route_whenInsideConcaveEnclosingCircleDeadSpace_thenDoesNotEnterPolygon() {
-        val geometry = geometry(
-            point(-0.002, -0.002),
-            point(-0.002, 0.002),
-            point(-0.0005, 0.002),
-            point(-0.0005, -0.0005),
-            point(0.002, -0.0005),
-            point(0.002, -0.002)
-        )
-        val deadSpace = point(0.001, 0.001)
-        val triggerCircle = PolygonEnclosingCircle().calculate(geometry)
-        val route = RouteHarness(listOf(PolygonFence("l-shape", geometry)))
-
-        geometry.relationTo(deadSpace) shouldBeEqualTo PolygonPointRelation.OUTSIDE
-        distanceMeters(triggerCircle.center, deadSpace) shouldBeLessThan triggerCircle.radiusMeters.toDouble()
-
-        val events = (1..3).flatMap {
-            route.process(deadSpace.latitude, deadSpace.longitude, accuracy = 5.0)
-        }
-
-        events shouldBeEqualTo emptyList()
+    fun geometry_givenConcaveLShape_expectRejectedByV1Envelope() {
+        invoking {
+            geometry(
+                point(-0.002, -0.002),
+                point(-0.002, 0.002),
+                point(-0.0005, 0.002),
+                point(-0.0005, -0.0005),
+                point(0.002, -0.0005),
+                point(0.002, -0.002)
+            )
+        } shouldThrow IllegalArgumentException::class
     }
 
     @Test

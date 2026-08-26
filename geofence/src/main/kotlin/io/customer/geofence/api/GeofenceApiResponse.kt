@@ -306,8 +306,8 @@ private val GeofenceApiGeometry.isPolygonType: Boolean
  * Decodes a GeoJSON `Polygon` block into validated geometry, or `null` when it isn't one the SDK
  * supports (wrong type, holes, malformed positions, out-of-range or degenerate ring).
  *
- * Wire contract only: turning the result into a monitored region additionally requires
- * [PolygonSupport], which this module never enables.
+ * Wire contract only. Turning the result into a *monitored* region additionally requires
+ * [PolygonSupport] to be enabled at the caller's seam; decoding never implies monitoring.
  */
 internal fun GeofenceApiGeometry.toPolygonGeometryOrNull(): PolygonGeometry? {
     if (!isPolygonType) return null

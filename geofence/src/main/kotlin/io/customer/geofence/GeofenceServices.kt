@@ -1,6 +1,7 @@
 package io.customer.geofence
 
 import android.annotation.SuppressLint
+import io.customer.geofence.polygon.PolygonGeofenceServiceController
 import io.customer.geofence.store.GeofenceRegionStore
 import io.customer.location.LocationCoordinates
 import io.customer.sdk.data.store.SecureUserStore
@@ -26,7 +27,11 @@ internal interface GeofenceServices {
      * movement trigger usually fires with the app backgrounded, where the process
      * is fair game for the OS the moment the receiver finishes.
      */
-    fun onMovementTriggerExit(latitude: Double?, longitude: Double?): Job?
+    fun onMovementTriggerExit(
+        latitude: Double?,
+        longitude: Double?,
+        movementTriggerRadiusMeters: Float? = null
+    ): Job?
 
     /** Honours the freshness threshold — repeated identify within the window is a no-op. */
     fun onUserIdentified(latitude: Double?, longitude: Double?)
@@ -88,6 +93,8 @@ internal class GeofenceServicesImpl(
     private val repository: GeofenceRepository,
     private val secureUserStore: SecureUserStore,
     private val regionStore: GeofenceRegionStore,
+    private val cooldownFilter: GeofenceCooldownFilter,
+    private val polygonController: PolygonGeofenceServiceController,
     private val scope: CoroutineScope,
     private val logger: GeofenceLogger,
     private val permissionChecker: GeofencePermissionChecker
@@ -102,12 +109,22 @@ internal class GeofenceServicesImpl(
     // regardless of the no-location rearm flag.
     private val explicitRefreshRequested = AtomicBoolean(false)
 
-    override fun onMovementTriggerExit(latitude: Double?, longitude: Double?): Job? =
+    override fun onMovementTriggerExit(
+        latitude: Double?,
+        longitude: Double?,
+        movementTriggerRadiusMeters: Float?
+    ): Job? =
         triggerSync(
             reason = REASON_MOVEMENT_EXIT,
             latitude = latitude,
             longitude = longitude,
-            action = repository::handleMovement
+            action = { lat, lng ->
+                repository.handleMovement(
+                    latitude = lat,
+                    longitude = lng,
+                    movementTriggerRadiusMeters = movementTriggerRadiusMeters
+                )
+            }
         )
 
     override fun onUserIdentified(latitude: Double?, longitude: Double?) {
@@ -171,6 +188,11 @@ internal class GeofenceServicesImpl(
         // sync for the next user — sign-out wipes user-scoped session state.
         explicitRefreshRequested.set(false)
         lastSkippedForNoLocation.set(false)
+        cooldownFilter.clearAll()
+        // SecureUserStore is already anonymous when ResetEvent arrives. Fence the old generation
+        // and stop FLP/FGS synchronously, before a stalled GMS registration or repository lock can
+        // delay the eventual OS cleanup.
+        polygonController.clearUserSessionRetainingOsRegistrations()
         // Clear the registration-center anchor synchronously: repository.reset() also
         // clears it but runs on `scope`, so an in-process re-login (ResetEvent then
         // UserChangedEvent) would read the previous user's center and rank the new

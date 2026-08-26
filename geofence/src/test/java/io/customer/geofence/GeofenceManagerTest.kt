@@ -13,6 +13,7 @@ import io.customer.commontest.config.TestConfig
 import io.customer.commontest.config.testConfigurationDefault
 import io.customer.commontest.core.RobolectricTest
 import io.customer.geofence.di.geofenceLogger
+import io.customer.geofence.polygon.PolygonCoordinate
 import io.customer.sdk.core.di.SDKComponent
 import io.mockk.CapturingSlot
 import io.mockk.every
@@ -158,6 +159,24 @@ class GeofenceManagerTest : RobolectricTest() {
     }
 
     @Test
+    fun replaceMovementTrigger_expectReplacesOnlyReservedRegionWithExitWake() = runTest {
+        grantAllPermissions()
+        val requestSlot = slot<GeofencingRequest>()
+        stubClientRemoveByIdsSuccess()
+        stubClientAddSuccess(requestSlot)
+
+        val result = manager.replaceMovementTrigger(
+            buildRegion(id = GeofenceConstants.MOVEMENT_TRIGGER_ID, radius = 725f)
+        )
+
+        result.isSuccess.shouldBeTrue()
+        verify { client.removeGeofences(listOf(GeofenceConstants.MOVEMENT_TRIGGER_ID)) }
+        requestSlot.captured.geofences.single().requestId shouldBeEqualTo
+            GeofenceConstants.MOVEMENT_TRIGGER_ID
+        requestSlot.captured.initialTrigger shouldBeEqualTo GeofencingRequest.INITIAL_TRIGGER_EXIT
+    }
+
+    @Test
     fun replaceGeofencesForBootRestore_givenMovementTrigger_expectInitialTriggerExit() = runTest {
         grantAllPermissions()
 
@@ -262,6 +281,30 @@ class GeofenceManagerTest : RobolectricTest() {
         gmsGeofence.requestId shouldBeEqualTo "geo-123"
         gmsGeofence.transitionTypes shouldBeEqualTo Geofence.GEOFENCE_TRANSITION_ENTER
         gmsGeofence.expirationTime shouldBeEqualTo GeofenceConstants.GEOFENCE_EXPIRATION_NEVER
+    }
+
+    @Test
+    fun replaceGeofences_givenEnterOnlyPolygon_expectOuterCircleMonitorsEnterAndExit() = runTest {
+        grantAllPermissions()
+        val requestSlot = slot<GeofencingRequest>()
+        stubClientAddSuccess(requestSlot)
+        val polygon = buildRegion(
+            id = "polygon",
+            transitionTypes = listOf(GeofenceTransitionType.ENTER)
+        ).copy(
+            polygonVertices = listOf(
+                PolygonCoordinate(37.7745, -122.4200),
+                PolygonCoordinate(37.7745, -122.4188),
+                PolygonCoordinate(37.7755, -122.4188),
+                PolygonCoordinate(37.7755, -122.4200)
+            )
+        )
+
+        manager.replaceGeofences(listOf(polygon))
+
+        val transitionTypes = requestSlot.captured.geofences.single().transitionTypes
+        transitionTypes shouldContainFlag Geofence.GEOFENCE_TRANSITION_ENTER
+        transitionTypes shouldContainFlag Geofence.GEOFENCE_TRANSITION_EXIT
     }
 
     @Test

@@ -2,6 +2,7 @@ package io.customer.geofence.api
 
 import io.customer.geofence.GeofenceJsonSerializer
 import io.customer.geofence.GeofenceLocation
+import io.customer.geofence.polygon.PolygonSupport
 import io.customer.sdk.core.network.CustomerIOHttpClient
 import io.customer.sdk.core.network.HttpMethod
 import io.customer.sdk.core.network.HttpRequestParams
@@ -18,14 +19,21 @@ internal interface GeofenceApiService {
 
 internal class GeofenceApiServiceImpl(
     private val httpClient: CustomerIOHttpClient,
-    private val jsonSerializer: GeofenceJsonSerializer
+    private val jsonSerializer: GeofenceJsonSerializer,
+    // Derived from the same opt-in the mapper and ranker use, so this build can never ask the backend
+    // to spend response slots on a shape it would then drop. Defaults off with every other seam.
+    private val polygonSupport: PolygonSupport = PolygonSupport.Disabled
 ) : GeofenceApiService {
 
     override suspend fun fetchGeofences(location: GeofenceLocation): Result<GeofenceApiResponse> {
         // `radius`/`limit` are optional server-side and omitted.
         val body = jsonSerializer.encode(
             GeofenceNearestRequest.serializer(),
-            GeofenceNearestRequest(latitude = location.latitude, longitude = location.longitude)
+            GeofenceNearestRequest(
+                latitude = location.latitude,
+                longitude = location.longitude,
+                capabilities = polygonSupport.requestedCapabilities
+            )
         )
         val params = HttpRequestParams(
             path = ENDPOINT_PATH,
@@ -51,5 +59,7 @@ private data class GeofenceNearestRequest(
     @SerialName("latitude")
     val latitude: Double,
     @SerialName("longitude")
-    val longitude: Double
+    val longitude: Double,
+    @SerialName("capabilities")
+    val capabilities: List<String>
 )

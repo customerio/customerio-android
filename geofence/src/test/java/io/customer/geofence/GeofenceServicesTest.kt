@@ -1,6 +1,7 @@
 package io.customer.geofence
 
 import io.customer.commontest.core.RobolectricTest
+import io.customer.geofence.polygon.PolygonGeofenceServiceController
 import io.customer.geofence.store.GeofenceRegionStore
 import io.customer.sdk.data.store.SecureUserStore
 import io.mockk.coEvery
@@ -28,6 +29,8 @@ class GeofenceServicesTest : RobolectricTest() {
     private val repository: GeofenceRepository = mockk(relaxed = true)
     private val secureUserStore: SecureUserStore = mockk(relaxed = true)
     private val regionStore: GeofenceRegionStore = mockk(relaxed = true)
+    private val cooldownFilter: GeofenceCooldownFilter = mockk(relaxed = true)
+    private val polygonController: PolygonGeofenceServiceController = mockk(relaxed = true)
     private val logger: GeofenceLogger = mockk(relaxed = true)
     private val permissionChecker: GeofencePermissionChecker = mockk(relaxed = true) {
         every { hasRequiredLocationPermissions() } returns true
@@ -39,6 +42,8 @@ class GeofenceServicesTest : RobolectricTest() {
             repository = repository,
             secureUserStore = secureUserStore,
             regionStore = regionStore,
+            cooldownFilter = cooldownFilter,
+            polygonController = polygonController,
             scope = scope,
             logger = logger,
             permissionChecker = permissionChecker
@@ -56,6 +61,22 @@ class GeofenceServicesTest : RobolectricTest() {
         coVerify(exactly = 0) { repository.refresh(any(), any()) }
         verify { logger.logSyncTriggered("movement-trigger-exit") }
     }
+
+    @Test
+    fun onMovementTriggerExit_givenAdaptiveRadius_expectForwardsItToRegistrationPass() =
+        runTest(StandardTestDispatcher()) {
+            coEvery { repository.handleMovement(any(), any(), any()) } returns Result.success(Unit)
+            val services = servicesWith(this)
+
+            services.onMovementTriggerExit(
+                latitude = 12.34,
+                longitude = 56.78,
+                movementTriggerRadiusMeters = 725f
+            )
+            advanceUntilIdle()
+
+            coVerify { repository.handleMovement(12.34, 56.78, 725f) }
+        }
 
     @Test
     fun onUserIdentified_expectRefreshCalled() = runTest(StandardTestDispatcher()) {
@@ -300,18 +321,21 @@ class GeofenceServicesTest : RobolectricTest() {
     }
 
     @Test
-    fun onUserSignedOut_expectRegistrationAnchorClearedSynchronously() = runTest(StandardTestDispatcher()) {
-        // The persisted registration center is user-scoped. It must be dropped
-        // synchronously on sign-out — before repository.reset() runs on the scope —
-        // so an in-process re-login can't rank the next user's geofences around the
-        // previous user's location.
-        coEvery { repository.reset() } returns Result.success(Unit)
-        val services = servicesWith(this)
+    fun onUserSignedOut_expectFineMonitoringAndRegistrationAnchorClearedSynchronously() =
+        runTest(StandardTestDispatcher()) {
+            // The persisted registration center is user-scoped. It must be dropped
+            // synchronously on sign-out — before repository.reset() runs on the scope —
+            // so an in-process re-login can't rank the next user's geofences around the
+            // previous user's location.
+            coEvery { repository.reset() } returns Result.success(Unit)
+            val services = servicesWith(this)
 
-        services.onUserSignedOut()
+            services.onUserSignedOut()
 
-        verify { regionStore.clearLastMovementTriggerLocation() }
-    }
+            verify { cooldownFilter.clearAll() }
+            verify { polygonController.clearUserSessionRetainingOsRegistrations() }
+            verify { regionStore.clearLastMovementTriggerLocation() }
+        }
 
     @Test
     fun onForegroundRetry_expectRefreshUnderItsOwnReason() = runTest(StandardTestDispatcher()) {

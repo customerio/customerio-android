@@ -64,6 +64,24 @@ internal class GeofenceManager(
     suspend fun replaceGeofencesForBootRestore(regions: List<GeofenceRegion>): Result<Unit> =
         replaceGeofences(regions)
 
+    /** Re-centres the SDK's single shared movement trigger without touching business regions. */
+    @RequiresPermission(Manifest.permission.ACCESS_FINE_LOCATION)
+    suspend fun replaceMovementTrigger(region: GeofenceRegion): Result<Unit> {
+        require(region.id == GeofenceConstants.MOVEMENT_TRIGGER_ID) {
+            "movement trigger must use the reserved request id"
+        }
+        if (!permissionChecker.hasRequiredLocationPermissions()) {
+            logger.logMissingPermission("ACCESS_FINE_LOCATION")
+            return Result.failure(SecurityException("Required location permissions not granted"))
+        }
+        val removal = removeGeofencesByIds(listOf(GeofenceConstants.MOVEMENT_TRIGGER_ID))
+        if (removal.isFailure) return removal
+        return registerBatch(
+            regions = listOf(region),
+            initialTrigger = GeofencingRequest.INITIAL_TRIGGER_EXIT
+        )
+    }
+
     @RequiresPermission(Manifest.permission.ACCESS_FINE_LOCATION)
     private suspend fun replaceGeofencesInternal(
         regions: List<GeofenceRegion>,

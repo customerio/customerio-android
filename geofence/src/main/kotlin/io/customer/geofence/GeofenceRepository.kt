@@ -5,6 +5,8 @@ import androidx.annotation.RequiresPermission
 import io.customer.geofence.api.GeofenceApiService
 import io.customer.geofence.api.toDomainConfig
 import io.customer.geofence.api.toDomainRegions
+import io.customer.geofence.polygon.PolygonGeofenceServiceController
+import io.customer.geofence.polygon.PolygonSupport
 import io.customer.geofence.store.GeofenceRegionStore
 import io.customer.geofence.store.getCachedConfigOrFallback
 import io.customer.location.LocationCoordinates
@@ -22,8 +24,9 @@ import kotlinx.coroutines.sync.withLock
  * Geofence sync pipeline. Two public entry points:
  *
  * - [refresh] — for identify / app-launch. Reuses the cached set within the freshness window
- *   (re-registering locally or skipping); otherwise fetches fresh from the API.
- * - [refreshFromLiveFix] — same pass, for a fix the SDK asked for and received.
+ *   (re-registering locally or skipping); otherwise fetches fresh from the API. Waits behind an
+ *   older pass so a rapid user switch cannot lose the new user's only refresh.
+ * - [refreshFromLiveFix] — same serialized pass, for a fix the SDK asked for and received.
  * - [handleMovement] — for movement-trigger EXIT. Re-ranks the cached regions for the new
  *   location.
  */
@@ -32,17 +35,18 @@ internal interface GeofenceRepository {
     suspend fun refresh(latitude: Double, longitude: Double): Result<Unit>
 
     /**
-     * [refresh] for a just-acquired fix, which waits for an in-flight sync instead of dropping.
-     * The two run the same pass; they differ only in what a collision costs. Identify and
-     * app-launch collide constantly and share one anchor, so dropping loses nothing — but this
-     * caller holds the device's real position while the sync in flight is working from a stored
-     * anchor that can be kilometres stale, and the fix is consumed whether or not it is used.
+     * [refresh] for a just-acquired fix. This entry point names the stronger source semantics; both
+     * paths serialize because dropping either can strand monitoring after an identity change.
      */
     @RequiresPermission(Manifest.permission.ACCESS_FINE_LOCATION)
     suspend fun refreshFromLiveFix(latitude: Double, longitude: Double): Result<Unit>
 
     @RequiresPermission(Manifest.permission.ACCESS_FINE_LOCATION)
-    suspend fun handleMovement(latitude: Double, longitude: Double): Result<Unit>
+    suspend fun handleMovement(
+        latitude: Double,
+        longitude: Double,
+        movementTriggerRadiusMeters: Float? = null
+    ): Result<Unit>
 
     /**
      * Re-registers the cached geofences with the OS after a device reboot
@@ -74,13 +78,17 @@ internal class GeofenceRepositoryImpl(
     private val transitionEmitter: GeofenceTransitionEmitter,
     private val clock: Clock,
     private val packageInfo: GeofencePackageInfo,
-    private val logger: GeofenceLogger
+    private val logger: GeofenceLogger,
+    private val polygonController: PolygonGeofenceServiceController? = null,
+    // Same instance the request builder and the ranker hold, so a polygon that is asked for is also
+    // mapped, ranked and registered — or none of the three. Defaults off with every other seam.
+    private val polygonSupport: PolygonSupport = PolygonSupport.Disabled
 ) : GeofenceRepository {
 
-    // One sync pass at a time. A pass carrying its own live fix waits for the slot rather than
-    // dropping — see [awaitRefreshSlot]; [refresh] drops, because identify and app-launch fire
-    // together on the same anchor and only one needs to run. Released in `finally` so a failure
-    // or cancellation can't latch the gate.
+    // One sync pass at a time. Every caller waits for the slot: duplicate app-launch/identify work
+    // is re-evaluated against the first pass's result, while a different user or live fix gets its
+    // own pass.
+    // Released in `finally` so a failure or cancellation can't latch the gate.
     private val refreshInProgress = AtomicBoolean(false)
 
     // Serializes state-mutation against reset() (sign-out). Held only around the
@@ -95,8 +103,8 @@ internal class GeofenceRepositoryImpl(
 
     @RequiresPermission(Manifest.permission.ACCESS_FINE_LOCATION)
     override suspend fun refresh(latitude: Double, longitude: Double): Result<Unit> {
-        if (!tryTakeRefreshSlot()) {
-            logger.logSyncSkipped("refresh already in progress")
+        if (!awaitRefreshSlot()) {
+            logger.logSyncSkipped("refresh already in progress after waiting")
             return Result.success(Unit)
         }
         return runRefresh(latitude, longitude)
@@ -182,9 +190,10 @@ internal class GeofenceRepositoryImpl(
     private fun movedBeyondFetchRadius(distanceFromAnchor: Float, config: GeofenceConfig): Boolean =
         distanceFromAnchor >= config.remoteFetchRefreshTriggerRadius
 
-    /** Cache holds regions but none are registered with the OS (e.g. regs lost on sign-out) → re-register. */
+    /** Cache holds regions but OS or current-session routing state is absent → re-register. */
     private fun hasUnregisteredCache(): Boolean =
-        store.getCachedRegions().isNotEmpty() && store.getRegisteredIds().isEmpty()
+        store.getCachedRegions().isNotEmpty() &&
+            (store.getRegisteredIds().isEmpty() || store.getRoutableRegisteredIds().isEmpty())
 
     /**
      * Uptime regressed since the last registration → the device rebooted, which wipes GMS geofences
@@ -232,7 +241,11 @@ internal class GeofenceRepositoryImpl(
     }
 
     @RequiresPermission(Manifest.permission.ACCESS_FINE_LOCATION)
-    override suspend fun handleMovement(latitude: Double, longitude: Double): Result<Unit> {
+    override suspend fun handleMovement(
+        latitude: Double,
+        longitude: Double,
+        movementTriggerRadiusMeters: Float?
+    ): Result<Unit> {
         if (!awaitRefreshSlot()) {
             logger.logSyncSkipped("refresh already in progress after waiting")
             return Result.success(Unit)
@@ -255,16 +268,36 @@ internal class GeofenceRepositoryImpl(
             // Initial-enter synthesis stays on here (unlike refresh): containment is judged against
             // the OS's live triggering fix, so a reboot/app-update wipe can't make it stale.
             return if (needsRemoteFetch) {
-                val remote = performRemoteRefresh(userId, latitude, longitude, containmentEpoch)
+                val remote = performRemoteRefresh(
+                    userId,
+                    latitude,
+                    longitude,
+                    containmentEpoch,
+                    movementTriggerRadiusMeters = movementTriggerRadiusMeters
+                )
                 if (remote.isFailure) {
                     // The trigger already fired, and a failed pass never re-centres it — leaving it
                     // where the device just exited, so nothing can fire again. Re-rank to re-arm it.
                     logger.logMovementRearmedAfterFailedRefresh()
-                    performLocalRefresh(userId, latitude, longitude, config, containmentEpoch)
+                    performLocalRefresh(
+                        userId,
+                        latitude,
+                        longitude,
+                        config,
+                        containmentEpoch,
+                        movementTriggerRadiusMeters = movementTriggerRadiusMeters
+                    )
                 }
                 remote
             } else {
-                performLocalRefresh(userId, latitude, longitude, config, containmentEpoch)
+                performLocalRefresh(
+                    userId,
+                    latitude,
+                    longitude,
+                    config,
+                    containmentEpoch,
+                    movementTriggerRadiusMeters = movementTriggerRadiusMeters
+                )
             }
         } finally {
             releaseRefreshSlot()
@@ -315,7 +348,8 @@ internal class GeofenceRepositoryImpl(
         latitude: Double,
         longitude: Double,
         containmentEpoch: Long,
-        emitInitialEnter: Boolean = true
+        emitInitialEnter: Boolean = true,
+        movementTriggerRadiusMeters: Float? = null
     ): Result<Unit> {
         // The device location lets the backend return the nearby set; the request carries no user
         // identity, so it isn't attributable to a user.
@@ -326,7 +360,7 @@ internal class GeofenceRepositoryImpl(
                 // An unusable response throws (see toDomainRegions) — fail the refresh and
                 // keep current registrations; never let it escape the handler-less scope.
                 val mapped = runCatching {
-                    response.toDomainRegions() to response.toDomainConfig()
+                    response.toDomainRegions(polygonSupport) to response.toDomainConfig()
                 }.getOrElse { e ->
                     logger.logSyncFailed("response mapping failed: ${e.message}")
                     return@fold Result.failure(e)
@@ -342,6 +376,7 @@ internal class GeofenceRepositoryImpl(
                     config = config,
                     containmentEpoch = containmentEpoch,
                     emitInitialEnter = emitInitialEnter,
+                    movementTriggerRadiusMeters = movementTriggerRadiusMeters,
                     // Cache + anchor + timestamp only on remote fetch; Tier A reuses them.
                     // Skip the config save when backend didn't ship one this response —
                     // a null parse must not clobber a previously cached value.
@@ -368,7 +403,8 @@ internal class GeofenceRepositoryImpl(
         cachedConfig: GeofenceConfig,
         containmentEpoch: Long,
         register: suspend (List<GeofenceRegion>) -> Result<Unit> = ::registerWithBusinessDiff,
-        emitInitialEnter: Boolean = true
+        emitInitialEnter: Boolean = true,
+        movementTriggerRadiusMeters: Float? = null
     ): Result<Unit> = registerNearestAndPersist(
         userId = userId,
         latitude = latitude,
@@ -377,7 +413,8 @@ internal class GeofenceRepositoryImpl(
         config = cachedConfig,
         containmentEpoch = containmentEpoch,
         register = register,
-        emitInitialEnter = emitInitialEnter
+        emitInitialEnter = emitInitialEnter,
+        movementTriggerRadiusMeters = movementTriggerRadiusMeters
     )
 
     /**
@@ -390,10 +427,39 @@ internal class GeofenceRepositoryImpl(
     private suspend fun registerWithBusinessDiff(regions: List<GeofenceRegion>): Result<Unit> {
         // After a reboot or app update GMS state is gone, so re-register everything rather than
         // trust the surviving registeredIds (which would otherwise be skipped as "unchanged").
-        val existingBusinessIds = if (osStateWiped()) {
+        val osStateWiped = osStateWiped()
+        val existingBusinessIds = if (osStateWiped) {
             emptySet()
         } else {
             unchangedRegisteredIds(regions)
+        }
+        if (!osStateWiped) {
+            val registeredBusinessIds = store.getRegisteredIds() - GeofenceConstants.MOVEMENT_TRIGGER_ID
+            val requestedBusinessIds = regions.asSequence()
+                .map(GeofenceRegion::id)
+                .filter { it != GeofenceConstants.MOVEMENT_TRIGGER_ID }
+                .toSet()
+            val additions = requestedBusinessIds - existingBusinessIds
+            val stale = (registeredBusinessIds - requestedBusinessIds).sorted()
+            val projectedPeak = registeredBusinessIds.size + 1 + additions.size
+            val preRemovalCount = (projectedPeak - MAX_GMS_GEOFENCES).coerceAtLeast(0)
+            val preRemove = stale.take(preRemovalCount)
+            if (preRemove.isNotEmpty()) {
+                val removal = manager.removeGeofencesByIds(preRemove)
+                if (removal.isFailure) return removal
+                val remainingIds = store.getRegisteredIds() - preRemove.toSet()
+                store.saveRegisteredIds(remainingIds)
+                store.saveRoutableRegisteredIds(
+                    store.getRoutableRegisteredIds() - preRemove.toSet()
+                )
+                store.saveRetainedRegisteredRegions(
+                    store.getRetainedRegisteredRegions().filterNot { it.id in preRemove }
+                )
+                val remainingPolygonIds = remainingIds.mapNotNull { id ->
+                    store.getRegisteredRegion(id)?.takeIf(GeofenceRegion::isPolygon)?.id
+                }.toSet()
+                polygonController?.reconcileRegisteredPolygons(remainingPolygonIds)
+            }
         }
         return manager.replaceGeofences(
             regions = regions,
@@ -404,11 +470,14 @@ internal class GeofenceRepositoryImpl(
     /** Business IDs already registered whose GMS-relevant params match the cache — safe to skip re-adding. */
     private fun unchangedRegisteredIds(regions: List<GeofenceRegion>): Set<String> {
         val registeredBusinessIds = store.getRegisteredIds() - GeofenceConstants.MOVEMENT_TRIGGER_ID
+        val routableBusinessIds = store.getRoutableRegisteredIds() - GeofenceConstants.MOVEMENT_TRIGGER_ID
         val cachedById = store.getCachedRegions().associateBy { it.id }
         return regions
             .filter { region ->
                 val cached = cachedById[region.id]
-                region.id in registeredBusinessIds && cached?.equalsForRegistration(region) == true
+                region.id in registeredBusinessIds &&
+                    region.id in routableBusinessIds &&
+                    cached?.equalsForRegistration(region) == true
             }
             .map { it.id }
             .toSet()
@@ -424,16 +493,31 @@ internal class GeofenceRepositoryImpl(
         containmentEpoch: Long,
         register: suspend (List<GeofenceRegion>) -> Result<Unit> = ::registerWithBusinessDiff,
         onRegistered: () -> Unit = {},
-        emitInitialEnter: Boolean = true
+        emitInitialEnter: Boolean = true,
+        movementTriggerRadiusMeters: Float? = null
     ): Result<Unit> {
         // Pure mapping + filter — no shared state, kept outside the lock.
-        val nearest = distanceFilter.nearest(
-            regions = regions,
-            latitude = latitude,
-            longitude = longitude,
-            max = config.maxBusinessGeofences,
-            maxDistanceMeters = config.maxMonitoringDistance
-        )
+        val pinnedPolygonIds = polygonIdsToPin(regions)
+        // Both overloads land under GeofenceConstants.MAX_OS_BUSINESS_GEOFENCE_SLOTS, so the movement
+        // trigger prepended below always has an OS slot left even when many polygons are pinned.
+        val nearest = if (pinnedPolygonIds.isEmpty()) {
+            distanceFilter.nearest(
+                regions = regions,
+                latitude = latitude,
+                longitude = longitude,
+                max = config.maxBusinessGeofences,
+                maxDistanceMeters = config.maxMonitoringDistance
+            )
+        } else {
+            distanceFilter.nearest(
+                regions = regions,
+                latitude = latitude,
+                longitude = longitude,
+                max = config.maxBusinessGeofences,
+                maxDistanceMeters = config.maxMonitoringDistance,
+                pinnedIds = pinnedPolygonIds
+            )
+        }
         // Keep the movement trigger registered even when no regions qualify right now — all beyond
         // maxMonitoringDistance, or the distance-capped /nearest returned none here — so an EXIT
         // re-ranks/re-fetches as the device travels. Only maxBusinessGeofences = 0 means "feature off".
@@ -441,7 +525,13 @@ internal class GeofenceRepositoryImpl(
         val regionsToRegister = if (!monitoringEnabled) {
             emptyList()
         } else {
-            listOf(buildMovementTrigger(latitude, longitude, config.localRefreshTriggerRadius)) + nearest
+            listOf(
+                buildMovementTrigger(
+                    latitude,
+                    longitude,
+                    movementTriggerRadiusMeters ?: config.localRefreshTriggerRadius
+                )
+            ) + nearest
         }
         return stateMutex.withLock {
             // Recheck userId — sign-out or user switch may have happened during
@@ -452,46 +542,96 @@ internal class GeofenceRepositoryImpl(
                 logger.logSyncSkipped("user changed during refresh")
                 return@withLock Result.success(Unit)
             }
+            val syncUserStateGeneration = store.userStateGeneration()
+            fun sessionStillCurrent(): Boolean =
+                secureUserStore.getUserId() == userId &&
+                    store.userStateGeneration() == syncUserStateGeneration
+            fun retainCleanupOnly(ids: Set<String>) {
+                store.saveRegisteredIds(store.getRegisteredIds() + ids)
+                store.saveRoutableRegisteredIds(emptySet())
+                polygonController?.stopAll()
+            }
             // Synthesis baseline, snapshotted before register/persist mutate the store. No reboot
             // override here (unlike the registration diff): callers disable synthesis outright
             // while the reboot flag is up — the anchor can predate the reboot.
             val unchangedRegistered = unchangedRegisteredIds(nearest)
             // Registered before this pass but not cache-equal: the ID survived a geometry edit.
             val previouslyRegistered = store.getRegisteredIds()
+            val cachedById = store.getCachedRegions().associateBy(GeofenceRegion::id)
+            val nearestById = nearest.associateBy(GeofenceRegion::id)
+            val retainedById = store.getRetainedRegisteredRegions().associateBy(GeofenceRegion::id)
+            val changedPolygonIds = nearest.filter { region ->
+                region.isPolygon && cachedById[region.id]?.polygonVertices != region.polygonVertices
+            }.mapTo(mutableSetOf(), GeofenceRegion::id)
             val reRegisteredIds = nearest.map { it.id }
                 .filter { it in previouslyRegistered && it !in unchangedRegistered }
                 .toSet()
-            val registrationResult = register(regionsToRegister).also { result ->
-                if (result.isSuccess) {
-                    // Stale cleanup — Manager added new−existing, we remove
-                    // existing−new. Runs only on add success; on failure leave
-                    // previous registrations intact rather than wipe.
-                    val existingIds = store.getRegisteredIds()
-                    val newIds = regionsToRegister.map { it.id }.toSet()
-                    val staleIds = existingIds - newIds
-                    val staleRemovalSucceeded = if (staleIds.isNotEmpty()) {
-                        manager.removeGeofencesByIds(staleIds.toList()).isSuccess
-                    } else {
-                        true
-                    }
-                    val idsToSave = if (staleRemovalSucceeded) {
-                        newIds
-                    } else {
-                        newIds + staleIds
-                    }
+            val registrationResult = register(regionsToRegister)
+            if (registrationResult.isSuccess) {
+                val newIds = regionsToRegister.map { it.id }.toSet()
+                if (!sessionStillCurrent()) {
+                    retainCleanupOnly(newIds)
+                    logger.logSyncSkipped("user changed during registration")
+                    return@withLock registrationResult
+                }
+                // Stale cleanup — Manager added new−existing, we remove
+                // existing−new. Runs only on add success; on failure leave
+                // previous registrations intact rather than wipe.
+                val existingIds = store.getRegisteredIds()
+                val staleIds = existingIds - newIds
+                val staleRemovalSucceeded = if (staleIds.isNotEmpty()) {
+                    manager.removeGeofencesByIds(staleIds.toList()).isSuccess
+                } else {
+                    true
+                }
+                if (!sessionStillCurrent()) {
+                    retainCleanupOnly(newIds + if (staleRemovalSucceeded) emptySet() else staleIds)
+                    logger.logSyncSkipped("user changed during stale cleanup")
+                    return@withLock registrationResult
+                }
+                val idsToSave = if (staleRemovalSucceeded) {
+                    newIds
+                } else {
+                    newIds + staleIds
+                }
+                val retainedStaleRegions = if (staleRemovalSucceeded) {
+                    emptyList()
+                } else {
+                    staleIds.mapNotNull { cachedById[it] ?: retainedById[it] }
+                }
+                val publishRegistrationState = {
                     store.saveRegisteredIds(idsToSave)
+                    store.saveRetainedRegisteredRegions(retainedStaleRegions)
+                    // Publish the new catalog before any old-geometry fine detection can stage a
+                    // transition after successful removal. Staging and this save share the store's
+                    // transition lock, so one side wins atomically and the revision check rejects
+                    // the loser.
+                    onRegistered()
+                    // Only the just-confirmed catalog may generate events. IDs retained solely to
+                    // retry failed OS removal remain cleanup tombstones across user handoffs.
+                    store.saveRoutableRegisteredIds(newIds)
+                    if (!emitInitialEnter) {
+                        // Reboot/app replacement wiped GMS state. Persisted coarse membership came
+                        // from the old OS session and cannot be used to restart fine monitoring.
+                        polygonController?.invalidatePersistedCoarseState()
+                    }
                     // Seed containment from our own geometry: synthesis is suppressed after a
                     // reboot or app update, and without a record the later genuine EXIT looks
                     // unentered and gets dropped.
-                    val insideIds = nearest.filter { it.distanceTo(latitude, longitude) <= it.radius }
+                    val insideIds = nearest.filter { !it.isPolygon && it.contains(latitude, longitude) }
                         .map { it.id }
                         .toSet()
                     // A moved circle keeps its ID, so containment and the reported-ENTER mark can
                     // describe where the fence used to be. Reset both, but only once the new geometry
                     // agrees the device is out, or trimming a radius manufactures a second arrival.
-                    val movedAwayIds = reRegisteredIds - insideIds
+                    // Circle containment can be recomputed from this sync fix. Polygon edits keep
+                    // their committed state until the accuracy-aware evaluator confirms the new
+                    // geometry; clearing it here would manufacture a second ENTER for inside→inside.
+                    val movedAwayIds = reRegisteredIds.filterTo(mutableSetOf()) { id ->
+                        nearestById[id]?.isPolygon != true && id !in insideIds
+                    }
                     val resetApplied = store.reconcileEnteredIds(
-                        registeredIds = idsToSave,
+                        registeredIds = newIds,
                         inside = insideIds,
                         // Registration awaited GMS, so a transition since this fix is newer evidence.
                         sinceEpoch = containmentEpoch,
@@ -500,11 +640,18 @@ internal class GeofenceRepositoryImpl(
                     // What the store actually reset, not what we asked it to: an arrival reported
                     // during the await keeps its record, and the mark that record was reported with.
                     // A fence dropped from the set never reports the EXIT that would re-arm it.
-                    store.pruneEmittedEnterIds(idsToSave - resetApplied)
-                    // Stamp uptime and package update time so the next refresh detects a reboot or
-                    // app update (both wipe OS geofences) and re-registers instead of trusting ids.
+                    store.pruneEmittedEnterIds(newIds - resetApplied)
+                    // Re-registration after a reboot or package replacement establishes a new OS
+                    // monitoring session. Publish its stamps before recovery starts any passive or
+                    // fine polygon monitor; otherwise recover() still observes the previous session
+                    // and immediately tears down the monitor that reconciliation just started.
                     store.setLastRegistrationUptime(clock.elapsedRealtime())
                     packageInfo.lastUpdateTimeMs()?.let { store.setLastRegistrationPackageUpdateTime(it) }
+                    val registeredPolygonIds = nearest.filter(GeofenceRegion::isPolygon)
+                        .mapTo(mutableSetOf(), GeofenceRegion::id)
+                    polygonController?.reconcileRegisteredPolygons(registeredPolygonIds)
+                    changedPolygonIds.forEach { polygonController?.resetEvidence(it) }
+                    polygonController?.recover()
                     // Track the user's location at each successful registration so boot restore can
                     // re-center close to their real position. Clear only when nothing is registered
                     // (kill switch) — the trigger, and thus its location, is gone.
@@ -513,15 +660,36 @@ internal class GeofenceRepositoryImpl(
                     } else {
                         store.clearLastMovementTriggerLocation()
                     }
-                    onRegistered()
                     logger.logSyncSucceeded(nearest.size, movementTriggerRegistered = monitoringEnabled)
+                }
+                val published = polygonController?.publishRegistrationIfCurrent(
+                    expectedUserStateGeneration = syncUserStateGeneration,
+                    userId = userId,
+                    publish = publishRegistrationState
+                ) ?: if (sessionStillCurrent()) {
+                    publishRegistrationState()
+                    true
+                } else {
+                    false
+                }
+                if (!published) {
+                    retainCleanupOnly(idsToSave)
+                    logger.logSyncSkipped("user changed before registration publication")
+                    return@withLock registrationResult
                 }
             }
             if (registrationResult.isSuccess && emitInitialEnter) {
                 // Identity can change during the awaited GMS call, and reset doesn't clear pending
                 // delivery rows — never queue a synthetic ENTER for a signed-out/switched user.
-                if (secureUserStore.getUserId() == userId) {
-                    emitInitialEnters(nearest, unchangedRegistered, userId, latitude, longitude)
+                if (sessionStillCurrent()) {
+                    emitInitialEnters(
+                        nearest,
+                        unchangedRegistered,
+                        userId,
+                        latitude,
+                        longitude,
+                        syncUserStateGeneration
+                    )
                 } else {
                     logger.logSyncSkipped("user changed during refresh — initial-enter synthesis skipped")
                 }
@@ -545,19 +713,26 @@ internal class GeofenceRepositoryImpl(
         unchangedRegisteredIds: Set<String>,
         userId: String,
         latitude: Double,
-        longitude: Double
+        longitude: Double,
+        expectedUserStateGeneration: Long
     ) {
         val timestamp = clock.currentTimeSeconds()
         val contained = store.getEnteredIds()
-        candidates.forEach { region ->
+        for (region in candidates) {
+            if (secureUserStore.getUserId() != userId ||
+                store.userStateGeneration() != expectedUserStateGeneration
+            ) {
+                return
+            }
+            if (region.isPolygon) continue
             val newlyRegistered = region.id !in unchangedRegisteredIds
             val monitorsEnter = GeofenceTransitionType.ENTER in region.transitionTypes
             // Both: a carried-forward record can outlive the visit, and geometry alone ignores an
             // EXIT reported while GMS was awaited.
-            val insideNow = region.distanceTo(latitude, longitude) <= region.radius
-            if (!newlyRegistered || !monitorsEnter || region.id !in contained || !insideNow) return@forEach
+            val insideNow = region.contains(latitude, longitude)
+            if (!newlyRegistered || !monitorsEnter || region.id !in contained || !insideNow) continue
             logger.logInitialEnterInside(region.id)
-            transitionEmitter.emit(
+            transitionEmitter.emitWithExpectedState(
                 geofenceId = region.id,
                 transition = Event.GeofenceTransition.ENTER,
                 userId = userId,
@@ -565,7 +740,9 @@ internal class GeofenceRepositoryImpl(
                 geofenceName = region.name,
                 metadata = region.metadata,
                 geosetIds = region.geosetIds,
-                monitorsExit = GeofenceTransitionType.EXIT in region.transitionTypes
+                monitorsExit = GeofenceTransitionType.EXIT in region.transitionTypes,
+                expectedUserStateGeneration = expectedUserStateGeneration,
+                expectedRegionRevision = region.transitionRevision()
             )
         }
     }
@@ -578,17 +755,28 @@ internal class GeofenceRepositoryImpl(
             logger.logSyncSkipped("reset superseded by signed-in user")
             return@withLock Result.success(Unit)
         }
+        val resetGeneration = store.userStateGeneration()
         // Clear OS-side first. On failure, preserve store state so the next refresh's stale-cleanup
         // diff can retry removal (unremoved OS regs would otherwise orphan). Cached regions/config
         // are kept; the freshness timestamp is dropped so the next login re-fetches.
         manager.clearAll().also { result ->
-            if (result.isSuccess) {
-                store.clearUserScopedState()
+            if (polygonController != null) {
+                polygonController.completeUserReset(
+                    expectedUserStateGeneration = resetGeneration,
+                    osRegistrationsCleared = result.isSuccess
+                )
+            } else {
+                store.completeUserReset(resetGeneration, osRegistrationsCleared = result.isSuccess)
             }
             // Wipe the departing user's cooldown history on any genuine sign-out, even if the
             // OS clear failed — keys are user-scoped, so this is data hygiene, not correctness.
             cooldownFilter.clearAll()
         }
+    }
+
+    private fun polygonIdsToPin(regions: List<GeofenceRegion>): Set<String> {
+        val polygonIds = regions.filter(GeofenceRegion::isPolygon).mapTo(mutableSetOf(), GeofenceRegion::id)
+        return (store.getActivePolygonIds() + store.getEnteredIds()) intersect polygonIds
     }
 
     private fun buildMovementTrigger(
@@ -612,5 +800,6 @@ internal class GeofenceRepositoryImpl(
         val MOVEMENT_SLOT_WAIT = 30.seconds
         val MOVEMENT_SLOT_POLL = 50.milliseconds
         val MOVEMENT_SLOT_ATTEMPTS = (MOVEMENT_SLOT_WAIT / MOVEMENT_SLOT_POLL).toInt()
+        const val MAX_GMS_GEOFENCES = GeofenceConstants.MAX_OS_GEOFENCES
     }
 }

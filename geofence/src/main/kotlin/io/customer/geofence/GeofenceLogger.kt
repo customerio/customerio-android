@@ -85,6 +85,10 @@ internal class GeofenceLogger(private val logger: Logger) {
         logger.debug("Geofence '$geofenceId' transition dropped — id not in registered store", tag = TAG)
     }
 
+    fun logTransitionDroppedRetiredId(geofenceId: String) {
+        logger.debug("Geofence '$geofenceId' transition dropped — backend removed it and OS cleanup is pending", tag = TAG)
+    }
+
     fun logEnterDroppedAlreadyReported(geofenceId: String) {
         logger.debug("Geofence '$geofenceId' ENTER: dropped — already reported as entered and no exit since, so the OS is re-reporting a state we already sent", tag = TAG)
     }
@@ -175,7 +179,10 @@ internal class GeofenceLogger(private val logger: Logger) {
     }
 
     fun logEventDeliveryFailed(geofenceId: String, transitionName: String, message: String?) {
-        logger.error("Geofence '$geofenceId' $transitionName: HTTP delivery failed and will not retry — $message", tag = TAG)
+        logger.error(
+            "Geofence '$geofenceId' $transitionName: HTTP delivery failed; retained at the head of the ordered outbox — $message",
+            tag = TAG
+        )
     }
 
     fun logEventInvalidInput(geofenceId: String?, transitionName: String?) {
@@ -190,12 +197,19 @@ internal class GeofenceLogger(private val logger: Logger) {
         logger.debug("Geofence '$geofenceId' $transitionName: delivered via WorkManager (direct HTTP); removed from pending store", tag = TAG)
     }
 
+    fun logEventDeliveredButNotRemoved(geofenceId: String, transitionName: String) {
+        logger.error(
+            "Geofence '$geofenceId' $transitionName: delivered, but removing it from the pending store failed, so it is still queued. Retrying on a backoff; the backend deduplicates the repeat send on transitionId.",
+            tag = TAG
+        )
+    }
+
     fun logEventDeliverySkippedAlreadyDelivered(geofenceId: String, transitionName: String) {
         logger.debug("Geofence '$geofenceId' $transitionName: worker skipped — entry no longer in store (already delivered via the analytics pipeline)", tag = TAG)
     }
 
     fun logPersistFailed(geofenceId: String, transitionName: String) {
-        logger.error("Geofence '$geofenceId' $transitionName: failed to persist pending transition — skipped delivery and rolled back cooldown so a later crossing can retry", tag = TAG)
+        logger.error("Geofence '$geofenceId' $transitionName: file outbox unavailable — kept durable staging for recovery", tag = TAG)
     }
 
     fun logEventWorkerEntryMissing(key: String) {
@@ -231,6 +245,32 @@ internal class GeofenceLogger(private val logger: Logger) {
             "ModuleGeofence requires ModuleLocation to be registered alongside it. Add ModuleLocation to CustomerIOConfigBuilder; geofencing will not function until then.",
             tag = TAG
         )
+    }
+
+    fun logPinnedRegionDroppedAtOsLimit(geofenceId: String, availableSlots: Int) {
+        logger.error(
+            "Geofence '$geofenceId' was pinned for exit monitoring but dropped — more regions are pinned than the $availableSlots business slots Google Play services allows. Keeping it would make the OS reject every geofence in the batch, so the farthest pinned regions are released first; their exits may be missed.",
+            tag = TAG
+        )
+    }
+
+    fun logPolygonFixNotUsable(reason: String) {
+        logger.debug(
+            "Polygon fix ignored — $reason. Responsive monitoring is best-effort: it decides only from fixes that are decisive on their own.",
+            tag = TAG
+        )
+    }
+
+    fun logPolygonApproachMonitoringStarted() {
+        logger.debug("Polygon responsive approach monitoring registered", tag = TAG)
+    }
+
+    fun logPolygonApproachMonitoringStopped() {
+        logger.debug("Polygon responsive approach monitoring removed", tag = TAG)
+    }
+
+    fun logPolygonApproachMonitoringFailed(message: String?) {
+        logger.error("Polygon responsive approach monitoring unavailable: $message", tag = TAG)
     }
 
     companion object {

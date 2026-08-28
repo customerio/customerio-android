@@ -79,8 +79,11 @@ internal interface GeofenceRegionStore {
 
     /**
      * Prunes the entered set to [registeredIds] and unions in [inside], the fences our own geometry
-     * puts the device within at registration time. Union rather than replace, because [inside] may
-     * come from a stale anchor whose "outside" must not erase real containment.
+     * puts the device within at registration time. Union rather than replace, because a fix can miss
+     * containment the OS already reported.
+     *
+     * A null [inside] is a pass with no live fix: it prunes only, and leaves the entered set absent
+     * if it was — key-absence is the upgrade grace [hasContainmentRecord] reads.
      *
      * [sinceEpoch] is [containmentEpoch] as of the fix [inside] was derived from; a fence whose exit
      * was claimed after that is dropped, so a departure reported during the sync's GMS await wins
@@ -96,15 +99,15 @@ internal interface GeofenceRegionStore {
      */
     fun reconcileEnteredIds(
         registeredIds: Set<String>,
-        inside: Set<String>,
+        inside: Set<String>?,
         sinceEpoch: Long,
         resetIds: Set<String> = emptySet()
     ): Set<String>
 
     /**
      * Whether containment has ever been recorded. False on an install upgraded from a version that
-     * predates the set, until the first registration seeds it — the EXIT guard defers while it is,
-     * since "empty" and "no data yet" are otherwise indistinguishable.
+     * predates the set, until the first pass holding a live fix judges it — the EXIT guard defers
+     * while it is, since "empty" and "no data yet" are otherwise indistinguishable.
      */
     fun hasContainmentRecord(): Boolean
 
@@ -227,16 +230,21 @@ internal class GeofenceRegionStoreImpl(
 
     override fun reconcileEnteredIds(
         registeredIds: Set<String>,
-        inside: Set<String>,
+        inside: Set<String>?,
         sinceEpoch: Long,
         resetIds: Set<String>
     ): Set<String> = synchronized(enteredLock) {
-        val stillInside = inside.filter { (exitEpochByGeofenceId[it] ?: 0L) <= sinceEpoch }
+        val stillInside = inside.orEmpty().filter { (exitEpochByGeofenceId[it] ?: 0L) <= sinceEpoch }
         // An entry reported since the caller's fix describes the geometry being registered now, so
         // it survives a reset aimed at the geometry it replaced.
         val dropped = resetIds.filter { (enterEpochByGeofenceId[it] ?: 0L) <= sinceEpoch }.toSet() - stillInside
-        val carried = (getEnteredIds() intersect registeredIds) - dropped
-        writeJson(KEY_ENTERED_IDS, ID_SET_SERIALIZER, carried + stillInside)
+        // A live fix ends the grace even when it finds nothing inside — that is a real reading of
+        // "not in any fence". A prune-only pass creating the key would instead arm the EXIT guard
+        // off an anchor and drop crossings that predate any record.
+        if (inside != null || hasContainmentRecord()) {
+            val carried = (getEnteredIds() intersect registeredIds) - dropped
+            writeJson(KEY_ENTERED_IDS, ID_SET_SERIALIZER, carried + stillInside)
+        }
         // Bound the maps, after the filters have read them.
         exitEpochByGeofenceId.keys.retainAll(registeredIds)
         enterEpochByGeofenceId.keys.retainAll(registeredIds)

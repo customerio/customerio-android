@@ -208,9 +208,14 @@ internal class GeofenceRegionStoreImpl(
     override fun claimExit(geofenceId: String): Boolean = synchronized(enteredLock) {
         val current = getEnteredIds()
         if (geofenceId !in current) return@synchronized false
-        writeJson(KEY_ENTERED_IDS, ID_SET_SERIALIZER, current - geofenceId)
-        // Same step: a mark stranded by a later failure would silence the next genuine arrival.
-        clearEnterEmitted(geofenceId)
+        val marks = readEmittedEnterIds()
+        // One commit: a mark stranded by a torn write would silence the next genuine arrival.
+        prefs.edit {
+            putString(KEY_ENTERED_IDS, jsonSerializer.encode(ID_SET_SERIALIZER, current - geofenceId))
+            if (geofenceId in marks) {
+                putString(KEY_EMITTED_ENTER_IDS, jsonSerializer.encode(ID_SET_SERIALIZER, marks - geofenceId))
+            }
+        }
         // Only a consumed record bumps the epoch; a claim that found nothing is a suspected GMS
         // artifact and must not block the geometry seed.
         epoch += 1
@@ -247,11 +252,13 @@ internal class GeofenceRegionStoreImpl(
         // One identity owns the set at a time, so a different owner makes it stale — replace, not add.
         val sameOwner = readEmittedEnterOwner() == userId
         val current = if (sameOwner) readEmittedEnterIds() else emptySet()
-        if (!sameOwner) {
-            prefs.edit { putString(KEY_EMITTED_ENTER_OWNER, userId) }
-        }
-        if (geofenceId !in current) {
-            writeJson(KEY_EMITTED_ENTER_IDS, ID_SET_SERIALIZER, current + geofenceId)
+        if (sameOwner && geofenceId in current) return@synchronized
+        // One commit: a death between separate writes leaves the new owner holding the old set.
+        prefs.edit {
+            if (!sameOwner) {
+                putString(KEY_EMITTED_ENTER_OWNER, userId)
+            }
+            putString(KEY_EMITTED_ENTER_IDS, jsonSerializer.encode(ID_SET_SERIALIZER, current + geofenceId))
         }
     }
 
@@ -259,13 +266,6 @@ internal class GeofenceRegionStoreImpl(
         readJson(KEY_EMITTED_ENTER_IDS, ID_SET_SERIALIZER) ?: emptySet()
 
     private fun readEmittedEnterOwner(): String? = prefs.read { getString(KEY_EMITTED_ENTER_OWNER, null) }
-
-    private fun clearEnterEmitted(geofenceId: String) = synchronized(enteredLock) {
-        val current = readEmittedEnterIds()
-        if (geofenceId in current) {
-            writeJson(KEY_EMITTED_ENTER_IDS, ID_SET_SERIALIZER, current - geofenceId)
-        }
-    }
 
     override fun pruneEmittedEnterIds(registeredIds: Set<String>) = synchronized(enteredLock) {
         val current = readEmittedEnterIds()

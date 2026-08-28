@@ -9,8 +9,12 @@ import androidx.annotation.RequiresPermission
 import com.google.android.gms.location.Geofence
 import com.google.android.gms.location.GeofencingClient
 import com.google.android.gms.location.GeofencingRequest
+import java.util.concurrent.TimeoutException
 import kotlin.coroutines.resume
+import kotlin.time.Duration.Companion.seconds
+import kotlinx.coroutines.CancellableContinuation
 import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withTimeoutOrNull
 
 /** Wraps GeofencingClient to register/remove geofences with the OS. */
 internal class GeofenceManager(
@@ -137,7 +141,7 @@ internal class GeofenceManager(
             return Result.failure(e)
         }
 
-        return suspendCancellableCoroutine { cont ->
+        return awaitGmsCall("addGeofences") { cont ->
             try {
                 client.addGeofences(request, pendingIntent)
                     .addOnSuccessListener {
@@ -159,7 +163,7 @@ internal class GeofenceManager(
     suspend fun removeGeofencesByIds(ids: List<String>): Result<Unit> {
         if (ids.isEmpty()) return Result.success(Unit)
 
-        return suspendCancellableCoroutine { cont ->
+        return awaitGmsCall("removeGeofences") { cont ->
             try {
                 client.removeGeofences(ids)
                     .addOnSuccessListener {
@@ -180,7 +184,7 @@ internal class GeofenceManager(
     }
 
     suspend fun clearAll(): Result<Unit> {
-        return suspendCancellableCoroutine { cont ->
+        return awaitGmsCall("removeGeofences (all)") { cont ->
             client.removeGeofences(pendingIntent)
                 .addOnSuccessListener {
                     if (!cont.isActive) return@addOnSuccessListener
@@ -196,6 +200,21 @@ internal class GeofenceManager(
         }
     }
 
+    /**
+     * A Task never calls back when Play Services is mid-update, and the caller holds the refresh
+     * slot — so an unbounded await wedges every later sync. Safe here unlike around the slot CAS:
+     * nothing holds a resource on the result, so a late success just becomes a spurious failure.
+     */
+    private suspend fun awaitGmsCall(
+        description: String,
+        block: (CancellableContinuation<Result<Unit>>) -> Unit
+    ): Result<Unit> =
+        withTimeoutOrNull(GMS_CALL_TIMEOUT) { suspendCancellableCoroutine(block) }
+            ?: run {
+                logger.logGmsCallTimedOut(description)
+                Result.failure(TimeoutException("GMS $description gave no callback within $GMS_CALL_TIMEOUT"))
+            }
+
     private fun GeofenceRegion.toGmsGeofence(): Geofence {
         return Geofence.Builder()
             .setRequestId(id)
@@ -203,5 +222,12 @@ internal class GeofenceManager(
             .setTransitionTypes(toGmsTransitionTypes())
             .setExpirationDuration(GeofenceConstants.GEOFENCE_EXPIRATION_NEVER)
             .build()
+    }
+
+    private companion object {
+        // Per call, generous against the millisecond norm. A pass chains up to four (remove and
+        // re-add movement, add business, roll back), so a wedged GMS can still outlast the
+        // receiver's 8s goAsync budget — the join there is best-effort and the refresh continues.
+        val GMS_CALL_TIMEOUT = 5.seconds
     }
 }

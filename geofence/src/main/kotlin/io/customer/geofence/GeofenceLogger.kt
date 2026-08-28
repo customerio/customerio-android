@@ -32,6 +32,10 @@ internal class GeofenceLogger(private val logger: Logger) {
         logger.error("Failed to remove geofences: $message", tag = TAG)
     }
 
+    fun logGmsCallTimedOut(description: String) {
+        logger.error("GMS $description gave no callback before the deadline — treating as failed; Play Services may be updating or unresponsive", tag = TAG)
+    }
+
     fun logMissingPermission(permission: String) {
         logger.error("Cannot register geofences: $permission not granted. Host app must request this permission.", tag = TAG)
     }

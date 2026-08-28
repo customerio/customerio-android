@@ -247,11 +247,13 @@ internal class GeofenceRegionStoreImpl(
         // One identity owns the set at a time, so a different owner makes it stale — replace, not add.
         val sameOwner = readEmittedEnterOwner() == userId
         val current = if (sameOwner) readEmittedEnterIds() else emptySet()
-        if (!sameOwner) {
-            prefs.edit { putString(KEY_EMITTED_ENTER_OWNER, userId) }
-        }
-        if (geofenceId !in current) {
-            writeJson(KEY_EMITTED_ENTER_IDS, ID_SET_SERIALIZER, current + geofenceId)
+        if (sameOwner && geofenceId in current) return@synchronized
+        // One commit: a death between separate writes leaves the new owner holding the old set.
+        prefs.edit {
+            if (!sameOwner) {
+                putString(KEY_EMITTED_ENTER_OWNER, userId)
+            }
+            putString(KEY_EMITTED_ENTER_IDS, jsonSerializer.encode(ID_SET_SERIALIZER, current + geofenceId))
         }
     }
 

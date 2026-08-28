@@ -19,6 +19,7 @@ import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
 import io.mockk.verify
+import java.util.concurrent.TimeoutException
 import kotlinx.coroutines.test.runTest
 import org.amshove.kluent.shouldBeEqualTo
 import org.amshove.kluent.shouldBeTrue
@@ -360,6 +361,18 @@ class GeofenceManagerTest : RobolectricTest() {
         grantPermission(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
     }
 
+    @Test
+    fun replaceGeofences_givenGmsTaskNeverCallsBack_expectTimeoutFailureInsteadOfIndefiniteSuspend() = runTest {
+        // A Task that never resolves previously suspended the await for the life of the process.
+        grantAllPermissions()
+        every { client.addGeofences(any<GeofencingRequest>(), any()) } returns silentTask()
+
+        val result = manager.replaceGeofences(listOf(buildRegion(id = "business-1")))
+
+        result.isFailure.shouldBeTrue()
+        (result.exceptionOrNull() is TimeoutException).shouldBeTrue()
+    }
+
     // -- Helpers: GMS Task stubs --
 
     private fun stubClientAddSuccess(requestSlot: CapturingSlot<GeofencingRequest>? = null) {
@@ -388,6 +401,14 @@ class GeofenceManagerTest : RobolectricTest() {
     private fun stubClientRemoveByPendingIntentSuccess() {
         val task = immediateSuccessTask<Void>()
         every { client.removeGeofences(any<PendingIntent>()) } returns task
+    }
+
+    /** Registers listeners but never invokes them — a Task that never resolves. */
+    private fun <T> silentTask(): Task<T> {
+        val task = mockk<Task<T>>()
+        every { task.addOnSuccessListener(any()) } returns task
+        every { task.addOnFailureListener(any()) } returns task
+        return task
     }
 
     @Suppress("UNCHECKED_CAST")

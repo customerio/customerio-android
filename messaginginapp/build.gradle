@@ -1,4 +1,5 @@
 import io.customer.android.Dependencies
+import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
 plugins {
     id 'com.android.library'
@@ -13,6 +14,22 @@ customerIoPublish {
 apply from: "${rootDir}/scripts/android-config.gradle"
 apply from: "${rootDir}/scripts/codecov-android.gradle"
 apply from: "${rootDir}/scripts/android-module-testing.gradle"
+
+// Emit real Java default methods for interface members that declare a body, instead of Kotlin's
+// default `DefaultImpls`-only shape. Without this, a defaulted member is still `abstract` in the
+// bytecode, so every Java class implementing one of our public listeners is forced to override it —
+// adding an optional callback would be a source-breaking change for Java hosts.
+//
+// `all-compatibility` (rather than `all`) also keeps generating the `DefaultImpls` shims, so code
+// already compiled against the previous shape continues to link. Dropping to `all` would remove
+// them and break binary compatibility.
+tasks.withType(KotlinCompile).all {
+    kotlinOptions {
+        freeCompilerArgs += [
+                '-Xjvm-default=all-compatibility',
+        ]
+    }
+}
 
 android {
     namespace 'io.customer.messaginginapp'

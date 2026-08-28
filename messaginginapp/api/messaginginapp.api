@@ -280,9 +280,9 @@ public final class io/customer/messaginginapp/type/InAppMessageKt {
 
 public abstract interface class io/customer/messaginginapp/type/InboxEventListener {
 	public abstract fun messageActionTaken (Lio/customer/messaginginapp/gist/data/model/InboxMessage;Ljava/lang/String;Ljava/lang/String;)Z
-	public abstract fun messageDismissed (Lio/customer/messaginginapp/gist/data/model/InboxMessage;)V
-	public abstract fun messageOpened (Lio/customer/messaginginapp/gist/data/model/InboxMessage;)V
-	public abstract fun messageShown (Lio/customer/messaginginapp/gist/data/model/InboxMessage;)V
+	public fun messageDismissed (Lio/customer/messaginginapp/gist/data/model/InboxMessage;)V
+	public fun messageOpened (Lio/customer/messaginginapp/gist/data/model/InboxMessage;)V
+	public fun messageShown (Lio/customer/messaginginapp/gist/data/model/InboxMessage;)V
 }
 
 public final class io/customer/messaginginapp/type/InboxEventListener$DefaultImpls {
@@ -320,7 +320,6 @@ public abstract class io/customer/messaginginapp/ui/core/BaseInlineInAppMessageV
 	protected abstract fun getPlatformDelegate ()Lio/customer/messaginginapp/ui/bridge/InAppPlatformDelegate;
 	protected fun onAttachedToWindow ()V
 	protected fun onDetachedFromWindow ()V
-	public fun onViewSizeChanged (II)V
 	public final fun setActionListener (Lio/customer/messaginginapp/type/InlineMessageActionListener;)V
 	public final fun setElementId (Ljava/lang/String;)V
 }

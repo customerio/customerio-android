@@ -225,7 +225,9 @@ internal class GeofenceManager(
     }
 
     private companion object {
-        // Generous against the millisecond norm, and inside the receiver's 8s goAsync budget.
+        // Per call, generous against the millisecond norm. A pass chains up to four (remove and
+        // re-add movement, add business, roll back), so a wedged GMS can still outlast the
+        // receiver's 8s goAsync budget — the join there is best-effort and the refresh continues.
         val GMS_CALL_TIMEOUT = 5.seconds
     }
 }

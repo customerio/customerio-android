@@ -346,6 +346,38 @@ class GeofenceManagerTest : RobolectricTest() {
         verify { receiverToggle.setEnabled(false) }
     }
 
+    @Test
+    fun replaceGeofences_givenGmsTaskNeverCallsBack_expectTimeoutFailureInsteadOfIndefiniteSuspend() = runTest {
+        // A Task that never resolves previously suspended the await for the life of the process.
+        grantAllPermissions()
+        every { client.addGeofences(any<GeofencingRequest>(), any()) } returns silentTask()
+
+        val result = manager.replaceGeofences(listOf(buildRegion(id = "business-1")))
+
+        result.isFailure.shouldBeTrue()
+        (result.exceptionOrNull() is TimeoutException).shouldBeTrue()
+    }
+
+    @Test
+    fun removeGeofencesByIds_givenGmsTaskNeverCallsBack_expectTimeoutFailure() = runTest {
+        every { client.removeGeofences(any<List<String>>()) } returns silentTask()
+
+        val result = manager.removeGeofencesByIds(listOf("business-1"))
+
+        result.isFailure.shouldBeTrue()
+        (result.exceptionOrNull() is TimeoutException).shouldBeTrue()
+    }
+
+    @Test
+    fun clearAll_givenGmsTaskNeverCallsBack_expectTimeoutFailure() = runTest {
+        every { client.removeGeofences(any<PendingIntent>()) } returns silentTask()
+
+        val result = manager.clearAll()
+
+        result.isFailure.shouldBeTrue()
+        (result.exceptionOrNull() is TimeoutException).shouldBeTrue()
+    }
+
     // -- Helpers: permission --
 
     private fun grantPermission(permission: String) {
@@ -359,18 +391,6 @@ class GeofenceManagerTest : RobolectricTest() {
     private fun grantAllPermissions() {
         grantPermission(Manifest.permission.ACCESS_FINE_LOCATION)
         grantPermission(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
-    }
-
-    @Test
-    fun replaceGeofences_givenGmsTaskNeverCallsBack_expectTimeoutFailureInsteadOfIndefiniteSuspend() = runTest {
-        // A Task that never resolves previously suspended the await for the life of the process.
-        grantAllPermissions()
-        every { client.addGeofences(any<GeofencingRequest>(), any()) } returns silentTask()
-
-        val result = manager.replaceGeofences(listOf(buildRegion(id = "business-1")))
-
-        result.isFailure.shouldBeTrue()
-        (result.exceptionOrNull() is TimeoutException).shouldBeTrue()
     }
 
     // -- Helpers: GMS Task stubs --

@@ -602,6 +602,10 @@ class CustomerIO private constructor(
         @InternalCustomerIOApi
         @VisibleForTesting(otherwise = VisibleForTesting.PACKAGE_PRIVATE)
         fun clearInstance() {
+            // Stop Data Pipelines work before resetting the shared graph. Some
+            // plugins can still be dispatching callbacks while tests tear down.
+            instance?.analytics?.shutdown()
+
             // Reset SDKComponent to clear static references and avoid memory leaks
             SDKComponent.reset()
             instance = null

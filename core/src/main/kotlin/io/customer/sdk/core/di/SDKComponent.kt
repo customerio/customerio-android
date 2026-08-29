@@ -52,9 +52,13 @@ object SDKComponent : DiGraph() {
     val dispatchersProvider: DispatchersProvider
         get() = newInstance<DispatchersProvider> { SdkDispatchers() }
     val scopeProvider: ScopeProvider
-        get() = newInstance<ScopeProvider> { SdkScopeProvider(dispatchersProvider) }
+        get() = singleton<ScopeProvider> { SdkScopeProvider(dispatchersProvider) }
 
     override fun reset() {
+        // Stop background work while its dependencies are still available. In
+        // particular, in-flight network interceptors must not observe a graph
+        // after AndroidSDKComponent has been cleared.
+        (getOrNull<ScopeProvider>() as? SdkScopeProvider)?.shutdown()
         androidSDKComponent?.reset()
         modules.clear()
         eventBus.removeAllSubscriptions()

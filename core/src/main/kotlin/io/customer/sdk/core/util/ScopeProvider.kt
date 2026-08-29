@@ -29,14 +29,22 @@ class SdkScopeProvider(private val dispatchers: DispatchersProvider) : ScopeProv
         SDKComponent.logger.error("Uncaught exception in SDK coroutine: $throwable", throwable = throwable)
     }
 
-    override val eventBusScope: CoroutineScope by lazy { createScope() }
-    override val lifecycleListenerScope: CoroutineScope by lazy { createScope() }
-    override val inAppLifecycleScope: CoroutineScope by lazy { createScope() }
-    override val locationScope: CoroutineScope by lazy { createScope() }
-    override val geofenceScope: CoroutineScope by lazy { createScope() }
+    override val eventBusScope: CoroutineScope
+        get() = createScope()
+    override val lifecycleListenerScope: CoroutineScope
+        get() = createScope()
+    override val inAppLifecycleScope: CoroutineScope
+        get() = createScope()
+    override val locationScope: CoroutineScope
+        get() = createScope()
+    override val geofenceScope: CoroutineScope
+        get() = createScope()
 
     private fun createScope(): CoroutineScope =
-        CoroutineScope(dispatchers.default + sdkJob + exceptionHandler)
+        // Keep each returned scope independently cancellable. Some one-shot
+        // geofence operations cancel their scope after completion, while the
+        // parent job still owns every scope for SDK-wide teardown.
+        CoroutineScope(dispatchers.default + SupervisorJob(sdkJob) + exceptionHandler)
 
     /** Cancels all SDK-owned work and waits for cancellation before DI teardown. */
     internal fun shutdown() {

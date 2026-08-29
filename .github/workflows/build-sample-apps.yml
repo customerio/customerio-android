@@ -1,19 +1,25 @@
 name: Build sample apps
 
 on:
-  pull_request: # build sample apps for every commit pushed to an open pull request (including drafts)
+  pull_request:
+    types: [opened, synchronize, reopened, labeled]
   push:
-    branches: [ main, feature/* ]
+    branches: [ main ]
   release: # build sample apps for every git tag created. These are known as "stable" builds that are suitable for people outside the mobile team. 
     types: [ published ]
+  workflow_dispatch:
 
 concurrency: # cancel previous workflow run if one exists. 
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ (github.event.action == 'labeled' && github.event.label.name != 'ci:full') && github.run_id || 'validation' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   update-pr-comment:
-    if: ${{ github.event_name == 'pull_request' }}
+    if: >-
+      (github.event.action != 'labeled' || github.event.label.name == 'ci:full') &&
+      github.event_name == 'pull_request' &&
+      contains(github.event.pull_request.labels.*.name, 'ci:full') &&
+      github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     permissions:
       pull-requests: write # to be able to comment on PR
@@ -26,10 +32,15 @@ jobs:
           status: "⏳ Building the sample apps..."
 
   build-sample-apps:
-    if: ${{ always() }} # do not skip running this step if update-pr-comment does not run
+    # PR distribution builds are opt-in. Release, main, and manual behavior is unchanged.
+    if: >-
+      always() &&
+      (github.event.action != 'labeled' || github.event.label.name == 'ci:full') &&
+      (github.event_name != 'pull_request' ||
+      (contains(github.event.pull_request.labels.*.name, 'ci:full') &&
+      github.event.pull_request.head.repo.full_name == github.repository))
     needs: [ update-pr-comment ] # wait for PR comment to be created saying new builds are being made.
     uses: ./.github/workflows/reusable_build_sample_apps.yml
     with:
       use_latest_sdk_version: false
     secrets: inherit
-

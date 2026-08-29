@@ -1,6 +1,12 @@
 name: Publish Snapshot builds
 
-on: [pull_request]
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ (github.event.action == 'labeled' && github.event.label.name != 'ci:full') && github.run_id || 'validation' }}
+  cancel-in-progress: true
 
 permissions:
   pull-requests: write # Write access needed to create a comment.
@@ -8,6 +14,10 @@ permissions:
 jobs:
   publish:
     name: Snapshot build and publish
+    if: >-
+      (github.event.action != 'labeled' || github.event.label.name == 'ci:full') &&
+      contains(github.event.pull_request.labels.*.name, 'ci:full') &&
+      github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     outputs:
       snapshot_version: ${{ steps.set-snapshot-version.outputs.VERSION }}

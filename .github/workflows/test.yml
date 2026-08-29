@@ -2,7 +2,13 @@ name: Tests
 
 on:
   pull_request:
-    types: [opened, synchronize] # Don't rerun on `edited` to save time
+    types: [opened, synchronize, reopened] # Don't rerun on `edited` to save time
+    paths-ignore:
+      - '**/*.md'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   unit-test:

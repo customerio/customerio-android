@@ -1,9 +1,20 @@
 name: SDK Binary Size
-# Only run this workflow on pull requests
-on: [pull_request]
+# Binary-size comparison is available in the full PR lane without compiling the
+# SDK twice for every ordinary update.
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ (github.event.action == 'labeled' && github.event.label.name != 'ci:full') && github.run_id || 'validation' }}
+  cancel-in-progress: true
 
 jobs:
   sdk-binary-size-comparison-report:
+    if: >-
+      (github.event.action != 'labeled' || github.event.label.name == 'ci:full') &&
+      contains(github.event.pull_request.labels.*.name, 'ci:full') &&
+      github.event.pull_request.head.repo.full_name == github.repository
     name: Generate Comparison Report
     runs-on: ubuntu-latest
     steps:

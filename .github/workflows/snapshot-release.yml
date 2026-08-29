@@ -32,7 +32,7 @@ jobs:
         env:
           # Get the current branch name and replace all / characters with - as / is invalid in gradle names.
           PR_HEAD_REF: ${{ github.event.pull_request.head.ref }}
-        run: echo "VERSION=$(echo ${PR_HEAD_REF} | sed -r 's/\//-/g')-SNAPSHOT" >> $GITHUB_OUTPUT
+        run: echo "VERSION=${PR_HEAD_REF//\//-}-SNAPSHOT" >> "$GITHUB_OUTPUT"
 
       - name: Publish to MavenCentral
         run: ./gradlew publishReleasePublicationToSonatypeRepository
@@ -75,63 +75,45 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Matrix of sample apps and AGP versions to test
-        # List all sample apps here that you want to test with the AGP versions.
+        # API 36 requires AGP 8.9.1 or newer. Build both Gradle DSL variants at
+        # that real compatibility floor. The full sample-app workflow already
+        # builds both apps with the repository's current AGP version.
+        # https://developer.android.com/build/releases/about-agp#api-level-support
         sample-app-with-agp:
           - "java_layout_min"
           - "kotlin_compose_min"
-          - "java_layout_max"
-          - "kotlin_compose_max"
         include:
-          # Minimum supported versions (compatible with Kotlin 2.1)
+          # Minimum supported versions for compileSdk 36 and Kotlin 2.1.
           - sample-app-with-agp: "java_layout_min"
             sample-app: "java_layout"
             cio-siteid-secret-key: "CUSTOMERIO_JAVA_WORKSPACE_SITE_ID"
             cio-cdpapikey-secret-key: "CUSTOMERIO_JAVA_WORKSPACE_CDP_API_KEY"
-            agp-version: "8.0"
-            gradle-version: "8.0"
+            agp-version: "8.9.1"
+            gradle-version: "8.11.1"
           - sample-app-with-agp: "kotlin_compose_min"
             sample-app: "kotlin_compose"
             cio-siteid-secret-key: "CUSTOMERIO_KOTLIN_WORKSPACE_SITE_ID"
             cio-cdpapikey-secret-key: "CUSTOMERIO_KOTLIN_WORKSPACE_CDP_API_KEY"
-            agp-version: "8.0"
-            gradle-version: "8.0"
-          - sample-app-with-agp: "java_layout_max"
-            sample-app: "java_layout"
-            cio-siteid-secret-key: "CUSTOMERIO_JAVA_WORKSPACE_SITE_ID"
-            cio-cdpapikey-secret-key: "CUSTOMERIO_JAVA_WORKSPACE_CDP_API_KEY"
-            agp-version: "8.6.1"
-            gradle-version: "8.9"
-          - sample-app-with-agp: "kotlin_compose_max"
-            sample-app: "kotlin_compose"
-            cio-siteid-secret-key: "CUSTOMERIO_KOTLIN_WORKSPACE_SITE_ID"
-            cio-cdpapikey-secret-key: "CUSTOMERIO_KOTLIN_WORKSPACE_CDP_API_KEY"
-            agp-version: "8.6.1"
-            gradle-version: "8.9"
+            agp-version: "8.9.1"
+            gradle-version: "8.11.1"
 
     steps:
       - uses: actions/checkout@v4
 
-      # If using sd on macos, "brew install" works great. for Linux, this is the recommended way.
-      - name: Install sd CLI to use later in the workflow
-        uses: kenji-miyake/setup-sd@08c14e27d65a1c215342ef00c81583ae67f4c5ef # v2.0.0
-
-      - name: Install tools from Gemfile (ruby language) used for building our apps with
-        uses: ruby/setup-ruby@95ef2b042f9d7a56d8268cba8559e2842e2ad01b # v1.321.0
-        with:
-          ruby-version: '3.4'
-          bundler-cache: true
-
       - name: Setup local.properties file for sample app
         # Use recently published snapshot version to make sure we're testing the latest changes.
+        env:
+          SDK_VERSION: ${{ needs.publish.outputs.snapshot_version }}
+          SITE_ID: ${{ secrets[matrix.cio-siteid-secret-key] }}
+          CDP_API_KEY: ${{ secrets[matrix.cio-cdpapikey-secret-key] }}
         run: |
-          touch "samples/local.properties"
-          echo "sdkVersion=${{ needs.publish.outputs.snapshot_version }}" >> "samples/local.properties"
-          echo "siteId=${{ secrets[matrix.cio-siteid-secret-key] }}" >> "samples/local.properties"
-          echo "cdpApiKey=${{ secrets[matrix.cio-cdpapikey-secret-key] }}" >> "samples/local.properties"
+          {
+            printf 'sdkVersion=%s\n' "$SDK_VERSION"
+            printf 'siteId=%s\n' "$SITE_ID"
+            printf 'cdpApiKey=%s\n' "$CDP_API_KEY"
+          } > "samples/local.properties"
 
       - name: Update files for Gradle compatibility
-        # If AGP version matches the default value, we don't need to specify further versions.
         run: |
           ./scripts/update-gradle-compatibility.sh \
           --agpVersion ${{ matrix.agp-version }} \
@@ -146,23 +128,13 @@ jobs:
       - name: Install Android SDK
         uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407 # v3.2.2
 
-      - name: Cache Gradle dependencies
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.gradle/caches
-            ~/.gradle/wrapper
-          key: ${{ runner.os }}-gradle-${{ matrix.gradle-version }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
-          restore-keys: |
-            ${{ runner.os }}-gradle-${{ matrix.gradle-version }}-
-
       - name: Verify gradle scripts are valid gradle scripts
         uses: gradle/actions/wrapper-validation@af1da67850ed9a4cedd57bfd976089dd991e2582 # v4.3.1
 
-      - name: Set up Gradle Version ${{ matrix.gradle-version }}
+      # setup-gradle owns Gradle User Home caching. Using actions/cache for the
+      # same directories is explicitly discouraged by the Gradle action.
+      - name: Set up Gradle caching
         uses: gradle/actions/setup-gradle@af1da67850ed9a4cedd57bfd976089dd991e2582 # v4.3.1
-        with:
-          gradle-version: ${{ matrix.gradle-version }}
 
       - name: Building ${{ matrix.sample-app }} with AGP version ${{ matrix.agp-version }}
         run: ./gradlew ":samples:${{ matrix.sample-app }}:assembleRelease"

@@ -25,6 +25,8 @@ import io.customer.messaginginapp.gist.data.model.engine.EngineWebConfiguration
 import io.customer.messaginginapp.gist.utilities.ElapsedTimer
 import io.customer.messaginginapp.state.InAppMessagingState
 import io.customer.messaginginapp.type.ColorScheme
+import io.customer.messaginginapp.type.InAppMessageError
+import io.customer.messaginginapp.type.InAppMessageErrorReason
 import io.customer.messaginginapp.ui.bridge.EngineWebViewDelegate
 import io.customer.sdk.core.di.SDKComponent
 import java.util.Timer
@@ -41,7 +43,9 @@ internal class EngineWebView @JvmOverloads constructor(
     private var timerTask: TimerTask? = null
     private var webView: WebView? = null
     private var elapsedTimer: ElapsedTimer = ElapsedTimer()
-    private val engineWebViewInterface = EngineWebViewInterface(this)
+    private val engineWebViewInterface = EngineWebViewInterface(this).apply {
+        onEngineError = { error -> reportFailure(error) }
+    }
     private val logger = SDKComponent.logger
     private var lastResolvedColorScheme: String? = null
     private var colorSchemeJob: Job? = null
@@ -244,7 +248,13 @@ internal class EngineWebView @JvmOverloads constructor(
                     description: String,
                     failingUrl: String?
                 ) {
-                    listener?.error()
+                    reportFailure(
+                        InAppMessageError(
+                            reason = InAppMessageErrorReason.NETWORK,
+                            detail = description,
+                            code = errorCod
+                        )
+                    )
                 }
 
                 override fun onReceivedHttpError(
@@ -252,7 +262,13 @@ internal class EngineWebView @JvmOverloads constructor(
                     request: WebResourceRequest?,
                     errorResponse: WebResourceResponse?
                 ) {
-                    listener?.error()
+                    reportFailure(
+                        InAppMessageError(
+                            reason = InAppMessageErrorReason.NETWORK,
+                            detail = errorResponse?.reasonPhrase,
+                            code = errorResponse?.statusCode
+                        )
+                    )
                 }
 
                 override fun onReceivedError(
@@ -260,7 +276,16 @@ internal class EngineWebView @JvmOverloads constructor(
                     request: WebResourceRequest?,
                     error: WebResourceError?
                 ) {
-                    listener?.error()
+                    // description/errorCode are API 23+; below that the deprecated overload above
+                    // is the one the platform calls, and it carries the same detail.
+                    val hasDetail = Build.VERSION.SDK_INT >= Build.VERSION_CODES.M
+                    reportFailure(
+                        InAppMessageError(
+                            reason = InAppMessageErrorReason.NETWORK,
+                            detail = if (hasDetail) error?.description?.toString() else null,
+                            code = if (hasDetail) error?.errorCode else null
+                        )
+                    )
                 }
 
                 override fun onReceivedSslError(
@@ -268,7 +293,13 @@ internal class EngineWebView @JvmOverloads constructor(
                     handler: SslErrorHandler?,
                     error: SslError?
                 ) {
-                    listener?.error()
+                    reportFailure(
+                        InAppMessageError(
+                            reason = InAppMessageErrorReason.NETWORK,
+                            detail = "SSL error loading the renderer",
+                            code = error?.primaryError
+                        )
+                    )
                 }
 
                 /**
@@ -289,16 +320,18 @@ internal class EngineWebView @JvmOverloads constructor(
                     } else {
                         null
                     }
-                    logger.error(
-                        "WebView render process gone (didCrash: $didCrash), reporting message failure"
-                    )
                     // Tear the dead view down before reporting. The platform treats it as unusable
                     // once the renderer is gone, and normal teardown cannot do it: releaseResources()
                     // bails out while the view is still attached, and the modal path never calls it
                     // at all. Doing it here also makes the later stopLoading()/releaseResources()
                     // calls on the dismissal path no-ops, since webView is already null.
                     releaseCrashedWebView()
-                    listener?.error()
+                    reportFailure(
+                        InAppMessageError(
+                            reason = InAppMessageErrorReason.WEB_VIEW_CRASHED,
+                            detail = "WebView render process gone (didCrash: $didCrash)"
+                        )
+                    )
                     return true
                 }
             }
@@ -311,8 +344,12 @@ internal class EngineWebView @JvmOverloads constructor(
         timerTask = object : TimerTask() {
             override fun run() {
                 if (timer != null) {
-                    logger.debug("Message global timeout, cancelling display.")
-                    listener?.error()
+                    reportFailure(
+                        InAppMessageError(
+                            reason = InAppMessageErrorReason.TIMEOUT,
+                            detail = "Engine did not bootstrap within ${TIMEOUT_DURATION}ms"
+                        )
+                    )
                     cleanupTimer()
                 }
             }
@@ -394,6 +431,17 @@ internal class EngineWebView @JvmOverloads constructor(
             .onFailure { logger.error("Error removing crashed WebView from parent: ${it.message}") }
         runCatching { view.destroy() }
             .onFailure { logger.error("Error destroying crashed WebView: ${it.message}") }
+    }
+
+    /**
+     * Single exit for every failure in this view: classify, log, then notify the listener.
+     *
+     * [EngineWebViewListener.error] takes no arguments and is public API, so the classified error
+     * reaches the logs but not the host yet.
+     */
+    private fun reportFailure(error: InAppMessageError) {
+        logger.error("In-app message failed: ${error.describeForLogs()}")
+        listener?.error()
     }
 
     /**

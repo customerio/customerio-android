@@ -1,7 +1,5 @@
 package io.customer.messaginginapp.state
 
-import io.customer.messaginginapp.type.InAppMessageError
-import io.customer.messaginginapp.type.InAppMessageErrorReason
 import io.customer.commontest.config.TestConfig
 import io.customer.commontest.config.testConfigurationDefault
 import io.customer.commontest.extensions.random
@@ -12,6 +10,8 @@ import io.customer.messaginginapp.state.MessageBuilderMock.createMessage
 import io.customer.messaginginapp.testutils.core.JUnitTest
 import io.customer.messaginginapp.testutils.extension.createInAppMessage
 import io.customer.messaginginapp.testutils.extension.createInboxMessage
+import io.customer.messaginginapp.type.InAppMessageError
+import io.customer.messaginginapp.type.InAppMessageErrorReason
 import io.customer.sdk.communication.Event
 import io.customer.sdk.communication.EventBus
 import io.customer.sdk.core.util.Logger

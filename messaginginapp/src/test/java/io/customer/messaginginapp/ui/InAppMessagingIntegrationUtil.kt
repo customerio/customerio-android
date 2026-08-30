@@ -1,12 +1,12 @@
 package io.customer.messaginginapp.ui
 
-import io.customer.messaginginapp.type.InAppMessageError
-import io.customer.messaginginapp.type.InAppMessageErrorReason
 import io.customer.commontest.extensions.flushCoroutines
 import io.customer.commontest.util.ScopeProviderStub
 import io.customer.messaginginapp.gist.data.model.Message
 import io.customer.messaginginapp.state.InAppMessagingAction
 import io.customer.messaginginapp.state.InAppMessagingManager
+import io.customer.messaginginapp.type.InAppMessageError
+import io.customer.messaginginapp.type.InAppMessageErrorReason
 
 object InAppMessagingIntegrationUtil {
     internal fun Message.testMatchAndEmbed(

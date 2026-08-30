@@ -1,7 +1,5 @@
 package io.customer.messaginginapp
 
-import io.customer.messaginginapp.type.InAppMessageError
-import io.customer.messaginginapp.type.InAppMessageErrorReason
 import io.customer.commontest.config.TestConfig
 import io.customer.commontest.core.TestConstants
 import io.customer.commontest.extensions.assertNoInteractions
@@ -20,6 +18,8 @@ import io.customer.messaginginapp.testutils.extension.pageRuleContains
 import io.customer.messaginginapp.testutils.extension.pageRuleEquals
 import io.customer.messaginginapp.type.InAppEventListener
 import io.customer.messaginginapp.type.InAppMessage
+import io.customer.messaginginapp.type.InAppMessageError
+import io.customer.messaginginapp.type.InAppMessageErrorReason
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.data.model.Region
 import io.mockk.Called

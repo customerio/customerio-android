@@ -1,7 +1,5 @@
 package io.customer.messaginginapp.ui.controller
 
-import io.customer.messaginginapp.type.InAppMessageError
-import io.customer.messaginginapp.type.InAppMessageErrorReason
 import io.customer.commontest.config.TestConfig
 import io.customer.commontest.config.testConfigurationDefault
 import io.customer.commontest.extensions.assertCalledNever
@@ -22,6 +20,8 @@ import io.customer.messaginginapp.testutils.extension.createInAppMessage
 import io.customer.messaginginapp.testutils.extension.mapToInAppMessage
 import io.customer.messaginginapp.testutils.extension.setMessageAndRouteForTest
 import io.customer.messaginginapp.testutils.fakes.FakeQuerySanitizer
+import io.customer.messaginginapp.type.InAppMessageError
+import io.customer.messaginginapp.type.InAppMessageErrorReason
 import io.customer.messaginginapp.type.InlineMessageActionListener
 import io.customer.messaginginapp.ui.bridge.EngineWebViewDelegate
 import io.customer.messaginginapp.ui.bridge.InAppHostViewDelegate

@@ -23,7 +23,9 @@ import org.robolectric.RobolectricTestRunner
 @RunWith(RobolectricTestRunner::class)
 class EngineWebViewInterfaceErrorTest : RobolectricTest() {
 
-    /// Captures what the bridge hands to the listener, which is the real production path.
+    /**
+     * Captures what the bridge hands to the listener, which is the real production path.
+     */
     private class RecordingListener : EngineWebViewListener {
         val received = mutableListOf<InAppMessageError>()
         var reasonLessCallCount = 0

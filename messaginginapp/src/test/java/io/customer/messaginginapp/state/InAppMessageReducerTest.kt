@@ -1,7 +1,5 @@
 package io.customer.messaginginapp.state
 
-import io.customer.messaginginapp.type.InAppMessageError
-import io.customer.messaginginapp.type.InAppMessageErrorReason
 import io.customer.commontest.config.TestConfig
 import io.customer.commontest.extensions.random
 import io.customer.messaginginapp.gist.data.model.GistProperties
@@ -9,6 +7,8 @@ import io.customer.messaginginapp.gist.data.model.Message
 import io.customer.messaginginapp.gist.data.model.MessagePosition
 import io.customer.messaginginapp.testutils.core.JUnitTest
 import io.customer.messaginginapp.testutils.extension.createInboxMessage
+import io.customer.messaginginapp.type.InAppMessageError
+import io.customer.messaginginapp.type.InAppMessageErrorReason
 import io.mockk.every
 import io.mockk.mockk
 import org.junit.jupiter.api.Assertions.assertEquals

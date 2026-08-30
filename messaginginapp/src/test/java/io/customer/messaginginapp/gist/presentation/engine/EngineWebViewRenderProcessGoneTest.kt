@@ -9,9 +9,9 @@ import io.customer.commontest.extensions.random
 import io.customer.messaginginapp.gist.data.model.engine.EngineWebConfiguration
 import io.customer.messaginginapp.state.InAppMessagingManager
 import io.customer.messaginginapp.state.InAppMessagingState
+import io.customer.messaginginapp.testutils.core.IntegrationTest
 import io.customer.messaginginapp.type.InAppMessageError
 import io.customer.messaginginapp.type.InAppMessageErrorReason
-import io.customer.messaginginapp.testutils.core.IntegrationTest
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify

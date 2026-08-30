@@ -7,7 +7,7 @@ package io.customer.messaginginapp.type
  * it — check connectivity, look at a slow renderer, report the message content to us, or file an
  * SDK bug. Finer detail belongs in [InAppMessageError.detail].
  */
-internal enum class InAppMessageErrorReason {
+enum class InAppMessageErrorReason {
     /** The renderer could not be reached: navigation failed, TLS failed, or the host errored. */
     NETWORK,
 
@@ -33,7 +33,7 @@ internal enum class InAppMessageErrorReason {
  * @param code the underlying platform error code where the failing layer had one, e.g. a
  * [android.webkit.WebResourceError] code or an HTTP status. Null when there was no numeric code.
  */
-internal data class InAppMessageError(
+data class InAppMessageError(
     val reason: InAppMessageErrorReason,
     val detail: String? = null,
     val code: Int? = null

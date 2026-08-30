@@ -9,6 +9,8 @@ import io.customer.commontest.extensions.random
 import io.customer.messaginginapp.gist.data.model.engine.EngineWebConfiguration
 import io.customer.messaginginapp.state.InAppMessagingManager
 import io.customer.messaginginapp.state.InAppMessagingState
+import io.customer.messaginginapp.type.InAppMessageError
+import io.customer.messaginginapp.type.InAppMessageErrorReason
 import io.customer.messaginginapp.testutils.core.IntegrationTest
 import io.mockk.every
 import io.mockk.mockk
@@ -70,8 +72,13 @@ class EngineWebViewRenderProcessGoneTest : IntegrationTest() {
         // Returning true is the reason this override exists: it tells the platform we absorbed the
         // renderer loss. The default behaviour kills the host app's process along with it.
         handled shouldBeEqualTo true
-        // And the host still learns the message failed, same as any other load error.
-        verify(exactly = 1) { listener.error() }
+        // And the host still learns the message failed, same as any other load error — carrying
+        // the reason, not a bare notification.
+        verify(exactly = 1) {
+            listener.error(
+                match<InAppMessageError> { it.reason == InAppMessageErrorReason.WEB_VIEW_CRASHED }
+            )
+        }
 
         engineWebView.releaseResources()
     }

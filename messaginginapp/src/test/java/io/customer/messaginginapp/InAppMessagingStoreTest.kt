@@ -1,5 +1,7 @@
 package io.customer.messaginginapp
 
+import io.customer.messaginginapp.type.InAppMessageError
+import io.customer.messaginginapp.type.InAppMessageErrorReason
 import io.customer.commontest.config.TestConfig
 import io.customer.commontest.core.TestConstants
 import io.customer.commontest.extensions.assertNoInteractions
@@ -352,9 +354,14 @@ class InAppMessagingStoreTest : IntegrationTest() {
         initializeAndSetUser()
         val message = createInAppMessage(queueId = "1")
 
-        manager.dispatch(InAppMessagingAction.EngineAction.MessageLoadingFailed(message))
+        manager.dispatch(InAppMessagingAction.EngineAction.MessageLoadingFailed(message, InAppMessageError(reason = InAppMessageErrorReason.RENDER_FAILED)))
 
-        verify { inAppEventListener.errorWithMessage(InAppMessage.getFromGistMessage(message)) }
+        verify {
+            inAppEventListener.errorWithMessage(
+                InAppMessage.getFromGistMessage(message),
+                InAppMessageError(reason = InAppMessageErrorReason.RENDER_FAILED)
+            )
+        }
     }
 
     @Test
@@ -378,9 +385,14 @@ class InAppMessagingStoreTest : IntegrationTest() {
         initializeAndSetUser()
         val message = createInAppMessage(queueId = "1")
 
-        manager.dispatch(InAppMessagingAction.EngineAction.MessageLoadingFailed(message))
+        manager.dispatch(InAppMessagingAction.EngineAction.MessageLoadingFailed(message, InAppMessageError(reason = InAppMessageErrorReason.RENDER_FAILED)))
 
-        verify { inAppEventListener.errorWithMessage(InAppMessage.getFromGistMessage(message)) }
+        verify {
+            inAppEventListener.errorWithMessage(
+                InAppMessage.getFromGistMessage(message),
+                InAppMessageError(reason = InAppMessageErrorReason.RENDER_FAILED)
+            )
+        }
     }
 
     @Test

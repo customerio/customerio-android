@@ -1,5 +1,7 @@
 package io.customer.messaginginapp.ui
 
+import io.customer.messaginginapp.type.InAppMessageError
+import io.customer.messaginginapp.type.InAppMessageErrorReason
 import io.customer.commontest.extensions.flushCoroutines
 import io.customer.commontest.util.ScopeProviderStub
 import io.customer.messaginginapp.gist.data.model.Message
@@ -57,7 +59,7 @@ object InAppMessagingIntegrationUtil {
         manager: InAppMessagingManager,
         scopeProvider: ScopeProviderStub
     ) {
-        manager.dispatch(InAppMessagingAction.EngineAction.MessageLoadingFailed(this))
+        manager.dispatch(InAppMessagingAction.EngineAction.MessageLoadingFailed(this, InAppMessageError(reason = InAppMessageErrorReason.RENDER_FAILED)))
             .flushCoroutines(scopeProvider.inAppLifecycleScope)
     }
 }

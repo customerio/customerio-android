@@ -31,6 +31,7 @@ public final class io/customer/messaginginapp/ModuleMessagingInApp : io/customer
 	public static final fun instance ()Lio/customer/messaginginapp/ModuleMessagingInApp;
 	public fun onAction (Lio/customer/messaginginapp/gist/data/model/Message;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V
 	public fun onError (Lio/customer/messaginginapp/gist/data/model/Message;)V
+	public fun onError (Lio/customer/messaginginapp/gist/data/model/Message;Lio/customer/messaginginapp/type/InAppMessageError;)V
 	public fun onMessageCancelled (Lio/customer/messaginginapp/gist/data/model/Message;)V
 	public fun onMessageDismissed (Lio/customer/messaginginapp/gist/data/model/Message;)V
 	public fun onMessageShown (Lio/customer/messaginginapp/gist/data/model/Message;)V
@@ -184,9 +185,14 @@ public abstract interface class io/customer/messaginginapp/gist/presentation/Gis
 	public abstract fun embedMessage (Lio/customer/messaginginapp/gist/data/model/Message;Ljava/lang/String;)V
 	public abstract fun onAction (Lio/customer/messaginginapp/gist/data/model/Message;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V
 	public abstract fun onError (Lio/customer/messaginginapp/gist/data/model/Message;)V
+	public fun onError (Lio/customer/messaginginapp/gist/data/model/Message;Lio/customer/messaginginapp/type/InAppMessageError;)V
 	public abstract fun onMessageCancelled (Lio/customer/messaginginapp/gist/data/model/Message;)V
 	public abstract fun onMessageDismissed (Lio/customer/messaginginapp/gist/data/model/Message;)V
 	public abstract fun onMessageShown (Lio/customer/messaginginapp/gist/data/model/Message;)V
+}
+
+public final class io/customer/messaginginapp/gist/presentation/GistListener$DefaultImpls {
+	public static fun onError (Lio/customer/messaginginapp/gist/presentation/GistListener;Lio/customer/messaginginapp/gist/data/model/Message;Lio/customer/messaginginapp/type/InAppMessageError;)V
 }
 
 public final class io/customer/messaginginapp/gist/presentation/GistModalActivity$Companion {
@@ -201,11 +207,16 @@ public final class io/customer/messaginginapp/gist/presentation/engine/EngineWeb
 public abstract interface class io/customer/messaginginapp/gist/presentation/engine/EngineWebViewListener {
 	public abstract fun bootstrapped ()V
 	public abstract fun error ()V
+	public fun error (Lio/customer/messaginginapp/type/InAppMessageError;)V
 	public abstract fun routeChanged (Ljava/lang/String;)V
 	public abstract fun routeError (Ljava/lang/String;)V
 	public abstract fun routeLoaded (Ljava/lang/String;)V
 	public abstract fun sizeChanged (DD)V
 	public abstract fun tap (Ljava/lang/String;Ljava/lang/String;Z)V
+}
+
+public final class io/customer/messaginginapp/gist/presentation/engine/EngineWebViewListener$DefaultImpls {
+	public static fun error (Lio/customer/messaginginapp/gist/presentation/engine/EngineWebViewListener;Lio/customer/messaginginapp/type/InAppMessageError;)V
 }
 
 public final class io/customer/messaginginapp/gist/utilities/ElapsedTimer {
@@ -250,9 +261,14 @@ public final class io/customer/messaginginapp/type/ColorScheme : java/lang/Enum 
 
 public abstract interface class io/customer/messaginginapp/type/InAppEventListener {
 	public abstract fun errorWithMessage (Lio/customer/messaginginapp/type/InAppMessage;)V
+	public fun errorWithMessage (Lio/customer/messaginginapp/type/InAppMessage;Lio/customer/messaginginapp/type/InAppMessageError;)V
 	public abstract fun messageActionTaken (Lio/customer/messaginginapp/type/InAppMessage;Ljava/lang/String;Ljava/lang/String;)V
 	public abstract fun messageDismissed (Lio/customer/messaginginapp/type/InAppMessage;)V
 	public abstract fun messageShown (Lio/customer/messaginginapp/type/InAppMessage;)V
+}
+
+public final class io/customer/messaginginapp/type/InAppEventListener$DefaultImpls {
+	public static fun errorWithMessage (Lio/customer/messaginginapp/type/InAppEventListener;Lio/customer/messaginginapp/type/InAppMessage;Lio/customer/messaginginapp/type/InAppMessageError;)V
 }
 
 public final class io/customer/messaginginapp/type/InAppMessage {
@@ -272,6 +288,34 @@ public final class io/customer/messaginginapp/type/InAppMessage {
 }
 
 public final class io/customer/messaginginapp/type/InAppMessage$Companion {
+}
+
+public final class io/customer/messaginginapp/type/InAppMessageError {
+	public fun <init> (Lio/customer/messaginginapp/type/InAppMessageErrorReason;Ljava/lang/String;Ljava/lang/Integer;)V
+	public synthetic fun <init> (Lio/customer/messaginginapp/type/InAppMessageErrorReason;Ljava/lang/String;Ljava/lang/Integer;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Lio/customer/messaginginapp/type/InAppMessageErrorReason;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun component3 ()Ljava/lang/Integer;
+	public final fun copy (Lio/customer/messaginginapp/type/InAppMessageErrorReason;Ljava/lang/String;Ljava/lang/Integer;)Lio/customer/messaginginapp/type/InAppMessageError;
+	public static synthetic fun copy$default (Lio/customer/messaginginapp/type/InAppMessageError;Lio/customer/messaginginapp/type/InAppMessageErrorReason;Ljava/lang/String;Ljava/lang/Integer;ILjava/lang/Object;)Lio/customer/messaginginapp/type/InAppMessageError;
+	public final fun describeForLogs ()Ljava/lang/String;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getCode ()Ljava/lang/Integer;
+	public final fun getDetail ()Ljava/lang/String;
+	public final fun getReason ()Lio/customer/messaginginapp/type/InAppMessageErrorReason;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/customer/messaginginapp/type/InAppMessageErrorReason : java/lang/Enum {
+	public static final field INTERNAL_ERROR Lio/customer/messaginginapp/type/InAppMessageErrorReason;
+	public static final field NETWORK Lio/customer/messaginginapp/type/InAppMessageErrorReason;
+	public static final field RENDER_FAILED Lio/customer/messaginginapp/type/InAppMessageErrorReason;
+	public static final field TIMEOUT Lio/customer/messaginginapp/type/InAppMessageErrorReason;
+	public static final field WEB_VIEW_CRASHED Lio/customer/messaginginapp/type/InAppMessageErrorReason;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lio/customer/messaginginapp/type/InAppMessageErrorReason;
+	public static fun values ()[Lio/customer/messaginginapp/type/InAppMessageErrorReason;
 }
 
 public final class io/customer/messaginginapp/type/InAppMessageKt {

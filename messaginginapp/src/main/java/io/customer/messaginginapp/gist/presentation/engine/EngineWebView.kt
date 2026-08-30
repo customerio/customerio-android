@@ -43,9 +43,7 @@ internal class EngineWebView @JvmOverloads constructor(
     private var timerTask: TimerTask? = null
     private var webView: WebView? = null
     private var elapsedTimer: ElapsedTimer = ElapsedTimer()
-    private val engineWebViewInterface = EngineWebViewInterface(this).apply {
-        onEngineError = { error -> reportFailure(error) }
-    }
+    private val engineWebViewInterface = EngineWebViewInterface(this)
     private val logger = SDKComponent.logger
     private var lastResolvedColorScheme: String? = null
     private var colorSchemeJob: Job? = null
@@ -439,6 +437,10 @@ internal class EngineWebView @JvmOverloads constructor(
         listener?.error()
     }
 
+    override fun error(error: InAppMessageError) {
+        reportFailure(error)
+    }
+
     /**
      * Tears down a WebView whose render process has died.
      *
@@ -468,13 +470,10 @@ internal class EngineWebView @JvmOverloads constructor(
 
     /**
      * Single exit for every failure in this view: classify, log, then notify the listener.
-     *
-     * [EngineWebViewListener.error] takes no arguments and is public API, so the classified error
-     * reaches the logs but not the host yet.
      */
     private fun reportFailure(error: InAppMessageError) {
         logger.error("In-app message failed: ${error.describeForLogs()}")
-        listener?.error()
+        listener?.error(error)
     }
 
     /**

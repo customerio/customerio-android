@@ -1,5 +1,7 @@
 package io.customer.messaginginapp.state
 
+import io.customer.messaginginapp.type.InAppMessageError
+import io.customer.messaginginapp.type.InAppMessageErrorReason
 import io.customer.commontest.extensions.random
 import io.customer.messaginginapp.state.MessageBuilderMock.createMessage
 import io.customer.messaginginapp.testutils.core.JUnitTest
@@ -122,7 +124,7 @@ class InlineMessageStateTest : JUnitTest() {
             queuedInlineMessagesState = queuedState
         )
 
-        val loadingFailedAction = InAppMessagingAction.EngineAction.MessageLoadingFailed(message)
+        val loadingFailedAction = InAppMessagingAction.EngineAction.MessageLoadingFailed(message, InAppMessageError(reason = InAppMessageErrorReason.RENDER_FAILED))
         val resultState = inAppMessagingReducer(initialState, loadingFailedAction)
 
         val messageState = resultState.queuedInlineMessagesState.getMessage(elementId)

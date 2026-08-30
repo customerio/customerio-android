@@ -1,5 +1,7 @@
 package io.customer.messaginginapp.state
 
+import io.customer.messaginginapp.type.InAppMessageError
+import io.customer.messaginginapp.type.InAppMessageErrorReason
 import io.customer.commontest.config.TestConfig
 import io.customer.commontest.extensions.random
 import io.customer.messaginginapp.gist.data.model.GistProperties
@@ -220,7 +222,7 @@ class InAppMessageReducerTest : JUnitTest() {
             shownMessageQueueIds = emptySet()
         )
 
-        val dismissAction = InAppMessagingAction.EngineAction.MessageLoadingFailed(message = testMessage)
+        val dismissAction = InAppMessagingAction.EngineAction.MessageLoadingFailed(message = testMessage, InAppMessageError(reason = InAppMessageErrorReason.RENDER_FAILED))
         val resultState = inAppMessagingReducer(startingState, dismissAction)
 
         assertTrue(resultState.shownMessageQueueIds.isEmpty())
@@ -240,7 +242,7 @@ class InAppMessageReducerTest : JUnitTest() {
             shownMessageQueueIds = emptySet()
         )
 
-        val dismissAction = InAppMessagingAction.EngineAction.MessageLoadingFailed(message = testMessage)
+        val dismissAction = InAppMessagingAction.EngineAction.MessageLoadingFailed(message = testMessage, InAppMessageError(reason = InAppMessageErrorReason.RENDER_FAILED))
         val resultState = inAppMessagingReducer(startingState, dismissAction)
 
         assertTrue(resultState.shownMessageQueueIds.isEmpty())

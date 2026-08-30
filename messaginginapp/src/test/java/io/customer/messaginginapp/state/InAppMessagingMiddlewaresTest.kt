@@ -1,5 +1,7 @@
 package io.customer.messaginginapp.state
 
+import io.customer.messaginginapp.type.InAppMessageError
+import io.customer.messaginginapp.type.InAppMessageErrorReason
 import io.customer.commontest.config.TestConfig
 import io.customer.commontest.config.testConfigurationDefault
 import io.customer.commontest.extensions.random
@@ -148,10 +150,15 @@ class InAppMessagingMiddlewaresTest : JUnitTest() {
         val message = createMessage(elementId = elementId)
 
         val middleware = gistListenerMiddleware(mockGistListener)
-        val action = InAppMessagingAction.EngineAction.MessageLoadingFailed(message)
+        val action = InAppMessagingAction.EngineAction.MessageLoadingFailed(message, InAppMessageError(reason = InAppMessageErrorReason.RENDER_FAILED))
         middleware(store)(nextFn)(action)
 
-        verify { mockGistListener.onError(message) }
+        verify {
+            mockGistListener.onError(
+                message,
+                InAppMessageError(reason = InAppMessageErrorReason.RENDER_FAILED)
+            )
+        }
 
         verify { nextFn(action) }
     }

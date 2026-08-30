@@ -5,6 +5,7 @@ import io.customer.messaginginapp.gist.data.model.InboxMessage
 import io.customer.messaginginapp.gist.data.model.Message
 import io.customer.messaginginapp.gist.data.model.MessagePosition
 import io.customer.messaginginapp.type.ColorScheme
+import io.customer.messaginginapp.type.InAppMessageError
 
 internal sealed class InAppMessagingAction {
     data class Initialize(val siteId: String, val dataCenter: String, val environment: GistEnvironment, val colorScheme: ColorScheme = ColorScheme.AUTO) : InAppMessagingAction()
@@ -25,7 +26,10 @@ internal sealed class InAppMessagingAction {
 
     sealed class EngineAction {
         data class Tap(val message: Message, val route: String, val name: String, val action: String) : InAppMessagingAction()
-        data class MessageLoadingFailed(val message: Message) : InAppMessagingAction()
+        data class MessageLoadingFailed(
+            val message: Message,
+            val error: InAppMessageError
+        ) : InAppMessagingAction()
     }
 
     sealed class InboxAction(open val message: InboxMessage) : InAppMessagingAction() {

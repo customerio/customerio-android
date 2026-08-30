@@ -1,5 +1,7 @@
 package io.customer.messaginginapp.ui.controller
 
+import io.customer.messaginginapp.type.InAppMessageError
+import io.customer.messaginginapp.type.InAppMessageErrorReason
 import io.customer.commontest.config.TestConfig
 import io.customer.commontest.config.testConfigurationDefault
 import io.customer.commontest.extensions.assertCalledNever
@@ -353,7 +355,13 @@ class InAppMessageViewControllerTest : JUnitTest() {
 
         verifyOrder {
             inAppMessagingManager.dispatch(
-                InAppMessagingAction.EngineAction.MessageLoadingFailed(givenMessage)
+                InAppMessagingAction.EngineAction.MessageLoadingFailed(
+                    givenMessage,
+                    InAppMessageError(
+                        reason = InAppMessageErrorReason.RENDER_FAILED,
+                        detail = "Failed to load route: Error loading message"
+                    )
+                )
             )
         }
     }
@@ -472,11 +480,37 @@ class InAppMessageViewControllerTest : JUnitTest() {
         val givenMessage = createInAppMessage()
         controller.setMessageAndRouteForTest(message = givenMessage, route = String.random)
 
+        val givenError = InAppMessageError(
+            reason = InAppMessageErrorReason.NETWORK,
+            detail = "net::ERR_NAME_NOT_RESOLVED",
+            code = -2
+        )
+
+        controller.error(givenError)
+
+        verifyOrder {
+            inAppMessagingManager.dispatch(
+                InAppMessagingAction.EngineAction.MessageLoadingFailed(givenMessage, givenError)
+            )
+        }
+    }
+
+    @Test
+    fun engineListener_givenUnclassifiedEngineError_expectInternalErrorReason() {
+        val givenMessage = createInAppMessage()
+        controller.setMessageAndRouteForTest(message = givenMessage, route = String.random)
+
         controller.error()
 
         verifyOrder {
             inAppMessagingManager.dispatch(
-                InAppMessagingAction.EngineAction.MessageLoadingFailed(givenMessage)
+                InAppMessagingAction.EngineAction.MessageLoadingFailed(
+                    givenMessage,
+                    InAppMessageError(
+                        reason = InAppMessageErrorReason.INTERNAL_ERROR,
+                        detail = "Engine reported a failure with no reason"
+                    )
+                )
             )
         }
     }

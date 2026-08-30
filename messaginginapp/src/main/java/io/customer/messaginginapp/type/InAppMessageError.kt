@@ -38,8 +38,12 @@ data class InAppMessageError(
     val detail: String? = null,
     val code: Int? = null
 ) {
-    /** Compact form for logs: `NETWORK (-2): net::ERR_NAME_NOT_RESOLVED` */
-    fun describeForLogs(): String = buildString {
+    /**
+     * Compact form for logs: `NETWORK (-2): net::ERR_NAME_NOT_RESOLVED`
+     *
+     * Internal: hosts should read [reason], [detail] and [code] rather than depend on this format.
+     */
+    internal fun describeForLogs(): String = buildString {
         append(reason.name)
         code?.let { append(" ($it)") }
         detail?.let { append(": $it") }

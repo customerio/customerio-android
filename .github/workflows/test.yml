@@ -13,6 +13,7 @@ concurrency:
 jobs:
   unit-test:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     strategy:
       matrix:
         module: [messagingpush, messaginginapp, messaginginbox, base, datapipelines, core, tracking-migration, location, geofence]

@@ -469,10 +469,13 @@ internal class EngineWebView @JvmOverloads constructor(
     }
 
     /**
-     * Single exit for every failure in this view: classify, log, then notify the listener.
+     * Single exit for every failure in this view: classify, then notify the listener.
      */
     private fun reportFailure(error: InAppMessageError) {
-        logger.error("In-app message failed: ${error.describeForLogs()}")
+        // Not logged here any more. In the previous step this log was the only place the
+        // classification surfaced, because the listener could not carry it. Now that it can, the
+        // controller logs the same failure with the message id and route attached, so logging in
+        // both places would double up on every failure.
         listener?.error(error)
     }
 

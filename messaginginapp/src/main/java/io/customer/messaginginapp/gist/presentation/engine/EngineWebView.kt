@@ -5,7 +5,9 @@ import android.content.Context
 import android.content.res.Configuration
 import android.graphics.Color
 import android.net.http.SslError
+import android.os.Build
 import android.util.AttributeSet
+import android.webkit.RenderProcessGoneDetail
 import android.webkit.SslErrorHandler
 import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
@@ -267,6 +269,34 @@ internal class EngineWebView @JvmOverloads constructor(
                     error: SslError?
                 ) {
                     listener?.error()
+                }
+
+                /**
+                 * The WebView's renderer process died, so the message can never finish loading.
+                 *
+                 * Returning `true` is the point of overriding this: it tells the platform we have
+                 * handled the loss. Without it the default behaviour kills the host app's process
+                 * along with the renderer, so a message that crashes its renderer would take the
+                 * whole app down. Before this the SDK had no override at all, which left a blank
+                 * WebView and no failure callback.
+                 */
+                override fun onRenderProcessGone(
+                    view: WebView?,
+                    detail: RenderProcessGoneDetail?
+                ): Boolean {
+                    val didCrash = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                        detail?.didCrash()
+                    } else {
+                        null
+                    }
+                    logger.error(
+                        "WebView render process gone (didCrash: $didCrash), reporting message failure"
+                    )
+                    // Report like any other load error. That dispatches MessageLoadingFailed,
+                    // which dismisses the message and runs the normal teardown — releaseResources()
+                    // cannot be called from here, it bails out while the view is still attached.
+                    listener?.error()
+                    return true
                 }
             }
 

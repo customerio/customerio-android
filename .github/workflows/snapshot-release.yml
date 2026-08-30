@@ -96,22 +96,9 @@ jobs:
           --agpVersion 8.9.1 \
           --gradleVersion 8.11.1
 
-      - name: Install Java
-        uses: actions/setup-java@v4
-        with:
-          distribution: "temurin"
-          java-version: "17"
-
-      - name: Install Android SDK
-        uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407 # v3.2.2
-
-      - name: Verify gradle scripts are valid gradle scripts
-        uses: gradle/actions/wrapper-validation@af1da67850ed9a4cedd57bfd976089dd991e2582 # v4.3.1
-
-      # setup-gradle owns Gradle User Home caching. Using actions/cache for the
-      # same directories is explicitly discouraged by the Gradle action.
-      - name: Set up Gradle caching
-        uses: gradle/actions/setup-gradle@af1da67850ed9a4cedd57bfd976089dd991e2582 # v4.3.1
+      # Uses the same Java, Android SDK, wrapper validation, and Gradle-owned
+      # caching path as the rest of this repository's CI.
+      - uses: ./.github/actions/setup-android
 
       # Build the Groovy and Kotlin DSL consumers together so their shared SDK
       # modules are configured and compiled only once.

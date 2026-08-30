@@ -69,55 +69,32 @@ jobs:
   # This job depends on the publish job to finish so we can use the snapshot version to verify
   # gradle compatibility of the sample apps with actual releases of the SDK with latest changes.
   gradle-compatibility-builds:
-    name: ${{ matrix.sample-app }} build with AGP ${{ matrix.agp-version }}
+    name: Sample apps build with AGP 8.9.1
     needs: publish
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        # API 36 requires AGP 8.9.1 or newer. Build both Gradle DSL variants at
-        # that real compatibility floor. The full sample-app workflow already
-        # builds both apps with the repository's current AGP version.
-        # https://developer.android.com/build/releases/about-agp#api-level-support
-        sample-app-with-agp:
-          - "java_layout_min"
-          - "kotlin_compose_min"
-        include:
-          # Minimum supported versions for compileSdk 36 and Kotlin 2.1.
-          - sample-app-with-agp: "java_layout_min"
-            sample-app: "java_layout"
-            cio-siteid-secret-key: "CUSTOMERIO_JAVA_WORKSPACE_SITE_ID"
-            cio-cdpapikey-secret-key: "CUSTOMERIO_JAVA_WORKSPACE_CDP_API_KEY"
-            agp-version: "8.9.1"
-            gradle-version: "8.11.1"
-          - sample-app-with-agp: "kotlin_compose_min"
-            sample-app: "kotlin_compose"
-            cio-siteid-secret-key: "CUSTOMERIO_KOTLIN_WORKSPACE_SITE_ID"
-            cio-cdpapikey-secret-key: "CUSTOMERIO_KOTLIN_WORKSPACE_CDP_API_KEY"
-            agp-version: "8.9.1"
-            gradle-version: "8.11.1"
 
     steps:
       - uses: actions/checkout@v4
 
       - name: Setup local.properties file for sample app
         # Use recently published snapshot version to make sure we're testing the latest changes.
+        # These APKs are compiled, not distributed or run, so workspace credentials are unnecessary.
         env:
           SDK_VERSION: ${{ needs.publish.outputs.snapshot_version }}
-          SITE_ID: ${{ secrets[matrix.cio-siteid-secret-key] }}
-          CDP_API_KEY: ${{ secrets[matrix.cio-cdpapikey-secret-key] }}
         run: |
           {
             printf 'sdkVersion=%s\n' "$SDK_VERSION"
-            printf 'siteId=%s\n' "$SITE_ID"
-            printf 'cdpApiKey=%s\n' "$CDP_API_KEY"
+            printf 'siteId=ci-build-placeholder\n'
+            printf 'cdpApiKey=ci-build-placeholder\n'
           } > "samples/local.properties"
 
       - name: Update files for Gradle compatibility
+        # API 36 requires AGP 8.9.1 or newer, and AGP 8.9 requires Gradle 8.11.1.
+        # https://developer.android.com/build/releases/about-agp#api-level-support
         run: |
           ./scripts/update-gradle-compatibility.sh \
-          --agpVersion ${{ matrix.agp-version }} \
-          --gradleVersion ${{ matrix.gradle-version }}
+          --agpVersion 8.9.1 \
+          --gradleVersion 8.11.1
 
       - name: Install Java
         uses: actions/setup-java@v4
@@ -136,5 +113,7 @@ jobs:
       - name: Set up Gradle caching
         uses: gradle/actions/setup-gradle@af1da67850ed9a4cedd57bfd976089dd991e2582 # v4.3.1
 
-      - name: Building ${{ matrix.sample-app }} with AGP version ${{ matrix.agp-version }}
-        run: ./gradlew ":samples:${{ matrix.sample-app }}:assembleRelease"
+      # Build the Groovy and Kotlin DSL consumers together so their shared SDK
+      # modules are configured and compiled only once.
+      - name: Build Groovy and Kotlin DSL sample apps
+        run: ./gradlew :samples:java_layout:assembleRelease :samples:kotlin_compose:assembleRelease

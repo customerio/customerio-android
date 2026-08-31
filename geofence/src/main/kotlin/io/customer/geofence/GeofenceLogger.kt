@@ -5,7 +5,6 @@ import io.customer.geofence.GeofenceLogTail.bool
 import io.customer.geofence.GeofenceLogTail.int
 import io.customer.geofence.GeofenceLogTail.list
 import io.customer.geofence.GeofenceLogTail.num
-import io.customer.geofence.GeofenceLogTail.tail
 import io.customer.geofence.GeofenceLogTail.token
 import io.customer.sdk.core.util.Logger
 
@@ -35,6 +34,17 @@ internal enum class GeofenceLaunchReason(val wire: String) {
  * what analysis groups on.
  */
 internal class GeofenceLogger(private val logger: Logger) {
+
+    /**
+     * Shadows [GeofenceLogTail.tail] so every call site here passes this logger to the gate, which
+     * is what lets the "diagnostics are enabled" warning be logged exactly once through the host
+     * app's own logger.
+     */
+    private fun tail(
+        ev: String,
+        io: GeofenceLogIo,
+        fields: List<Pair<String, String?>> = emptyList()
+    ): String = GeofenceLogTail.tail(ev, io, fields, logger)
 
     // MARK: - Registration
 
@@ -184,7 +194,7 @@ internal class GeofenceLogger(private val logger: Logger) {
                 tail(
                     "movement.registered",
                     GeofenceLogIo.OUTPUT,
-                    GeofenceLogTail.position(latitude, longitude, logger).map { (k, v) ->
+                    GeofenceLogTail.position(latitude, longitude).map { (k, v) ->
                         (if (k == "lat") "rlat" else if (k == "lon") "rlon" else k) to v
                     } + listOf("rad" to num(radiusMeters, 0))
                 ),
@@ -270,7 +280,7 @@ internal class GeofenceLogger(private val logger: Logger) {
                     GeofenceLogIo.INPUT,
                     listOf("ids" to list(geofenceIds), "n" to int(geofenceIds.size), "t" to token(transitionName)) +
                         GeofenceLogTail.fixQuality(location, source) +
-                        GeofenceLogTail.position(location, logger)
+                        GeofenceLogTail.position(location)
                 ),
             tag = TAG
         )
@@ -472,7 +482,7 @@ internal class GeofenceLogger(private val logger: Logger) {
                     "sync.skipped",
                     GeofenceLogIo.OUTPUT,
                     listOf("why" to "invalid_location", "ctx" to token(reason)) +
-                        GeofenceLogTail.position(latitude, longitude, logger)
+                        GeofenceLogTail.position(latitude, longitude)
                 ),
             tag = TAG
         )

@@ -59,7 +59,24 @@ internal object GeofenceLogTail {
      * @param fields ordered key/value pairs. Null values are omitted rather than written empty, so
      *   absent and empty stay distinguishable.
      */
-    fun tail(ev: String, io: GeofenceLogIo, fields: List<Pair<String, String?>> = emptyList()): String {
+    fun tail(
+        ev: String,
+        io: GeofenceLogIo,
+        fields: List<Pair<String, String?>> = emptyList(),
+        logger: Logger? = null
+    ): String {
+        // The single gate. Every enriched record routes through here, so a field added to the tail
+        // later cannot leak by omission — there is no second path to keep in sync and no per-field
+        // judgement to get wrong. With diagnostics off the SDK's log output is byte-identical to
+        // what it was before this instrumentation existed.
+        if (!CioDiagnostics.enabled) return ""
+        if (logger != null && CioDiagnostics.claimEnabledWarning()) {
+            logger.error(
+                "Diagnostics: internal geofence diagnostics are ENABLED. Logs now carry machine-readable detail including device coordinates. This is intended for Customer.io field testing and must not be enabled in a production build.",
+                tag = "Geofence"
+            )
+        }
+
         val parts = StringBuilder(DELIMITER).append("ev=").append(ev).append(" io=").append(io.wire)
         for ((key, value) in fields) {
             if (value == null) continue
@@ -129,7 +146,7 @@ internal object GeofenceLogTail {
         return if (out.isEmpty()) "unknown" else out.toString()
     }
 
-    // MARK: - Fix quality and provenance (ungated)
+    // MARK: - Fix quality and provenance
 
     /**
      * Where a fix came from. Trustworthiness differs enormously between these, and until now the
@@ -152,12 +169,11 @@ internal object GeofenceLogTail {
     }
 
     /**
-     * How good the fix is and where it came from. **Deliberately ungated.**
+     * How good the fix is and where it came from.
      *
-     * None of these keys says anything about *where* the device is, so none of them is the thing
-     * [CioDiagnostics.logPreciseLocation] exists to protect. Gating them would mean a default build
-     * cannot judge whether a transition's position is worth anything at all — and `age` in
-     * particular is the difference between a measurement and a guess.
+     * `age` is the one to notice: it is the difference between a measurement and a guess. Like
+     * everything else in the tail these reach a log only when diagnostics are enabled — the gate
+     * lives in [tail], so nothing here needs its own check.
      */
     fun fixQuality(location: Location?, source: FixSource): List<Pair<String, String?>> {
         val fields = mutableListOf<Pair<String, String?>>("fixsrc" to source.wire)
@@ -189,34 +205,17 @@ internal object GeofenceLogTail {
     private fun isMock(location: Location): Boolean =
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) location.isMock else location.isFromMockProvider
 
-    // MARK: - Gated device position
+    // MARK: - Device position
 
     /**
-     * Whether the caller may include device coordinates, warning loudly the first time it may.
+     * Device position.
      *
-     * The warning is logged at error level so it survives in a host app's own Logcat even at a
-     * restrictive level: if this somehow ships enabled, the app's owner is told.
+     * No separate switch: a single gate over the whole tail is what makes "customer builds see
+     * exactly what they saw before" a claim you can check in one assertion, instead of a set of
+     * per-field arguments a reviewer has to accept one at a time.
      */
-    private fun allowPreciseLocation(logger: Logger): Boolean {
-        if (!CioDiagnostics.logPreciseLocation) return false
-        if (CioDiagnostics.claimPreciseLocationWarning()) {
-            logger.error(
-                "Diagnostics: precise location logging is ENABLED. Geofence debug logs now contain device coordinates. This is intended for Customer.io field testing and must not be enabled in a production build.",
-                tag = "Geofence"
-            )
-        }
-        return true
-    }
-
-    /**
-     * Device position, emitted only when [CioDiagnostics.logPreciseLocation] is on.
-     *
-     * Speed and bearing are gated alongside the coordinate, not with the quality keys above: a run
-     * of them from a known starting point is dead reckoning, so they carry positional information
-     * even though neither is a coordinate.
-     */
-    fun position(location: Location?, logger: Logger): List<Pair<String, String?>> {
-        if (location == null || !allowPreciseLocation(logger)) return emptyList()
+    fun position(location: Location?): List<Pair<String, String?>> {
+        if (location == null) return emptyList()
         return buildList {
             add("lat" to num(location.latitude, 5))
             add("lon" to num(location.longitude, 5))
@@ -227,8 +226,8 @@ internal object GeofenceLogTail {
     }
 
     /** Coordinates only, for the paths that carry bare doubles rather than a full [Location]. */
-    fun position(latitude: Double?, longitude: Double?, logger: Logger): List<Pair<String, String?>> {
-        if (latitude == null || longitude == null || !allowPreciseLocation(logger)) return emptyList()
+    fun position(latitude: Double?, longitude: Double?): List<Pair<String, String?>> {
+        if (latitude == null || longitude == null) return emptyList()
         return listOf("lat" to num(latitude, 5), "lon" to num(longitude, 5))
     }
 }

@@ -4,7 +4,7 @@ import io.customer.base.internal.InternalCustomerIOApi
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
- * Internal diagnostics switches.
+ * Switch for the SDK's internal diagnostic instrumentation.
  *
  * Marked [InternalCustomerIOApi], which is a compile **error** to use without an explicit opt-in,
  * so a host app cannot reach this by accident. Unlike iOS — where the equivalent lives in a module
@@ -14,40 +14,46 @@ import java.util.concurrent.atomic.AtomicBoolean
  */
 @InternalCustomerIOApi
 object CioDiagnostics {
-    private val preciseLocation = AtomicBoolean(false)
+    private val diagnosticsEnabled = AtomicBoolean(false)
     private val warningClaimed = AtomicBoolean(false)
 
     /**
-     * Whether geofence diagnostics may include the device's precise position.
+     * Whether the SDK emits machine-readable diagnostic detail alongside its human-readable logs.
      *
      * **Default `false`, and it must stay that way.**
      *
-     * Geofence logs carry a lot that is safe at debug level — region identifiers, transition types,
-     * counts, ranking positions, reasons, durations, and how good a fix was. Precise coordinates
-     * are different in kind. "User entered geofence X" reveals coarse location and is inherent to
-     * the feature; it is what the SDK already reports to the backend. A latitude and longitude to
-     * five decimal places is strictly extra, and it is what a host app would leak if it shipped
-     * with debug logging left on and a crash reporter capturing Logcat.
+     * This is an audience switch, not a privacy classifier. The `| key=value` tail the geofence
+     * logger appends exists for one consumer: our own off-device test harness. No customer reads
+     * it, no customer needs it, and no product behaviour depends on it. So the question for any
+     * given field is not "is this one sensitive enough to hide" — it is "did we ask for this output
+     * here", and in a customer's app the answer is always no.
      *
-     * Gates `lat`, `lon`, `alt`, `spd` and `brg` only. Fix *quality* — accuracy, age, provenance —
-     * is never gated: it says how good a fix is, never where it is.
+     * Framing it that way is what makes the guarantee checkable in one line rather than field by
+     * field: **with this off, the SDK's log output is byte-identical to what it was before the
+     * diagnostics work.** A host app that ships with debug logging left on — the case this protects
+     * — sees exactly the prose it saw before, and gains nothing new to leak into a crash reporter
+     * or log aggregator.
      *
-     * Leaking anything therefore takes two deliberate actions: this flag set *and* the log level at
-     * `DEBUG`, which is not the production default.
+     * It also means a field added to the tail later needs no privacy review of its own. The
+     * alternative, deciding per field whether it reveals position, gets the easy calls right and
+     * then quietly gets one wrong.
+     *
+     * Turning anything on therefore takes two deliberate actions: this flag set *and* the log level
+     * at `DEBUG`, which is not the production default.
      */
     @JvmStatic
-    var logPreciseLocation: Boolean
-        get() = preciseLocation.get()
+    var enabled: Boolean
+        get() = diagnosticsEnabled.get()
         set(value) {
-            preciseLocation.set(value)
+            diagnosticsEnabled.set(value)
             // Re-arm the warning so a host app that toggles the flag back on is told again.
             if (!value) warningClaimed.set(false)
         }
 
     /**
-     * Claims the right to log the "precise location is enabled" warning, returning `true` exactly
-     * once per enablement rather than on every fix.
+     * Claims the right to log the "diagnostics enabled" warning, returning `true` exactly once per
+     * enablement rather than on every record.
      */
     @JvmStatic
-    fun claimPreciseLocationWarning(): Boolean = warningClaimed.compareAndSet(false, true)
+    fun claimEnabledWarning(): Boolean = warningClaimed.compareAndSet(false, true)
 }

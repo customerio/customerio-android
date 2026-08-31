@@ -21,7 +21,8 @@ import org.robolectric.RobolectricTestRunner
  * The tail is an untyped string contract consumed by a parser that lives off-device and in another
  * language, so there is no round trip to assert. What can be asserted here is the half we own: that
  * every geofence logger method emits a machine key and a replay classification, that no value can
- * break the parser's whitespace split, and that precise coordinates stay behind their flag.
+ * break the parser's whitespace split, and — the load-bearing one — that with the gate off the
+ * output is exactly what it was before any of this instrumentation existed.
  *
  * It also pins the derived `why=` tokens. Those are computed from the existing prose rather than
  * from an enum — which is what keeps `logSyncSkipped`'s 20 test references untouched — and the
@@ -54,12 +55,12 @@ class GeofenceLogTailTest : RobolectricTest() {
         super.setup(testConfigurationDefault { })
         capturing = CapturingLogger()
         geofenceLogger = GeofenceLogger(capturing)
-        CioDiagnostics.logPreciseLocation = false
+        CioDiagnostics.enabled = true
     }
 
     @After
     fun resetDiagnostics() {
-        CioDiagnostics.logPreciseLocation = false
+        CioDiagnostics.enabled = false
     }
 
     /**
@@ -221,25 +222,46 @@ class GeofenceLogTailTest : RobolectricTest() {
         }
     }
 
-    // MARK: - Sensitive-field gating
+    // MARK: - The gate
 
     @Test
-    fun position_givenFlagOff_expectNoCoordinates() {
-        CioDiagnostics.logPreciseLocation = false
-        val logger = CapturingLogger()
-        val target = GeofenceLogger(logger)
-        for ((_, _, run) in invocations()) run(target)
+    fun everyRecord_givenDiagnosticsOff_expectOutputUnchangedFromBeforeInstrumentation() {
+        CioDiagnostics.enabled = false
 
-        for (message in logger.messages) {
-            for (key in listOf("lat=", "lon=", "alt=", "spd=", "brg=", "rlat=", "rlon=")) {
-                if (message.contains(key)) throw AssertionError("$key leaked with the flag off: '$message'")
+        for ((name, _, run) in invocations()) {
+            val logger = CapturingLogger()
+            run(GeofenceLogger(logger))
+            val message = logger.messages.last()
+
+            // The whole guarantee in one assertion: a customer build that ships with debug logging
+            // left on sees exactly the prose it saw before this instrumentation existed. Not "sees
+            // only the safe fields" — sees nothing new at all, so a field added to the tail later
+            // needs no privacy review of its own.
+            if (message.contains(GeofenceLogTail.DELIMITER) || message.contains("ev=")) {
+                throw AssertionError("$name: emitted diagnostics with the gate off — '$message'")
             }
         }
     }
 
     @Test
-    fun position_givenFlagOn_expectCoordinatesAndOneWarning() {
-        CioDiagnostics.logPreciseLocation = true
+    fun everyRecord_givenDiagnosticsOff_expectNoDiagnosticKeyAnywhere() {
+        CioDiagnostics.enabled = false
+        val logger = CapturingLogger()
+        val target = GeofenceLogger(logger)
+        for ((_, _, run) in invocations()) run(target)
+
+        // Spot-checks the classes of value the harness cares about, including ones that are
+        // harmless in isolation. The point is that "harmless in isolation" stopped being the test.
+        for (message in logger.messages) {
+            for (key in listOf("lat=", "lon=", "alt=", "spd=", "brg=", "rlat=", "rlon=", "acc=", "age=", "fixsrc=", "io=", "why=")) {
+                if (message.contains(key)) throw AssertionError("$key leaked with the gate off: '$message'")
+            }
+        }
+    }
+
+    @Test
+    fun everyRecord_givenDiagnosticsOn_expectFullDetailAndOneWarning() {
+        CioDiagnostics.enabled = true
         val logger = CapturingLogger()
         val target = GeofenceLogger(logger)
         for ((_, _, run) in invocations()) run(target)
@@ -247,28 +269,47 @@ class GeofenceLogTailTest : RobolectricTest() {
         val joined = logger.messages.joinToString("\n")
         joined.contains("lat=") shouldBeEqualTo true
         joined.contains("lon=") shouldBeEqualTo true
-        // Enabling it must be loud, and exactly once — a warning per fix would be its own problem
-        // on a three-hour drive.
-        logger.messages.count { it.contains("precise location logging is ENABLED") } shouldBeEqualTo 1
+        joined.contains("fixsrc=") shouldBeEqualTo true
+        // Enabling it must be loud, and exactly once — a warning per record would be its own
+        // problem over a three-hour drive.
+        logger.messages.count { it.contains("internal geofence diagnostics are ENABLED") } shouldBeEqualTo 1
     }
 
     @Test
-    fun fixQuality_givenFlagOff_expectStillEmitted() {
-        CioDiagnostics.logPreciseLocation = false
+    fun proseHalf_expectIdenticalWhicheverWayTheGateIsSet() {
+        // The prose is what a customer reads and what existing tests assert on. Enabling
+        // diagnostics must append to it and never rewrite it.
+        for ((name, _, run) in invocations()) {
+            CioDiagnostics.enabled = false
+            val off = CapturingLogger()
+            run(GeofenceLogger(off))
+
+            CioDiagnostics.enabled = true
+            val on = CapturingLogger()
+            run(GeofenceLogger(on))
+
+            val onProse = on.messages.last().substringBefore(GeofenceLogTail.DELIMITER)
+            if (onProse != off.messages.last()) {
+                throw AssertionError("$name: prose differs between gate states\n  off: ${off.messages.last()}\n  on:  $onProse")
+            }
+        }
+    }
+
+    @Test
+    fun fixQuality_givenDiagnosticsOn_expectQualityAndProvenance() {
+        CioDiagnostics.enabled = true
         geofenceLogger.logCallbackReceived(listOf("notl_core"), "ENTER", location(), GeofenceLogTail.FixSource.OS_TRIGGER)
 
-        // Accuracy, age, provenance and the simulated-fix marker say how good a fix is, never where
-        // it is — gating them would leave a default build unable to tell a measurement from a guess.
         val fields = parseTail(capturing.messages.last())!!
         fields["acc"] shouldBeEqualTo "48.0"
         fields["fixsrc"] shouldBeEqualTo "os_trigger"
         fields["sim"] shouldBeEqualTo "false"
         fields["age"].shouldNotBeNull()
-        fields["lat"].shouldBeNull()
     }
 
     @Test
     fun fixQuality_givenMockLocation_expectSimTrue() {
+        CioDiagnostics.enabled = true
         geofenceLogger.logCallbackReceived(listOf("notl_core"), "ENTER", location(mock = true), GeofenceLogTail.FixSource.OS_TRIGGER)
 
         // A fix injected by `adb emu geo fix` or a route driver must be distinguishable from a real

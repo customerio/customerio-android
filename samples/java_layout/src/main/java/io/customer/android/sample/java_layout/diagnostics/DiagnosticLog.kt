@@ -77,11 +77,11 @@ object DiagnosticLog {
             }
         }
 
-        // Precise coordinates in geofence diagnostics. Off by default in the SDK and reachable
-        // only behind an opt-in annotation; enabled here because this app exists to produce field
-        // data, and without coordinates overshoot distance cannot be computed at all. A customer
-        // app never reaches this — see CioDiagnostics for why the default must stay false.
-        CioDiagnostics.logPreciseLocation = true
+        // The SDK's machine-readable diagnostic tail. Off by default and reachable only behind an
+        // opt-in annotation; enabled here because this app exists to produce field data and the
+        // harness parses that tail. A customer app never reaches this — see CioDiagnostics for why
+        // the default must stay false.
+        CioDiagnostics.enabled = true
 
         // Outside the lock: the SDK may log synchronously from inside these calls, and `emit`
         // takes the same lock.

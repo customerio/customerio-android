@@ -49,6 +49,18 @@ class EngineWebViewInterface(private val listener: EngineWebViewListener) {
 
         logger.debug("Received event from WebView: $event")
 
+        // Handled before the parameters guard below: a failure has to reach the host even when the
+        // renderer sends no detail with it. Every other event is meaningless without its parameters.
+        if (event.gist.method == "error") {
+            listener.error(
+                InAppMessageError(
+                    reason = InAppMessageErrorReason.RENDER_FAILED,
+                    detail = event.gist.parameters?.let(::parseErrorDetail)
+                )
+            )
+            return
+        }
+
         event.gist.parameters?.let { eventParameters ->
             when (event.gist.method) {
                 "bootstrapped" -> listener.bootstrapped()
@@ -81,13 +93,6 @@ class EngineWebViewInterface(private val listener: EngineWebViewListener) {
                         }
                     }
                 }
-
-                "error" -> listener.error(
-                    InAppMessageError(
-                        reason = InAppMessageErrorReason.RENDER_FAILED,
-                        detail = parseErrorDetail(eventParameters)
-                    )
-                )
             }
         }
     }

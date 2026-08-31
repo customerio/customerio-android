@@ -103,6 +103,28 @@ class EngineWebViewInterfaceErrorTest : RobolectricTest() {
         received.single().detail.shouldBeNull()
     }
 
+    /**
+     * The renderer always sends `{ target, errorMessage }` today, but a failure must still reach the
+     * host if it ever arrives bare. iOS already behaves this way — its `error` case sits outside any
+     * parameters guard — so dropping it here would put the two platforms out of step on the one path
+     * this work exists to protect.
+     */
+    @Test
+    fun postMessage_givenErrorWithNoParametersAtAll_expectStillReported() {
+        val payload = mapOf(
+            "gist" to mapOf(
+                "instanceId" to "test-instance",
+                "method" to "error"
+            )
+        )
+
+        engineWebViewInterface.postMessage(Gson().toJson(payload))
+
+        received.size shouldBeEqualTo 1
+        received.single().reason shouldBeEqualTo InAppMessageErrorReason.RENDER_FAILED
+        received.single().detail.shouldBeNull()
+    }
+
     @Test
     fun postMessage_givenError_expectClassifiedOverloadUsedNotTheReasonLessOne() {
         postErrorEvent(mapOf("errorMessage" to "Boom"))

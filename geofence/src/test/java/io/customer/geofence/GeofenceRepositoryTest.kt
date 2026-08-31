@@ -2086,7 +2086,11 @@ class GeofenceRepositoryTest : RobolectricTest() {
         every { secureUserStore.getUserId() } returns "user-42"
         every { clock.currentTimeMillis() } returns 200_000_000_000L
         every { clock.elapsedRealtime() } returns 1_000L
-        every { store.getLastRegistrationUptime() } returns 900_000L // uptime regressed -> rebooted
+        // Stateful, because the pass stamps this key mid-flight: a fixed stub would keep reporting
+        // "wiped" after the write that clears it and pass whether or not the guard reads it in time.
+        var storedUptime: Long? = 900_000L // uptime regressed -> rebooted
+        every { store.getLastRegistrationUptime() } answers { storedUptime }
+        every { store.setLastRegistrationUptime(any()) } answers { storedUptime = firstArg() }
         every { store.getLastSyncTimestamp() } returns 1_000L
         every { store.getRegisteredIds() } returns emptySet()
         every { store.getEnteredIds() } returns setOf("g-1")

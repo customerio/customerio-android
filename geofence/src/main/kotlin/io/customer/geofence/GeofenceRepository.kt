@@ -465,6 +465,9 @@ internal class GeofenceRepositoryImpl(
             // override here (unlike the registration diff): a reboot re-registers with
             // INITIAL_TRIGGER_ENTER, so the OS re-reports these itself.
             val unchangedRegistered = unchangedRegisteredIds(nearest)
+            // Snapshotted for the same reason: a successful registration stamps uptime and package
+            // update time, which is what clears the wipe signals this reads.
+            val osStateWasWiped = osStateWiped()
             // Registered before this pass but not cache-equal: the ID survived a geometry edit.
             val previouslyRegistered = store.getRegisteredIds()
             val reRegisteredIds = nearest.map { it.id }
@@ -530,7 +533,7 @@ internal class GeofenceRepositoryImpl(
             // carried across a geometry edit must not become a fresh arrival. A wipe re-registers
             // every fence with INITIAL_TRIGGER_ENTER, so GMS re-reports these itself and the
             // backstop is redundant exactly when its inputs are least trustworthy.
-            if (registrationResult.isSuccess && fixSource == FixSource.LIVE && !osStateWiped()) {
+            if (registrationResult.isSuccess && fixSource == FixSource.LIVE && !osStateWasWiped) {
                 // Identity can change during the awaited GMS call, and reset doesn't clear pending
                 // delivery rows — never queue a synthetic ENTER for a signed-out/switched user.
                 if (secureUserStore.getUserId() == userId) {

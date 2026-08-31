@@ -4,7 +4,7 @@ on:
   pull_request:
     types: [opened, synchronize, reopened, labeled]
   push:
-    branches: [ main ]
+    branches: [ main, feature/* ]
   release: # build sample apps for every git tag created. These are known as "stable" builds that are suitable for people outside the mobile team. 
     types: [ published ]
   workflow_dispatch:

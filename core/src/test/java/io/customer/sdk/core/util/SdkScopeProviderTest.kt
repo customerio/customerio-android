@@ -6,8 +6,6 @@ import io.customer.commontest.core.JUnit5Test
 import io.customer.commontest.util.DispatchersProviderStub
 import io.mockk.mockk
 import io.mockk.verify
-import kotlinx.coroutines.awaitCancellation
-import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
 import org.amshove.kluent.shouldBeTrue
@@ -63,34 +61,5 @@ class SdkScopeProviderTest : JUnit5Test() {
         scope.launch { siblingRan = true }.join()
 
         siblingRan.shouldBeTrue()
-    }
-
-    @Test
-    fun cancellingOneScope_givenAnotherScope_expectOtherScopeUnaffected() = runTest {
-        val oneShotScope = scopeProvider.geofenceScope
-        val persistentScope = scopeProvider.eventBusScope
-
-        oneShotScope.cancel()
-        var persistentScopeRan = false
-        persistentScope.launch { persistentScopeRan = true }.join()
-
-        persistentScopeRan.shouldBeTrue()
-    }
-
-    @Test
-    fun shutdown_givenActiveCoroutines_expectAllSdkWorkCancelled() = runTest {
-        val jobs = listOf(
-            scopeProvider.eventBusScope,
-            scopeProvider.lifecycleListenerScope,
-            scopeProvider.inAppLifecycleScope,
-            scopeProvider.locationScope,
-            scopeProvider.geofenceScope
-        ).map { scope ->
-            scope.launch { awaitCancellation() }
-        }
-
-        scopeProvider.shutdown()
-
-        jobs.all { it.isCancelled }.shouldBeTrue()
     }
 }

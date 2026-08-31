@@ -3,12 +3,15 @@ name: Publish Snapshot builds
 on:
   pull_request:
     types: [opened, synchronize, reopened, edited, labeled]
+    paths-ignore:
+      - '**/*.md'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 permissions:
+  contents: read
   pull-requests: write # Write access needed to create a comment.
 
 jobs:
@@ -18,23 +21,18 @@ jobs:
       contents: read
     with:
       pr_title: ${{ github.event.pull_request.title }}
-      pr_body: ${{ github.event.pull_request.body || '' }}
       base_sha: ${{ github.event.pull_request.base.sha }}
       head_sha: ${{ github.event.pull_request.head.sha }}
-      head_repository: ${{ github.event.pull_request.head.repo.full_name }}
-      target_repository: ${{ github.repository }}
-      pr_author: ${{ github.event.pull_request.user.login }}
       ci_full: ${{ contains(github.event.pull_request.labels.*.name, 'ci:full') }}
 
-  # Metadata edits rerun full so a newer skipped check cannot replace a failure.
   publish:
     name: Snapshot build and publish
     needs: release_policy
     if: >-
       always() &&
-      (github.event.action == 'edited' ||
-      github.event.action == 'labeled' ||
-      needs.release_policy.outputs.full_validation == 'true') &&
+      needs.release_policy.outputs.full_validation == 'true' &&
+      (github.event.action != 'edited' || github.event.changes.title.from != '') &&
+      (github.event.action != 'labeled' || github.event.label.name == 'ci:full') &&
       github.event.pull_request.head.repo.full_name == github.repository &&
       github.event.pull_request.user.login != 'dependabot[bot]'
     runs-on: ubuntu-latest
@@ -85,24 +83,21 @@ jobs:
           edit-mode: replace
           token: ${{ secrets.GITHUB_TOKEN }}
 
-  # This job depends on the publish job to finish so we can use the snapshot version to verify
-  # gradle compatibility of the sample apps with actual releases of the SDK with latest changes.
+  # Build compatibility is correctness coverage, so it runs for every code PR
+  # independently of release naming. Snapshot publication remains a side effect
+  # owned by the release-aware job above.
   gradle-compatibility-builds:
     name: Sample apps build with AGP 8.9.1
-    needs: publish
     runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v4
 
       - name: Setup local.properties file for sample app
-        # Use recently published snapshot version to make sure we're testing the latest changes.
-        # These APKs are compiled, not distributed or run, so workspace credentials are unnecessary.
-        env:
-          SDK_VERSION: ${{ needs.publish.outputs.snapshot_version }}
+        # These APKs compile the PR's local SDK modules and are not distributed,
+        # so workspace credentials and a published snapshot are unnecessary.
         run: |
           {
-            printf 'sdkVersion=%s\n' "$SDK_VERSION"
             printf 'siteId=ci-build-placeholder\n'
             printf 'cdpApiKey=ci-build-placeholder\n'
           } > "samples/local.properties"

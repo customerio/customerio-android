@@ -2,7 +2,7 @@ name: Build sample apps
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened, labeled]
+    types: [opened, synchronize, reopened, edited, labeled]
   push:
     branches: [ main, feature/* ]
   release: # build sample apps for every git tag created. These are known as "stable" builds that are suitable for people outside the mobile team. 
@@ -10,16 +10,33 @@ on:
   workflow_dispatch:
 
 concurrency: # cancel previous workflow run if one exists. 
-  group: ${{ github.workflow }}-${{ github.ref }}-${{ (github.event.action == 'labeled' && github.event.label.name != 'ci:full') && github.run_id || 'validation' }}
+  group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  # Metadata edits rerun full so a newer skipped check cannot replace a failure.
   update-pr-comment:
     if: >-
-      (github.event.action != 'labeled' || github.event.label.name == 'ci:full') &&
       github.event_name == 'pull_request' &&
-      contains(github.event.pull_request.labels.*.name, 'ci:full') &&
-      github.event.pull_request.head.repo.full_name == github.repository
+      (github.event.action == 'edited' ||
+      github.event.action == 'labeled' ||
+      contains(github.event.pull_request.labels.*.name, 'ci:full') ||
+      startsWith(github.event.pull_request.title, 'fix:') ||
+      startsWith(github.event.pull_request.title, 'fix(') ||
+      startsWith(github.event.pull_request.title, 'feat:') ||
+      startsWith(github.event.pull_request.title, 'feat(') ||
+      startsWith(github.event.pull_request.title, 'perf:') ||
+      startsWith(github.event.pull_request.title, 'perf(') ||
+      startsWith(github.event.pull_request.title, 'revert:') ||
+      startsWith(github.event.pull_request.title, 'revert(') ||
+      startsWith(github.event.pull_request.title, 'Revert "') ||
+      contains(github.event.pull_request.body, 'This reverts commit') ||
+      contains(github.event.pull_request.title, '!:') ||
+      contains(github.event.pull_request.body, 'BREAKING CHANGE:') ||
+      contains(github.event.pull_request.body, 'BREAKING CHANGES:') ||
+      contains(github.event.pull_request.body, 'BREAKING-CHANGE:')) &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.user.login != 'dependabot[bot]'
     runs-on: ubuntu-latest
     permissions:
       pull-requests: write # to be able to comment on PR
@@ -32,13 +49,30 @@ jobs:
           status: "⏳ Building the sample apps..."
 
   build-sample-apps:
-    # PR distribution builds are opt-in. Release, main, and manual behavior is unchanged.
+    # Release-bearing PRs mirror semantic-release automatically. `ci:full`
+    # remains an override for non-release PRs.
     if: >-
       always() &&
-      (github.event.action != 'labeled' || github.event.label.name == 'ci:full') &&
       (github.event_name != 'pull_request' ||
-      (contains(github.event.pull_request.labels.*.name, 'ci:full') &&
-      github.event.pull_request.head.repo.full_name == github.repository))
+      ((github.event.action == 'edited' ||
+      github.event.action == 'labeled' ||
+      contains(github.event.pull_request.labels.*.name, 'ci:full') ||
+      startsWith(github.event.pull_request.title, 'fix:') ||
+      startsWith(github.event.pull_request.title, 'fix(') ||
+      startsWith(github.event.pull_request.title, 'feat:') ||
+      startsWith(github.event.pull_request.title, 'feat(') ||
+      startsWith(github.event.pull_request.title, 'perf:') ||
+      startsWith(github.event.pull_request.title, 'perf(') ||
+      startsWith(github.event.pull_request.title, 'revert:') ||
+      startsWith(github.event.pull_request.title, 'revert(') ||
+      startsWith(github.event.pull_request.title, 'Revert "') ||
+      contains(github.event.pull_request.body, 'This reverts commit') ||
+      contains(github.event.pull_request.title, '!:') ||
+      contains(github.event.pull_request.body, 'BREAKING CHANGE:') ||
+      contains(github.event.pull_request.body, 'BREAKING CHANGES:') ||
+      contains(github.event.pull_request.body, 'BREAKING-CHANGE:')) &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.user.login != 'dependabot[bot]'))
     needs: [ update-pr-comment ] # wait for PR comment to be created saying new builds are being made.
     uses: ./.github/workflows/reusable_build_sample_apps.yml
     with:

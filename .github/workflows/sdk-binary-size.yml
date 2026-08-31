@@ -1,65 +1,69 @@
 name: SDK Binary Size
-# Binary-size comparison is available in the full PR lane without compiling the
-# SDK twice for every ordinary update.
+# Binary size is a release guardrail, so every internal PR receives a comparison.
 on:
   pull_request:
-    types: [opened, synchronize, reopened, labeled]
+    types: [opened, synchronize, reopened]
+    paths-ignore:
+      - '**/*.md'
+
+permissions:
+  contents: read
+  pull-requests: write
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}-${{ (github.event.action == 'labeled' && github.event.label.name != 'ci:full') && github.run_id || 'validation' }}
+  group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
   sdk-binary-size-comparison-report:
-    if: >-
-      (github.event.action != 'labeled' || github.event.label.name == 'ci:full') &&
-      contains(github.event.pull_request.labels.*.name, 'ci:full') &&
-      github.event.pull_request.head.repo.full_name == github.repository
+    if: github.event.pull_request.head.repo.full_name == github.repository
     name: Generate Comparison Report
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
 
       - name: Setup Android SDK
         uses: ./.github/actions/setup-android
 
+      - name: Restore exact base SDK size report
+        id: base-size-cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/sdk-size-base/sdk-binary-size.json
+          key: sdk-size-base-${{ runner.os }}-${{ github.event.pull_request.base.sha }}
+
       - name: Checkout base branch
+        if: steps.base-size-cache.outputs.cache-hit != 'true'
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.base_ref }}
+          ref: ${{ github.event.pull_request.base.sha }}
 
       - name: Generate report for base branch
+        if: steps.base-size-cache.outputs.cache-hit != 'true'
         run: |
           ./gradlew publishToMavenLocal
           ./gradlew generateSdkSizeReport
+          mkdir -p "$RUNNER_TEMP/sdk-size-base"
+          cp build/sdk-binary-size.json "$RUNNER_TEMP/sdk-size-base/sdk-binary-size.json"
         env:
           # Use local version to make sure the report is generated for the current changes
           IS_DEVELOPMENT: 'true'
 
-      - name: Upload report for base branch
-        uses: actions/upload-artifact@v4
-        with:
-          name: generated-report-base-sdk-binary-size.json
-          path: build/sdk-binary-size.json
-
-      - name: Checkout to head branch
+      - name: Restore PR merge commit after base report generation
+        if: steps.base-size-cache.outputs.cache-hit != 'true'
         uses: actions/checkout@v4
-
-      - name: Download report for base branch
-        uses: actions/download-artifact@v4
-        with:
-          name: generated-report-base-sdk-binary-size.json
-          path: gh-artifacts/base
 
       - name: Generate and Compare SDK Size Reports
         run: |
           ./gradlew publishToMavenLocal
-          ./gradlew compareSdkSizeReports -PcompareWith=gh-artifacts/base/sdk-binary-size.json
+          ./gradlew compareSdkSizeReports -PcompareWith="$RUNNER_TEMP/sdk-size-base/sdk-binary-size.json"
         env:
           # Use local version to make sure the report is generated for the current changes
           IS_DEVELOPMENT: 'true'
 
       - name: Find old comment to update comment for
+        if: github.event.pull_request.user.login != 'dependabot[bot]'
         uses: peter-evans/find-comment@3eae4d37986fb5a8592848f6a574fdf654e61f9e # v3.1.0
         id: find-previous-comment
         with:
@@ -68,6 +72,7 @@ jobs:
           body-includes: SDK Binary Size Comparison
 
       - name: Add or Update PR Comment with SDK Size Comparison Report
+        if: github.event.pull_request.user.login != 'dependabot[bot]'
         uses: peter-evans/create-or-update-comment@71345be0265236311c031f5c7866368bd1eff043 # v4.0.0
         with:
           comment-id: ${{ steps.find-previous-comment.outputs.comment-id }}

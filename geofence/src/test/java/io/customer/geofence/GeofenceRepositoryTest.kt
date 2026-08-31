@@ -577,7 +577,7 @@ class GeofenceRepositoryTest : RobolectricTest() {
     }
 
     @Test
-    fun refresh_givenAnchorInsideAFence_expectNoSeedingNoResetNoSynthesis() = runTest {
+    fun refresh_givenAnchorInsideAFence_expectNoSeedingNoSynthesis() = runTest {
         // refresh() runs off the persisted anchor — where the device once was. Seeding containment
         // or synthesizing an ENTER from it would resurrect an exited visit or report an arrival at
         // a place the device left days ago. Anchor passes only rank and prune.
@@ -2075,6 +2075,36 @@ class GeofenceRepositoryTest : RobolectricTest() {
 
         verify { store.reconcileEnteredIds(any(), any(), any(), setOf("g-1")) }
         // Mark dropped, so the arrival at the new circle is not mistaken for a repeat.
+        verify { store.pruneEmittedEnterIds(match { "g-1" !in it }) }
+    }
+
+    @Test
+    fun refresh_givenFenceMovedAwayFromAnchor_expectContainmentAndMarkReset() = runTest {
+        // Same moved circle, judged off the anchor. The record and mark describe a circle GMS no
+        // longer holds, so keeping them swallows the first arrival at the new one — GMS's own
+        // report, not the synthesis backstop an anchor pass gives up. Retiring them seeds nothing.
+        every { secureUserStore.getUserId() } returns "user-42"
+        every { clock.currentTimeMillis() } returns 200_000_000_000L
+        every { store.getLastSyncTimestamp() } returns 1_000L
+        every { store.getCachedRegions() } returns listOf(GeofenceRegion("g-1", 0.0, 0.0, 50f))
+        every { store.getRegisteredIds() } returns setOf("g-1")
+        every { store.getEnteredIds() } returns setOf("g-1")
+        coEvery { apiService.fetchGeofences(any()) } returns
+            Result.success(sampleResponse(maxBusinessGeofences = 3))
+        every { distanceFilter.nearest(any(), any(), any(), any(), any()) } answers { firstArg() }
+        coEvery { manager.replaceGeofences(any(), any()) } returns Result.success(Unit)
+        every { store.reconcileEnteredIds(any(), any(), any(), any()) } returns setOf("g-1")
+
+        repository.refresh(latitude = 0.01, longitude = 0.0)
+
+        verify {
+            store.reconcileEnteredIds(
+                registeredIds = any(),
+                inside = null,
+                sinceEpoch = any(),
+                resetIds = setOf("g-1")
+            )
+        }
         verify { store.pruneEmittedEnterIds(match { "g-1" !in it }) }
     }
 

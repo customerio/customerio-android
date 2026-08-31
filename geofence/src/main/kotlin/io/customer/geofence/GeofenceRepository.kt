@@ -489,19 +489,16 @@ internal class GeofenceRepositoryImpl(
                         newIds + staleIds
                     }
                     store.saveRegisteredIds(idsToSave)
+                    val insideNow = nearest.filter { it.distanceTo(latitude, longitude) <= it.radius }
+                        .map { it.id }
+                        .toSet()
                     // Without a record the later genuine EXIT looks unentered and gets dropped, but
                     // an anchor would seed a place the device left days ago — so it judges nothing.
-                    val insideIds = if (fixSource == FixSource.LIVE) {
-                        nearest.filter { it.distanceTo(latitude, longitude) <= it.radius }
-                            .map { it.id }
-                            .toSet()
-                    } else {
-                        null
-                    }
-                    // A moved circle keeps its ID, so its record can describe where the fence used
-                    // to be. Reset only once live geometry agrees the device is out: an anchor's
-                    // "outside" proves nothing, and a radius trim must not manufacture an arrival.
-                    val movedAwayIds = insideIds?.let { reRegisteredIds - it }.orEmpty()
+                    val insideIds = insideNow.takeIf { fixSource == FixSource.LIVE }
+                    // A moved circle keeps its ID, so its record and mark can describe a fence that
+                    // no longer exists, and the mark then suppresses GMS's own arrival at the new
+                    // one. An anchor may retire evidence it can't vouch for; it just may not seed.
+                    val movedAwayIds = reRegisteredIds - insideNow
                     val resetApplied = store.reconcileEnteredIds(
                         registeredIds = idsToSave,
                         inside = insideIds,

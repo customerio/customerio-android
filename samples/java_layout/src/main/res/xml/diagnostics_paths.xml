@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Exposes only the diagnostics directory under getExternalFilesDir, so the share sheet can hand a
+  single log file to another app. Nothing else in the app's storage is reachable through it.
+-->
+<paths>
+    <external-files-path
+        name="cio-diagnostics"
+        path="cio-diagnostics/" />
+</paths>

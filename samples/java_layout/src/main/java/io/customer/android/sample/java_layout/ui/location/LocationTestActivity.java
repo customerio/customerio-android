@@ -22,6 +22,7 @@ import com.google.android.material.snackbar.Snackbar;
 
 import io.customer.android.sample.java_layout.R;
 import io.customer.android.sample.java_layout.databinding.ActivityLocationTestBinding;
+import io.customer.android.sample.java_layout.diagnostics.DiagnosticLogExport;
 import io.customer.android.sample.java_layout.ui.core.BaseActivity;
 import io.customer.geofence.ModuleGeofence;
 import io.customer.location.ModuleLocation;
@@ -156,6 +157,7 @@ public class LocationTestActivity extends BaseActivity<ActivityLocationTestBindi
 
     private void setupBackgroundPermissionButton() {
         binding.grantBackgroundLocation.setOnClickListener(v -> handleGrantBackgroundLocationTap());
+        binding.shareDiagnosticLogs.setOnClickListener(v -> DiagnosticLogExport.share(LocationTestActivity.this));
         refreshGrantBackgroundLocationUI();
     }
 
@@ -386,6 +388,7 @@ public class LocationTestActivity extends BaseActivity<ActivityLocationTestBindi
     @Override
     protected void onResume() {
         super.onResume();
+        binding.diagnosticLogStatusLabel.setText(DiagnosticLogExport.statusSummary());
         // Permission may have been toggled in Settings while we were in the background.
         // If we previously flagged "permanently denied" but the system now offers rationale,
         // the user lifted don't-ask-again — treat the denial as recoverable.

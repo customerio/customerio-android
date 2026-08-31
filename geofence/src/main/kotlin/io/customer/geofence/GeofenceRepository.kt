@@ -527,8 +527,10 @@ internal class GeofenceRepositoryImpl(
                 }
             }
             // An anchor inside a fence proves nothing about where the device is now, so a record
-            // carried across a geometry edit must not become a fresh arrival.
-            if (registrationResult.isSuccess && fixSource == FixSource.LIVE) {
+            // carried across a geometry edit must not become a fresh arrival. A wipe re-registers
+            // every fence with INITIAL_TRIGGER_ENTER, so GMS re-reports these itself and the
+            // backstop is redundant exactly when its inputs are least trustworthy.
+            if (registrationResult.isSuccess && fixSource == FixSource.LIVE && !osStateWiped()) {
                 // Identity can change during the awaited GMS call, and reset doesn't clear pending
                 // delivery rows — never queue a synthetic ENTER for a signed-out/switched user.
                 if (secureUserStore.getUserId() == userId) {

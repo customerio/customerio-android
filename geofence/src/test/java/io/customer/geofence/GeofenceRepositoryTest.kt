@@ -2079,6 +2079,28 @@ class GeofenceRepositoryTest : RobolectricTest() {
     }
 
     @Test
+    fun refreshFromLiveFix_givenOsStateWiped_expectNoInitialEnter() = runTest {
+        // A reboot or app update re-registers every fence with INITIAL_TRIGGER_ENTER, so GMS reports
+        // the arrival itself. Synthesizing as well only adds a second source of truth at the moment
+        // the stored record is least likely to describe where the device actually is.
+        every { secureUserStore.getUserId() } returns "user-42"
+        every { clock.currentTimeMillis() } returns 200_000_000_000L
+        every { clock.elapsedRealtime() } returns 1_000L
+        every { store.getLastRegistrationUptime() } returns 900_000L // uptime regressed -> rebooted
+        every { store.getLastSyncTimestamp() } returns 1_000L
+        every { store.getRegisteredIds() } returns emptySet()
+        every { store.getEnteredIds() } returns setOf("g-1")
+        coEvery { apiService.fetchGeofences(any()) } returns
+            Result.success(sampleResponse(maxBusinessGeofences = 3))
+        every { distanceFilter.nearest(any(), any(), any(), any(), any()) } answers { firstArg() }
+        coEvery { manager.replaceGeofences(any(), any()) } returns Result.success(Unit)
+
+        repository.refreshFromLiveFix(latitude = 0.0, longitude = 0.0)
+
+        coVerify(exactly = 0) { transitionEmitter.emit(any(), any(), any(), any(), any(), any(), any(), any()) }
+    }
+
+    @Test
     fun refresh_givenFenceMovedAwayFromAnchor_expectContainmentAndMarkReset() = runTest {
         // Same moved circle, judged off the anchor. The record and mark describe a circle GMS no
         // longer holds, so keeping them swallows the first arrival at the new one — GMS's own

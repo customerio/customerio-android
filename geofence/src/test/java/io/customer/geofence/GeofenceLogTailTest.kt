@@ -1,0 +1,324 @@
+package io.customer.geofence
+
+import android.location.Location
+import io.customer.commontest.config.TestConfig
+import io.customer.commontest.config.testConfigurationDefault
+import io.customer.commontest.core.RobolectricTest
+import io.customer.sdk.core.util.CioDiagnostics
+import io.customer.sdk.core.util.CioLogLevel
+import io.customer.sdk.core.util.Logger
+import org.amshove.kluent.shouldBeEqualTo
+import org.amshove.kluent.shouldBeNull
+import org.amshove.kluent.shouldNotBeNull
+import org.junit.After
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+
+/**
+ * Producer-side contract for the geofence diagnostics tail.
+ *
+ * The tail is an untyped string contract consumed by a parser that lives off-device and in another
+ * language, so there is no round trip to assert. What can be asserted here is the half we own: that
+ * every geofence logger method emits a machine key and a replay classification, that no value can
+ * break the parser's whitespace split, and that precise coordinates stay behind their flag.
+ *
+ * It also pins the derived `why=` tokens. Those are computed from the existing prose rather than
+ * from an enum — which is what keeps `logSyncSkipped`'s 20 test references untouched — and the
+ * price of that choice is that a reworded sentence would silently change what analysis groups on.
+ * Pinning them here converts that into a failing test.
+ */
+@RunWith(RobolectricTestRunner::class)
+class GeofenceLogTailTest : RobolectricTest() {
+
+    /** Captures formatted messages. What these tests need is the exact string, not a call count. */
+    private class CapturingLogger : Logger {
+        val messages = mutableListOf<String>()
+        override var logLevel: CioLogLevel = CioLogLevel.DEBUG
+
+        override fun setLogDispatcher(dispatcher: ((CioLogLevel, String) -> Unit)?) = Unit
+
+        override fun info(message: String, tag: String?) = record(message, tag)
+        override fun debug(message: String, tag: String?) = record(message, tag)
+        override fun error(message: String, tag: String?, throwable: Throwable?) = record(message, tag)
+
+        private fun record(message: String, tag: String?) {
+            messages.add(if (tag != null) "[$tag] $message" else message)
+        }
+    }
+
+    private lateinit var capturing: CapturingLogger
+    private lateinit var geofenceLogger: GeofenceLogger
+
+    override fun setup(testConfig: TestConfig) {
+        super.setup(testConfigurationDefault { })
+        capturing = CapturingLogger()
+        geofenceLogger = GeofenceLogger(capturing)
+        CioDiagnostics.logPreciseLocation = false
+    }
+
+    @After
+    fun resetDiagnostics() {
+        CioDiagnostics.logPreciseLocation = false
+    }
+
+    /**
+     * Mirrors what the off-device parser does: split on the **last** delimiter, then accept the
+     * remainder only if every token is a `key=value` pair.
+     */
+    private fun parseTail(message: String): Map<String, String>? {
+        val index = message.lastIndexOf(GeofenceLogTail.DELIMITER)
+        if (index < 0) return null
+        val tail = message.substring(index + GeofenceLogTail.DELIMITER.length)
+        val fields = mutableMapOf<String, String>()
+        for (token in tail.split(" ")) {
+            val parts = token.split("=", limit = 2)
+            if (parts.size != 2) return null
+            fields[parts[0]] = parts[1]
+        }
+        return fields.ifEmpty { null }
+    }
+
+    private fun location(
+        accuracy: Float = 48f,
+        speed: Float = 18.3f,
+        bearing: Float = 91f,
+        mock: Boolean = false
+    ): Location = Location("test").apply {
+        latitude = 43.2557
+        longitude = -79.0713
+        altitude = 95.0
+        this.accuracy = accuracy
+        this.speed = speed
+        this.bearing = bearing
+        time = System.currentTimeMillis()
+        elapsedRealtimeNanos = android.os.SystemClock.elapsedRealtimeNanos()
+        if (mock) isMock = true
+    }
+
+    /**
+     * One entry per logger method, paired with the keys its record must carry.
+     *
+     * Enumerated by hand because there is no reflection over an extension of behaviour like this. A
+     * new method added without a line here is simply uncovered — but a *renamed key* on anything
+     * listed here fails loudly, which is the failure this contract exists to catch.
+     */
+    private fun invocations(): List<Triple<String, List<String>, (GeofenceLogger) -> Unit>> {
+        val fix = location()
+        return listOf(
+            Triple("geofencesRegistered", listOf("n")) { it.logGeofencesRegistered(19) },
+            Triple("regionsRegisteredIds", listOf("n", "ids", "mvmt")) { it.logRegionsRegisteredIds(listOf("a", "b"), "cio_movement_trigger") },
+            Triple("businessKept", listOf("nkeep", "why")) { it.logBusinessGeofencesKept(4) },
+            Triple("geofencesRemoved", listOf("nrem")) { it.logGeofencesRemoved(2) },
+            Triple("geofencesCleared", listOf("why")) { it.logGeofencesCleared() },
+            Triple("registrationFailed", listOf("ok", "why")) { it.logRegistrationFailed("GMS unavailable") },
+            Triple("removalFailed", listOf("ok", "op", "why")) { it.logRemovalFailed("GMS unavailable") },
+            Triple("invalidRegionDropped", listOf("id", "why")) { it.logInvalidRegionDropped("notl core") },
+            Triple("regionMappingFailed", listOf("id", "why")) { it.logRegionMappingFailed("notl_core", "bad radius") },
+            Triple("rankEvaluated", listOf("ncand", "n", "ranked", "evicted")) { it.logRankEvaluated(30, listOf("a", "b"), listOf("c"), mapOf("a" to 120.0, "b" to 340.0)) },
+            Triple("movementTriggerRegistered", listOf("rad")) { it.logMovementTriggerRegistered(43.2, -79.0, 500.0) },
+            Triple("missingPermission", listOf("perm", "why")) { it.logMissingPermission("ACCESS_FINE_LOCATION") },
+            Triple("backgroundUnavailable", listOf("perm", "ctx")) { it.logBackgroundDeliveryUnavailable("app-launch") },
+            Triple("moduleInitialized", listOf("launch")) { it.logModuleInitialized(GeofenceLaunchReason.APP_START) },
+            Triple("missingLocationModule", listOf("ok", "why")) { it.logMissingLocationModule() },
+            Triple("stateResetOnSignOut", listOf("why")) { it.logGeofenceStateResetOnSignOut() },
+            Triple("callbackReceived", listOf("ids", "n", "t", "fixsrc", "acc", "age", "sim")) { it.logCallbackReceived(listOf("notl_core"), "ENTER", fix, GeofenceLogTail.FixSource.OS_TRIGGER) },
+            Triple("callbackReceivedNoFix", listOf("fixsrc")) { it.logCallbackReceived(listOf("notl_core"), "EXIT", null, GeofenceLogTail.FixSource.NONE) },
+            Triple("transitionWithoutLocation", listOf("fixsrc", "why")) { it.logTransitionWithoutLocation() },
+            Triple("unknownTransition", listOf("gms", "why")) { it.logUnknownTransition(4) },
+            Triple("movementIgnoredNonExit", listOf("t", "why")) { it.logMovementTriggerIgnoredNonExit("ENTER") },
+            Triple("receiverSkipped", listOf("why")) { it.logReceiverSkipped("no identified user") },
+            Triple("geofencingError", listOf("ok", "code")) { it.logGeofencingError(1000) },
+            Triple("transitionEmitting", listOf("id", "t")) { it.logTransitionEmitting("notl_core", "ENTER") },
+            Triple("transitionSuppressed", listOf("id", "t", "why", "cd")) { it.logTransitionSuppressed("notl_core", "ENTER", 42.0) },
+            Triple("initialEnterInside", listOf("id", "t", "why")) { it.logInitialEnterInside("notl_core") },
+            Triple("droppedUnknownId", listOf("id", "why")) { it.logTransitionDroppedUnknownId("notl_core") },
+            Triple("enterDroppedAlreadyReported", listOf("id", "t", "why")) { it.logEnterDroppedAlreadyReported("notl_core") },
+            Triple("exitDroppedNeverEntered", listOf("id", "t", "why")) { it.logExitDroppedNeverEntered("notl_core") },
+            Triple("droppedAnonymous", listOf("id", "t", "why")) { it.logTransitionDroppedAnonymous("notl_core", "EXIT") },
+            Triple("syncTriggered", listOf("why")) { it.logSyncTriggered("app-launch") },
+            Triple("syncSkipped", listOf("why")) { it.logSyncSkipped("no identified user") },
+            Triple("syncSkippedNoLocation", listOf("why", "ctx")) { it.logSyncSkippedNoLocation("app-launch") },
+            Triple("syncSkippedInvalidLocation", listOf("why", "ctx")) { it.logSyncSkippedInvalidLocation("app-launch", 0.0, 0.0) },
+            Triple("syncSkippedNoPermission", listOf("why", "ctx")) { it.logSyncSkippedNoPermission("boot-restore") },
+            Triple("syncSkippedFresh", listOf("why")) { it.logSyncSkippedFresh() },
+            Triple("syncFailed", listOf("ok", "why")) { it.logSyncFailed("timeout") },
+            Triple("syncSucceeded", listOf("n", "mvmt")) { it.logSyncSucceeded(19, true) },
+            Triple("apiFetchResult", listOf("ok", "n", "ms")) { it.logApiFetchResult(30, 420L) },
+            Triple("unknownApiTransitionType", listOf("ok", "why", "value")) { it.logUnknownApiTransitionType("dwell") },
+            Triple("movementRearmed", listOf("why")) { it.logMovementRearmedAfterFailedRefresh() },
+            Triple("storageLoaded", listOf("n", "anchor")) { it.logStorageLoaded(30, true) },
+            Triple("persistFailed", listOf("id", "t", "ok")) { it.logPersistFailed("notl_core", "ENTER") },
+            Triple("deliveryRetryable", listOf("id", "t", "ok", "retry", "why")) { it.logEventDeliveryRetryable("notl_core", "ENTER", "socket timeout") },
+            Triple("deliveryFailed", listOf("id", "t", "ok", "retry", "why")) { it.logEventDeliveryFailed("notl_core", "ENTER", "400 bad request") },
+            Triple("eventInvalidInput", listOf("ok", "why")) { it.logEventInvalidInput(null, null) },
+            Triple("deliveryDeferredAnonymous", listOf("id", "t", "why")) { it.logEventDeliveryDeferredAnonymous("notl_core", "ENTER") },
+            Triple("eventDelivered", listOf("id", "t", "via")) { it.logEventDelivered("notl_core", "ENTER") },
+            Triple("deliverySkippedAlreadyDelivered", listOf("id", "t", "why")) { it.logEventDeliverySkippedAlreadyDelivered("notl_core", "ENTER") },
+            Triple("workerEntryMissing", listOf("key", "why")) { it.logEventWorkerEntryMissing("notl_core:ENTER") },
+            Triple("flushSnapshot", listOf("n", "phase")) { it.logForegroundFlushSnapshot(3) },
+            Triple("flushCancelled", listOf("id", "t", "why")) { it.logForegroundFlushCancelledWorkManager("notl_core", "ENTER") },
+            Triple("flushPublished", listOf("id", "t", "via")) { it.logForegroundFlushPublished("notl_core", "ENTER") },
+            Triple("flushEntryFailed", listOf("id", "t", "ok", "via", "why")) { it.logForegroundFlushEntryFailed("notl_core", "ENTER", "boom") },
+            Triple("flushComplete", listOf("n", "phase", "ok")) { it.logForegroundFlushComplete(3) },
+            Triple("asyncDeliveryFailed", listOf("id", "t", "ok", "why")) { it.logAsyncDeliveryFailed("notl_core", "ENTER", "boom") },
+            Triple("schedulerFailed", listOf("id", "t", "ok", "why", "detail")) { it.logSchedulerFailed("notl_core", "ENTER", "boom") }
+        )
+    }
+
+    // MARK: - Contract
+
+    @Test
+    fun everyRecord_givenAnyMethod_expectMachineKeyAndReplayClassification() {
+        for ((name, requiredKeys, run) in invocations()) {
+            val logger = CapturingLogger()
+            run(GeofenceLogger(logger))
+
+            // Last message, not first: the precise-location warning would precede a gated record.
+            val message = logger.messages.lastOrNull()
+            message.shouldNotBeNull()
+            val fields = parseTail(message)
+            fields.shouldNotBeNull()
+
+            fields["ev"].shouldNotBeNull()
+            (fields["io"] in listOf("in", "out", "obs")) shouldBeEqualTo true
+            for (key in requiredKeys) {
+                if (fields[key] == null) {
+                    throw AssertionError("$name: missing $key= in '$message'")
+                }
+            }
+        }
+    }
+
+    @Test
+    fun everyRecord_givenAnyMethod_expectProseAndTailSeparated() {
+        for ((name, _, run) in invocations()) {
+            val logger = CapturingLogger()
+            run(GeofenceLogger(logger))
+            val message = logger.messages.last()
+
+            // Prose in front, machine-readable behind. A record that is all tail has lost the
+            // human-readable half Logcat still depends on.
+            val head = message.substringBefore(GeofenceLogTail.DELIMITER)
+            if (!head.startsWith("[Geofence] ") || head.length <= "[Geofence] ".length || head.contains("ev=")) {
+                throw AssertionError("$name: prose half is wrong — '$message'")
+            }
+        }
+    }
+
+    @Test
+    fun everyValue_givenAnyMethod_expectNoWhitespace() {
+        for ((name, _, run) in invocations()) {
+            val logger = CapturingLogger()
+            run(GeofenceLogger(logger))
+            val message = logger.messages.last()
+            val tail = message.substring(message.lastIndexOf(GeofenceLogTail.DELIMITER) + GeofenceLogTail.DELIMITER.length)
+            for (token in tail.split(" ")) {
+                if (token.split("=", limit = 2).size != 2) {
+                    throw AssertionError("$name: token '$token' is not key=value — a value contained a space")
+                }
+            }
+        }
+    }
+
+    // MARK: - Sensitive-field gating
+
+    @Test
+    fun position_givenFlagOff_expectNoCoordinates() {
+        CioDiagnostics.logPreciseLocation = false
+        val logger = CapturingLogger()
+        val target = GeofenceLogger(logger)
+        for ((_, _, run) in invocations()) run(target)
+
+        for (message in logger.messages) {
+            for (key in listOf("lat=", "lon=", "alt=", "spd=", "brg=", "rlat=", "rlon=")) {
+                if (message.contains(key)) throw AssertionError("$key leaked with the flag off: '$message'")
+            }
+        }
+    }
+
+    @Test
+    fun position_givenFlagOn_expectCoordinatesAndOneWarning() {
+        CioDiagnostics.logPreciseLocation = true
+        val logger = CapturingLogger()
+        val target = GeofenceLogger(logger)
+        for ((_, _, run) in invocations()) run(target)
+
+        val joined = logger.messages.joinToString("\n")
+        joined.contains("lat=") shouldBeEqualTo true
+        joined.contains("lon=") shouldBeEqualTo true
+        // Enabling it must be loud, and exactly once — a warning per fix would be its own problem
+        // on a three-hour drive.
+        logger.messages.count { it.contains("precise location logging is ENABLED") } shouldBeEqualTo 1
+    }
+
+    @Test
+    fun fixQuality_givenFlagOff_expectStillEmitted() {
+        CioDiagnostics.logPreciseLocation = false
+        geofenceLogger.logCallbackReceived(listOf("notl_core"), "ENTER", location(), GeofenceLogTail.FixSource.OS_TRIGGER)
+
+        // Accuracy, age, provenance and the simulated-fix marker say how good a fix is, never where
+        // it is — gating them would leave a default build unable to tell a measurement from a guess.
+        val fields = parseTail(capturing.messages.last())!!
+        fields["acc"] shouldBeEqualTo "48.0"
+        fields["fixsrc"] shouldBeEqualTo "os_trigger"
+        fields["sim"] shouldBeEqualTo "false"
+        fields["age"].shouldNotBeNull()
+        fields["lat"].shouldBeNull()
+    }
+
+    @Test
+    fun fixQuality_givenMockLocation_expectSimTrue() {
+        geofenceLogger.logCallbackReceived(listOf("notl_core"), "ENTER", location(mock = true), GeofenceLogTail.FixSource.OS_TRIGGER)
+
+        // A fix injected by `adb emu geo fix` or a route driver must be distinguishable from a real
+        // one, or a bench corpus and a drive corpus silently merge.
+        parseTail(capturing.messages.last())!!["sim"] shouldBeEqualTo "true"
+    }
+
+    // MARK: - Derived tokens, pinned
+
+    @Test
+    fun token_givenProse_expectSnakeCase() {
+        GeofenceLogTail.token("No identified user") shouldBeEqualTo "no_identified_user"
+        GeofenceLogTail.token("boot-restore") shouldBeEqualTo "boot_restore"
+        GeofenceLogTail.token("user changed during refresh — initial-enter synthesis skipped") shouldBeEqualTo
+            "user_changed_during_refresh_initial_enter_synthesis_skipped"
+        GeofenceLogTail.token("") shouldBeEqualTo "unknown"
+    }
+
+    @Test
+    fun syncSkipped_givenKnownReasons_expectPinnedTokens() {
+        // Every literal passed to logSyncSkipped in the geofence module. These tokens are what
+        // analysis groups on, so a reworded sentence must fail here rather than quietly split one
+        // bucket into two.
+        val expected = mapOf(
+            "no cached state to restore" to "no_cached_state_to_restore",
+            "no identified user" to "no_identified_user",
+            "refresh already in progress" to "refresh_already_in_progress",
+            "refresh already in progress after waiting" to "refresh_already_in_progress_after_waiting",
+            "reset superseded by signed-in user" to "reset_superseded_by_signed_in_user",
+            "user changed during refresh" to "user_changed_during_refresh"
+        )
+        for ((prose, token) in expected) {
+            val logger = CapturingLogger()
+            GeofenceLogger(logger).logSyncSkipped(prose)
+            parseTail(logger.messages.last())!!["why"] shouldBeEqualTo token
+        }
+    }
+
+    @Test
+    fun sanitize_givenWhitespaceInIdentifier_expectFolded() {
+        geofenceLogger.logTransitionEmitting("niagara on the lake", "ENTER")
+
+        // Workspace-authored identifiers can contain anything; the parser splits on whitespace.
+        parseTail(capturing.messages.last())!!["id"] shouldBeEqualTo "niagara_on_the_lake"
+    }
+
+    @Test
+    fun list_givenMoreThanLimit_expectTruncationMarker() {
+        val values = (1..30).map { "id$it" }
+        GeofenceLogTail.list(values, limit = 25)!!.endsWith(",+5") shouldBeEqualTo true
+        GeofenceLogTail.list(emptyList()).shouldBeNull()
+    }
+}

@@ -4,7 +4,9 @@ import android.app.Application
 import android.os.Process
 import android.os.SystemClock
 import android.util.Log
+import io.customer.base.internal.InternalCustomerIOApi
 import io.customer.sdk.core.di.SDKComponent
+import io.customer.sdk.core.util.CioDiagnostics
 import io.customer.sdk.core.util.CioLogLevel
 import java.io.File
 
@@ -59,6 +61,7 @@ object DiagnosticLog {
      * most wanted to observe is already over.
      */
     @JvmStatic
+    @OptIn(InternalCustomerIOApi::class)
     fun start(application: Application) {
         synchronized(lock) {
             if (started) return
@@ -73,6 +76,12 @@ object DiagnosticLog {
                 state.start { reason -> emit(Source.APP, "Diagnostics", CioLogLevel.DEBUG, "device.state changed=$reason") }
             }
         }
+
+        // Precise coordinates in geofence diagnostics. Off by default in the SDK and reachable
+        // only behind an opt-in annotation; enabled here because this app exists to produce field
+        // data, and without coordinates overshoot distance cannot be computed at all. A customer
+        // app never reaches this — see CioDiagnostics for why the default must stay false.
+        CioDiagnostics.logPreciseLocation = true
 
         // Outside the lock: the SDK may log synchronously from inside these calls, and `emit`
         // takes the same lock.

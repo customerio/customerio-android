@@ -50,7 +50,11 @@ internal class GeofenceTransitionEmitter(
             return false
         }
         if (!cooldownFilter.tryAcquire(userId, geofenceId, transition)) {
-            logger.logTransitionSuppressed(geofenceId, transition.name)
+            logger.logTransitionSuppressed(
+                geofenceId,
+                transition.name,
+                cooldownFilter.remainingSeconds(userId, geofenceId, transition)
+            )
             return false
         }
         logger.logTransitionEmitting(geofenceId, transition.name)

@@ -38,6 +38,25 @@ internal class GeofenceCooldownFilter(
     }
 
     /**
+     * Seconds left on an active cooldown for this key, or null when there is none.
+     *
+     * Diagnostics only, and kept separate from [tryAcquire] so that method's atomic
+     * check-and-record keeps its exact semantics and nobody is tempted to branch on a duration.
+     */
+    @Synchronized
+    fun remainingSeconds(
+        userId: String,
+        geofenceId: String,
+        transition: Event.GeofenceTransition
+    ): Double? {
+        val last = store.getLastEmitTimestamp(userId, geofenceId, transition) ?: return null
+        val cooldownMs = regionStore.getCachedConfig()?.duplicateEventsExpiry
+            ?: GeofenceConstants.DEDUPE_COOLDOWN_MS
+        val remaining = cooldownMs - (clock.currentTimeMillis() - last)
+        return if (remaining > 0) remaining / 1000.0 else null
+    }
+
+    /**
      * Rolls back a prior [tryAcquire] for this key so a later transition isn't suppressed. Used when
      * the work that followed the acquire couldn't be durably queued, so the crossing can be retried.
      */

@@ -114,13 +114,18 @@ internal class GeofenceServicesImpl(
         latitude: Double?,
         longitude: Double?,
         quality: GeofenceFixQuality
-    ): Job? =
-        triggerSync(
+    ): Job? {
+        // Same guard as the launch in triggerSync: permission is checked there before this runs.
+        @SuppressLint("MissingPermission")
+        val action: suspend (Double, Double) -> Result<Unit> =
+            { lat, lng -> repository.handleMovement(lat, lng, quality) }
+        return triggerSync(
             reason = REASON_MOVEMENT_EXIT,
             latitude = latitude,
             longitude = longitude,
-            action = { lat, lng -> repository.handleMovement(lat, lng, quality) }
+            action = action
         )
+    }
 
     override fun onUserIdentified(latitude: Double?, longitude: Double?) {
         triggerSync(
@@ -160,11 +165,14 @@ internal class GeofenceServicesImpl(
         if (userId.isNullOrEmpty()) return
         // Not onUserIdentified: the flags above are already consumed, so a pass dropped for a
         // collision spends this fix without using it and nothing requests another.
+        @SuppressLint("MissingPermission")
+        val action: suspend (Double, Double) -> Result<Unit> =
+            { lat, lng -> repository.refreshFromLiveFix(lat, lng, quality) }
         triggerSync(
             reason = REASON_LOCATION_ACQUIRED,
             latitude = latitude,
             longitude = longitude,
-            action = { lat, lng -> repository.refreshFromLiveFix(lat, lng, quality) }
+            action = action
         )
     }
 

@@ -214,12 +214,28 @@ internal class GeofenceRepositoryImpl(
     private fun osStateWiped(): Boolean = osStateWipedByReboot() || osStateWipedByAppUpdate()
 
     /**
-     * How far a pass's geometry can be trusted. [LIVE] is a fix the OS delivered for this pass — it
-     * may seed containment, reset moved-circle records and synthesize initial ENTERs. [ANCHOR] is
-     * stored coordinates describing where the device once was, so it may only rank and prune; the
-     * next LIVE pass owns the reseed.
+     * How far a pass's geometry can be trusted.
+     *
+     * [LIVE] and [MOVEMENT] both carry a real fix, so either may seed containment, reset
+     * moved-circle records and synthesize initial ENTERs. [ANCHOR] is stored coordinates describing
+     * where the device once was, so it may only rank and prune; the next real fix owns the reseed.
      */
-    private enum class FixSource { LIVE, ANCHOR }
+    private enum class FixSource {
+        /** A fix requested for this pass. */
+        LIVE,
+
+        /** Stored coordinates from the last registration, or the OS location cache. */
+        ANCHOR,
+
+        /** The fix the OS delivered with a movement trigger, because the device moved. */
+        MOVEMENT;
+
+        /** An anchor proves nothing about where the device is now, so it may not judge containment. */
+        val trustsGeometry: Boolean get() = this != ANCHOR
+
+        /** True when the OS produced this fix by observing the device, not when we asked for it. */
+        val isOsObserved: Boolean get() = this == MOVEMENT
+    }
 
     /**
      * Takes the in-flight slot for a pass that can't be dropped, waiting for the holder instead.
@@ -265,16 +281,16 @@ internal class GeofenceRepositoryImpl(
                 movedBeyondFetchRadius(distanceFromAnchor, config)
             // The triggering fix is the OS's own, so a reboot/app-update wipe can't make it stale.
             return if (needsRemoteFetch) {
-                val remote = performRemoteRefresh(userId, latitude, longitude, containmentEpoch, FixSource.LIVE)
+                val remote = performRemoteRefresh(userId, latitude, longitude, containmentEpoch, FixSource.MOVEMENT)
                 if (remote.isFailure) {
                     // The trigger already fired, and a failed pass never re-centres it — leaving it
                     // where the device just exited, so nothing can fire again. Re-rank to re-arm it.
                     logger.logMovementRearmedAfterFailedRefresh()
-                    performLocalRefresh(userId, latitude, longitude, config, containmentEpoch, FixSource.LIVE)
+                    performLocalRefresh(userId, latitude, longitude, config, containmentEpoch, FixSource.MOVEMENT)
                 }
                 remote
             } else {
-                performLocalRefresh(userId, latitude, longitude, config, containmentEpoch, FixSource.LIVE)
+                performLocalRefresh(userId, latitude, longitude, config, containmentEpoch, FixSource.MOVEMENT)
             }
         } finally {
             releaseRefreshSlot()
@@ -497,7 +513,7 @@ internal class GeofenceRepositoryImpl(
                         .toSet()
                     // Without a record the later genuine EXIT looks unentered and gets dropped, but
                     // an anchor would seed a place the device left days ago — so it judges nothing.
-                    val insideIds = insideNow.takeIf { fixSource == FixSource.LIVE }
+                    val insideIds = insideNow.takeIf { fixSource.trustsGeometry }
                     // A moved circle keeps its ID, so its record and mark can describe a fence that
                     // no longer exists, and the mark then suppresses GMS's own arrival at the new
                     // one. An anchor may retire evidence it can't vouch for; it just may not seed.
@@ -530,10 +546,15 @@ internal class GeofenceRepositoryImpl(
                 }
             }
             // An anchor inside a fence proves nothing about where the device is now, so a record
-            // carried across a geometry edit must not become a fresh arrival. A wipe re-registers
-            // every fence with INITIAL_TRIGGER_ENTER, so GMS re-reports these itself and the
-            // backstop is redundant exactly when its inputs are least trustworthy.
-            if (registrationResult.isSuccess && fixSource == FixSource.LIVE && !osStateWasWiped) {
+            // carried across a geometry edit must not become a fresh arrival. After a wipe a
+            // requested fix may also describe a stretch we never observed, so synthesis defers to
+            // the re-registration's own INITIAL_TRIGGER_ENTER — but only for a fix we asked for. A
+            // movement fix is the OS's own, produced because the device just moved, so no wipe can
+            // have made it stale, and suppressing it here would drop the backstop on the one path
+            // that exists because that callback gets missed.
+            val maySynthesize = fixSource.trustsGeometry &&
+                (fixSource.isOsObserved || !osStateWasWiped)
+            if (registrationResult.isSuccess && maySynthesize) {
                 // Identity can change during the awaited GMS call, and reset doesn't clear pending
                 // delivery rows — never queue a synthetic ENTER for a signed-out/switched user.
                 if (secureUserStore.getUserId() == userId) {

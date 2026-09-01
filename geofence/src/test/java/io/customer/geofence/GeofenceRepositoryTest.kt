@@ -1848,10 +1848,50 @@ class GeofenceRepositoryTest : RobolectricTest() {
 
     @Test
     fun handleMovement_givenNewlyRegisteredFenceDeviceInside_expectInitialEnterEmitted() = runTest {
-        // The movement trigger fires on the OS's own fix, so a movement pass is LIVE like
+        // The movement trigger fires on the OS's own fix, so a movement pass trusts geometry like
         // refreshFromLiveFix: it must still seed and synthesize, not just rank and prune.
         val cached = listOf(GeofenceRegion("biz-1", 0.0, 0.0, 100f))
         every { secureUserStore.getUserId() } returns "user-42"
+        every { store.getCachedRegions() } returns cached
+        every { store.getRegisteredIds() } returns emptySet() // newly registered
+        every { store.getCachedConfig() } returns sampleConfig()
+        every { store.getLastApiFetchLocation() } returns GeofenceLocation(0.0, 0.0)
+        every { store.getEnteredIds() } returns setOf("biz-1")
+        every { distanceFilter.nearest(cached, any(), any(), any(), any()) } returns cached
+        coEvery { manager.replaceGeofences(any(), any()) } returns Result.success(Unit)
+
+        repository.handleMovement(latitude = 0.0, longitude = 0.0)
+
+        coVerify(exactly = 1) {
+            transitionEmitter.emit(
+                geofenceId = "biz-1",
+                transition = Event.GeofenceTransition.ENTER,
+                userId = "user-42",
+                timestampSeconds = any(),
+                geofenceName = any(),
+                metadata = any(),
+                geosetIds = any(),
+                monitorsExit = true
+            )
+        }
+    }
+
+    /**
+     * A wipe suppresses synthesis for a fix we requested, because it may describe a stretch we never
+     * observed. The movement trigger's fix is the OS's own, produced because the device just moved,
+     * so no wipe can have made it stale — and this is the path the backstop exists for, since the
+     * INITIAL_TRIGGER_ENTER it defers to is the callback that gets missed.
+     */
+    @Test
+    fun handleMovement_givenOsStateWiped_expectInitialEnterStillEmitted() = runTest {
+        val cached = listOf(GeofenceRegion("biz-1", 0.0, 0.0, 100f))
+        every { secureUserStore.getUserId() } returns "user-42"
+        every { clock.elapsedRealtime() } returns 1_000L
+        // Stateful: the pass stamps this key mid-flight, and a fixed stub would keep reporting
+        // "wiped" after the write that clears it.
+        var storedUptime: Long? = 900_000L // uptime regressed -> rebooted
+        every { store.getLastRegistrationUptime() } answers { storedUptime }
+        every { store.setLastRegistrationUptime(any()) } answers { storedUptime = firstArg() }
         every { store.getCachedRegions() } returns cached
         every { store.getRegisteredIds() } returns emptySet() // newly registered
         every { store.getCachedConfig() } returns sampleConfig()

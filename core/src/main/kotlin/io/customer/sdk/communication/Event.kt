@@ -53,10 +53,15 @@ sealed class Event {
     /**
      * Published by the location module on every fresh location fix. Other modules
      * subscribe to react to location updates without depending on its internals.
+     *
+     * [horizontalAccuracyMeters] and [fixTimeMillis] describe the fix itself. Both are null when the
+     * source did not report them, typically a host-supplied location.
      */
     data class LocationAcquired(
         val latitude: Double,
-        val longitude: Double
+        val longitude: Double,
+        val horizontalAccuracyMeters: Double? = null,
+        val fixTimeMillis: Long? = null
     ) : Event()
 
     class DeleteDeviceTokenEvent : Event()

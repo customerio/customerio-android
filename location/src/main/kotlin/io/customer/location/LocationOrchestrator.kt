@@ -51,9 +51,19 @@ internal class LocationOrchestrator(
             // rejected rather than lost. The OFF re-check keeps an upgrade from emitting analytics
             // for a disabled tracking mode.
             if (intent.claimTrackedDelivery() && config.isEnabled) {
-                locationTracker.onLocationReceived(snapshot.latitude, snapshot.longitude)
+                locationTracker.onLocationReceived(
+                    latitude = snapshot.latitude,
+                    longitude = snapshot.longitude,
+                    horizontalAccuracyMeters = snapshot.horizontalAccuracy,
+                    fixTimeMillis = snapshot.timestamp.time
+                )
             } else {
-                locationTracker.onLocationReceivedWithoutTracking(snapshot.latitude, snapshot.longitude)
+                locationTracker.onLocationReceivedWithoutTracking(
+                    latitude = snapshot.latitude,
+                    longitude = snapshot.longitude,
+                    horizontalAccuracyMeters = snapshot.horizontalAccuracy,
+                    fixTimeMillis = snapshot.timestamp.time
+                )
             }
         } catch (e: CancellationException) {
             logger.debug("Location request was cancelled.")

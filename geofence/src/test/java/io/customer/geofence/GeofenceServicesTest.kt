@@ -194,6 +194,35 @@ class GeofenceServicesTest : RobolectricTest() {
     }
 
     @Test
+    fun onLocationAcquired_givenFixQuality_expectItReachesTheRepository() = runTest(StandardTestDispatcher()) {
+        // The gate can only work if what the fix can resolve travels with it; verified here
+        // because the repository tests call it directly and would not catch a dropped argument.
+        val quality = GeofenceFixQuality(accuracyMeters = 42.0, fixTimeMillis = 1_000L)
+        every { secureUserStore.getUserId() } returns "user-1"
+        coEvery { repository.refreshFromLiveFix(any(), any(), any()) } returns Result.success(Unit)
+        val services = servicesWith(this)
+
+        services.onUserIdentified(latitude = null, longitude = null)
+        advanceUntilIdle()
+        services.onLocationAcquired(latitude = 12.0, longitude = 34.0, quality = quality)
+        advanceUntilIdle()
+
+        coVerify { repository.refreshFromLiveFix(12.0, 34.0, quality) }
+    }
+
+    @Test
+    fun onMovementTriggerExit_givenFixQuality_expectItReachesTheRepository() = runTest(StandardTestDispatcher()) {
+        val quality = GeofenceFixQuality(accuracyMeters = 42.0)
+        coEvery { repository.handleMovement(any(), any(), any()) } returns Result.success(Unit)
+        val services = servicesWith(this)
+
+        services.onMovementTriggerExit(latitude = 12.0, longitude = 34.0, quality = quality)
+        advanceUntilIdle()
+
+        coVerify { repository.handleMovement(12.0, 34.0, quality) }
+    }
+
+    @Test
     fun onLocationAcquired_givenPriorSkipAndUserIdentified_expectRefresh() = runTest(StandardTestDispatcher()) {
         every { secureUserStore.getUserId() } returns "user-1"
         coEvery { repository.refreshFromLiveFix(any(), any()) } returns Result.success(Unit)

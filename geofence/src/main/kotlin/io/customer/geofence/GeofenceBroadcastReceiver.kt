@@ -82,7 +82,11 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
             gmsTransitionType = geofencingEvent.geofenceTransition,
             triggeringGeofenceIds = triggeringGeofenceIds,
             latitude = location?.latitude,
-            longitude = location?.longitude
+            longitude = location?.longitude,
+            quality = GeofenceFixQuality(
+                // No age: the OS delivers this fix with the trigger it caused, so it cannot be cached.
+                accuracyMeters = location?.takeIf { it.hasAccuracy() }?.accuracy?.toDouble()
+            )
         )
     }
 
@@ -91,7 +95,8 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
         gmsTransitionType: Int,
         triggeringGeofenceIds: List<String>,
         latitude: Double?,
-        longitude: Double?
+        longitude: Double?,
+        quality: GeofenceFixQuality = GeofenceFixQuality.UNKNOWN
     ) {
         val logger = SDKComponent.geofenceLogger
         val timestamp = SDKComponent.clock.currentTimeSeconds()
@@ -114,7 +119,8 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
                 // ENTER fires on every re-registration and boot-restore can fire
                 // EXIT. Only EXIT drives a refresh.
                 if (gmsTransitionType == Geofence.GEOFENCE_TRANSITION_EXIT) {
-                    movementRefreshJob = androidComponent.geofenceServices.onMovementTriggerExit(latitude, longitude)
+                    movementRefreshJob =
+                        androidComponent.geofenceServices.onMovementTriggerExit(latitude, longitude, quality)
                 } else {
                     logger.logMovementTriggerIgnoredNonExit(transitionName(gmsTransitionType))
                 }

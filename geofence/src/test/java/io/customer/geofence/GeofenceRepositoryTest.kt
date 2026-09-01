@@ -577,6 +577,241 @@ class GeofenceRepositoryTest : RobolectricTest() {
     }
 
     @Test
+    fun handleMovement_givenCoarseTriggeringFix_expectNotSeeded() = runTest {
+        // The OS's own fix is not automatically decisive — GMS delivers low-accuracy fixes in poor
+        // reception. The margin applies to the movement path for the same reason it applies above.
+        val fence = GeofenceRegion("biz-edge", metersOfLatitude(60), 0.0, 100f)
+        every { secureUserStore.getUserId() } returns "user-42"
+        every { store.getCachedRegions() } returns listOf(fence)
+        every { store.getRegisteredIds() } returns emptySet()
+        every { store.getCachedConfig() } returns sampleConfig()
+        every { store.getLastApiFetchLocation() } returns GeofenceLocation(0.0, 0.0)
+        every { distanceFilter.nearest(any(), any(), any(), any(), any()) } returns listOf(fence)
+        coEvery { manager.replaceGeofences(any(), any()) } returns Result.success(Unit)
+
+        repository.handleMovement(
+            latitude = 0.0,
+            longitude = 0.0,
+            quality = GeofenceFixQuality(accuracyMeters = 50.0)
+        )
+
+        verify { store.reconcileEnteredIds(registeredIds = any(), inside = emptySet(), sinceEpoch = any()) }
+    }
+
+    @Test
+    fun refreshFromLiveFix_givenCarriedRecordAndAmbiguousFix_expectNoSynthesizedEnter() = runTest {
+        // The record survives from an earlier pass, so seeding is not what gates this one. A fix
+        // that cannot place the device inside must not turn that older record into a fresh arrival.
+        val fence = GeofenceRegion("biz-1", metersOfLatitude(60), 0.0, 100f)
+        every { secureUserStore.getUserId() } returns "user-42"
+        every { store.getLastSyncTimestamp() } returns System.currentTimeMillis() - 60_000L
+        every { store.getCachedRegions() } returns listOf(fence)
+        every { store.getRegisteredIds() } returns emptySet() // newly registered
+        every { store.getCachedConfig() } returns sampleConfig()
+        every { store.getEnteredIds() } returns setOf("biz-1")
+        every { distanceFilter.nearest(any(), any(), any(), any(), any()) } returns listOf(fence)
+        coEvery { manager.replaceGeofences(any(), any()) } returns Result.success(Unit)
+
+        repository.refreshFromLiveFix(
+            latitude = 0.0,
+            longitude = 0.0,
+            quality = GeofenceFixQuality(accuracyMeters = 50.0, fixTimeMillis = clock.currentTimeMillis())
+        )
+
+        coVerify(exactly = 0) { transitionEmitter.emit(any(), any(), any(), any(), any(), any(), any(), any()) }
+    }
+
+    @Test
+    fun refreshFromLiveFix_givenCarriedRecordAndDecisiveFix_expectSynthesizedEnter() = runTest {
+        // Control: same record and the same accuracy, but the device is deep enough inside that
+        // the fix is decisive, so the backstop still fires.
+        val fence = GeofenceRegion("biz-1", metersOfLatitude(10), 0.0, 100f)
+        every { secureUserStore.getUserId() } returns "user-42"
+        every { store.getLastSyncTimestamp() } returns System.currentTimeMillis() - 60_000L
+        every { store.getCachedRegions() } returns listOf(fence)
+        every { store.getRegisteredIds() } returns emptySet()
+        every { store.getCachedConfig() } returns sampleConfig()
+        every { store.getEnteredIds() } returns setOf("biz-1")
+        every { distanceFilter.nearest(any(), any(), any(), any(), any()) } returns listOf(fence)
+        coEvery { manager.replaceGeofences(any(), any()) } returns Result.success(Unit)
+
+        repository.refreshFromLiveFix(
+            latitude = 0.0,
+            longitude = 0.0,
+            quality = GeofenceFixQuality(accuracyMeters = 50.0, fixTimeMillis = clock.currentTimeMillis())
+        )
+
+        coVerify(exactly = 1) {
+            transitionEmitter.emit(
+                geofenceId = "biz-1",
+                transition = Event.GeofenceTransition.ENTER,
+                userId = "user-42",
+                timestampSeconds = any(),
+                geofenceName = any(),
+                metadata = any(),
+                geosetIds = any(),
+                monitorsExit = any()
+            )
+        }
+    }
+
+    @Test
+    fun refreshFromLiveFix_givenCoarseFixWhoseErrorCircleCrossesTheEdge_expectNotSeeded() = runTest {
+        // 60m from the centre of a 100m fence, but the fix is only good to 50m: the device may be
+        // up to 110m out. Seeding here records a visit the fix cannot support.
+        every { secureUserStore.getUserId() } returns "user-42"
+        every { store.getRegisteredIds() } returns emptySet()
+        val fence = GeofenceRegion("biz-edge", metersOfLatitude(60), 0.0, 100f)
+        coEvery { apiService.fetchGeofences(any()) } returns Result.success(sampleResponse(maxBusinessGeofences = 5))
+        every { distanceFilter.nearest(any(), any(), any(), any(), any()) } returns listOf(fence)
+        coEvery { manager.replaceGeofences(any(), any()) } returns Result.success(Unit)
+
+        repository.refreshFromLiveFix(
+            latitude = 0.0,
+            longitude = 0.0,
+            quality = GeofenceFixQuality(accuracyMeters = 50.0, fixTimeMillis = clock.currentTimeMillis())
+        )
+
+        verify { store.reconcileEnteredIds(registeredIds = any(), inside = emptySet(), sinceEpoch = any()) }
+    }
+
+    @Test
+    fun refreshFromLiveFix_givenCoarseFixWhoseErrorCircleFitsInside_expectSeeded() = runTest {
+        // Control for the case above: same 50m accuracy, but 10m from the centre, so the whole
+        // error circle is inside the fence and the reading is decisive.
+        every { secureUserStore.getUserId() } returns "user-42"
+        every { store.getRegisteredIds() } returns emptySet()
+        val fence = GeofenceRegion("biz-deep", metersOfLatitude(10), 0.0, 100f)
+        coEvery { apiService.fetchGeofences(any()) } returns Result.success(sampleResponse(maxBusinessGeofences = 5))
+        every { distanceFilter.nearest(any(), any(), any(), any(), any()) } returns listOf(fence)
+        coEvery { manager.replaceGeofences(any(), any()) } returns Result.success(Unit)
+
+        repository.refreshFromLiveFix(
+            latitude = 0.0,
+            longitude = 0.0,
+            quality = GeofenceFixQuality(accuracyMeters = 50.0, fixTimeMillis = clock.currentTimeMillis())
+        )
+
+        verify { store.reconcileEnteredIds(registeredIds = any(), inside = setOf("biz-deep"), sinceEpoch = any()) }
+    }
+
+    @Test
+    fun refreshFromLiveFix_givenFixAmbiguousAboutAFence_expectMarkNotRetired() = runTest {
+        // The other half of the same reading: "not certainly inside" is not "certainly outside".
+        // Retiring the mark on an ambiguous fix re-arms an arrival the device never left.
+        every { secureUserStore.getUserId() } returns "user-42"
+        val fence = GeofenceRegion("biz-edge", metersOfLatitude(120), 0.0, 100f)
+        every { store.getRegisteredIds() } returns setOf("biz-edge")
+        coEvery { apiService.fetchGeofences(any()) } returns Result.success(sampleResponse(maxBusinessGeofences = 5))
+        every { distanceFilter.nearest(any(), any(), any(), any(), any()) } returns listOf(fence)
+        coEvery { manager.replaceGeofences(any(), any()) } returns Result.success(Unit)
+
+        repository.refreshFromLiveFix(
+            latitude = 0.0,
+            longitude = 0.0,
+            quality = GeofenceFixQuality(accuracyMeters = 50.0, fixTimeMillis = clock.currentTimeMillis())
+        )
+
+        // 120m out with 50m of error: it may still be inside, so neither seed nor retire.
+        verify {
+            store.reconcileEnteredIds(
+                registeredIds = any(),
+                inside = emptySet(),
+                sinceEpoch = any(),
+                resetIds = emptySet()
+            )
+        }
+    }
+
+    @Test
+    fun refreshFromLiveFix_givenFixDecisivelyOutside_expectMarkRetired() = runTest {
+        // Control for the case above: far enough that the error circle clears the fence entirely.
+        every { secureUserStore.getUserId() } returns "user-42"
+        val fence = GeofenceRegion("biz-edge", metersOfLatitude(200), 0.0, 100f)
+        every { store.getRegisteredIds() } returns setOf("biz-edge")
+        coEvery { apiService.fetchGeofences(any()) } returns Result.success(sampleResponse(maxBusinessGeofences = 5))
+        every { distanceFilter.nearest(any(), any(), any(), any(), any()) } returns listOf(fence)
+        coEvery { manager.replaceGeofences(any(), any()) } returns Result.success(Unit)
+
+        repository.refreshFromLiveFix(
+            latitude = 0.0,
+            longitude = 0.0,
+            quality = GeofenceFixQuality(accuracyMeters = 50.0, fixTimeMillis = clock.currentTimeMillis())
+        )
+
+        verify {
+            store.reconcileEnteredIds(
+                registeredIds = any(),
+                inside = emptySet(),
+                sinceEpoch = any(),
+                resetIds = setOf("biz-edge")
+            )
+        }
+    }
+
+    @Test
+    fun refreshFromLiveFix_givenFixTakenBeforeTheAgeLimit_expectRanksButDoesNotJudge() = runTest {
+        // getCurrentLocation can answer from cache. A fix older than the limit may describe where
+        // the device was before it moved, so it is demoted to an anchor: prune, never seed.
+        every { secureUserStore.getUserId() } returns "user-42"
+        every { store.getRegisteredIds() } returns emptySet()
+        val fence = GeofenceRegion("biz-inside", 0.0, 0.0, 500f)
+        coEvery { apiService.fetchGeofences(any()) } returns Result.success(sampleResponse(maxBusinessGeofences = 5))
+        every { distanceFilter.nearest(any(), any(), any(), any(), any()) } returns listOf(fence)
+        coEvery { manager.replaceGeofences(any(), any()) } returns Result.success(Unit)
+
+        repository.refreshFromLiveFix(
+            latitude = 0.0,
+            longitude = 0.0,
+            quality = GeofenceFixQuality(
+                accuracyMeters = 5.0,
+                fixTimeMillis = clock.currentTimeMillis() - GeofenceConstants.MAX_LIVE_FIX_AGE_MS - 1
+            )
+        )
+
+        verify { store.reconcileEnteredIds(registeredIds = any(), inside = null, sinceEpoch = any(), resetIds = any()) }
+        coVerify(exactly = 0) { transitionEmitter.emit(any(), any(), any(), any(), any(), any(), any(), any()) }
+    }
+
+    @Test
+    fun refreshFromLiveFix_givenFixWithinTheAgeLimit_expectJudgesContainment() = runTest {
+        // Control for the case above: identical but one millisecond inside the limit.
+        every { secureUserStore.getUserId() } returns "user-42"
+        every { store.getRegisteredIds() } returns emptySet()
+        val fence = GeofenceRegion("biz-inside", 0.0, 0.0, 500f)
+        coEvery { apiService.fetchGeofences(any()) } returns Result.success(sampleResponse(maxBusinessGeofences = 5))
+        every { distanceFilter.nearest(any(), any(), any(), any(), any()) } returns listOf(fence)
+        coEvery { manager.replaceGeofences(any(), any()) } returns Result.success(Unit)
+
+        repository.refreshFromLiveFix(
+            latitude = 0.0,
+            longitude = 0.0,
+            quality = GeofenceFixQuality(
+                accuracyMeters = 5.0,
+                fixTimeMillis = clock.currentTimeMillis() - GeofenceConstants.MAX_LIVE_FIX_AGE_MS + 1_000
+            )
+        )
+
+        verify { store.reconcileEnteredIds(registeredIds = any(), inside = setOf("biz-inside"), sinceEpoch = any()) }
+    }
+
+    @Test
+    fun refreshFromLiveFix_givenUnreportedAccuracy_expectCoordinatesTakenAtFaceValue() = runTest {
+        // A host-supplied fix reports neither field. It asserts a position rather than measuring
+        // one, so it keeps the pre-gate behaviour instead of being demoted to useless.
+        every { secureUserStore.getUserId() } returns "user-42"
+        every { store.getRegisteredIds() } returns emptySet()
+        val fence = GeofenceRegion("biz-inside", metersOfLatitude(80), 0.0, 100f)
+        coEvery { apiService.fetchGeofences(any()) } returns Result.success(sampleResponse(maxBusinessGeofences = 5))
+        every { distanceFilter.nearest(any(), any(), any(), any(), any()) } returns listOf(fence)
+        coEvery { manager.replaceGeofences(any(), any()) } returns Result.success(Unit)
+
+        repository.refreshFromLiveFix(latitude = 0.0, longitude = 0.0, quality = GeofenceFixQuality.UNKNOWN)
+
+        verify { store.reconcileEnteredIds(registeredIds = any(), inside = setOf("biz-inside"), sinceEpoch = any()) }
+    }
+
+    @Test
     fun refresh_givenAnchorInsideAFence_expectNoSeedingNoSynthesis() = runTest {
         // refresh() runs off the persisted anchor — where the device once was. Seeding containment
         // or synthesizing an ENTER from it would resurrect an exited visit or report an arrival at
@@ -2522,6 +2757,8 @@ class GeofenceRepositoryTest : RobolectricTest() {
         reconciledInside shouldBeEqualTo listOf(null)
         store.getEnteredIds().shouldBeEmpty()
     }
+    /** Latitude offset from the equator covering roughly [meters], for placing a fence at a known distance. */
+    private fun metersOfLatitude(meters: Int): Double = meters / 111_320.0
 
     private fun sampleConfig(
         remoteFetchRefreshExpiry: Long = 86_400_000L,

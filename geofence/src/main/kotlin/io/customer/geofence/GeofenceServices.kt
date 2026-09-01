@@ -26,7 +26,11 @@ internal interface GeofenceServices {
      * movement trigger usually fires with the app backgrounded, where the process
      * is fair game for the OS the moment the receiver finishes.
      */
-    fun onMovementTriggerExit(latitude: Double?, longitude: Double?): Job?
+    fun onMovementTriggerExit(
+        latitude: Double?,
+        longitude: Double?,
+        quality: GeofenceFixQuality = GeofenceFixQuality.UNKNOWN
+    ): Job?
 
     /** Honours the freshness threshold — repeated identify within the window is a no-op. */
     fun onUserIdentified(latitude: Double?, longitude: Double?)
@@ -62,7 +66,11 @@ internal interface GeofenceServices {
      * fix; without this hook the SDK would self-heal only on sign-out / next cold
      * launch.
      */
-    fun onLocationAcquired(latitude: Double, longitude: Double)
+    fun onLocationAcquired(
+        latitude: Double,
+        longitude: Double,
+        quality: GeofenceFixQuality = GeofenceFixQuality.UNKNOWN
+    )
 
     /**
      * Retries a sync still waiting on a location fix. Same freshness handling as [onAppLaunch];
@@ -102,12 +110,16 @@ internal class GeofenceServicesImpl(
     // regardless of the no-location rearm flag.
     private val explicitRefreshRequested = AtomicBoolean(false)
 
-    override fun onMovementTriggerExit(latitude: Double?, longitude: Double?): Job? =
+    override fun onMovementTriggerExit(
+        latitude: Double?,
+        longitude: Double?,
+        quality: GeofenceFixQuality
+    ): Job? =
         triggerSync(
             reason = REASON_MOVEMENT_EXIT,
             latitude = latitude,
             longitude = longitude,
-            action = repository::handleMovement
+            action = { lat, lng -> repository.handleMovement(lat, lng, quality) }
         )
 
     override fun onUserIdentified(latitude: Double?, longitude: Double?) {
@@ -132,7 +144,11 @@ internal class GeofenceServicesImpl(
         explicitRefreshRequested.set(true)
     }
 
-    override fun onLocationAcquired(latitude: Double, longitude: Double) {
+    override fun onLocationAcquired(
+        latitude: Double,
+        longitude: Double,
+        quality: GeofenceFixQuality
+    ) {
         // Act on a host-initiated refresh or the rising edge of a no-location skip;
         // otherwise this becomes a per-update refresh storm on hosts that stream
         // locations. Clear both flags so a single fix is consumed once.
@@ -148,7 +164,7 @@ internal class GeofenceServicesImpl(
             reason = REASON_LOCATION_ACQUIRED,
             latitude = latitude,
             longitude = longitude,
-            action = repository::refreshFromLiveFix
+            action = { lat, lng -> repository.refreshFromLiveFix(lat, lng, quality) }
         )
     }
 

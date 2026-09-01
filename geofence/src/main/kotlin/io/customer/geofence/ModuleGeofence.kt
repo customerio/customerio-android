@@ -119,7 +119,14 @@ class ModuleGeofence @JvmOverloads constructor(
         // GPS fix: GeofenceServices holds a "last skipped for no-location" flag
         // and re-triggers a refresh when a fresh fix arrives.
         eventBus.subscribe<Event.LocationAcquired> {
-            sdkAndroid.geofenceServices.onLocationAcquired(it.latitude, it.longitude)
+            sdkAndroid.geofenceServices.onLocationAcquired(
+                latitude = it.latitude,
+                longitude = it.longitude,
+                quality = GeofenceFixQuality(
+                    accuracyMeters = it.horizontalAccuracyMeters,
+                    fixTimeMillis = it.fixTimeMillis
+                )
+            )
         }
 
         // On identify, prime the geofence pipeline so the new user's session has its

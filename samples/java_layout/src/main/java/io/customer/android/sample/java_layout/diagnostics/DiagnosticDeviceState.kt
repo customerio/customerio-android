@@ -13,6 +13,7 @@ import android.net.NetworkCapabilities
 import android.os.Build
 import android.os.Bundle
 import android.os.PowerManager
+import android.os.SystemClock
 
 /**
  * The `dev` block attached to every record.
@@ -45,6 +46,12 @@ internal class DiagnosticDeviceState(private val application: Application) {
     private var snapshot = Snapshot()
     private var onChange: ((String) -> Unit)? = null
     private var startedActivities = 0
+
+    @Volatile
+    private var bucketCache = "unknown"
+
+    @Volatile
+    private var bucketReadAt = 0L
 
     private val powerManager: PowerManager? =
         application.getSystemService(Context.POWER_SERVICE) as? PowerManager
@@ -227,12 +234,21 @@ internal class DiagnosticDeviceState(private val application: Application) {
     /**
      * Which app-standby bucket the OS has us in.
      *
-     * No broadcast exists for this, so it is read when a record is written rather than cached from
-     * a change notification. The read is a local binder call that schedules nothing — the rule this
-     * class follows is "cause no wakeups", not "never call a system service".
+     * No broadcast exists for this, so it has to be polled. Every log record would otherwise mean
+     * a binder round trip while the sink's lock is held; the bucket moves on the order of hours,
+     * so a short TTL costs nothing and takes thousands of calls per drive down to a handful.
      */
     private fun standbyBucket(): String {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) return "unsupported"
+        val now = SystemClock.elapsedRealtime()
+        if (bucketReadAt != 0L && now - bucketReadAt < BUCKET_TTL_MS) return bucketCache
+        val value = readStandbyBucket()
+        bucketCache = value
+        bucketReadAt = now
+        return value
+    }
+
+    private fun readStandbyBucket(): String {
         return runCatching {
             val manager = application.getSystemService(Context.USAGE_STATS_SERVICE) as? UsageStatsManager
             when (manager?.appStandbyBucket) {
@@ -281,5 +297,9 @@ internal class DiagnosticDeviceState(private val application: Application) {
             callback = onChange
         }
         if (changed) callback?.invoke(reason)
+    }
+
+    private companion object {
+        const val BUCKET_TTL_MS = 60_000L
     }
 }

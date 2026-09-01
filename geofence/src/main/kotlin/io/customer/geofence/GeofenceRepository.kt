@@ -450,12 +450,15 @@ internal class GeofenceRepositoryImpl(
         // Keep the movement trigger registered even when no regions qualify right now — all beyond
         // maxMonitoringDistance, or the distance-capped /nearest returned none here — so an EXIT
         // re-ranks/re-fetches as the device travels. Only maxBusinessGeofences = 0 means "feature off".
-        val nearestIds = nearest.map { it.id }.toSet()
         logger.logRankEvaluated(
             candidates = regions.size,
-            selected = nearest.map { it.id },
-            evicted = regions.map { it.id }.filterNot { it in nearestIds },
-            edgeDistances = nearest.associate { it.id to it.edgeDistanceTo(latitude, longitude).toDouble() }
+            selectedCount = nearest.size,
+            selected = { nearest.map { it.id } },
+            evicted = {
+                val nearestIds = nearest.map { it.id }.toSet()
+                regions.map { it.id }.filterNot { it in nearestIds }
+            },
+            edgeDistances = { nearest.associate { it.id to it.edgeDistanceTo(latitude, longitude).toDouble() } }
         )
         val monitoringEnabled = config.maxBusinessGeofences > 0
         val regionsToRegister = if (!monitoringEnabled) {

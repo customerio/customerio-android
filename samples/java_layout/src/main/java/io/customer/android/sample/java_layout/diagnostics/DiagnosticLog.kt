@@ -6,7 +6,6 @@ import android.os.SystemClock
 import android.util.Log
 import io.customer.base.internal.InternalCustomerIOApi
 import io.customer.sdk.core.di.SDKComponent
-import io.customer.sdk.core.util.CioDiagnostics
 import io.customer.sdk.core.util.CioLogLevel
 import java.io.File
 
@@ -77,11 +76,8 @@ object DiagnosticLog {
             }
         }
 
-        // The SDK's machine-readable diagnostic tail. Off by default and reachable only behind an
-        // opt-in annotation; enabled here because this app exists to produce field data and the
-        // harness parses that tail. A customer app never reaches this — see CioDiagnostics for why
-        // the default must stay false.
-        CioDiagnostics.enabled = true
+        // The SDK's diagnostic tail is enabled by the io.customer.geofence.diagnostics manifest
+        // entry, not from here — there is no API for it.
 
         // Outside the lock: the SDK may log synchronously from inside these calls, and `emit`
         // takes the same lock.

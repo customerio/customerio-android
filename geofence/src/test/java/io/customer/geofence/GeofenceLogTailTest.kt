@@ -4,7 +4,6 @@ import android.location.Location
 import io.customer.commontest.config.TestConfig
 import io.customer.commontest.config.testConfigurationDefault
 import io.customer.commontest.core.RobolectricTest
-import io.customer.sdk.core.util.CioDiagnostics
 import io.customer.sdk.core.util.CioLogLevel
 import io.customer.sdk.core.util.Logger
 import org.amshove.kluent.shouldBeEqualTo
@@ -55,12 +54,12 @@ class GeofenceLogTailTest : RobolectricTest() {
         super.setup(testConfigurationDefault { })
         capturing = CapturingLogger()
         geofenceLogger = GeofenceLogger(capturing)
-        CioDiagnostics.enabled = true
+        GeofenceDiagnostics.setEnabledForTesting(true)
     }
 
     @After
     fun resetDiagnostics() {
-        CioDiagnostics.enabled = false
+        GeofenceDiagnostics.setEnabledForTesting(false)
     }
 
     /**
@@ -116,7 +115,7 @@ class GeofenceLogTailTest : RobolectricTest() {
             Triple("removalFailed", listOf("ok", "op", "why")) { it.logRemovalFailed("GMS unavailable") },
             Triple("invalidRegionDropped", listOf("id", "why")) { it.logInvalidRegionDropped("notl core") },
             Triple("regionMappingFailed", listOf("id", "why")) { it.logRegionMappingFailed("notl_core", "bad radius") },
-            Triple("rankEvaluated", listOf("ncand", "n", "ranked", "evicted")) { it.logRankEvaluated(30, listOf("a", "b"), listOf("c"), mapOf("a" to 120.0, "b" to 340.0)) },
+            Triple("rankEvaluated", listOf("ncand", "n", "ranked", "evicted")) { it.logRankEvaluated(30, 2, { listOf("a", "b") }, { listOf("c") }, { mapOf("a" to 120.0, "b" to 340.0) }) },
             Triple("movementTriggerRegistered", listOf("rad")) { it.logMovementTriggerRegistered(43.2, -79.0, 500.0) },
             Triple("missingPermission", listOf("perm", "why")) { it.logMissingPermission("ACCESS_FINE_LOCATION") },
             Triple("backgroundUnavailable", listOf("perm", "ctx")) { it.logBackgroundDeliveryUnavailable("app-launch") },
@@ -226,7 +225,7 @@ class GeofenceLogTailTest : RobolectricTest() {
 
     @Test
     fun everyRecord_givenDiagnosticsOff_expectOutputUnchangedFromBeforeInstrumentation() {
-        CioDiagnostics.enabled = false
+        GeofenceDiagnostics.setEnabledForTesting(false)
 
         for ((name, _, run) in invocations()) {
             val logger = CapturingLogger()
@@ -245,7 +244,7 @@ class GeofenceLogTailTest : RobolectricTest() {
 
     @Test
     fun everyRecord_givenDiagnosticsOff_expectNoDiagnosticKeyAnywhere() {
-        CioDiagnostics.enabled = false
+        GeofenceDiagnostics.setEnabledForTesting(false)
         val logger = CapturingLogger()
         val target = GeofenceLogger(logger)
         for ((_, _, run) in invocations()) run(target)
@@ -261,7 +260,7 @@ class GeofenceLogTailTest : RobolectricTest() {
 
     @Test
     fun everyRecord_givenDiagnosticsOn_expectFullDetailAndOneWarning() {
-        CioDiagnostics.enabled = true
+        GeofenceDiagnostics.setEnabledForTesting(true)
         val logger = CapturingLogger()
         val target = GeofenceLogger(logger)
         for ((_, _, run) in invocations()) run(target)
@@ -280,11 +279,11 @@ class GeofenceLogTailTest : RobolectricTest() {
         // The prose is what a customer reads and what existing tests assert on. Enabling
         // diagnostics must append to it and never rewrite it.
         for ((name, _, run) in invocations()) {
-            CioDiagnostics.enabled = false
+            GeofenceDiagnostics.setEnabledForTesting(false)
             val off = CapturingLogger()
             run(GeofenceLogger(off))
 
-            CioDiagnostics.enabled = true
+            GeofenceDiagnostics.setEnabledForTesting(true)
             val on = CapturingLogger()
             run(GeofenceLogger(on))
 
@@ -297,7 +296,7 @@ class GeofenceLogTailTest : RobolectricTest() {
 
     @Test
     fun fixQuality_givenDiagnosticsOn_expectQualityAndProvenance() {
-        CioDiagnostics.enabled = true
+        GeofenceDiagnostics.setEnabledForTesting(true)
         geofenceLogger.logCallbackReceived(listOf("notl_core"), "ENTER", location(), GeofenceLogTail.FixSource.OS_TRIGGER)
 
         val fields = parseTail(capturing.messages.last())!!
@@ -309,7 +308,7 @@ class GeofenceLogTailTest : RobolectricTest() {
 
     @Test
     fun fixQuality_givenMockLocation_expectSimTrue() {
-        CioDiagnostics.enabled = true
+        GeofenceDiagnostics.setEnabledForTesting(true)
         geofenceLogger.logCallbackReceived(listOf("notl_core"), "ENTER", location(mock = true), GeofenceLogTail.FixSource.OS_TRIGGER)
 
         // A fix injected by `adb emu geo fix` or a route driver must be distinguishable from a real

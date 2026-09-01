@@ -162,29 +162,37 @@ internal class GeofenceLogger(private val logger: Logger) {
      * Without it, a geofence that was never registered because it ranked past the cap is
      * indistinguishable from one that was registered and simply never fired.
      */
+    /**
+     * [selected], [evicted] and [edgeDistances] are lambdas: producing them costs a distance
+     * computation per region plus a filter over every candidate, on a background wake path, and
+     * none of it is wanted unless the tail will carry it.
+     */
     fun logRankEvaluated(
         candidates: Int,
-        selected: List<String>,
-        evicted: List<String>,
-        edgeDistances: Map<String, Double>
+        selectedCount: Int,
+        selected: () -> List<String>,
+        evicted: () -> List<String>,
+        edgeDistances: () -> Map<String, Double>
     ) {
-        val ranked = selected.map { id ->
-            edgeDistances[id]?.let { "${GeofenceLogTail.sanitize(id)}:${it.toInt()}" } ?: GeofenceLogTail.sanitize(id)
+        val detail = if (GeofenceDiagnostics.isEnabled) {
+            val distances = edgeDistances()
+            val ranked = selected().map { id ->
+                distances[id]?.let { "${GeofenceLogTail.sanitize(id)}:${it.toInt()}" } ?: GeofenceLogTail.sanitize(id)
+            }
+            tail(
+                "rank.evaluated",
+                GeofenceLogIo.OUTPUT,
+                listOf(
+                    "ncand" to int(candidates),
+                    "n" to int(selectedCount),
+                    "ranked" to list(ranked),
+                    "evicted" to list(evicted())
+                )
+            )
+        } else {
+            ""
         }
-        logger.debug(
-            "Ranked $candidates candidate(s), selected ${selected.size}" +
-                tail(
-                    "rank.evaluated",
-                    GeofenceLogIo.OUTPUT,
-                    listOf(
-                        "ncand" to int(candidates),
-                        "n" to int(selected.size),
-                        "ranked" to list(ranked),
-                        "evicted" to list(evicted)
-                    )
-                ),
-            tag = TAG
-        )
+        logger.debug("Ranked $candidates candidate(s), selected $selectedCount" + detail, tag = TAG)
     }
 
     /** The re-centred movement bubble's own geometry, derived from the device's position. */

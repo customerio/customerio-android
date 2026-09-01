@@ -2,52 +2,29 @@ name: Publish Snapshot builds
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened, edited, labeled]
+    types: [opened, synchronize, reopened, edited]
     paths-ignore:
       - '**/*.md'
-
-concurrency:
-  # Unrelated labels and body-only edits must not cancel an in-flight release or
-  # ci:full run. They share a separate group from meaningful validation events.
-  group: >-
-    ${{ github.workflow }}-${{ github.ref }}-${{
-      github.event_name == 'pull_request' &&
-      ((github.event.action == 'labeled' && github.event.label.name != 'ci:full') ||
-      (github.event.action == 'edited' &&
-      github.event.changes.title == null &&
-      github.event.changes.base == null)) &&
-      'metadata' || 'validation'
-    }}
-  cancel-in-progress: true
 
 permissions:
   contents: read
   pull-requests: write # Write access needed to create a comment.
 
 jobs:
-  release_policy:
-    uses: ./.github/workflows/reusable-release-policy.yml
-    permissions:
-      contents: read
-    with:
-      pr_title: ${{ github.event.pull_request.title }}
-      base_sha: ${{ github.event.pull_request.base.sha }}
-      head_sha: ${{ github.event.pull_request.head.sha }}
-      ci_full: ${{ contains(github.event.pull_request.labels.*.name, 'ci:full') }}
-
   publish:
     name: Snapshot build and publish
-    needs: release_policy
+    # Internal branch snapshots are a PR integration contract for wrapper SDKs,
+    # not a release-only side effect. Keep publishing them for every code PR.
     if: >-
-      always() &&
-      needs.release_policy.outputs.full_validation == 'true' &&
-      (github.event.action != 'edited' ||
-      github.event.changes.title != null ||
-      github.event.changes.base != null) &&
-      (github.event.action != 'labeled' || github.event.label.name == 'ci:full') &&
+      (github.event.action != 'edited' || github.event.changes.base != null) &&
       github.event.pull_request.head.repo.full_name == github.repository &&
       github.event.pull_request.user.login != 'dependabot[bot]'
     runs-on: ubuntu-latest
+    # A canceled multi-module upload can expose a mixed SNAPSHOT to wrappers.
+    # Queue the newest pending publish and let the active upload finish.
+    concurrency:
+      group: snapshot-publish-${{ github.ref }}
+      cancel-in-progress: false
     outputs:
       snapshot_version: ${{ steps.set-snapshot-version.outputs.VERSION }}
     steps:
@@ -96,11 +73,14 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
 
   # Build compatibility is correctness coverage, so it runs for every code PR
-  # independently of release naming. Snapshot publication remains a side effect
-  # owned by the release-aware job above.
+  # independently of release naming and snapshot publication.
   gradle-compatibility-builds:
     name: Sample apps build with AGP 8.9.1
+    if: github.event.action != 'edited' || github.event.changes.base != null
     runs-on: ubuntu-latest
+    concurrency:
+      group: gradle-compatibility-${{ github.ref }}
+      cancel-in-progress: true
 
     steps:
       - uses: actions/checkout@v4

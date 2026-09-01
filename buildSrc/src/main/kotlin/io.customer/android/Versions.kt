@@ -6,8 +6,10 @@ object Versions {
     const val TARGET_SDK = 36
     const val MIN_SDK = 21
 
-    // When updating AGP version, make sure to also update workflow: gradle-compatibility-builds
-    // and script: update-gradle-compatibility as needed.
+    // Repository default. CI's gradle-compatibility-builds job in snapshot-release.yml
+    // overrides this and gradle-wrapper.properties to the compatibility floor:
+    // AGP 8.9.1 / Gradle 8.11.1, the minimum supporting compileSdk 36. Revisit
+    // that floor through update-gradle-compatibility when bumping this version.
     internal const val ANDROID_GRADLE_PLUGIN = "8.9.3"
 
     // Jist rendering engine — published Maven Central artifact (io.customer.android:jist).

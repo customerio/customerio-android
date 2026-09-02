@@ -65,13 +65,15 @@ internal class DiagnosticLogWriter(private val directory: File) {
         rolloverAt = startOfNextDay(now)
         writesSinceExistenceCheck = 0
 
-        if (isNew) {
-            // Only when a file was actually created — the first open, the daily rollover, and the
-            // reopen after one is deleted underneath us. Keeping it off the failure paths matters:
-            // they return before rolloverAt is set, so every later append re-enters this method.
-            prune()
-            if (header.isNotEmpty()) write(header)
-        }
+        // Retention only when a file was actually created. Keeping it off the failure paths
+        // matters: they return before rolloverAt is set, so every later append re-enters this
+        // method.
+        if (isNew) prune()
+
+        // The header repeats on every open, not just on a new file. A same-day relaunch reuses
+        // the file but resets elapsedRealtime and may carry a different bootCount or build, so
+        // without this every record after the first process is correlated to the wrong boot.
+        if (header.isNotEmpty()) write(header)
     }
 
     private fun closeCurrentFile() {

@@ -295,8 +295,14 @@ internal class GeofenceRepositoryImpl(
         // real position than the anchor (only updated on Tier B fetches).
         // Fall back to the anchor if there's no movement-trigger location yet
         // (older cache / first-ever boot restore).
-        val effectiveLocation = store.getLastMovementTriggerLocation()
-            ?: store.getLastApiFetchLocation()
+        val restoreAnchor = store.getLastMovementTriggerLocation()
+        // This path bypasses refreshAction, so it has to emit its own record — a boot restore is
+        // the case the record exists for, and it was the one pass that never produced it.
+        logger.logStorageLoaded(
+            regionCount = store.getCachedRegions().size,
+            hasAnchor = restoreAnchor != null
+        )
+        val effectiveLocation = restoreAnchor ?: store.getLastApiFetchLocation()
         if (effectiveLocation == null) {
             logger.logSyncSkipped("no cached state to restore")
             return Result.success(Unit)

@@ -35,16 +35,12 @@ internal enum class GeofenceLaunchReason(val wire: String) {
  */
 internal class GeofenceLogger(private val logger: Logger) {
 
-    /**
-     * Shadows [GeofenceLogTail.tail] so every call site here passes this logger to the gate, which
-     * is what lets the "diagnostics are enabled" warning be logged exactly once through the host
-     * app's own logger.
-     */
+    /** Short name for [GeofenceLogTail.tail]; the call sites below are dense with it. */
     private fun tail(
         ev: String,
         io: GeofenceLogIo,
         fields: List<Pair<String, String?>> = emptyList()
-    ): String = GeofenceLogTail.tail(ev, io, fields, logger)
+    ): String = GeofenceLogTail.tail(ev, io, fields)
 
     // MARK: - Registration
 

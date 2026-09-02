@@ -261,7 +261,7 @@ class GeofenceLogTailTest : RobolectricTest() {
     }
 
     @Test
-    fun everyRecord_givenDiagnosticsOn_expectFullDetailAndOneWarning() {
+    fun everyRecord_givenDiagnosticsOn_expectFullDetail() {
         GeofenceDiagnostics.setEnabledForTesting(true)
         val logger = CapturingLogger()
         val target = GeofenceLogger(logger)
@@ -271,9 +271,6 @@ class GeofenceLogTailTest : RobolectricTest() {
         joined.contains("lat=") shouldBeEqualTo true
         joined.contains("lon=") shouldBeEqualTo true
         joined.contains("fixsrc=") shouldBeEqualTo true
-        // Enabling it must be loud, and exactly once — a warning per record would be its own
-        // problem over a three-hour drive.
-        logger.messages.count { it.contains("internal geofence diagnostics are ENABLED") } shouldBeEqualTo 1
     }
 
     @Test

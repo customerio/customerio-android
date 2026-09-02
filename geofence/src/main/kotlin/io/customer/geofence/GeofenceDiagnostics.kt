@@ -2,7 +2,6 @@ package io.customer.geofence
 
 import android.content.pm.PackageManager
 import io.customer.sdk.core.di.SDKComponent
-import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * Whether the SDK emits the diagnostic tail.
@@ -18,8 +17,6 @@ import java.util.concurrent.atomic.AtomicBoolean
  */
 internal object GeofenceDiagnostics {
     const val MANIFEST_KEY = "io.customer.geofence.diagnostics"
-
-    private val warned = AtomicBoolean(false)
 
     @Volatile
     private var override: Boolean? = null
@@ -38,13 +35,9 @@ internal object GeofenceDiagnostics {
             return value
         }
 
-    /** True exactly once per enablement, so the warning does not repeat on every record. */
-    fun claimWarning(): Boolean = warned.compareAndSet(false, true)
-
     /** Test hook; `null` restores the manifest value. */
     fun setEnabledForTesting(value: Boolean?) {
         override = value
-        warned.set(false)
     }
 
     private fun readManifest(): Boolean? = runCatching {

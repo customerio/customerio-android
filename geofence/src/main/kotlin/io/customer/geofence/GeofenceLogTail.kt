@@ -3,7 +3,6 @@ package io.customer.geofence
 import android.location.Location
 import android.os.Build
 import android.os.SystemClock
-import io.customer.sdk.core.util.Logger
 import java.util.Locale
 
 /**
@@ -39,17 +38,10 @@ internal object GeofenceLogTail {
     fun tail(
         ev: String,
         io: GeofenceLogIo,
-        fields: List<Pair<String, String?>> = emptyList(),
-        logger: Logger? = null
+        fields: List<Pair<String, String?>> = emptyList()
     ): String {
         // The single gate for every diagnostic value. Prose is emitted by the caller either way.
         if (!GeofenceDiagnostics.isEnabled) return ""
-        if (logger != null && GeofenceDiagnostics.claimWarning()) {
-            logger.error(
-                "Diagnostics: internal geofence diagnostics are ENABLED. Logs now carry machine-readable detail including device coordinates. This is intended for Customer.io field testing and must not be enabled in a production build.",
-                tag = "Geofence"
-            )
-        }
 
         val parts = StringBuilder(DELIMITER).append("ev=").append(ev).append(" io=").append(io.wire)
         for ((key, value) in fields) {

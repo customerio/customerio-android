@@ -153,11 +153,17 @@ internal class GeofenceRepositoryImpl(
         val restoreAnchor = store.getLastMovementTriggerLocation()
         val distanceFromLastRegistration = restoreAnchor
             ?.distanceTo(location.latitude, location.longitude) ?: 0f
-        // Emitted here, not inside one of the predicates below: `when` short-circuits, so a cold
-        // start with a stale cache took the first arm and never logged what it had to work from —
-        // the exact case the record exists for. `hasAnchor` is the restore anchor, matching iOS.
-        val cachedRegions = store.getCachedRegions()
-        logger.logStorageLoaded(regionCount = cachedRegions.size, hasAnchor = restoreAnchor != null)
+        // Lazy on purpose. Deserializing the cached list is the most expensive thing here and
+        // most background wakes resolve on the first arm below without needing it — reading it
+        // eagerly for a log count would put that cost on every wake. Still one read when both
+        // the record and a predicate want it.
+        val cachedRegions by lazy { store.getCachedRegions() }
+        if (GeofenceDiagnostics.isEnabled) {
+            // Before the `when`, which short-circuits: a cold start with a stale cache took the
+            // first arm and never logged what it had to work from — the case the record exists
+            // for. `hasAnchor` is the restore anchor, matching iOS.
+            logger.logStorageLoaded(regionCount = cachedRegions.size, hasAnchor = restoreAnchor != null)
+        }
 
         return when {
             isStaleInTime(config) -> RefreshAction.REMOTE
@@ -297,11 +303,14 @@ internal class GeofenceRepositoryImpl(
         // (older cache / first-ever boot restore).
         val restoreAnchor = store.getLastMovementTriggerLocation()
         // This path bypasses refreshAction, so it has to emit its own record — a boot restore is
-        // the case the record exists for, and it was the one pass that never produced it.
-        logger.logStorageLoaded(
-            regionCount = store.getCachedRegions().size,
-            hasAnchor = restoreAnchor != null
-        )
+        // the case the record exists for, and it was the one pass that never produced it. Gated:
+        // nothing else here needs the region list, so with diagnostics off it is never read.
+        if (GeofenceDiagnostics.isEnabled) {
+            logger.logStorageLoaded(
+                regionCount = store.getCachedRegions().size,
+                hasAnchor = restoreAnchor != null
+            )
+        }
         val effectiveLocation = restoreAnchor ?: store.getLastApiFetchLocation()
         if (effectiveLocation == null) {
             logger.logSyncSkipped("no cached state to restore")

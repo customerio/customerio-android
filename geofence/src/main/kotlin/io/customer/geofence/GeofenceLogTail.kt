@@ -51,11 +51,20 @@ internal object GeofenceLogTail {
         return parts.toString()
     }
 
+    /**
+     * Every character the format itself uses to separate things. Region ids are workspace
+     * authored, so an id containing one of these would otherwise split a field: `=` a pair,
+     * `,` a list, `:` an `id:distance` entry in `ranked`, `|` the tail delimiter.
+     */
+    private val SEPARATORS = charArrayOf('=', ',', ':', '|')
+
     /** The parser splits on whitespace, and workspace-authored ids can contain anything. */
     fun sanitize(value: String): String {
         if (value.isEmpty()) return "_"
         return buildString(value.length) {
-            for (character in value) append(if (character.isWhitespace()) '_' else character)
+            for (character in value) {
+                append(if (character.isWhitespace() || character in SEPARATORS) '_' else character)
+            }
         }
     }
 

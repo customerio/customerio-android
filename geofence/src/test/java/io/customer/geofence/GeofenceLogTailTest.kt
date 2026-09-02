@@ -122,6 +122,7 @@ class GeofenceLogTailTest : RobolectricTest() {
             Triple("missingPermission", listOf("perm", "why")) { it.logMissingPermission("ACCESS_FINE_LOCATION") },
             Triple("backgroundUnavailable", listOf("perm", "ctx")) { it.logBackgroundDeliveryUnavailable("app-launch") },
             Triple("moduleInitialized", listOf("launch")) { it.logModuleInitialized(GeofenceLaunchReason.APP_START) },
+            Triple("moduleWoke", listOf("launch")) { it.logModuleWoke(GeofenceLaunchReason.BOOT_RESTORE) },
             Triple("missingLocationModule", listOf("ok", "why")) { it.logMissingLocationModule() },
             Triple("stateResetOnSignOut", listOf("why")) { it.logGeofenceStateResetOnSignOut() },
             Triple("callbackReceived", listOf("ids", "n", "t", "fixsrc", "acc", "age", "sim")) { it.logCallbackReceived(listOf("notl_core"), "ENTER", fix, GeofenceLogTail.FixSource.OS_TRIGGER) },

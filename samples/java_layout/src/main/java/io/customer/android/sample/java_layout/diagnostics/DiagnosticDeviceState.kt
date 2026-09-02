@@ -13,26 +13,15 @@ import android.net.NetworkCapabilities
 import android.os.Build
 import android.os.Bundle
 import android.os.PowerManager
+import android.os.SystemClock
 
 /**
  * The `dev` block attached to every record.
- *
- * Two sessions over the same route are only comparable if you know what state the phone was in for
- * each. Doze, standby bucket, power-save mode, thermal pressure and whether Wi-Fi was up all change
- * geofence behaviour materially — geofence monitoring is a *network-location* feature, so "was
- * there Wi-Fi" is frequently the whole explanation for a session that behaved unlike its neighbour.
- *
- * **Everything here is pushed by the OS. Nothing is polled.** No timer, no periodic sampler, and
- * never a Wi-Fi scan. A repeating wakeup is a wakeup the device would not otherwise have taken: it
- * pulls the phone out of Doze and improves the very behaviour we are trying to measure. An observer
- * that changes what it observes is worse than no observer.
- *
- * The one exception is the standby bucket, which has no broadcast and is read on demand — a purely
- * local query against `UsageStatsManager` that schedules nothing.
  */
 internal class DiagnosticDeviceState(private val application: Application) {
     private data class Snapshot(
-        val batteryLevel: Float = -1f,
+        /** `null` until a battery broadcast has been seen; never a sentinel. */
+        val batteryLevel: Float? = null,
         val charging: Boolean = false,
         val powerSave: Boolean = false,
         val idle: Boolean = false,
@@ -45,6 +34,12 @@ internal class DiagnosticDeviceState(private val application: Application) {
     private var snapshot = Snapshot()
     private var onChange: ((String) -> Unit)? = null
     private var startedActivities = 0
+
+    @Volatile
+    private var bucketCache = "unknown"
+
+    @Volatile
+    private var bucketReadAt = 0L
 
     private val powerManager: PowerManager? =
         application.getSystemService(Context.POWER_SERVICE) as? PowerManager
@@ -69,7 +64,9 @@ internal class DiagnosticDeviceState(private val application: Application) {
         val current = synchronized(lock) { snapshot }
         return buildString(160) {
             append('{')
-            append("\"batt\":").append(String.format(java.util.Locale.US, "%.2f", current.batteryLevel))
+            append("\"batt\":").append(
+                current.batteryLevel?.let { String.format(java.util.Locale.US, "%.2f", it) } ?: "null"
+            )
             append(",\"charging\":").append(current.charging)
             append(",\"powerSave\":").append(current.powerSave)
             append(",\"idle\":").append(current.idle)
@@ -92,7 +89,7 @@ internal class DiagnosticDeviceState(private val application: Application) {
                         val scale = intent.getIntExtra("scale", -1)
                         val status = intent.getIntExtra("status", -1)
                         current.copy(
-                            batteryLevel = if (level >= 0 && scale > 0) level.toFloat() / scale else -1f,
+                            batteryLevel = if (level >= 0 && scale > 0) level.toFloat() / scale else null,
                             charging = status == android.os.BatteryManager.BATTERY_STATUS_CHARGING ||
                                 status == android.os.BatteryManager.BATTERY_STATUS_FULL
                         )
@@ -101,8 +98,6 @@ internal class DiagnosticDeviceState(private val application: Application) {
                         update("powerSave") { it.copy(powerSave = powerManager?.isPowerSaveMode == true) }
                     PowerManager.ACTION_DEVICE_IDLE_MODE_CHANGED ->
                         update("idle") { it.copy(idle = isDeviceIdle()) }
-                    Intent.ACTION_SCREEN_ON, Intent.ACTION_SCREEN_OFF ->
-                        update("screen") { it }
                 }
             }
         }
@@ -111,8 +106,6 @@ internal class DiagnosticDeviceState(private val application: Application) {
             // Sticky broadcast: registering delivers the current value immediately, without
             // costing a wakeup or a poll.
             addAction(Intent.ACTION_BATTERY_CHANGED)
-            addAction(Intent.ACTION_SCREEN_ON)
-            addAction(Intent.ACTION_SCREEN_OFF)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
                 addAction(PowerManager.ACTION_POWER_SAVE_MODE_CHANGED)
             }
@@ -193,7 +186,7 @@ internal class DiagnosticDeviceState(private val application: Application) {
 
         synchronized(lock) {
             snapshot = snapshot.copy(
-                batteryLevel = if (level >= 0 && scale > 0) level.toFloat() / scale else -1f,
+                batteryLevel = if (level >= 0 && scale > 0) level.toFloat() / scale else null,
                 charging = status == android.os.BatteryManager.BATTERY_STATUS_CHARGING ||
                     status == android.os.BatteryManager.BATTERY_STATUS_FULL,
                 powerSave = powerManager?.isPowerSaveMode == true,
@@ -226,13 +219,18 @@ internal class DiagnosticDeviceState(private val application: Application) {
 
     /**
      * Which app-standby bucket the OS has us in.
-     *
-     * No broadcast exists for this, so it is read when a record is written rather than cached from
-     * a change notification. The read is a local binder call that schedules nothing — the rule this
-     * class follows is "cause no wakeups", not "never call a system service".
      */
     private fun standbyBucket(): String {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) return "unsupported"
+        val now = SystemClock.elapsedRealtime()
+        if (bucketReadAt != 0L && now - bucketReadAt < BUCKET_TTL_MS) return bucketCache
+        val value = readStandbyBucket()
+        bucketCache = value
+        bucketReadAt = now
+        return value
+    }
+
+    private fun readStandbyBucket(): String {
         return runCatching {
             val manager = application.getSystemService(Context.USAGE_STATS_SERVICE) as? UsageStatsManager
             when (manager?.appStandbyBucket) {
@@ -281,5 +279,9 @@ internal class DiagnosticDeviceState(private val application: Application) {
             callback = onChange
         }
         if (changed) callback?.invoke(reason)
+    }
+
+    private companion object {
+        const val BUCKET_TTL_MS = 60_000L
     }
 }

@@ -4,28 +4,13 @@ import android.app.Application
 import android.os.Process
 import android.os.SystemClock
 import android.util.Log
+import io.customer.base.internal.InternalCustomerIOApi
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.util.CioLogLevel
 import java.io.File
 
 /**
  * Field-drive diagnostics sink.
- *
- * Installs a dispatcher on the Customer.io logger and mirrors every record the SDK emits into an
- * NDJSON file on disk, together with a device-state snapshot.
- *
- * Geofence field drives run for hours with the app in the background and no debugger attached.
- * Logcat is a ring buffer that a long drive overruns, so today a completed drive leaves nothing
- * reliable to analyse afterwards. This is the sink that fixes that.
- *
- * **Nothing here parses the SDK's message.** The device writes the raw string, including any
- * ` || key=value` tail, into `msg`. A host-side script splits the tail and fills in `ev` and
- * `data`. One parser, living off-device, means no Kotlin/Swift pair to drift apart, and a parser
- * bug can be fixed and re-run over files already captured instead of having destroyed what it
- * misread.
- *
- * Deliberately schema-identical to the iOS sink in `Apps/APN-UIKit/APN UIKit/Diagnostics`: the
- * same tooling reads both, and a per-platform dialect would double every analysis script.
  */
 object DiagnosticLog {
     /**
@@ -52,13 +37,9 @@ object DiagnosticLog {
 
     /**
      * Install the sink. Call this as the **first** statement of `Application.onCreate`.
-     *
-     * A cold background wake — the geofence case that matters most — reaches SDK code within
-     * milliseconds of process start, and on Android every such wake runs `Application.onCreate`
-     * first. Install this later, from an activity or after SDK initialization, and the wake you
-     * most wanted to observe is already over.
      */
     @JvmStatic
+    @OptIn(InternalCustomerIOApi::class)
     fun start(application: Application) {
         synchronized(lock) {
             if (started) return
@@ -73,6 +54,9 @@ object DiagnosticLog {
                 state.start { reason -> emit(Source.APP, "Diagnostics", CioLogLevel.DEBUG, "device.state changed=$reason") }
             }
         }
+
+        // The SDK's diagnostic tail is enabled by the io.customer.geofence.diagnostics manifest
+        // entry, not from here — there is no API for it.
 
         // Outside the lock: the SDK may log synchronously from inside these calls, and `emit`
         // takes the same lock.
@@ -95,9 +79,6 @@ object DiagnosticLog {
      * Receives every record the SDK emits. Forwards to Logcat **first**: the SDK dispatches as
      * `logDispatcher?.invoke(...) ?: <logcat>`, so a dispatcher that does not forward silently
      * empties Logcat for everyone else using this app.
-     *
-     * Known limitation, recorded rather than solved: the SDK passes only level and message to the
-     * dispatcher, never the `Throwable`, so stack traces on error records cannot reach the file.
      */
     private fun dispatch(level: CioLogLevel, message: String) {
         when (level) {

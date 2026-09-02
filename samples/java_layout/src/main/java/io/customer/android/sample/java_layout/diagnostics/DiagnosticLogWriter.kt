@@ -9,9 +9,6 @@ import java.util.Locale
 
 /**
  * Appends NDJSON records to a file on disk.
- *
- * NDJSON rather than a JSON array specifically because it is append-safe and truncation-tolerant:
- * a process killed mid-write loses one line, not the file. Losing the file is losing the drive.
  */
 internal class DiagnosticLogWriter(private val directory: File) {
     private companion object {
@@ -46,18 +43,12 @@ internal class DiagnosticLogWriter(private val directory: File) {
     fun open(header: String) {
         synchronized(lock) {
             this.header = header
-            prune()
             openCurrentFile(System.currentTimeMillis())
         }
     }
 
     /**
      * Rotation is **per day, not per launch.**
-     *
-     * A phone woken repeatedly in the background relaunches the process many times over a drive,
-     * and per-launch rotation would shatter one drive across a dozen files that then have to be
-     * reassembled in the right order. Process deaths stay perfectly visible as `session.start`
-     * records *inside* the file.
      */
     private fun openCurrentFile(now: Long) {
         closeCurrentFile()
@@ -74,7 +65,15 @@ internal class DiagnosticLogWriter(private val directory: File) {
         rolloverAt = startOfNextDay(now)
         writesSinceExistenceCheck = 0
 
-        if (isNew && header.isNotEmpty()) write(header)
+        // Retention only when a file was actually created. Keeping it off the failure paths
+        // matters: they return before rolloverAt is set, so every later append re-enters this
+        // method.
+        if (isNew) prune()
+
+        // The header repeats on every open, not just on a new file. A same-day relaunch reuses
+        // the file but resets elapsedRealtime and may carry a different bootCount or build, so
+        // without this every record after the first process is correlated to the wrong boot.
+        if (header.isNotEmpty()) write(header)
     }
 
     private fun closeCurrentFile() {
@@ -108,9 +107,6 @@ internal class DiagnosticLogWriter(private val directory: File) {
      * One write and flush per record, so a record that has returned is already in the file and
      * survives the process being killed the instant afterwards — which is the normal way a
      * background wake ends.
-     *
-     * Deliberately no `fd.sync()`: that would only add durability across a kernel panic or power
-     * loss, at the cost of a flash write per log line for hours at a time.
      */
     private fun write(line: String) {
         val target = stream ?: return
@@ -129,23 +125,24 @@ internal class DiagnosticLogWriter(private val directory: File) {
 
     /**
      * Enforces the retention policy by evicting the **oldest** files.
-     *
-     * Never clears the directory on launch. A drive that ended with the phone dying, or an engineer
-     * who forgot to pull the file before the next test, must still find yesterday's data where they
-     * left it.
      */
     private fun prune() {
         var kept = 0
         var total = 0L
+        // Once the budget is spent everything older goes. Without the latch a large file could be
+        // deleted and then a smaller, *older* one still fit and survive it — retention preferring
+        // older data over newer, which is backwards.
+        var budgetSpent = false
         for (file in files()) {
             val withinCount = kept < MAX_FILES
             val withinSize = total + file.length() <= MAX_TOTAL_BYTES
             // The newest file is always kept, however large — it may be the drive nobody has
             // pulled off the device yet.
-            if (kept == 0 || (withinCount && withinSize)) {
+            if (!budgetSpent && (kept == 0 || (withinCount && withinSize))) {
                 kept += 1
                 total += file.length()
             } else {
+                budgetSpent = true
                 file.delete()
             }
         }

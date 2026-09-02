@@ -23,6 +23,11 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.SampleApp"
         tools:ignore="DataExtractionRules,UnusedAttribute">
+
+        <!-- Emits the SDK's machine-readable geofence diagnostics. Sample app only. -->
+        <meta-data
+            android:name="io.customer.geofence.diagnostics"
+            android:value="true" />
         <!--
           Grants read access to a single diagnostics log file when it is shared. Scoped to the
           diagnostics directory only; see res/xml/diagnostics_paths.xml.

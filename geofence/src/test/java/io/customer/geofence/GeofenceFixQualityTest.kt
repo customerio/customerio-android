@@ -18,10 +18,10 @@ class GeofenceFixQualityTest {
     }
 
     @Test
-    fun isFresh_givenFixStampedAfterNow_expectTreatedAsFresh() {
-        // Monotonic time cannot run backwards, so this is skew in a host-mapped stamp, not age.
-        // Demoting it would silence containment on the fix least likely to be stale.
-        GeofenceFixQuality(fixElapsedRealtimeMillis = NOW + 1).isFresh(NOW).shouldBeTrue()
+    fun isFresh_givenFixStampedAfterNow_expectNotTreatedAsFresh() {
+        // Monotonic time cannot run backwards, so only a host-supplied stamp can land here — and a
+        // bogus one (a units slip, say) would otherwise read as fresh forever and seed containment.
+        GeofenceFixQuality(fixElapsedRealtimeMillis = NOW + 1).isFresh(NOW).shouldBeFalse()
     }
 
     private companion object {

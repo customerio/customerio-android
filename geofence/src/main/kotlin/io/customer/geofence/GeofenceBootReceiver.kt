@@ -32,7 +32,7 @@ class GeofenceBootReceiver : BroadcastReceiver() {
         try {
             SDKComponent.setupAndroidComponent(context = context)
             val scope = SDKComponent.scopeProvider.geofenceScope
-            logger.logModuleInitialized(GeofenceLaunchReason.BOOT_RESTORE)
+            logger.logModuleWoke(GeofenceLaunchReason.BOOT_RESTORE)
             logger.logSyncTriggered(REASON_BOOT_RESTORE)
             scope.launch {
                 try {

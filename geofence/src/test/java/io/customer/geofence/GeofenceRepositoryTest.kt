@@ -486,7 +486,7 @@ class GeofenceRepositoryTest : RobolectricTest() {
         verify(exactly = 0) { store.saveLastMovementTriggerLocation(any()) }
         verify { store.clearLastMovementTriggerLocation() }
         // Region count alone can't distinguish this from an empty-but-still-monitoring sync.
-        verify { logger.logSyncSucceeded(0, movementTriggerRegistered = false) }
+        verify { logger.logSyncSucceeded(0, movementTriggerRegistered = false, elapsedMillis = any()) }
     }
 
     @Test
@@ -529,7 +529,7 @@ class GeofenceRepositoryTest : RobolectricTest() {
         captured.captured.map { it.id } shouldBeEqualTo listOf(GeofenceConstants.MOVEMENT_TRIGGER_ID)
         verify { store.saveLastMovementTriggerLocation(GeofenceLocation(12.34, 56.78)) }
         verify(exactly = 0) { store.clearLastMovementTriggerLocation() }
-        verify { logger.logSyncSucceeded(0, movementTriggerRegistered = true) }
+        verify { logger.logSyncSucceeded(0, movementTriggerRegistered = true, elapsedMillis = any()) }
     }
 
     @Test
@@ -648,7 +648,7 @@ class GeofenceRepositoryTest : RobolectricTest() {
         result.isSuccess shouldBeEqualTo true
         verify { store.setLastSyncTimestamp(any()) }
         verify { distanceFilter.nearest(any(), 12.34, 56.78, 3, any()) }
-        verify { logger.logSyncSucceeded(filtered.size, movementTriggerRegistered = true) }
+        verify { logger.logSyncSucceeded(filtered.size, movementTriggerRegistered = true, elapsedMillis = any()) }
         // Store holds the IDs of exactly what was registered (movement trigger + business),
         // so the next refresh's stale-cleanup diff is accurate.
         verify { store.saveRegisteredIds(captured.captured.map { it.id }.toSet()) }
@@ -955,7 +955,7 @@ class GeofenceRepositoryTest : RobolectricTest() {
         }
         // Two, not one: the orphaned "biz-old" is still registered with the OS because removal
         // failed, and this record reports what is monitored rather than what was requested.
-        verify { logger.logSyncSucceeded(2, movementTriggerRegistered = true) }
+        verify { logger.logSyncSucceeded(2, movementTriggerRegistered = true, elapsedMillis = any()) }
         // Persisted set includes the unremoved stale ID — next refresh will retry it.
         persisted.captured shouldContainSame
             setOf(GeofenceConstants.MOVEMENT_TRIGGER_ID, "biz-new", "biz-old")
@@ -1007,7 +1007,7 @@ class GeofenceRepositoryTest : RobolectricTest() {
         coVerify(exactly = 0) { manager.removeGeofencesByIds(any()) }
         verify(exactly = 0) { store.saveRegisteredIds(any()) }
         verify(exactly = 0) { store.setLastSyncTimestamp(any()) }
-        verify(exactly = 0) { logger.logSyncSucceeded(any(), any()) }
+        verify(exactly = 0) { logger.logSyncSucceeded(any(), any(), any()) }
     }
 
     @Test

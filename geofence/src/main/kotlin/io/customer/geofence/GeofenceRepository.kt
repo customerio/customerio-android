@@ -156,16 +156,14 @@ internal class GeofenceRepositoryImpl(
         // Emitted here, not inside one of the predicates below: `when` short-circuits, so a cold
         // start with a stale cache took the first arm and never logged what it had to work from —
         // the exact case the record exists for. `hasAnchor` is the restore anchor, matching iOS.
-        logger.logStorageLoaded(
-            regionCount = store.getCachedRegions().size,
-            hasAnchor = restoreAnchor != null
-        )
+        val cachedRegions = store.getCachedRegions()
+        logger.logStorageLoaded(regionCount = cachedRegions.size, hasAnchor = restoreAnchor != null)
 
         return when {
             isStaleInTime(config) -> RefreshAction.REMOTE
             movedBeyondFetchRadius(distanceFromLastFetch, config) -> RefreshAction.REMOTE
             isRankingStale(distanceFromLastRegistration, config) -> RefreshAction.LOCAL
-            hasUnregisteredCache() -> RefreshAction.LOCAL
+            hasUnregisteredCache(cachedRegions) -> RefreshAction.LOCAL
             // Without this a fresh-cache launch after a reboot or app update would SKIP —
             // registeredIds survive but GMS state doesn't, leaving nothing monitored.
             osStateWiped() -> RefreshAction.LOCAL
@@ -191,8 +189,8 @@ internal class GeofenceRepositoryImpl(
         distanceFromAnchor >= config.remoteFetchRefreshTriggerRadius
 
     /** Cache holds regions but none are registered with the OS (e.g. regs lost on sign-out) → re-register. */
-    private fun hasUnregisteredCache(): Boolean =
-        store.getCachedRegions().isNotEmpty() && store.getRegisteredIds().isEmpty()
+    private fun hasUnregisteredCache(cachedRegions: List<GeofenceRegion>): Boolean =
+        cachedRegions.isNotEmpty() && store.getRegisteredIds().isEmpty()
 
     /**
      * Uptime regressed since the last registration → the device rebooted, which wipes GMS geofences
@@ -325,11 +323,15 @@ internal class GeofenceRepositoryImpl(
         containmentEpoch: Long,
         emitInitialEnter: Boolean = true
     ): Result<Unit> {
+        val syncStartedAt = clock.elapsedRealtime()
         // The device location lets the backend return the nearby set; the request carries no user
         // identity, so it isn't attributable to a user.
         val fetchLocation = GeofenceLocation(latitude, longitude)
         val fetchStartedAt = clock.elapsedRealtime()
         val fetchResult = apiService.fetchGeofences(fetchLocation)
+        // Read here, not at the log call: mapping happens in between, and iOS times the request
+        // alone. A cross-platform p95 is meaningless if one side includes the parse.
+        val fetchElapsedMillis = clock.elapsedRealtime() - fetchStartedAt
         return fetchResult.fold(
             onSuccess = { response ->
                 // An unusable response throws (see toDomainRegions) — fail the refresh and
@@ -345,7 +347,7 @@ internal class GeofenceRepositoryImpl(
                 // offered and what survived the cap is the thing worth being able to see.
                 logger.logApiFetchResult(
                     returnedCount = response.geofences.size,
-                    elapsedMillis = clock.elapsedRealtime() - fetchStartedAt
+                    elapsedMillis = fetchElapsedMillis
                 )
                 // Config preference: server-shipped > last cached > constants.
                 val config = parsedConfig ?: store.getCachedConfigOrFallback()
@@ -357,6 +359,7 @@ internal class GeofenceRepositoryImpl(
                     config = config,
                     containmentEpoch = containmentEpoch,
                     emitInitialEnter = emitInitialEnter,
+                    syncStartedAt = syncStartedAt,
                     // Cache + anchor + timestamp only on remote fetch; Tier A reuses them.
                     // Skip the config save when backend didn't ship one this response —
                     // a null parse must not clobber a previously cached value.
@@ -439,7 +442,9 @@ internal class GeofenceRepositoryImpl(
         containmentEpoch: Long,
         register: suspend (List<GeofenceRegion>) -> Result<Unit> = ::registerWithBusinessDiff,
         onRegistered: () -> Unit = {},
-        emitInitialEnter: Boolean = true
+        emitInitialEnter: Boolean = true,
+        // Measured from the caller's entry so `ms=` spans the same work iOS reports.
+        syncStartedAt: Long = clock.elapsedRealtime()
     ): Result<Unit> {
         // Pure mapping + filter — no shared state, kept outside the lock.
         val nearest = distanceFilter.nearest(
@@ -543,7 +548,11 @@ internal class GeofenceRepositoryImpl(
                     // fences, and "what is actually monitored" is the question these records answer.
                     // The trigger is reported separately, so it must not inflate the business count.
                     val monitoredBusinessIds = idsToSave.filterNot { it == GeofenceConstants.MOVEMENT_TRIGGER_ID }
-                    logger.logSyncSucceeded(monitoredBusinessIds.size, movementTriggerRegistered = monitoringEnabled)
+                    logger.logSyncSucceeded(
+                        monitoredBusinessIds.size,
+                        movementTriggerRegistered = monitoringEnabled,
+                        elapsedMillis = clock.elapsedRealtime() - syncStartedAt
+                    )
                     logger.logRegionsRegisteredIds(
                         ids = monitoredBusinessIds.sorted(),
                         movementTriggerId = GeofenceConstants.MOVEMENT_TRIGGER_ID

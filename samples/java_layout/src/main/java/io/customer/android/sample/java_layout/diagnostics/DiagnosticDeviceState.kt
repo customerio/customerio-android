@@ -20,7 +20,8 @@ import android.os.SystemClock
  */
 internal class DiagnosticDeviceState(private val application: Application) {
     private data class Snapshot(
-        val batteryLevel: Float = -1f,
+        /** `null` until a battery broadcast has been seen; never a sentinel. */
+        val batteryLevel: Float? = null,
         val charging: Boolean = false,
         val powerSave: Boolean = false,
         val idle: Boolean = false,
@@ -63,7 +64,9 @@ internal class DiagnosticDeviceState(private val application: Application) {
         val current = synchronized(lock) { snapshot }
         return buildString(160) {
             append('{')
-            append("\"batt\":").append(String.format(java.util.Locale.US, "%.2f", current.batteryLevel))
+            append("\"batt\":").append(
+                current.batteryLevel?.let { String.format(java.util.Locale.US, "%.2f", it) } ?: "null"
+            )
             append(",\"charging\":").append(current.charging)
             append(",\"powerSave\":").append(current.powerSave)
             append(",\"idle\":").append(current.idle)
@@ -86,7 +89,7 @@ internal class DiagnosticDeviceState(private val application: Application) {
                         val scale = intent.getIntExtra("scale", -1)
                         val status = intent.getIntExtra("status", -1)
                         current.copy(
-                            batteryLevel = if (level >= 0 && scale > 0) level.toFloat() / scale else -1f,
+                            batteryLevel = if (level >= 0 && scale > 0) level.toFloat() / scale else null,
                             charging = status == android.os.BatteryManager.BATTERY_STATUS_CHARGING ||
                                 status == android.os.BatteryManager.BATTERY_STATUS_FULL
                         )
@@ -183,7 +186,7 @@ internal class DiagnosticDeviceState(private val application: Application) {
 
         synchronized(lock) {
             snapshot = snapshot.copy(
-                batteryLevel = if (level >= 0 && scale > 0) level.toFloat() / scale else -1f,
+                batteryLevel = if (level >= 0 && scale > 0) level.toFloat() / scale else null,
                 charging = status == android.os.BatteryManager.BATTERY_STATUS_CHARGING ||
                     status == android.os.BatteryManager.BATTERY_STATUS_FULL,
                 powerSave = powerManager?.isPowerSaveMode == true,

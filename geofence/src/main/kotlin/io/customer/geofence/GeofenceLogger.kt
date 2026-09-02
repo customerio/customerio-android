@@ -7,7 +7,6 @@ import io.customer.geofence.GeofenceLogTail.list
 import io.customer.geofence.GeofenceLogTail.num
 import io.customer.geofence.GeofenceLogTail.token
 import io.customer.sdk.core.util.Logger
-import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * How the SDK came to be running.
@@ -17,16 +16,8 @@ import java.util.concurrent.atomic.AtomicBoolean
  */
 internal enum class GeofenceLaunchReason(val wire: String) {
     APP_START("app_start"),
-    LOCATION_EVENT("location_event"),
     BOOT_RESTORE("boot_restore")
 }
-
-/**
- * `module.init` is emitted once per process, first caller wins. Both the boot receiver and module
- * init reach it, and on a boot restore the second would otherwise overwrite `boot_restore` with
- * `app_start` — two records for one launch, disagreeing.
- */
-internal val moduleInitLatch = AtomicBoolean(false)
 
 /**
  * Structured logger for geofence operations, tagged for logcat filtering.
@@ -243,11 +234,23 @@ internal class GeofenceLogger(private val logger: Logger) {
     }
 
     /** Process start and why. A background wake and a user opening the app look identical today. */
+    /**
+     * The module came up. A cold wake announces itself separately via [logModuleWoke] rather than
+     * racing this one for a single record — the OS decides their order, not us.
+     */
     fun logModuleInitialized(launchReason: GeofenceLaunchReason) {
-        if (!moduleInitLatch.compareAndSet(false, true)) return
         logger.info(
             "Geofence module initialized (${launchReason.wire})" +
                 tail("module.init", GeofenceLogIo.OBSERVATION, listOf("launch" to launchReason.wire)),
+            tag = TAG
+        )
+    }
+
+    /** The process was started *by* something — a boot restore today. */
+    fun logModuleWoke(launchReason: GeofenceLaunchReason) {
+        logger.info(
+            "Geofence module woken (${launchReason.wire})" +
+                tail("module.wake", GeofenceLogIo.OBSERVATION, listOf("launch" to launchReason.wire)),
             tag = TAG
         )
     }
@@ -535,7 +538,7 @@ internal class GeofenceLogger(private val logger: Logger) {
         )
     }
 
-    fun logSyncSucceeded(count: Int, movementTriggerRegistered: Boolean) {
+    fun logSyncSucceeded(count: Int, movementTriggerRegistered: Boolean, elapsedMillis: Long? = null) {
         val trigger = if (movementTriggerRegistered) {
             " + 1 movement trigger"
         } else {
@@ -546,7 +549,11 @@ internal class GeofenceLogger(private val logger: Logger) {
                 tail(
                     "sync.completed",
                     GeofenceLogIo.OUTPUT,
-                    listOf("n" to int(count), "mvmt" to bool(movementTriggerRegistered))
+                    listOf(
+                        "n" to int(count),
+                        "mvmt" to bool(movementTriggerRegistered),
+                        "ms" to elapsedMillis?.toString()
+                    )
                 ),
             tag = TAG
         )

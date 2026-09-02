@@ -25,7 +25,8 @@ internal enum class GeofenceLogIo(val wire: String) {
  * [Geofence] Geofence 'notl_core' ENTER: queued ... || ev=transition.emitted io=out id=notl_core t=enter
  * ```
  *
- * Kept identical to the iOS `GeofenceLog` so one off-device parser reads both platforms.
+ * Mirrors the iOS `GeofenceLog`. The key vocabulary matches; a few records are split
+ * differently per platform (registration in particular), so the parser accepts both shapes.
  */
 internal object GeofenceLogTail {
     /** A parser splits on the **last** occurrence, and only if the remainder is all `key=value`. */

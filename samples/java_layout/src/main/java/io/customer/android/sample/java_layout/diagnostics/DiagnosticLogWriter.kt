@@ -52,10 +52,6 @@ internal class DiagnosticLogWriter(private val directory: File) {
      */
     private fun openCurrentFile(now: Long) {
         closeCurrentFile()
-        // Every open, not just the first: this is also the daily rollover and the reopen after a
-        // file is deleted underneath us, and a process that lives across both would otherwise run
-        // unbounded. Runs before the new file exists so it is never a pruning candidate.
-        prune()
 
         if (!directory.exists() && !directory.mkdirs()) return
 
@@ -69,7 +65,13 @@ internal class DiagnosticLogWriter(private val directory: File) {
         rolloverAt = startOfNextDay(now)
         writesSinceExistenceCheck = 0
 
-        if (isNew && header.isNotEmpty()) write(header)
+        if (isNew) {
+            // Only when a file was actually created — the first open, the daily rollover, and the
+            // reopen after one is deleted underneath us. Keeping it off the failure paths matters:
+            // they return before rolloverAt is set, so every later append re-enters this method.
+            prune()
+            if (header.isNotEmpty()) write(header)
+        }
     }
 
     private fun closeCurrentFile() {

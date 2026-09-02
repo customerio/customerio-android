@@ -55,14 +55,13 @@ class GeofenceLogTailTest : RobolectricTest() {
         capturing = CapturingLogger()
         geofenceLogger = GeofenceLogger(capturing)
         GeofenceDiagnostics.setEnabledForTesting(true)
-        // module.init is latched once per process; every invocation here is a fresh "launch".
-        moduleInitLatch.set(false)
     }
 
     @After
     fun resetDiagnostics() {
-        GeofenceDiagnostics.setEnabledForTesting(false)
-        moduleInitLatch.set(false)
+        // null, not false: null restores the manifest value, false pins the gate off for every
+        // later test class in this JVM.
+        GeofenceDiagnostics.setEnabledForTesting(null)
     }
 
     /**
@@ -284,12 +283,10 @@ class GeofenceLogTailTest : RobolectricTest() {
         for ((name, _, run) in invocations()) {
             // Each pass is a fresh "launch" for the once-per-process module.init record.
             GeofenceDiagnostics.setEnabledForTesting(false)
-            moduleInitLatch.set(false)
             val off = CapturingLogger()
             run(GeofenceLogger(off))
 
             GeofenceDiagnostics.setEnabledForTesting(true)
-            moduleInitLatch.set(false)
             val on = CapturingLogger()
             run(GeofenceLogger(on))
 

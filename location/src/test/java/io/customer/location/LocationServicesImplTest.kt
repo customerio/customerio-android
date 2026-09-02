@@ -6,8 +6,10 @@ import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.just
 import io.mockk.mockk
+import io.mockk.mockkStatic
 import io.mockk.runs
 import io.mockk.slot
+import io.mockk.unmockkStatic
 import io.mockk.verify
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -81,6 +83,42 @@ class LocationServicesImplTest {
     }
 
     @Test
+    fun givenHostLocationStampedOnlyOnWallClock_setLastKnownLocation_expectStillAged() {
+        // A host-built Location usually sets time but not elapsedRealtimeNanos. Reporting no age
+        // would let an hours-old host fix judge containment as if it were current.
+        val config = LocationModuleConfig.Builder()
+            .setLocationTrackingMode(LocationTrackingMode.MANUAL)
+            .build()
+        val tracker: LocationTracker = mockk(relaxUnitFun = true)
+        val orchestrator: LocationOrchestrator = mockk(relaxUnitFun = true)
+        val logger = mockk<io.customer.sdk.core.util.Logger>(relaxUnitFun = true)
+        val scope = TestScope(UnconfinedTestDispatcher())
+        val ageMillis = 3_600_000L
+        val nowElapsed = 5_000_000L
+        mockkStatic(android.os.SystemClock::class)
+        every { android.os.SystemClock.elapsedRealtime() } returns nowElapsed
+        val hostLocation: android.location.Location = mockk {
+            every { latitude } returns 37.7749
+            every { longitude } returns -122.4194
+            every { hasAccuracy() } returns false
+            every { elapsedRealtimeNanos } returns 0L
+            every { time } returns System.currentTimeMillis() - ageMillis
+        }
+        val forwarded = slot<Long>()
+
+        try {
+            LocationServicesImpl(config, logger, tracker, orchestrator, scope)
+                .setLastKnownLocation(hostLocation)
+
+            verify { tracker.onLocationReceived(37.7749, -122.4194, null, capture(forwarded)) }
+            // Mapped onto the monotonic base, so the fix still reads as roughly an hour old.
+            (nowElapsed - forwarded.captured in (ageMillis - 1_000)..(ageMillis + 1_000)).shouldBeTrue()
+        } finally {
+            unmockkStatic(android.os.SystemClock::class)
+        }
+    }
+
+    @Test
     fun givenHostLocationWithoutAccuracy_setLastKnownLocation_expectNoFabricatedQuality() {
         val config = LocationModuleConfig.Builder()
             .setLocationTrackingMode(LocationTrackingMode.MANUAL)
@@ -94,6 +132,7 @@ class LocationServicesImplTest {
             every { longitude } returns -122.4194
             every { hasAccuracy() } returns false
             every { elapsedRealtimeNanos } returns 0L
+            every { time } returns 0L
         }
 
         LocationServicesImpl(config, logger, tracker, orchestrator, scope)

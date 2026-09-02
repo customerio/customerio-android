@@ -2,10 +2,17 @@ name: Build sample app for SDK release
 on:
   workflow_dispatch:
   workflow_call:
+    inputs:
+      sdk_version:
+        description: "Published SDK version the sample apps should be built against."
+        type: string
+        required: false
+        default: ""
 
 jobs:
   build-sample-apps:
     uses: ./.github/workflows/reusable_build_sample_apps.yml
     with:
       use_latest_sdk_version: true
+      sdk_version: ${{ inputs.sdk_version }}
     secrets: inherit

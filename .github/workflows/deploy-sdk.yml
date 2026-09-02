@@ -254,7 +254,11 @@ jobs:
           SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK
 
   publish-sample-apps-public-builds:
-    needs: deploy-sonatype
+    # `deploy-git-tag` is needed for its outputs, not for ordering: the version has to be passed
+    # down because it cannot be discovered from the commit this workflow runs on.
+    needs: [deploy-git-tag, deploy-sonatype]
     uses: ./.github/workflows/build-sample-app-for-sdk-release.yml
+    with:
+      sdk_version: ${{ needs.deploy-git-tag.outputs.new_release_version }}
     secrets: inherit
     

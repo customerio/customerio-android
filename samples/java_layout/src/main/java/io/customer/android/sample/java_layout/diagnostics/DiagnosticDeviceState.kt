@@ -1,6 +1,5 @@
 package io.customer.android.sample.java_layout.diagnostics
 
-import android.app.Activity
 import android.app.Application
 import android.app.usage.UsageStatsManager
 import android.content.BroadcastReceiver
@@ -11,9 +10,11 @@ import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkCapabilities
 import android.os.Build
-import android.os.Bundle
 import android.os.PowerManager
 import android.os.SystemClock
+import androidx.lifecycle.DefaultLifecycleObserver
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.ProcessLifecycleOwner
 
 /**
  * The `dev` block attached to every record.
@@ -33,7 +34,6 @@ internal class DiagnosticDeviceState(private val application: Application) {
     private val lock = Any()
     private var snapshot = Snapshot()
     private var onChange: ((String) -> Unit)? = null
-    private var startedActivities = 0
 
     @Volatile
     private var bucketCache = "unknown"
@@ -139,27 +139,19 @@ internal class DiagnosticDeviceState(private val application: Application) {
     }
 
     /**
-     * Foreground state from activity callbacks rather than `ProcessLifecycleOwner`, so the sink
-     * needs no extra dependency and behaves the same on every supported API level.
+     * Foreground state from `ProcessLifecycleOwner`, which is what the SDK itself observes.
+     *
+     * Counting started activities looks equivalent and is not: the count drops to zero and back
+     * during a configuration change, so a rotation produced a spurious background/foreground pair
+     * in the trace. ProcessLifecycleOwner debounces exactly that.
      */
     private fun registerLifecycleCallbacks() {
-        application.registerActivityLifecycleCallbacks(object : Application.ActivityLifecycleCallbacks {
-            override fun onActivityStarted(activity: Activity) {
-                startedActivities += 1
-                update("fg") { it.copy(foreground = startedActivities > 0) }
+        ProcessLifecycleOwner.get().lifecycle.addObserver(
+            object : DefaultLifecycleObserver {
+                override fun onStart(owner: LifecycleOwner) = update("fg") { it.copy(foreground = true) }
+                override fun onStop(owner: LifecycleOwner) = update("fg") { it.copy(foreground = false) }
             }
-
-            override fun onActivityStopped(activity: Activity) {
-                startedActivities = (startedActivities - 1).coerceAtLeast(0)
-                update("fg") { it.copy(foreground = startedActivities > 0) }
-            }
-
-            override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) = Unit
-            override fun onActivityResumed(activity: Activity) = Unit
-            override fun onActivityPaused(activity: Activity) = Unit
-            override fun onActivitySaveInstanceState(activity: Activity, outState: Bundle) = Unit
-            override fun onActivityDestroyed(activity: Activity) = Unit
-        })
+        )
     }
 
     private fun registerThermalListener() {

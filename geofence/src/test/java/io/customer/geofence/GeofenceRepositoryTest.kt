@@ -2633,6 +2633,7 @@ class GeofenceRepositoryTest : RobolectricTest() {
         reconciledInside shouldBeEqualTo listOf(null)
         store.getEnteredIds().shouldBeEmpty()
     }
+
     /** Latitude offset from the equator covering roughly [meters], for placing a fence at a known distance. */
     private fun metersOfLatitude(meters: Int): Double = meters / 111_320.0
 

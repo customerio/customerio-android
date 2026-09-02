@@ -3,6 +3,7 @@ package io.customer.geofence
 import android.annotation.SuppressLint
 import io.customer.geofence.store.GeofenceRegionStore
 import io.customer.location.LocationCoordinates
+import io.customer.sdk.core.util.Clock
 import io.customer.sdk.data.store.SecureUserStore
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.CancellationException
@@ -94,7 +95,8 @@ internal class GeofenceServicesImpl(
     private val regionStore: GeofenceRegionStore,
     private val scope: CoroutineScope,
     private val logger: GeofenceLogger,
-    private val permissionChecker: GeofencePermissionChecker
+    private val permissionChecker: GeofencePermissionChecker,
+    private val clock: Clock
 ) : GeofenceServices {
 
     // Rearm flag: set when a sync skips for no-location, cleared on any
@@ -141,6 +143,15 @@ internal class GeofenceServicesImpl(
         longitude: Double,
         quality: GeofenceFixQuality
     ) {
+        if (!isAwaitingLocation()) return
+        // A fix too old to judge containment is demoted to an anchor downstream, so spending the
+        // intent on it would leave nothing to drive the pass that seeds containment and fires the
+        // initial-ENTER backstop. Keep the intent and run nothing: a later fix discharges it, and
+        // foreground entry falls through to the awaiting-location retry if none arrives.
+        if (!quality.isFresh(clock.elapsedRealtime())) {
+            logger.logSyncSkipped("fix too old to judge containment — live-fix intent kept")
+            return
+        }
         // Act on a host-initiated refresh or the rising edge of a no-location skip;
         // otherwise this becomes a per-update refresh storm on hosts that stream
         // locations. Clear both flags so a single fix is consumed once.

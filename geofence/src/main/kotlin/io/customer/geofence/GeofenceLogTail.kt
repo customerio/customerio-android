@@ -7,56 +7,33 @@ import io.customer.sdk.core.util.Logger
 import java.util.Locale
 
 /**
- * Whether a record is something the SDK was told, something the SDK decided, or neither.
+ * Whether a record is something the SDK was told, decided, or neither.
  *
- * Stated explicitly on every record rather than inferred from the event name. Replay feeds the
- * `in` records back and compares the `out` records that come out the other side, so getting this
- * wrong silently invalidates a whole replay run — and inferring it from a naming convention is
- * exactly the kind of rule that goes wrong quietly a year later.
+ * Stated explicitly rather than inferred from the event name: replay feeds the `in` records back
+ * and compares the `out` records, so a naming convention getting this wrong invalidates a run.
  */
 internal enum class GeofenceLogIo(val wire: String) {
-    /** Crosses into the SDK: an OS callback, a location fix, a lifecycle or permission change, or
-     *  the response to a nearby-geofence fetch. */
     INPUT("in"),
-
-    /** Produced by the SDK: emissions and decisions, including registration results and rankings. */
     OUTPUT("out"),
-
-    /** Neither. Device state, preflight checks, and anything a reference app contributes. */
     OBSERVATION("obs")
 }
 
 /**
  * Builds the machine-readable tail appended to a geofence log message.
  *
- * The human prose in front of the tail stays byte-identical to what it was before enrichment, so
- * nothing regresses for anyone reading Logcat. Everything a script needs rides behind a ` || `
- * delimiter as flat `key=value` pairs:
- *
  * ```
  * [Geofence] Geofence 'notl_core' ENTER: queued ... || ev=transition.emitted io=out id=notl_core t=enter
  * ```
  *
- * Deliberately *not* a structured logging API. Adding a payload type to the core `Logger` would be
- * a tracked public-API change on both platforms, with a permanent obligation to populate two
- * representations at every call site, and the only consumer is our own tooling.
- *
  * Kept identical to the iOS `GeofenceLog` so one off-device parser reads both platforms.
  */
 internal object GeofenceLogTail {
-    /**
-     * Chosen over a single pipe after confirming no log message on either platform contains one.
-     * A parser splits on the **last** occurrence and only accepts the remainder as a tail if it
-     * parses cleanly as `key=value` pairs, so prose that someday contains `||` stays prose.
-     */
+    /** A parser splits on the **last** occurrence, and only if the remainder is all `key=value`. */
     const val DELIMITER = " || "
 
     /**
-     * @param ev stable machine key from the event taxonomy. Never reworded — `msg` is the prose
-     *   someone will eventually rewrite, `ev` is the contract.
-     * @param io replay classification.
-     * @param fields ordered key/value pairs. Null values are omitted rather than written empty, so
-     *   absent and empty stay distinguishable.
+     * @param ev stable machine key. Never reworded — `msg` is the prose someone will rewrite.
+     * @param fields null values are omitted, keeping absent and empty distinct.
      */
     fun tail(
         ev: String,
@@ -81,11 +58,7 @@ internal object GeofenceLogTail {
         return parts.toString()
     }
 
-    /**
-     * Values may not contain whitespace — the parser splits the tail on it. Geofence identifiers
-     * come from workspace configuration and can contain anything at all, so they are folded here
-     * rather than trusted.
-     */
+    /** The parser splits on whitespace, and workspace-authored ids can contain anything. */
     fun sanitize(value: String): String {
         if (value.isEmpty()) return "_"
         return buildString(value.length) {
@@ -106,26 +79,14 @@ internal object GeofenceLogTail {
 
     fun bool(value: Boolean): String = if (value) "true" else "false"
 
-    /**
-     * A comma-separated list, no spaces. Used for registered identifiers and ranking results.
-     *
-     * Capped because a ranked list of every candidate on a dense workspace would dwarf the record
-     * it is attached to. The count travels separately, so a truncated list is still honest about
-     * how much it left out.
-     */
+    /** Comma-separated, capped; the count travels separately so truncation stays honest. */
     fun list(values: List<String>, limit: Int = 25): String? {
         if (values.isEmpty()) return null
         val head = values.take(limit).joinToString(",") { sanitize(it) }
         return if (values.size > limit) "$head,+${values.size - limit}" else head
     }
 
-    /**
-     * Folds arbitrary text into a snake_case token.
-     *
-     * Reasons are tokens, never prose: `why=no_identified_user` survives someone rewriting the
-     * sentence in front of it, and `why=no identified user` would break the parser on the first
-     * space anyway.
-     */
+    /** Reasons are tokens so they survive the sentence in front of them being reworded. */
     fun token(value: String): String {
         val out = StringBuilder(value.length)
         var lastWasSeparator = false
@@ -145,32 +106,22 @@ internal object GeofenceLogTail {
     // MARK: - Fix quality and provenance
 
     /**
-     * Where a fix came from. Trustworthiness differs enormously between these, and until now the
-     * log said only that *a* position existed.
+     * Where a fix came from; the log previously said only that *a* position existed.
      *
-     * Android is better placed than iOS here: `GeofencingEvent.triggeringLocation` is a real fix
-     * the OS computed for this crossing ([OS_TRIGGER]), where CoreLocation supplies no position
-     * with a geofence event at all and the SDK must fall back to its own cache.
+     * Android is better placed than iOS: `triggeringLocation` is a real fix the OS computed for
+     * this crossing, where CoreLocation supplies none and the SDK falls back to its own cache.
      */
     enum class FixSource(val wire: String) {
         /** The OS's own triggering fix, attached to the crossing it reported. */
         OS_TRIGGER("os_trigger"),
 
-        /** The last location the SDK was handed or cached — may be arbitrarily stale. */
+        /** Last handed to or cached by the SDK — may be arbitrarily stale. */
         CACHED("cached"),
-
-        /** Requested on purpose and waited for. */
         FRESH_REQUEST("fresh_request"),
         NONE("none")
     }
 
-    /**
-     * How good the fix is and where it came from.
-     *
-     * `age` is the one to notice: it is the difference between a measurement and a guess. Like
-     * everything else in the tail these reach a log only when diagnostics are enabled — the gate
-     * lives in [tail], so nothing here needs its own check.
-     */
+    /** How good the fix is and where it came from; `age` separates a measurement from a guess. */
     fun fixQuality(location: Location?, source: FixSource): List<Pair<String, String?>> {
         val fields = mutableListOf<Pair<String, String?>>("fixsrc" to source.wire)
         if (location == null) return fields
@@ -180,20 +131,12 @@ internal object GeofenceLogTail {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && location.hasVerticalAccuracy()) {
             fields.add("vacc" to num(location.verticalAccuracyMeters))
         }
-        // Marks a fix injected by `adb emu geo fix`, a mock provider, or a route driver. Without it
-        // a bench run and a real drive are indistinguishable once the files are pooled, which is
-        // exactly the sort of contamination nobody notices until a conclusion rests on it.
+        // Without this a bench run and a real drive are indistinguishable once files are pooled.
         fields.add("sim" to bool(isMock(location)))
         return fields
     }
 
-    /**
-     * Age from the monotonic clock, not the wall clock.
-     *
-     * `Location.getTime()` is wall-clock and steps with NTP; `getElapsedRealtimeNanos()` cannot,
-     * and counts through deep sleep. On a backgrounded phone the difference is exactly the interval
-     * that matters.
-     */
+    /** Monotonic, not wall clock: `getTime()` steps with NTP, `elapsedRealtimeNanos` cannot. */
     private fun fixAgeSeconds(location: Location): Double =
         (SystemClock.elapsedRealtimeNanos() - location.elapsedRealtimeNanos) / 1_000_000_000.0
 
@@ -203,13 +146,7 @@ internal object GeofenceLogTail {
 
     // MARK: - Device position
 
-    /**
-     * Device position.
-     *
-     * No separate switch: a single gate over the whole tail is what makes "customer builds see
-     * exactly what they saw before" a claim you can check in one assertion, instead of a set of
-     * per-field arguments a reviewer has to accept one at a time.
-     */
+    /** Device position. Gated with the rest of the tail; no per-field switch. */
     fun position(location: Location?): List<Pair<String, String?>> {
         if (location == null) return emptyList()
         return buildList {

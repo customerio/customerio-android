@@ -9,25 +9,10 @@ import java.util.Locale
 
 /**
  * Getting the files off the phone.
- *
- * A drive that produced perfect data and then lost it to a wiped device or a forgotten export is a
- * drive wasted, and drives are the expensive part. Three independent routes out, because which one
- * works depends on what is to hand at the end of a drive:
- *
- * - **Share sheet** (this type) — Drive, email, Nearby Share; no cable, works standing by the car.
- * - **`adb pull`** — the directory is under `getExternalFilesDir`, so no `run-as` and no root.
- * - **MTP over USB** — the same directory is visible in Finder or Explorer.
- *
- * Security is deliberately relaxed here. This is a sample app whose entire job is producing
- * diagnostics; none of it ships in the SDK.
  */
 object DiagnosticLogExport {
     /**
      * Shares the newest log file.
-     *
-     * One file rather than the whole directory: `ACTION_SEND_MULTIPLE` is inconsistently handled by
-     * receiving apps, and the newest file is the drive that just finished. Older ones come off with
-     * `adb pull`.
      */
     @JvmStatic
     fun share(activity: Activity) {

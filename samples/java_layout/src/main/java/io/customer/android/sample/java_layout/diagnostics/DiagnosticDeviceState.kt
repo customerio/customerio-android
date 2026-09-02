@@ -17,19 +17,6 @@ import android.os.SystemClock
 
 /**
  * The `dev` block attached to every record.
- *
- * Two sessions over the same route are only comparable if you know what state the phone was in for
- * each. Doze, standby bucket, power-save mode, thermal pressure and whether Wi-Fi was up all change
- * geofence behaviour materially — geofence monitoring is a *network-location* feature, so "was
- * there Wi-Fi" is frequently the whole explanation for a session that behaved unlike its neighbour.
- *
- * **Everything here is pushed by the OS. Nothing is polled.** No timer, no periodic sampler, and
- * never a Wi-Fi scan. A repeating wakeup is a wakeup the device would not otherwise have taken: it
- * pulls the phone out of Doze and improves the very behaviour we are trying to measure. An observer
- * that changes what it observes is worse than no observer.
- *
- * The one exception is the standby bucket, which has no broadcast and is read on demand — a purely
- * local query against `UsageStatsManager` that schedules nothing.
  */
 internal class DiagnosticDeviceState(private val application: Application) {
     private data class Snapshot(
@@ -108,8 +95,6 @@ internal class DiagnosticDeviceState(private val application: Application) {
                         update("powerSave") { it.copy(powerSave = powerManager?.isPowerSaveMode == true) }
                     PowerManager.ACTION_DEVICE_IDLE_MODE_CHANGED ->
                         update("idle") { it.copy(idle = isDeviceIdle()) }
-                    Intent.ACTION_SCREEN_ON, Intent.ACTION_SCREEN_OFF ->
-                        update("screen") { it }
                 }
             }
         }
@@ -118,8 +103,6 @@ internal class DiagnosticDeviceState(private val application: Application) {
             // Sticky broadcast: registering delivers the current value immediately, without
             // costing a wakeup or a poll.
             addAction(Intent.ACTION_BATTERY_CHANGED)
-            addAction(Intent.ACTION_SCREEN_ON)
-            addAction(Intent.ACTION_SCREEN_OFF)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
                 addAction(PowerManager.ACTION_POWER_SAVE_MODE_CHANGED)
             }
@@ -233,10 +216,6 @@ internal class DiagnosticDeviceState(private val application: Application) {
 
     /**
      * Which app-standby bucket the OS has us in.
-     *
-     * No broadcast exists for this, so it has to be polled. Every log record would otherwise mean
-     * a binder round trip while the sink's lock is held; the bucket moves on the order of hours,
-     * so a short TTL costs nothing and takes thousands of calls per drive down to a handful.
      */
     private fun standbyBucket(): String {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) return "unsupported"

@@ -2,7 +2,6 @@ package io.customer.geofence
 
 import io.customer.commontest.core.RobolectricTest
 import io.customer.geofence.store.GeofenceRegionStore
-import io.customer.sdk.core.util.Clock
 import io.customer.sdk.data.store.SecureUserStore
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -16,9 +15,7 @@ import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.amshove.kluent.shouldBeEqualTo
-import org.amshove.kluent.shouldBeFalse
 import org.amshove.kluent.shouldBeNull
-import org.amshove.kluent.shouldBeTrue
 import org.amshove.kluent.shouldNotBeNull
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -37,8 +34,6 @@ class GeofenceServicesTest : RobolectricTest() {
         every { isBackgroundDeliveryAvailable() } returns true
     }
 
-    private val clock: Clock = mockk { every { elapsedRealtime() } returns NOW }
-
     private fun servicesWith(scope: TestScope): GeofenceServicesImpl =
         GeofenceServicesImpl(
             repository = repository,
@@ -46,34 +41,8 @@ class GeofenceServicesTest : RobolectricTest() {
             regionStore = regionStore,
             scope = scope,
             logger = logger,
-            permissionChecker = permissionChecker,
-            clock = clock
+            permissionChecker = permissionChecker
         )
-
-    @Test
-    fun onLocationAcquired_givenStaleFixThenFresh_expectIntentSurvivesForTheFreshOne() = runTest(StandardTestDispatcher()) {
-        // A stale fix is demoted to an anchor downstream, so it must not spend the pending intent.
-        // In MANUAL mode nothing else re-arms it, and the next host fix would otherwise be ignored.
-        coEvery { repository.refreshFromLiveFix(any(), any(), any()) } returns Result.success(Unit)
-        every { secureUserStore.getUserId() } returns "user-42"
-        val services = servicesWith(this)
-        services.onRefreshRequested()
-
-        val stale = GeofenceFixQuality(
-            fixElapsedRealtimeMillis = NOW - GeofenceConstants.MAX_LIVE_FIX_AGE_MS - 1
-        )
-        services.onLocationAcquired(latitude = 1.0, longitude = 2.0, quality = stale)
-        advanceUntilIdle()
-
-        services.isAwaitingLocation().shouldBeTrue()
-
-        val fresh = GeofenceFixQuality(fixElapsedRealtimeMillis = NOW)
-        services.onLocationAcquired(latitude = 3.0, longitude = 4.0, quality = fresh)
-        advanceUntilIdle()
-
-        services.isAwaitingLocation().shouldBeFalse()
-        coVerify { repository.refreshFromLiveFix(3.0, 4.0, fresh) }
-    }
 
     @Test
     fun onMovementTriggerExit_expectHandleMovementCalled() = runTest(StandardTestDispatcher()) {
@@ -497,9 +466,5 @@ class GeofenceServicesTest : RobolectricTest() {
 
         coVerify { repository.reset() }
         verify { logger.logGeofenceStateResetOnSignOut() }
-    }
-
-    private companion object {
-        const val NOW = 5_000_000L
     }
 }

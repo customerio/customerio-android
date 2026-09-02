@@ -150,7 +150,7 @@ class GeofenceLogTailTest : RobolectricTest() {
             Triple("apiFetchResult", listOf("ok", "n", "ms")) { it.logApiFetchResult(30, 420L) },
             Triple("unknownApiTransitionType", listOf("ok", "why", "value")) { it.logUnknownApiTransitionType("dwell") },
             Triple("movementRearmed", listOf("why")) { it.logMovementRearmedAfterFailedRefresh() },
-            Triple("storageLoaded", listOf("n", "anchor")) { it.logStorageLoaded(30, true) },
+            Triple("storageLoaded", listOf("n", "anchor")) { it.logStorageLoaded({ 30 }, true) },
             Triple("persistFailed", listOf("id", "t", "ok")) { it.logPersistFailed("notl_core", "ENTER") },
             Triple("deliveryRetryable", listOf("id", "t", "ok", "retry", "why")) { it.logEventDeliveryRetryable("notl_core", "ENTER", "socket timeout") },
             Triple("deliveryFailed", listOf("id", "t", "ok", "retry", "why")) { it.logEventDeliveryFailed("notl_core", "ENTER", "400 bad request") },
@@ -198,7 +198,9 @@ class GeofenceLogTailTest : RobolectricTest() {
         for ((name, _, run) in invocations()) {
             val logger = CapturingLogger()
             run(GeofenceLogger(logger))
-            val message = logger.messages.last()
+            // Diagnostics-only entry points emit nothing at all with the gate off, which is a
+            // stronger guarantee than emitting unchanged prose.
+            val message = logger.messages.lastOrNull() ?: continue
 
             // Prose in front, machine-readable behind. A record that is all tail has lost the
             // human-readable half Logcat still depends on.
@@ -214,7 +216,9 @@ class GeofenceLogTailTest : RobolectricTest() {
         for ((name, _, run) in invocations()) {
             val logger = CapturingLogger()
             run(GeofenceLogger(logger))
-            val message = logger.messages.last()
+            // Diagnostics-only entry points emit nothing at all with the gate off, which is a
+            // stronger guarantee than emitting unchanged prose.
+            val message = logger.messages.lastOrNull() ?: continue
             val tail = message.substring(message.lastIndexOf(GeofenceLogTail.DELIMITER) + GeofenceLogTail.DELIMITER.length)
             for (token in tail.split(" ")) {
                 if (token.split("=", limit = 2).size != 2) {
@@ -233,7 +237,9 @@ class GeofenceLogTailTest : RobolectricTest() {
         for ((name, _, run) in invocations()) {
             val logger = CapturingLogger()
             run(GeofenceLogger(logger))
-            val message = logger.messages.last()
+            // Diagnostics-only entry points emit nothing at all with the gate off, which is a
+            // stronger guarantee than emitting unchanged prose.
+            val message = logger.messages.lastOrNull() ?: continue
 
             // The whole guarantee in one assertion: a customer build that ships with debug logging
             // left on sees exactly the prose it saw before this instrumentation existed. Not "sees
@@ -289,8 +295,10 @@ class GeofenceLogTailTest : RobolectricTest() {
             run(GeofenceLogger(on))
 
             val onProse = on.messages.last().substringBefore(GeofenceLogTail.DELIMITER)
-            if (onProse != off.messages.last()) {
-                throw AssertionError("$name: prose differs between gate states\n  off: ${off.messages.last()}\n  on:  $onProse")
+            // Nothing with the gate off means nothing to compare — see above.
+            val offProse = off.messages.lastOrNull() ?: continue
+            if (onProse != offProse) {
+                throw AssertionError("$name: prose differs between gate states\n  off: $offProse\n  on:  $onProse")
             }
         }
     }

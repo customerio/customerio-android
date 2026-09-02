@@ -84,7 +84,9 @@ internal object GeofenceLogTail {
     /** Comma-separated, capped; the count travels separately so truncation stays honest. */
     fun list(values: List<String>, limit: Int = 25): String? {
         if (values.isEmpty()) return null
-        val head = values.take(limit).joinToString(",") { sanitize(it) }
+        // `take` throws on a negative count; no caller passes one, but a log must not be
+        // the thing that takes the process down.
+        val head = values.take(maxOf(0, limit)).joinToString(",") { sanitize(it) }
         return if (values.size > limit) "$head,+${values.size - limit}" else head
     }
 

@@ -607,13 +607,20 @@ internal class GeofenceLogger(private val logger: Logger) {
     // MARK: - Storage
 
     /** What survived a cold start. Answers whether a background wake had anything to work from. */
-    fun logStorageLoaded(regionCount: Int, hasAnchor: Boolean) {
+    /**
+     * Diagnostics-only, and the gate lives here rather than at the call sites: the count is in the
+     * prose, and producing it costs a deserialization of the cached region list on a background
+     * wake. A lambda keeps that read off the path entirely when nothing will read the record.
+     */
+    fun logStorageLoaded(regionCount: () -> Int, hasAnchor: Boolean) {
+        if (!GeofenceDiagnostics.isEnabled) return
+        val count = regionCount()
         logger.debug(
-            "Loaded $regionCount cached region(s) from storage" +
+            "Loaded $count cached region(s) from storage" +
                 tail(
                     "storage.loaded",
                     GeofenceLogIo.INPUT,
-                    listOf("n" to int(regionCount), "anchor" to bool(hasAnchor))
+                    listOf("n" to int(count), "anchor" to bool(hasAnchor))
                 ),
             tag = TAG
         )

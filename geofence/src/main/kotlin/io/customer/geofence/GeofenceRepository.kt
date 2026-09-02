@@ -158,12 +158,11 @@ internal class GeofenceRepositoryImpl(
         // eagerly for a log count would put that cost on every wake. Still one read when both
         // the record and a predicate want it.
         val cachedRegions by lazy { store.getCachedRegions() }
-        if (GeofenceDiagnostics.isEnabled) {
-            // Before the `when`, which short-circuits: a cold start with a stale cache took the
-            // first arm and never logged what it had to work from — the case the record exists
-            // for. `hasAnchor` is the restore anchor, matching iOS.
-            logger.logStorageLoaded(regionCount = cachedRegions.size, hasAnchor = restoreAnchor != null)
-        }
+        // Before the `when`, which short-circuits: a cold start with a stale cache took the first
+        // arm and never logged what it had to work from — the case the record exists for. The
+        // count is a lambda so the read only happens if the record is going to be written.
+        // `hasAnchor` is the restore anchor, matching iOS.
+        logger.logStorageLoaded(regionCount = { cachedRegions.size }, hasAnchor = restoreAnchor != null)
 
         return when {
             isStaleInTime(config) -> RefreshAction.REMOTE
@@ -305,12 +304,10 @@ internal class GeofenceRepositoryImpl(
         // This path bypasses refreshAction, so it has to emit its own record — a boot restore is
         // the case the record exists for, and it was the one pass that never produced it. Gated:
         // nothing else here needs the region list, so with diagnostics off it is never read.
-        if (GeofenceDiagnostics.isEnabled) {
-            logger.logStorageLoaded(
-                regionCount = store.getCachedRegions().size,
-                hasAnchor = restoreAnchor != null
-            )
-        }
+        logger.logStorageLoaded(
+            regionCount = { store.getCachedRegions().size },
+            hasAnchor = restoreAnchor != null
+        )
         val effectiveLocation = restoreAnchor ?: store.getLastApiFetchLocation()
         if (effectiveLocation == null) {
             logger.logSyncSkipped("no cached state to restore")

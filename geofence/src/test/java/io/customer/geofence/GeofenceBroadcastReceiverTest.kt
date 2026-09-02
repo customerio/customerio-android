@@ -89,7 +89,7 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
             }
         )
         // Default: cooldown allows emission. Tests override this to test suppression.
-        every { mockCooldownFilter.tryAcquire(any(), any(), any()) } returns true
+        every { mockCooldownFilter.tryAcquire(any(), any(), any()) } returns null
         // Default: an identified user is the common case; the snapshot lands on the entry.
         // Tests that need an anonymous-at-queue-time scenario override this to null.
         every { mockSecureUserStore.getUserId() } returns "user-42"
@@ -534,7 +534,7 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
 
     @Test
     fun dispatchTransition_givenCooldownSuppresses_expectNothingScheduled() = runTest {
-        every { mockCooldownFilter.tryAcquire("user-42", "biz-geofence", Event.GeofenceTransition.ENTER) } returns false
+        every { mockCooldownFilter.tryAcquire("user-42", "biz-geofence", Event.GeofenceTransition.ENTER) } returns 120.0
 
         receiver.dispatchTransition(
             gmsTransitionType = Geofence.GEOFENCE_TRANSITION_ENTER,

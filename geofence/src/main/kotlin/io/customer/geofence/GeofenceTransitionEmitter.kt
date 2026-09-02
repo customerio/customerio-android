@@ -49,15 +49,9 @@ internal class GeofenceTransitionEmitter(
             logger.logEnterDroppedAlreadyReported(geofenceId)
             return false
         }
-        if (!cooldownFilter.tryAcquire(userId, geofenceId, transition)) {
-            // Re-reads and re-decodes the cooldown store that tryAcquire just read, on a background
-            // wake, only to put a number in a log. Pay it when something will read it.
-            val remaining = if (GeofenceDiagnostics.isEnabled) {
-                cooldownFilter.remainingSeconds(userId, geofenceId, transition)
-            } else {
-                null
-            }
-            logger.logTransitionSuppressed(geofenceId, transition.name, remaining)
+        val cooldownRemaining = cooldownFilter.tryAcquire(userId, geofenceId, transition)
+        if (cooldownRemaining != null) {
+            logger.logTransitionSuppressed(geofenceId, transition.name, cooldownRemaining)
             return false
         }
         logger.logTransitionEmitting(geofenceId, transition.name)

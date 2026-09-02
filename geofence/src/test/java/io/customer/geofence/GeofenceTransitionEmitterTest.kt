@@ -62,7 +62,7 @@ class GeofenceTransitionEmitterTest : RobolectricTest() {
 
     @Test
     fun emit_givenCooldownSuppresses_expectFalseAndNoPersist() = runTest {
-        every { mockCooldownFilter.tryAcquire(any(), any(), any()) } returns false
+        every { mockCooldownFilter.tryAcquire(any(), any(), any()) } returns 120.0
 
         val emitted = emit()
 
@@ -73,7 +73,7 @@ class GeofenceTransitionEmitterTest : RobolectricTest() {
 
     @Test
     fun emit_givenNoGeosets_expectSingleNullGeosetEntryPersistedAndScheduled() = runTest {
-        every { mockCooldownFilter.tryAcquire(any(), any(), any()) } returns true
+        every { mockCooldownFilter.tryAcquire(any(), any(), any()) } returns null
         every { mockPendingStore.appendAll(any()) } returns true
         val entries = slot<List<PendingGeofenceDelivery>>()
 
@@ -90,7 +90,7 @@ class GeofenceTransitionEmitterTest : RobolectricTest() {
 
     @Test
     fun emit_givenMultipleGeosets_expectPerGeosetFanoutWithSharedTransitionId() = runTest {
-        every { mockCooldownFilter.tryAcquire(any(), any(), any()) } returns true
+        every { mockCooldownFilter.tryAcquire(any(), any(), any()) } returns null
         every { mockPendingStore.appendAll(any()) } returns true
         val entries = slot<List<PendingGeofenceDelivery>>()
 
@@ -107,7 +107,7 @@ class GeofenceTransitionEmitterTest : RobolectricTest() {
     fun emit_givenSchedulerThrowsForOneGeoset_expectRemainingStillScheduled() = runTest {
         // A scheduler failure for one geoset must not abandon the rest of the batch; the row is
         // already persisted, so the foreground flush still delivers the un-scheduled one.
-        every { mockCooldownFilter.tryAcquire(any(), any(), any()) } returns true
+        every { mockCooldownFilter.tryAcquire(any(), any(), any()) } returns null
         every { mockPendingStore.appendAll(any()) } returns true
         coEvery { mockScheduler.schedule(match { it.geosetId == "g1" }) } throws RuntimeException("boom")
 
@@ -120,7 +120,7 @@ class GeofenceTransitionEmitterTest : RobolectricTest() {
 
     @Test
     fun emit_givenPersistFails_expectCooldownReleasedAndFalse() = runTest {
-        every { mockCooldownFilter.tryAcquire(any(), any(), any()) } returns true
+        every { mockCooldownFilter.tryAcquire(any(), any(), any()) } returns null
         every { mockPendingStore.appendAll(any()) } returns false
 
         val emitted = emit()
@@ -145,7 +145,7 @@ class GeofenceTransitionEmitterTest : RobolectricTest() {
     @Test
     fun emit_givenEnterOnlyFenceAlreadyReported_expectDelivered() = runTest {
         every { mockRegionStore.hasEmittedEnter("user-1", "biz-1") } returns true
-        every { mockCooldownFilter.tryAcquire(any(), any(), any()) } returns true
+        every { mockCooldownFilter.tryAcquire(any(), any(), any()) } returns null
         every { mockPendingStore.appendAll(any()) } returns true
 
         val emitted = emit(monitorsExit = false)
@@ -157,7 +157,7 @@ class GeofenceTransitionEmitterTest : RobolectricTest() {
 
     @Test
     fun emit_givenEnterOnlyFenceDelivered_expectNoMarkRecorded() = runTest {
-        every { mockCooldownFilter.tryAcquire(any(), any(), any()) } returns true
+        every { mockCooldownFilter.tryAcquire(any(), any(), any()) } returns null
         every { mockPendingStore.appendAll(any()) } returns true
 
         emit(monitorsExit = false)
@@ -168,7 +168,7 @@ class GeofenceTransitionEmitterTest : RobolectricTest() {
     @Test
     fun emit_givenExitWhileEnterReported_expectDelivered() = runTest {
         every { mockRegionStore.hasEmittedEnter("user-1", "biz-1") } returns true
-        every { mockCooldownFilter.tryAcquire(any(), any(), any()) } returns true
+        every { mockCooldownFilter.tryAcquire(any(), any(), any()) } returns null
         every { mockPendingStore.appendAll(any()) } returns true
 
         val emitted = emit(transition = Event.GeofenceTransition.EXIT)
@@ -179,7 +179,7 @@ class GeofenceTransitionEmitterTest : RobolectricTest() {
 
     @Test
     fun emit_givenEnterDelivered_expectMarkedReported() = runTest {
-        every { mockCooldownFilter.tryAcquire(any(), any(), any()) } returns true
+        every { mockCooldownFilter.tryAcquire(any(), any(), any()) } returns null
         every { mockPendingStore.appendAll(any()) } returns true
 
         emit()
@@ -189,7 +189,7 @@ class GeofenceTransitionEmitterTest : RobolectricTest() {
 
     @Test
     fun emit_givenEnterPersistFails_expectNotMarkedSoRetryCanDeliver() = runTest {
-        every { mockCooldownFilter.tryAcquire(any(), any(), any()) } returns true
+        every { mockCooldownFilter.tryAcquire(any(), any(), any()) } returns null
         every { mockPendingStore.appendAll(any()) } returns false
 
         emit()
@@ -201,7 +201,7 @@ class GeofenceTransitionEmitterTest : RobolectricTest() {
     @Test
     fun emit_givenExitDelivered_expectMarkNotTouchedHere() = runTest {
         every { mockRegionStore.hasEmittedEnter("user-1", "biz-1") } returns true
-        every { mockCooldownFilter.tryAcquire(any(), any(), any()) } returns true
+        every { mockCooldownFilter.tryAcquire(any(), any(), any()) } returns null
         every { mockPendingStore.appendAll(any()) } returns true
 
         emit(transition = Event.GeofenceTransition.EXIT)

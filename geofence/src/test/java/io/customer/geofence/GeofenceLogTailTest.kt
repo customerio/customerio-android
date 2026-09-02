@@ -281,6 +281,26 @@ class GeofenceLogTailTest : RobolectricTest() {
     }
 
     @Test
+    fun listValues_expectSeparatorsSurviveTheTailBuilder() {
+        // Regression: sanitize folds the format's separators so an untrusted id cannot split a
+        // field, but it must not be applied to a value that composed those separators on purpose.
+        // Folding them turned ids=a,b into ids=a_b and ranked=x:120 into ranked=x_120, which no
+        // unit test noticed and a device capture did.
+        GeofenceDiagnostics.setEnabledForTesting(true)
+        val logger = CapturingLogger()
+        GeofenceLogger(logger).logRankEvaluated(
+            3,
+            2,
+            { listOf("alpha", "beta") },
+            { listOf("gamma") },
+            { mapOf("alpha" to 120.0, "beta" to 340.0) }
+        )
+        val message = logger.messages.last()
+        message.contains("ranked=alpha:120,beta:340") shouldBeEqualTo true
+        message.contains("evicted=gamma") shouldBeEqualTo true
+    }
+
+    @Test
     fun proseHalf_expectIdenticalWhicheverWayTheGateIsSet() {
         // The prose is what a customer reads and what existing tests assert on. Enabling
         // diagnostics must append to it and never rewrite it.

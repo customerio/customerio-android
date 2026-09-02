@@ -2,6 +2,7 @@ package io.customer.geofence
 
 import android.location.Location
 import io.customer.geofence.GeofenceLogTail.bool
+import io.customer.geofence.GeofenceLogTail.composedList
 import io.customer.geofence.GeofenceLogTail.int
 import io.customer.geofence.GeofenceLogTail.list
 import io.customer.geofence.GeofenceLogTail.num
@@ -178,7 +179,7 @@ internal class GeofenceLogger(private val logger: Logger) {
                 listOf(
                     "ncand" to int(candidates),
                     "n" to int(selectedCount),
-                    "ranked" to list(ranked),
+                    "ranked" to composedList(ranked),
                     "evicted" to list(evicted())
                 )
             )

@@ -46,17 +46,31 @@ internal object GeofenceLogTail {
         val parts = StringBuilder(DELIMITER).append("ev=").append(ev).append(" io=").append(io.wire)
         for ((key, value) in fields) {
             if (value == null) continue
-            parts.append(' ').append(key).append('=').append(sanitize(value))
+            parts.append(' ').append(key).append('=').append(foldWhitespace(value))
         }
         return parts.toString()
     }
 
     /**
-     * Every character the format itself uses to separate things. Region ids are workspace
-     * authored, so an id containing one of these would otherwise split a field: `=` a pair,
-     * `,` a list, `:` an `id:distance` entry in `ranked`, `|` the tail delimiter.
+     * Every character the format itself uses to separate things. Applied to *untrusted tokens*
+     * only — a workspace-authored id containing one of these would otherwise split a field: `=` a
+     * pair, `,` a list, `:` an `id:distance` entry in `ranked`, `|` the tail delimiter.
+     *
+     * Deliberately not applied to a finished value: `list` and `ranked` compose their separators
+     * on purpose, and folding those turns `a,b` into `a_b`.
      */
     private val SEPARATORS = charArrayOf('=', ',', ':', '|')
+
+    /**
+     * Applied to every finished value. Only whitespace, which is what separates one `key=value`
+     * from the next — the value's own structure is already the caller's business.
+     */
+    fun foldWhitespace(value: String): String {
+        if (value.isEmpty()) return "_"
+        return buildString(value.length) {
+            for (character in value) append(if (character.isWhitespace()) '_' else character)
+        }
+    }
 
     /** The parser splits on whitespace, and workspace-authored ids can contain anything. */
     fun sanitize(value: String): String {
@@ -80,6 +94,16 @@ internal object GeofenceLogTail {
     fun int(value: Int?): String? = value?.toString()
 
     fun bool(value: Boolean): String = if (value) "true" else "false"
+
+    /**
+     * For elements the caller has already composed, like `id:distance` — their structure is
+     * deliberate, so the untrusted part must be sanitized before composing, not after.
+     */
+    fun composedList(values: List<String>, limit: Int = 25): String? {
+        if (values.isEmpty()) return null
+        val head = values.take(maxOf(0, limit)).joinToString(",")
+        return if (values.size > limit) "$head,+${values.size - limit}" else head
+    }
 
     /** Comma-separated, capped; the count travels separately so truncation stays honest. */
     fun list(values: List<String>, limit: Int = 25): String? {

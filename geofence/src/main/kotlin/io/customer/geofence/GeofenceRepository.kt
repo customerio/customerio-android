@@ -138,7 +138,7 @@ internal class GeofenceRepositoryImpl(
                 RefreshAction.LOCAL -> performLocalRefresh(userId, latitude, longitude, config, containmentEpoch, fixSource)
                 RefreshAction.SKIP -> {
                     logger.logSyncSkippedFresh()
-                    Result.success(Unit)
+                    reconcileContainment(userId, latitude, longitude, containmentEpoch, fixSource)
                 }
             }
         } finally {
@@ -558,7 +558,13 @@ internal class GeofenceRepositoryImpl(
                 // Identity can change during the awaited GMS call, and reset doesn't clear pending
                 // delivery rows — never queue a synthetic ENTER for a signed-out/switched user.
                 if (secureUserStore.getUserId() == userId) {
-                    emitInitialEnters(nearest, unchangedRegistered, userId, latitude, longitude)
+                    emitInitialEnters(
+                        candidates = nearest,
+                        newIds = nearest.map { it.id }.toSet() - unchangedRegistered,
+                        userId = userId,
+                        latitude = latitude,
+                        longitude = longitude
+                    )
                 } else {
                     logger.logSyncSkipped("user changed during refresh — initial-enter synthesis skipped")
                 }
@@ -568,18 +574,69 @@ internal class GeofenceRepositoryImpl(
     }
 
     /**
-     * Synthesizes an ENTER for each newly-registered fence the device is already inside — GMS's
+     * Judges containment from a fix whose registration is already current.
+     *
+     * The anchor pass that made the inputs look fresh could not judge geometry, so without this the
+     * live fix queued behind it is discarded and the entered set stays unseeded: the receiver then
+     * reads a genuine EXIT as unmatched and drops it, and an `INITIAL_TRIGGER_ENTER` GMS dropped for
+     * a fence that pass registered stays lost. Registration and the cache are left alone — this only
+     * decides where the device is.
+     */
+    private suspend fun reconcileContainment(
+        userId: String,
+        latitude: Double,
+        longitude: Double,
+        containmentEpoch: Long,
+        fixSource: FixSource
+    ): Result<Unit> {
+        if (!fixSource.trustsGeometry) return Result.success(Unit)
+        return stateMutex.withLock {
+            // As in registerNearestAndPersist: a sign-out during the pass must not have this write
+            // reinstate the departing user's containment.
+            if (secureUserStore.getUserId() != userId) {
+                logger.logSyncSkipped("user changed during refresh")
+                return@withLock Result.success(Unit)
+            }
+            val registeredIds = store.getRegisteredIds()
+            val monitored = store.getCachedRegions().filter { it.id in registeredIds }
+            val insideNow = monitored
+                .filter { it.distanceTo(latitude, longitude) <= it.radius }
+                .map { it.id }
+                .toSet()
+            val containedBefore = store.getEnteredIds()
+            store.reconcileEnteredIds(
+                registeredIds = registeredIds,
+                inside = insideNow,
+                sinceEpoch = containmentEpoch
+            )
+            logger.logContainmentJudged(insideNow.size)
+            // Only where the record is new: a fence we already knew we were inside has had its
+            // arrival reported, and an enter-only one carries no mark to stop this repeating. No
+            // wipe gate — refreshAction routes a wiped install to LOCAL, so this pass never sees one.
+            emitInitialEnters(
+                candidates = monitored,
+                newIds = insideNow - containedBefore,
+                userId = userId,
+                latitude = latitude,
+                longitude = longitude
+            )
+            Result.success(Unit)
+        }
+    }
+
+    /**
+     * Synthesizes an ENTER for each fence in [newIds] the device is already inside — GMS's
      * `INITIAL_TRIGGER_ENTER` unreliably drops this for a region added around a stationary device.
-     * "New" = not in [unchangedRegisteredIds]: brand-new fences and re-added param changes fire,
-     * an unchanged re-register stays silent. Cooldown-deduped, so a real GMS ENTER and this one
-     * collapse to one event.
+     * [newIds] is what this pass has a reason to check: newly registered where it registered,
+     * newly contained where the registration was already current. Cooldown-deduped, so a real GMS
+     * ENTER and this one collapse to one event.
      *
      * Requires the stored containment record and this fix's geometry to agree — reconcile carries a
      * record forward for a still-registered fence, so it can outlive the visit.
      */
     private suspend fun emitInitialEnters(
         candidates: List<GeofenceRegion>,
-        unchangedRegisteredIds: Set<String>,
+        newIds: Set<String>,
         userId: String,
         latitude: Double,
         longitude: Double
@@ -587,12 +644,12 @@ internal class GeofenceRepositoryImpl(
         val timestamp = clock.currentTimeSeconds()
         val contained = store.getEnteredIds()
         candidates.forEach { region ->
-            val newlyRegistered = region.id !in unchangedRegisteredIds
+            val isNew = region.id in newIds
             val monitorsEnter = GeofenceTransitionType.ENTER in region.transitionTypes
             // Both: a carried-forward record can outlive the visit, and geometry alone ignores an
             // EXIT reported while GMS was awaited.
             val insideNow = region.distanceTo(latitude, longitude) <= region.radius
-            if (!newlyRegistered || !monitorsEnter || region.id !in contained || !insideNow) return@forEach
+            if (!isNew || !monitorsEnter || region.id !in contained || !insideNow) return@forEach
             logger.logInitialEnterInside(region.id)
             transitionEmitter.emit(
                 geofenceId = region.id,

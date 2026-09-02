@@ -3,6 +3,7 @@ package io.customer.geofence
 import android.annotation.SuppressLint
 import io.customer.geofence.store.GeofenceRegionStore
 import io.customer.location.LocationCoordinates
+import io.customer.sdk.core.util.Clock
 import io.customer.sdk.data.store.SecureUserStore
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.CancellationException
@@ -94,7 +95,8 @@ internal class GeofenceServicesImpl(
     private val regionStore: GeofenceRegionStore,
     private val scope: CoroutineScope,
     private val logger: GeofenceLogger,
-    private val permissionChecker: GeofencePermissionChecker
+    private val permissionChecker: GeofencePermissionChecker,
+    private val clock: Clock
 ) : GeofenceServices {
 
     // Rearm flag: set when a sync skips for no-location, cleared on any
@@ -144,9 +146,15 @@ internal class GeofenceServicesImpl(
         // Act on a host-initiated refresh or the rising edge of a no-location skip;
         // otherwise this becomes a per-update refresh storm on hosts that stream
         // locations. Clear both flags so a single fix is consumed once.
-        val requested = explicitRefreshRequested.compareAndSet(true, false)
-        val rearmed = lastSkippedForNoLocation.compareAndSet(true, false)
-        if (!requested && !rearmed) return
+        if (!isAwaitingLocation()) return
+        // Spend the pending intent only on a fix that can still judge containment. A stale one is
+        // demoted to an anchor downstream, and consuming the intent here would leave a MANUAL-mode
+        // host with no way to drive the pass that seeds containment: foreground retry is off, and
+        // the next fresh location would see the flags already cleared.
+        if (quality.isFresh(clock.elapsedRealtime())) {
+            explicitRefreshRequested.set(false)
+            lastSkippedForNoLocation.set(false)
+        }
         val userId = secureUserStore.getUserId()
         // No user yet: skip; a later identify re-triggers.
         if (userId.isNullOrEmpty()) return

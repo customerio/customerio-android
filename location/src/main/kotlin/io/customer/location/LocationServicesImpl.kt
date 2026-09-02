@@ -26,7 +26,25 @@ internal class LocationServicesImpl(
     @Volatile
     private var currentRequestIntent: LocationRequestIntent? = null
 
-    override fun setLastKnownLocation(latitude: Double, longitude: Double) {
+    override fun setLastKnownLocation(latitude: Double, longitude: Double) =
+        trackHostLocation(latitude, longitude)
+
+    override fun setLastKnownLocation(location: Location) =
+        // Unlike the coordinate overload, which is a bare assertion, this one carries what the
+        // host's own fix could resolve and when it was taken.
+        trackHostLocation(
+            latitude = location.latitude,
+            longitude = location.longitude,
+            horizontalAccuracyMeters = location.takeIf { it.hasAccuracy() }?.accuracy?.toDouble(),
+            fixTimeMillis = location.time.takeIf { it > 0L }
+        )
+
+    private fun trackHostLocation(
+        latitude: Double,
+        longitude: Double,
+        horizontalAccuracyMeters: Double? = null,
+        fixTimeMillis: Long? = null
+    ) {
         if (!config.isEnabled) {
             logger.debug("Location tracking is disabled, ignoring setLastKnownLocation.")
             return
@@ -39,11 +57,7 @@ internal class LocationServicesImpl(
 
         logger.debug("Tracking location: lat=$latitude, lng=$longitude")
 
-        locationTracker.onLocationReceived(latitude, longitude)
-    }
-
-    override fun setLastKnownLocation(location: Location) {
-        setLastKnownLocation(location.latitude, location.longitude)
+        locationTracker.onLocationReceived(latitude, longitude, horizontalAccuracyMeters, fixTimeMillis)
     }
 
     override fun requestLocationUpdate() {

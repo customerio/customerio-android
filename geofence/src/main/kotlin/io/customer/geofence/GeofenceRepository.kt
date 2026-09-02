@@ -162,7 +162,7 @@ internal class GeofenceRepositoryImpl(
                 RefreshAction.LOCAL -> performLocalRefresh(userId, latitude, longitude, config, containmentEpoch, fixSource, quality)
                 RefreshAction.SKIP -> {
                     logger.logSyncSkippedFresh()
-                    reconcileContainment(userId, latitude, longitude, containmentEpoch, fixSource, quality)
+                    reconcileContainment(userId, latitude, longitude, containmentEpoch, fixSource)
                 }
             }
         } finally {
@@ -496,10 +496,7 @@ internal class GeofenceRepositoryImpl(
         // maxMonitoringDistance, or the distance-capped /nearest returned none here — so an EXIT
         // re-ranks/re-fetches as the device travels. Only maxBusinessGeofences = 0 means "feature off".
         val monitoringEnabled = config.maxBusinessGeofences > 0
-        // A fix locates the device to within its accuracy, not to a point, so "certainly inside"
-        // and "certainly outside" leave an ambiguous band that must neither seed nor retire.
         val margin = quality.containmentMarginMeters
-        if (margin > 0.0) logger.logContainmentMargin(margin)
         val regionsToRegister = if (!monitoringEnabled) {
             emptyList()
         } else {
@@ -545,9 +542,15 @@ internal class GeofenceRepositoryImpl(
                         newIds + staleIds
                     }
                     store.saveRegisteredIds(idsToSave)
+                    // Inside stays an exact point check. Widening it by the margin would make a
+                    // fence smaller than the fix unjudgable at any distance, so a low-power fix
+                    // would never seed or fire the backstop — and an empty reading would then mean
+                    // "could not decide" while the store reads it as "inside nothing".
                     val insideNow = nearest.filter {
-                        it.distanceTo(latitude, longitude) + margin <= it.radius
+                        it.distanceTo(latitude, longitude) <= it.radius
                     }.map { it.id }.toSet()
+                    // Retiring is the one direction where the margin only removes false confidence:
+                    // a record is dropped only once the error circle clears the fence entirely.
                     val outsideNow = nearest.filter {
                         it.distanceTo(latitude, longitude) - margin > it.radius
                     }.map { it.id }.toSet()
@@ -598,7 +601,7 @@ internal class GeofenceRepositoryImpl(
                 // Identity can change during the awaited GMS call, and reset doesn't clear pending
                 // delivery rows — never queue a synthetic ENTER for a signed-out/switched user.
                 if (secureUserStore.getUserId() == userId) {
-                    emitInitialEnters(nearest, unchangedRegistered, userId, latitude, longitude, margin)
+                    emitInitialEnters(nearest, unchangedRegistered, userId, latitude, longitude)
                 } else {
                     logger.logSyncSkipped("user changed during refresh — initial-enter synthesis skipped")
                 }
@@ -624,11 +627,9 @@ internal class GeofenceRepositoryImpl(
         latitude: Double,
         longitude: Double,
         containmentEpoch: Long,
-        fixSource: FixSource,
-        quality: GeofenceFixQuality
+        fixSource: FixSource
     ): Result<Unit> {
         if (!fixSource.trustsGeometry) return Result.success(Unit)
-        val margin = quality.containmentMarginMeters
         return stateMutex.withLock {
             // As in registerNearestAndPersist: a sign-out during the pass must not have this write
             // reinstate the departing user's containment.
@@ -639,7 +640,7 @@ internal class GeofenceRepositoryImpl(
             val registeredIds = store.getRegisteredIds()
             val monitored = store.getCachedRegions().filter { it.id in registeredIds }
             val insideNow = monitored
-                .filter { it.distanceTo(latitude, longitude) + margin <= it.radius }
+                .filter { it.distanceTo(latitude, longitude) <= it.radius }
                 .map { it.id }
                 .toSet()
             store.reconcileEnteredIds(
@@ -667,8 +668,7 @@ internal class GeofenceRepositoryImpl(
         unchangedRegisteredIds: Set<String>,
         userId: String,
         latitude: Double,
-        longitude: Double,
-        containmentMarginMeters: Double
+        longitude: Double
     ) {
         val timestamp = clock.currentTimeSeconds()
         val contained = store.getEnteredIds()
@@ -677,8 +677,7 @@ internal class GeofenceRepositoryImpl(
             val monitorsEnter = GeofenceTransitionType.ENTER in region.transitionTypes
             // Both: a carried-forward record can outlive the visit, and geometry alone ignores an
             // EXIT reported while GMS was awaited.
-            val insideNow =
-                region.distanceTo(latitude, longitude) + containmentMarginMeters <= region.radius
+            val insideNow = region.distanceTo(latitude, longitude) <= region.radius
             if (!newlyRegistered || !monitorsEnter || region.id !in contained || !insideNow) return@forEach
             logger.logInitialEnterInside(region.id)
             transitionEmitter.emit(

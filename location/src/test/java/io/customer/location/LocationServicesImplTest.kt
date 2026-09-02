@@ -3,6 +3,7 @@ package io.customer.location
 import io.customer.base.internal.InternalCustomerIOApi
 import io.mockk.coEvery
 import io.mockk.coVerify
+import io.mockk.every
 import io.mockk.just
 import io.mockk.mockk
 import io.mockk.runs
@@ -52,6 +53,53 @@ class LocationServicesImplTest {
         services.setLastKnownLocation(37.7749, -122.4194)
 
         verify { tracker.onLocationReceived(37.7749, -122.4194) }
+    }
+
+    @Test
+    fun givenHostSuppliedLocation_setLastKnownLocation_expectAccuracyAndTimeForwarded() {
+        // The Location overload carries what the host's own fix could resolve and when it was
+        // taken; discarding them would let the geofence path treat a coarse, old fix as exact.
+        val config = LocationModuleConfig.Builder()
+            .setLocationTrackingMode(LocationTrackingMode.MANUAL)
+            .build()
+        val tracker: LocationTracker = mockk(relaxUnitFun = true)
+        val orchestrator: LocationOrchestrator = mockk(relaxUnitFun = true)
+        val logger = mockk<io.customer.sdk.core.util.Logger>(relaxUnitFun = true)
+        val scope = TestScope(UnconfinedTestDispatcher())
+        val hostLocation: android.location.Location = mockk {
+            every { latitude } returns 37.7749
+            every { longitude } returns -122.4194
+            every { hasAccuracy() } returns true
+            every { accuracy } returns 480f
+            every { time } returns 1_700_000_000_000L
+        }
+
+        LocationServicesImpl(config, logger, tracker, orchestrator, scope)
+            .setLastKnownLocation(hostLocation)
+
+        verify { tracker.onLocationReceived(37.7749, -122.4194, 480.0, 1_700_000_000_000L) }
+    }
+
+    @Test
+    fun givenHostLocationWithoutAccuracy_setLastKnownLocation_expectNoFabricatedQuality() {
+        val config = LocationModuleConfig.Builder()
+            .setLocationTrackingMode(LocationTrackingMode.MANUAL)
+            .build()
+        val tracker: LocationTracker = mockk(relaxUnitFun = true)
+        val orchestrator: LocationOrchestrator = mockk(relaxUnitFun = true)
+        val logger = mockk<io.customer.sdk.core.util.Logger>(relaxUnitFun = true)
+        val scope = TestScope(UnconfinedTestDispatcher())
+        val hostLocation: android.location.Location = mockk {
+            every { latitude } returns 37.7749
+            every { longitude } returns -122.4194
+            every { hasAccuracy() } returns false
+            every { time } returns 0L
+        }
+
+        LocationServicesImpl(config, logger, tracker, orchestrator, scope)
+            .setLastKnownLocation(hostLocation)
+
+        verify { tracker.onLocationReceived(37.7749, -122.4194, null, null) }
     }
 
     @Test

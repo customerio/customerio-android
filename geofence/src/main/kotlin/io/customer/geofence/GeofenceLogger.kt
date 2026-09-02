@@ -120,10 +120,6 @@ internal class GeofenceLogger(private val logger: Logger) {
         logger.debug("Geofence sync: fix is ${ageMs}ms old (limit ${maxAgeMs}ms) — ranking only, not judging containment", tag = TAG)
     }
 
-    fun logContainmentMargin(marginMeters: Double) {
-        logger.debug("Geofence sync: judging containment with a ${marginMeters}m accuracy margin", tag = TAG)
-    }
-
     fun logSyncSkippedFresh() {
         logger.debug("Geofence sync skipped: last successful sync is still within the freshness window", tag = TAG)
     }

@@ -165,10 +165,10 @@ object DiagnosticLog {
     }
 
     /** Records produced by the SDK, by the sample app, or by a reference app on this schema. */
+    /** Who produced the record: the SDK's logger, or the sample app itself. */
     enum class Source(val wire: String) {
         SDK("sdk"),
-        APP("app"),
-        REF("ref")
+        APP("app")
     }
 
     internal const val DIRECTORY_NAME = "cio-diagnostics"

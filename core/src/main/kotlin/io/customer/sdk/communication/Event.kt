@@ -57,7 +57,7 @@ sealed class Event {
      * [horizontalAccuracyMeters] and [fixTimeMillis] describe the fix itself. Both are null when the
      * source did not report them, typically a host-supplied location.
      */
-    data class LocationAcquired(
+    data class LocationAcquired @JvmOverloads constructor(
         val latitude: Double,
         val longitude: Double,
         val horizontalAccuracyMeters: Double? = null,

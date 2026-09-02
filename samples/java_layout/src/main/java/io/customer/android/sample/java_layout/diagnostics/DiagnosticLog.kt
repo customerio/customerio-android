@@ -4,7 +4,6 @@ import android.app.Application
 import android.os.Process
 import android.os.SystemClock
 import android.util.Log
-import io.customer.base.internal.InternalCustomerIOApi
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.util.CioLogLevel
 import java.io.File
@@ -18,6 +17,12 @@ object DiagnosticLog {
      * is not a bump — parsers ignore unknown fields.
      */
     const val SCHEMA_VERSION = 1
+
+    /**
+     * Same delimiter the SDK's geofence tail uses. The app's own records follow the same contract
+     * so one parser reads the whole file — inline `key=value` in the prose would be invisible to it.
+     */
+    private const val DELIMITER = " || "
 
     /** Mirrors the SDK's own Logcat tag, which is `internal` and so cannot be referenced here. */
     private const val LOGCAT_TAG = "[CIO]"
@@ -39,7 +44,6 @@ object DiagnosticLog {
      * Install the sink. Call this as the **first** statement of `Application.onCreate`.
      */
     @JvmStatic
-    @OptIn(InternalCustomerIOApi::class)
     fun start(application: Application) {
         synchronized(lock) {
             if (started) return
@@ -51,7 +55,14 @@ object DiagnosticLog {
             fileWriter.open(DiagnosticEnvelope.fileHeader(application))
 
             deviceState = DiagnosticDeviceState(application).also { state ->
-                state.start { reason -> emit(Source.APP, "Diagnostics", CioLogLevel.DEBUG, "device.state changed=$reason") }
+                state.start { reason ->
+                    emit(
+                        Source.APP,
+                        "Diagnostics",
+                        CioLogLevel.DEBUG,
+                        "Device state changed${DELIMITER}ev=device.state io=obs changed=$reason"
+                    )
+                }
             }
         }
 
@@ -71,7 +82,8 @@ object DiagnosticLog {
             Source.APP,
             "Diagnostics",
             CioLogLevel.INFO,
-            "session.start schema=$SCHEMA_VERSION dir=$DIRECTORY_NAME"
+            "Diagnostic session started$DELIMITER" +
+                "ev=session.start io=obs schema=$SCHEMA_VERSION dir=$DIRECTORY_NAME"
         )
     }
 

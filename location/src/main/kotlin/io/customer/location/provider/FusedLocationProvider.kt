@@ -61,7 +61,10 @@ internal class FusedLocationProvider(
                                 longitude = location.longitude,
                                 timestamp = Date(location.time),
                                 horizontalAccuracy = location.accuracy.toDouble(),
-                                altitude = if (location.hasAltitude()) location.altitude else null
+                                altitude = if (location.hasAltitude()) location.altitude else null,
+                                fixElapsedRealtimeMillis = location.elapsedRealtimeNanos
+                                    .takeIf { it > 0L }
+                                    ?.let { it / NANOS_PER_MILLI }
                             )
                         )
                     } else {
@@ -128,3 +131,5 @@ internal class FusedLocationProvider(
         }
     }
 }
+
+private const val NANOS_PER_MILLI = 1_000_000L

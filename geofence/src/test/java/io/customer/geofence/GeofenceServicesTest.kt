@@ -197,7 +197,7 @@ class GeofenceServicesTest : RobolectricTest() {
     fun onLocationAcquired_givenFixQuality_expectItReachesTheRepository() = runTest(StandardTestDispatcher()) {
         // The gate can only work if what the fix can resolve travels with it; verified here
         // because the repository tests call it directly and would not catch a dropped argument.
-        val quality = GeofenceFixQuality(accuracyMeters = 42.0, fixTimeMillis = 1_000L)
+        val quality = GeofenceFixQuality(accuracyMeters = 42.0, fixElapsedRealtimeMillis = 1_000L)
         every { secureUserStore.getUserId() } returns "user-1"
         coEvery { repository.refreshFromLiveFix(any(), any(), any()) } returns Result.success(Unit)
         val services = servicesWith(this)

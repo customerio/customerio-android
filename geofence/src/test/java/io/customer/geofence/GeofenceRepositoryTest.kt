@@ -591,7 +591,7 @@ class GeofenceRepositoryTest : RobolectricTest() {
         repository.refreshFromLiveFix(
             latitude = 0.0,
             longitude = 0.0,
-            quality = GeofenceFixQuality(accuracyMeters = 500.0, fixTimeMillis = clock.currentTimeMillis())
+            quality = GeofenceFixQuality(accuracyMeters = 500.0, fixElapsedRealtimeMillis = clock.elapsedRealtime())
         )
 
         // Non-null, so a live pass still ends the no-record grace with a real reading rather than
@@ -613,7 +613,7 @@ class GeofenceRepositoryTest : RobolectricTest() {
         repository.refreshFromLiveFix(
             latitude = 0.0,
             longitude = 0.0,
-            quality = GeofenceFixQuality(accuracyMeters = 50.0, fixTimeMillis = clock.currentTimeMillis())
+            quality = GeofenceFixQuality(accuracyMeters = 50.0, fixElapsedRealtimeMillis = clock.elapsedRealtime())
         )
 
         // 120m out with 50m of error: it may still be inside, so neither seed nor retire.
@@ -640,7 +640,7 @@ class GeofenceRepositoryTest : RobolectricTest() {
         repository.refreshFromLiveFix(
             latitude = 0.0,
             longitude = 0.0,
-            quality = GeofenceFixQuality(accuracyMeters = 50.0, fixTimeMillis = clock.currentTimeMillis())
+            quality = GeofenceFixQuality(accuracyMeters = 50.0, fixElapsedRealtimeMillis = clock.elapsedRealtime())
         )
 
         verify {
@@ -669,7 +669,7 @@ class GeofenceRepositoryTest : RobolectricTest() {
             longitude = 0.0,
             quality = GeofenceFixQuality(
                 accuracyMeters = 5.0,
-                fixTimeMillis = clock.currentTimeMillis() - GeofenceConstants.MAX_LIVE_FIX_AGE_MS - 1
+                fixElapsedRealtimeMillis = clock.elapsedRealtime() - GeofenceConstants.MAX_LIVE_FIX_AGE_MS - 1
             )
         )
 
@@ -692,7 +692,7 @@ class GeofenceRepositoryTest : RobolectricTest() {
             longitude = 0.0,
             quality = GeofenceFixQuality(
                 accuracyMeters = 5.0,
-                fixTimeMillis = clock.currentTimeMillis() - GeofenceConstants.MAX_LIVE_FIX_AGE_MS + 1_000
+                fixElapsedRealtimeMillis = clock.elapsedRealtime() - GeofenceConstants.MAX_LIVE_FIX_AGE_MS + 1_000
             )
         )
 

@@ -104,7 +104,7 @@ internal class LocationTracker(
         latitude: Double,
         longitude: Double,
         horizontalAccuracyMeters: Double? = null,
-        fixTimeMillis: Long? = null
+        fixElapsedRealtimeMillis: Long? = null
     ) {
         logger.debug("Location update received: lat=$latitude, lng=$longitude")
 
@@ -115,11 +115,14 @@ internal class LocationTracker(
 
         trySendLocationTrack(latitude, longitude)
         eventBus.publish(
-            Event.LocationAcquired(
+            Event.LocationAcquired(latitude = latitude, longitude = longitude)
+        )
+        eventBus.publish(
+            Event.LocationFixAcquired(
                 latitude = latitude,
                 longitude = longitude,
                 horizontalAccuracyMeters = horizontalAccuracyMeters,
-                fixTimeMillis = fixTimeMillis
+                fixElapsedRealtimeMillis = fixElapsedRealtimeMillis
             )
         )
     }
@@ -133,17 +136,20 @@ internal class LocationTracker(
         latitude: Double,
         longitude: Double,
         horizontalAccuracyMeters: Double? = null,
-        fixTimeMillis: Long? = null
+        fixElapsedRealtimeMillis: Long? = null
     ) {
         logger.debug("Location update received (geofence-only, not tracked): lat=$latitude, lng=$longitude")
 
         lastKnownLocation = LocationCoordinates(latitude = latitude, longitude = longitude)
         eventBus.publish(
-            Event.LocationAcquired(
+            Event.LocationAcquired(latitude = latitude, longitude = longitude)
+        )
+        eventBus.publish(
+            Event.LocationFixAcquired(
                 latitude = latitude,
                 longitude = longitude,
                 horizontalAccuracyMeters = horizontalAccuracyMeters,
-                fixTimeMillis = fixTimeMillis
+                fixElapsedRealtimeMillis = fixElapsedRealtimeMillis
             )
         )
     }

@@ -1,5 +1,6 @@
 package io.customer.sdk.communication
 
+import io.customer.base.internal.InternalCustomerIOApi
 import io.customer.sdk.events.Metric
 import java.util.Date
 import java.util.UUID
@@ -53,15 +54,23 @@ sealed class Event {
     /**
      * Published by the location module on every fresh location fix. Other modules
      * subscribe to react to location updates without depending on its internals.
-     *
-     * [horizontalAccuracyMeters] and [fixTimeMillis] describe the fix itself. Both are null when the
-     * source did not report them, typically a host-supplied location.
      */
-    data class LocationAcquired @JvmOverloads constructor(
+    data class LocationAcquired(
+        val latitude: Double,
+        val longitude: Double
+    ) : Event()
+
+    /**
+     * The same fix as [LocationAcquired], plus what it can be trusted to resolve, for subscribers
+     * that judge geometry. Null fields mean the source reported none.
+     * [fixElapsedRealtimeMillis] is monotonic since boot, so a clock correction cannot age a fix.
+     */
+    @InternalCustomerIOApi
+    data class LocationFixAcquired(
         val latitude: Double,
         val longitude: Double,
         val horizontalAccuracyMeters: Double? = null,
-        val fixTimeMillis: Long? = null
+        val fixElapsedRealtimeMillis: Long? = null
     ) : Event()
 
     class DeleteDeviceTokenEvent : Event()

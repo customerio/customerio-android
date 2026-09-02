@@ -33,14 +33,14 @@ class GeofenceFixQualityTest {
     @Test
     fun isFresh_givenAgeWithinAndBeyondTheLimit_expectBoundaryRespected() {
         val limit = GeofenceConstants.MAX_LIVE_FIX_AGE_MS
-        GeofenceFixQuality(fixTimeMillis = NOW - limit).isFresh(NOW).shouldBeTrue()
-        GeofenceFixQuality(fixTimeMillis = NOW - limit - 1).isFresh(NOW).shouldBeFalse()
+        GeofenceFixQuality(fixElapsedRealtimeMillis = NOW - limit).isFresh(NOW).shouldBeTrue()
+        GeofenceFixQuality(fixElapsedRealtimeMillis = NOW - limit - 1).isFresh(NOW).shouldBeFalse()
     }
 
     @Test
-    fun isFresh_givenFixStampedInTheFuture_expectNotTreatedAsFresh() {
-        // A clock disagreement, not evidence about where the device is.
-        GeofenceFixQuality(fixTimeMillis = NOW + 1).isFresh(NOW).shouldBeFalse()
+    fun isFresh_givenFixStampedAfterNow_expectNotTreatedAsFresh() {
+        // Monotonic time cannot run backwards, so this only arises from a bogus supplied stamp.
+        GeofenceFixQuality(fixElapsedRealtimeMillis = NOW + 1).isFresh(NOW).shouldBeFalse()
     }
 
     private companion object {

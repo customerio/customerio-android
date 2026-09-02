@@ -55,14 +55,14 @@ internal class LocationOrchestrator(
                     latitude = snapshot.latitude,
                     longitude = snapshot.longitude,
                     horizontalAccuracyMeters = snapshot.horizontalAccuracy,
-                    fixTimeMillis = snapshot.timestamp.time
+                    fixElapsedRealtimeMillis = snapshot.fixElapsedRealtimeMillis
                 )
             } else {
                 locationTracker.onLocationReceivedWithoutTracking(
                     latitude = snapshot.latitude,
                     longitude = snapshot.longitude,
                     horizontalAccuracyMeters = snapshot.horizontalAccuracy,
-                    fixTimeMillis = snapshot.timestamp.time
+                    fixElapsedRealtimeMillis = snapshot.fixElapsedRealtimeMillis
                 )
             }
         } catch (e: CancellationException) {

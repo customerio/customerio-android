@@ -71,13 +71,13 @@ class LocationServicesImplTest {
             every { longitude } returns -122.4194
             every { hasAccuracy() } returns true
             every { accuracy } returns 480f
-            every { time } returns 1_700_000_000_000L
+            every { elapsedRealtimeNanos } returns 90_000_000_000L
         }
 
         LocationServicesImpl(config, logger, tracker, orchestrator, scope)
             .setLastKnownLocation(hostLocation)
 
-        verify { tracker.onLocationReceived(37.7749, -122.4194, 480.0, 1_700_000_000_000L) }
+        verify { tracker.onLocationReceived(37.7749, -122.4194, 480.0, 90_000L) }
     }
 
     @Test
@@ -93,7 +93,7 @@ class LocationServicesImplTest {
             every { latitude } returns 37.7749
             every { longitude } returns -122.4194
             every { hasAccuracy() } returns false
-            every { time } returns 0L
+            every { elapsedRealtimeNanos } returns 0L
         }
 
         LocationServicesImpl(config, logger, tracker, orchestrator, scope)

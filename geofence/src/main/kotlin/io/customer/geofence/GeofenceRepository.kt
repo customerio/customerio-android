@@ -123,11 +123,14 @@ internal class GeofenceRepositoryImpl(
         // is newer evidence than the fix and must outrank its geometry.
         val containmentEpoch = store.containmentEpoch()
         // Judged with the epoch above, before the slot wait: both belong to the fix, not the pass.
-        val now = clock.currentTimeMillis()
+        val now = clock.elapsedRealtime()
         val fixSource = if (quality.isFresh(now)) {
             FixSource.LIVE
         } else {
-            logger.logStaleFixDemoted(now - (quality.fixTimeMillis ?: now), GeofenceConstants.MAX_LIVE_FIX_AGE_MS)
+            logger.logStaleFixDemoted(
+                now - (quality.fixElapsedRealtimeMillis ?: now),
+                GeofenceConstants.MAX_LIVE_FIX_AGE_MS
+            )
             FixSource.ANCHOR
         }
         if (!awaitRefreshSlot()) {

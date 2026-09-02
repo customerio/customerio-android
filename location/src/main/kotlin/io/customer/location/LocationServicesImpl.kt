@@ -30,20 +30,21 @@ internal class LocationServicesImpl(
         trackHostLocation(latitude, longitude)
 
     override fun setLastKnownLocation(location: Location) =
-        // Unlike the coordinate overload, which is a bare assertion, this one carries what the
-        // host's own fix could resolve and when it was taken.
+        // Unlike the coordinate overload, this one carries what the host's fix could resolve.
         trackHostLocation(
             latitude = location.latitude,
             longitude = location.longitude,
             horizontalAccuracyMeters = location.takeIf { it.hasAccuracy() }?.accuracy?.toDouble(),
-            fixTimeMillis = location.time.takeIf { it > 0L }
+            fixElapsedRealtimeMillis = location.elapsedRealtimeNanos
+                .takeIf { it > 0L }
+                ?.let { it / NANOS_PER_MILLI }
         )
 
     private fun trackHostLocation(
         latitude: Double,
         longitude: Double,
         horizontalAccuracyMeters: Double? = null,
-        fixTimeMillis: Long? = null
+        fixElapsedRealtimeMillis: Long? = null
     ) {
         if (!config.isEnabled) {
             logger.debug("Location tracking is disabled, ignoring setLastKnownLocation.")
@@ -57,7 +58,12 @@ internal class LocationServicesImpl(
 
         logger.debug("Tracking location: lat=$latitude, lng=$longitude")
 
-        locationTracker.onLocationReceived(latitude, longitude, horizontalAccuracyMeters, fixTimeMillis)
+        locationTracker.onLocationReceived(
+            latitude,
+            longitude,
+            horizontalAccuracyMeters,
+            fixElapsedRealtimeMillis
+        )
     }
 
     override fun requestLocationUpdate() {
@@ -110,3 +116,5 @@ internal class LocationServicesImpl(
         return true
     }
 }
+
+private const val NANOS_PER_MILLI = 1_000_000L

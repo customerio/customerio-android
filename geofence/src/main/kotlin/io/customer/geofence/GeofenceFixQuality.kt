@@ -6,7 +6,7 @@ package io.customer.geofence
  */
 internal data class GeofenceFixQuality(
     val accuracyMeters: Double? = null,
-    val fixTimeMillis: Long? = null
+    val fixElapsedRealtimeMillis: Long? = null
 ) {
     /**
      * How far the device may be from where this fix puts it. Unknown accuracy means no margin: a
@@ -15,11 +15,10 @@ internal data class GeofenceFixQuality(
     val containmentMarginMeters: Double
         get() = accuracyMeters?.takeIf { it.isFinite() && it > 0.0 } ?: 0.0
 
-    /** Whether the fix is recent enough to still describe where the device is. */
-    fun isFresh(nowMillis: Long): Boolean {
-        val takenAt = fixTimeMillis ?: return true
-        // A future stamp is a clock disagreement, not evidence of freshness.
-        return (nowMillis - takenAt) in 0..GeofenceConstants.MAX_LIVE_FIX_AGE_MS
+    /** Whether the fix still describes where the device is. Both sides monotonic since boot. */
+    fun isFresh(nowElapsedRealtimeMillis: Long): Boolean {
+        val takenAt = fixElapsedRealtimeMillis ?: return true
+        return (nowElapsedRealtimeMillis - takenAt) in 0..GeofenceConstants.MAX_LIVE_FIX_AGE_MS
     }
 
     internal companion object {

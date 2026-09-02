@@ -7,6 +7,7 @@ import io.customer.geofence.GeofenceLogTail.list
 import io.customer.geofence.GeofenceLogTail.num
 import io.customer.geofence.GeofenceLogTail.token
 import io.customer.sdk.core.util.Logger
+import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * How the SDK came to be running.
@@ -21,11 +22,19 @@ internal enum class GeofenceLaunchReason(val wire: String) {
 }
 
 /**
+ * `module.init` is emitted once per process, first caller wins. Both the boot receiver and module
+ * init reach it, and on a boot restore the second would otherwise overwrite `boot_restore` with
+ * `app_start` — two records for one launch, disagreeing.
+ */
+internal val moduleInitLatch = AtomicBoolean(false)
+
+/**
  * Structured logger for geofence operations, tagged for logcat filtering.
  *
  * Every record carries a ` || key=value` tail after its human-readable prose: `ev=` is a stable
  * machine key (prose is what gets reworded; `ev` is the contract) and `io=` classifies the record
- * for replay. The prose itself is byte-identical to what it was before enrichment.
+ * for replay. Pre-existing prose is unchanged; records added by this work emit their prose whether
+ * or not diagnostics are on — only the tail is gated.
  *
  * Reason tokens are **derived** from the existing prose rather than replacing it with an enum.
  * That keeps every `reason: String` signature exactly as it was — `logSyncSkipped` alone has 20
@@ -51,7 +60,7 @@ internal class GeofenceLogger(private val logger: Logger) {
     fun logGeofencesRegistered(count: Int) {
         logger.debug(
             "Registered $count geofences with OS" +
-                tail("registration.applied", GeofenceLogIo.OUTPUT, listOf("n" to int(count))),
+                tail("registration.added", GeofenceLogIo.OUTPUT, listOf("nadd" to int(count))),
             tag = TAG
         )
     }
@@ -84,7 +93,7 @@ internal class GeofenceLogger(private val logger: Logger) {
         logger.debug(
             "Kept $count business geofences unchanged in OS; skipped re-upsert to avoid GMS state reconciliation" +
                 tail(
-                    "registration.applied",
+                    "registration.kept",
                     GeofenceLogIo.OUTPUT,
                     listOf("nkeep" to int(count), "why" to "unchanged")
                 ),
@@ -95,7 +104,7 @@ internal class GeofenceLogger(private val logger: Logger) {
     fun logGeofencesRemoved(count: Int) {
         logger.debug(
             "Removed $count geofences from OS" +
-                tail("registration.applied", GeofenceLogIo.OUTPUT, listOf("nrem" to int(count))),
+                tail("registration.removed", GeofenceLogIo.OUTPUT, listOf("nrem" to int(count))),
             tag = TAG
         )
     }
@@ -103,7 +112,7 @@ internal class GeofenceLogger(private val logger: Logger) {
     fun logGeofencesCleared() {
         logger.debug(
             "Cleared all geofences from OS" +
-                tail("registration.applied", GeofenceLogIo.OUTPUT, listOf("why" to "cleared")),
+                tail("registration.cleared", GeofenceLogIo.OUTPUT, listOf("why" to "cleared")),
             tag = TAG
         )
     }
@@ -157,12 +166,9 @@ internal class GeofenceLogger(private val logger: Logger) {
     }
 
     /**
-     * The N-of-M selection, which happens silently today.
+     * The N-of-M selection, which happens silently today: a geofence never registered because it
+     * ranked past the cap is indistinguishable from one registered that simply never fired.
      *
-     * Without it, a geofence that was never registered because it ranked past the cap is
-     * indistinguishable from one that was registered and simply never fired.
-     */
-    /**
      * [selected], [evicted] and [edgeDistances] are lambdas: producing them costs a distance
      * computation per region plus a filter over every candidate, on a background wake path, and
      * none of it is wanted unless the tail will carry it.
@@ -238,6 +244,7 @@ internal class GeofenceLogger(private val logger: Logger) {
 
     /** Process start and why. A background wake and a user opening the app look identical today. */
     fun logModuleInitialized(launchReason: GeofenceLaunchReason) {
+        if (!moduleInitLatch.compareAndSet(false, true)) return
         logger.info(
             "Geofence module initialized (${launchReason.wire})" +
                 tail("module.init", GeofenceLogIo.OBSERVATION, listOf("launch" to launchReason.wire)),
@@ -298,8 +305,8 @@ internal class GeofenceLogger(private val logger: Logger) {
         logger.debug(
             "Geofence transition fired but OS provided no triggering location; a movement-trigger refresh cannot run without it" +
                 tail(
-                    "os.callback.received",
-                    GeofenceLogIo.INPUT,
+                    "os.callback.no_location",
+                    GeofenceLogIo.OBSERVATION,
                     listOf("fixsrc" to GeofenceLogTail.FixSource.NONE.wire, "why" to "no_triggering_location")
                 ),
             tag = TAG
@@ -562,11 +569,23 @@ internal class GeofenceLogger(private val logger: Logger) {
         )
     }
 
+    fun logApiFetchFailed(message: String?) {
+        logger.error(
+            "Sync fetch failed: $message" +
+                tail(
+                    "api.fetch.result",
+                    GeofenceLogIo.INPUT,
+                    listOf("ok" to bool(false), "why" to token(message ?: "unknown"))
+                ),
+            tag = TAG
+        )
+    }
+
     fun logUnknownApiTransitionType(value: String) {
         logger.error(
             "API response contained unknown transition_type='$value' (expected enter/exit). Region's affected types dropped — check SDK / backend version alignment." +
                 tail(
-                    "api.fetch.result",
+                    "api.transition.unknown",
                     GeofenceLogIo.INPUT,
                     listOf("ok" to bool(false), "why" to "unknown_transition_type", "value" to token(value))
                 ),

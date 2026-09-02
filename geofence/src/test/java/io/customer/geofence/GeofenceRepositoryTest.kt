@@ -419,7 +419,7 @@ class GeofenceRepositoryTest : RobolectricTest() {
 
         result.isFailure shouldBeEqualTo true
         result.exceptionOrNull() shouldBeEqualTo error
-        verify { logger.logSyncFailed(match { it?.contains("network down") == true }) }
+        verify { logger.logApiFetchFailed(match { it?.contains("network down") == true }) }
         verify(exactly = 0) { store.saveRegisteredIds(any()) }
         verify(exactly = 0) { store.setLastSyncTimestamp(any()) }
         coVerify(exactly = 0) { manager.replaceGeofences(any(), any()) }
@@ -953,7 +953,9 @@ class GeofenceRepositoryTest : RobolectricTest() {
             manager.replaceGeofences(any(), any())
             manager.removeGeofencesByIds(any())
         }
-        verify { logger.logSyncSucceeded(1, movementTriggerRegistered = true) }
+        // Two, not one: the orphaned "biz-old" is still registered with the OS because removal
+        // failed, and this record reports what is monitored rather than what was requested.
+        verify { logger.logSyncSucceeded(2, movementTriggerRegistered = true) }
         // Persisted set includes the unremoved stale ID — next refresh will retry it.
         persisted.captured shouldContainSame
             setOf(GeofenceConstants.MOVEMENT_TRIGGER_ID, "biz-new", "biz-old")

@@ -150,8 +150,16 @@ internal class GeofenceRepositoryImpl(
         // from the last registration (the movement-trigger center). Null (never set) → 0 → within radius.
         val distanceFromLastFetch = store.getLastApiFetchLocation()
             ?.distanceTo(location.latitude, location.longitude) ?: 0f
-        val distanceFromLastRegistration = store.getLastMovementTriggerLocation()
+        val restoreAnchor = store.getLastMovementTriggerLocation()
+        val distanceFromLastRegistration = restoreAnchor
             ?.distanceTo(location.latitude, location.longitude) ?: 0f
+        // Emitted here, not inside one of the predicates below: `when` short-circuits, so a cold
+        // start with a stale cache took the first arm and never logged what it had to work from —
+        // the exact case the record exists for. `hasAnchor` is the restore anchor, matching iOS.
+        logger.logStorageLoaded(
+            regionCount = store.getCachedRegions().size,
+            hasAnchor = restoreAnchor != null
+        )
 
         return when {
             isStaleInTime(config) -> RefreshAction.REMOTE
@@ -183,14 +191,8 @@ internal class GeofenceRepositoryImpl(
         distanceFromAnchor >= config.remoteFetchRefreshTriggerRadius
 
     /** Cache holds regions but none are registered with the OS (e.g. regs lost on sign-out) → re-register. */
-    private fun hasUnregisteredCache(): Boolean {
-        val cached = store.getCachedRegions()
-        val registered = store.getRegisteredIds()
-        // Logged here because this is where a cold start first asks what it has to work from —
-        // "was there anything cached at all" is otherwise guesswork when reading a drive.
-        logger.logStorageLoaded(regionCount = cached.size, hasAnchor = registered.isNotEmpty())
-        return cached.isNotEmpty() && registered.isEmpty()
-    }
+    private fun hasUnregisteredCache(): Boolean =
+        store.getCachedRegions().isNotEmpty() && store.getRegisteredIds().isEmpty()
 
     /**
      * Uptime regressed since the last registration → the device rebooted, which wipes GMS geofences
@@ -342,7 +344,7 @@ internal class GeofenceRepositoryImpl(
                 // The count off the wire, before local ranking. The gap between what the server
                 // offered and what survived the cap is the thing worth being able to see.
                 logger.logApiFetchResult(
-                    returnedCount = regions.size,
+                    returnedCount = response.geofences.size,
                     elapsedMillis = clock.elapsedRealtime() - fetchStartedAt
                 )
                 // Config preference: server-shipped > last cached > constants.
@@ -367,7 +369,7 @@ internal class GeofenceRepositoryImpl(
                 )
             },
             onFailure = { error ->
-                logger.logSyncFailed(error.message)
+                logger.logApiFetchFailed(error.message)
                 Result.failure(error)
             }
         )
@@ -537,10 +539,15 @@ internal class GeofenceRepositoryImpl(
                         store.clearLastMovementTriggerLocation()
                     }
                     onRegistered()
-                    logger.logSyncSucceeded(nearest.size, movementTriggerRegistered = monitoringEnabled)
+                    // idsToSave, not `nearest`: when stale removal failed the OS still holds those
+                    // fences, and "what is actually monitored" is the question these records answer.
+                    // The trigger is reported separately, so it must not inflate the business count.
+                    val monitoredBusinessIds = idsToSave.filterNot { it == GeofenceConstants.MOVEMENT_TRIGGER_ID }
+                    logger.logSyncSucceeded(monitoredBusinessIds.size, movementTriggerRegistered = monitoringEnabled)
                     logger.logRegionsRegisteredIds(
-                        ids = nearest.map { it.id },
-                        movementTriggerId = if (monitoringEnabled) GeofenceConstants.MOVEMENT_TRIGGER_ID else null
+                        ids = monitoredBusinessIds.sorted(),
+                        movementTriggerId = GeofenceConstants.MOVEMENT_TRIGGER_ID
+                            .takeIf { idsToSave.contains(it) }
                     )
                     if (monitoringEnabled) {
                         logger.logMovementTriggerRegistered(

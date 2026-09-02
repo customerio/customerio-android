@@ -55,11 +55,14 @@ class GeofenceLogTailTest : RobolectricTest() {
         capturing = CapturingLogger()
         geofenceLogger = GeofenceLogger(capturing)
         GeofenceDiagnostics.setEnabledForTesting(true)
+        // module.init is latched once per process; every invocation here is a fresh "launch".
+        moduleInitLatch.set(false)
     }
 
     @After
     fun resetDiagnostics() {
         GeofenceDiagnostics.setEnabledForTesting(false)
+        moduleInitLatch.set(false)
     }
 
     /**
@@ -106,7 +109,7 @@ class GeofenceLogTailTest : RobolectricTest() {
     private fun invocations(): List<Triple<String, List<String>, (GeofenceLogger) -> Unit>> {
         val fix = location()
         return listOf(
-            Triple("geofencesRegistered", listOf("n")) { it.logGeofencesRegistered(19) },
+            Triple("geofencesRegistered", listOf("nadd")) { it.logGeofencesRegistered(19) },
             Triple("regionsRegisteredIds", listOf("n", "ids", "mvmt")) { it.logRegionsRegisteredIds(listOf("a", "b"), "cio_movement_trigger") },
             Triple("businessKept", listOf("nkeep", "why")) { it.logBusinessGeofencesKept(4) },
             Triple("geofencesRemoved", listOf("nrem")) { it.logGeofencesRemoved(2) },
@@ -279,11 +282,14 @@ class GeofenceLogTailTest : RobolectricTest() {
         // The prose is what a customer reads and what existing tests assert on. Enabling
         // diagnostics must append to it and never rewrite it.
         for ((name, _, run) in invocations()) {
+            // Each pass is a fresh "launch" for the once-per-process module.init record.
             GeofenceDiagnostics.setEnabledForTesting(false)
+            moduleInitLatch.set(false)
             val off = CapturingLogger()
             run(GeofenceLogger(off))
 
             GeofenceDiagnostics.setEnabledForTesting(true)
+            moduleInitLatch.set(false)
             val on = CapturingLogger()
             run(GeofenceLogger(on))
 

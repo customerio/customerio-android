@@ -58,9 +58,9 @@ class LocationServicesImplTest {
     }
 
     @Test
-    fun givenHostSuppliedLocation_setLastKnownLocation_expectAccuracyAndTimeForwarded() {
-        // The Location overload carries what the host's own fix could resolve and when it was
-        // taken; discarding them would let the geofence path treat a coarse, old fix as exact.
+    fun givenHostSuppliedLocation_setLastKnownLocation_expectFixTimeForwarded() {
+        // The Location overload carries when the host's fix was taken; discarding it would let the
+        // geofence path treat an old fix as current.
         val config = LocationModuleConfig.Builder()
             .setLocationTrackingMode(LocationTrackingMode.MANUAL)
             .build()
@@ -71,15 +71,13 @@ class LocationServicesImplTest {
         val hostLocation: android.location.Location = mockk {
             every { latitude } returns 37.7749
             every { longitude } returns -122.4194
-            every { hasAccuracy() } returns true
-            every { accuracy } returns 480f
             every { elapsedRealtimeNanos } returns 90_000_000_000L
         }
 
         LocationServicesImpl(config, logger, tracker, orchestrator, scope)
             .setLastKnownLocation(hostLocation)
 
-        verify { tracker.onLocationReceived(37.7749, -122.4194, 480.0, 90_000L) }
+        verify { tracker.onLocationReceived(37.7749, -122.4194, 90_000L) }
     }
 
     @Test
@@ -100,7 +98,6 @@ class LocationServicesImplTest {
         val hostLocation: android.location.Location = mockk {
             every { latitude } returns 37.7749
             every { longitude } returns -122.4194
-            every { hasAccuracy() } returns false
             every { elapsedRealtimeNanos } returns 0L
             every { time } returns System.currentTimeMillis() - ageMillis
         }
@@ -110,7 +107,7 @@ class LocationServicesImplTest {
             LocationServicesImpl(config, logger, tracker, orchestrator, scope)
                 .setLastKnownLocation(hostLocation)
 
-            verify { tracker.onLocationReceived(37.7749, -122.4194, null, capture(forwarded)) }
+            verify { tracker.onLocationReceived(37.7749, -122.4194, capture(forwarded)) }
             // Mapped onto the monotonic base, so the fix still reads as roughly an hour old.
             (nowElapsed - forwarded.captured in (ageMillis - 1_000)..(ageMillis + 1_000)).shouldBeTrue()
         } finally {
@@ -119,7 +116,7 @@ class LocationServicesImplTest {
     }
 
     @Test
-    fun givenHostLocationWithoutAccuracy_setLastKnownLocation_expectNoFabricatedQuality() {
+    fun givenHostLocationWithoutTime_setLastKnownLocation_expectNoFabricatedAge() {
         val config = LocationModuleConfig.Builder()
             .setLocationTrackingMode(LocationTrackingMode.MANUAL)
             .build()
@@ -130,7 +127,6 @@ class LocationServicesImplTest {
         val hostLocation: android.location.Location = mockk {
             every { latitude } returns 37.7749
             every { longitude } returns -122.4194
-            every { hasAccuracy() } returns false
             every { elapsedRealtimeNanos } returns 0L
             every { time } returns 0L
         }
@@ -138,7 +134,7 @@ class LocationServicesImplTest {
         LocationServicesImpl(config, logger, tracker, orchestrator, scope)
             .setLastKnownLocation(hostLocation)
 
-        verify { tracker.onLocationReceived(37.7749, -122.4194, null, null) }
+        verify { tracker.onLocationReceived(37.7749, -122.4194, null) }
     }
 
     @Test

@@ -103,7 +103,6 @@ internal class LocationTracker(
     fun onLocationReceived(
         latitude: Double,
         longitude: Double,
-        horizontalAccuracyMeters: Double? = null,
         fixElapsedRealtimeMillis: Long? = null
     ) {
         logger.debug("Location update received: lat=$latitude, lng=$longitude")
@@ -121,7 +120,6 @@ internal class LocationTracker(
             Event.LocationFixAcquired(
                 latitude = latitude,
                 longitude = longitude,
-                horizontalAccuracyMeters = horizontalAccuracyMeters,
                 fixElapsedRealtimeMillis = fixElapsedRealtimeMillis
             )
         )
@@ -135,7 +133,6 @@ internal class LocationTracker(
     fun onLocationReceivedWithoutTracking(
         latitude: Double,
         longitude: Double,
-        horizontalAccuracyMeters: Double? = null,
         fixElapsedRealtimeMillis: Long? = null
     ) {
         logger.debug("Location update received (geofence-only, not tracked): lat=$latitude, lng=$longitude")
@@ -148,7 +145,6 @@ internal class LocationTracker(
             Event.LocationFixAcquired(
                 latitude = latitude,
                 longitude = longitude,
-                horizontalAccuracyMeters = horizontalAccuracyMeters,
                 fixElapsedRealtimeMillis = fixElapsedRealtimeMillis
             )
         )

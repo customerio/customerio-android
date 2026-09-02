@@ -61,15 +61,14 @@ sealed class Event {
     ) : Event()
 
     /**
-     * The same fix as [LocationAcquired], plus what it can be trusted to resolve, for subscribers
-     * that judge geometry. Null fields mean the source reported none.
-     * [fixElapsedRealtimeMillis] is monotonic since boot, so a clock correction cannot age a fix.
+     * The same fix as [LocationAcquired], plus when it was taken, for subscribers that judge
+     * geometry. [fixElapsedRealtimeMillis] is monotonic since boot, so a clock correction cannot
+     * age a fix; null means the source reported no time.
      */
     @InternalCustomerIOApi
     data class LocationFixAcquired(
         val latitude: Double,
         val longitude: Double,
-        val horizontalAccuracyMeters: Double? = null,
         val fixElapsedRealtimeMillis: Long? = null
     ) : Event()
 

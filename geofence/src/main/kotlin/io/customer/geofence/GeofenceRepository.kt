@@ -37,8 +37,8 @@ internal interface GeofenceRepository {
      * this caller holds the device's real position and the fix is consumed either way. Like the
      * movement trigger, it carries a real fix and is trusted accordingly — see [FixSource].
      *
-     * [quality] qualifies that trust: a fix too old or too coarse to place the device against a
-     * fence ranks and prunes like an anchor instead of judging containment.
+     * [quality] qualifies that trust: a fix too old to say where the device is now ranks and
+     * prunes like an anchor instead of judging containment.
      */
     @RequiresPermission(Manifest.permission.ACCESS_FINE_LOCATION)
     suspend fun refreshFromLiveFix(
@@ -48,11 +48,7 @@ internal interface GeofenceRepository {
     ): Result<Unit>
 
     @RequiresPermission(Manifest.permission.ACCESS_FINE_LOCATION)
-    suspend fun handleMovement(
-        latitude: Double,
-        longitude: Double,
-        quality: GeofenceFixQuality = GeofenceFixQuality.UNKNOWN
-    ): Result<Unit>
+    suspend fun handleMovement(latitude: Double, longitude: Double): Result<Unit>
 
     /**
      * Re-registers the cached geofences with the OS after a device reboot
@@ -137,7 +133,7 @@ internal class GeofenceRepositoryImpl(
             logger.logSyncSkipped("refresh already in progress after waiting")
             return Result.success(Unit)
         }
-        return runRefresh(latitude, longitude, fixSource, containmentEpoch, quality)
+        return runRefresh(latitude, longitude, fixSource, containmentEpoch)
     }
 
     @RequiresPermission(Manifest.permission.ACCESS_FINE_LOCATION)
@@ -145,8 +141,7 @@ internal class GeofenceRepositoryImpl(
         latitude: Double,
         longitude: Double,
         fixSource: FixSource,
-        containmentEpoch: Long,
-        quality: GeofenceFixQuality = GeofenceFixQuality.UNKNOWN
+        containmentEpoch: Long
     ): Result<Unit> {
         try {
             val userId = secureUserStore.getUserId()
@@ -161,8 +156,8 @@ internal class GeofenceRepositoryImpl(
             // a just-identified user unmonitored. Pref reads only; network stays outside the lock.
             val action = stateMutex.withLock { refreshAction(LocationCoordinates(latitude, longitude), config) }
             return when (action) {
-                RefreshAction.REMOTE -> performRemoteRefresh(userId, latitude, longitude, containmentEpoch, fixSource, quality)
-                RefreshAction.LOCAL -> performLocalRefresh(userId, latitude, longitude, config, containmentEpoch, fixSource, quality)
+                RefreshAction.REMOTE -> performRemoteRefresh(userId, latitude, longitude, containmentEpoch, fixSource)
+                RefreshAction.LOCAL -> performLocalRefresh(userId, latitude, longitude, config, containmentEpoch, fixSource)
                 RefreshAction.SKIP -> {
                     logger.logSyncSkippedFresh()
                     reconcileContainment(userId, latitude, longitude, containmentEpoch, fixSource)
@@ -285,11 +280,7 @@ internal class GeofenceRepositoryImpl(
     }
 
     @RequiresPermission(Manifest.permission.ACCESS_FINE_LOCATION)
-    override suspend fun handleMovement(
-        latitude: Double,
-        longitude: Double,
-        quality: GeofenceFixQuality
-    ): Result<Unit> {
+    override suspend fun handleMovement(latitude: Double, longitude: Double): Result<Unit> {
         // Before the slot wait, as in [refreshFromLiveFix].
         val containmentEpoch = store.containmentEpoch()
         if (!awaitRefreshSlot()) {
@@ -312,16 +303,16 @@ internal class GeofenceRepositoryImpl(
                 movedBeyondFetchRadius(distanceFromAnchor, config)
             // The triggering fix is the OS's own, so a reboot/app-update wipe can't make it stale.
             return if (needsRemoteFetch) {
-                val remote = performRemoteRefresh(userId, latitude, longitude, containmentEpoch, FixSource.MOVEMENT, quality)
+                val remote = performRemoteRefresh(userId, latitude, longitude, containmentEpoch, FixSource.MOVEMENT)
                 if (remote.isFailure) {
                     // The trigger already fired, and a failed pass never re-centres it — leaving it
                     // where the device just exited, so nothing can fire again. Re-rank to re-arm it.
                     logger.logMovementRearmedAfterFailedRefresh()
-                    performLocalRefresh(userId, latitude, longitude, config, containmentEpoch, FixSource.MOVEMENT, quality)
+                    performLocalRefresh(userId, latitude, longitude, config, containmentEpoch, FixSource.MOVEMENT)
                 }
                 remote
             } else {
-                performLocalRefresh(userId, latitude, longitude, config, containmentEpoch, FixSource.MOVEMENT, quality)
+                performLocalRefresh(userId, latitude, longitude, config, containmentEpoch, FixSource.MOVEMENT)
             }
         } finally {
             releaseRefreshSlot()
@@ -371,8 +362,7 @@ internal class GeofenceRepositoryImpl(
         latitude: Double,
         longitude: Double,
         containmentEpoch: Long,
-        fixSource: FixSource,
-        quality: GeofenceFixQuality = GeofenceFixQuality.UNKNOWN
+        fixSource: FixSource
     ): Result<Unit> {
         // The device location lets the backend return the nearby set; the request carries no user
         // identity, so it isn't attributable to a user.
@@ -399,7 +389,6 @@ internal class GeofenceRepositoryImpl(
                     config = config,
                     containmentEpoch = containmentEpoch,
                     fixSource = fixSource,
-                    quality = quality,
                     // Cache + anchor + timestamp only on remote fetch; Tier A reuses them.
                     // Skip the config save when backend didn't ship one this response —
                     // a null parse must not clobber a previously cached value.
@@ -426,7 +415,6 @@ internal class GeofenceRepositoryImpl(
         cachedConfig: GeofenceConfig,
         containmentEpoch: Long,
         fixSource: FixSource,
-        quality: GeofenceFixQuality = GeofenceFixQuality.UNKNOWN,
         register: suspend (List<GeofenceRegion>) -> Result<Unit> = ::registerWithBusinessDiff
     ): Result<Unit> = registerNearestAndPersist(
         userId = userId,
@@ -436,8 +424,7 @@ internal class GeofenceRepositoryImpl(
         config = cachedConfig,
         containmentEpoch = containmentEpoch,
         register = register,
-        fixSource = fixSource,
-        quality = quality
+        fixSource = fixSource
     )
 
     /**
@@ -483,7 +470,6 @@ internal class GeofenceRepositoryImpl(
         config: GeofenceConfig,
         containmentEpoch: Long,
         fixSource: FixSource,
-        quality: GeofenceFixQuality = GeofenceFixQuality.UNKNOWN,
         register: suspend (List<GeofenceRegion>) -> Result<Unit> = ::registerWithBusinessDiff,
         onRegistered: () -> Unit = {}
     ): Result<Unit> {
@@ -499,7 +485,6 @@ internal class GeofenceRepositoryImpl(
         // maxMonitoringDistance, or the distance-capped /nearest returned none here — so an EXIT
         // re-ranks/re-fetches as the device travels. Only maxBusinessGeofences = 0 means "feature off".
         val monitoringEnabled = config.maxBusinessGeofences > 0
-        val margin = quality.containmentMarginMeters
         val regionsToRegister = if (!monitoringEnabled) {
             emptyList()
         } else {
@@ -545,25 +530,21 @@ internal class GeofenceRepositoryImpl(
                         newIds + staleIds
                     }
                     store.saveRegisteredIds(idsToSave)
-                    // Inside stays an exact point check. Widening it by the margin would make a
-                    // fence smaller than the fix unjudgable at any distance, so a low-power fix
-                    // would never seed or fire the backstop — and an empty reading would then mean
-                    // "could not decide" while the store reads it as "inside nothing".
-                    val insideNow = nearest.filter {
-                        it.distanceTo(latitude, longitude) <= it.radius
-                    }.map { it.id }.toSet()
-                    // Retiring is the one direction where the margin only removes false confidence:
-                    // a record is dropped only once the error circle clears the fence entirely.
-                    val outsideNow = nearest.filter {
-                        it.distanceTo(latitude, longitude) - margin > it.radius
-                    }.map { it.id }.toSet()
+                    // An exact point check, with no accuracy margin in either direction. Widening
+                    // the inside test would make a fence smaller than the fix unjudgable, so the
+                    // initial-ENTER backstop would never fire; narrowing the outside test would keep
+                    // a stale mark on a fence the device is just outside of, and that mark swallows
+                    // the next genuine arrival as redundant.
+                    val insideNow = nearest.filter { it.distanceTo(latitude, longitude) <= it.radius }
+                        .map { it.id }
+                        .toSet()
                     // Without a record the later genuine EXIT looks unentered and gets dropped, but
                     // an anchor would seed a place the device left days ago — so it judges nothing.
                     val insideIds = insideNow.takeIf { fixSource.trustsGeometry }
                     // A moved circle keeps its ID, so its record and mark can describe a fence that
                     // no longer exists, and the mark then suppresses GMS's own arrival at the new
                     // one. An anchor may retire evidence it can't vouch for; it just may not seed.
-                    val movedAwayIds = reRegisteredIds intersect outsideNow
+                    val movedAwayIds = reRegisteredIds - insideNow
                     val resetApplied = store.reconcileEnteredIds(
                         registeredIds = idsToSave,
                         inside = insideIds,

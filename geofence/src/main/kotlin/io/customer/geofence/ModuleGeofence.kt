@@ -122,10 +122,7 @@ class ModuleGeofence @JvmOverloads constructor(
             sdkAndroid.geofenceServices.onLocationAcquired(
                 latitude = it.latitude,
                 longitude = it.longitude,
-                quality = GeofenceFixQuality(
-                    accuracyMeters = it.horizontalAccuracyMeters,
-                    fixElapsedRealtimeMillis = it.fixElapsedRealtimeMillis
-                )
+                quality = GeofenceFixQuality(fixElapsedRealtimeMillis = it.fixElapsedRealtimeMillis)
             )
         }
 

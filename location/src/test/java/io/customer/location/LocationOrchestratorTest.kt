@@ -46,7 +46,7 @@ class LocationOrchestratorTest {
         orchestrator(LocationTrackingMode.OFF).requestLocation(LocationRequestIntent(tracked = true))
 
         coVerify(exactly = 0) { provider.requestLocation(any()) }
-        verify(exactly = 0) { tracker.onLocationReceived(any(), any(), any(), any()) }
+        verify(exactly = 0) { tracker.onLocationReceived(any(), any(), any()) }
     }
 
     @Test
@@ -55,8 +55,8 @@ class LocationOrchestratorTest {
 
         orchestrator(LocationTrackingMode.MANUAL).requestLocation(LocationRequestIntent(tracked = true))
 
-        verify { tracker.onLocationReceived(37.7749, -122.4194, 10.0, any()) }
-        verify(exactly = 0) { tracker.onLocationReceivedWithoutTracking(any(), any(), any(), any()) }
+        verify { tracker.onLocationReceived(37.7749, -122.4194, any()) }
+        verify(exactly = 0) { tracker.onLocationReceivedWithoutTracking(any(), any(), any()) }
     }
 
     @Test
@@ -66,8 +66,8 @@ class LocationOrchestratorTest {
         orchestrator(LocationTrackingMode.OFF).requestLocation(LocationRequestIntent(tracked = false))
 
         coVerify { provider.requestLocation(LocationGranularity.DEFAULT) }
-        verify { tracker.onLocationReceivedWithoutTracking(37.7749, -122.4194, 10.0, any()) }
-        verify(exactly = 0) { tracker.onLocationReceived(any(), any(), any(), any()) }
+        verify { tracker.onLocationReceivedWithoutTracking(37.7749, -122.4194, any()) }
+        verify(exactly = 0) { tracker.onLocationReceived(any(), any(), any()) }
     }
 
     @Test
@@ -77,7 +77,7 @@ class LocationOrchestratorTest {
         orchestrator(LocationTrackingMode.OFF).requestLocation(LocationRequestIntent(tracked = false))
 
         coVerify(exactly = 0) { provider.requestLocation(any()) }
-        verify(exactly = 0) { tracker.onLocationReceivedWithoutTracking(any(), any(), any(), any()) }
+        verify(exactly = 0) { tracker.onLocationReceivedWithoutTracking(any(), any(), any()) }
     }
 
     @Test
@@ -87,7 +87,7 @@ class LocationOrchestratorTest {
         givenAuthorizedFix()
         val intent = LocationRequestIntent(tracked = false)
         var upgradeAccepted: Boolean? = null
-        every { tracker.onLocationReceivedWithoutTracking(any(), any(), any(), any()) } answers {
+        every { tracker.onLocationReceivedWithoutTracking(any(), any(), any()) } answers {
             upgradeAccepted = intent.upgradeToTracked()
         }
 
@@ -121,8 +121,8 @@ class LocationOrchestratorTest {
 
         orchestrator(LocationTrackingMode.ON_APP_START).requestLocation(intent)
 
-        verify { tracker.onLocationReceived(37.7749, -122.4194, 10.0, any()) }
-        verify(exactly = 0) { tracker.onLocationReceivedWithoutTracking(any(), any(), any(), any()) }
+        verify { tracker.onLocationReceived(37.7749, -122.4194, any()) }
+        verify(exactly = 0) { tracker.onLocationReceivedWithoutTracking(any(), any(), any()) }
     }
 
     @Test
@@ -137,7 +137,7 @@ class LocationOrchestratorTest {
 
         orchestrator(LocationTrackingMode.OFF).requestLocation(intent)
 
-        verify { tracker.onLocationReceivedWithoutTracking(37.7749, -122.4194, 10.0, any()) }
-        verify(exactly = 0) { tracker.onLocationReceived(any(), any(), any(), any()) }
+        verify { tracker.onLocationReceivedWithoutTracking(37.7749, -122.4194, any()) }
+        verify(exactly = 0) { tracker.onLocationReceived(any(), any(), any()) }
     }
 }

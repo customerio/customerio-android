@@ -577,10 +577,10 @@ class GeofenceRepositoryTest : RobolectricTest() {
     }
 
     @Test
-    fun refreshFromLiveFix_givenCoarseFixInsideAFenceSmallerThanItsAccuracy_expectStillSeeded() = runTest {
-        // Deliberate: containment stays an exact point check. Requiring the error circle to fit
-        // would make a fence smaller than the fix unjudgable at any distance, so a low-power fix
-        // could never seed or fire the initial-ENTER backstop.
+    fun refreshFromLiveFix_givenFixInsideAFence_expectSeededByExactPointCheck() = runTest {
+        // Deliberate: containment is an exact point check with no accuracy margin. Requiring an
+        // error circle to fit would make a fence smaller than the fix unjudgable at any distance,
+        // so a low-power fix could never seed or fire the initial-ENTER backstop.
         every { secureUserStore.getUserId() } returns "user-42"
         every { store.getRegisteredIds() } returns emptySet()
         val fence = GeofenceRegion("biz-edge", metersOfLatitude(60), 0.0, 100f)
@@ -591,7 +591,7 @@ class GeofenceRepositoryTest : RobolectricTest() {
         repository.refreshFromLiveFix(
             latitude = 0.0,
             longitude = 0.0,
-            quality = GeofenceFixQuality(accuracyMeters = 500.0, fixElapsedRealtimeMillis = clock.elapsedRealtime())
+            quality = GeofenceFixQuality(fixElapsedRealtimeMillis = clock.elapsedRealtime())
         )
 
         // Non-null, so a live pass still ends the no-record grace with a real reading rather than
@@ -600,9 +600,10 @@ class GeofenceRepositoryTest : RobolectricTest() {
     }
 
     @Test
-    fun refreshFromLiveFix_givenFixAmbiguousAboutAFence_expectMarkNotRetired() = runTest {
-        // The other half of the same reading: "not certainly inside" is not "certainly outside".
-        // Retiring the mark on an ambiguous fix re-arms an arrival the device never left.
+    fun refreshFromLiveFix_givenFixJustOutsideAReRegisteredFence_expectMarkRetired() = runTest {
+        // No accuracy margin on the outside test either. Keeping the mark while the device is
+        // "not certainly outside" would leave it in place when the device is genuinely outside the
+        // edited circle, and that mark then drops the next real arrival as redundant.
         every { secureUserStore.getUserId() } returns "user-42"
         val fence = GeofenceRegion("biz-edge", metersOfLatitude(120), 0.0, 100f)
         every { store.getRegisteredIds() } returns setOf("biz-edge")
@@ -613,34 +614,7 @@ class GeofenceRepositoryTest : RobolectricTest() {
         repository.refreshFromLiveFix(
             latitude = 0.0,
             longitude = 0.0,
-            quality = GeofenceFixQuality(accuracyMeters = 50.0, fixElapsedRealtimeMillis = clock.elapsedRealtime())
-        )
-
-        // 120m out with 50m of error: it may still be inside, so neither seed nor retire.
-        verify {
-            store.reconcileEnteredIds(
-                registeredIds = any(),
-                inside = emptySet(),
-                sinceEpoch = any(),
-                resetIds = emptySet()
-            )
-        }
-    }
-
-    @Test
-    fun refreshFromLiveFix_givenFixDecisivelyOutside_expectMarkRetired() = runTest {
-        // Control for the case above: far enough that the error circle clears the fence entirely.
-        every { secureUserStore.getUserId() } returns "user-42"
-        val fence = GeofenceRegion("biz-edge", metersOfLatitude(200), 0.0, 100f)
-        every { store.getRegisteredIds() } returns setOf("biz-edge")
-        coEvery { apiService.fetchGeofences(any()) } returns Result.success(sampleResponse(maxBusinessGeofences = 5))
-        every { distanceFilter.nearest(any(), any(), any(), any(), any()) } returns listOf(fence)
-        coEvery { manager.replaceGeofences(any(), any()) } returns Result.success(Unit)
-
-        repository.refreshFromLiveFix(
-            latitude = 0.0,
-            longitude = 0.0,
-            quality = GeofenceFixQuality(accuracyMeters = 50.0, fixElapsedRealtimeMillis = clock.elapsedRealtime())
+            quality = GeofenceFixQuality(fixElapsedRealtimeMillis = clock.elapsedRealtime())
         )
 
         verify {
@@ -668,7 +642,6 @@ class GeofenceRepositoryTest : RobolectricTest() {
             latitude = 0.0,
             longitude = 0.0,
             quality = GeofenceFixQuality(
-                accuracyMeters = 5.0,
                 fixElapsedRealtimeMillis = clock.elapsedRealtime() - GeofenceConstants.MAX_LIVE_FIX_AGE_MS - 1
             )
         )
@@ -691,7 +664,6 @@ class GeofenceRepositoryTest : RobolectricTest() {
             latitude = 0.0,
             longitude = 0.0,
             quality = GeofenceFixQuality(
-                accuracyMeters = 5.0,
                 fixElapsedRealtimeMillis = clock.elapsedRealtime() - GeofenceConstants.MAX_LIVE_FIX_AGE_MS + 1_000
             )
         )
@@ -700,9 +672,9 @@ class GeofenceRepositoryTest : RobolectricTest() {
     }
 
     @Test
-    fun refreshFromLiveFix_givenUnreportedAccuracy_expectCoordinatesTakenAtFaceValue() = runTest {
-        // A host-supplied fix reports neither field. It asserts a position rather than measuring
-        // one, so it keeps the pre-gate behaviour instead of being demoted to useless.
+    fun refreshFromLiveFix_givenUnreportedTime_expectCoordinatesTakenAtFaceValue() = runTest {
+        // A host-supplied fix may report no time. It asserts a position, so it keeps the pre-gate
+        // behaviour instead of being demoted to useless.
         every { secureUserStore.getUserId() } returns "user-42"
         every { store.getRegisteredIds() } returns emptySet()
         val fence = GeofenceRegion("biz-inside", metersOfLatitude(80), 0.0, 100f)

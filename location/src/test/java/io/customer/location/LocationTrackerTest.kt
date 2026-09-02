@@ -102,7 +102,6 @@ class LocationTrackerTest {
         tracker.onLocationReceived(
             latitude = 37.7749,
             longitude = -122.4194,
-            horizontalAccuracyMeters = 12.5,
             fixElapsedRealtimeMillis = 90_000L
         )
 
@@ -113,7 +112,6 @@ class LocationTrackerTest {
             Event.LocationFixAcquired(
                 latitude = 37.7749,
                 longitude = -122.4194,
-                horizontalAccuracyMeters = 12.5,
                 fixElapsedRealtimeMillis = 90_000L
             )
     }

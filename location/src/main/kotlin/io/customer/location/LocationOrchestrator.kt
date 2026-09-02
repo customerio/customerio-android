@@ -54,14 +54,12 @@ internal class LocationOrchestrator(
                 locationTracker.onLocationReceived(
                     latitude = snapshot.latitude,
                     longitude = snapshot.longitude,
-                    horizontalAccuracyMeters = snapshot.horizontalAccuracy,
                     fixElapsedRealtimeMillis = snapshot.fixElapsedRealtimeMillis
                 )
             } else {
                 locationTracker.onLocationReceivedWithoutTracking(
                     latitude = snapshot.latitude,
                     longitude = snapshot.longitude,
-                    horizontalAccuracyMeters = snapshot.horizontalAccuracy,
                     fixElapsedRealtimeMillis = snapshot.fixElapsedRealtimeMillis
                 )
             }

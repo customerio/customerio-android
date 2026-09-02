@@ -31,18 +31,16 @@ internal class LocationServicesImpl(
         trackHostLocation(latitude, longitude)
 
     override fun setLastKnownLocation(location: Location) =
-        // Unlike the coordinate overload, this one carries what the host's fix could resolve.
+        // Unlike the coordinate overload, this one carries when the host's fix was taken.
         trackHostLocation(
             latitude = location.latitude,
             longitude = location.longitude,
-            horizontalAccuracyMeters = location.takeIf { it.hasAccuracy() }?.accuracy?.toDouble(),
             fixElapsedRealtimeMillis = location.fixElapsedRealtimeMillis()
         )
 
     private fun trackHostLocation(
         latitude: Double,
         longitude: Double,
-        horizontalAccuracyMeters: Double? = null,
         fixElapsedRealtimeMillis: Long? = null
     ) {
         if (!config.isEnabled) {
@@ -57,12 +55,7 @@ internal class LocationServicesImpl(
 
         logger.debug("Tracking location: lat=$latitude, lng=$longitude")
 
-        locationTracker.onLocationReceived(
-            latitude,
-            longitude,
-            horizontalAccuracyMeters,
-            fixElapsedRealtimeMillis
-        )
+        locationTracker.onLocationReceived(latitude, longitude, fixElapsedRealtimeMillis)
     }
 
     override fun requestLocationUpdate() {

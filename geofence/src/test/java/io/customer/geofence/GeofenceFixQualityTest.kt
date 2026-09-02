@@ -1,30 +1,10 @@
 package io.customer.geofence
 
-import org.amshove.kluent.shouldBeEqualTo
 import org.amshove.kluent.shouldBeFalse
 import org.amshove.kluent.shouldBeTrue
 import org.junit.Test
 
 class GeofenceFixQualityTest {
-    @Test
-    fun containmentMargin_givenReportedAccuracy_expectItUsedAsTheMargin() {
-        GeofenceFixQuality(accuracyMeters = 25.0).containmentMarginMeters shouldBeEqualTo 25.0
-    }
-
-    @Test
-    fun containmentMargin_givenUnreportedAccuracy_expectNoMargin() {
-        GeofenceFixQuality.UNKNOWN.containmentMarginMeters shouldBeEqualTo 0.0
-    }
-
-    @Test
-    fun containmentMargin_givenUnusableAccuracy_expectNoMarginRatherThanAnUndecidableOne() {
-        // NaN would make both the inside and the outside comparison false, so every fence would
-        // land in the ambiguous band and the pass would silently decide nothing.
-        listOf(Double.NaN, Double.POSITIVE_INFINITY, 0.0, -1.0).forEach { accuracy ->
-            GeofenceFixQuality(accuracyMeters = accuracy).containmentMarginMeters shouldBeEqualTo 0.0
-        }
-    }
-
     @Test
     fun isFresh_givenUnreportedTime_expectTreatedAsCurrent() {
         GeofenceFixQuality.UNKNOWN.isFresh(NOW).shouldBeTrue()
@@ -38,9 +18,10 @@ class GeofenceFixQualityTest {
     }
 
     @Test
-    fun isFresh_givenFixStampedAfterNow_expectNotTreatedAsFresh() {
-        // Monotonic time cannot run backwards, so this only arises from a bogus supplied stamp.
-        GeofenceFixQuality(fixElapsedRealtimeMillis = NOW + 1).isFresh(NOW).shouldBeFalse()
+    fun isFresh_givenFixStampedAfterNow_expectTreatedAsFresh() {
+        // Monotonic time cannot run backwards, so this is skew in a host-mapped stamp, not age.
+        // Demoting it would silence containment on the fix least likely to be stale.
+        GeofenceFixQuality(fixElapsedRealtimeMillis = NOW + 1).isFresh(NOW).shouldBeTrue()
     }
 
     private companion object {

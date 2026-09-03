@@ -390,4 +390,50 @@ class GeofenceLogTailTest : RobolectricTest() {
         GeofenceLogTail.list(values, limit = 25)!!.endsWith(",+5") shouldBeEqualTo true
         GeofenceLogTail.list(emptyList()).shouldBeNull()
     }
+
+    @Test
+    fun expensiveFields_givenDiagnosticsOff_expectNeverEvaluated() {
+        // The gate's worth on these two paths is that the work is never *done*, not merely never
+        // printed. Every other test here asserts on output, so moving the gate below the lambda
+        // call would leave them all green while a background wake still pays for a distance map
+        // over every candidate and a deserialization of the cached region list.
+        GeofenceDiagnostics.setEnabledForTesting(false)
+        val logger = CapturingLogger()
+        val subject = GeofenceLogger(logger)
+        var selectedCalls = 0
+        var evictedCalls = 0
+        var distanceCalls = 0
+        var regionCountCalls = 0
+
+        subject.logRankEvaluated(
+            candidates = 50,
+            selectedCount = 19,
+            selected = { selectedCalls++; listOf("alpha") },
+            evicted = { evictedCalls++; listOf("beta") },
+            edgeDistances = { distanceCalls++; mapOf("alpha" to 120.0) }
+        )
+        subject.logStorageLoaded(regionCount = { regionCountCalls++; 100 }, hasAnchor = true)
+
+        selectedCalls shouldBeEqualTo 0
+        evictedCalls shouldBeEqualTo 0
+        distanceCalls shouldBeEqualTo 0
+        regionCountCalls shouldBeEqualTo 0
+
+        // Proves the counts above are zero because of the gate, not because the lambdas are
+        // unreachable. logStorageLoaded is diagnostics-only, so it also gains its prose here.
+        GeofenceDiagnostics.setEnabledForTesting(true)
+        subject.logRankEvaluated(
+            candidates = 50,
+            selectedCount = 19,
+            selected = { selectedCalls++; listOf("alpha") },
+            evicted = { evictedCalls++; listOf("beta") },
+            edgeDistances = { distanceCalls++; mapOf("alpha" to 120.0) }
+        )
+        subject.logStorageLoaded(regionCount = { regionCountCalls++; 100 }, hasAnchor = true)
+
+        selectedCalls shouldBeEqualTo 1
+        evictedCalls shouldBeEqualTo 1
+        distanceCalls shouldBeEqualTo 1
+        regionCountCalls shouldBeEqualTo 1
+    }
 }

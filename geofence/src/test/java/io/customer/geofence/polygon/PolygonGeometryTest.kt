@@ -7,19 +7,23 @@ import org.junit.Test
 
 class PolygonGeometryTest {
     @Test
-    fun from_whenPolygonIsConcave_thenRejectsV1Geometry() {
-        invoking {
-            PolygonGeometry.from(
-                listOf(
-                    point(0.0, 0.0),
-                    point(0.0, 3.0),
-                    point(1.0, 3.0),
-                    point(1.0, 1.0),
-                    point(3.0, 1.0),
-                    point(3.0, 0.0)
-                )
+    fun from_whenPolygonIsConcave_thenAcceptsAndAnswersInsideTheNotch() {
+        // Concavity is the backend's call, not ours. What matters is that the ray cast still gets
+        // the reflex corner right: the notch of an L is outside, both arms are inside.
+        val lShape = PolygonGeometry.from(
+            listOf(
+                point(0.0, 0.0),
+                point(0.0, 3.0),
+                point(1.0, 3.0),
+                point(1.0, 1.0),
+                point(3.0, 1.0),
+                point(3.0, 0.0)
             )
-        } shouldThrow IllegalArgumentException::class
+        )
+
+        lShape.relationTo(point(2.0, 2.0)) shouldBeEqualTo PolygonPointRelation.OUTSIDE
+        lShape.relationTo(point(0.5, 2.5)) shouldBeEqualTo PolygonPointRelation.INSIDE
+        lShape.relationTo(point(2.5, 0.5)) shouldBeEqualTo PolygonPointRelation.INSIDE
     }
 
     @Test

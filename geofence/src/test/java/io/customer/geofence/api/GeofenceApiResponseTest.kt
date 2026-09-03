@@ -186,7 +186,7 @@ class GeofenceApiResponseTest : RobolectricTest() {
     }
 
     @Test
-    fun parseAndMap_givenConcavePolygon_expectDroppedByV1Envelope() {
+    fun parseAndMap_givenConcavePolygon_expectMapped() {
         val regions = parseRegions(
             """
             {
@@ -207,8 +207,9 @@ class GeofenceApiResponseTest : RobolectricTest() {
             EnabledPolygonSupport
         )
 
-        regions.map(GeofenceRegion::id) shouldBeEqualTo listOf("circle")
-        verify { mockLogger.logPolygonDropped(eq("concave"), any()) }
+        // The backend admits concave rings and the ray cast handles them, so re-checking convexity
+        // here only put the SDK out of step with the payload it was sent.
+        regions.map(GeofenceRegion::id) shouldBeEqualTo listOf("concave", "circle")
     }
 
     @Test
@@ -352,7 +353,7 @@ class GeofenceApiResponseTest : RobolectricTest() {
     }
 
     @Test
-    fun parseAndMap_givenPolygonBeyondMaxVertexCount_expectDroppedWithoutCostingOtherRegions() {
+    fun parseAndMap_givenPolygonBeyondTheFormerVertexCap_expectMapped() {
         val ring = (0 until 600).joinToString(",") { index ->
             val angle = 2.0 * Math.PI * index / 600.0
             "[${0.002 * kotlin.math.cos(angle)}, ${0.002 * kotlin.math.sin(angle)}]"
@@ -374,8 +375,9 @@ class GeofenceApiResponseTest : RobolectricTest() {
             EnabledPolygonSupport
         )
 
-        regions.map(GeofenceRegion::id) shouldBeEqualTo listOf("circle")
-        verify { mockLogger.logPolygonDropped(eq("too-many"), any()) }
+        // Vertex count is the backend's admission policy, not something the ring needs to be usable.
+        regions.map(GeofenceRegion::id) shouldBeEqualTo listOf("too-many", "circle")
+        regions.first().polygonVertices?.size shouldBeEqualTo 600
     }
 
     // ---------- region shape ----------

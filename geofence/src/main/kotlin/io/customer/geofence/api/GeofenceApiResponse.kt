@@ -275,13 +275,13 @@ private fun GeofenceApiRegion.toPolygonRegionOrNull(
         return null
     }
     val baseRadiusMeters = enclosingCircle.baseRadiusMeters
-    val wakeCenter = PolygonCoordinate.fromOrNull(enclosingCircle.latitude, enclosingCircle.longitude)
-    val trigger = if (wakeCenter == null || baseRadiusMeters == null) {
+    val wakeLatitude = enclosingCircle.latitude
+    val wakeLongitude = enclosingCircle.longitude
+    val trigger = if (wakeLatitude == null || wakeLongitude == null || baseRadiusMeters == null) {
         null
     } else {
         PolygonWakeCircleValidator().prepareOrNull(
-            geometry = polygon,
-            wakeCircle = PolygonWakeCircle(wakeCenter, baseRadiusMeters)
+            PolygonWakeCircle(PolygonCoordinate(wakeLatitude, wakeLongitude), baseRadiusMeters)
         )
     }
     if (trigger == null) {
@@ -333,7 +333,7 @@ private fun JsonElement.toPolygonVerticesOrNull(): List<PolygonCoordinate>? {
         if (position.size < 2) return null
         val longitude = (position[0] as? JsonPrimitive)?.doubleOrNull ?: return null
         val latitude = (position[1] as? JsonPrimitive)?.doubleOrNull ?: return null
-        PolygonCoordinate.fromOrNull(latitude, longitude) ?: return null
+        PolygonCoordinate(latitude, longitude)
     }
 }
 

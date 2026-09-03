@@ -14,24 +14,7 @@ internal data class PolygonCoordinate(
     val latitude: Double,
     @SerialName("longitude")
     val longitude: Double
-) {
-    internal val isInRange: Boolean
-        get() = latitude.isFinite() && latitude in -90.0..90.0 &&
-            longitude.isFinite() && longitude in -180.0..180.0
-
-    internal companion object {
-        /**
-         * Range checking lives here rather than in an `init` block: the constructor is the
-         * deserializer's, so throwing there fails the whole `List<GeofenceRegion>` decode and
-         * `readJson` then drops every cached region for one bad stored coordinate.
-         * [PolygonGeometry.from] rejects out-of-range vertices, isolating the bad ring instead.
-         */
-        fun fromOrNull(latitude: Double?, longitude: Double?): PolygonCoordinate? {
-            if (latitude == null || longitude == null) return null
-            return PolygonCoordinate(latitude, longitude).takeIf { it.isInRange }
-        }
-    }
-}
+)
 
 internal enum class PolygonPointRelation {
     INSIDE,
@@ -136,11 +119,7 @@ internal class PolygonGeometry private constructor(
                 vertices
             }
 
-            require(canonical.all { it.isInRange }) { "polygon vertex is out of range" }
             require(canonical.size >= 3) { "polygon requires at least three vertices" }
-            require(canonical.size <= MAX_VERTEX_COUNT) {
-                "polygon exceeds the maximum vertex count"
-            }
             require(canonical.distinct().size >= 3) { "polygon requires at least three distinct vertices" }
             require(canonical.all { abs(it.latitude) <= MAXIMUM_ABSOLUTE_LATITUDE }) {
                 "polygons above the supported latitude are unsupported"
@@ -154,7 +133,6 @@ internal class PolygonGeometry private constructor(
             }
             require(canonical.hasNonCollinearVertices()) { "polygon cannot have zero area" }
             require(!canonical.hasSelfIntersection()) { "polygon cannot intersect itself" }
-            require(canonical.isConvex()) { "concave polygons are unsupported in v1" }
 
             return PolygonGeometry(canonical.toList())
         }
@@ -196,25 +174,6 @@ internal class PolygonGeometry private constructor(
             return false
         }
 
-        private fun List<PolygonCoordinate>.isConvex(): Boolean {
-            var direction = 0
-            for (index in indices) {
-                val turn = orientation(
-                    this[index],
-                    this[(index + 1) % size],
-                    this[(index + 2) % size]
-                )
-                if (abs(turn) <= BOUNDARY_EPSILON) continue
-                val currentDirection = if (turn > 0.0) 1 else -1
-                if (direction == 0) {
-                    direction = currentDirection
-                } else if (direction != currentDirection) {
-                    return false
-                }
-            }
-            return direction != 0
-        }
-
         private fun segmentsAreAdjacent(firstIndex: Int, secondIndex: Int, size: Int): Boolean =
             secondIndex == firstIndex + 1 || firstIndex == 0 && secondIndex == size - 1
 
@@ -254,8 +213,6 @@ internal class PolygonGeometry private constructor(
                 longitude <= maxOf(first.longitude, second.longitude) + BOUNDARY_EPSILON &&
                 latitude >= minOf(first.latitude, second.latitude) - BOUNDARY_EPSILON &&
                 latitude <= maxOf(first.latitude, second.latitude) + BOUNDARY_EPSILON
-
-        private const val MAX_VERTEX_COUNT = 500
 
         // Keeps the coordinate-linear ring inside the conservative geodesic trigger circle.
         // Near a pole an edge interior can be farther from the projected center than every vertex.

@@ -259,6 +259,13 @@ internal class GeofenceLogger(private val logger: Logger) {
         )
     }
 
+    fun logPolygonFixNotUsable(reason: String) {
+        logger.debug(
+            "Polygon fix ignored — $reason. Responsive monitoring is best-effort: it decides only from fixes that are decisive on their own.",
+            tag = TAG
+        )
+    }
+
     companion object {
         private const val TAG = "Geofence"
     }

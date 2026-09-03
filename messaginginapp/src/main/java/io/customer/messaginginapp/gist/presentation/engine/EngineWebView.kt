@@ -262,6 +262,9 @@ internal class EngineWebView @JvmOverloads constructor(
                     request: WebResourceRequest?,
                     errorResponse: WebResourceResponse?
                 ) {
+                    // Also fired per resource: a 404 on an image is not a message-level failure.
+                    if (request?.isForMainFrame != true) return
+
                     reportFailure(
                         InAppMessageError(
                             reason = InAppMessageErrorReason.NETWORK,
@@ -276,6 +279,12 @@ internal class EngineWebView @JvmOverloads constructor(
                     request: WebResourceRequest?,
                     error: WebResourceError?
                 ) {
+                    // Fired for every resource, not just the page — images, fonts, iframes. Only a
+                    // main-frame failure means the message cannot render; reporting a subresource
+                    // would dismiss a message that was otherwise fine. The deprecated overload
+                    // above is main-frame-only already, so this also keeps API 21-22 consistent.
+                    if (request?.isForMainFrame != true) return
+
                     // description/errorCode are API 23+; below that the deprecated overload above
                     // is the one the platform calls, and it carries the same detail.
                     val hasDetail = Build.VERSION.SDK_INT >= Build.VERSION_CODES.M
@@ -293,6 +302,11 @@ internal class EngineWebView @JvmOverloads constructor(
                     handler: SslErrorHandler?,
                     error: SslError?
                 ) {
+                    // Overriding this removed the platform default's cancel(), so the handler has
+                    // to be resolved here or the request stays suspended. Always cancel: the
+                    // renderer is first-party HTTPS and we never continue past a certificate error.
+                    handler?.cancel()
+
                     reportFailure(
                         InAppMessageError(
                             reason = InAppMessageErrorReason.NETWORK,

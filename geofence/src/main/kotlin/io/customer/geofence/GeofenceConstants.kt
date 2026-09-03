@@ -62,6 +62,16 @@ internal object GeofenceConstants {
     // number of retries fixes a broken file.
     const val MAX_WORKER_RUN_ATTEMPTS = 5
 
+    // Hard platform limit: Google Play services rejects an `addGeofences` request that would take an
+    // app past 100 simultaneously registered geofences. Not configurable, not negotiable — the SDK
+    // must arrive under it, because GMS fails the whole batch rather than trimming it.
+    const val MAX_OS_GEOFENCES = 100
+
+    // Business geofences the SDK may attempt at once. One OS slot is always spent on the movement
+    // trigger, which has to stay registered for the local re-rank / remote refresh loop to keep
+    // working. Server config (`maxBusinessGeofences`, coerced to 0..99) can only lower this.
+    const val MAX_OS_BUSINESS_GEOFENCE_SLOTS = MAX_OS_GEOFENCES - 1
+
     // GMS `Geofence.Builder().setExpirationDuration()` flag for "never expires".
     // Our geofences are managed at the application level (we remove explicitly)
     // so OS-side expiration is disabled.

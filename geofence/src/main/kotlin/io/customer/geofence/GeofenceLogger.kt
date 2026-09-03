@@ -1115,6 +1115,18 @@ internal class GeofenceLogger(private val logger: Logger) {
         )
     }
 
+    fun logPinnedRegionDroppedAtOsLimit(geofenceId: String, availableSlots: Int) {
+        logger.error(
+            "Geofence '$geofenceId' was pinned for exit monitoring but dropped — more regions are pinned than the $availableSlots business slots Google Play services allows. Keeping it would make the OS reject every geofence in the batch, so the farthest pinned regions are released first; their exits may be missed." +
+                tail(
+                    "registration.rejected",
+                    GeofenceLogIo.OUTPUT,
+                    listOf("id" to geofenceId, "n" to int(availableSlots), "why" to "os_slot_limit")
+                ),
+            tag = TAG
+        )
+    }
+
     fun logPolygonFixNotUsable(reason: PolygonFixRejection) {
         logger.debug(
             "Polygon fix ignored — ${reason.detail}. Responsive monitoring is best-effort: it decides only from fixes that are decisive on their own." +

@@ -3,8 +3,10 @@ package io.customer.geofence
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.location.Location
 import androidx.annotation.VisibleForTesting
 import com.google.android.gms.location.Geofence
+import com.google.android.gms.location.GeofenceStatusCodes
 import com.google.android.gms.location.GeofencingEvent
 import io.customer.geofence.di.geofenceBusinessTransitionProcessor
 import io.customer.geofence.di.geofenceLogger
@@ -70,6 +72,12 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
 
         if (geofencingEvent.hasError()) {
             logger.logGeofencingError(geofencingEvent.errorCode)
+            if (geofencingEvent.errorCode == GeofenceStatusCodes.GEOFENCE_NOT_AVAILABLE) {
+                // GMS requires callers to re-register after this error. Invalidate only our claim
+                // that OS registrations are live; cached definitions and containment survive so
+                // the next foreground/location refresh can restore them without duplicate ENTERs.
+                SDKComponent.android().polygonGeofenceServiceController.invalidateOsRegistrationState()
+            }
             return
         }
 
@@ -96,7 +104,8 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
             gmsTransitionType = geofencingEvent.geofenceTransition,
             triggeringGeofenceIds = triggeringGeofenceIds,
             latitude = location?.latitude,
-            longitude = location?.longitude
+            longitude = location?.longitude,
+            triggeringLocation = location
         )
     }
 
@@ -105,7 +114,8 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
         gmsTransitionType: Int,
         triggeringGeofenceIds: List<String>,
         latitude: Double?,
-        longitude: Double?
+        longitude: Double?,
+        triggeringLocation: Location? = null
     ) {
         val logger = SDKComponent.geofenceLogger
         val timestamp = SDKComponent.clock.currentTimeSeconds()
@@ -155,7 +165,15 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
                 // ENTER fires on every re-registration and boot-restore can fire
                 // EXIT. Only EXIT drives a refresh.
                 if (gmsTransitionType == Geofence.GEOFENCE_TRANSITION_EXIT) {
-                    movementRefreshJob = androidComponent.geofenceServices.onMovementTriggerExit(latitude, longitude)
+                    val polygonMovementRadius = androidComponent.polygonGeofenceServiceController.onMovementTriggerExit(
+                        triggeringLocation = triggeringLocation,
+                        expectedUserStateGeneration = userStateGeneration
+                    )
+                    movementRefreshJob = androidComponent.geofenceServices.onMovementTriggerExit(
+                        latitude = latitude,
+                        longitude = longitude,
+                        movementTriggerRadiusMeters = polygonMovementRadius
+                    )
                 } else {
                     logger.logMovementTriggerIgnoredNonExit(transitionName(gmsTransitionType))
                 }
@@ -171,6 +189,27 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
                 androidComponent.geofenceManager.removeGeofencesByIds(listOf(geofenceId))
                 return@forEach
             }
+            if (region?.isPolygon == true) {
+                when (gmsTransitionType) {
+                    Geofence.GEOFENCE_TRANSITION_ENTER ->
+                        androidComponent.polygonGeofenceServiceController.activate(
+                            polygonId = geofenceId,
+                            triggeringLocation = triggeringLocation,
+                            expectedUserStateGeneration = userStateGeneration,
+                            expectedRegionRevision = region.transitionRevision()
+                        )
+                    Geofence.GEOFENCE_TRANSITION_EXIT ->
+                        androidComponent.polygonGeofenceServiceController.onCoarseExit(
+                            polygonId = geofenceId,
+                            triggeringLocation = triggeringLocation,
+                            expectedUserStateGeneration = userStateGeneration,
+                            expectedRegionRevision = region.transitionRevision()
+                        )
+                    else -> logger.logUnknownTransition(geofenceId, gmsTransitionType)
+                }
+                return@forEach
+            }
+
             val transition = when (gmsTransitionType) {
                 Geofence.GEOFENCE_TRANSITION_ENTER -> Event.GeofenceTransition.ENTER
                 Geofence.GEOFENCE_TRANSITION_EXIT -> Event.GeofenceTransition.EXIT

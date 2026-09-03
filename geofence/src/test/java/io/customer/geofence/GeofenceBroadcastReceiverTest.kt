@@ -2,12 +2,14 @@ package io.customer.geofence
 
 import android.location.Location
 import com.google.android.gms.location.Geofence
+import com.google.android.gms.location.GeofenceStatusCodes
 import com.google.android.gms.location.GeofencingEvent
 import io.customer.commontest.config.ApplicationArgument
 import io.customer.commontest.config.TestConfig
 import io.customer.commontest.config.testConfigurationDefault
 import io.customer.commontest.core.RobolectricTest
 import io.customer.geofence.di.pendingGeofenceDeliveryStore
+import io.customer.geofence.polygon.PolygonCoordinate
 import io.customer.geofence.polygon.PolygonGeofenceServiceController
 import io.customer.geofence.store.GeofenceRegionStore
 import io.customer.geofence.store.PendingGeofenceDelivery
@@ -159,6 +161,7 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
         every { mockStore.getRoutableRegisteredIds() } answers { mockStore.getRegisteredIds() }
         every { mockStore.userStateGeneration() } returns 0L
         every { mockStore.activeUserSessionId() } returns "user-42"
+        coEvery { mockPolygonController.onMovementTriggerExit(any(), any()) } returns null
         // Default: the device counts as inside every fence, so the EXIT guard is a no-op.
         // Tests for the guard override.
         every { mockStore.claimExit(any()) } returns true
@@ -202,6 +205,19 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
 
         coVerify(exactly = 0) { mockScheduler.schedule(any()) }
         pendingStore.loadAll() shouldBeEqualTo emptyList()
+    }
+
+    @Test
+    fun handleGeofencingEvent_givenGeofencingUnavailable_expectInvalidatesOsRegistrationTruth() = runTest {
+        val event = mockk<GeofencingEvent>(relaxed = true) {
+            every { hasError() } returns true
+            every { errorCode } returns GeofenceStatusCodes.GEOFENCE_NOT_AVAILABLE
+        }
+
+        receiver.handleGeofencingEvent(event)
+
+        verify { mockPolygonController.invalidateOsRegistrationState() }
+        coVerify(exactly = 0) { mockScheduler.schedule(any()) }
     }
 
     @Test
@@ -270,6 +286,81 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
     }
 
     @Test
+    fun handleGeofencingEvent_givenPolygonOuterEnter_expectStartsFineEvaluationWithoutBusinessEvent() = runTest {
+        val location = realLocation(37.7750, -122.4194)
+        every { mockStore.getCachedRegion("polygon") } returns polygonRegion()
+        val event = buildGeofencingEvent(
+            transition = Geofence.GEOFENCE_TRANSITION_ENTER,
+            geofenceIds = listOf("polygon"),
+            location = location
+        )
+
+        receiver.handleGeofencingEvent(event)
+
+        coVerify {
+            mockPolygonController.activate(
+                "polygon",
+                location,
+                0L,
+                polygonRegion().transitionRevision()
+            )
+        }
+        coVerify(exactly = 0) { mockScheduler.schedule(any()) }
+        pendingStore.loadAll().shouldBeEmpty()
+    }
+
+    @Test
+    fun handleGeofencingEvent_givenPolygonOuterExit_expectContinuesFineEvaluationWithoutBusinessEvent() = runTest {
+        val location = realLocation(37.7760, -122.4180)
+        every { mockStore.getCachedRegion("polygon") } returns polygonRegion()
+        val event = buildGeofencingEvent(
+            transition = Geofence.GEOFENCE_TRANSITION_EXIT,
+            geofenceIds = listOf("polygon"),
+            location = location
+        )
+
+        receiver.handleGeofencingEvent(event)
+
+        coVerify {
+            mockPolygonController.onCoarseExit(
+                "polygon",
+                location,
+                0L,
+                polygonRegion().transitionRevision()
+            )
+        }
+        coVerify(exactly = 0) { mockScheduler.schedule(any()) }
+        pendingStore.loadAll().shouldBeEmpty()
+    }
+
+    @Test
+    fun dispatchTransition_givenCircleWasReplacedByPolygonDuringCallback_expectNoCoarseBusinessEvent() = runTest {
+        val oldCircle = GeofenceRegion(
+            id = "polygon",
+            latitude = 37.7750,
+            longitude = -122.4194,
+            radius = 200f
+        )
+        every { mockStore.getCachedRegion("polygon") } returnsMany listOf(
+            oldCircle,
+            polygonRegion()
+        )
+
+        receiver.dispatchTransition(
+            gmsTransitionType = Geofence.GEOFENCE_TRANSITION_ENTER,
+            triggeringGeofenceIds = listOf("polygon"),
+            latitude = 37.7750,
+            longitude = -122.4194
+        )
+
+        coVerify(exactly = 0) { mockScheduler.schedule(any()) }
+        pendingStore.loadAll().shouldBeEmpty()
+        coVerify(exactly = 0) {
+            mockPolygonController.activate(any<String>(), any<Location>(), any<Long>(), any<Int>())
+        }
+    }
+
+    @Test
     fun dispatchTransition_givenCircleEnterWasDisabledDuringCallback_expectNoStaleEnterEvent() = runTest {
         val oldCircle = GeofenceRegion(
             id = "biz-1",
@@ -293,19 +384,22 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
     }
 
     @Test
-    fun dispatchTransition_givenRetiredRegionCallback_expectCleanupRetryWithoutBusinessEvent() = runTest {
-        every { mockStore.getCachedRegion("biz-1") } returns null
-        every { mockStore.getRegisteredRegion("biz-1") } returns GeofenceRegion("biz-1", 37.7750, -122.4194, 200f)
-        coEvery { mockManager.removeGeofencesByIds(listOf("biz-1")) } returns Result.success(Unit)
+    fun dispatchTransition_givenRetiredPolygonCallback_expectCleanupRetryWithoutBusinessEvent() = runTest {
+        every { mockStore.getCachedRegion("polygon") } returns null
+        every { mockStore.getRegisteredRegion("polygon") } returns polygonRegion()
+        coEvery { mockManager.removeGeofencesByIds(listOf("polygon")) } returns Result.success(Unit)
 
         receiver.dispatchTransition(
             gmsTransitionType = Geofence.GEOFENCE_TRANSITION_ENTER,
-            triggeringGeofenceIds = listOf("biz-1"),
+            triggeringGeofenceIds = listOf("polygon"),
             latitude = 37.7750,
             longitude = -122.4194
         )
 
-        coVerify { mockManager.removeGeofencesByIds(listOf("biz-1")) }
+        coVerify { mockManager.removeGeofencesByIds(listOf("polygon")) }
+        coVerify(exactly = 0) {
+            mockPolygonController.activate(any<String>(), any<Location>(), any<Long>(), any<Int>())
+        }
         coVerify(exactly = 0) { mockScheduler.schedule(any()) }
     }
 
@@ -1000,6 +1094,27 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
     }
 
     @Test
+    fun dispatchTransition_givenCleanupOnlyPolygonAfterUserHandoff_expectNoEventOrFineMonitoring() = runTest {
+        every { mockStore.getRegisteredIds() } returns setOf("polygon")
+        every { mockStore.getRoutableRegisteredIds() } returns emptySet()
+        every { mockStore.getCachedRegion("polygon") } returns polygonRegion()
+
+        receiver.dispatchTransition(
+            gmsTransitionType = Geofence.GEOFENCE_TRANSITION_ENTER,
+            triggeringGeofenceIds = listOf("polygon"),
+            latitude = 37.7750,
+            longitude = -122.4194,
+            triggeringLocation = realLocation(37.7750, -122.4194)
+        )
+
+        coVerify(exactly = 0) {
+            mockPolygonController.activate(any<String>(), any<Location>(), any<Long>(), any<Int>())
+        }
+        coVerify(exactly = 0) { mockScheduler.schedule(any()) }
+        coVerify { mockManager.removeGeofencesByIds(listOf("polygon")) }
+    }
+
+    @Test
     fun dispatchTransition_givenMovementTriggerNotInStore_expectMovementHandlerNotCalledAndRemoved() = runTest {
         // Movement trigger is only registered when business set is non-empty. If it
         // fires while not in the store, treat it as an orphan: drop + remove.
@@ -1129,4 +1244,17 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
             longitude = lng
             time = System.currentTimeMillis()
         }
+
+    private fun polygonRegion() = GeofenceRegion(
+        id = "polygon",
+        latitude = 37.7750,
+        longitude = -122.4194,
+        radius = 200f,
+        polygonVertices = listOf(
+            PolygonCoordinate(37.7745, -122.4200),
+            PolygonCoordinate(37.7745, -122.4188),
+            PolygonCoordinate(37.7755, -122.4188),
+            PolygonCoordinate(37.7755, -122.4200)
+        )
+    )
 }

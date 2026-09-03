@@ -5,6 +5,8 @@ import io.customer.commontest.config.ApplicationArgument
 import io.customer.commontest.config.TestConfig
 import io.customer.commontest.config.testConfigurationDefault
 import io.customer.commontest.core.RobolectricTest
+import io.customer.geofence.polygon.PolygonGeofenceServiceController
+import io.customer.sdk.data.store.SecureUserStore
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
@@ -19,6 +21,8 @@ class GeofenceBootReceiverTest : RobolectricTest() {
 
     private val mockRepository: GeofenceRepository = mockk(relaxed = true)
     private val mockPermissionChecker: GeofencePermissionChecker = mockk(relaxed = true)
+    private val mockPolygonController: PolygonGeofenceServiceController = mockk(relaxed = true)
+    private val mockSecureUserStore: SecureUserStore = mockk(relaxed = true)
 
     private lateinit var receiver: GeofenceBootReceiver
 
@@ -30,12 +34,15 @@ class GeofenceBootReceiverTest : RobolectricTest() {
                     android {
                         overrideDependency<GeofenceRepository>(mockRepository)
                         overrideDependency<GeofencePermissionChecker>(mockPermissionChecker)
+                        overrideDependency<PolygonGeofenceServiceController>(mockPolygonController)
+                        overrideDependency<SecureUserStore>(mockSecureUserStore)
                     }
                 }
             }
         )
         // Default: permissions granted. Suppression tests override this.
         every { mockPermissionChecker.hasRequiredLocationPermissions() } returns true
+        every { mockSecureUserStore.getUserId() } returns "user-1"
         receiver = GeofenceBootReceiver()
     }
 
@@ -53,6 +60,7 @@ class GeofenceBootReceiverTest : RobolectricTest() {
 
         receiver.restore()
 
+        io.mockk.verify { mockPolygonController.beginUserSession("user-1") }
         coVerify { mockRepository.restoreFromCache() }
     }
 

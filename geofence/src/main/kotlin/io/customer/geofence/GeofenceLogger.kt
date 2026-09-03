@@ -1177,6 +1177,18 @@ internal class GeofenceLogger(private val logger: Logger) {
         )
     }
 
+    fun logPolygonApproachMonitoringStarted() {
+        logger.debug("Polygon responsive approach monitoring registered", tag = TAG)
+    }
+
+    fun logPolygonApproachMonitoringStopped() {
+        logger.debug("Polygon responsive approach monitoring removed", tag = TAG)
+    }
+
+    fun logPolygonApproachMonitoringFailed(message: String?) {
+        logger.error("Polygon responsive approach monitoring unavailable: $message", tag = TAG)
+    }
+
     companion object {
         private const val TAG = "Geofence"
     }

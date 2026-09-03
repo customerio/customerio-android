@@ -10,14 +10,15 @@ internal data class AndroidPolygonLocationFix(
 
 internal fun Location.toPolygonLocationFix(): AndroidPolygonLocationFix? {
     if (!hasAccuracy() || !accuracy.isFinite() || accuracy <= 0f || elapsedRealtimeNanos <= 0L) return null
-
-    // fromOrNull, not the constructor: PolygonCoordinate is a wire type and stays passive, so an
-    // out-of-range fix is rejected here rather than carried into the evaluator as a real position.
-    val coordinate = PolygonCoordinate.fromOrNull(latitude, longitude) ?: return null
+    // The range check belongs to this path, not to PolygonCoordinate: a backend payload is the
+    // backend's to validate, but a provider can report a position the earth does not have, and
+    // carrying one into the evaluator would judge containment against a point that cannot exist.
+    if (!latitude.isFinite() || latitude !in -90.0..90.0) return null
+    if (!longitude.isFinite() || longitude !in -180.0..180.0) return null
 
     return AndroidPolygonLocationFix(
         sample = PolygonLocationSample(
-            coordinate = coordinate,
+            coordinate = PolygonCoordinate(latitude, longitude),
             horizontalAccuracyMeters = accuracy.toDouble()
         ),
         elapsedRealtimeNanos = elapsedRealtimeNanos,

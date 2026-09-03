@@ -40,6 +40,13 @@ internal class PushNotificationLogger(private val logger: Logger) {
         )
     }
 
+    fun logWorkerSuccessNotRemoved(deliveryId: String) {
+        logger.error(
+            tag = HANDOFF_TAG,
+            message = "worker success, but removing the pending entry failed so it is still queued key=$deliveryId"
+        )
+    }
+
     fun logWorkerSkippedAlreadyDelivered(deliveryId: String) {
         logger.info(
             tag = HANDOFF_TAG,

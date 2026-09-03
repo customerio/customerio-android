@@ -31,7 +31,7 @@ internal data class PendingGeofenceDelivery(
     val userId: String?,
     /**
      * Identifies the physical crossing, shared across its per-geoset fan-out (geosets differ by
-     * [geosetId]); backend dedup is keyed (transitionId, geoset). Not part of [key].
+     * [geosetId]); backend dedup is keyed (transitionId, geoset).
      */
     val transitionId: String,
     /** Null when the fired geofence isn't in the cached region set. */
@@ -47,7 +47,8 @@ internal data class PendingGeofenceDelivery(
     /** Whether committing this staged ENTER must atomically set the reboot dedupe marker. */
     val marksEnterReported: Boolean = false
 ) : PendingDeliveryStore.PendingDeliveryEntry {
-    override val key: String get() = "${geofenceId}_${transition.name}_${timestamp}_${geosetId ?: "none"}"
+    override val key: String
+        get() = "${geofenceId}_${transition.name}_${transitionId}_${geosetId ?: "none"}"
 
     /**
      * Properties carried on the tracked "Geofence Transition" event. Kept here

@@ -113,10 +113,17 @@ internal class PolygonGeometry private constructor(
         private const val EARTH_RADIUS_METERS = 6_371_000.0
 
         fun from(vertices: List<PolygonCoordinate>): PolygonGeometry {
-            val canonical = if (vertices.size > 1 && vertices.first() == vertices.last()) {
-                vertices.dropLast(1)
+            // Collapse consecutive repeats before unclosing, not after. A ring whose closing
+            // position is itself repeated — [A, B, C, D, A, A] — still ends [.., A, A] if it is
+            // unclosed first, and that zero-length edge is rejected below. Repeated positions are
+            // legal GeoJSON and carry no shape, so they collapse rather than drop the region.
+            val collapsed = vertices.filterIndexed { index, vertex ->
+                index == 0 || vertex != vertices[index - 1]
+            }
+            val canonical = if (collapsed.size > 1 && collapsed.first() == collapsed.last()) {
+                collapsed.dropLast(1)
             } else {
-                vertices
+                collapsed
             }
 
             require(canonical.size >= 3) { "polygon requires at least three vertices" }

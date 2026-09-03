@@ -2402,6 +2402,12 @@ class GeofenceRepositoryTest : RobolectricTest() {
         every { store.getLastMovementTriggerLocation() } answers { movementLocation }
         every { store.saveLastMovementTriggerLocation(any()) } answers { movementLocation = firstArg() }
         every { store.getEnteredIds() } answers { enteredIds.orEmpty() }
+        every { store.claimExit(any()) } answers {
+            val id = firstArg<String>()
+            val wasInside = id in enteredIds.orEmpty()
+            enteredIds = enteredIds?.minus(id)
+            wasInside
+        }
         every { store.reconcileEnteredIds(any(), any(), any(), any()) } answers {
             val registered = firstArg<Set<String>>()
             val inside = secondArg<Set<String>?>()
@@ -2445,6 +2451,9 @@ class GeofenceRepositoryTest : RobolectricTest() {
 
         repository.refresh(latitude = 0.0, longitude = 0.0)
         repository.refreshFromLiveFix(latitude = 0.0, longitude = 0.0)
+        // The genuine departure clears the record, as the receiver's EXIT path does.
+        store.claimExit("biz-1") shouldBeEqualTo true
+        store.getEnteredIds().shouldBeEmpty()
         repository.refreshFromLiveFix(latitude = 0.0, longitude = 0.0)
 
         store.getEnteredIds() shouldContainSame setOf("biz-1")

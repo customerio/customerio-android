@@ -1,10 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Exposes only the diagnostics directory under getExternalFilesDir, so the share sheet can hand a
-  single log file to another app. Nothing else in the app's storage is reachable through it.
+  Exposes only the diagnostics directory, so the share sheet can hand a single log file to another
+  app. Nothing else in the app's storage is reachable through it.
+
+  Both roots are declared because DiagnosticLog.directory() falls back to filesDir when
+  getExternalFilesDir returns null. Without the internal root the share button would fail on that
+  path — logging and adb pull keep working, so it is a quiet failure rather than a loud one.
 -->
 <paths>
     <external-files-path
         name="cio-diagnostics"
+        path="cio-diagnostics/" />
+    <files-path
+        name="cio-diagnostics-internal"
         path="cio-diagnostics/" />
 </paths>

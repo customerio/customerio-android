@@ -75,4 +75,36 @@ class EngineWebViewRenderProcessGoneTest : IntegrationTest() {
 
         engineWebView.releaseResources()
     }
+
+    /**
+     * Returning true means we told the platform we absorbed the renderer loss, so the dead view is
+     * ours to dispose of. `releaseResources()` cannot do it — it refuses to run while the view is
+     * still attached, which is exactly the state a crash leaves us in, and the modal path never
+     * calls it at all.
+     */
+    @Test
+    fun onRenderProcessGone_givenRendererDies_expectDeadWebViewTornDown() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val engineWebView = EngineWebView(context)
+        engineWebView.listener = mockk(relaxed = true)
+
+        engineWebView.setup(
+            EngineWebConfiguration(
+                siteId = String.random,
+                dataCenter = String.random,
+                messageId = String.random,
+                instanceId = String.random,
+                endpoint = "https://${String.random}"
+            )
+        )
+
+        val webView = engineWebView.getChildAt(0) as WebView
+        engineWebView.childCount shouldBeEqualTo 1
+
+        Shadows.shadowOf(webView).webViewClient.onRenderProcessGone(webView, null)
+
+        // Detached from the hierarchy and released, all while still attached to its parent.
+        engineWebView.childCount shouldBeEqualTo 0
+        Shadows.shadowOf(webView).wasDestroyCalled() shouldBeEqualTo true
+    }
 }

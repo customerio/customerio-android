@@ -2,6 +2,9 @@ package io.customer.geofence
 
 import android.location.Location
 import com.google.android.gms.location.Geofence
+import io.customer.geofence.polygon.PolygonCoordinate
+import io.customer.geofence.polygon.PolygonGeometry
+import io.customer.geofence.polygon.PolygonPointRelation
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonElement
@@ -36,8 +39,31 @@ internal data class GeofenceRegion(
     @SerialName("geosetIds")
     val geosetIds: List<String> = emptyList(),
     @SerialName("metadata")
-    val metadata: Map<String, JsonElement> = emptyMap()
-)
+    val metadata: Map<String, JsonElement> = emptyMap(),
+    @SerialName("polygonVertices")
+    val polygonVertices: List<PolygonCoordinate>? = null,
+    /**
+     * The backend's own wake-circle radius for a polygon, before the platform margin. [radius] is
+     * what GMS registers; ranking needs the canonical circle, so both are kept. Null for circles,
+     * whose [radius] is already the backend's.
+     */
+    @SerialName("baseRadiusMeters")
+    val baseRadiusMeters: Double? = null
+) {
+    val isPolygon: Boolean
+        get() = polygonVertices != null
+
+    /**
+     * Validated geometry for the stored ring, or `null` when it doesn't validate.
+     *
+     * Vertices reach a region already validated, but they also survive a round trip through the
+     * cache, so this re-checks rather than trusting the file. Callers must handle `null` by skipping
+     * the region: falling back to the circle fields would monitor the enclosing trigger circle as
+     * though it were the polygon.
+     */
+    fun polygonGeometryOrNull(): PolygonGeometry? =
+        polygonVertices?.let(PolygonGeometry::fromOrNull)
+}
 
 /** Transition types a geofence can monitor, mapped to GMS constants. */
 @Serializable
@@ -64,14 +90,41 @@ internal fun GeofenceRegion.distanceTo(lat: Double, lng: Double): Float {
 
 /**
  * Straight-line distance in meters from this region's *boundary* to the given coordinates, `0` when
- * they fall inside the region.
+ * they fall inside the region; `null` when the region is a polygon whose geometry is unusable.
  *
  * Relevance for monitoring is proximity to the boundary, not to the center: ranking on center
  * distance evicts a region the device currently occupies once enough regions have nearer centers,
  * and an unmonitored region can never report its exit.
+ *
+ * A polygon with no usable geometry has no boundary to measure to, and its circle fields describe
+ * the coarse trigger rather than the fence — so it reports no distance at all and the caller drops
+ * it, instead of ranking (and then registering) an area the backend never sent.
+ *
+ * [polygonGeometry] lets a caller that already validated this region's ring pass it back in; the
+ * default re-derives it.
  */
-internal fun GeofenceRegion.edgeDistanceTo(lat: Double, lng: Double): Float =
-    (distanceTo(lat, lng) - radius).coerceAtLeast(0f)
+internal fun GeofenceRegion.edgeDistanceToOrNull(
+    lat: Double,
+    lng: Double,
+    polygonGeometry: PolygonGeometry? = polygonGeometryOrNull()
+): Float? {
+    if (!isPolygon) return (distanceTo(lat, lng) - radius).coerceAtLeast(0f)
+    val geometry = polygonGeometry ?: return null
+    val point = PolygonCoordinate(lat, lng)
+    return if (geometry.relationTo(point) != PolygonPointRelation.OUTSIDE) {
+        0f
+    } else {
+        geometry.boundaryDistanceMeters(point).toFloat()
+    }
+}
+
+/** Containment against the real shape. Unusable polygon geometry answers `false` — never "inside". */
+internal fun GeofenceRegion.contains(latitude: Double, longitude: Double): Boolean = if (isPolygon) {
+    val relation = polygonGeometryOrNull()?.relationTo(PolygonCoordinate(latitude, longitude))
+    relation != null && relation != PolygonPointRelation.OUTSIDE
+} else {
+    distanceTo(latitude, longitude) <= radius
+}
 
 /**
  * Converts the SDK transition types to a GMS bitmask for [Geofence.Builder.setTransitionTypes].

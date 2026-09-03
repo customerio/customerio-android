@@ -3,8 +3,15 @@ package io.customer.geofence
 import io.customer.commontest.config.TestConfig
 import io.customer.commontest.config.testConfigurationDefault
 import io.customer.commontest.core.RobolectricTest
+import io.customer.geofence.polygon.EnabledPolygonSupport
+import io.customer.geofence.polygon.PolygonCoordinate
+import io.customer.geofence.polygon.PolygonGeometry
+import io.mockk.mockkObject
+import io.mockk.unmockkObject
+import io.mockk.verify
 import org.amshove.kluent.shouldBeEmpty
 import org.amshove.kluent.shouldBeEqualTo
+import org.amshove.kluent.shouldBeGreaterThan
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -170,6 +177,112 @@ class GeofenceDistanceFilterTest : RobolectricTest() {
 
         result.map { it.id } shouldBeEqualTo listOf("biz-big-far", "biz-small-near")
     }
+
+    @Test
+    fun edgeDistanceToOrNull_givenPointInWakeCircleDeadSpace_expectUsesPolygonBoundaryDistance() {
+        // The backend wake circle can contain substantial space outside even a convex polygon.
+        // Measuring against that circle would incorrectly report distance zero.
+        polygonRegion().edgeDistanceToOrNull(2.0, 2.0)!! shouldBeGreaterThan 100_000f
+    }
+
+    // ---------- polygons never reach the registered set from this build ----------
+
+    @Test
+    fun nearest_givenPolygonRegionAndPolygonMonitoringDisabled_expectDroppedAndCirclesKept() {
+        // Ranking is the last gate before registration. Without a polygon runtime the region has no
+        // safe interpretation — its circle fields are the coarse trigger — so it is skipped, while
+        // the rest of the catalog ranks normally.
+        val circle = region("biz-circle", 1.4, 1.4)
+
+        val result = filter.nearest(
+            listOf(polygonRegion(), circle),
+            latitude = 1.4,
+            longitude = 1.4,
+            max = 5,
+            maxDistanceMeters = noDistanceCap
+        )
+
+        result.map { it.id } shouldBeEqualTo listOf("biz-circle")
+    }
+
+    @Test
+    fun nearest_givenPolygonRegionAndPolygonMonitoringEnabled_expectRankedByPolygonBoundary() {
+        // The same input with the opt-in supplied ranks on the ring, proving the drop above is the
+        // opt-in and not a missing capability.
+        val enabled = GeofenceDistanceFilter(polygonSupport = EnabledPolygonSupport)
+
+        val result = enabled.nearest(
+            listOf(polygonRegion()),
+            latitude = 0.5,
+            longitude = 0.5,
+            max = 5,
+            maxDistanceMeters = noDistanceCap
+        )
+
+        result.map { it.id } shouldBeEqualTo listOf("polygon")
+    }
+
+    @Test
+    fun nearest_givenCachedPolygonRingThatFailsValidation_expectRegionDroppedWithoutFailingTheRest() {
+        // A ring corrupted in the cache must not throw out of ranking (which would strand the whole
+        // catalog) and must not silently degrade into its circle fields.
+        val enabled = GeofenceDistanceFilter(polygonSupport = EnabledPolygonSupport)
+        val broken = GeofenceRegion(
+            id = "broken-polygon",
+            latitude = 0.0,
+            longitude = 0.0,
+            radius = 100_000f,
+            polygonVertices = listOf(
+                PolygonCoordinate(-0.001, -0.001),
+                PolygonCoordinate(0.001, 0.001),
+                PolygonCoordinate(-0.001, 0.001),
+                PolygonCoordinate(0.001, -0.001)
+            )
+        )
+        val circle = region("biz-circle", 0.0, 0.0)
+
+        val result = enabled.nearest(
+            listOf(broken, circle),
+            latitude = 0.0,
+            longitude = 0.0,
+            max = 5,
+            maxDistanceMeters = noDistanceCap
+        )
+
+        result.map { it.id } shouldBeEqualTo listOf("biz-circle")
+    }
+
+    @Test
+    fun nearest_givenRepeatedPassesOverUnchangedCatalog_expectRingValidatedOnce() {
+        // Ring validation is O(V²) and ranking re-runs on every movement trigger, so the result is
+        // memoized per id + ring rather than recomputed per pass.
+        val enabled = GeofenceDistanceFilter(polygonSupport = EnabledPolygonSupport)
+        val regions = listOf(polygonRegion())
+        mockkObject(PolygonGeometry.Companion)
+        try {
+            repeat(3) {
+                enabled.nearest(regions, latitude = 0.5, longitude = 0.5, max = 5, maxDistanceMeters = noDistanceCap)
+            }
+
+            verify(exactly = 1) { PolygonGeometry.fromOrNull(any()) }
+        } finally {
+            unmockkObject(PolygonGeometry.Companion)
+        }
+    }
+
+    // Convex square whose backend wake circle covers a larger area than the business boundary.
+    private fun polygonRegion() = GeofenceRegion(
+        id = "polygon",
+        latitude = 1.5,
+        longitude = 1.5,
+        radius = 300_000f,
+        polygonVertices = listOf(
+            PolygonCoordinate(0.0, 0.0),
+            PolygonCoordinate(0.0, 1.0),
+            PolygonCoordinate(1.0, 1.0),
+            PolygonCoordinate(1.0, 0.0)
+        )
+    )
 
     private fun region(
         id: String,

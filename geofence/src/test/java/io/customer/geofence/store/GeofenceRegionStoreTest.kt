@@ -10,6 +10,7 @@ import io.customer.geofence.GeofenceJsonSerializer
 import io.customer.geofence.GeofenceLocation
 import io.customer.geofence.GeofenceRegion
 import io.customer.geofence.GeofenceTransitionType
+import io.customer.geofence.polygon.PolygonCoordinate
 import io.mockk.mockk
 import org.amshove.kluent.shouldBeEmpty
 import org.amshove.kluent.shouldBeEqualTo
@@ -66,6 +67,26 @@ class GeofenceRegionStoreTest : RobolectricTest() {
         store.saveCachedRegions(regions)
 
         store.getCachedRegions() shouldBeEqualTo regions
+    }
+
+    @Test
+    fun saveCachedRegions_givenPolygon_expectGeometryRoundTrip() {
+        val polygon = GeofenceRegion(
+            id = "campus",
+            latitude = 37.775,
+            longitude = -122.419,
+            radius = 1_000f,
+            polygonVertices = listOf(
+                PolygonCoordinate(37.7745, -122.4200),
+                PolygonCoordinate(37.7745, -122.4188),
+                PolygonCoordinate(37.7755, -122.4188),
+                PolygonCoordinate(37.7755, -122.4200)
+            )
+        )
+
+        store.saveCachedRegions(listOf(polygon))
+
+        store.getCachedRegions() shouldBeEqualTo listOf(polygon)
     }
 
     @Test
@@ -666,6 +687,42 @@ class GeofenceRegionStoreTest : RobolectricTest() {
     }
 
     // --- Schema-drift / corruption safety ---
+
+    @Test
+    fun getCachedRegions_givenOneOutOfRangePolygonVertex_expectTheValidCircleSurvives() {
+        // Range checks used to live in PolygonCoordinate's init, which is the deserializer's
+        // constructor: one bad stored vertex threw mid-list, readJson wiped the key, and every
+        // valid cached region went with it. The bad ring must cost only itself.
+        writeRaw(
+            "cached_regions",
+            """[
+              {
+                "id": "bad-polygon",
+                "latitude": 37.0,
+                "longitude": -122.0,
+                "radius": 100.0,
+                "polygonVertices": [
+                  { "latitude": 37.0, "longitude": -122.0 },
+                  { "latitude": 999.0, "longitude": -122.0 },
+                  { "latitude": 37.001, "longitude": -122.001 }
+                ]
+              },
+              {
+                "id": "good-circle",
+                "latitude": 38.0,
+                "longitude": -121.0,
+                "radius": 250.0
+              }
+            ]
+            """.trimIndent()
+        )
+
+        val cached = store.getCachedRegions()
+
+        cached.map { it.id } shouldContain "good-circle"
+        // The ring is still rejected — just at use, not by taking the cache down with it.
+        cached.first { it.id == "bad-polygon" }.polygonGeometryOrNull().shouldBeNull()
+    }
 
     @Test
     fun getCachedRegions_givenCorruptedJson_expectEmptyAndKeyCleared() {

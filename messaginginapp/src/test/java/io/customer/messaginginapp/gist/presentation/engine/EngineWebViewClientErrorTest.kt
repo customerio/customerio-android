@@ -76,7 +76,7 @@ class EngineWebViewClientErrorTest : IntegrationTest() {
         Shadows.shadowOf(webView).webViewClient
             .onReceivedError(webView, request(isMainFrame = true), mockk(relaxed = true))
 
-        verify(exactly = 1) { listener.error() }
+        verify(exactly = 1) { listener.error(any()) }
     }
 
     @Test
@@ -87,6 +87,7 @@ class EngineWebViewClientErrorTest : IntegrationTest() {
             .onReceivedError(webView, request(isMainFrame = false), mockk(relaxed = true))
 
         // A broken image must not take the whole message down.
+        verify(exactly = 0) { listener.error(any()) }
         verify(exactly = 0) { listener.error() }
     }
 
@@ -98,7 +99,7 @@ class EngineWebViewClientErrorTest : IntegrationTest() {
         Shadows.shadowOf(webView).webViewClient
             .onReceivedHttpError(webView, request(isMainFrame = true), response)
 
-        verify(exactly = 1) { listener.error() }
+        verify(exactly = 1) { listener.error(any()) }
     }
 
     @Test
@@ -109,6 +110,7 @@ class EngineWebViewClientErrorTest : IntegrationTest() {
         Shadows.shadowOf(webView).webViewClient
             .onReceivedHttpError(webView, request(isMainFrame = false), response)
 
+        verify(exactly = 0) { listener.error(any()) }
         verify(exactly = 0) { listener.error() }
     }
 
@@ -169,6 +171,7 @@ class EngineWebViewClientErrorTest : IntegrationTest() {
 
         verify(exactly = 1) { handler.cancel() }
         verify(exactly = 0) { handler.proceed() }
+        verify(exactly = 0) { listener.error(any()) }
         verify(exactly = 0) { listener.error() }
     }
 }

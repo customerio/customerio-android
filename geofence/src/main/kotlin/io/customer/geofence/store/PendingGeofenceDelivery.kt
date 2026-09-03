@@ -39,7 +39,13 @@ internal data class PendingGeofenceDelivery(
     /** Part of [key] so per-geoset entries for one crossing don't collide; null when the fence has no geosets. */
     val geosetId: String? = null,
     /** Snapshot of the fence's `metadata` at crossing time; the send-time fallback when it's left the cache. */
-    val metadata: Map<String, JsonElement> = emptyMap()
+    val metadata: Map<String, JsonElement> = emptyMap(),
+    /** User-state generation that observed this crossing. Internal only, never sent as event data. */
+    val stateGeneration: Long = 0L,
+    /** Geometry revision used to reject a transition computed from a replaced polygon. */
+    val regionRevision: Int? = null,
+    /** Whether committing this staged ENTER must atomically set the reboot dedupe marker. */
+    val marksEnterReported: Boolean = false
 ) : PendingDeliveryStore.PendingDeliveryEntry {
     override val key: String get() = "${geofenceId}_${transition.name}_${timestamp}_${geosetId ?: "none"}"
 

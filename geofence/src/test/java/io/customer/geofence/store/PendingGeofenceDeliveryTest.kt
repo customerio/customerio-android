@@ -18,20 +18,35 @@ class PendingGeofenceDeliveryTest {
     fun key_givenNoGeoset_expectNoneSuffix() {
         val entry = PendingGeofenceDelivery("biz-1", Event.GeofenceTransition.ENTER, 1_234L, "user-A", transitionId = "tid-1")
 
-        // Doubles as the WorkManager unique-work name so the flush can cancel by key.
-        // transitionId is intentionally NOT part of the key.
-        entry.key shouldBeEqualTo "biz-1_ENTER_1234_none"
+        // Doubles as the WorkManager unique-work name so the flush can cancel by key. The stable
+        // transition ID keeps distinct crossings separate even when they happen in the same second.
+        entry.key shouldBeEqualTo "biz-1_ENTER_tid-1_none"
     }
 
     @Test
     fun key_givenGeoset_expectGeosetInKey() {
-        // The per-geoset fan-out shares (geofenceId, transition, timestamp); the geoset keeps keys
+        // The per-geoset fan-out shares a transition ID; the geoset keeps keys
         // distinct so the entries don't overwrite each other in the store / WorkManager.
         val enter7 = PendingGeofenceDelivery("biz-1", Event.GeofenceTransition.ENTER, 1_234L, "user-A", transitionId = "tid-1", geosetId = "7")
         val enter8 = enter7.copy(geosetId = "8")
 
-        enter7.key shouldBeEqualTo "biz-1_ENTER_1234_7"
-        enter8.key shouldBeEqualTo "biz-1_ENTER_1234_8"
+        enter7.key shouldBeEqualTo "biz-1_ENTER_tid-1_7"
+        enter8.key shouldBeEqualTo "biz-1_ENTER_tid-1_8"
+    }
+
+    @Test
+    fun key_givenDistinctCrossingsInSameSecond_expectDistinctKeys() {
+        val first = PendingGeofenceDelivery(
+            "biz-1",
+            Event.GeofenceTransition.ENTER,
+            1_234L,
+            "user-A",
+            transitionId = "tid-1"
+        )
+        val second = first.copy(transitionId = "tid-2")
+
+        first.key shouldBeEqualTo "biz-1_ENTER_tid-1_none"
+        second.key shouldBeEqualTo "biz-1_ENTER_tid-2_none"
     }
 
     @Test

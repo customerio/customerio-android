@@ -105,6 +105,17 @@ internal class PushDeliveryMetricsWorker(
                 logger.logWorkerSuccessRemoved(deliveryId)
                 Result.success()
             }
+            PendingDeliveryResult.DeliveredNotRemoved -> {
+                // Not reachable through claimSendRestore, which removes the entry *before* sending —
+                // a successful send there is always Delivered. Handled because the result type is
+                // shared with the at-least-once helper. Success, not retry: this metric has already
+                // reached the backend, and unlike the geofence payload it carries no id the backend
+                // dedupes on, so resending would double-count the Delivered metric. Nothing is
+                // stranded either — this worker owns a single entry rather than draining a queue, so
+                // a leftover row blocks nothing and the store evicts it at capacity.
+                logger.logWorkerSuccessNotRemoved(deliveryId)
+                Result.success()
+            }
             is PendingDeliveryResult.Retryable -> {
                 logger.logWorkerRetry(deliveryId, outcome.cause)
                 Result.retry()

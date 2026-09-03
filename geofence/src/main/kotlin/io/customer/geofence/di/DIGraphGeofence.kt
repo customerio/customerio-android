@@ -2,6 +2,7 @@ package io.customer.geofence.di
 
 import com.google.android.gms.location.GeofencingClient
 import com.google.android.gms.location.LocationServices
+import io.customer.geofence.GeofenceBusinessTransitionProcessor
 import io.customer.geofence.GeofenceCooldownFilter
 import io.customer.geofence.GeofenceDistanceFilter
 import io.customer.geofence.GeofenceJsonSerializer
@@ -77,7 +78,12 @@ internal val AndroidSDKComponent.geofenceDeliveryFlusher: PendingDeliveryFlusher
         PendingDeliveryFlusher(
             store = pendingGeofenceDeliveryStore,
             workManagerProvider = SDKComponent.workManagerProvider,
-            dispatchersProvider = SDKComponent.dispatchersProvider
+            dispatchersProvider = SDKComponent.dispatchersProvider,
+            // Geofence workers form one ordered continuation chain. A foreground flush removes
+            // rows from the shared outbox; queued workers then observe the miss and finish safely.
+            // Cancelling the shared chain for one row could strand a transition appended mid-flush.
+            uniqueWorkName = { null },
+            stopOnFailure = true
         )
     }
 
@@ -101,6 +107,16 @@ internal val AndroidSDKComponent.geofenceTransitionEmitter: GeofenceTransitionEm
             pendingStore = pendingGeofenceDeliveryStore,
             scheduler = geofenceEventScheduler,
             regionStore = geofenceRegionStore,
+            logger = SDKComponent.geofenceLogger
+        )
+    }
+
+internal val AndroidSDKComponent.geofenceBusinessTransitionProcessor: GeofenceBusinessTransitionProcessor
+    get() = singleton {
+        GeofenceBusinessTransitionProcessor(
+            store = geofenceRegionStore,
+            secureUserStore = secureUserStore,
+            transitionEmitter = geofenceTransitionEmitter,
             logger = SDKComponent.geofenceLogger
         )
     }

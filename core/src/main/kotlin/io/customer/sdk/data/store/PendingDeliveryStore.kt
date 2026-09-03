@@ -74,7 +74,10 @@ class PendingDeliveryStore<T : PendingDeliveryStore.PendingDeliveryEntry>(
     fun appendAll(entries: List<T>): Boolean {
         if (entries.isEmpty()) return true
         return lock.withLock {
-            val all = readAll().toMutableList()
+            // A caller recovering a staged outbox attempt may append the same stable keys again.
+            // Replace those rows atomically instead of duplicating one physical delivery.
+            val incomingKeys = entries.mapTo(mutableSetOf(), PendingDeliveryEntry::key)
+            val all = readAll().filterNot { it.key in incomingKeys }.toMutableList()
             all.addAll(entries)
             while (all.size > maxEntries) {
                 all.removeAt(0)
@@ -93,12 +96,17 @@ class PendingDeliveryStore<T : PendingDeliveryStore.PendingDeliveryEntry>(
      * Remove the entry whose [PendingDeliveryEntry.key] equals [key]. No-op
      * if no such entry exists. Skips the write when no entry was actually
      * removed so a transient read failure cannot wipe the file.
+     *
+     * @return `true` when the store no longer holds [key] — it was removed, or was already absent.
+     * `false` only when the entry is present and the removing write failed, so it is still queued.
+     * A caller that removes to mark work *done* must check this: treating a failed removal as done
+     * lets it re-read the same head entry and repeat the work without bound.
      */
-    fun remove(key: String) {
-        lock.withLock {
+    fun remove(key: String): Boolean {
+        return lock.withLock {
             val entries = readAll()
             val filtered = entries.filterNot { it.key == key }
-            if (filtered.size == entries.size) return@withLock
+            if (filtered.size == entries.size) return@withLock true
             writeAll(filtered)
         }
     }

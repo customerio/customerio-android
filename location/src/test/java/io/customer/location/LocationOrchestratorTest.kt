@@ -37,7 +37,8 @@ class LocationOrchestratorTest {
             latitude = 37.7749,
             longitude = -122.4194,
             timestamp = Date(),
-            horizontalAccuracy = 10.0
+            horizontalAccuracy = 10.0,
+            fixElapsedRealtimeMillis = FIX_ELAPSED_REALTIME_MS
         )
     }
 
@@ -55,7 +56,7 @@ class LocationOrchestratorTest {
 
         orchestrator(LocationTrackingMode.MANUAL).requestLocation(LocationRequestIntent(tracked = true))
 
-        verify { tracker.onLocationReceived(37.7749, -122.4194, any()) }
+        verify { tracker.onLocationReceived(37.7749, -122.4194, FIX_ELAPSED_REALTIME_MS) }
         verify(exactly = 0) { tracker.onLocationReceivedWithoutTracking(any(), any(), any()) }
     }
 
@@ -66,7 +67,7 @@ class LocationOrchestratorTest {
         orchestrator(LocationTrackingMode.OFF).requestLocation(LocationRequestIntent(tracked = false))
 
         coVerify { provider.requestLocation(LocationGranularity.DEFAULT) }
-        verify { tracker.onLocationReceivedWithoutTracking(37.7749, -122.4194, any()) }
+        verify { tracker.onLocationReceivedWithoutTracking(37.7749, -122.4194, FIX_ELAPSED_REALTIME_MS) }
         verify(exactly = 0) { tracker.onLocationReceived(any(), any(), any()) }
     }
 
@@ -116,12 +117,18 @@ class LocationOrchestratorTest {
         val intent = LocationRequestIntent(tracked = false)
         coEvery { provider.requestLocation(LocationGranularity.DEFAULT) } answers {
             intent.upgradeToTracked()
-            LocationSnapshot(latitude = 37.7749, longitude = -122.4194, timestamp = Date(), horizontalAccuracy = 10.0)
+            LocationSnapshot(
+                latitude = 37.7749,
+                longitude = -122.4194,
+                timestamp = Date(),
+                horizontalAccuracy = 10.0,
+                fixElapsedRealtimeMillis = FIX_ELAPSED_REALTIME_MS
+            )
         }
 
         orchestrator(LocationTrackingMode.ON_APP_START).requestLocation(intent)
 
-        verify { tracker.onLocationReceived(37.7749, -122.4194, any()) }
+        verify { tracker.onLocationReceived(37.7749, -122.4194, FIX_ELAPSED_REALTIME_MS) }
         verify(exactly = 0) { tracker.onLocationReceivedWithoutTracking(any(), any(), any()) }
     }
 
@@ -132,12 +139,23 @@ class LocationOrchestratorTest {
         val intent = LocationRequestIntent(tracked = false)
         coEvery { provider.requestLocation(LocationGranularity.DEFAULT) } answers {
             intent.upgradeToTracked()
-            LocationSnapshot(latitude = 37.7749, longitude = -122.4194, timestamp = Date(), horizontalAccuracy = 10.0)
+            LocationSnapshot(
+                latitude = 37.7749,
+                longitude = -122.4194,
+                timestamp = Date(),
+                horizontalAccuracy = 10.0,
+                fixElapsedRealtimeMillis = FIX_ELAPSED_REALTIME_MS
+            )
         }
 
         orchestrator(LocationTrackingMode.OFF).requestLocation(intent)
 
-        verify { tracker.onLocationReceivedWithoutTracking(37.7749, -122.4194, any()) }
+        verify { tracker.onLocationReceivedWithoutTracking(37.7749, -122.4194, FIX_ELAPSED_REALTIME_MS) }
         verify(exactly = 0) { tracker.onLocationReceived(any(), any(), any()) }
+    }
+
+    private companion object {
+        // Any distinctive value: the point is that this exact one arrives, not that some Long does.
+        const val FIX_ELAPSED_REALTIME_MS = 90_000L
     }
 }

@@ -3,8 +3,10 @@ package io.customer.location.provider
 import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
+import android.location.Location
 import android.location.LocationManager
 import android.os.Build
+import androidx.annotation.VisibleForTesting
 import androidx.core.content.ContextCompat
 import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.LocationServices
@@ -55,18 +57,7 @@ internal class FusedLocationProvider(
                 .addOnSuccessListener { location ->
                     if (!continuation.isActive) return@addOnSuccessListener
                     if (location != null) {
-                        continuation.resume(
-                            LocationSnapshot(
-                                latitude = location.latitude,
-                                longitude = location.longitude,
-                                timestamp = Date(location.time),
-                                horizontalAccuracy = location.accuracy.toDouble(),
-                                altitude = if (location.hasAltitude()) location.altitude else null,
-                                fixElapsedRealtimeMillis = location.elapsedRealtimeNanos
-                                    .takeIf { it > 0L }
-                                    ?.let { it / NANOS_PER_MILLI }
-                            )
-                        )
+                        continuation.resume(location.toSnapshot())
                     } else {
                         continuation.resumeWithException(
                             LocationRequestException(error = LocationProviderError.TIMEOUT)
@@ -131,5 +122,19 @@ internal class FusedLocationProvider(
         }
     }
 }
+
+/**
+ * Extracted from the callback so the mapping is reachable without a live GMS client. The age
+ * downstream reads is only as good as this conversion, and a null here is treated as "current".
+ */
+@VisibleForTesting
+internal fun Location.toSnapshot(): LocationSnapshot = LocationSnapshot(
+    latitude = latitude,
+    longitude = longitude,
+    timestamp = Date(time),
+    horizontalAccuracy = accuracy.toDouble(),
+    altitude = if (hasAltitude()) altitude else null,
+    fixElapsedRealtimeMillis = elapsedRealtimeNanos.takeIf { it > 0L }?.let { it / NANOS_PER_MILLI }
+)
 
 private const val NANOS_PER_MILLI = 1_000_000L

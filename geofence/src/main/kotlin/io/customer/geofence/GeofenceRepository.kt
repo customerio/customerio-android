@@ -35,17 +35,11 @@ internal interface GeofenceRepository {
      * [refresh] for a just-acquired fix, which waits for an in-flight sync instead of dropping.
      * Identify and app-launch collide constantly and share one anchor, so dropping loses nothing;
      * this caller holds the device's real position and the fix is consumed either way. Like the
-     * movement trigger, it carries a real fix and is trusted accordingly — see [FixSource].
-     *
-     * [quality] qualifies that trust: a fix too old to say where the device is now ranks and
-     * prunes like an anchor instead of judging containment.
+     * movement trigger, it carries a real fix and is trusted accordingly — see [FixSource]. The
+     * caller decides whether a fix is fresh enough to be one: a stale fix must not reach this.
      */
     @RequiresPermission(Manifest.permission.ACCESS_FINE_LOCATION)
-    suspend fun refreshFromLiveFix(
-        latitude: Double,
-        longitude: Double,
-        quality: GeofenceFixQuality = GeofenceFixQuality.UNKNOWN
-    ): Result<Unit>
+    suspend fun refreshFromLiveFix(latitude: Double, longitude: Double): Result<Unit>
 
     @RequiresPermission(Manifest.permission.ACCESS_FINE_LOCATION)
     suspend fun handleMovement(latitude: Double, longitude: Double): Result<Unit>
@@ -110,30 +104,15 @@ internal class GeofenceRepositoryImpl(
     }
 
     @RequiresPermission(Manifest.permission.ACCESS_FINE_LOCATION)
-    override suspend fun refreshFromLiveFix(
-        latitude: Double,
-        longitude: Double,
-        quality: GeofenceFixQuality
-    ): Result<Unit> {
+    override suspend fun refreshFromLiveFix(latitude: Double, longitude: Double): Result<Unit> {
         // Captured with the fix, before the slot wait: a transition reported while this pass queues
         // is newer evidence than the fix and must outrank its geometry.
         val containmentEpoch = store.containmentEpoch()
-        // Judged with the epoch above, before the slot wait: both belong to the fix, not the pass.
-        val now = clock.elapsedRealtime()
-        val fixSource = if (quality.isFresh(now)) {
-            FixSource.LIVE
-        } else {
-            logger.logStaleFixDemoted(
-                now - (quality.fixElapsedRealtimeMillis ?: now),
-                GeofenceConstants.MAX_LIVE_FIX_AGE_MS
-            )
-            FixSource.ANCHOR
-        }
         if (!awaitRefreshSlot()) {
             logger.logSyncSkipped("refresh already in progress after waiting")
             return Result.success(Unit)
         }
-        return runRefresh(latitude, longitude, fixSource, containmentEpoch)
+        return runRefresh(latitude, longitude, FixSource.LIVE, containmentEpoch)
     }
 
     @RequiresPermission(Manifest.permission.ACCESS_FINE_LOCATION)

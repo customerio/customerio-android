@@ -116,10 +116,6 @@ internal class GeofenceLogger(private val logger: Logger) {
         logger.debug("Geofence state reset on user sign-out: clearing persisted regions and OS registrations", tag = TAG)
     }
 
-    fun logStaleFixDemoted(ageMs: Long, maxAgeMs: Long) {
-        logger.debug("Geofence sync: fix is ${ageMs}ms old (limit ${maxAgeMs}ms) — ranking only, not judging containment", tag = TAG)
-    }
-
     fun logSyncSkippedFresh() {
         logger.debug("Geofence sync skipped: last successful sync is still within the freshness window", tag = TAG)
     }

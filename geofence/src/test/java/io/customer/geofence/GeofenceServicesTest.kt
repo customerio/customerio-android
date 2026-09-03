@@ -63,7 +63,7 @@ class GeofenceServicesTest : RobolectricTest() {
         services.onLocationAcquired(latitude = 1.0, longitude = 2.0, quality = staleQuality())
         advanceUntilIdle()
 
-        coVerify(exactly = 0) { repository.refreshFromLiveFix(any(), any(), any()) }
+        coVerify(exactly = 0) { repository.refreshFromLiveFix(any(), any()) }
         services.isAwaitingLocation().shouldBeTrue()
         services.isHostRefreshPending().shouldBeTrue()
     }
@@ -82,7 +82,7 @@ class GeofenceServicesTest : RobolectricTest() {
         services.onLocationAcquired(latitude = 1.0, longitude = 2.0, quality = staleQuality())
         advanceUntilIdle()
 
-        coVerify(exactly = 0) { repository.refreshFromLiveFix(any(), any(), any()) }
+        coVerify(exactly = 0) { repository.refreshFromLiveFix(any(), any()) }
         services.isAwaitingLocation().shouldBeTrue()
     }
 
@@ -95,12 +95,12 @@ class GeofenceServicesTest : RobolectricTest() {
         repeat(5) { services.onLocationAcquired(latitude = 1.0, longitude = 2.0, quality = staleQuality()) }
         advanceUntilIdle()
 
-        coVerify(exactly = 0) { repository.refreshFromLiveFix(any(), any(), any()) }
+        coVerify(exactly = 0) { repository.refreshFromLiveFix(any(), any()) }
     }
 
     @Test
     fun onLocationAcquired_givenStaleThenFreshFix_expectFreshOneDischargesTheIntent() = runTest(StandardTestDispatcher()) {
-        coEvery { repository.refreshFromLiveFix(any(), any(), any()) } returns Result.success(Unit)
+        coEvery { repository.refreshFromLiveFix(any(), any()) } returns Result.success(Unit)
         every { secureUserStore.getUserId() } returns "user-42"
         val services = servicesWith(this)
         services.onRefreshRequested()
@@ -111,7 +111,7 @@ class GeofenceServicesTest : RobolectricTest() {
         services.onLocationAcquired(latitude = 3.0, longitude = 4.0, quality = fresh)
         advanceUntilIdle()
 
-        coVerify(exactly = 1) { repository.refreshFromLiveFix(3.0, 4.0, fresh) }
+        coVerify(exactly = 1) { repository.refreshFromLiveFix(3.0, 4.0) }
         services.isAwaitingLocation().shouldBeFalse()
     }
 
@@ -265,20 +265,38 @@ class GeofenceServicesTest : RobolectricTest() {
     }
 
     @Test
-    fun onLocationAcquired_givenFixQuality_expectItReachesTheRepository() = runTest(StandardTestDispatcher()) {
-        // The gate can only work if what the fix can resolve travels with it; verified here
-        // because the repository tests call it directly and would not catch a dropped argument.
-        val quality = GeofenceFixQuality(fixElapsedRealtimeMillis = NOW)
+    fun onLocationAcquired_givenFixOneMillisecondInsideTheAgeLimit_expectSync() = runTest(StandardTestDispatcher()) {
+        // Boundary control for the stale cases above. This is the only freshness gate — the
+        // repository trusts whatever reaches refreshFromLiveFix — so the limit is pinned here.
+        coEvery { repository.refreshFromLiveFix(any(), any()) } returns Result.success(Unit)
         every { secureUserStore.getUserId() } returns "user-1"
-        coEvery { repository.refreshFromLiveFix(any(), any(), any()) } returns Result.success(Unit)
         val services = servicesWith(this)
+        services.onRefreshRequested()
 
-        services.onUserIdentified(latitude = null, longitude = null)
-        advanceUntilIdle()
-        services.onLocationAcquired(latitude = 12.0, longitude = 34.0, quality = quality)
+        services.onLocationAcquired(
+            latitude = 12.0,
+            longitude = 34.0,
+            quality = GeofenceFixQuality(fixElapsedRealtimeMillis = NOW - GeofenceConstants.MAX_LIVE_FIX_AGE_MS)
+        )
         advanceUntilIdle()
 
-        coVerify { repository.refreshFromLiveFix(12.0, 34.0, quality) }
+        coVerify { repository.refreshFromLiveFix(12.0, 34.0) }
+        services.isAwaitingLocation().shouldBeFalse()
+    }
+
+    @Test
+    fun onLocationAcquired_givenUnreportedTime_expectSync() = runTest(StandardTestDispatcher()) {
+        // A host-supplied fix may report no time. It asserts a position, so it runs the live pass
+        // rather than being held as stale.
+        coEvery { repository.refreshFromLiveFix(any(), any()) } returns Result.success(Unit)
+        every { secureUserStore.getUserId() } returns "user-1"
+        val services = servicesWith(this)
+        services.onRefreshRequested()
+
+        services.onLocationAcquired(latitude = 12.0, longitude = 34.0, quality = GeofenceFixQuality.UNKNOWN)
+        advanceUntilIdle()
+
+        coVerify { repository.refreshFromLiveFix(12.0, 34.0) }
     }
 
     @Test

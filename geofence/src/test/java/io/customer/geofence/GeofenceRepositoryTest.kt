@@ -590,8 +590,7 @@ class GeofenceRepositoryTest : RobolectricTest() {
 
         repository.refreshFromLiveFix(
             latitude = 0.0,
-            longitude = 0.0,
-            quality = GeofenceFixQuality(fixElapsedRealtimeMillis = clock.elapsedRealtime())
+            longitude = 0.0
         )
 
         // Non-null, so a live pass still ends the no-record grace with a real reading rather than
@@ -613,8 +612,7 @@ class GeofenceRepositoryTest : RobolectricTest() {
 
         repository.refreshFromLiveFix(
             latitude = 0.0,
-            longitude = 0.0,
-            quality = GeofenceFixQuality(fixElapsedRealtimeMillis = clock.elapsedRealtime())
+            longitude = 0.0
         )
 
         verify {
@@ -625,66 +623,6 @@ class GeofenceRepositoryTest : RobolectricTest() {
                 resetIds = setOf("biz-edge")
             )
         }
-    }
-
-    @Test
-    fun refreshFromLiveFix_givenFixTakenBeforeTheAgeLimit_expectRanksButDoesNotJudge() = runTest {
-        // getCurrentLocation can answer from cache. A fix older than the limit may describe where
-        // the device was before it moved, so it is demoted to an anchor: prune, never seed.
-        every { secureUserStore.getUserId() } returns "user-42"
-        every { store.getRegisteredIds() } returns emptySet()
-        val fence = GeofenceRegion("biz-inside", 0.0, 0.0, 500f)
-        coEvery { apiService.fetchGeofences(any()) } returns Result.success(sampleResponse(maxBusinessGeofences = 5))
-        every { distanceFilter.nearest(any(), any(), any(), any(), any()) } returns listOf(fence)
-        coEvery { manager.replaceGeofences(any(), any()) } returns Result.success(Unit)
-
-        repository.refreshFromLiveFix(
-            latitude = 0.0,
-            longitude = 0.0,
-            quality = GeofenceFixQuality(
-                fixElapsedRealtimeMillis = clock.elapsedRealtime() - GeofenceConstants.MAX_LIVE_FIX_AGE_MS - 1
-            )
-        )
-
-        verify { store.reconcileEnteredIds(registeredIds = any(), inside = null, sinceEpoch = any(), resetIds = any()) }
-        coVerify(exactly = 0) { transitionEmitter.emit(any(), any(), any(), any(), any(), any(), any(), any()) }
-    }
-
-    @Test
-    fun refreshFromLiveFix_givenFixWithinTheAgeLimit_expectJudgesContainment() = runTest {
-        // Control for the case above: identical but one millisecond inside the limit.
-        every { secureUserStore.getUserId() } returns "user-42"
-        every { store.getRegisteredIds() } returns emptySet()
-        val fence = GeofenceRegion("biz-inside", 0.0, 0.0, 500f)
-        coEvery { apiService.fetchGeofences(any()) } returns Result.success(sampleResponse(maxBusinessGeofences = 5))
-        every { distanceFilter.nearest(any(), any(), any(), any(), any()) } returns listOf(fence)
-        coEvery { manager.replaceGeofences(any(), any()) } returns Result.success(Unit)
-
-        repository.refreshFromLiveFix(
-            latitude = 0.0,
-            longitude = 0.0,
-            quality = GeofenceFixQuality(
-                fixElapsedRealtimeMillis = clock.elapsedRealtime() - GeofenceConstants.MAX_LIVE_FIX_AGE_MS + 1_000
-            )
-        )
-
-        verify { store.reconcileEnteredIds(registeredIds = any(), inside = setOf("biz-inside"), sinceEpoch = any()) }
-    }
-
-    @Test
-    fun refreshFromLiveFix_givenUnreportedTime_expectCoordinatesTakenAtFaceValue() = runTest {
-        // A host-supplied fix may report no time. It asserts a position, so it keeps the pre-gate
-        // behaviour instead of being demoted to useless.
-        every { secureUserStore.getUserId() } returns "user-42"
-        every { store.getRegisteredIds() } returns emptySet()
-        val fence = GeofenceRegion("biz-inside", metersOfLatitude(80), 0.0, 100f)
-        coEvery { apiService.fetchGeofences(any()) } returns Result.success(sampleResponse(maxBusinessGeofences = 5))
-        every { distanceFilter.nearest(any(), any(), any(), any(), any()) } returns listOf(fence)
-        coEvery { manager.replaceGeofences(any(), any()) } returns Result.success(Unit)
-
-        repository.refreshFromLiveFix(latitude = 0.0, longitude = 0.0, quality = GeofenceFixQuality.UNKNOWN)
-
-        verify { store.reconcileEnteredIds(registeredIds = any(), inside = setOf("biz-inside"), sinceEpoch = any()) }
     }
 
     @Test

@@ -144,10 +144,11 @@ internal class GeofenceServicesImpl(
         quality: GeofenceFixQuality
     ) {
         if (!isAwaitingLocation()) return
-        // A fix too old to judge containment is demoted to an anchor downstream, so spending the
-        // intent on it would leave nothing to drive the pass that seeds containment and fires the
-        // initial-ENTER backstop. Keep the intent and run nothing: a later fix discharges it, and
-        // foreground entry falls through to the awaiting-location retry if none arrives.
+        // The only freshness gate: the repository trusts every fix it gets here as live. A fix too
+        // old to judge containment runs nothing and keeps the intent, since spending it would leave
+        // nothing to drive the pass that seeds containment and fires the initial-ENTER backstop. A
+        // later fix discharges it, and foreground entry falls through to the awaiting-location
+        // retry if none arrives.
         if (!quality.isFresh(clock.elapsedRealtime())) {
             logger.logSyncSkipped("fix too old to judge containment — live-fix intent kept")
             return
@@ -163,14 +164,11 @@ internal class GeofenceServicesImpl(
         if (userId.isNullOrEmpty()) return
         // Not onUserIdentified: the flags above are already consumed, so a pass dropped for a
         // collision spends this fix without using it and nothing requests another.
-        @SuppressLint("MissingPermission")
-        val action: suspend (Double, Double) -> Result<Unit> =
-            { lat, lng -> repository.refreshFromLiveFix(lat, lng, quality) }
         triggerSync(
             reason = REASON_LOCATION_ACQUIRED,
             latitude = latitude,
             longitude = longitude,
-            action = action
+            action = repository::refreshFromLiveFix
         )
     }
 

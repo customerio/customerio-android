@@ -2419,10 +2419,10 @@ class GeofenceRepositoryTest : RobolectricTest() {
     }
 
     @Test
-    fun refreshFromLiveFix_givenAnchorPassMadeInputsFresh_expectContainmentJudgedAndEnterEmitted() = runTest {
+    fun refreshFromLiveFix_givenAnchorPassMadeInputsFresh_expectContainmentJudged() = runTest {
         // Cold start registers from the anchor, which stamps every freshness input, so the live fix
-        // behind it takes SKIP. It still owns the reseed: otherwise nothing ever judges containment,
-        // the arrival GMS dropped stays lost, and the receiver reads the later EXIT as unmatched.
+        // behind it takes SKIP. It still owns the reseed: otherwise nothing ever judges containment
+        // and the receiver reads the eventual genuine EXIT as unmatched.
         val cached = listOf(GeofenceRegion("biz-1", 0.0, 0.0, 100f))
         statefulStore(cached)
 
@@ -2433,45 +2433,22 @@ class GeofenceRepositoryTest : RobolectricTest() {
 
         verify { logger.logSyncSkippedFresh() }
         store.getEnteredIds() shouldContainSame setOf("biz-1")
-        coVerify(exactly = 1) {
-            transitionEmitter.emit(
-                geofenceId = "biz-1",
-                transition = Event.GeofenceTransition.ENTER,
-                userId = "user-42",
-                timestampSeconds = any(),
-                geofenceName = any(),
-                metadata = any(),
-                geosetIds = any(),
-                monitorsExit = true
-            )
-        }
     }
 
     @Test
-    fun refreshFromLiveFix_givenContainmentAlreadyJudged_expectNoSecondEnter() = runTest {
-        // Foreground entry takes a fix on every resume. An enter-only fence never reports the EXIT
-        // that clears its mark, so nothing downstream would stop a repeat — only the record does.
-        val cached = listOf(
-            GeofenceRegion("biz-1", 0.0, 0.0, 100f, transitionTypes = listOf(GeofenceTransitionType.ENTER))
-        )
+    fun refreshFromLiveFix_givenRecordClearedByAnExit_expectReseedButNoSynthesizedEnter() = runTest {
+        // The chain this pass must not open: a real EXIT clears the record and the mark, then a
+        // foreground fix reading a hair inside re-seeds. Synthesizing there would fabricate an
+        // arrival and re-arm the mark, which would then swallow the user's real next one.
+        val cached = listOf(GeofenceRegion("biz-1", 0.0, 0.0, 100f))
         statefulStore(cached)
 
         repository.refresh(latitude = 0.0, longitude = 0.0)
         repository.refreshFromLiveFix(latitude = 0.0, longitude = 0.0)
         repository.refreshFromLiveFix(latitude = 0.0, longitude = 0.0)
 
-        coVerify(exactly = 1) {
-            transitionEmitter.emit(
-                geofenceId = "biz-1",
-                transition = any(),
-                userId = any(),
-                timestampSeconds = any(),
-                geofenceName = any(),
-                metadata = any(),
-                geosetIds = any(),
-                monitorsExit = any()
-            )
-        }
+        store.getEnteredIds() shouldContainSame setOf("biz-1")
+        coVerify(exactly = 0) { transitionEmitter.emit(any(), any(), any(), any(), any(), any(), any(), any()) }
     }
 
     @Test
@@ -2505,18 +2482,6 @@ class GeofenceRepositoryTest : RobolectricTest() {
 
         reconciledInside shouldBeEqualTo listOf(null, setOf("biz-1"))
         store.getEnteredIds() shouldContainSame setOf("biz-1")
-        coVerify(exactly = 0) {
-            transitionEmitter.emit(
-                geofenceId = "biz-2",
-                transition = any(),
-                userId = any(),
-                timestampSeconds = any(),
-                geofenceName = any(),
-                metadata = any(),
-                geosetIds = any(),
-                monitorsExit = any()
-            )
-        }
     }
 
     @Test

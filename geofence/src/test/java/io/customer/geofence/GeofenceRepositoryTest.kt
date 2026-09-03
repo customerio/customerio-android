@@ -550,7 +550,7 @@ class GeofenceRepositoryTest : RobolectricTest() {
     }
 
     @Test
-    fun refresh_givenRegistrationSucceeds_expectContainmentSeededFromGeometryNotFromEnterEvents() = runTest {
+    fun refreshFromLiveFix_givenRegistrationSucceeds_expectContainmentSeededFromGeometryNotFromEnterEvents() = runTest {
         // Initial-ENTER synthesis is suppressed after a reboot/app update, so no ENTER is emitted
         // for a fence the device is already inside. Without seeding containment here, that fence's
         // later genuine EXIT would look unentered and be dropped by the guard.
@@ -562,7 +562,7 @@ class GeofenceRepositoryTest : RobolectricTest() {
         every { distanceFilter.nearest(any(), any(), any(), any(), any()) } returns listOf(inside, outside)
         coEvery { manager.replaceGeofences(any(), any()) } returns Result.success(Unit)
 
-        val result = repository.refresh(latitude = 0.0, longitude = 0.0)
+        val result = repository.refreshFromLiveFix(latitude = 0.0, longitude = 0.0)
 
         result.isSuccess shouldBeEqualTo true
         // Only the fence whose radius actually contains the device is seeded; the far one is not,
@@ -572,6 +572,65 @@ class GeofenceRepositoryTest : RobolectricTest() {
                 registeredIds = any(),
                 inside = setOf("biz-inside"),
                 sinceEpoch = any()
+            )
+        }
+    }
+
+    @Test
+    fun refresh_givenAnchorInsideAFence_expectNoSeedingNoSynthesis() = runTest {
+        // refresh() runs off the persisted anchor — where the device once was. Seeding containment
+        // or synthesizing an ENTER from it would resurrect an exited visit or report an arrival at
+        // a place the device left days ago. Anchor passes only rank and prune.
+        every { secureUserStore.getUserId() } returns "user-42"
+        every { store.getRegisteredIds() } returns emptySet()
+        val inside = GeofenceRegion("biz-inside", 0.0, 0.0, 500f)
+        coEvery { apiService.fetchGeofences(any()) } returns Result.success(sampleResponse(maxBusinessGeofences = 5))
+        every { distanceFilter.nearest(any(), any(), any(), any(), any()) } returns listOf(inside)
+        coEvery { manager.replaceGeofences(any(), any()) } returns Result.success(Unit)
+
+        val result = repository.refresh(latitude = 0.0, longitude = 0.0)
+
+        result.isSuccess shouldBeEqualTo true
+        verify {
+            store.reconcileEnteredIds(
+                registeredIds = any(),
+                inside = null,
+                sinceEpoch = any(),
+                resetIds = emptySet()
+            )
+        }
+        coVerify(exactly = 0) { transitionEmitter.emit(any(), any(), any(), any(), any(), any(), any(), any()) }
+    }
+
+    @Test
+    @OptIn(ExperimentalCoroutinesApi::class)
+    fun refreshFromLiveFix_givenTransitionWhileQueuedForTheSlot_expectEpochFromBeforeTheWait() = runTest {
+        // The epoch belongs to the fix, so it has to be read before the slot wait. A crossing
+        // reported while this pass queues behind a holder postdates the fix; reading the epoch
+        // after the wait would fold that crossing into the baseline and let the seed overrule it.
+        every { secureUserStore.getUserId() } returns "user-42"
+        every { store.getRegisteredIds() } returns emptySet()
+        every { store.containmentEpoch() } returns 3L
+        every { distanceFilter.nearest(any(), any(), any(), any(), any()) } returns listOf(GeofenceRegion("biz-1", 0.0, 0.0, 500f))
+        coEvery { manager.replaceGeofences(any(), any()) } returns Result.success(Unit)
+        coEvery { apiService.fetchGeofences(any()) } coAnswers {
+            // The holder occupies the slot; a transition lands while the live-fix pass queues.
+            delay(20.seconds)
+            every { store.containmentEpoch() } returns 9L
+            Result.success(sampleResponse(maxBusinessGeofences = 5))
+        }
+
+        val holder = launch { repository.refresh(latitude = 0.0, longitude = 0.0) }
+        runCurrent()
+        repository.refreshFromLiveFix(latitude = 0.0, longitude = 0.0)
+        holder.join()
+
+        verify {
+            store.reconcileEnteredIds(
+                registeredIds = any(),
+                inside = setOf("biz-1"),
+                sinceEpoch = 3L,
+                resetIds = any()
             )
         }
     }
@@ -1756,7 +1815,7 @@ class GeofenceRepositoryTest : RobolectricTest() {
     // ---------- initial enter-when-inside (synthesized; GMS INITIAL_TRIGGER_ENTER is unreliable) ----------
 
     @Test
-    fun refresh_givenNewlyRegisteredFenceDeviceInside_expectInitialEnterEmitted() = runTest {
+    fun refreshFromLiveFix_givenNewlyRegisteredFenceDeviceInside_expectInitialEnterEmitted() = runTest {
         // Fresh cache but OS regs wiped → local re-register; the fence is newly registered and the
         // device sits inside it → synthesize the ENTER GMS may have dropped.
         val cached = listOf(GeofenceRegion("biz-1", 0.0, 0.0, 100f))
@@ -1771,7 +1830,7 @@ class GeofenceRepositoryTest : RobolectricTest() {
         every { distanceFilter.nearest(cached, any(), any(), any(), any()) } returns cached
         coEvery { manager.replaceGeofences(any(), any()) } returns Result.success(Unit)
 
-        repository.refresh(latitude = 0.0, longitude = 0.0)
+        repository.refreshFromLiveFix(latitude = 0.0, longitude = 0.0)
 
         coVerify(exactly = 1) {
             transitionEmitter.emit(
@@ -1788,7 +1847,77 @@ class GeofenceRepositoryTest : RobolectricTest() {
     }
 
     @Test
-    fun refresh_givenNewlyRegisteredEnterOnlyFenceDeviceInside_expectInitialEnterNotLatched() = runTest {
+    fun handleMovement_givenNewlyRegisteredFenceDeviceInside_expectInitialEnterEmitted() = runTest {
+        // The movement trigger fires on the OS's own fix, so a movement pass trusts geometry like
+        // refreshFromLiveFix: it must still seed and synthesize, not just rank and prune.
+        val cached = listOf(GeofenceRegion("biz-1", 0.0, 0.0, 100f))
+        every { secureUserStore.getUserId() } returns "user-42"
+        every { store.getCachedRegions() } returns cached
+        every { store.getRegisteredIds() } returns emptySet() // newly registered
+        every { store.getCachedConfig() } returns sampleConfig()
+        every { store.getLastApiFetchLocation() } returns GeofenceLocation(0.0, 0.0)
+        every { store.getEnteredIds() } returns setOf("biz-1")
+        every { distanceFilter.nearest(cached, any(), any(), any(), any()) } returns cached
+        coEvery { manager.replaceGeofences(any(), any()) } returns Result.success(Unit)
+
+        repository.handleMovement(latitude = 0.0, longitude = 0.0)
+
+        coVerify(exactly = 1) {
+            transitionEmitter.emit(
+                geofenceId = "biz-1",
+                transition = Event.GeofenceTransition.ENTER,
+                userId = "user-42",
+                timestampSeconds = any(),
+                geofenceName = any(),
+                metadata = any(),
+                geosetIds = any(),
+                monitorsExit = true
+            )
+        }
+    }
+
+    /**
+     * A wipe suppresses synthesis for a fix we requested, because it may describe a stretch we never
+     * observed. The movement trigger's fix is the OS's own, produced because the device just moved,
+     * so no wipe can have made it stale — and this is the path the backstop exists for, since the
+     * INITIAL_TRIGGER_ENTER it defers to is the callback that gets missed.
+     */
+    @Test
+    fun handleMovement_givenOsStateWiped_expectInitialEnterStillEmitted() = runTest {
+        val cached = listOf(GeofenceRegion("biz-1", 0.0, 0.0, 100f))
+        every { secureUserStore.getUserId() } returns "user-42"
+        every { clock.elapsedRealtime() } returns 1_000L
+        // Stateful: the pass stamps this key mid-flight, and a fixed stub would keep reporting
+        // "wiped" after the write that clears it.
+        var storedUptime: Long? = 900_000L // uptime regressed -> rebooted
+        every { store.getLastRegistrationUptime() } answers { storedUptime }
+        every { store.setLastRegistrationUptime(any()) } answers { storedUptime = firstArg() }
+        every { store.getCachedRegions() } returns cached
+        every { store.getRegisteredIds() } returns emptySet() // newly registered
+        every { store.getCachedConfig() } returns sampleConfig()
+        every { store.getLastApiFetchLocation() } returns GeofenceLocation(0.0, 0.0)
+        every { store.getEnteredIds() } returns setOf("biz-1")
+        every { distanceFilter.nearest(cached, any(), any(), any(), any()) } returns cached
+        coEvery { manager.replaceGeofences(any(), any()) } returns Result.success(Unit)
+
+        repository.handleMovement(latitude = 0.0, longitude = 0.0)
+
+        coVerify(exactly = 1) {
+            transitionEmitter.emit(
+                geofenceId = "biz-1",
+                transition = Event.GeofenceTransition.ENTER,
+                userId = "user-42",
+                timestampSeconds = any(),
+                geofenceName = any(),
+                metadata = any(),
+                geosetIds = any(),
+                monitorsExit = true
+            )
+        }
+    }
+
+    @Test
+    fun refreshFromLiveFix_givenNewlyRegisteredEnterOnlyFenceDeviceInside_expectInitialEnterNotLatched() = runTest {
         // The synthesized ENTER must carry the fence's real monitoring shape: latching an enter-only
         // fence would suppress every later arrival, since no EXIT can ever release it.
         val cached = listOf(
@@ -1803,7 +1932,7 @@ class GeofenceRepositoryTest : RobolectricTest() {
         every { distanceFilter.nearest(cached, any(), any(), any(), any()) } returns cached
         coEvery { manager.replaceGeofences(any(), any()) } returns Result.success(Unit)
 
-        repository.refresh(latitude = 0.0, longitude = 0.0)
+        repository.refreshFromLiveFix(latitude = 0.0, longitude = 0.0)
 
         coVerify(exactly = 1) {
             transitionEmitter.emit(
@@ -1913,7 +2042,7 @@ class GeofenceRepositoryTest : RobolectricTest() {
     }
 
     @Test
-    fun refresh_givenRegisteredFenceParamsChangedDeviceInside_expectInitialEnter() = runTest {
+    fun refreshFromLiveFix_givenRegisteredFenceParamsChangedDeviceInside_expectInitialEnter() = runTest {
         // Server grew g-1's radius (50 → 100 m): the fence is re-added to GMS, so it synthesizes
         // like a new fence when the device is inside the new geometry.
         every { secureUserStore.getUserId() } returns "user-42"
@@ -1927,7 +2056,7 @@ class GeofenceRepositoryTest : RobolectricTest() {
         every { distanceFilter.nearest(any(), any(), any(), any(), any()) } answers { firstArg() }
         coEvery { manager.replaceGeofences(any(), any()) } returns Result.success(Unit)
 
-        repository.refresh(latitude = 0.0, longitude = 0.0)
+        repository.refreshFromLiveFix(latitude = 0.0, longitude = 0.0)
 
         coVerify(exactly = 1) {
             transitionEmitter.emit(
@@ -1944,7 +2073,28 @@ class GeofenceRepositoryTest : RobolectricTest() {
     }
 
     @Test
-    fun refresh_givenFenceMovedAwayFromDevice_expectContainmentAndMarkReset() = runTest {
+    fun refresh_givenRegisteredFenceParamsChangedAnchorInside_expectNoInitialEnter() = runTest {
+        // Same geometry edit, but the pass runs off the anchor. The record was carried forward from
+        // an older visit and the anchor still reads "inside", so synthesis would fire an arrival on
+        // two pieces of stale evidence — days after the device may have left.
+        every { secureUserStore.getUserId() } returns "user-42"
+        every { clock.currentTimeMillis() } returns 200_000_000_000L
+        every { store.getLastSyncTimestamp() } returns 1_000L // stale → remote fetch
+        every { store.getCachedRegions() } returns listOf(GeofenceRegion("g-1", 0.0, 0.0, 50f))
+        every { store.getRegisteredIds() } returns setOf("g-1")
+        every { store.getEnteredIds() } returns setOf("g-1")
+        coEvery { apiService.fetchGeofences(any()) } returns
+            Result.success(sampleResponse(maxBusinessGeofences = 3)) // g-1 at (0,0) radius 100
+        every { distanceFilter.nearest(any(), any(), any(), any(), any()) } answers { firstArg() }
+        coEvery { manager.replaceGeofences(any(), any()) } returns Result.success(Unit)
+
+        repository.refresh(latitude = 0.0, longitude = 0.0)
+
+        coVerify(exactly = 0) { transitionEmitter.emit(any(), any(), any(), any(), any(), any(), any(), any()) }
+    }
+
+    @Test
+    fun refreshFromLiveFix_givenFenceMovedAwayFromDevice_expectContainmentAndMarkReset() = runTest {
         // g-1's circle moved while the device was recorded inside the old one. GMS promises no EXIT
         // for a circle it no longer holds, so carrying the record and the reported-ENTER mark forward
         // would drop the first genuine arrival at the new circle and deliver its EXIT unmatched.
@@ -1961,7 +2111,7 @@ class GeofenceRepositoryTest : RobolectricTest() {
         every { store.reconcileEnteredIds(any(), any(), any(), any()) } returns setOf("g-1")
 
         // Device ~1.1 km away: outside the new circle, so the old record cannot be trusted.
-        repository.refresh(latitude = 0.01, longitude = 0.0)
+        repository.refreshFromLiveFix(latitude = 0.01, longitude = 0.0)
 
         verify { store.reconcileEnteredIds(any(), any(), any(), setOf("g-1")) }
         // Mark dropped, so the arrival at the new circle is not mistaken for a repeat.
@@ -1969,7 +2119,63 @@ class GeofenceRepositoryTest : RobolectricTest() {
     }
 
     @Test
-    fun refresh_givenArrivalReportedWhileRegistrationAwaited_expectMarkKeptWithRecord() = runTest {
+    fun refreshFromLiveFix_givenOsStateWiped_expectNoInitialEnter() = runTest {
+        // A reboot or app update re-registers every fence with INITIAL_TRIGGER_ENTER, so GMS reports
+        // the arrival itself. Synthesizing as well only adds a second source of truth at the moment
+        // the stored record is least likely to describe where the device actually is.
+        every { secureUserStore.getUserId() } returns "user-42"
+        every { clock.currentTimeMillis() } returns 200_000_000_000L
+        every { clock.elapsedRealtime() } returns 1_000L
+        // Stateful, because the pass stamps this key mid-flight: a fixed stub would keep reporting
+        // "wiped" after the write that clears it and pass whether or not the guard reads it in time.
+        var storedUptime: Long? = 900_000L // uptime regressed -> rebooted
+        every { store.getLastRegistrationUptime() } answers { storedUptime }
+        every { store.setLastRegistrationUptime(any()) } answers { storedUptime = firstArg() }
+        every { store.getLastSyncTimestamp() } returns 1_000L
+        every { store.getRegisteredIds() } returns emptySet()
+        every { store.getEnteredIds() } returns setOf("g-1")
+        coEvery { apiService.fetchGeofences(any()) } returns
+            Result.success(sampleResponse(maxBusinessGeofences = 3))
+        every { distanceFilter.nearest(any(), any(), any(), any(), any()) } answers { firstArg() }
+        coEvery { manager.replaceGeofences(any(), any()) } returns Result.success(Unit)
+
+        repository.refreshFromLiveFix(latitude = 0.0, longitude = 0.0)
+
+        coVerify(exactly = 0) { transitionEmitter.emit(any(), any(), any(), any(), any(), any(), any(), any()) }
+    }
+
+    @Test
+    fun refresh_givenFenceMovedAwayFromAnchor_expectContainmentAndMarkReset() = runTest {
+        // Same moved circle, judged off the anchor. The record and mark describe a circle GMS no
+        // longer holds, so keeping them swallows the first arrival at the new one — GMS's own
+        // report, not the synthesis backstop an anchor pass gives up. Retiring them seeds nothing.
+        every { secureUserStore.getUserId() } returns "user-42"
+        every { clock.currentTimeMillis() } returns 200_000_000_000L
+        every { store.getLastSyncTimestamp() } returns 1_000L
+        every { store.getCachedRegions() } returns listOf(GeofenceRegion("g-1", 0.0, 0.0, 50f))
+        every { store.getRegisteredIds() } returns setOf("g-1")
+        every { store.getEnteredIds() } returns setOf("g-1")
+        coEvery { apiService.fetchGeofences(any()) } returns
+            Result.success(sampleResponse(maxBusinessGeofences = 3))
+        every { distanceFilter.nearest(any(), any(), any(), any(), any()) } answers { firstArg() }
+        coEvery { manager.replaceGeofences(any(), any()) } returns Result.success(Unit)
+        every { store.reconcileEnteredIds(any(), any(), any(), any()) } returns setOf("g-1")
+
+        repository.refresh(latitude = 0.01, longitude = 0.0)
+
+        verify {
+            store.reconcileEnteredIds(
+                registeredIds = any(),
+                inside = null,
+                sinceEpoch = any(),
+                resetIds = setOf("g-1")
+            )
+        }
+        verify { store.pruneEmittedEnterIds(match { "g-1" !in it }) }
+    }
+
+    @Test
+    fun refreshFromLiveFix_givenArrivalReportedWhileRegistrationAwaited_expectMarkKeptWithRecord() = runTest {
         // Same moved circle, but GMS reported an arrival at it while registration was awaited, so the
         // store keeps the record. The mark has to follow: it belongs to that reported arrival, and
         // clearing it would let the next report through as a fresh one.
@@ -1986,7 +2192,7 @@ class GeofenceRepositoryTest : RobolectricTest() {
         // Store declines the reset because the arrival is newer than the fix that asked for it.
         every { store.reconcileEnteredIds(any(), any(), any(), any()) } returns emptySet()
 
-        repository.refresh(latitude = 0.01, longitude = 0.0)
+        repository.refreshFromLiveFix(latitude = 0.01, longitude = 0.0)
 
         verify { store.reconcileEnteredIds(any(), any(), any(), setOf("g-1")) }
         verify { store.pruneEmittedEnterIds(match { "g-1" in it }) }
@@ -2165,6 +2371,156 @@ class GeofenceRepositoryTest : RobolectricTest() {
         repository.restoreFromCache()
 
         coVerify(exactly = 0) { transitionEmitter.emit(any(), any(), any(), any(), any(), any(), any(), any()) }
+    }
+
+    // ---------- live fix arriving behind an anchor pass ----------
+
+    /**
+     * Wires the keys an anchor pass writes and the pass behind it reads back, so a live fix that
+     * follows one takes SKIP for the real reason rather than a stubbed one.
+     */
+    private fun statefulStore(
+        cached: List<GeofenceRegion>,
+        preRegistered: Set<String> = emptySet()
+    ): List<Set<String>?> {
+        val reconciledInside = mutableListOf<Set<String>?>()
+        var registeredIds = preRegistered
+        // Null models key-absence, which is what `hasContainmentRecord` reads.
+        var enteredIds: Set<String>? = null
+        // Stand in for the registering pass that [preRegistered] represents.
+        var registrationUptime: Long? = 10_000L.takeIf { preRegistered.isNotEmpty() }
+        var movementLocation: GeofenceLocation? = GeofenceLocation(0.0, 0.0).takeIf { preRegistered.isNotEmpty() }
+        every { secureUserStore.getUserId() } returns "user-42"
+        every { clock.elapsedRealtime() } returns 10_000L
+        every { store.getCachedRegions() } returns cached
+        every { store.getCachedConfig() } returns sampleConfig()
+        every { store.getLastSyncTimestamp() } returns System.currentTimeMillis() - 60_000L
+        every { store.getRegisteredIds() } answers { registeredIds }
+        every { store.saveRegisteredIds(any()) } answers { registeredIds = firstArg() }
+        every { store.getLastRegistrationUptime() } answers { registrationUptime }
+        every { store.setLastRegistrationUptime(any()) } answers { registrationUptime = firstArg() }
+        every { store.getLastMovementTriggerLocation() } answers { movementLocation }
+        every { store.saveLastMovementTriggerLocation(any()) } answers { movementLocation = firstArg() }
+        every { store.getEnteredIds() } answers { enteredIds.orEmpty() }
+        every { store.claimExit(any()) } answers {
+            val id = firstArg<String>()
+            val wasInside = id in enteredIds.orEmpty()
+            enteredIds = enteredIds?.minus(id)
+            wasInside
+        }
+        every { store.reconcileEnteredIds(any(), any(), any(), any()) } answers {
+            val registered = firstArg<Set<String>>()
+            val inside = secondArg<Set<String>?>()
+            reconciledInside += inside
+            enteredIds = if (inside == null) {
+                enteredIds?.intersect(registered)
+            } else {
+                enteredIds.orEmpty().intersect(registered) + inside
+            }
+            emptySet()
+        }
+        every { distanceFilter.nearest(cached, any(), any(), any(), any()) } returns cached
+        coEvery { manager.replaceGeofences(any(), any()) } returns Result.success(Unit)
+        return reconciledInside
+    }
+
+    @Test
+    fun refreshFromLiveFix_givenAnchorPassMadeInputsFresh_expectContainmentJudged() = runTest {
+        // Cold start registers from the anchor, which stamps every freshness input, so the live fix
+        // behind it takes SKIP. It still owns the reseed: otherwise nothing ever judges containment
+        // and the receiver reads the eventual genuine EXIT as unmatched.
+        val cached = listOf(GeofenceRegion("biz-1", 0.0, 0.0, 100f))
+        statefulStore(cached)
+
+        repository.refresh(latitude = 0.0, longitude = 0.0)
+        store.getEnteredIds().shouldBeEmpty()
+
+        repository.refreshFromLiveFix(latitude = 0.0, longitude = 0.0)
+
+        verify { logger.logSyncSkippedFresh() }
+        store.getEnteredIds() shouldContainSame setOf("biz-1")
+    }
+
+    @Test
+    fun refreshFromLiveFix_givenRecordClearedByAnExit_expectReseedButNoSynthesizedEnter() = runTest {
+        // The chain this pass must not open: a real EXIT clears the record and the mark, then a
+        // foreground fix reading a hair inside re-seeds. Synthesizing there would fabricate an
+        // arrival and re-arm the mark, which would then swallow the user's real next one.
+        val cached = listOf(GeofenceRegion("biz-1", 0.0, 0.0, 100f))
+        statefulStore(cached)
+
+        repository.refresh(latitude = 0.0, longitude = 0.0)
+        repository.refreshFromLiveFix(latitude = 0.0, longitude = 0.0)
+        // The genuine departure clears the record, as the receiver's EXIT path does.
+        store.claimExit("biz-1") shouldBeEqualTo true
+        store.getEnteredIds().shouldBeEmpty()
+        repository.refreshFromLiveFix(latitude = 0.0, longitude = 0.0)
+
+        store.getEnteredIds() shouldContainSame setOf("biz-1")
+        coVerify(exactly = 0) { transitionEmitter.emit(any(), any(), any(), any(), any(), any(), any(), any()) }
+    }
+
+    @Test
+    fun refreshFromLiveFix_givenFreshInputsAndDeviceOutside_expectNoEnterAndRecordWritten() = runTest {
+        // The record is written even with nothing inside: that write is what lets the EXIT guard
+        // stop deferring, and geometry that puts the device outside must not invent an arrival.
+        val cached = listOf(GeofenceRegion("biz-1", 0.0, 0.0, 100f))
+        val reconciledInside = statefulStore(cached)
+
+        repository.refresh(latitude = 0.0, longitude = 0.0)
+        // ~555m: outside the 100m fence, inside both refresh radii, so the pass still takes SKIP.
+        repository.refreshFromLiveFix(latitude = 0.005, longitude = 0.0)
+
+        // Null from the anchor's registering pass, then the live fix's own empty judgement.
+        reconciledInside shouldBeEqualTo listOf(null, emptySet())
+        coVerify(exactly = 0) { transitionEmitter.emit(any(), any(), any(), any(), any(), any(), any(), any()) }
+    }
+
+    @Test
+    fun refreshFromLiveFix_givenCachedFenceNotRegistered_expectItLeftOutOfTheJudgement() = runTest {
+        // The cache holds more than the OS monitors. Recording a visit to a fence GMS never got
+        // would report an arrival nothing can ever balance with an EXIT.
+        val registered = GeofenceRegion("biz-1", 0.0, 0.0, 100f)
+        val unregistered = GeofenceRegion("biz-2", 0.0, 0.0, 100f)
+        val cached = listOf(registered, unregistered)
+        val reconciledInside = statefulStore(cached)
+        every { distanceFilter.nearest(cached, any(), any(), any(), any()) } returns listOf(registered)
+
+        repository.refresh(latitude = 0.0, longitude = 0.0)
+        repository.refreshFromLiveFix(latitude = 0.0, longitude = 0.0)
+
+        reconciledInside shouldBeEqualTo listOf(null, setOf("biz-1"))
+        store.getEnteredIds() shouldContainSame setOf("biz-1")
+    }
+
+    @Test
+    fun refreshFromLiveFix_givenUserSignedOutDuringThePass_expectContainmentLeftUnjudged() = runTest {
+        // The slot wait and the action decision both release before this writes, so a sign-out can
+        // land in between; seeding then would hand the next user the previous one's containment.
+        val cached = listOf(GeofenceRegion("biz-1", 0.0, 0.0, 100f))
+        val reconciledInside = statefulStore(cached, preRegistered = setOf("biz-1"))
+        every { secureUserStore.getUserId() } returnsMany listOf("user-42", null)
+
+        repository.refreshFromLiveFix(latitude = 0.0, longitude = 0.0)
+
+        verify { logger.logSyncSkippedFresh() }
+        reconciledInside.shouldBeEmpty()
+        store.getEnteredIds().shouldBeEmpty()
+    }
+
+    @Test
+    fun refresh_givenAnchorPassOnFreshInputs_expectContainmentLeftUnjudged() = runTest {
+        // An anchor describes where the device used to be. A SKIP on one must judge nothing — the
+        // absent record is what keeps the EXIT guard deferring rather than dropping a real departure.
+        val cached = listOf(GeofenceRegion("biz-1", 0.0, 0.0, 100f))
+        val reconciledInside = statefulStore(cached)
+
+        repository.refresh(latitude = 0.0, longitude = 0.0)
+        repository.refresh(latitude = 0.0, longitude = 0.0)
+
+        verify(exactly = 1) { logger.logSyncSkippedFresh() }
+        reconciledInside shouldBeEqualTo listOf(null)
+        store.getEnteredIds().shouldBeEmpty()
     }
 
     private fun sampleConfig(

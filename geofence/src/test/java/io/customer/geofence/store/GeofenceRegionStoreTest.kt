@@ -304,9 +304,18 @@ class GeofenceRegionStoreTest : RobolectricTest() {
     }
 
     @Test
-    fun hasContainmentRecord_givenReconcileWithNothingInside_expectTrue() {
-        // The first registration seeds the key even when the device is inside nothing, which is what
-        // ends the upgrade grace period.
+    fun hasContainmentRecord_givenPruneOnlyReconcile_expectGracePreserved() {
+        // An upgraded install has no key; a pass with no live fix (null inside) must not create one,
+        // or the EXIT guard arms off an anchor and drops crossings that predate any record.
+        store.reconcileEnteredIds(registeredIds = setOf("biz-1"), inside = null, sinceEpoch = store.containmentEpoch())
+
+        store.hasContainmentRecord().shouldBeFalse()
+    }
+
+    @Test
+    fun hasContainmentRecord_givenLiveFixInsideNothing_expectGraceEnded() {
+        // "Inside nothing" from a live fix is a real reading, so it ends the grace and arms the EXIT
+        // guard — otherwise a user who never enters a fence never gets phantom EXITs filtered.
         store.reconcileEnteredIds(registeredIds = setOf("biz-1"), inside = emptySet(), sinceEpoch = store.containmentEpoch())
 
         store.hasContainmentRecord().shouldBeTrue()
@@ -314,12 +323,32 @@ class GeofenceRegionStoreTest : RobolectricTest() {
     }
 
     @Test
-    fun reconcileEnteredIds_givenStaleAnchorReportsOutside_expectExistingContainmentPreserved() {
-        // A launch refresh can run off the persisted anchor rather than a live fix. If that
-        // anchor wrongly says "outside", erasing containment would swallow the genuine EXIT.
+    fun hasContainmentRecord_givenReconcileSeedsContainment_expectGraceEnded() {
+        store.reconcileEnteredIds(registeredIds = setOf("biz-1"), inside = setOf("biz-1"), sinceEpoch = store.containmentEpoch())
+
+        store.hasContainmentRecord().shouldBeTrue()
+        store.getEnteredIds() shouldBeEqualTo setOf("biz-1")
+    }
+
+    @Test
+    fun reconcileEnteredIds_givenFixReportsOutsideARecordedFence_expectContainmentPreserved() {
+        // Union, not replace: a fix taken at the edge of a circle can read "outside" for a fence the
+        // OS already reported entered, and erasing the record would swallow the genuine EXIT.
         store.recordEntered("biz-1")
 
         store.reconcileEnteredIds(registeredIds = setOf("biz-1"), inside = emptySet(), sinceEpoch = store.containmentEpoch())
+
+        store.getEnteredIds() shouldContainSame setOf("biz-1")
+    }
+
+    @Test
+    fun reconcileEnteredIds_givenPruneOnlyPassWithExistingRecord_expectRecordCarried() {
+        // The grace only covers a missing key. Once a record exists, a prune-only pass still writes:
+        // it has to drop fences that left the registered set.
+        store.recordEntered("biz-1")
+        store.recordEntered("biz-2")
+
+        store.reconcileEnteredIds(registeredIds = setOf("biz-1"), inside = null, sinceEpoch = store.containmentEpoch())
 
         store.getEnteredIds() shouldContainSame setOf("biz-1")
     }

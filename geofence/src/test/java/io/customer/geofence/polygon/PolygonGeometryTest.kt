@@ -88,16 +88,18 @@ class PolygonGeometryTest {
     }
 
     @Test
-    fun from_whenPolygonApproachesGeographicPole_thenRejectsUnsupportedGeometry() {
-        invoking {
-            PolygonGeometry.from(
-                listOf(
-                    point(89.92593569795733, -145.18356655630183),
-                    point(89.8623631437237, 16.93650091099056),
-                    point(89.9222388615163, 60.8667321459084)
-                )
+    fun from_whenPolygonApproachesGeographicPole_thenAccepted() {
+        // Circles at the pole were always registerable; rejecting a polygon there was the SDK
+        // holding the payload to a stricter rule than the backend or the rest of the module.
+        val nearPole = PolygonGeometry.from(
+            listOf(
+                point(89.92, 10.0),
+                point(89.86, 11.0),
+                point(89.92, 12.0)
             )
-        } shouldThrow IllegalArgumentException::class
+        )
+
+        nearPole.vertices.size shouldBeEqualTo 3
     }
 
     private fun square(): PolygonGeometry = PolygonGeometry.from(

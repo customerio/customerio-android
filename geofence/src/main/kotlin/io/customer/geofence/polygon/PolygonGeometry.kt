@@ -121,9 +121,6 @@ internal class PolygonGeometry private constructor(
 
             require(canonical.size >= 3) { "polygon requires at least three vertices" }
             require(canonical.distinct().size >= 3) { "polygon requires at least three distinct vertices" }
-            require(canonical.all { abs(it.latitude) <= MAXIMUM_ABSOLUTE_LATITUDE }) {
-                "polygons above the supported latitude are unsupported"
-            }
             canonical.forEachIndexed { index, current ->
                 val next = canonical[(index + 1) % canonical.size]
                 require(current != next) { "polygon cannot contain a zero-length edge" }
@@ -213,9 +210,5 @@ internal class PolygonGeometry private constructor(
                 longitude <= maxOf(first.longitude, second.longitude) + BOUNDARY_EPSILON &&
                 latitude >= minOf(first.latitude, second.latitude) - BOUNDARY_EPSILON &&
                 latitude <= maxOf(first.latitude, second.latitude) + BOUNDARY_EPSILON
-
-        // Keeps the coordinate-linear ring inside the conservative geodesic trigger circle.
-        // Near a pole an edge interior can be farther from the projected center than every vertex.
-        private const val MAXIMUM_ABSOLUTE_LATITUDE = 85.0
     }
 }

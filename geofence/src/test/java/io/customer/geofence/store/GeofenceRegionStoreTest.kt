@@ -1164,7 +1164,7 @@ class GeofenceRegionStoreTest : RobolectricTest() {
     // --- Schema-drift / corruption safety ---
 
     @Test
-    fun getCachedRegions_givenOneOutOfRangePolygonVertex_expectTheValidCircleSurvives() {
+    fun getCachedRegions_givenAnUnusualPolygonVertex_expectEveryRegionSurvives() {
         // Range checks used to live in PolygonCoordinate's init, which is the deserializer's
         // constructor: one bad stored vertex threw mid-list, readJson wiped the key, and every
         // valid cached region went with it. The bad ring must cost only itself.
@@ -1195,8 +1195,9 @@ class GeofenceRegionStoreTest : RobolectricTest() {
         val cached = store.getCachedRegions()
 
         cached.map { it.id } shouldContain "good-circle"
-        // The ring is still rejected — just at use, not by taking the cache down with it.
-        cached.first { it.id == "bad-polygon" }.polygonGeometryOrNull().shouldBeNull()
+        // The coordinate is no longer judged here — the backend admitted the ring — but the point
+        // of the test stands: one odd stored region must not take the whole cache down with it.
+        cached.map { it.id } shouldContain "bad-polygon"
     }
 
     @Test

@@ -63,6 +63,10 @@
             android:exported="false"
             android:label="Inline Examples (Tabs)"
             android:theme="@style/Theme.CustomerioSDK.NoActionBar" />
+        <activity
+            android:name=".ui.inbox.VisualInboxActivity"
+            android:exported="false"
+            android:label="Visual Inbox" />
     </application>
 
 </manifest>

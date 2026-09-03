@@ -30,12 +30,13 @@ class InAppMessageEventListener(private val logger: Logger = Logger()) : InAppEv
 
     override fun errorWithMessage(message: InAppMessage, error: InAppMessageError) {
         logInAppEvent("in-app message: errorWithMessage. reason: ${error.reason}, detail: ${error.detail}, message: $message")
+        // `detail` is deliberately logged but not tracked: it is diagnostic text, partly supplied by
+        // the renderer, and not something to forward verbatim to analytics.
         trackInAppEvent(
             "errorWithMessage",
             message,
             hashMapOf(
                 "error-reason" to error.reason.name,
-                "error-detail" to (error.detail ?: "NULL"),
                 "error-code" to (error.code?.toString() ?: "NULL")
             )
         )

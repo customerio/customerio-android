@@ -6,6 +6,10 @@ package io.customer.messaginginapp.type
  * The entries are deliberately coarse: each maps to a different thing an integrator would do about
  * it — check connectivity, look at a slow renderer, report the message content to us, or file an
  * SDK bug. Finer detail belongs in [InAppMessageError.detail].
+ *
+ * **Keep a fallback branch when you switch on this.** More reasons may be added in future releases,
+ * and an exhaustive `when` expression over this enum will stop compiling when that happens. An
+ * `else ->` branch keeps your listener building across SDK upgrades.
  */
 enum class InAppMessageErrorReason {
     /** The renderer could not be reached: navigation failed, TLS failed, or the host errored. */
@@ -29,7 +33,9 @@ enum class InAppMessageErrorReason {
  *
  * @param reason the coarse category; branch on this.
  * @param detail human-readable detail from the layer that failed — a WebView error description, or
- * the message the renderer itself reported. Free-form and unstable: log it, don't parse it.
+ * the message the renderer itself reported. Free-form, unstable, and partly renderer-supplied, so
+ * treat it as **local diagnostics only**: write it to your logs, don't parse it, and don't forward
+ * it verbatim to analytics or crash reporting. Branch on [reason] instead.
  * @param code the underlying platform error code where the failing layer had one, e.g. a
  * [android.webkit.WebResourceError] code or an HTTP status. Null when there was no numeric code.
  */

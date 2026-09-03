@@ -11,5 +11,6 @@ internal data class LocationSnapshot(
     val longitude: Double,
     val timestamp: Date,
     val horizontalAccuracy: Double,
-    val altitude: Double? = null
+    val altitude: Double? = null,
+    val fixElapsedRealtimeMillis: Long? = null
 )

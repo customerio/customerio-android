@@ -577,6 +577,55 @@ class GeofenceRepositoryTest : RobolectricTest() {
     }
 
     @Test
+    fun refreshFromLiveFix_givenFixInsideAFence_expectSeededByExactPointCheck() = runTest {
+        // Deliberate: containment is an exact point check with no accuracy margin. Requiring an
+        // error circle to fit would make a fence smaller than the fix unjudgable at any distance,
+        // so a low-power fix could never seed or fire the initial-ENTER backstop.
+        every { secureUserStore.getUserId() } returns "user-42"
+        every { store.getRegisteredIds() } returns emptySet()
+        val fence = GeofenceRegion("biz-edge", metersOfLatitude(60), 0.0, 100f)
+        coEvery { apiService.fetchGeofences(any()) } returns Result.success(sampleResponse(maxBusinessGeofences = 5))
+        every { distanceFilter.nearest(any(), any(), any(), any(), any()) } returns listOf(fence)
+        coEvery { manager.replaceGeofences(any(), any()) } returns Result.success(Unit)
+
+        repository.refreshFromLiveFix(
+            latitude = 0.0,
+            longitude = 0.0
+        )
+
+        // Non-null, so a live pass still ends the no-record grace with a real reading rather than
+        // arming the unmatched-EXIT guard off a fix that decided nothing.
+        verify { store.reconcileEnteredIds(registeredIds = any(), inside = setOf("biz-edge"), sinceEpoch = any()) }
+    }
+
+    @Test
+    fun refreshFromLiveFix_givenFixJustOutsideAReRegisteredFence_expectMarkRetired() = runTest {
+        // No accuracy margin on the outside test either. Keeping the mark while the device is
+        // "not certainly outside" would leave it in place when the device is genuinely outside the
+        // edited circle, and that mark then drops the next real arrival as redundant.
+        every { secureUserStore.getUserId() } returns "user-42"
+        val fence = GeofenceRegion("biz-edge", metersOfLatitude(120), 0.0, 100f)
+        every { store.getRegisteredIds() } returns setOf("biz-edge")
+        coEvery { apiService.fetchGeofences(any()) } returns Result.success(sampleResponse(maxBusinessGeofences = 5))
+        every { distanceFilter.nearest(any(), any(), any(), any(), any()) } returns listOf(fence)
+        coEvery { manager.replaceGeofences(any(), any()) } returns Result.success(Unit)
+
+        repository.refreshFromLiveFix(
+            latitude = 0.0,
+            longitude = 0.0
+        )
+
+        verify {
+            store.reconcileEnteredIds(
+                registeredIds = any(),
+                inside = emptySet(),
+                sinceEpoch = any(),
+                resetIds = setOf("biz-edge")
+            )
+        }
+    }
+
+    @Test
     fun refresh_givenAnchorInsideAFence_expectNoSeedingNoSynthesis() = runTest {
         // refresh() runs off the persisted anchor — where the device once was. Seeding containment
         // or synthesizing an ENTER from it would resurrect an exited visit or report an arrival at
@@ -2522,6 +2571,9 @@ class GeofenceRepositoryTest : RobolectricTest() {
         reconciledInside shouldBeEqualTo listOf(null)
         store.getEnteredIds().shouldBeEmpty()
     }
+
+    /** Latitude offset from the equator covering roughly [meters], for placing a fence at a known distance. */
+    private fun metersOfLatitude(meters: Int): Double = meters / 111_320.0
 
     private fun sampleConfig(
         remoteFetchRefreshExpiry: Long = 86_400_000L,

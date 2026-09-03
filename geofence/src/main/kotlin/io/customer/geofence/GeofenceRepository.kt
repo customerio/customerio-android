@@ -35,7 +35,8 @@ internal interface GeofenceRepository {
      * [refresh] for a just-acquired fix, which waits for an in-flight sync instead of dropping.
      * Identify and app-launch collide constantly and share one anchor, so dropping loses nothing;
      * this caller holds the device's real position and the fix is consumed either way. Like the
-     * movement trigger, it carries a real fix and is trusted accordingly — see [FixSource].
+     * movement trigger, it carries a real fix and is trusted accordingly — see [FixSource]. The
+     * caller decides whether a fix is fresh enough to be one: a stale fix must not reach this.
      */
     @RequiresPermission(Manifest.permission.ACCESS_FINE_LOCATION)
     suspend fun refreshFromLiveFix(latitude: Double, longitude: Double): Result<Unit>
@@ -508,6 +509,11 @@ internal class GeofenceRepositoryImpl(
                         newIds + staleIds
                     }
                     store.saveRegisteredIds(idsToSave)
+                    // An exact point check, with no accuracy margin in either direction. Widening
+                    // the inside test would make a fence smaller than the fix unjudgable, so the
+                    // initial-ENTER backstop would never fire; narrowing the outside test would keep
+                    // a stale mark on a fence the device is just outside of, and that mark swallows
+                    // the next genuine arrival as redundant.
                     val insideNow = nearest.filter { it.distanceTo(latitude, longitude) <= it.radius }
                         .map { it.id }
                         .toSet()

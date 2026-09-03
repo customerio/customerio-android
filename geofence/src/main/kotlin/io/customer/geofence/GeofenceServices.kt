@@ -3,6 +3,7 @@ package io.customer.geofence
 import android.annotation.SuppressLint
 import io.customer.geofence.store.GeofenceRegionStore
 import io.customer.location.LocationCoordinates
+import io.customer.sdk.core.util.Clock
 import io.customer.sdk.data.store.SecureUserStore
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.CancellationException
@@ -62,7 +63,11 @@ internal interface GeofenceServices {
      * fix; without this hook the SDK would self-heal only on sign-out / next cold
      * launch.
      */
-    fun onLocationAcquired(latitude: Double, longitude: Double)
+    fun onLocationAcquired(
+        latitude: Double,
+        longitude: Double,
+        quality: GeofenceFixQuality = GeofenceFixQuality.UNKNOWN
+    )
 
     /**
      * Retries a sync still waiting on a location fix. Same freshness handling as [onAppLaunch];
@@ -90,7 +95,8 @@ internal class GeofenceServicesImpl(
     private val regionStore: GeofenceRegionStore,
     private val scope: CoroutineScope,
     private val logger: GeofenceLogger,
-    private val permissionChecker: GeofencePermissionChecker
+    private val permissionChecker: GeofencePermissionChecker,
+    private val clock: Clock
 ) : GeofenceServices {
 
     // Rearm flag: set when a sync skips for no-location, cleared on any
@@ -132,7 +138,21 @@ internal class GeofenceServicesImpl(
         explicitRefreshRequested.set(true)
     }
 
-    override fun onLocationAcquired(latitude: Double, longitude: Double) {
+    override fun onLocationAcquired(
+        latitude: Double,
+        longitude: Double,
+        quality: GeofenceFixQuality
+    ) {
+        if (!isAwaitingLocation()) return
+        // The only freshness gate: the repository trusts every fix it gets here as live. A fix too
+        // old to judge containment runs nothing and keeps the intent, since spending it would leave
+        // nothing to drive the pass that seeds containment and fires the initial-ENTER backstop. A
+        // later fix discharges it, and foreground entry falls through to the awaiting-location
+        // retry if none arrives.
+        if (!quality.isFresh(clock.elapsedRealtime())) {
+            logger.logSyncSkipped("fix too old to judge containment — live-fix intent kept")
+            return
+        }
         // Act on a host-initiated refresh or the rising edge of a no-location skip;
         // otherwise this becomes a per-update refresh storm on hosts that stream
         // locations. Clear both flags so a single fix is consumed once.

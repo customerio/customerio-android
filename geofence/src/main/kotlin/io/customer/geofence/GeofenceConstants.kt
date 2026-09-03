@@ -40,6 +40,11 @@ internal object GeofenceConstants {
     // when the API config field is missing or non-positive.
     const val STALE_THRESHOLD_MS = 24 * 60 * 60 * 1_000L
 
+    // How old a requested fix may be and still judge containment; `getCurrentLocation` can answer
+    // from cache. Sized against the cache rather than delivery latency: indoors the provider
+    // returns the same fix for up to ~124s.
+    const val MAX_LIVE_FIX_AGE_MS = 5L * 60 * 1_000L
+
     // Duplicate-transition suppression window used by GeofenceCooldownFilter.
     // Doubles as the fallback for `duplicateEventsExpiry` from the API config
     // when the field is missing or non-positive.

@@ -965,6 +965,72 @@ class GeofenceApiResponseTest : RobolectricTest() {
             GeofenceConstants.NO_MONITORING_DISTANCE_CAP_METERS
     }
 
+    // ---------- partial polygon payloads cost only their own record ----------
+
+    @Test
+    fun toDomainRegions_givenPolygonMissingCoordinates_expectOnlyThatRecordDropped() {
+        // These nested objects decode before the per-record try/catch, so a required field here
+        // would reject the whole response — valid circles included.
+        val regions = parseRegions(partialPolygonJson(geometry = """{ "type": "Polygon" }"""), EnabledPolygonSupport)
+
+        regions.map { it.id } shouldContainSame listOf("plain-circle")
+    }
+
+    @Test
+    fun toDomainRegions_givenPolygonMissingEnclosingCircleRadius_expectOnlyThatRecordDropped() {
+        val json = partialPolygonJson(
+            enclosingCircle = """{ "latitude": 37.775, "longitude": -122.4194 }"""
+        )
+
+        val regions = parseRegions(json, EnabledPolygonSupport)
+
+        regions.map { it.id } shouldContainSame listOf("plain-circle")
+    }
+
+    @Test
+    fun toDomainRegions_givenPolygonWithEmptyGeometryObject_expectOnlyThatRecordDropped() {
+        val regions = parseRegions(partialPolygonJson(geometry = "{}"), EnabledPolygonSupport)
+
+        regions.map { it.id } shouldContainSame listOf("plain-circle")
+    }
+
+    @Test
+    fun toDomainRegions_givenValidPolygon_expectBackendBaseRadiusKeptAlongsideThePaddedOne() {
+        // Ranking in the monitoring PR needs the backend circle; GMS needs the padded one.
+        val regions = parseRegions(polygonAndCircleJson(), EnabledPolygonSupport)
+        val polygon = regions.first { it.id == "campus" }
+
+        polygon.baseRadiusMeters shouldBeEqualTo 100.0
+        polygon.radius shouldBeEqualTo 1_100f
+    }
+
+    /** One malformed polygon next to a perfectly good circle. */
+    private fun partialPolygonJson(
+        geometry: String = """{ "type": "Polygon", "coordinates": [[[-122.42,37.77],[-122.41,37.77],[-122.41,37.78]]] }""",
+        enclosingCircle: String = """{ "latitude": 37.775, "longitude": -122.4194, "base_radius_m": 100 }"""
+    ): String = """
+        {
+          "geofences": [
+            {
+              "id": "broken-polygon",
+              "shape": "polygon",
+              "enclosing_circle": $enclosingCircle,
+              "geometry": $geometry,
+              "transition_types": ["enter"],
+              "last_updated": 1
+            },
+            {
+              "id": "plain-circle",
+              "latitude": 37.0,
+              "longitude": -122.0,
+              "radius": 100,
+              "transition_types": ["enter"],
+              "last_updated": 1
+            }
+          ]
+        }
+    """.trimIndent()
+
     // ---------- helpers ----------
 
     private val jsonSerializer = GeofenceJsonSerializer()

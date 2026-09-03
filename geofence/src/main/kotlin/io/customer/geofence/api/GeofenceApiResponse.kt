@@ -93,22 +93,25 @@ internal data class GeofenceApiRegion(
     val metadata: JsonElement? = null
 )
 
+// Nullable throughout, for the same reason as `metadata` above: these decode before
+// [toDomainRegions] reaches its per-record try/catch, so a required field would let one partial
+// polygon reject the whole response — valid circles included. Absent fields drop their own record.
 @Serializable
 internal data class GeofenceApiGeometry(
     @SerialName("type")
-    val type: String,
+    val type: String? = null,
     @SerialName("coordinates")
-    val coordinates: JsonElement
+    val coordinates: JsonElement? = null
 )
 
 @Serializable
 internal data class GeofenceApiEnclosingCircle(
     @SerialName("latitude")
-    val latitude: Double,
+    val latitude: Double? = null,
     @SerialName("longitude")
-    val longitude: Double,
+    val longitude: Double? = null,
     @SerialName("base_radius_m")
-    val baseRadiusMeters: Double
+    val baseRadiusMeters: Double? = null
 )
 
 /** Returns `null` when backend didn't send a `config` block — gates the cache save. */
@@ -259,7 +262,7 @@ private fun GeofenceApiRegion.toPolygonRegionOrNull(
 ): GeofenceRegion? {
     val logger = SDKComponent.geofenceLogger
     if (!geometry.isPolygonType) {
-        logger.logUnsupportedGeometryDropped(id, geometry.type)
+        logger.logUnsupportedGeometryDropped(id, geometry.type ?: "absent")
         return null
     }
     if (!polygonSupport.isPolygonMonitoringEnabled) {
@@ -271,13 +274,14 @@ private fun GeofenceApiRegion.toPolygonRegionOrNull(
         logger.logPolygonDropped(id, "ring is malformed, unsupported or fails validation")
         return null
     }
-    val wakeCenter = runCatching {
-        PolygonCoordinate(enclosingCircle.latitude, enclosingCircle.longitude)
-    }.getOrNull()
-    val trigger = wakeCenter?.let { center ->
+    val baseRadiusMeters = enclosingCircle.baseRadiusMeters
+    val wakeCenter = PolygonCoordinate.fromOrNull(enclosingCircle.latitude, enclosingCircle.longitude)
+    val trigger = if (wakeCenter == null || baseRadiusMeters == null) {
+        null
+    } else {
         PolygonWakeCircleValidator().prepareOrNull(
             geometry = polygon,
-            wakeCircle = PolygonWakeCircle(center, enclosingCircle.baseRadiusMeters)
+            wakeCircle = PolygonWakeCircle(wakeCenter, baseRadiusMeters)
         )
     }
     if (trigger == null) {
@@ -291,6 +295,9 @@ private fun GeofenceApiRegion.toPolygonRegionOrNull(
         latitude = trigger.center.latitude,
         longitude = trigger.center.longitude,
         radius = trigger.radiusMeters,
+        // The padded radius above is what GMS registers; ranking needs the backend's own circle,
+        // so both meanings are carried rather than one overwriting the other.
+        baseRadiusMeters = baseRadiusMeters,
         transitionTypes = resolveTransitionTypes(transitionTypes),
         lastUpdated = lastUpdated ?: 0L,
         geosetIds = geosetIds,
@@ -311,7 +318,7 @@ private val GeofenceApiGeometry.isPolygonType: Boolean
  */
 internal fun GeofenceApiGeometry.toPolygonGeometryOrNull(): PolygonGeometry? {
     if (!isPolygonType) return null
-    val vertices = coordinates.toPolygonVerticesOrNull() ?: return null
+    val vertices = coordinates?.toPolygonVerticesOrNull() ?: return null
     return PolygonGeometry.fromOrNull(vertices)
 }
 
@@ -326,7 +333,7 @@ private fun JsonElement.toPolygonVerticesOrNull(): List<PolygonCoordinate>? {
         if (position.size < 2) return null
         val longitude = (position[0] as? JsonPrimitive)?.doubleOrNull ?: return null
         val latitude = (position[1] as? JsonPrimitive)?.doubleOrNull ?: return null
-        runCatching { PolygonCoordinate(latitude, longitude) }.getOrNull() ?: return null
+        PolygonCoordinate.fromOrNull(latitude, longitude) ?: return null
     }
 }
 

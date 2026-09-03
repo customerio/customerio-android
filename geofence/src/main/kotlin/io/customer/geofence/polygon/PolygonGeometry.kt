@@ -15,9 +15,21 @@ internal data class PolygonCoordinate(
     @SerialName("longitude")
     val longitude: Double
 ) {
-    init {
-        require(latitude.isFinite() && latitude in -90.0..90.0) { "invalid latitude" }
-        require(longitude.isFinite() && longitude in -180.0..180.0) { "invalid longitude" }
+    internal val isInRange: Boolean
+        get() = latitude.isFinite() && latitude in -90.0..90.0 &&
+            longitude.isFinite() && longitude in -180.0..180.0
+
+    internal companion object {
+        /**
+         * Range checking lives here rather than in an `init` block: the constructor is the
+         * deserializer's, so throwing there fails the whole `List<GeofenceRegion>` decode and
+         * `readJson` then drops every cached region for one bad stored coordinate.
+         * [PolygonGeometry.from] rejects out-of-range vertices, isolating the bad ring instead.
+         */
+        fun fromOrNull(latitude: Double?, longitude: Double?): PolygonCoordinate? {
+            if (latitude == null || longitude == null) return null
+            return PolygonCoordinate(latitude, longitude).takeIf { it.isInRange }
+        }
     }
 }
 
@@ -124,6 +136,7 @@ internal class PolygonGeometry private constructor(
                 vertices
             }
 
+            require(canonical.all { it.isInRange }) { "polygon vertex is out of range" }
             require(canonical.size >= 3) { "polygon requires at least three vertices" }
             require(canonical.size <= MAX_VERTEX_COUNT) {
                 "polygon exceeds the maximum vertex count"

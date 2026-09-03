@@ -30,8 +30,16 @@ internal class PolygonWakeCircleValidator {
         require(wakeCircle.baseRadiusMeters.isFinite() && wakeCircle.baseRadiusMeters > 0.0) {
             "polygon wake-circle radius must be finite and positive"
         }
+        // Any sphere disagrees with the backend's ellipsoid by a fraction of the distance, not by a
+        // fixed amount, so the slack has to scale too: a flat 1 m rejected a vertex sitting exactly
+        // on a valid 1 km circle, and the gap grew with radius. Over-admitting is the safe
+        // direction — the platform margin below absorbs it, while under-admitting drops the polygon.
+        val containmentTolerance = maxOf(
+            CONTAINMENT_TOLERANCE_METERS,
+            wakeCircle.baseRadiusMeters * CONTAINMENT_TOLERANCE_FRACTION
+        )
         geometry.vertices.forEach { vertex ->
-            require(wakeCircle.center.distanceMetersTo(vertex) <= wakeCircle.baseRadiusMeters + CONTAINMENT_TOLERANCE_METERS) {
+            require(wakeCircle.center.distanceMetersTo(vertex) <= wakeCircle.baseRadiusMeters + containmentTolerance) {
                 "polygon wake circle does not contain every vertex"
             }
         }
@@ -64,7 +72,7 @@ internal class PolygonWakeCircleValidator {
             sin(longitudeDelta / 2.0) * sin(longitudeDelta / 2.0)
         val clamped = haversine.coerceIn(0.0, 1.0)
         val centralAngle = 2.0 * atan2(sqrt(clamped), sqrt(1.0 - clamped))
-        return MAXIMUM_EARTH_RADIUS_METERS * centralAngle
+        return EARTH_RADIUS_METERS * centralAngle
     }
 
     internal companion object {
@@ -72,6 +80,15 @@ internal class PolygonWakeCircleValidator {
         const val PLATFORM_WAKE_MARGIN_METERS = 1_000.0
         const val MAXIMUM_TRIGGER_RADIUS_METERS = 100_000.0
         const val CONTAINMENT_TOLERANCE_METERS = 1.0
-        private const val MAXIMUM_EARTH_RADIUS_METERS = 6_400_000.0
+
+        // Bounds the sphere-vs-ellipsoid disagreement: Earth's radius varies by ~0.34% about the
+        // mean, so half a percent covers any latitude with room to spare.
+        const val CONTAINMENT_TOLERANCE_FRACTION = 0.005
+
+        // Matches PolygonGeometry's radius. The previous 6,400,000 was rounded up past every real
+        // radius, which is the wrong direction here: overstating a distance makes containment
+        // reject. The tolerance above is what admits a boundary vertex; this only stops the module
+        // measuring the same geometry two different ways.
+        private const val EARTH_RADIUS_METERS = 6_371_000.0
     }
 }

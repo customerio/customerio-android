@@ -5,7 +5,9 @@ import android.content.Context
 import android.content.res.Configuration
 import android.graphics.Color
 import android.net.http.SslError
+import android.os.Build
 import android.util.AttributeSet
+import android.webkit.RenderProcessGoneDetail
 import android.webkit.SslErrorHandler
 import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
@@ -268,6 +270,37 @@ internal class EngineWebView @JvmOverloads constructor(
                 ) {
                     listener?.error()
                 }
+
+                /**
+                 * The WebView's renderer process died, so the message can never finish loading.
+                 *
+                 * Returning `true` is the point of overriding this: it tells the platform we have
+                 * handled the loss. Without it the default behaviour kills the host app's process
+                 * along with the renderer, so a message that crashes its renderer would take the
+                 * whole app down. Before this the SDK had no override at all, which left a blank
+                 * WebView and no failure callback.
+                 */
+                override fun onRenderProcessGone(
+                    view: WebView?,
+                    detail: RenderProcessGoneDetail?
+                ): Boolean {
+                    val didCrash = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                        detail?.didCrash()
+                    } else {
+                        null
+                    }
+                    logger.error(
+                        "WebView render process gone (didCrash: $didCrash), reporting message failure"
+                    )
+                    // Tear the dead view down before reporting. The platform treats it as unusable
+                    // once the renderer is gone, and normal teardown cannot do it: releaseResources()
+                    // bails out while the view is still attached, and the modal path never calls it
+                    // at all. Doing it here also makes the later stopLoading()/releaseResources()
+                    // calls on the dismissal path no-ops, since webView is already null.
+                    releaseCrashedWebView()
+                    listener?.error()
+                    return true
+                }
             }
 
             it.loadUrl(messageUrl)
@@ -334,6 +367,33 @@ internal class EngineWebView @JvmOverloads constructor(
 
     override fun error() {
         listener?.error()
+    }
+
+    /**
+     * Tears down a WebView whose render process has died.
+     *
+     * Separate from [releaseResources] on purpose. That path is for orderly teardown: it refuses to
+     * run while the view is still attached, and it drives the WebView (stopLoading, then destroy) in
+     * a way the platform no longer supports once the renderer is gone. Here the view is already
+     * unusable, so the only safe actions are to detach it and destroy it — and it has to happen
+     * while still attached, because that is the state a renderer crash leaves us in.
+     */
+    private fun releaseCrashedWebView() {
+        colorSchemeJob?.cancel()
+        colorSchemeJob = null
+        cleanupTimer()
+
+        val view = webView ?: return
+        webView = null
+
+        // Guarded step by step: the renderer is already gone, so any of these can throw and none of
+        // them should stop the rest from running.
+        runCatching { engineWebViewInterface.detach(webView = view) }
+            .onFailure { logger.error("Error detaching JS interface from crashed WebView: ${it.message}") }
+        runCatching { if (view.parent != null) removeView(view) }
+            .onFailure { logger.error("Error removing crashed WebView from parent: ${it.message}") }
+        runCatching { view.destroy() }
+            .onFailure { logger.error("Error destroying crashed WebView: ${it.message}") }
     }
 
     /**

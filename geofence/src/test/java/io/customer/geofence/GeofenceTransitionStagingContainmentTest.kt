@@ -108,6 +108,30 @@ class GeofenceTransitionStagingContainmentTest : RobolectricTest() {
     }
 
     @Test
+    fun recoverPendingTransitions_givenExitAlreadyQueuedWhileOlderEnterIsStillStaged_expectEnterFirst() = runTest {
+        val processor = processor()
+        // ENTER stages, but its outbox append fails, so the queue never sees it.
+        every { outbox.appendAll(any()) } returns false
+        processor.process(GEOFENCE_ID, Event.GeofenceTransition.ENTER, timestampSeconds = 100L)
+
+        // The EXIT's append succeeds. Emission drains older staged attempts before appending its
+        // own, so the ENTER is restored ahead of the EXIT rather than being queued behind it — the
+        // queue can never hold the later edge alone while an earlier one is still staged.
+        every { outbox.appendAll(any()) } answers { callOriginal() }
+        processor.process(GEOFENCE_ID, Event.GeofenceTransition.EXIT, timestampSeconds = 200L)
+        outbox.loadAll().map { it.transition } shouldBeEqualTo
+            listOf(Event.GeofenceTransition.ENTER, Event.GeofenceTransition.EXIT)
+
+        // A second, explicit recovery re-appends both by key. appendAll replaces a matching row
+        // rather than duplicating it, and staged order is physical order, so the queue is stable.
+        processor.recoverPendingTransitions().shouldBeTrue()
+
+        outbox.loadAll().map { it.transition } shouldBeEqualTo
+            listOf(Event.GeofenceTransition.ENTER, Event.GeofenceTransition.EXIT)
+        outbox.loadAll().map { it.timestamp } shouldBeEqualTo listOf(100L, 200L)
+    }
+
+    @Test
     fun process_givenStagingWriteItselfFails_expectContainmentUnchangedSoNothingIsInvented() = runTest {
         val stagingStore = spyk(regionStore) {
             every { savePendingTransitionEntries(any(), any()) } returns false

@@ -130,7 +130,7 @@ class EngineWebViewClientErrorTest : IntegrationTest() {
         // Recoverable certificate errors arrive here and nowhere else — Android only promises
         // ERROR_FAILED_SSL_HANDSHAKE for non-recoverable ones — so this is the only chance to
         // report the real cause instead of letting it fall through to a 5s timeout.
-        verify(exactly = 1) { listener.error() }
+        verify(exactly = 1) { listener.error(any()) }
     }
 
     @Test
@@ -147,6 +147,7 @@ class EngineWebViewClientErrorTest : IntegrationTest() {
         // Refused like any other, but a bad certificate on an image must not take the message down.
         verify(exactly = 1) { handler.cancel() }
         verify(exactly = 0) { handler.proceed() }
+        verify(exactly = 0) { listener.error(any()) }
         verify(exactly = 0) { listener.error() }
     }
 

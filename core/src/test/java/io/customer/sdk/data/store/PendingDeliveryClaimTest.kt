@@ -153,6 +153,32 @@ class PendingDeliveryClaimTest : RobolectricTest() {
     }
 
     @Test
+    fun sendRemoveOnSuccess_givenSendSucceedsButRemovalCannotPersist_expectDeliveredNotRemoved() = runBlocking<Unit> {
+        // The send happened; the record of it did not. Reporting Delivered here would tell a caller
+        // that drains the oldest row in a loop that the row is gone, and it would read the same row
+        // again and resend it immediately, over and over.
+        val store = newStore()
+        val entry = TestEntry("delivered-but-stuck")
+        store.append(entry)
+        var sendCount = 0
+
+        val dir = contextMock.applicationContext.filesDir
+        dir.setReadOnly()
+        val result = try {
+            store.sendRemoveOnSuccess(entry) {
+                sendCount++
+                Result.success(Unit)
+            }
+        } finally {
+            dir.setWritable(true)
+        }
+
+        result shouldBeEqualTo PendingDeliveryResult.DeliveredNotRemoved
+        sendCount shouldBeEqualTo 1
+        store.loadAll() shouldBeEqualTo listOf(entry)
+    }
+
+    @Test
     fun sendRemoveOnSuccess_whileSending_expectEntryStillPresentUntilSuccess() = runBlocking<Unit> {
         // The core difference from claimSendRestore: the row is NOT removed before the send, so a
         // process death mid-send leaves it for a retry/flush instead of dropping it.

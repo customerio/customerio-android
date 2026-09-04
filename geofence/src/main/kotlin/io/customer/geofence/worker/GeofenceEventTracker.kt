@@ -87,7 +87,7 @@ internal class AsyncGeofenceEventTracker(
         }
         CoroutineScope(dispatcher.background).launch {
             try {
-                pendingStore.sendRemoveOnSuccess(entry) {
+                pendingStore.sendRemoveOnSuccess(entry, ::isRetryableDeliveryFailure) {
                     tracker.trackEvent(entry)
                 }
             } catch (e: CancellationException) {

@@ -121,6 +121,15 @@ internal interface GeofenceRegionStore {
 
     /** OS registrations allowed to generate business events for the current user session. */
     fun saveRoutableRegisteredIds(ids: Set<String>)
+
+    /**
+     * Arms routing for [ids], but only while [expectedUserStateGeneration] is still current.
+     *
+     * A refresh that began before an identify must not re-arm the previous user's registrations
+     * after [beginUserSession] cleared them; the generation is the fencing token that says so.
+     * Returns whether the write happened.
+     */
+    fun saveRoutableRegisteredIdsIfCurrent(ids: Set<String>, expectedUserStateGeneration: Long): Boolean
     fun getRoutableRegisteredIds(): Set<String>
 
     /** Polygon enclosing circles currently known to contain the device. */
@@ -560,6 +569,15 @@ internal class GeofenceRegionStoreImpl(
 
     override fun saveRoutableRegisteredIds(ids: Set<String>) =
         writeJson(KEY_ROUTABLE_REGISTERED_IDS, ID_SET_SERIALIZER, ids)
+
+    override fun saveRoutableRegisteredIdsIfCurrent(
+        ids: Set<String>,
+        expectedUserStateGeneration: Long
+    ): Boolean = synchronized(enteredLock) {
+        if (expectedUserStateGeneration != currentUserStateGenerationLocked()) return@synchronized false
+        writeJson(KEY_ROUTABLE_REGISTERED_IDS, ID_SET_SERIALIZER, ids)
+        true
+    }
 
     override fun getRoutableRegisteredIds(): Set<String> {
         val hasExplicitRoutingState = prefs.read { contains(KEY_ROUTABLE_REGISTERED_IDS) } == true

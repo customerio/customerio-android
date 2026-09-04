@@ -478,6 +478,9 @@ internal class GeofenceRepositoryImpl(
                 logger.logSyncSkipped("user changed during refresh")
                 return@withLock Result.success(Unit)
             }
+            // Snapshot for the routing arm below. beginUserSession bumps this under its own lock, so
+            // an identify landing after this point invalidates the write rather than racing it.
+            val userStateGeneration = store.userStateGeneration()
             // Synthesis baseline, snapshotted before register/persist mutate the store. No reboot
             // override here (unlike the registration diff): a reboot re-registers with
             // INITIAL_TRIGGER_ENTER, so the OS re-reports these itself.
@@ -509,6 +512,11 @@ internal class GeofenceRepositoryImpl(
                         newIds + staleIds
                     }
                     store.saveRegisteredIds(idsToSave)
+                    // Routing is armed separately: beginUserSession writes an explicit empty routable
+                    // set, and getRoutableRegisteredIds stops falling back to the registered set once
+                    // that key exists. Without this write the first callback after an identify
+                    // classifies every live ID as unknown and removes it from the OS.
+                    val routingArmed = store.saveRoutableRegisteredIdsIfCurrent(idsToSave, userStateGeneration)
                     // An exact point check, with no accuracy margin in either direction. Widening
                     // the inside test would make a fence smaller than the fix unjudgable, so the
                     // initial-ENTER backstop would never fire; narrowing the outside test would keep
@@ -547,7 +555,16 @@ internal class GeofenceRepositoryImpl(
                     } else {
                         store.clearLastMovementTriggerLocation()
                     }
-                    onRegistered()
+                    if (routingArmed) {
+                        onRegistered()
+                    } else {
+                        // An identify landed mid-pass, so these registrations belong to the departing
+                        // user and routing was left cleared for the new one. Stamping the sync fresh
+                        // anyway would make the new user's own refresh SKIP on our timestamp and
+                        // never arm routing, and its first callback would then remove every fence.
+                        // Leaving the stamp stale sends that refresh down the remote path instead.
+                        logger.logSyncSkipped("user changed before routing could be armed")
+                    }
                     logger.logSyncSucceeded(nearest.size, movementTriggerRegistered = monitoringEnabled)
                 }
             }

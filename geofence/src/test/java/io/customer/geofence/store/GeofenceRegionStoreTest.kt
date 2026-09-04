@@ -501,6 +501,36 @@ class GeofenceRegionStoreTest : RobolectricTest() {
     }
 
     @Test
+    fun getRoutableRegisteredIds_givenIdentifySwitchThenRefresh_expectRoutingRearmed() {
+        // The A-to-B loop end to end: A is registered and routable, identify B clears routing, and
+        // the refresh that follows re-arms it. Without the re-arm the explicit empty set persists and
+        // every later callback is classified as unknown.
+        store.beginUserSession("user-a")
+        store.saveRegisteredIds(setOf("biz-1"))
+        store.saveRoutableRegisteredIdsIfCurrent(setOf("biz-1"), store.userStateGeneration())
+        store.getRoutableRegisteredIds() shouldBeEqualTo setOf("biz-1")
+
+        store.beginUserSession("user-b")
+        store.getRoutableRegisteredIds().shouldBeEmpty()
+
+        store.saveRegisteredIds(setOf("biz-2"))
+        store.saveRoutableRegisteredIdsIfCurrent(setOf("biz-2"), store.userStateGeneration())
+
+        store.getRoutableRegisteredIds() shouldBeEqualTo setOf("biz-2")
+    }
+
+    @Test
+    fun saveRoutableRegisteredIdsIfCurrent_givenStaleGeneration_expectRefusedAndRoutingLeftCleared() {
+        store.beginUserSession("user-a")
+        val staleGeneration = store.userStateGeneration()
+        store.beginUserSession("user-b")
+
+        store.saveRoutableRegisteredIdsIfCurrent(setOf("biz-1"), staleGeneration) shouldBeEqualTo false
+
+        store.getRoutableRegisteredIds().shouldBeEmpty()
+    }
+
+    @Test
     fun saveRegisteredIds_thenGet_expectRoundTrip() {
         val ids = setOf("cio_movement_trigger", "biz-1", "biz-2")
 

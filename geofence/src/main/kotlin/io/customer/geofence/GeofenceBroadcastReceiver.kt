@@ -6,13 +6,12 @@ import android.content.Intent
 import androidx.annotation.VisibleForTesting
 import com.google.android.gms.location.Geofence
 import com.google.android.gms.location.GeofencingEvent
+import io.customer.geofence.di.geofenceBusinessTransitionProcessor
 import io.customer.geofence.di.geofenceLogger
 import io.customer.geofence.di.geofenceManager
 import io.customer.geofence.di.geofenceRegionStore
 import io.customer.geofence.di.geofenceServices
-import io.customer.geofence.di.geofenceTransitionEmitter
 import io.customer.sdk.communication.Event
-import io.customer.sdk.core.di.AndroidSDKComponent
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.di.clock
 import io.customer.sdk.core.di.setupAndroidComponent
@@ -21,8 +20,6 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withTimeoutOrNull
 
 /** Receives OS geofence transition callbacks and dispatches them to the SDK. */
@@ -97,10 +94,20 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
         val timestamp = SDKComponent.clock.currentTimeSeconds()
         val dispatchStartUptimeMs = SDKComponent.clock.elapsedRealtime()
         val androidComponent = SDKComponent.android()
+        // Cold-start callbacks can beat the posted launch initialization. Establish the persisted
+        // secure user's session synchronously; legacy installs without an owner are migrated by the
+        // store without discarding their already-live OS registrations.
+        androidComponent.secureUserStore.getUserId()?.takeIf { it.isNotEmpty() }?.let {
+            androidComponent.geofenceRegionStore.beginUserSession(it)
+        }
+        // A previous callback can have staged a transition before the file outbox was writable.
+        // Recover it before interpreting this edge so an ENTER followed by EXIT stays ordered.
+        androidComponent.geofenceBusinessTransitionProcessor.recoverPendingTransitions()
         // Defense-in-depth against orphans (failed clearAll, app-data wipe, SDK
         // ID-format changes): events for unregistered IDs are dropped and the OS-side
         // registration is removed so it stops firing.
-        val registeredIds = androidComponent.geofenceRegionStore.getRegisteredIds()
+        val userStateGeneration = androidComponent.geofenceRegionStore.userStateGeneration()
+        val registeredIds = androidComponent.geofenceRegionStore.getRoutableRegisteredIds()
         val (knownIds, unknownIds) = triggeringGeofenceIds.partition { it in registeredIds }
         if (unknownIds.isNotEmpty()) {
             unknownIds.forEach { logger.logTransitionDroppedUnknownId(it) }
@@ -121,6 +128,15 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
                 return@forEach
             }
 
+            val region = androidComponent.geofenceRegionStore.getCachedRegion(geofenceId)
+            if (region == null && androidComponent.geofenceRegionStore.getRegisteredRegion(geofenceId) != null) {
+                // The server removed this region, but an earlier GMS removal failed. Its retained
+                // definition is a routing tombstone only; never manufacture business activity for
+                // a fence that no longer exists. Every orphan callback also retries OS cleanup.
+                logger.logTransitionDroppedRetiredId(geofenceId)
+                androidComponent.geofenceManager.removeGeofencesByIds(listOf(geofenceId))
+                return@forEach
+            }
             val transition = when (gmsTransitionType) {
                 Geofence.GEOFENCE_TRANSITION_ENTER -> Event.GeofenceTransition.ENTER
                 Geofence.GEOFENCE_TRANSITION_EXIT -> Event.GeofenceTransition.EXIT
@@ -130,17 +146,15 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
                 }
             }
 
-            // Each broadcast runs on its own scope, so two transitions for one fence would
-            // otherwise interleave read-decide-persist and lose a containment record.
-            transitionMutex.withLock {
-                handleBusinessTransition(
-                    geofenceId = geofenceId,
-                    transition = transition,
-                    timestamp = timestamp,
-                    androidComponent = androidComponent,
-                    logger = logger
-                )
-            }
+            androidComponent.geofenceBusinessTransitionProcessor.process(
+                geofenceId = geofenceId,
+                transition = transition,
+                timestampSeconds = timestamp,
+                enforceConfiguredTransition = region != null,
+                expectedRegionRevision = region?.transitionRevision(),
+                expectedUserStateGeneration = userStateGeneration,
+                requireRegistered = true
+            )
         }
 
         // Hold the goAsync window open until the refresh lands so the OS doesn't kill a
@@ -155,55 +169,6 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
         }
     }
 
-    private suspend fun handleBusinessTransition(
-        geofenceId: String,
-        transition: Event.GeofenceTransition,
-        timestamp: Long,
-        androidComponent: AndroidSDKComponent,
-        logger: GeofenceLogger
-    ) {
-        // Ahead of the identity checks below: being inside a fence is a physical fact, independent of
-        // whether the transition is deliverable.
-        val store = androidComponent.geofenceRegionStore
-        val cachedRegion = store.getCachedRegion(geofenceId)
-        when (transition) {
-            Event.GeofenceTransition.ENTER -> store.recordEntered(geofenceId)
-            // An unmatched EXIT is a GMS reconciliation artifact, not a crossing — delivering it
-            // fires EXIT campaigns at people who were never there. The two guards after claimExit
-            // cover the cases where an absent record proves nothing: an upgraded install with no set
-            // yet, and a region that never monitored ENTER (a missing cache row counts as unknown).
-            Event.GeofenceTransition.EXIT -> if (
-                !store.claimExit(geofenceId) &&
-                store.hasContainmentRecord() &&
-                cachedRegion?.transitionTypes?.contains(GeofenceTransitionType.ENTER) == true
-            ) {
-                logger.logExitDroppedNeverEntered(geofenceId)
-                return
-            }
-        }
-
-        // Snapshot userId so a sign-out + sign-in before delivery can't reattribute this
-        // transition. Empty userId is treated as "not identified" per `isUserIdentified`.
-        val userId = androidComponent.secureUserStore.getUserId()?.takeIf { it.isNotEmpty() }
-        // Identified-only: the backend rejects anonymous geofence tracks, so drop before spending a
-        // cooldown slot or persisting a row neither channel could send.
-        if (userId == null) {
-            logger.logTransitionDroppedAnonymous(geofenceId, transition.name)
-            return
-        }
-
-        androidComponent.geofenceTransitionEmitter.emit(
-            geofenceId = geofenceId,
-            transition = transition,
-            userId = userId,
-            timestampSeconds = timestamp,
-            geofenceName = cachedRegion?.name,
-            metadata = cachedRegion?.metadata ?: emptyMap(),
-            geosetIds = cachedRegion?.geosetIds ?: emptyList(),
-            monitorsExit = cachedRegion?.transitionTypes?.contains(GeofenceTransitionType.EXIT) == true
-        )
-    }
-
     private fun transitionName(gmsTransitionType: Int): String = when (gmsTransitionType) {
         Geofence.GEOFENCE_TRANSITION_ENTER -> "ENTER"
         Geofence.GEOFENCE_TRANSITION_EXIT -> "EXIT"
@@ -215,8 +180,5 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
         // goAsync grants ~10s before the OS considers the receiver blocked; total budget for
         // one dispatch (persistence + GMS awaits + movement-refresh wait), with headroom.
         private const val DISPATCH_WAIT_BUDGET_MS = 8_000L
-
-        // Process-wide: a receiver instance lives for one broadcast, so the lock has to outlive it.
-        private val transitionMutex = Mutex()
     }
 }

@@ -43,8 +43,15 @@ class PendingDeliveryFlusherTest : RobolectricTest() {
         logger = mockLogger
     ).also { it.removeAll() }
 
-    private fun newFlusher(store: PendingDeliveryStore<TestEntry>) =
-        PendingDeliveryFlusher(store, workManagerProvider, dispatchers)
+    private fun newFlusher(
+        store: PendingDeliveryStore<TestEntry>,
+        stopOnFailure: Boolean = false
+    ) = PendingDeliveryFlusher(
+        store,
+        workManagerProvider,
+        dispatchers,
+        stopOnFailure = stopOnFailure
+    )
 
     private class RecordingCallbacks : PendingDeliveryFlusher.Callbacks<TestEntry>() {
         var snapshotCount: Int? = null
@@ -204,6 +211,26 @@ class PendingDeliveryFlusherTest : RobolectricTest() {
         callbacks.failed shouldBeEqualTo listOf("bad")
         callbacks.completeCount shouldBeEqualTo 2
         store.loadAll().map { it.key } shouldBeEqualTo listOf("bad")
+    }
+
+    @Test
+    fun flush_givenOrderedAtLeastOnceAndPublishThrows_expectLaterEntriesRemainQueued() {
+        val store = newStore()
+        listOf("a", "bad", "c").forEach { store.append(TestEntry(it)) }
+        val callbacks = RecordingCallbacks()
+        val publishedKeys = mutableListOf<String>()
+
+        newFlusher(store, stopOnFailure = true).flush(
+            callbacks,
+            PendingDeliveryFlusher.DeliveryGuarantee.AT_LEAST_ONCE
+        ) { entry ->
+            if (entry.key == "bad") throw IllegalStateException("publish failed")
+            publishedKeys += entry.key
+        }
+
+        publishedKeys shouldBeEqualTo listOf("a")
+        callbacks.failed shouldBeEqualTo listOf("bad")
+        store.loadAll().map { it.key } shouldBeEqualTo listOf("bad", "c")
     }
 
     @Test

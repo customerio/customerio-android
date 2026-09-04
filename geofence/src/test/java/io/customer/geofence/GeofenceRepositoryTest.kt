@@ -64,6 +64,9 @@ class GeofenceRepositoryTest : RobolectricTest() {
         // Default: mirror real time so tests using relative timestamps work
         // without churn. Override for deterministic timing.
         every { clock.currentTimeMillis() } answers { System.currentTimeMillis() }
+        // The relaxed mock would answer false, which is the "an identify landed mid-pass" branch.
+        // Default to the ordinary outcome so only the tests that mean to exercise a refusal do.
+        every { store.saveRoutableRegisteredIdsIfCurrent(any(), any()) } returns true
         repository = buildRepository()
     }
 
@@ -738,6 +741,66 @@ class GeofenceRepositoryTest : RobolectricTest() {
         val pruned = slot<Set<String>>()
         verify { store.pruneEmittedEnterIds(capture(pruned)) }
         pruned.captured shouldContain "biz-inside"
+    }
+
+    @Test
+    fun refresh_givenSuccessfulRegistration_expectRoutingArmedForTheSameIds() = runTest {
+        // beginUserSession writes an explicit empty routable set and getRoutableRegisteredIds stops
+        // falling back once that key exists, so a refresh that registers without arming routing
+        // leaves the receiver treating every live ID as unknown and removing it from the OS.
+        every { secureUserStore.getUserId() } returns "user-42"
+        every { store.getRegisteredIds() } returns emptySet()
+        every { store.userStateGeneration() } returns 7L
+        coEvery { apiService.fetchGeofences(any()) } returns
+            Result.success(sampleResponse(maxBusinessGeofences = 3, localRefreshTriggerRadius = 1500f))
+        every { distanceFilter.nearest(any(), 12.34, 56.78, 3, any()) } returns
+            listOf(GeofenceRegion("biz-1", 0.0, 0.0, 100f))
+        val captured = slot<List<GeofenceRegion>>()
+        coEvery { manager.replaceGeofences(capture(captured), any()) } returns Result.success(Unit)
+
+        repository.refresh(latitude = 12.34, longitude = 56.78)
+
+        val registered = captured.captured.map { it.id }.toSet()
+        verify { store.saveRoutableRegisteredIdsIfCurrent(registered, 7L) }
+    }
+
+    @Test
+    fun refresh_givenUserChangedBeforeRoutingWasArmed_expectSyncNotStampedFresh() = runTest {
+        // The store refuses the stale write, so routing stays cleared for the new user. Stamping the
+        // sync anyway would make that user's own refresh SKIP on this timestamp and never arm
+        // routing, and its first callback would then remove every live fence from the OS.
+        every { secureUserStore.getUserId() } returns "user-42"
+        every { store.getRegisteredIds() } returns emptySet()
+        every { store.userStateGeneration() } returns 7L
+        every { store.saveRoutableRegisteredIdsIfCurrent(any(), any()) } returns false
+        coEvery { apiService.fetchGeofences(any()) } returns
+            Result.success(sampleResponse(maxBusinessGeofences = 3, localRefreshTriggerRadius = 1500f))
+        every { distanceFilter.nearest(any(), 12.34, 56.78, 3, any()) } returns
+            listOf(GeofenceRegion("biz-1", 0.0, 0.0, 100f))
+        coEvery { manager.replaceGeofences(any(), any()) } returns Result.success(Unit)
+
+        repository.refresh(latitude = 12.34, longitude = 56.78)
+
+        verify { logger.logSyncSkipped("user changed before routing could be armed") }
+        verify(exactly = 0) { store.setLastSyncTimestamp(any()) }
+    }
+
+    @Test
+    fun refresh_givenRoutingArmed_expectSyncStampedFresh() = runTest {
+        // Control: the stamp is skipped because routing was refused, not because it never happens.
+        every { secureUserStore.getUserId() } returns "user-42"
+        every { store.getRegisteredIds() } returns emptySet()
+        every { store.userStateGeneration() } returns 7L
+        every { store.saveRoutableRegisteredIdsIfCurrent(any(), any()) } returns true
+        coEvery { apiService.fetchGeofences(any()) } returns
+            Result.success(sampleResponse(maxBusinessGeofences = 3, localRefreshTriggerRadius = 1500f))
+        every { distanceFilter.nearest(any(), 12.34, 56.78, 3, any()) } returns
+            listOf(GeofenceRegion("biz-1", 0.0, 0.0, 100f))
+        coEvery { manager.replaceGeofences(any(), any()) } returns Result.success(Unit)
+
+        repository.refresh(latitude = 12.34, longitude = 56.78)
+
+        verify { store.setLastSyncTimestamp(any()) }
     }
 
     @Test

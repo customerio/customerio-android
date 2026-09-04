@@ -6,6 +6,7 @@ import io.customer.sdk.core.util.Clock
 import io.customer.sdk.data.store.SecureUserStore
 import io.mockk.coEvery
 import io.mockk.coVerify
+import io.mockk.coVerifyOrder
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
@@ -139,6 +140,37 @@ class GeofenceServicesTest : RobolectricTest() {
         coVerify { repository.refresh(1.0, 2.0) }
         coVerify(exactly = 0) { repository.handleMovement(any(), any()) }
         verify { logger.logSyncTriggered("user-identified") }
+    }
+
+    @Test
+    fun onUserIdentified_expectSessionOpenedBeforeTheRefresh() = runTest(StandardTestDispatcher()) {
+        // Order is the point. beginUserSession clears routing and the last-sync stamp; opening the
+        // session first sends this refresh down the REMOTE path so it re-registers and arms routing.
+        // Left to the first OS callback instead, the identify SKIPs as fresh and that callback opens
+        // the session, reads the empty routable set it just wrote, and removes every live fence.
+        every { secureUserStore.getUserId() } returns "user-b"
+        coEvery { repository.refresh(any(), any()) } returns Result.success(Unit)
+        val services = servicesWith(this)
+
+        services.onUserIdentified(latitude = 1.0, longitude = 2.0)
+        advanceUntilIdle()
+
+        coVerifyOrder {
+            regionStore.beginUserSession("user-b")
+            repository.refresh(1.0, 2.0)
+        }
+    }
+
+    @Test
+    fun onUserIdentified_givenNoIdentifiedUser_expectNoSessionOpened() = runTest(StandardTestDispatcher()) {
+        every { secureUserStore.getUserId() } returns null
+        coEvery { repository.refresh(any(), any()) } returns Result.success(Unit)
+        val services = servicesWith(this)
+
+        services.onUserIdentified(latitude = 1.0, longitude = 2.0)
+        advanceUntilIdle()
+
+        verify(exactly = 0) { regionStore.beginUserSession(any()) }
     }
 
     @Test

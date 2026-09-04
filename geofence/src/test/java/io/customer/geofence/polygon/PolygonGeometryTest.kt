@@ -91,6 +91,28 @@ class PolygonGeometryTest {
     }
 
     @Test
+    fun from_whenRingIsClosedWithTheOppositeSeamSign_thenCanonicalizesClosingVertex() {
+        // -180 and 180 are the same position, and both spellings are legal GeoJSON. Compared raw the
+        // ring never looks closed, so the closing vertex survives and its zero-length edge is what
+        // gets rejected.
+        PolygonGeometry.from(
+            listOf(point(0.0, -180.0), point(1.0, -179.0), point(-1.0, -179.0), point(0.0, 180.0))
+        ).vertices.size shouldBeEqualTo 3
+    }
+
+    @Test
+    fun from_whenRingWindsAroundAPole_thenRejectsUnevaluableGeometry() {
+        // Simple and non-degenerate, so nothing else rejects it, but it unwraps across 270 degrees.
+        // The evaluator projects onto one flat frame, so it would answer against a closing chord
+        // most of the way round the earth rather than the band the ring describes.
+        invoking {
+            PolygonGeometry.from(
+                listOf(point(80.0, 0.0), point(82.0, 90.0), point(82.0, 180.0), point(82.0, -90.0))
+            )
+        } shouldThrow IllegalArgumentException::class
+    }
+
+    @Test
     fun from_whenRingCrossingTheSeamIsSelfIntersecting_thenStillRejectsGeometry() {
         // The guard above must not become a blanket exemption for seam-crossing rings.
         invoking {

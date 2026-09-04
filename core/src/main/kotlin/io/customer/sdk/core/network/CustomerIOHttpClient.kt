@@ -112,7 +112,7 @@ internal class CustomerIOHttpClientImpl : CustomerIOHttpClient {
             if (responseCode in 200..299) {
                 Result.success(responseBody)
             } else {
-                Result.failure(IOException("HTTP $responseCode: $responseBody"))
+                Result.failure(HttpRequestFailure(responseCode, responseBody))
             }
         } catch (e: IOException) {
             Result.failure(e)

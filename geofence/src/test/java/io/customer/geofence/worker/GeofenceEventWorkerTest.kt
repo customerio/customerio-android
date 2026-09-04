@@ -11,6 +11,7 @@ import io.customer.geofence.di.pendingGeofenceDeliveryStore
 import io.customer.geofence.store.PendingGeofenceDelivery
 import io.customer.sdk.communication.Event
 import io.customer.sdk.core.di.SDKComponent
+import io.customer.sdk.core.network.HttpRequestFailure
 import io.customer.sdk.data.store.PendingDeliveryStore
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -159,6 +160,43 @@ class GeofenceEventWorkerTest : RobolectricTest() {
         val entry = seed("biz", Event.GeofenceTransition.ENTER, timestamp = 0L)
         coEvery { tracker.trackEvent(any()) } returns
             Result.failure(IllegalStateException("bad state"))
+
+        val result = createWorker(inputDataFor(entry.key)).doWork()
+
+        result shouldBeEqualTo ListenableWorker.Result.retry()
+        store.loadAll().map { it.key } shouldBeEqualTo listOf("biz_ENTER_tid-seed_none")
+    }
+
+    @Test
+    fun doWork_givenPermanentlyRejectedHead_expectItDroppedAndLaterTransitionsDelivered() = runTest {
+        // Every non-2xx reaches us as an IOException subclass, so before the status was read a 400
+        // classified as retryable and this row was resent forever. One rejected payload then blocked
+        // every later ENTER and EXIT, because each node drains the oldest row.
+        val enter = seed("biz", Event.GeofenceTransition.ENTER, timestamp = 1L, transitionId = "tid-enter")
+        val exit = seed("biz", Event.GeofenceTransition.EXIT, timestamp = 2L, transitionId = "tid-exit")
+        val attempts = mutableListOf<PendingGeofenceDelivery>()
+        coEvery { tracker.trackEvent(any()) } coAnswers {
+            firstArg<PendingGeofenceDelivery>().also(attempts::add)
+            if (attempts.size == 1) {
+                Result.failure(HttpRequestFailure(400, "invalid payload"))
+            } else {
+                Result.success(Unit)
+            }
+        }
+
+        createWorker(Data.EMPTY).doWork() shouldBeEqualTo ListenableWorker.Result.success()
+
+        // The rejected head is dropped rather than retried, and the drain continues past it.
+        attempts shouldBeEqualTo listOf(enter, exit)
+        store.loadAll().isEmpty().shouldBeTrue()
+    }
+
+    @Test
+    fun doWork_givenRetryableHttpStatus_expectRetryAndEntryKept() = runTest {
+        // The counterpart: a 503 is the server failing, not refusing, so the row must survive.
+        val entry = seed("biz", Event.GeofenceTransition.ENTER, timestamp = 0L)
+        coEvery { tracker.trackEvent(any()) } returns
+            Result.failure(HttpRequestFailure(503, "unavailable"))
 
         val result = createWorker(inputDataFor(entry.key)).doWork()
 

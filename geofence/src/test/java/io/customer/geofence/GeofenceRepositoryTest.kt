@@ -741,6 +741,45 @@ class GeofenceRepositoryTest : RobolectricTest() {
     }
 
     @Test
+    fun refresh_givenSuccessfulRegistration_expectRoutingArmedForTheSameIds() = runTest {
+        // beginUserSession writes an explicit empty routable set and getRoutableRegisteredIds stops
+        // falling back once that key exists, so a refresh that registers without arming routing
+        // leaves the receiver treating every live ID as unknown and removing it from the OS.
+        every { secureUserStore.getUserId() } returns "user-42"
+        every { store.getRegisteredIds() } returns emptySet()
+        every { store.userStateGeneration() } returns 7L
+        coEvery { apiService.fetchGeofences(any()) } returns
+            Result.success(sampleResponse(maxBusinessGeofences = 3, localRefreshTriggerRadius = 1500f))
+        every { distanceFilter.nearest(any(), 12.34, 56.78, 3, any()) } returns
+            listOf(GeofenceRegion("biz-1", 0.0, 0.0, 100f))
+        val captured = slot<List<GeofenceRegion>>()
+        coEvery { manager.replaceGeofences(capture(captured), any()) } returns Result.success(Unit)
+
+        repository.refresh(latitude = 12.34, longitude = 56.78)
+
+        val registered = captured.captured.map { it.id }.toSet()
+        verify { store.saveRoutableRegisteredIdsIfCurrent(registered, 7L) }
+    }
+
+    @Test
+    fun refresh_givenUserChangedBeforeRoutingWasArmed_expectRoutingLeftCleared() = runTest {
+        // The store refuses the stale write; the refresh must report it rather than assume it landed.
+        every { secureUserStore.getUserId() } returns "user-42"
+        every { store.getRegisteredIds() } returns emptySet()
+        every { store.userStateGeneration() } returns 7L
+        every { store.saveRoutableRegisteredIdsIfCurrent(any(), any()) } returns false
+        coEvery { apiService.fetchGeofences(any()) } returns
+            Result.success(sampleResponse(maxBusinessGeofences = 3, localRefreshTriggerRadius = 1500f))
+        every { distanceFilter.nearest(any(), 12.34, 56.78, 3, any()) } returns
+            listOf(GeofenceRegion("biz-1", 0.0, 0.0, 100f))
+        coEvery { manager.replaceGeofences(any(), any()) } returns Result.success(Unit)
+
+        repository.refresh(latitude = 12.34, longitude = 56.78)
+
+        verify { logger.logSyncSkipped("user changed before routing could be armed") }
+    }
+
+    @Test
     fun refresh_givenBusinessGeofences_expectMovementTriggerPrependedAndRegistered() = runTest {
         every { secureUserStore.getUserId() } returns "user-42"
         every { store.getRegisteredIds() } returns emptySet()

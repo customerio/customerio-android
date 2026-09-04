@@ -14,9 +14,11 @@ import io.customer.geofence.di.pendingGeofenceDeliveryStore
 import io.customer.geofence.store.PendingGeofenceDelivery
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.di.setupAndroidComponent
+import io.customer.sdk.core.network.HttpRequestFailure
 import io.customer.sdk.core.util.CustomerIOWorkManagerProvider
 import io.customer.sdk.data.store.PendingDeliveryResult
 import io.customer.sdk.data.store.sendRemoveOnSuccess
+import java.io.IOException
 
 private const val ORDERED_GEOFENCE_DELIVERY_QUEUE = "cio-geofence-delivery-queue"
 
@@ -94,7 +96,7 @@ internal class GeofenceEventWorker(
             // dropping it. The duplicate this can produce (overlap with the flush, or a retry after
             // an ambiguous success) is deduped backend-side via the stable transitionId.
             when (
-                val outcome = store.sendRemoveOnSuccess(entry) {
+                val outcome = store.sendRemoveOnSuccess(entry, ::isRetryableDeliveryFailure) {
                     SDKComponent.android().geofenceEventTracker.trackEvent(entry)
                 }
             ) {
@@ -127,16 +129,36 @@ internal class GeofenceEventWorker(
                         entry.transition.name,
                         outcome.cause?.message
                     )
-                    // Deliberately not Result.failure(): a terminal node cancels every existing
-                    // dependent in a WorkManager chain, which would discard the transitions queued
-                    // behind this one. Deliberately not Result.success() either — this node may be the
-                    // last in the chain, and then nothing would ever come back for the row, stranding
-                    // the head of an ordered queue permanently. Result.retry() re-runs this same node
-                    // on a backoff, which is the only outcome that both preserves the chain and
-                    // guarantees another attempt.
+                    // A refused payload is refused identically next time, so retrying only holds the
+                    // head of an ordered queue and every transition behind it. Same disposal as the
+                    // anonymous row above: drop it and carry on. Narrow on purpose — only a terminal
+                    // HTTP status is known-permanent. Anything else (a bad state, a serialization
+                    // slip) may well succeed on the next attempt, so it keeps the row and retries.
+                    val cause = outcome.cause
+                    if (cause is HttpRequestFailure && !cause.isRetryable && store.remove(entry.key)) {
+                        continue
+                    }
+                    // Still not Result.failure(): a terminal node cancels every existing dependent in
+                    // a WorkManager chain, discarding the transitions queued behind this one. Not
+                    // Result.success() either — this node may be the last in the chain, and then
+                    // nothing would come back for the row, stranding the head of an ordered queue.
                     return Result.retry()
                 }
             }
         }
     }
+}
+
+/**
+ * A delivery failure worth attempting again.
+ *
+ * Every non-2xx arrives as an [HttpRequestFailure], so without this the default `it is IOException`
+ * predicate classifies a 400 or 401 as retryable and the row is re-sent forever. Transport failures
+ * stay retryable; anything that is not an [IOException] at all is a bug rather than a network
+ * condition, and repeating it would not help.
+ */
+internal fun isRetryableDeliveryFailure(cause: Throwable?): Boolean = when (cause) {
+    is HttpRequestFailure -> cause.isRetryable
+    is IOException -> true
+    else -> false
 }

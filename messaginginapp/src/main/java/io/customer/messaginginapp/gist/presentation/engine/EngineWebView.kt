@@ -56,6 +56,12 @@ internal class EngineWebView @JvmOverloads constructor(
      */
     private var documentUrl: String? = null
 
+    /**
+     * Set once the first failure is reported. An engine renders one message, so it fails at most
+     * once.
+     */
+    private var hasReportedFailure = false
+
     private val inAppMessagingManager = SDKComponent.inAppMessagingManager
 
     private val state: InAppMessagingState
@@ -472,6 +478,15 @@ internal class EngineWebView @JvmOverloads constructor(
      * Single exit for every failure in this view: classify, then notify the listener.
      */
     private fun reportFailure(error: InAppMessageError) {
+        // First failure wins, and the latch — not the cancel — is what makes that deterministic.
+        // The bootstrap TimerTask runs independently of the WebView callbacks, so cancelling the
+        // timer alone still races with a task that has already started. Without this the host could
+        // be told NETWORK and then TIMEOUT about the same message, the second overwriting the real
+        // cause. Mirrors the same guard on iOS.
+        if (hasReportedFailure) return
+        hasReportedFailure = true
+        cleanupTimer()
+
         val listener = this.listener
         if (listener == null) {
             // Nothing downstream will see this one, so it has to be logged here. The timeout timer

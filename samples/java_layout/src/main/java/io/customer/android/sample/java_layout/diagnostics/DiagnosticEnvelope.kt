@@ -111,8 +111,16 @@ internal object DiagnosticEnvelope {
      * ISO 8601 with milliseconds and a local UTC offset.
      */
     fun iso8601(millis: Long): String {
-        val base = formatter.get()!!.format(Date(millis))
-        val offsetMinutes = TimeZone.getDefault().getOffset(millis) / 60000
+        // One zone for both halves. SimpleDateFormat captures the zone it was built with, while
+        // the offset below was read live — so after a zone change the text described one instant
+        // and the suffix another. And because the formatter is a ThreadLocal, two threads that
+        // first log either side of the change disagreed with each other without any of this
+        // needing a long-lived process.
+        val zone = TimeZone.getDefault()
+        val format = formatter.get()!!
+        format.timeZone = zone
+        val base = format.format(Date(millis))
+        val offsetMinutes = zone.getOffset(millis) / 60000
         val sign = if (offsetMinutes < 0) '-' else '+'
         val absolute = kotlin.math.abs(offsetMinutes)
         return "%s%c%02d:%02d".format(Locale.US, base, sign, absolute / 60, absolute % 60)

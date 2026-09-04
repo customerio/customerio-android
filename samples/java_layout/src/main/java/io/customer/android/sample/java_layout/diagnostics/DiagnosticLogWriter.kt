@@ -6,6 +6,7 @@ import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
+import java.util.TimeZone
 
 /**
  * Appends NDJSON records to a file on disk.
@@ -55,6 +56,9 @@ internal class DiagnosticLogWriter(private val directory: File) {
 
         if (!directory.exists() && !directory.mkdirs()) return
 
+        // Same stale-zone trap as the envelope: startOfNextDay works off the current zone, so a
+        // formatter pinned at construction would name the file for the zone the process started in.
+        dayFormat.timeZone = TimeZone.getDefault()
         val file = File(directory, "$FILE_PREFIX${dayFormat.format(Date(now))}$FILE_SUFFIX")
         val isNew = !file.exists()
 

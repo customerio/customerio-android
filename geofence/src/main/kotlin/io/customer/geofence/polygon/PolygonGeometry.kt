@@ -26,46 +26,74 @@ internal enum class PolygonPointRelation {
 internal class PolygonGeometry private constructor(
     val vertices: List<PolygonCoordinate>
 ) {
+    /**
+     * Ring longitudes made contiguous: each vertex advances from the previous one by the short arc,
+     * so a ring crossing the antimeridian runs 179.5 -> 180.5 rather than 179.5 -> -179.5.
+     *
+     * Every query is mapped onto this same line by [onRingLine] before it is compared. Wrapping each
+     * longitude independently against the query point instead would break the ring apart whenever the
+     * wrap boundary fell between two of its vertices — a point roughly antipodal to the ring — turning
+     * a two-degree seam edge into a 358-degree chord and reporting far-away points as inside.
+     */
+    private val ringLongitudes: DoubleArray = DoubleArray(vertices.size).also { unwrapped ->
+        unwrapped[0] = vertices[0].longitude
+        for (index in 1 until vertices.size) {
+            unwrapped[index] = unwrapped[index - 1] +
+                normalizeLongitude(vertices[index].longitude - vertices[index - 1].longitude)
+        }
+    }
+
     fun relationTo(point: PolygonCoordinate): PolygonPointRelation {
+        val pointLongitude = onRingLine(point.longitude)
         var inside = false
-        var previous = vertices.last()
+        var previousIndex = vertices.lastIndex
 
-        for (current in vertices) {
-            if (point.isOnSegment(previous, current)) return PolygonPointRelation.BOUNDARY
+        for (index in vertices.indices) {
+            if (isOnSegment(point.latitude, pointLongitude, previousIndex, index)) {
+                return PolygonPointRelation.BOUNDARY
+            }
 
-            // Longitudes are cast relative to the query point and wrapped, the same trick
-            // localOffsetMeters already uses for distance. A ring crossing the antimeridian holds raw
-            // longitudes on both sides of +/-180, and comparing those directly inverts containment for
-            // every point across the seam rather than merely misplacing the boundary.
-            val currentLongitude = normalizeLongitude(current.longitude - point.longitude)
-            val previousLongitude = normalizeLongitude(previous.longitude - point.longitude)
-            val intersects = (current.latitude > point.latitude) != (previous.latitude > point.latitude) &&
-                0.0 < (previousLongitude - currentLongitude) *
-                (point.latitude - current.latitude) /
-                (previous.latitude - current.latitude) + currentLongitude
+            val currentLatitude = vertices[index].latitude
+            val previousLatitude = vertices[previousIndex].latitude
+            val currentLongitude = ringLongitudes[index]
+            val previousLongitude = ringLongitudes[previousIndex]
+            val intersects = (currentLatitude > point.latitude) != (previousLatitude > point.latitude) &&
+                pointLongitude < (previousLongitude - currentLongitude) *
+                (point.latitude - currentLatitude) /
+                (previousLatitude - currentLatitude) + currentLongitude
             if (intersects) inside = !inside
-            previous = current
+            previousIndex = index
         }
 
         return if (inside) PolygonPointRelation.INSIDE else PolygonPointRelation.OUTSIDE
     }
 
     fun boundaryDistanceMeters(point: PolygonCoordinate): Double {
+        val pointLongitude = onRingLine(point.longitude)
         var minimumDistance = Double.MAX_VALUE
-        var previous = vertices.last()
-        for (current in vertices) {
-            minimumDistance = min(minimumDistance, point.distanceToSegmentMeters(previous, current))
-            previous = current
+        var previousIndex = vertices.lastIndex
+        for (index in vertices.indices) {
+            minimumDistance = min(
+                minimumDistance,
+                distanceToSegmentMeters(point.latitude, pointLongitude, previousIndex, index)
+            )
+            previousIndex = index
         }
         return minimumDistance
     }
 
-    private fun PolygonCoordinate.distanceToSegmentMeters(
-        first: PolygonCoordinate,
-        second: PolygonCoordinate
+    /** [longitude] expressed on [ringLongitudes]' line, so ring and query share one frame. */
+    private fun onRingLine(longitude: Double): Double =
+        ringLongitudes[0] + normalizeLongitude(longitude - ringLongitudes[0])
+
+    private fun distanceToSegmentMeters(
+        pointLatitude: Double,
+        pointLongitude: Double,
+        firstIndex: Int,
+        secondIndex: Int
     ): Double {
-        val firstOffset = localOffsetMeters(first)
-        val secondOffset = localOffsetMeters(second)
+        val firstOffset = localOffsetMeters(pointLatitude, pointLongitude, firstIndex)
+        val secondOffset = localOffsetMeters(pointLatitude, pointLongitude, secondIndex)
         val segmentX = secondOffset.first - firstOffset.first
         val segmentY = secondOffset.second - firstOffset.second
         val lengthSquared = segmentX * segmentX + segmentY * segmentY
@@ -80,10 +108,21 @@ internal class PolygonGeometry private constructor(
         )
     }
 
-    private fun PolygonCoordinate.localOffsetMeters(destination: PolygonCoordinate): Pair<Double, Double> {
-        val latitudeDelta = Math.toRadians(destination.latitude - latitude)
-        val longitudeDelta = Math.toRadians(normalizeLongitude(destination.longitude - longitude))
-        val meanLatitude = Math.toRadians((latitude + destination.latitude) / 2.0)
+    /**
+     * Offset in metres from the query point to vertex [index].
+     *
+     * The longitude delta is taken raw, not re-wrapped: both operands already sit on the ring's line,
+     * and wrapping here would split a seam-crossing segment back into a near-global one.
+     */
+    private fun localOffsetMeters(
+        pointLatitude: Double,
+        pointLongitude: Double,
+        index: Int
+    ): Pair<Double, Double> {
+        val vertexLatitude = vertices[index].latitude
+        val latitudeDelta = Math.toRadians(vertexLatitude - pointLatitude)
+        val longitudeDelta = Math.toRadians(ringLongitudes[index] - pointLongitude)
+        val meanLatitude = Math.toRadians((pointLatitude + vertexLatitude) / 2.0)
         return Pair(
             EARTH_RADIUS_METERS * longitudeDelta * cos(meanLatitude),
             EARTH_RADIUS_METERS * latitudeDelta
@@ -93,17 +132,18 @@ internal class PolygonGeometry private constructor(
     private fun normalizeLongitude(longitude: Double): Double =
         ((longitude + 540.0) % 360.0) - 180.0
 
-    private fun PolygonCoordinate.isOnSegment(
-        first: PolygonCoordinate,
-        second: PolygonCoordinate
+    private fun isOnSegment(
+        pointLatitude: Double,
+        pointLongitude: Double,
+        firstIndex: Int,
+        secondIndex: Int
     ): Boolean {
-        // Same relative-and-wrapped frame as the ray cast: the query point sits at longitude 0, so a
-        // segment spanning the antimeridian measures 2 degrees wide here rather than 358, and its
-        // bounding box still contains the points that lie on it.
-        val firstLongitude = normalizeLongitude(first.longitude - longitude)
-        val secondLongitude = normalizeLongitude(second.longitude - longitude)
-        val cross = (latitude - first.latitude) * (secondLongitude - firstLongitude) +
-            firstLongitude * (second.latitude - first.latitude)
+        val first = vertices[firstIndex]
+        val second = vertices[secondIndex]
+        val firstLongitude = ringLongitudes[firstIndex]
+        val secondLongitude = ringLongitudes[secondIndex]
+        val cross = (pointLatitude - first.latitude) * (secondLongitude - firstLongitude) -
+            (pointLongitude - firstLongitude) * (second.latitude - first.latitude)
         val scale = max(
             1.0,
             max(
@@ -113,10 +153,10 @@ internal class PolygonGeometry private constructor(
         )
         if (abs(cross) > BOUNDARY_EPSILON * scale) return false
 
-        return 0.0 >= minOf(firstLongitude, secondLongitude) - BOUNDARY_EPSILON &&
-            0.0 <= maxOf(firstLongitude, secondLongitude) + BOUNDARY_EPSILON &&
-            latitude >= minOf(first.latitude, second.latitude) - BOUNDARY_EPSILON &&
-            latitude <= maxOf(first.latitude, second.latitude) + BOUNDARY_EPSILON
+        return pointLongitude >= minOf(firstLongitude, secondLongitude) - BOUNDARY_EPSILON &&
+            pointLongitude <= maxOf(firstLongitude, secondLongitude) + BOUNDARY_EPSILON &&
+            pointLatitude >= minOf(first.latitude, second.latitude) - BOUNDARY_EPSILON &&
+            pointLatitude <= maxOf(first.latitude, second.latitude) + BOUNDARY_EPSILON
     }
 
     internal companion object {

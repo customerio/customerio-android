@@ -1177,7 +1177,7 @@ class GeofenceRegionStoreTest : RobolectricTest() {
         store.getCoarseInsidePolygonIds().shouldBeEmpty()
         store.getEnteredIds().shouldBeEmpty()
         store.hasEmittedEnter(USER, registered.id).shouldBeFalse()
-        store.hasActiveUserSession().shouldBeFalse()
+        store.activeUserSessionId().shouldBeNull()
         store.userStateGeneration() shouldBeEqualTo generation + 1L
         store.getLastSyncTimestamp().shouldBeNull()
 

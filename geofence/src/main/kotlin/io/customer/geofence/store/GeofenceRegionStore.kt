@@ -59,7 +59,6 @@ internal interface GeofenceRegionStore {
     fun appendPendingPolygonApproachBatches(entries: List<PendingPolygonApproachBatch>): Boolean
     fun getPendingPolygonApproachBatches(): List<PendingPolygonApproachBatch>
     fun removePendingPolygonApproachBatch(id: String): Boolean
-    fun clearPendingPolygonApproachBatches()
 
     fun saveCachedRegions(regions: List<GeofenceRegion>)
     fun getCachedRegions(): List<GeofenceRegion>
@@ -100,8 +99,6 @@ internal interface GeofenceRegionStore {
     fun userStateGeneration(): Long
 
     /** Whether polygon fine monitoring belongs to a currently identified user session. */
-    fun hasActiveUserSession(): Boolean
-
     fun activeUserSessionId(): String?
 
     /** Invalidates in-flight transition work when the identified profile changes. */
@@ -292,7 +289,7 @@ internal class GeofenceRegionStoreImpl(
         if (
             entries.any { it.userStateGeneration != expectedGeneration } ||
             expectedGeneration != currentUserStateGenerationLocked() ||
-            !hasActiveUserSession()
+            !hasActiveUserSessionLocked()
         ) {
             return@synchronized false
         }
@@ -321,6 +318,9 @@ internal class GeofenceRegionStoreImpl(
         val retained = entries.filterNot { it.id == id }
         if (retained.size == entries.size) return@synchronized true
         if (retained.isEmpty()) {
+            // Explicit commit, not the KTX edit {}: the caller needs to know whether the write
+            // reached disk, and the KTX form returns Unit.
+            @Suppress("ApplySharedPref", "UseKtx")
             prefs.edit().remove(KEY_PENDING_POLYGON_APPROACH_BATCHES).commit()
         } else {
             writeEncryptedJsonCommitted(
@@ -329,11 +329,6 @@ internal class GeofenceRegionStoreImpl(
                 retained
             )
         }
-    }
-
-    override fun clearPendingPolygonApproachBatches() = synchronized(enteredLock) {
-        prefs.edit().remove(KEY_PENDING_POLYGON_APPROACH_BATCHES).commit()
-        Unit
     }
 
     override fun saveCachedRegions(regions: List<GeofenceRegion>) = synchronized(enteredLock) {
@@ -439,6 +434,8 @@ internal class GeofenceRegionStoreImpl(
         val allPending = readPendingTransitionEntries()
         val pending = allPending.filterNot { it.transitionId == transitionId }
         if (pending.size == allPending.size) return@synchronized true
+        // Explicit editor, not the KTX edit {}: the commit result is this function's return value.
+        @Suppress("UseKtx")
         val editor = prefs.edit()
         if (pending.isEmpty()) {
             editor.remove(KEY_PENDING_TRANSITION_ENTRIES)
@@ -448,6 +445,8 @@ internal class GeofenceRegionStoreImpl(
                 jsonSerializer.encode(PENDING_TRANSITIONS_SERIALIZER, pending)
             )
         }
+        // Explicit commit, not the KTX edit {}: this returns whether the write reached disk.
+        @Suppress("ApplySharedPref")
         editor.commit()
     }
 
@@ -455,9 +454,8 @@ internal class GeofenceRegionStoreImpl(
         currentUserStateGenerationLocked()
     }
 
-    override fun hasActiveUserSession(): Boolean = synchronized(enteredLock) {
+    private fun hasActiveUserSessionLocked(): Boolean =
         !prefs.read { getString(KEY_USER_STATE_OWNER, null) }.isNullOrEmpty()
-    }
 
     override fun activeUserSessionId(): String? = synchronized(enteredLock) {
         prefs.read { getString(KEY_USER_STATE_OWNER, null) }?.takeIf { it.isNotEmpty() }
@@ -472,27 +470,27 @@ internal class GeofenceRegionStoreImpl(
             // Upgrade migration: older SDKs persisted a secure user and registrations but no
             // geofence-session owner/routing key. Adopt that same persisted session without
             // discarding valid OS registrations or containment before the first callback.
-            prefs.edit()
-                .putString(KEY_USER_STATE_OWNER, userId)
-                .putLong(KEY_USER_STATE_GENERATION, nextGeneration)
-                .commit()
+            prefs.edit(commit = true) {
+                putString(KEY_USER_STATE_OWNER, userId)
+                putLong(KEY_USER_STATE_GENERATION, nextGeneration)
+            }
             return@synchronized
         }
-        prefs.edit()
-            .putString(KEY_USER_STATE_OWNER, userId)
-            .putLong(KEY_USER_STATE_GENERATION, nextGeneration)
-            .putString(KEY_ROUTABLE_REGISTERED_IDS, jsonSerializer.encode(ID_SET_SERIALIZER, emptySet()))
-            .remove(KEY_LAST_API_FETCH_LOCATION)
-            .remove(KEY_LAST_MOVEMENT_TRIGGER_LOCATION)
-            .remove(KEY_PENDING_TRANSITION_ENTRIES)
-            .remove(KEY_PENDING_POLYGON_APPROACH_BATCHES)
-            .remove(KEY_ACTIVE_POLYGON_IDS)
-            .remove(KEY_COARSE_INSIDE_POLYGON_IDS)
-            .remove(KEY_ENTERED_IDS)
-            .remove(KEY_EMITTED_ENTER_IDS)
-            .remove(KEY_EMITTED_ENTER_OWNER)
-            .remove(KEY_LAST_SYNC)
-            .commit()
+        prefs.edit(commit = true) {
+            putString(KEY_USER_STATE_OWNER, userId)
+            putLong(KEY_USER_STATE_GENERATION, nextGeneration)
+            putString(KEY_ROUTABLE_REGISTERED_IDS, jsonSerializer.encode(ID_SET_SERIALIZER, emptySet()))
+            remove(KEY_LAST_API_FETCH_LOCATION)
+            remove(KEY_LAST_MOVEMENT_TRIGGER_LOCATION)
+            remove(KEY_PENDING_TRANSITION_ENTRIES)
+            remove(KEY_PENDING_POLYGON_APPROACH_BATCHES)
+            remove(KEY_ACTIVE_POLYGON_IDS)
+            remove(KEY_COARSE_INSIDE_POLYGON_IDS)
+            remove(KEY_ENTERED_IDS)
+            remove(KEY_EMITTED_ENTER_IDS)
+            remove(KEY_EMITTED_ENTER_OWNER)
+            remove(KEY_LAST_SYNC)
+        }
     }
 
     override fun commitBusinessTransition(
@@ -802,35 +800,33 @@ internal class GeofenceRegionStoreImpl(
     ): Unit = synchronized(enteredLock) {
         val currentGeneration = currentUserStateGenerationLocked()
         val resetWasSuperseded = currentGeneration != expectedUserStateGeneration
-        val editor = prefs.edit()
-            .remove(KEY_LAST_API_FETCH_LOCATION)
-            .remove(KEY_LAST_MOVEMENT_TRIGGER_LOCATION)
-            .remove(KEY_PENDING_TRANSITION_ENTRIES)
-            .remove(KEY_PENDING_POLYGON_APPROACH_BATCHES)
-            .remove(KEY_ACTIVE_POLYGON_IDS)
-            .remove(KEY_COARSE_INSIDE_POLYGON_IDS)
-            .remove(KEY_ENTERED_IDS)
-            .remove(KEY_EMITTED_ENTER_IDS)
-            .remove(KEY_EMITTED_ENTER_OWNER)
-            .remove(KEY_LAST_SYNC)
-        if (osRegistrationsCleared) {
-            editor
-                .remove(KEY_REGISTERED_IDS)
-                .remove(KEY_ROUTABLE_REGISTERED_IDS)
-                .remove(KEY_RETAINED_REGISTERED_REGIONS)
-                .remove(KEY_LAST_REGISTRATION_UPTIME)
-                .remove(KEY_LAST_REGISTRATION_PACKAGE_UPDATE_TIME)
-        } else {
-            // Explicit empty is distinct from key absence. Absence is the upgrade path for SDK
-            // versions that only stored registered_ids and must remain routable until refreshed.
-            editor.putString(KEY_ROUTABLE_REGISTERED_IDS, jsonSerializer.encode(ID_SET_SERIALIZER, emptySet()))
+        prefs.edit(commit = true) {
+            remove(KEY_LAST_API_FETCH_LOCATION)
+            remove(KEY_LAST_MOVEMENT_TRIGGER_LOCATION)
+            remove(KEY_PENDING_TRANSITION_ENTRIES)
+            remove(KEY_PENDING_POLYGON_APPROACH_BATCHES)
+            remove(KEY_ACTIVE_POLYGON_IDS)
+            remove(KEY_COARSE_INSIDE_POLYGON_IDS)
+            remove(KEY_ENTERED_IDS)
+            remove(KEY_EMITTED_ENTER_IDS)
+            remove(KEY_EMITTED_ENTER_OWNER)
+            remove(KEY_LAST_SYNC)
+            if (osRegistrationsCleared) {
+                remove(KEY_REGISTERED_IDS)
+                remove(KEY_ROUTABLE_REGISTERED_IDS)
+                remove(KEY_RETAINED_REGISTERED_REGIONS)
+                remove(KEY_LAST_REGISTRATION_UPTIME)
+                remove(KEY_LAST_REGISTRATION_PACKAGE_UPDATE_TIME)
+            } else {
+                // Explicit empty is distinct from key absence. Absence is the upgrade path for SDK
+                // versions that only stored registered_ids and must remain routable until refreshed.
+                putString(KEY_ROUTABLE_REGISTERED_IDS, jsonSerializer.encode(ID_SET_SERIALIZER, emptySet()))
+            }
+            if (!resetWasSuperseded) {
+                remove(KEY_USER_STATE_OWNER)
+                putLong(KEY_USER_STATE_GENERATION, currentGeneration + 1L)
+            }
         }
-        if (!resetWasSuperseded) {
-            editor
-                .remove(KEY_USER_STATE_OWNER)
-                .putLong(KEY_USER_STATE_GENERATION, currentGeneration + 1L)
-        }
-        editor.commit()
         Unit
     }
 
@@ -870,6 +866,8 @@ internal class GeofenceRegionStoreImpl(
         // Exact route history must never take PreferenceCrypto's API 21/OEM plaintext fallback.
         // The receiver can evaluate the batch immediately when durable encryption is unavailable.
         if (encrypted == plaintext) return false
+        // Explicit commit, not the KTX edit {}: this returns whether the write reached disk.
+        @Suppress("UseKtx")
         return prefs.edit().putString(key, encrypted).commit()
     }
 

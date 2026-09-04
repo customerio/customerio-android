@@ -610,9 +610,6 @@ internal class GeofenceRepositoryImpl(
                 logger.logSyncSkipped("user changed during refresh")
                 return@withLock Result.success(Unit)
             }
-            // Snapshot for the routing arm below. beginUserSession bumps this under its own lock, so
-            // an identify landing after this point invalidates the write rather than racing it.
-            val userStateGeneration = store.userStateGeneration()
             val registeredIds = store.getRegisteredIds()
             val monitored = store.getCachedRegions().filter { it.id in registeredIds }
             val insideNow = monitored

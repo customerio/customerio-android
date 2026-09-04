@@ -1,7 +1,7 @@
 package io.customer.sdk.core.network
 
-import android.net.Uri
 import android.util.Base64
+import androidx.core.net.toUri
 import io.customer.base.internal.InternalCustomerIOApi
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.data.store.Client
@@ -56,7 +56,7 @@ internal class CustomerIOHttpClientImpl : CustomerIOHttpClient {
         // here — it would percent-encode the embedded `/`. Compose the base URL
         // first, then layer query params on top via `buildUpon`.
         val cleanedPath = if (params.path.startsWith("/")) params.path else "/${params.path}"
-        val urlString = Uri.parse("https://$apiHost$cleanedPath")
+        val urlString = "https://$apiHost$cleanedPath".toUri()
             .buildUpon()
             .apply {
                 params.queryParams.forEach { (k, v) -> appendQueryParameter(k, v) }

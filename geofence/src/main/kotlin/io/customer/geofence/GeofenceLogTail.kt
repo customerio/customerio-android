@@ -46,7 +46,11 @@ internal object GeofenceLogTail {
         val parts = StringBuilder(DELIMITER).append("ev=").append(ev).append(" io=").append(io.wire)
         for ((key, value) in fields) {
             if (value == null) continue
-            parts.append(' ').append(key).append('=').append(foldWhitespace(value))
+            // Sanitize by default and let the few composed keys opt out, rather than the reverse.
+            // A new field is then safe without anyone remembering to wrap it, which is how 20
+            // `id` call sites ended up unprotected the last time this was the other way round.
+            val safe = if (key in COMPOSED_KEYS) foldWhitespace(value) else sanitize(value)
+            parts.append(' ').append(key).append('=').append(safe)
         }
         return parts.toString()
     }
@@ -60,6 +64,12 @@ internal object GeofenceLogTail {
      * on purpose, and folding those turns `a,b` into `a_b`.
      */
     private val SEPARATORS = charArrayOf('=', ',', ':', '|')
+
+    /**
+     * The only values that compose the format's separators on purpose. Everything else is treated
+     * as an untrusted token: geofence identifiers are workspace-authored and can hold anything.
+     */
+    private val COMPOSED_KEYS = setOf("ranked", "evicted", "ids")
 
     /**
      * Applied to every finished value. Only whitespace, which is what separates one `key=value`

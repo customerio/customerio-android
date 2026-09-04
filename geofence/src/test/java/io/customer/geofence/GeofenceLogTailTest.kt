@@ -385,6 +385,39 @@ class GeofenceLogTailTest : RobolectricTest() {
     }
 
     @Test
+    fun sanitize_givenSeparatorsInIdentifier_expectFolded() {
+        // Regression: the whitespace test above passes whether or not token fields are sanitized,
+        // because tail() folds whitespace for every value. It never covered the characters the
+        // format itself uses, and 20 `id` call sites went unprotected behind it.
+        for (raw in listOf("store,north", "a=b", "aisle:3", "wing|west")) {
+            val logger = CapturingLogger()
+            GeofenceLogger(logger).logTransitionEmitting(raw, "ENTER")
+
+            val tail = parseTail(logger.messages.last())
+            tail.shouldNotBeNull()
+            tail["id"].shouldNotBeNull()
+            tail["id"]!!.none { it in charArrayOf('=', ',', ':', '|') } shouldBeEqualTo true
+            tail["t"] shouldBeEqualTo "enter"
+        }
+    }
+
+    @Test
+    fun composedValues_givenSeparatorsOnPurpose_expectPreserved() {
+        // The other half of the same contract: sanitizing by default must not touch the values
+        // that build their own structure.
+        geofenceLogger.logRankEvaluated(
+            candidates = 3,
+            selectedCount = 2,
+            selected = { listOf("alpha", "beta") },
+            evicted = { listOf("gamma") },
+            edgeDistances = { mapOf("alpha" to 120.0, "beta" to 340.0) }
+        )
+        val tail = parseTail(capturing.messages.last())!!
+        tail["ranked"] shouldBeEqualTo "alpha:120,beta:340"
+        tail["evicted"] shouldBeEqualTo "gamma"
+    }
+
+    @Test
     fun list_givenMoreThanLimit_expectTruncationMarker() {
         val values = (1..30).map { "id$it" }
         GeofenceLogTail.list(values, limit = 25)!!.endsWith(",+5") shouldBeEqualTo true

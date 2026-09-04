@@ -39,6 +39,16 @@ internal class DiagnosticLogWriter(private val directory: File) {
      * record, so rotation costs an inequality rather than a date format.
      */
     private var rolloverAt = 0L
+
+    /**
+     * Zone the open file was named and its [rolloverAt] computed in. Both are derived from a
+     * single snapshot, so a file can never be named for one zone and roll over on another's
+     * midnight. Compared on every append: reading the zone fresh each time is not enough on its
+     * own, because [rolloverAt] is a precomputed instant and nothing else would notice it had
+     * become the wrong one. Driving east across a zone would otherwise keep appending to the
+     * previous day's file until midnight in the zone the file was opened in.
+     */
+    private var openZoneId: String? = null
     private var writesSinceExistenceCheck = 0
 
     fun open(header: String) {
@@ -58,7 +68,10 @@ internal class DiagnosticLogWriter(private val directory: File) {
 
         // Same stale-zone trap as the envelope: startOfNextDay works off the current zone, so a
         // formatter pinned at construction would name the file for the zone the process started in.
-        dayFormat.timeZone = TimeZone.getDefault()
+        // One snapshot for the name, the boundary, and the recorded id — reading the zone three
+        // times could straddle a change and pair a name with another zone's midnight.
+        val zone = TimeZone.getDefault()
+        dayFormat.timeZone = zone
         val file = File(directory, "$FILE_PREFIX${dayFormat.format(Date(now))}$FILE_SUFFIX")
         val isNew = !file.exists()
 
@@ -66,7 +79,8 @@ internal class DiagnosticLogWriter(private val directory: File) {
         if (stream == null) return
 
         currentFile = file
-        rolloverAt = startOfNextDay(now)
+        rolloverAt = startOfNextDay(now, zone)
+        openZoneId = zone.id
         writesSinceExistenceCheck = 0
 
         // Retention only when a file was actually created. Keeping it off the failure paths
@@ -88,7 +102,7 @@ internal class DiagnosticLogWriter(private val directory: File) {
     fun append(line: String) {
         synchronized(lock) {
             val now = System.currentTimeMillis()
-            if (now >= rolloverAt) {
+            if (now >= rolloverAt || TimeZone.getDefault().id != openZoneId) {
                 openCurrentFile(now)
             } else if (needsExistenceCheck() && currentFile?.exists() != true) {
                 // Deleted from under us — someone clearing files over MTP, `adb shell rm`, or the
@@ -152,7 +166,7 @@ internal class DiagnosticLogWriter(private val directory: File) {
         }
     }
 
-    private fun startOfNextDay(now: Long): Long = Calendar.getInstance().apply {
+    private fun startOfNextDay(now: Long, zone: TimeZone): Long = Calendar.getInstance(zone).apply {
         timeInMillis = now
         add(Calendar.DAY_OF_YEAR, 1)
         set(Calendar.HOUR_OF_DAY, 0)

@@ -5,24 +5,26 @@ import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.sin
 import kotlin.math.sqrt
-import org.amshove.kluent.invoking
 import org.amshove.kluent.shouldBeEqualTo
-import org.amshove.kluent.shouldThrow
 import org.junit.Test
 
 class PolygonShapeAdversarialIntegrationTest {
     @Test
-    fun geometry_givenConcaveLShape_expectRejectedByV1Envelope() {
-        invoking {
-            geometry(
-                point(-0.002, -0.002),
-                point(-0.002, 0.002),
-                point(-0.0005, 0.002),
-                point(-0.0005, -0.0005),
-                point(0.002, -0.0005),
-                point(0.002, -0.002)
-            )
-        } shouldThrow IllegalArgumentException::class
+    fun geometry_givenConcaveLShape_expectAcceptedAndAnsweringInsideTheNotch() {
+        val lShape = geometry(
+            point(-0.002, -0.002),
+            point(-0.002, 0.002),
+            point(-0.0005, 0.002),
+            point(-0.0005, -0.0005),
+            point(0.002, -0.0005),
+            point(0.002, -0.002)
+        )
+
+        lShape.vertices.size shouldBeEqualTo 6
+        // In the bar of the L.
+        lShape.relationTo(point(-0.001, 0.0)) shouldBeEqualTo PolygonPointRelation.INSIDE
+        // In the notch the L wraps around — accepting the shape is only useful if this stays out.
+        lShape.relationTo(point(0.001, 0.001)) shouldBeEqualTo PolygonPointRelation.OUTSIDE
     }
 
     @Test

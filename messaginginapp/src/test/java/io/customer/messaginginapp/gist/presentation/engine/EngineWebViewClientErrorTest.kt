@@ -45,6 +45,10 @@ class EngineWebViewClientErrorTest : IntegrationTest() {
         every { inAppMessagingManager.getCurrentState() } returns InAppMessagingState()
     }
 
+    /** The renderer document the view loads — `GistEnvironment.PROD` in these tests. */
+    private val documentUrl: String
+        get() = "${InAppMessagingState().environment.getGistRendererUrl()}/index.html"
+
     private fun startEngine(): WebView {
         val context = ApplicationProvider.getApplicationContext<Context>()
         engineWebView = EngineWebView(context)
@@ -108,29 +112,63 @@ class EngineWebViewClientErrorTest : IntegrationTest() {
         verify(exactly = 0) { listener.error() }
     }
 
-    /**
-     * We deliberately do not override `onReceivedSslError`.
-     *
-     * The platform default cancels the request, which is the only part that matters for safety.
-     * Overriding it replaced that default with our own cancel and reported every certificate
-     * failure as a message-level `NETWORK` error — including failures on subresources, which
-     * dismissed messages that would have rendered. The callback carries no `WebResourceRequest`,
-     * so there is no reliable way to tell the document from a subresource.
-     *
-     * This pins that decision: the request is still refused, and we report nothing ourselves.
-     */
     @Test
-    fun onReceivedSslError_givenCertificateError_expectRequestRefusedAndNothingReported() {
+    fun onReceivedSslError_givenCertificateErrorOnTheDocument_expectRefusedAndReported() {
         val webView = startEngine()
         val handler: SslErrorHandler = mockk(relaxed = true)
-        val sslError: SslError = mockk(relaxed = true) { every { primaryError } returns SslError.SSL_UNTRUSTED }
+        val sslError: SslError = mockk(relaxed = true) {
+            every { primaryError } returns SslError.SSL_UNTRUSTED
+            every { url } returns documentUrl
+        }
 
         Shadows.shadowOf(webView).webViewClient.onReceivedSslError(webView, handler, sslError)
 
-        // Never continue past a certificate error, whoever resolves the handler.
+        verify(exactly = 1) { handler.cancel() }
         verify(exactly = 0) { handler.proceed() }
-        // And a certificate failure on a subresource must not take the message down. A failure on
-        // the document aborts the main-frame load and surfaces through onReceivedError instead.
+        // Recoverable certificate errors arrive here and nowhere else — Android only promises
+        // ERROR_FAILED_SSL_HANDSHAKE for non-recoverable ones — so this is the only chance to
+        // report the real cause instead of letting it fall through to a 5s timeout.
+        verify(exactly = 1) { listener.error() }
+    }
+
+    @Test
+    fun onReceivedSslError_givenCertificateErrorOnSubresource_expectRefusedButNotReported() {
+        val webView = startEngine()
+        val handler: SslErrorHandler = mockk(relaxed = true)
+        val sslError: SslError = mockk(relaxed = true) {
+            every { primaryError } returns SslError.SSL_UNTRUSTED
+            every { url } returns "https://cdn.example.com/hero.png"
+        }
+
+        Shadows.shadowOf(webView).webViewClient.onReceivedSslError(webView, handler, sslError)
+
+        // Refused like any other, but a bad certificate on an image must not take the message down.
+        verify(exactly = 1) { handler.cancel() }
+        verify(exactly = 0) { handler.proceed() }
+        verify(exactly = 0) { listener.error() }
+    }
+
+    /**
+     * The cost of identifying the document by URL, pinned deliberately.
+     *
+     * `onReceivedSslError` carries no [WebResourceRequest], so the document can only be recognised
+     * by comparing URLs. If the main frame redirects, the failing URL no longer matches what we
+     * loaded and the error is refused but not reported, surfacing later as a timeout. The failure
+     * mode is silence rather than a wrong dismissal, which is the safer direction of the two.
+     */
+    @Test
+    fun onReceivedSslError_givenRedirectedMainFrame_expectRefusedButNotReported() {
+        val webView = startEngine()
+        val handler: SslErrorHandler = mockk(relaxed = true)
+        val sslError: SslError = mockk(relaxed = true) {
+            every { primaryError } returns SslError.SSL_IDMISMATCH
+            every { url } returns "https://redirected.example.com/index.html"
+        }
+
+        Shadows.shadowOf(webView).webViewClient.onReceivedSslError(webView, handler, sslError)
+
+        verify(exactly = 1) { handler.cancel() }
+        verify(exactly = 0) { handler.proceed() }
         verify(exactly = 0) { listener.error() }
     }
 }

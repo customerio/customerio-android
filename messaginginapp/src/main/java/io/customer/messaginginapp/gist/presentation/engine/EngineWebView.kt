@@ -4,9 +4,11 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.content.res.Configuration
 import android.graphics.Color
+import android.net.http.SslError
 import android.os.Build
 import android.util.AttributeSet
 import android.webkit.RenderProcessGoneDetail
+import android.webkit.SslErrorHandler
 import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
@@ -47,6 +49,14 @@ internal class EngineWebView @JvmOverloads constructor(
     private val logger = SDKComponent.logger
     private var lastResolvedColorScheme: String? = null
     private var colorSchemeJob: Job? = null
+
+    /**
+     * The renderer document this view loaded.
+     *
+     * `onReceivedSslError` gives no [WebResourceRequest], so this is the only way to tell a
+     * certificate failure on the message itself from one on an image or font it pulls in.
+     */
+    private var documentUrl: String? = null
 
     private val inAppMessagingManager = SDKComponent.inAppMessagingManager
 
@@ -191,8 +201,8 @@ internal class EngineWebView @JvmOverloads constructor(
         elapsedTimer.start("Engine render for message: ${configuration.messageId}")
         val messageData = mapOf("options" to configuration)
         val jsonString = Gson().toJson(messageData)
-        val messageUrl =
-            "${state.environment.getGistRendererUrl()}/index.html"
+        val messageUrl = "${state.environment.getGistRendererUrl()}/index.html"
+        documentUrl = messageUrl
         logger.debug("Rendering message with URL: $messageUrl")
         webView?.let {
             it.settings.javaScriptEnabled = true
@@ -255,15 +265,36 @@ internal class EngineWebView @JvmOverloads constructor(
                     )
                 }
 
-                // Deliberately no onReceivedSslError override. The platform default already
-                // cancels the request, which is the behaviour we want and the only part that
-                // matters for safety — we never continue past a certificate error. Overriding it
-                // replaced that default with our own cancel() and reported every failure as a
-                // message-level NETWORK error, including certificate failures on subresources,
-                // which dismissed messages that would have rendered. The callback carries no
-                // WebResourceRequest, so there is no reliable way to tell the document from a
-                // subresource. A certificate failure on the document aborts the main-frame load
-                // and surfaces through onReceivedError below, which is already frame-gated.
+                override fun onReceivedSslError(
+                    view: WebView?,
+                    handler: SslErrorHandler?,
+                    error: SslError?
+                ) {
+                    // Cancel unconditionally, whatever the resource. Overriding this removes the
+                    // platform default's cancel(), so the handler has to be resolved here or the
+                    // request stays suspended, and we never continue past a certificate error.
+                    handler?.cancel()
+
+                    // Reporting is gated separately. This fires for every resource, so a bad
+                    // certificate on an image would otherwise dismiss a renderable message. There
+                    // is no WebResourceRequest here, so the document has to be identified by URL.
+                    //
+                    // We cannot lean on onReceivedError instead: Android only promises
+                    // ERROR_FAILED_SSL_HANDSHAKE for non-recoverable SSL failures, while the
+                    // recoverable ones — expired, untrusted, hostname mismatch — arrive here and
+                    // nowhere else. Dropping this override made those surface as a 5s TIMEOUT.
+                    val failedUrl = error?.url
+                    if (failedUrl == null || failedUrl != documentUrl) return
+
+                    reportFailure(
+                        InAppMessageError(
+                            reason = InAppMessageErrorReason.NETWORK,
+                            detail = "SSL error loading the renderer",
+                            code = error.primaryError
+                        )
+                    )
+                }
+
                 override fun onReceivedHttpError(
                     view: WebView?,
                     request: WebResourceRequest?,

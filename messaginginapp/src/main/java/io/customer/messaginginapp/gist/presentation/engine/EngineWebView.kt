@@ -4,11 +4,9 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.content.res.Configuration
 import android.graphics.Color
-import android.net.http.SslError
 import android.os.Build
 import android.util.AttributeSet
 import android.webkit.RenderProcessGoneDetail
-import android.webkit.SslErrorHandler
 import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
@@ -257,6 +255,15 @@ internal class EngineWebView @JvmOverloads constructor(
                     )
                 }
 
+                // Deliberately no onReceivedSslError override. The platform default already
+                // cancels the request, which is the behaviour we want and the only part that
+                // matters for safety — we never continue past a certificate error. Overriding it
+                // replaced that default with our own cancel() and reported every failure as a
+                // message-level NETWORK error, including certificate failures on subresources,
+                // which dismissed messages that would have rendered. The callback carries no
+                // WebResourceRequest, so there is no reliable way to tell the document from a
+                // subresource. A certificate failure on the document aborts the main-frame load
+                // and surfaces through onReceivedError below, which is already frame-gated.
                 override fun onReceivedHttpError(
                     view: WebView?,
                     request: WebResourceRequest?,
@@ -293,25 +300,6 @@ internal class EngineWebView @JvmOverloads constructor(
                             reason = InAppMessageErrorReason.NETWORK,
                             detail = if (hasDetail) error?.description?.toString() else null,
                             code = if (hasDetail) error?.errorCode else null
-                        )
-                    )
-                }
-
-                override fun onReceivedSslError(
-                    view: WebView?,
-                    handler: SslErrorHandler?,
-                    error: SslError?
-                ) {
-                    // Overriding this removed the platform default's cancel(), so the handler has
-                    // to be resolved here or the request stays suspended. Always cancel: the
-                    // renderer is first-party HTTPS and we never continue past a certificate error.
-                    handler?.cancel()
-
-                    reportFailure(
-                        InAppMessageError(
-                            reason = InAppMessageErrorReason.NETWORK,
-                            detail = "SSL error loading the renderer",
-                            code = error?.primaryError
                         )
                     )
                 }

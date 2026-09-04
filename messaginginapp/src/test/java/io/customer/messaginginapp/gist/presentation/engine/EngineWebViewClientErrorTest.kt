@@ -108,18 +108,29 @@ class EngineWebViewClientErrorTest : IntegrationTest() {
         verify(exactly = 0) { listener.error() }
     }
 
+    /**
+     * We deliberately do not override `onReceivedSslError`.
+     *
+     * The platform default cancels the request, which is the only part that matters for safety.
+     * Overriding it replaced that default with our own cancel and reported every certificate
+     * failure as a message-level `NETWORK` error — including failures on subresources, which
+     * dismissed messages that would have rendered. The callback carries no `WebResourceRequest`,
+     * so there is no reliable way to tell the document from a subresource.
+     *
+     * This pins that decision: the request is still refused, and we report nothing ourselves.
+     */
     @Test
-    fun onReceivedSslError_givenCertificateError_expectHandlerCancelledAndFailureReported() {
+    fun onReceivedSslError_givenCertificateError_expectRequestRefusedAndNothingReported() {
         val webView = startEngine()
         val handler: SslErrorHandler = mockk(relaxed = true)
         val sslError: SslError = mockk(relaxed = true) { every { primaryError } returns SslError.SSL_UNTRUSTED }
 
         Shadows.shadowOf(webView).webViewClient.onReceivedSslError(webView, handler, sslError)
 
-        // Overriding this callback removes the platform default's cancel(), so we must resolve the
-        // handler ourselves — and never proceed past a certificate error.
-        verify(exactly = 1) { handler.cancel() }
+        // Never continue past a certificate error, whoever resolves the handler.
         verify(exactly = 0) { handler.proceed() }
-        verify(exactly = 1) { listener.error() }
+        // And a certificate failure on a subresource must not take the message down. A failure on
+        // the document aborts the main-frame load and surfaces through onReceivedError instead.
+        verify(exactly = 0) { listener.error() }
     }
 }

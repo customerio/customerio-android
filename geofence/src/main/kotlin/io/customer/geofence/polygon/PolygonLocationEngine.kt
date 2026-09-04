@@ -4,7 +4,6 @@ import android.location.Location
 import android.os.SystemClock
 import io.customer.geofence.GeofenceBusinessTransitionProcessor
 import io.customer.geofence.GeofenceLogger
-import io.customer.geofence.GeofenceRegion
 import io.customer.geofence.store.GeofenceRegionStore
 import io.customer.geofence.transitionRevision
 import io.customer.sdk.communication.Event
@@ -51,7 +50,11 @@ internal class PolygonLocationEngine(
     private val processingMutex = Mutex()
     private val stateLock = Any()
     private val geometryCache = mutableMapOf<String, CachedGeometry>()
-    private var cachedActiveIds: Set<String> = emptySet()
+
+    // Keyed on the rings themselves, not on the active id set: a sync can replace a polygon's
+    // geometry without changing which polygons are active, and evaluating the ring it replaced
+    // reports the device inside a fence that has moved.
+    private var cachedFenceSignature: Map<String, List<PolygonCoordinate>?> = emptyMap()
     private var cachedFences: List<PolygonFence> = emptyList()
 
     /**
@@ -229,10 +232,13 @@ internal class PolygonLocationEngine(
 
     private fun activePolygonFencesLocked(): List<PolygonFence> {
         val activeIds = store.getActivePolygonIds()
-        if (activeIds == cachedActiveIds) return cachedFences
-        val regions = activeIds.mapNotNull(store::getCachedRegion).filter(GeofenceRegion::isPolygon)
+        // One catalog read. getCachedRegion decodes the whole catalog per call, so reading once and
+        // filtering costs less than the per-id lookups this used to do on every rebuild.
+        val regions = store.getCachedRegions().filter { it.id in activeIds && it.isPolygon }
+        val signature = regions.associate { it.id to it.polygonVertices }
+        if (signature == cachedFenceSignature) return cachedFences
         geometryCache.keys.retainAll(regions.mapTo(mutableSetOf()) { it.id })
-        cachedActiveIds = activeIds
+        cachedFenceSignature = signature
         cachedFences = regions.mapNotNull { region ->
             val vertices = requireNotNull(region.polygonVertices)
             val cached = geometryCache[region.id]
@@ -256,7 +262,7 @@ internal class PolygonLocationEngine(
     }
 
     private fun invalidateFenceCacheLocked() {
-        cachedActiveIds = emptySet()
+        cachedFenceSignature = emptyMap()
         cachedFences = emptyList()
     }
 

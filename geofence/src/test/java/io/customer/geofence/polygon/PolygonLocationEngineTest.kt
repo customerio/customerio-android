@@ -85,6 +85,35 @@ class PolygonLocationEngineTest : RobolectricTest() {
         )
     }
 
+    // ---------- the catalog can change under an unchanged active set ----------
+
+    @Test
+    fun processResponsiveLocation_givenTheRingMovedUnderTheSameId_expectJudgedAgainstTheNewRing() = runTest {
+        // A sync replaces a polygon's geometry without changing which polygons are active. Caching
+        // the built fences on the active id set alone would keep evaluating the ring that moved,
+        // and report the device inside a fence it is nowhere near.
+        engine.processResponsiveLocation(insideFix())
+        store.getEnteredIds() shouldContainSame setOf(POLYGON_ID)
+
+        // Same id, same active set, ring moved ~1 km north. The old fix is now well outside it.
+        store.saveCachedRegions(
+            listOf(
+                polygonRegion().copy(
+                    polygonVertices = listOf(
+                        PolygonCoordinate(37.7845, -122.4200),
+                        PolygonCoordinate(37.7845, -122.4188),
+                        PolygonCoordinate(37.7855, -122.4188),
+                        PolygonCoordinate(37.7855, -122.4200)
+                    )
+                )
+            )
+        )
+
+        engine.processResponsiveLocation(insideFix(elapsedRealtimeNanos = SystemClock.elapsedRealtimeNanos()))
+
+        store.getEnteredIds().shouldBeEmpty()
+    }
+
     // ---------- what a single decisive fix does ----------
 
     @Test

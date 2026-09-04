@@ -81,6 +81,22 @@ class PolygonGeometryTest {
     }
 
     @Test
+    fun relationTo_whenPointIsNearlyAntipodalToTheRing_thenReturnsOutside() {
+        // Ordinary ring on the prime meridian, query half a world away. Mapping each longitude onto
+        // the query point instead of onto the ring splits this ring across the wrap boundary, and the
+        // seam edge becomes a 358-degree chord that swallows the globe.
+        val ring = primeMeridian()
+
+        ring.relationTo(point(0.5, 180.0)) shouldBeEqualTo PolygonPointRelation.OUTSIDE
+        ring.relationTo(point(0.5, -179.0)) shouldBeEqualTo PolygonPointRelation.OUTSIDE
+    }
+
+    @Test
+    fun boundaryDistanceMeters_whenPointIsNearlyAntipodalToTheRing_thenMeasuresHalfTheGlobe() {
+        primeMeridian().boundaryDistanceMeters(point(0.5, 180.0)) shouldBeInRange 19_000_000.0..20_100_000.0
+    }
+
+    @Test
     fun boundaryDistanceMeters_whenRingCrossesAntimeridian_thenMeasuresAcrossTheSeam() {
         // ~0.5 degrees of longitude from the eastern edge at the equator, not ~359.5.
         val distance = dateline().boundaryDistanceMeters(point(0.5, 179.0))
@@ -125,6 +141,16 @@ class PolygonGeometryTest {
 
         nearPole.vertices.size shouldBeEqualTo 3
     }
+
+    /** Two-degree square on the prime meridian: an unremarkable ring, nowhere near the seam. */
+    private fun primeMeridian(): PolygonGeometry = PolygonGeometry.from(
+        listOf(
+            point(0.0, -1.0),
+            point(0.0, 1.0),
+            point(1.0, 1.0),
+            point(1.0, -1.0)
+        )
+    )
 
     /** One-degree square straddling the antimeridian: longitude runs 179.5 east to -179.5 west. */
     private fun dateline(): PolygonGeometry = PolygonGeometry.from(

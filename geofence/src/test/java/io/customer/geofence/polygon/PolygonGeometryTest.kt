@@ -81,6 +81,26 @@ class PolygonGeometryTest {
     }
 
     @Test
+    fun from_whenSimpleRingIsWrittenWithNegativeSeamLongitudes_thenAcceptsGeometry() {
+        // Same shape as the ring below, but with the seam vertex written -180 instead of 180 — both
+        // are legal GeoJSON. Judged on raw longitudes that edge reads as a ~359-degree chord across
+        // the ring and the polygon is rejected as self-intersecting.
+        PolygonGeometry.from(
+            listOf(point(-2.0, 179.0), point(-2.0, 179.5), point(-1.0, -180.0), point(-1.0, 179.0))
+        ).vertices.size shouldBeEqualTo 4
+    }
+
+    @Test
+    fun from_whenRingCrossingTheSeamIsSelfIntersecting_thenStillRejectsGeometry() {
+        // The guard above must not become a blanket exemption for seam-crossing rings.
+        invoking {
+            PolygonGeometry.from(
+                listOf(point(0.0, 179.5), point(1.0, -179.5), point(1.0, 179.5), point(0.0, -179.5))
+            )
+        } shouldThrow IllegalArgumentException::class
+    }
+
+    @Test
     fun relationTo_whenPointIsNearlyAntipodalToTheRing_thenReturnsOutside() {
         // Ordinary ring on the prime meridian, query half a world away. Mapping each longitude onto
         // the query point instead of onto the ring splits this ring across the wrap boundary, and the

@@ -24,24 +24,21 @@ internal enum class PolygonPointRelation {
 
 /** Canonical polygon outer ring. V1 does not support holes. */
 internal class PolygonGeometry private constructor(
-    val vertices: List<PolygonCoordinate>
+    val vertices: List<PolygonCoordinate>,
+    /** @see ringLongitudes */
+    private val ringLongitudes: DoubleArray
 ) {
-    /**
-     * Ring longitudes made contiguous: each vertex advances from the previous one by the short arc,
-     * so a ring crossing the antimeridian runs 179.5 -> 180.5 rather than 179.5 -> -179.5.
+    /*
+     * ringLongitudes holds the ring made contiguous: each vertex advances from the previous one by
+     * the short arc, so a ring crossing the antimeridian runs 179.5 -> 180.5 rather than
+     * 179.5 -> -179.5. Every query is mapped onto that same line by onRingLine before it is
+     * compared, and admission validates on it too, so what `from` accepts and what this evaluates
+     * are the same shape.
      *
-     * Every query is mapped onto this same line by [onRingLine] before it is compared. Wrapping each
-     * longitude independently against the query point instead would break the ring apart whenever the
-     * wrap boundary fell between two of its vertices — a point roughly antipodal to the ring — turning
-     * a two-degree seam edge into a 358-degree chord and reporting far-away points as inside.
+     * Wrapping each longitude independently against the query point instead would break the ring
+     * apart whenever the wrap boundary fell between two of its vertices — a point roughly antipodal
+     * to the ring — turning a two-degree seam edge into a 358-degree chord.
      */
-    private val ringLongitudes: DoubleArray = DoubleArray(vertices.size).also { unwrapped ->
-        unwrapped[0] = vertices[0].longitude
-        for (index in 1 until vertices.size) {
-            unwrapped[index] = unwrapped[index - 1] +
-                normalizeLongitude(vertices[index].longitude - vertices[index - 1].longitude)
-        }
-    }
 
     fun relationTo(point: PolygonCoordinate): PolygonPointRelation {
         val pointLongitude = onRingLine(point.longitude)
@@ -129,9 +126,6 @@ internal class PolygonGeometry private constructor(
         )
     }
 
-    private fun normalizeLongitude(longitude: Double): Double =
-        ((longitude + 540.0) % 360.0) - 180.0
-
     private fun isOnSegment(
         pointLatitude: Double,
         pointLongitude: Double,
@@ -179,14 +173,22 @@ internal class PolygonGeometry private constructor(
 
             require(canonical.size >= 3) { "polygon requires at least three vertices" }
             require(canonical.distinct().size >= 3) { "polygon requires at least three distinct vertices" }
-            canonical.forEachIndexed { index, current ->
-                val next = canonical[(index + 1) % canonical.size]
+
+            // Admission runs on the unwrapped ring, not on raw longitudes. Judged raw, a seam edge
+            // reads as a ~359-degree chord that crosses most of the ring, and a perfectly simple
+            // polygon is rejected as self-intersecting.
+            val ringLongitudes = unwrapLongitudes(canonical)
+            val unwrapped = canonical.mapIndexed { index, vertex ->
+                PolygonCoordinate(vertex.latitude, ringLongitudes[index])
+            }
+            unwrapped.forEachIndexed { index, current ->
+                val next = unwrapped[(index + 1) % unwrapped.size]
                 require(current != next) { "polygon cannot contain a zero-length edge" }
             }
-            require(canonical.hasNonCollinearVertices()) { "polygon cannot have zero area" }
-            require(!canonical.hasSelfIntersection()) { "polygon cannot intersect itself" }
+            require(unwrapped.hasNonCollinearVertices()) { "polygon cannot have zero area" }
+            require(!unwrapped.hasSelfIntersection()) { "polygon cannot intersect itself" }
 
-            return PolygonGeometry(canonical.toList())
+            return PolygonGeometry(canonical.toList(), ringLongitudes)
         }
 
         /**
@@ -201,6 +203,19 @@ internal class PolygonGeometry private constructor(
         } catch (_: IllegalArgumentException) {
             null
         }
+
+        private fun normalizeLongitude(longitude: Double): Double =
+            ((longitude + 540.0) % 360.0) - 180.0
+
+        /** Ring longitudes as one continuous line, each vertex a short arc from the previous. */
+        private fun unwrapLongitudes(vertices: List<PolygonCoordinate>): DoubleArray =
+            DoubleArray(vertices.size).also { unwrapped ->
+                unwrapped[0] = vertices[0].longitude
+                for (index in 1 until vertices.size) {
+                    unwrapped[index] = unwrapped[index - 1] +
+                        normalizeLongitude(vertices[index].longitude - vertices[index - 1].longitude)
+                }
+            }
 
         private fun List<PolygonCoordinate>.hasNonCollinearVertices(): Boolean {
             for (firstIndex in indices) {

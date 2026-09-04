@@ -155,29 +155,45 @@ internal class PolygonGeometry private constructor(
 
     internal companion object {
         private const val BOUNDARY_EPSILON = 1e-12
+
+        // Half the globe. The flat projection the evaluator uses cannot describe more.
+        private const val MAXIMUM_LONGITUDE_SPAN = 180.0
         private const val EARTH_RADIUS_METERS = 6_371_000.0
 
         fun from(vertices: List<PolygonCoordinate>): PolygonGeometry {
-            // Collapse consecutive repeats before unclosing, not after. A ring whose closing
-            // position is itself repeated — [A, B, C, D, A, A] — still ends [.., A, A] if it is
-            // unclosed first, and that zero-length edge is rejected below. Repeated positions are
-            // legal GeoJSON and carry no shape, so they collapse rather than drop the region.
-            val collapsed = vertices.filterIndexed { index, vertex ->
-                index == 0 || vertex != vertices[index - 1]
-            }
-            val canonical = if (collapsed.size > 1 && collapsed.first() == collapsed.last()) {
+            require(vertices.isNotEmpty()) { "polygon requires at least one position" }
+
+            // Canonicalisation happens on the unwrapped line, so 180 and -180 are recognised as one
+            // position. A ring closed with the opposite sign to the one it opened with — both legal
+            // GeoJSON — would otherwise survive unclosing and then be rejected for the zero-length
+            // edge that closure left behind.
+            val longitudes = unwrapLongitudes(vertices)
+            fun samePosition(first: Int, second: Int): Boolean =
+                vertices[first].latitude == vertices[second].latitude &&
+                    longitudes[first] == longitudes[second]
+
+            val collapsed = vertices.indices.filter { index -> index == 0 || !samePosition(index, index - 1) }
+            val kept = if (collapsed.size > 1 && samePosition(collapsed.first(), collapsed.last())) {
                 collapsed.dropLast(1)
             } else {
                 collapsed
             }
+            val canonical = kept.map(vertices::get)
+            val ringLongitudes = DoubleArray(kept.size) { longitudes[kept[it]] }
 
             require(canonical.size >= 3) { "polygon requires at least three vertices" }
             require(canonical.distinct().size >= 3) { "polygon requires at least three distinct vertices" }
+            // The evaluator projects the ring onto one flat frame, which only describes a shape
+            // narrower than a hemisphere. A ring winding around a pole unwraps past that — it is
+            // simple and non-degenerate, so nothing below rejects it, and it would then be evaluated
+            // against a closing chord most of the way round the earth. The only real fence this can
+            // refuse sits within ~55 km of a pole, where a degree of longitude is a couple of hundred
+            // metres and an ordinary radius outruns a hemisphere; a flat frame says nothing useful
+            // there either.
+            require(ringLongitudes.max() - ringLongitudes.min() < MAXIMUM_LONGITUDE_SPAN) {
+                "polygon spans too much longitude to evaluate on one frame"
+            }
 
-            // Admission runs on the unwrapped ring, not on raw longitudes. Judged raw, a seam edge
-            // reads as a ~359-degree chord that crosses most of the ring, and a perfectly simple
-            // polygon is rejected as self-intersecting.
-            val ringLongitudes = unwrapLongitudes(canonical)
             val unwrapped = canonical.mapIndexed { index, vertex ->
                 PolygonCoordinate(vertex.latitude, ringLongitudes[index])
             }
@@ -188,7 +204,7 @@ internal class PolygonGeometry private constructor(
             require(unwrapped.hasNonCollinearVertices()) { "polygon cannot have zero area" }
             require(!unwrapped.hasSelfIntersection()) { "polygon cannot intersect itself" }
 
-            return PolygonGeometry(canonical.toList(), ringLongitudes)
+            return PolygonGeometry(canonical, ringLongitudes)
         }
 
         /**

@@ -161,6 +161,39 @@ class GeofenceApiResponseTest : RobolectricTest() {
     }
 
     @Test
+    fun parseAndMap_givenPolygonWithOutOfRangeWakeCircleCenter_expectRecordDroppedNotWholeSync() {
+        // Geofence.Builder throws on an out-of-range centre and registration builds the batch in one
+        // map, so letting this through fails every fence in the sync, not just this record.
+        val regions = parseRegions(
+            """
+            {
+              "geofences": [
+                {
+                  "id": "bad-center",
+                  "shape": "polygon",
+                  "enclosing_circle": { "latitude": 91.0, "longitude": 0.0, "base_radius_m": 100 },
+                  "geometry": {
+                    "type": "Polygon",
+                    "coordinates": [[[0, 0], [0.01, 0], [0.01, 0.01], [0, 0.01], [0, 0]]]
+                  }
+                },
+                { "id": "circle", "latitude": 0, "longitude": 0, "radius": 100 }
+              ]
+            }
+            """.trimIndent(),
+            EnabledPolygonSupport
+        )
+
+        regions.map(GeofenceRegion::id) shouldBeEqualTo listOf("circle")
+        verify {
+            mockLogger.logPolygonDropped(
+                "bad-center",
+                "backend-provided enclosing circle is invalid or does not contain the polygon"
+            )
+        }
+    }
+
+    @Test
     fun parseAndMap_givenPolygonWithoutBackendWakeCircle_expectDropped() {
         val regions = parseRegions(
             """

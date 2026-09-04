@@ -277,7 +277,14 @@ private fun GeofenceApiRegion.toPolygonRegionOrNull(
     val baseRadiusMeters = enclosingCircle.baseRadiusMeters
     val wakeLatitude = enclosingCircle.latitude
     val wakeLongitude = enclosingCircle.longitude
-    val trigger = if (wakeLatitude == null || wakeLongitude == null || baseRadiusMeters == null) {
+    val trigger = if (
+        wakeLatitude == null || wakeLongitude == null || baseRadiusMeters == null ||
+        // Not a geometry rule the backend owns — a platform precondition. Geofence.Builder throws on
+        // an out-of-range centre, and registration builds the whole business batch in one map, so a
+        // single bad record fails every fence in the sync and rolls the movement trigger back with
+        // it. Checking here isolates the record instead.
+        !LocationCoordinates.isValid(wakeLatitude, wakeLongitude)
+    ) {
         null
     } else {
         PolygonWakeCircleValidator().prepareOrNull(

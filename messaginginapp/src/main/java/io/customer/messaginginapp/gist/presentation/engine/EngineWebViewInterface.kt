@@ -3,6 +3,8 @@ package io.customer.messaginginapp.gist.presentation.engine
 import android.webkit.JavascriptInterface
 import android.webkit.WebView
 import com.google.gson.Gson
+import io.customer.messaginginapp.type.InAppMessageError
+import io.customer.messaginginapp.type.InAppMessageErrorReason
 import io.customer.sdk.core.di.SDKComponent
 
 internal data class EngineWebMessage(
@@ -17,6 +19,15 @@ internal data class EngineWebEvent(
 
 class EngineWebViewInterface(private val listener: EngineWebViewListener) {
     private val logger = SDKComponent.logger
+
+    /**
+     * Receives the classified failure for an engine `error` event.
+     *
+     * [EngineWebViewListener.error] takes no arguments and is public API, so it cannot carry the
+     * renderer's own description yet. This internal seam lets the view classify and log it in the
+     * meantime; it goes away once the listener itself can take the error.
+     */
+    internal var onEngineError: ((InAppMessageError) -> Unit)? = null
 
     // Indicates whether the interface is attached to a web view and should continue to process messages
     private var isAttachedToWebView: Boolean = false
@@ -80,8 +91,38 @@ class EngineWebViewInterface(private val listener: EngineWebViewListener) {
                     }
                 }
 
-                "error" -> listener.error()
+                "error" -> {
+                    val reporter = onEngineError
+                    if (reporter != null) {
+                        reporter(
+                            InAppMessageError(
+                                reason = InAppMessageErrorReason.RENDER_FAILED,
+                                detail = parseErrorDetail(eventParameters)
+                            )
+                        )
+                    } else {
+                        listener.error()
+                    }
+                }
             }
+        }
+    }
+
+    /**
+     * Pulls the renderer's own description of a failure out of an `error` event.
+     *
+     * The renderer sends `{ target, errorMessage }` — e.g. `Unable to find "step-2" in payload.`
+     * That string is the only first-hand account of why a message would not render.
+     */
+    private fun parseErrorDetail(parameters: Map<String, Any>): String? {
+        val errorMessage = parameters["errorMessage"] as? String
+        val target = parameters["target"] as? String
+
+        return when {
+            errorMessage != null && target != null -> "$errorMessage (target: $target)"
+            errorMessage != null -> errorMessage
+            target != null -> "Engine reported an error for target: $target"
+            else -> null
         }
     }
 

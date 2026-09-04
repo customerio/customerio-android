@@ -11,6 +11,8 @@ import io.customer.messaginginapp.gist.data.model.engine.EngineWebConfiguration
 import io.customer.messaginginapp.gist.presentation.engine.EngineWebViewListener
 import io.customer.messaginginapp.state.InAppMessagingAction
 import io.customer.messaginginapp.type.InAppMessage
+import io.customer.messaginginapp.type.InAppMessageError
+import io.customer.messaginginapp.type.InAppMessageErrorReason
 import io.customer.messaginginapp.type.InlineMessageActionListener
 import io.customer.messaginginapp.ui.bridge.EngineWebViewDelegate
 import io.customer.messaginginapp.ui.bridge.InAppHostViewDelegate
@@ -239,7 +241,14 @@ internal abstract class InAppMessageViewController<ViewCallback : InAppMessageVi
     }
 
     override fun routeError(route: String) {
-        logViewEvent("Route error: $route")
+        // The renderer has not emitted `routeError` since the 3.0 bundle, so this path is
+        // effectively unreachable today. Classified anyway so it behaves like the live sites if a
+        // future renderer brings it back.
+        val error = InAppMessageError(
+            reason = InAppMessageErrorReason.RENDER_FAILED,
+            detail = "Failed to load route: $route"
+        )
+        logViewEvent("In-app message failed: ${error.describeForLogs()}")
         currentMessage?.let { message ->
             inAppMessagingManager.dispatch(
                 InAppMessagingAction.EngineAction.MessageLoadingFailed(message)

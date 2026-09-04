@@ -516,9 +516,7 @@ internal class GeofenceRepositoryImpl(
                     // set, and getRoutableRegisteredIds stops falling back to the registered set once
                     // that key exists. Without this write the first callback after an identify
                     // classifies every live ID as unknown and removes it from the OS.
-                    if (!store.saveRoutableRegisteredIdsIfCurrent(idsToSave, userStateGeneration)) {
-                        logger.logSyncSkipped("user changed before routing could be armed")
-                    }
+                    val routingArmed = store.saveRoutableRegisteredIdsIfCurrent(idsToSave, userStateGeneration)
                     // An exact point check, with no accuracy margin in either direction. Widening
                     // the inside test would make a fence smaller than the fix unjudgable, so the
                     // initial-ENTER backstop would never fire; narrowing the outside test would keep
@@ -557,7 +555,16 @@ internal class GeofenceRepositoryImpl(
                     } else {
                         store.clearLastMovementTriggerLocation()
                     }
-                    onRegistered()
+                    if (routingArmed) {
+                        onRegistered()
+                    } else {
+                        // An identify landed mid-pass, so these registrations belong to the departing
+                        // user and routing was left cleared for the new one. Stamping the sync fresh
+                        // anyway would make the new user's own refresh SKIP on our timestamp and
+                        // never arm routing, and its first callback would then remove every fence.
+                        // Leaving the stamp stale sends that refresh down the remote path instead.
+                        logger.logSyncSkipped("user changed before routing could be armed")
+                    }
                     logger.logSyncSucceeded(nearest.size, movementTriggerRegistered = monitoringEnabled)
                 }
             }

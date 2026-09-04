@@ -147,3 +147,13 @@ internal fun GeofenceRegion.equalsForRegistration(other: GeofenceRegion): Boolea
         longitude == other.longitude &&
         radius == other.radius &&
         transitionTypes == other.transitionTypes
+
+/** Stable, process-independent revision for invalidating detections produced by replaced geometry. */
+internal fun GeofenceRegion.transitionRevision(): Int {
+    var result = id.hashCode()
+    result = 31 * result + latitude.hashCode()
+    result = 31 * result + longitude.hashCode()
+    result = 31 * result + radius.hashCode()
+    result = 31 * result + (polygonVertices?.hashCode() ?: 0)
+    return result
+}

@@ -22,7 +22,7 @@ internal enum class PolygonPointRelation {
     BOUNDARY
 }
 
-/** Canonical polygon outer ring. V1 does not support holes or antimeridian crossings. */
+/** Canonical polygon outer ring. V1 does not support holes. */
 internal class PolygonGeometry private constructor(
     val vertices: List<PolygonCoordinate>
 ) {
@@ -33,10 +33,16 @@ internal class PolygonGeometry private constructor(
         for (current in vertices) {
             if (point.isOnSegment(previous, current)) return PolygonPointRelation.BOUNDARY
 
+            // Longitudes are cast relative to the query point and wrapped, the same trick
+            // localOffsetMeters already uses for distance. A ring crossing the antimeridian holds raw
+            // longitudes on both sides of +/-180, and comparing those directly inverts containment for
+            // every point across the seam rather than merely misplacing the boundary.
+            val currentLongitude = normalizeLongitude(current.longitude - point.longitude)
+            val previousLongitude = normalizeLongitude(previous.longitude - point.longitude)
             val intersects = (current.latitude > point.latitude) != (previous.latitude > point.latitude) &&
-                point.longitude < (previous.longitude - current.longitude) *
+                0.0 < (previousLongitude - currentLongitude) *
                 (point.latitude - current.latitude) /
-                (previous.latitude - current.latitude) + current.longitude
+                (previous.latitude - current.latitude) + currentLongitude
             if (intersects) inside = !inside
             previous = current
         }
@@ -91,19 +97,24 @@ internal class PolygonGeometry private constructor(
         first: PolygonCoordinate,
         second: PolygonCoordinate
     ): Boolean {
-        val cross = (latitude - first.latitude) * (second.longitude - first.longitude) -
-            (longitude - first.longitude) * (second.latitude - first.latitude)
+        // Same relative-and-wrapped frame as the ray cast: the query point sits at longitude 0, so a
+        // segment spanning the antimeridian measures 2 degrees wide here rather than 358, and its
+        // bounding box still contains the points that lie on it.
+        val firstLongitude = normalizeLongitude(first.longitude - longitude)
+        val secondLongitude = normalizeLongitude(second.longitude - longitude)
+        val cross = (latitude - first.latitude) * (secondLongitude - firstLongitude) +
+            firstLongitude * (second.latitude - first.latitude)
         val scale = max(
             1.0,
             max(
-                abs(second.longitude - first.longitude),
+                abs(secondLongitude - firstLongitude),
                 abs(second.latitude - first.latitude)
             )
         )
         if (abs(cross) > BOUNDARY_EPSILON * scale) return false
 
-        return longitude >= minOf(first.longitude, second.longitude) - BOUNDARY_EPSILON &&
-            longitude <= maxOf(first.longitude, second.longitude) + BOUNDARY_EPSILON &&
+        return 0.0 >= minOf(firstLongitude, secondLongitude) - BOUNDARY_EPSILON &&
+            0.0 <= maxOf(firstLongitude, secondLongitude) + BOUNDARY_EPSILON &&
             latitude >= minOf(first.latitude, second.latitude) - BOUNDARY_EPSILON &&
             latitude <= maxOf(first.latitude, second.latitude) + BOUNDARY_EPSILON
     }
@@ -131,9 +142,6 @@ internal class PolygonGeometry private constructor(
             canonical.forEachIndexed { index, current ->
                 val next = canonical[(index + 1) % canonical.size]
                 require(current != next) { "polygon cannot contain a zero-length edge" }
-                require(abs(current.longitude - next.longitude) <= 180.0) {
-                    "antimeridian-crossing polygons are unsupported"
-                }
             }
             require(canonical.hasNonCollinearVertices()) { "polygon cannot have zero area" }
             require(!canonical.hasSelfIntersection()) { "polygon cannot intersect itself" }

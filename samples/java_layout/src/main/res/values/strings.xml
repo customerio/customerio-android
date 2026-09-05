@@ -145,6 +145,9 @@
 
     <!-- Background-location section -->
     <string name="bg_perm_section_title">BACKGROUND LOCATION</string>
+    <string name="diagnostics_section_title">DIAGNOSTIC LOGS</string>
+    <string name="diagnostics_share_button">Share diagnostic logs</string>
+    <string name="diagnostics_description">Log level forced to DEBUG while recording, overriding Settings. Rotates daily, keeps 14 files.</string>
     <string name="bg_perm_rationale_title">Allow background location?</string>
     <string name="background_location_description">Geofence background delivery requires the \"Allow all the time\" location authorization. Grant foreground access first; on Android 11+ the system routes the upgrade through Settings instead of showing a dialog.</string>
     <string name="background_location_rationale_message">Geofence transitions only fire while the app is backgrounded if you grant \"Allow all the time\". Tap Continue to open the location permission screen, then select \"Allow all the time\".</string>

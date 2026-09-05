@@ -27,6 +27,7 @@ import io.customer.messagingpush.livenotification.LiveNotificationType;
 import io.customer.sdk.CustomerIO;
 import io.customer.sdk.CustomerIOConfig;
 import io.customer.sdk.CustomerIOConfigBuilder;
+import io.customer.sdk.core.util.CioLogLevel;
 
 /**
  * Repository class to hold all Customer.io related operations at single place
@@ -133,7 +134,12 @@ public class CustomerIORepository {
         builder.autoTrackDeviceAttributes(sdkConfig.isDeviceAttributesTrackingEnabled());
         builder.trackApplicationLifecycleEvents(sdkConfig.isApplicationLifecycleTrackingEnabled());
         builder.region(sdkConfig.getRegion());
-        builder.logLevel(sdkConfig.getLogLevel());
+        // Forced to DEBUG rather than taking the stored setting. The SDK filters by level
+        // *before* the dispatcher runs, and CustomerIO.initialize re-applies the configured level
+        // over whatever the sink set at install time — so a stored level of ERROR would produce an
+        // empty file after a three-hour drive. Diagnostics win over the setting; the Location Test
+        // screen says so on screen.
+        builder.logLevel(CioLogLevel.DEBUG);
         builder.screenViewUse(sdkConfig.getScreenViewUse());
     }
 

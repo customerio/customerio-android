@@ -91,6 +91,8 @@ internal class DiagnosticLogWriter(private val directory: File) {
         // The header repeats on every open, not just on a new file. A same-day relaunch reuses
         // the file but resets elapsedRealtime and may carry a different bootCount or build, so
         // without this every record after the first process is correlated to the wrong boot.
+        // A new file must be self-contained, so the next record re-states the device state.
+        DiagnosticLog.resetDeviceStateCadence()
         if (header.isNotEmpty()) write(header)
     }
 

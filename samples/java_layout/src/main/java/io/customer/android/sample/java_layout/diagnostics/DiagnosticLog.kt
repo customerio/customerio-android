@@ -16,7 +16,12 @@ object DiagnosticLog {
      * Bumped only when a field is removed, renamed, or changes meaning. Adding an optional field
      * is not a bump — parsers ignore unknown fields.
      */
-    const val SCHEMA_VERSION = 1
+    /**
+     * 2: `dev` is no longer on every record — it appears when the snapshot changes, on the first
+     * record of a file, and on a heartbeat. A record without `dev` means "unchanged since the last
+     * one that carried it". The header also gained `filter`.
+     */
+    const val SCHEMA_VERSION = 2
 
     /**
      * Same delimiter the SDK's geofence tail uses. The app's own records follow the same contract
@@ -33,6 +38,21 @@ object DiagnosticLog {
 
     private var seq = 0L
     private var started = false
+
+    /**
+     * The device-state snapshot was on every record and cost 19-31% of every file. It changes
+     * rarely — 947 surviving records in the sample corpus carried only 37 distinct snapshots — so it
+     * now rides only when it changes, plus a heartbeat so a reader starting mid-file resyncs.
+     *
+     * Absence means "unchanged since the last record that carried it".
+     */
+    private var lastDevJson: String? = null
+    private var lastDevAtMillis = 0L
+    private var recordsSinceDev = 0
+
+    /** Wall clock, not `elapsedRealtime`: the latter resets per process and a file spans several. */
+    private val devHeartbeatMillis = 120_000L
+    private val devHeartbeatRecords = 200
 
     /** Guards against a record emitted from inside the sink itself recursing forever. */
     private var isEmitting = false
@@ -114,6 +134,9 @@ object DiagnosticLog {
     }
 
     private fun emit(source: Source, tag: String?, level: CioLogLevel, message: String) {
+        // Evaluated before the lock and before any string is built: a dropped record should cost
+        // a predicate, not an envelope and a device-state snapshot.
+        if (!DiagnosticFilter.shouldRecord(source, tag, level, message)) return
         synchronized(lock) {
             val target = writer ?: return
             if (!started || isEmitting) return
@@ -129,7 +152,7 @@ object DiagnosticLog {
                         tag = tag,
                         level = level,
                         message = message,
-                        deviceState = deviceState?.snapshotJson() ?: "{}"
+                        deviceState = devStateForRecord()
                     )
                 )
             } finally {
@@ -143,6 +166,28 @@ object DiagnosticLog {
      * survives `adb pull` without `run-as`, and it is visible over MTP — three independent ways to
      * get a drive off the phone instead of one.
      */
+    /** Returns the snapshot to embed, or `null` to omit `dev` from this record. */
+    private fun devStateForRecord(): String? {
+        val current = deviceState?.snapshotJson() ?: "{}"
+        val now = System.currentTimeMillis()
+        val forced = lastDevJson == null ||
+            recordsSinceDev >= devHeartbeatRecords ||
+            now - lastDevAtMillis >= devHeartbeatMillis
+        if (!forced && current == lastDevJson) {
+            recordsSinceDev += 1
+            return null
+        }
+        lastDevJson = current
+        lastDevAtMillis = now
+        recordsSinceDev = 0
+        return current
+    }
+
+    /** Called by the writer when it opens a file, so the first record there always carries `dev`. */
+    internal fun resetDeviceStateCadence() {
+        synchronized(lock) { lastDevJson = null }
+    }
+
     @JvmStatic
     fun directory(application: Application): File =
         File(application.getExternalFilesDir(null) ?: application.filesDir, DIRECTORY_NAME)

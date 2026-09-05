@@ -8,6 +8,11 @@ on:
         type: boolean
         required: false
         default: false
+      sdk_version:
+        description: "Published SDK version the sample apps should be built against. Required when use_latest_sdk_version is true, unless the run was started by hand."
+        type: string
+        required: false
+        default: ""
 
 env:
   RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
@@ -98,13 +103,34 @@ jobs:
       - name: Capture Git Context
         shell: bash
         id: git-context
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          SDK_VERSION_INPUT: ${{ inputs.sdk_version }}
+          USE_LATEST_SDK_VERSION: ${{ inputs.use_latest_sdk_version }}
         run: |
           echo "BRANCH_NAME=${{ github.head_ref || github.ref_name }}" >> $GITHUB_ENV
           COMMIT_HASH="${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}"
           echo "COMMIT_HASH=${COMMIT_HASH:0:7}" >> $GITHUB_ENV
-          # Get the latest tag, making sure we get all tags with --tags flag (in case tag was just created)
+          # Latest tag reachable from HEAD. Only used to count how far this build is ahead of the
+          # last release, which is a question about ancestry, so `git describe` answers it correctly.
           git fetch --tags
-          echo "LATEST_TAG=$(git describe --tags --abbrev=0)" >> $GITHUB_ENV
+          LATEST_TAG="$(git describe --tags --abbrev=0)"
+          echo "LATEST_TAG=$LATEST_TAG" >> $GITHUB_ENV
+          # The published SDK version cannot be derived from this checkout. semantic-release puts the
+          # release tag on a new commit it creates *after* the commit that triggered the release, and
+          # `git describe` only walks ancestors, so it resolves to the previous release every time.
+          # The release workflow passes the version it just published in instead.
+          if [[ -n "$SDK_VERSION_INPUT" ]]; then
+            resolved_sdk_version="$SDK_VERSION_INPUT"
+          elif [[ "$USE_LATEST_SDK_VERSION" != "true" || "$EVENT_NAME" == "workflow_dispatch" ]]; then
+            # Not building against a release, or started by hand once the tag already sits on this branch.
+            resolved_sdk_version="$LATEST_TAG"
+          else
+            echo "::error::A release build needs sdk_version passed in from the job that published the release."
+            exit 1
+          fi
+          echo "Sample apps will be built against SDK version: $resolved_sdk_version"
+          echo "RESOLVED_SDK_VERSION=$resolved_sdk_version" >> $GITHUB_ENV
 
       - name: Setup local.properties file for sample app
         run: |
@@ -119,7 +145,7 @@ jobs:
           COMMITS_AHEAD=$(git rev-list $LAST_TAG..HEAD --count 2>/dev/null || echo "untracked")
           echo "commitsAheadCount=$COMMITS_AHEAD" >> "$LOCAL_PROPS_FILE"
           if [[ "${{ inputs.use_latest_sdk_version }}" == "true" ]]; then
-            echo "sdkVersion=${{ env.LATEST_TAG }}" >> "$LOCAL_PROPS_FILE"
+            echo "sdkVersion=${{ env.RESOLVED_SDK_VERSION }}" >> "$LOCAL_PROPS_FILE"
           fi
 
       - name: Dump GitHub Action metadata because Fastlane uses it. Viewing it here helps debug JSON parsing code in Firebase.
@@ -128,7 +154,7 @@ jobs:
       - name: Prepare Fastlane Build Arguments
         run: |
           if [ "${{ inputs.use_latest_sdk_version }}" = "true" ]; then
-            sdk_version="\"sdk_version\":\"${{ env.LATEST_TAG }}\""
+            sdk_version="\"sdk_version\":\"${{ env.RESOLVED_SDK_VERSION }}\""
           else
             sdk_version=""
           fi
@@ -162,7 +188,7 @@ jobs:
         id: determine-sdk-version
         run: |
           sdk_version="${{ env.SDK_VERSION }}"
-          sdk_version="${sdk_version:-$LATEST_TAG}"
+          sdk_version="${sdk_version:-$RESOLVED_SDK_VERSION}"
           echo "SDK Version used in app build: $sdk_version"
           echo "APP_SDK_BUILD_VERSION=$sdk_version" >> $GITHUB_ENV
 

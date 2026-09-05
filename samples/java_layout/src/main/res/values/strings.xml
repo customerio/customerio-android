@@ -146,6 +146,8 @@
     <!-- Background-location section -->
     <string name="bg_perm_section_title">BACKGROUND LOCATION</string>
     <string name="diagnostics_section_title">DIAGNOSTIC LOGS</string>
+    <string name="diagnostics_filter_switch">Filter noisy modules</string>
+    <string name="diagnostics_filter_hint">On: keeps location and geofence records, drops in-app, inbox and SSE chatter. Turn off to capture everything.</string>
     <string name="diagnostics_share_button">Share diagnostic logs</string>
     <string name="diagnostics_description">Log level forced to DEBUG while recording, overriding Settings. Rotates daily, keeps 14 files.</string>
     <string name="bg_perm_rationale_title">Allow background location?</string>

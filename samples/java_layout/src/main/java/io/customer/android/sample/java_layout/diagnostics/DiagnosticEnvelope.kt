@@ -27,7 +27,7 @@ internal object DiagnosticEnvelope {
         tag: String?,
         level: CioLogLevel,
         message: String,
-        deviceState: String
+        deviceState: String?
     ): String = buildString(message.length + 256) {
         append('{')
         append("\"v\":").append(DiagnosticLog.SCHEMA_VERSION)
@@ -40,7 +40,8 @@ internal object DiagnosticEnvelope {
         if (tag != null) append(",\"tag\":").append(json(tag))
         append(",\"lvl\":").append(json(level.wire()))
         append(",\"msg\":").append(json(message))
-        append(",\"dev\":").append(deviceState)
+        // Omitted when unchanged since the last record that carried it (schema 2).
+        if (deviceState != null) append(",\"dev\":").append(deviceState)
         append('}')
     }
 
@@ -57,6 +58,9 @@ internal object DiagnosticEnvelope {
             append('{')
             append("\"v\":").append(DiagnosticLog.SCHEMA_VERSION)
             append(",\"ev\":\"file.open\"")
+            // Without this a filtered file is silently lossy: nothing in it separates "in-app was
+            // quiet" from "in-app was removed", and a reader would draw the wrong conclusion.
+            append(",\"filter\":").append(DiagnosticFilter.headerJson())
             append(",\"ts\":").append(json(iso8601(System.currentTimeMillis())))
             append(",\"boot\":").append(json(bootIdentifier()))
             bootCount(application)?.let { append(",\"bootCount\":").append(it) }

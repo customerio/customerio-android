@@ -16,25 +16,31 @@ internal class GeofenceCooldownFilter(
     private val clock: Clock
 ) {
     /**
-     * Atomically checks the cooldown and records the emit if allowed. Returns true if the
-     * caller should proceed to emit, false if the transition is within the cooldown window.
+     * Atomically checks the cooldown and records the emit if allowed.
+     *
+     * `null` when the caller should proceed to emit. Otherwise the seconds still left on the
+     * window — a value this check already computes, returned rather than recomputed, so reporting
+     * it costs no second read of the store on a background wake.
      */
     @Synchronized
     fun tryAcquire(
         userId: String,
         geofenceId: String,
         transition: Event.GeofenceTransition
-    ): Boolean {
+    ): Double? {
         val cooldownMs = regionStore.getCachedConfig()?.duplicateEventsExpiry
             ?: GeofenceConstants.DEDUPE_COOLDOWN_MS
         val last = store.getLastEmitTimestamp(userId, geofenceId, transition)
         val now = clock.currentTimeMillis()
-        if (last != null && (now - last) < cooldownMs) return false
+        if (last != null) {
+            val elapsed = now - last
+            if (elapsed < cooldownMs) return (cooldownMs - elapsed) / 1000.0
+        }
         store.recordEmit(userId, geofenceId, transition, now)
         // Sweep entries past the max possible cooldown — they can't suppress under any config —
         // to bound the store as fences churn, without the double-fire risk of pruning by cached set.
         store.pruneOlderThan(now - GeofenceConstants.MAX_DUPLICATE_EVENTS_EXPIRY_MS)
-        return true
+        return null
     }
 
     /**

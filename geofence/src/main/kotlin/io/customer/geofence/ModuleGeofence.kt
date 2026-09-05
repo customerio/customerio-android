@@ -64,6 +64,11 @@ class ModuleGeofence @JvmOverloads constructor(
             return
         }
 
+        // A cold background wake and a user opening the app run different entry points and behave
+        // very differently, but produced identical logs. This marks the app-start path; the boot
+        // receiver marks its own, and a geofence wake announces itself via os.callback.received.
+        logger.logModuleInitialized(GeofenceLaunchReason.APP_START)
+
         val eventBus = SDKComponent.eventBus
         val sdkAndroid = SDKComponent.android()
 

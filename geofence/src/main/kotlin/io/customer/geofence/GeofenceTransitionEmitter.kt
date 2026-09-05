@@ -49,8 +49,9 @@ internal class GeofenceTransitionEmitter(
             logger.logEnterDroppedAlreadyReported(geofenceId)
             return false
         }
-        if (!cooldownFilter.tryAcquire(userId, geofenceId, transition)) {
-            logger.logTransitionSuppressed(geofenceId, transition.name)
+        val cooldownRemaining = cooldownFilter.tryAcquire(userId, geofenceId, transition)
+        if (cooldownRemaining != null) {
+            logger.logTransitionSuppressed(geofenceId, transition.name, cooldownRemaining)
             return false
         }
         logger.logTransitionEmitting(geofenceId, transition.name)

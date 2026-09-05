@@ -10,8 +10,8 @@ import io.customer.sdk.core.util.Clock
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
-import org.amshove.kluent.shouldBeFalse
-import org.amshove.kluent.shouldBeTrue
+import org.amshove.kluent.shouldBeNull
+import org.amshove.kluent.shouldNotBeNull
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -45,7 +45,7 @@ class GeofenceCooldownFilterTest : RobolectricTest() {
         every { mockStore.getLastEmitTimestamp(any(), any(), any()) } returns null
         every { mockClock.currentTimeMillis() } returns 100_000L
 
-        filter.tryAcquire("user-1", "biz-1", Event.GeofenceTransition.ENTER).shouldBeTrue()
+        filter.tryAcquire("user-1", "biz-1", Event.GeofenceTransition.ENTER).shouldBeNull()
         verify(exactly = 1) { mockStore.recordEmit("user-1", "biz-1", Event.GeofenceTransition.ENTER, 100_000L) }
     }
 
@@ -58,7 +58,7 @@ class GeofenceCooldownFilterTest : RobolectricTest() {
         val now = 100_000L + GeofenceConstants.MAX_DUPLICATE_EVENTS_EXPIRY_MS
         every { mockClock.currentTimeMillis() } returns now
 
-        filter.tryAcquire("user-1", "biz-1", Event.GeofenceTransition.ENTER).shouldBeTrue()
+        filter.tryAcquire("user-1", "biz-1", Event.GeofenceTransition.ENTER).shouldBeNull()
 
         verify(exactly = 1) { mockStore.pruneOlderThan(now - GeofenceConstants.MAX_DUPLICATE_EVENTS_EXPIRY_MS) }
     }
@@ -69,7 +69,7 @@ class GeofenceCooldownFilterTest : RobolectricTest() {
         every { mockStore.getLastEmitTimestamp("user-1", "biz-1", Event.GeofenceTransition.ENTER) } returns lastEmit
         every { mockClock.currentTimeMillis() } returns lastEmit + 1
 
-        filter.tryAcquire("user-1", "biz-1", Event.GeofenceTransition.ENTER).shouldBeFalse()
+        filter.tryAcquire("user-1", "biz-1", Event.GeofenceTransition.ENTER).shouldNotBeNull()
 
         verify(exactly = 0) { mockStore.pruneOlderThan(any()) }
     }
@@ -81,7 +81,7 @@ class GeofenceCooldownFilterTest : RobolectricTest() {
         every { mockStore.getLastEmitTimestamp("user-1", "biz-1", Event.GeofenceTransition.ENTER) } returns lastEmit
         every { mockClock.currentTimeMillis() } returns now
 
-        filter.tryAcquire("user-1", "biz-1", Event.GeofenceTransition.ENTER).shouldBeFalse()
+        filter.tryAcquire("user-1", "biz-1", Event.GeofenceTransition.ENTER).shouldNotBeNull()
         verify(exactly = 0) { mockStore.recordEmit(any(), any(), any(), any()) }
     }
 
@@ -92,7 +92,7 @@ class GeofenceCooldownFilterTest : RobolectricTest() {
         every { mockStore.getLastEmitTimestamp("user-1", "biz-1", Event.GeofenceTransition.ENTER) } returns lastEmit
         every { mockClock.currentTimeMillis() } returns now
 
-        filter.tryAcquire("user-1", "biz-1", Event.GeofenceTransition.ENTER).shouldBeTrue()
+        filter.tryAcquire("user-1", "biz-1", Event.GeofenceTransition.ENTER).shouldBeNull()
         verify(exactly = 1) { mockStore.recordEmit("user-1", "biz-1", Event.GeofenceTransition.ENTER, now) }
     }
 
@@ -103,7 +103,7 @@ class GeofenceCooldownFilterTest : RobolectricTest() {
         every { mockStore.getLastEmitTimestamp("user-1", "biz-1", Event.GeofenceTransition.ENTER) } returns lastEmit
         every { mockClock.currentTimeMillis() } returns now
 
-        filter.tryAcquire("user-1", "biz-1", Event.GeofenceTransition.ENTER).shouldBeTrue()
+        filter.tryAcquire("user-1", "biz-1", Event.GeofenceTransition.ENTER).shouldBeNull()
         verify(exactly = 1) { mockStore.recordEmit("user-1", "biz-1", Event.GeofenceTransition.ENTER, now) }
     }
 
@@ -114,8 +114,8 @@ class GeofenceCooldownFilterTest : RobolectricTest() {
         every { mockStore.getLastEmitTimestamp("user-1", "biz-1", Event.GeofenceTransition.EXIT) } returns null
         every { mockClock.currentTimeMillis() } returns 200L
 
-        filter.tryAcquire("user-1", "biz-1", Event.GeofenceTransition.ENTER).shouldBeFalse()
-        filter.tryAcquire("user-1", "biz-1", Event.GeofenceTransition.EXIT).shouldBeTrue()
+        filter.tryAcquire("user-1", "biz-1", Event.GeofenceTransition.ENTER).shouldNotBeNull()
+        filter.tryAcquire("user-1", "biz-1", Event.GeofenceTransition.EXIT).shouldBeNull()
     }
 
     @Test
@@ -126,8 +126,8 @@ class GeofenceCooldownFilterTest : RobolectricTest() {
         every { mockStore.getLastEmitTimestamp("user-2", "biz-1", Event.GeofenceTransition.ENTER) } returns null
         every { mockClock.currentTimeMillis() } returns 200L
 
-        filter.tryAcquire("user-1", "biz-1", Event.GeofenceTransition.ENTER).shouldBeFalse()
-        filter.tryAcquire("user-2", "biz-1", Event.GeofenceTransition.ENTER).shouldBeTrue()
+        filter.tryAcquire("user-1", "biz-1", Event.GeofenceTransition.ENTER).shouldNotBeNull()
+        filter.tryAcquire("user-2", "biz-1", Event.GeofenceTransition.ENTER).shouldBeNull()
     }
 
     @Test
@@ -143,11 +143,11 @@ class GeofenceCooldownFilterTest : RobolectricTest() {
 
         // Inside the server window but well outside the constant fallback → must block.
         every { mockClock.currentTimeMillis() } returns lastEmit + serverCooldownMs - 1
-        filter.tryAcquire("user-1", "biz-1", Event.GeofenceTransition.ENTER).shouldBeFalse()
+        filter.tryAcquire("user-1", "biz-1", Event.GeofenceTransition.ENTER).shouldNotBeNull()
 
         // Past the server window but still inside the constant fallback → must allow.
         every { mockClock.currentTimeMillis() } returns lastEmit + serverCooldownMs + 1
-        filter.tryAcquire("user-1", "biz-1", Event.GeofenceTransition.ENTER).shouldBeTrue()
+        filter.tryAcquire("user-1", "biz-1", Event.GeofenceTransition.ENTER).shouldBeNull()
     }
 
     @Test

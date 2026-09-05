@@ -13,6 +13,7 @@ import io.customer.android.sample.java_layout.di.ApplicationGraph;
 import io.customer.android.sample.java_layout.support.Optional;
 import io.customer.geofence.ModuleGeofence;
 import io.customer.messaginginapp.MessagingInAppModuleConfig;
+import io.customer.messaginginapp.type.NotificationInboxAccessibilityLabels;
 import io.customer.messaginginapp.ModuleMessagingInApp;
 import io.customer.location.LocationModuleConfig;
 import io.customer.location.ModuleLocation;
@@ -102,6 +103,16 @@ public class CustomerIORepository {
                     new MessagingInAppModuleConfig.Builder(sdkConfig.getSiteId(), sdkConfig.getRegion())
                             .setEventListener(new InAppMessageEventListener(appGraph.getLogger()))
                             .setInboxEventListener(new SampleInboxEventListener(appGraph.getLogger()))
+                            // Visual Notification Inbox TalkBack labels. The SDK ships none of its own (so
+                            // no English leaks into a localized app); the host supplies them in its
+                            // language. `bellWithUnreadCount` is a function so the app applies its own
+                            // plural rules.
+                            .setNotificationInboxAccessibilityLabels(new NotificationInboxAccessibilityLabels(
+                                    "Notifications",
+                                    count -> count == 1 ? "Notifications, 1 unread" : "Notifications, " + count + " unread",
+                                    "Loading inbox",
+                                    "No notifications"
+                            ))
                             .build()
             ));
         }

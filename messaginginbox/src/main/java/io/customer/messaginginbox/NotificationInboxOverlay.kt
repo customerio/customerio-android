@@ -8,7 +8,6 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -44,15 +43,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.progressBarRangeInfo
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
@@ -146,10 +143,12 @@ fun NotificationInboxView(
     // collects its own state for the message list.
     val state by remember(controller) { controller.uiStateFlow() }
         .collectAsStateWithLifecycle(initialValue = VisualInboxUiState(loading = true))
+    val branding = (state.visibility as? InboxVisibility.Visible)?.branding
     InboxListContent(
         controller = controller,
         state = state,
-        colors = rememberInboxColors((state.visibility as? InboxVisibility.Visible)?.branding),
+        colors = rememberInboxColors(branding),
+        bellSvg = rememberInboxChrome(branding).bellSvg,
         fonts = fonts,
         onNavigatedAway = onDismissRequest,
         modifier = modifier.fillMaxSize()
@@ -279,6 +278,7 @@ internal fun NotificationInboxOverlay(
                 controller = controller,
                 state = state,
                 colors = colors,
+                bellSvg = chrome.bellSvg,
                 fonts = fonts,
                 // Close the sheet when a tapped message navigates via a deep link, so the deep-linked
                 // screen isn't left behind the sheet (openUrl external does not close).
@@ -307,6 +307,12 @@ private fun InboxBellContent(
     // MBL-2126/2127: branding-driven unread-badge text size (`unreadIndicator.text.size`).
     badgeTextSize: TextUnit = BADGE_TEXT_SIZE
 ) {
+    // The SDK ships no strings of its own: the bell's label comes from the host's
+    // NotificationInboxAccessibilityLabels (count-aware while the badge shows), or none when
+    // unconfigured, leaving an unnamed-but-reachable button.
+    val showsUnreadCount = unopenedCount > 0 && showAlert
+    val labels = inboxAccessibilityLabels()
+    val bellLabel = resolveBellAccessibilityLabel(labels, unopenedCount, showsUnreadCount)
     Box(modifier = modifier) {
         Box(
             contentAlignment = Alignment.Center,
@@ -315,40 +321,31 @@ private fun InboxBellContent(
                 .shadow(6.dp, CircleShape)
                 .clip(CircleShape)
                 .background(colors.bellColor)
-                .semantics { contentDescription = "Notifications inbox" }
+                .inboxContentDescription(bellLabel)
                 .clickable(role = Role.Button, onClick = onClick)
         ) {
             // Prefer the workspace's configured bell SVG; fall back to the bundled glyph when it is
-            // absent or unparseable. The art is built (and validated) once per svg here — malformed
-            // path data yields null (not a crash), and the parse is cached rather than run per frame.
-            val bellArt = remember(bellSvg) { bellSvg?.let(InboxBellSvg::buildArt) }
-            if (bellArt != null) {
-                InboxBellIcon(
-                    art = bellArt,
-                    tint = colors.bellIconColor,
-                    modifier = Modifier.size(BELL_GLYPH_SIZE)
-                )
-            } else {
-                Image(
-                    painter = painterResource(id = R.drawable.cio_inbox_notifications),
-                    contentDescription = null,
-                    colorFilter = ColorFilter.tint(colors.bellIconColor),
-                    // MBL-2123: pin the default bell to the same size as the branded glyph. Without an
-                    // explicit size it rendered at the drawable's intrinsic size (parity mismatch).
-                    modifier = Modifier.size(BELL_GLYPH_SIZE)
-                )
-            }
+            // absent or unparseable (InboxBellGlyph builds + caches the art once per svg). MBL-2123:
+            // pinned to BELL_GLYPH_SIZE so the default bell matches the branded glyph's size.
+            InboxBellGlyph(
+                bellSvg = bellSvg,
+                tint = colors.bellIconColor,
+                modifier = Modifier.size(BELL_GLYPH_SIZE)
+            )
         }
 
         // Badge shows only when there are unread messages AND branding has not disabled the alert
         // (default show when unset), matching web renderBadge (hidden when count===0 || !showAlert).
-        if (unopenedCount > 0 && showAlert) {
+        // The badge is decorative for TalkBack: `clickable` merges descendants into the bell's own
+        // node, so leaving the digits visible would append a bare number to an otherwise unnamed bell.
+        // The count reaches TalkBack only through the host's `bellWithUnreadCount` label.
+        if (showsUnreadCount) {
             Box(
                 contentAlignment = Alignment.Center,
                 modifier = Modifier
                     .align(Alignment.TopEnd)
                     .offset(x = 4.dp, y = (-4).dp)
-                    .semantics { contentDescription = "$unopenedCount unread notifications" }
+                    .clearAndSetSemantics { }
                     // Geometry mirrors web (#gist-inbox-badge): a 20dp-tall stadium (radius =
                     // height/2) with min-width 20 + 6dp horizontal padding, so a single digit is a
                     // circle and multi-digit counts grow horizontally instead of forcing a full
@@ -388,6 +385,8 @@ private fun InboxListContent(
     controller: VisualInboxController,
     state: VisualInboxUiState,
     colors: InboxColors,
+    // Branding bell SVG (`floatingIcon.svg`), drawn dimmed as the empty state; null = bundled bell.
+    bellSvg: String?,
     modifier: Modifier = Modifier,
     // Custom-font registry forwarded to the Jist renderer (see NotificationInboxOverlay); empty = none.
     fonts: Map<String, FontFamily> = emptyMap(),
@@ -411,16 +410,24 @@ private fun InboxListContent(
         InboxJistDecoder.toJsonObject(visible?.branding?.theme)
     }
 
+    val labels = inboxAccessibilityLabels()
     Column(modifier = modifier) {
         when {
-            state.loading -> LoadingState(color = colors.bellColor)
+            state.loading -> LoadingState(
+                color = colors.bellColor,
+                accessibilityLabel = labels.loadingIndicator
+            )
             // Inbox is not renderable (disabled workspace, missing templates/branding). Render
             // nothing — matching the overlay, which hides its chrome entirely in this state, and the
             // iOS NotificationInboxView — rather than a stale list or a misleading "empty" placeholder.
             visible == null -> Unit
             // Visible but genuinely caught up (no messages). The list is only rendered in `else`
             // (Visible + has messages), so it is never fed null templates/theme.
-            state.messages.isEmpty() -> EmptyState(textColor = colors.textColorPrimary)
+            state.messages.isEmpty() -> EmptyState(
+                bellSvg = bellSvg,
+                tint = colors.textColorPrimary,
+                accessibilityLabel = labels.emptyState
+            )
             else -> InboxMessageList(
                 messages = state.messages,
                 templates = templates,
@@ -631,9 +638,15 @@ private fun startDeepLinkActivity(context: android.content.Context, intent: andr
     }
 }
 
+/**
+ * Loading state: the spinner, announced as indeterminate progress. Its content description is the
+ * host-configured `loadingIndicator` label, or none when unconfigured — never SDK English. The
+ * progress role remains either way; TalkBack describes it in the device's own language.
+ */
 @Composable
 private fun LoadingState(
     color: Color,
+    accessibilityLabel: String?,
     modifier: Modifier = Modifier
 ) {
     Box(
@@ -644,17 +657,24 @@ private fun LoadingState(
     ) {
         CustomCircularProgressIndicator(
             color = color,
-            modifier = Modifier.semantics {
-                contentDescription = "Loading inbox"
-                progressBarRangeInfo = ProgressBarRangeInfo.Indeterminate
-            }
+            modifier = Modifier
+                .semantics { progressBarRangeInfo = ProgressBarRangeInfo.Indeterminate }
+                .inboxContentDescription(accessibilityLabel)
         )
     }
 }
 
+/**
+ * Empty state (visible + no messages): the workspace's own bell, dimmed — no text. The SDK cannot know
+ * the host's language, and a faint glyph reads as "nothing here" without words.
+ * [EMPTY_STATE_GLYPH_ALPHA] is deliberate: fainter reads as a rendering failure, stronger reads as a
+ * tappable control. Decorative for TalkBack unless the host supplied an `emptyState` label.
+ */
 @Composable
 private fun EmptyState(
-    textColor: Color,
+    bellSvg: String?,
+    tint: Color,
+    accessibilityLabel: String?,
     modifier: Modifier = Modifier
 ) {
     Box(
@@ -663,10 +683,12 @@ private fun EmptyState(
             .padding(32.dp),
         contentAlignment = Alignment.Center
     ) {
-        BasicText(
-            text = "No notifications yet",
-            style = TextStyle(color = textColor, fontSize = 16.sp, fontWeight = FontWeight.Normal),
-            modifier = Modifier.semantics { contentDescription = "Inbox empty" }
+        InboxBellGlyph(
+            bellSvg = bellSvg,
+            tint = tint.copy(alpha = EMPTY_STATE_GLYPH_ALPHA),
+            modifier = Modifier
+                .size(EMPTY_STATE_GLYPH_SIZE)
+                .inboxContentDescription(accessibilityLabel)
         )
     }
 }
@@ -952,6 +974,10 @@ private val ITEM_VERTICAL_PADDING = 12.dp
 
 /** Bell glyph size, shared by the branded SVG and the bundled default so they render identically. */
 private val BELL_GLYPH_SIZE = 26.dp
+
+// Empty-state bell size and dimming. Kept in sync with the iOS inbox (50pt, 0.22 opacity).
+private val EMPTY_STATE_GLYPH_SIZE = 50.dp
+private const val EMPTY_STATE_GLYPH_ALPHA = 0.22f
 
 /** MBL-2127: default unread-badge text size when branding does not configure `unreadIndicator.text.size`. */
 private val BADGE_TEXT_SIZE = 10.sp

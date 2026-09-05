@@ -6,7 +6,7 @@
 
 ![min Android SDK version is 21](https://img.shields.io/badge/min%20Android%20SDK-21-green)
 [![Maven Central](https://maven-badges.herokuapp.com/maven-central/io.customer.android/datapipelines/badge.svg)](https://maven-badges.herokuapp.com/maven-central/io.customer.android/datapipelines)
-[![Contributor Covenant](https://img.shields.io/badge/Contributor%20Covenant-2.0-4baaaa.svg)](code_of_conduct.md) 
+[![Contributor Covenant](https://img.shields.io/badge/Contributor%20Covenant-2.0-4baaaa.svg)](CODE_OF_CONDUCT.md) 
 [![codecov](https://codecov.io/gh/customerio/customerio-android/branch/develop/graph/badge.svg?token=PYV1XQTKGO)](https://codecov.io/gh/customerio/customerio-android)
 
 # Customer.io Android SDK
@@ -60,7 +60,7 @@ implementation 'io.customer.android:datapipelines:<version-here>'
 implementation 'io.customer.android:messaging-push-fcm:<version-here>'
 ```
 
-Replace `version-here` with the the latest version: ![Maven Central](https://maven-badges.herokuapp.com/maven-central/io.customer.android/datapipelines/badge.svg)
+Replace `version-here` with the latest version: ![Maven Central](https://maven-badges.herokuapp.com/maven-central/io.customer.android/datapipelines/badge.svg)
 
 
 ## Initialize the SDK
@@ -79,7 +79,7 @@ class App : Application() {
 }
 ```
 
-The `Builder` for CustomerIO exposes configuration options for features such `region`,`timeout`.
+The `Builder` for CustomerIO exposes configuration options for features such as `region`, `timeout`.
 
 ```kotlin
         val builder = CustomerIOBuilder(

@@ -557,7 +557,11 @@ internal class GeofenceLogger(private val logger: Logger) {
     }
 
     /** Outcome of a nearby-geofence fetch. An **input**: replay feeds the response back. */
-    fun logApiFetchResult(returnedCount: Int, elapsedMillis: Long?) {
+    fun logApiFetchResult(
+        returnedCount: Int,
+        elapsedMillis: Long?,
+        regions: List<GeofenceRegion> = emptyList()
+    ) {
         logger.debug(
             "Fetched $returnedCount nearby geofence(s) from the server" +
                 tail(
@@ -571,6 +575,43 @@ internal class GeofenceLogger(private val logger: Logger) {
                 ),
             tag = TAG
         )
+        logFenceCatalog(regions)
+    }
+
+    /**
+     * One record per fetched fence, describing the circle the server sent.
+     *
+     * Without this a capture names fences only by opaque id: a replay cannot place them, and nobody
+     * reading the log can tell which geoset a crossing belonged to. Re-fetching the geometry from
+     * the workspace later is not equivalent — fences move, and a drive replayed months on would
+     * silently get today's circles instead of the ones it actually ran against.
+     *
+     * Gated whole rather than relying on `tail()` returning empty, because these records carry no
+     * prose worth emitting on their own — with diagnostics off they should not exist at all.
+     */
+    private fun logFenceCatalog(regions: List<GeofenceRegion>) {
+        if (regions.isEmpty() || !GeofenceDiagnostics.isEnabled) return
+        for (region in regions) {
+            logger.debug(
+                "Geofence '${region.id}' catalogued" +
+                    tail(
+                        "fence.cataloged",
+                        GeofenceLogIo.INPUT,
+                        listOf(
+                            "id" to region.id,
+                            // Sanitized like any other value: a workspace-authored name can contain
+                            // spaces, commas and `=`, all of which would break the parser's split.
+                            "name" to region.name,
+                            "gs" to composedList(region.geosetIds),
+                            "lat" to num(region.latitude, 5),
+                            "lon" to num(region.longitude, 5),
+                            "rad" to num(region.radius, 0),
+                            "tt" to composedList(region.transitionTypes.map { it.name.lowercase() })
+                        )
+                    ),
+                tag = TAG
+            )
+        }
     }
 
     fun logApiFetchFailed(message: String?) {

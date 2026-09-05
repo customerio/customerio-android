@@ -32,7 +32,13 @@ internal class DiagnosticLogWriter(private val directory: File) {
 
     private var stream: FileOutputStream? = null
     private var currentFile: File? = null
-    private var header: String = ""
+
+    /**
+     * Rebuilt on every open, not stored as a string. The header describes the file it heads: a
+     * process that outlives a day rolls to a new file, and re-writing the original string there
+     * stamped it with the old session's timestamp — and, on iOS, the old timezone.
+     */
+    private var headerProvider: (() -> String)? = null
 
     /**
      * Wall-clock instant at which today's file stops being today's file. Compared against on every
@@ -51,9 +57,9 @@ internal class DiagnosticLogWriter(private val directory: File) {
     private var openZoneId: String? = null
     private var writesSinceExistenceCheck = 0
 
-    fun open(header: String) {
+    fun open(headerProvider: () -> String) {
         synchronized(lock) {
-            this.header = header
+            this.headerProvider = headerProvider
             openCurrentFile(System.currentTimeMillis())
         }
     }
@@ -91,6 +97,7 @@ internal class DiagnosticLogWriter(private val directory: File) {
         // The header repeats on every open, not just on a new file. A same-day relaunch reuses
         // the file but resets elapsedRealtime and may carry a different bootCount or build, so
         // without this every record after the first process is correlated to the wrong boot.
+        val header = headerProvider?.invoke().orEmpty()
         if (header.isNotEmpty()) write(header)
     }
 

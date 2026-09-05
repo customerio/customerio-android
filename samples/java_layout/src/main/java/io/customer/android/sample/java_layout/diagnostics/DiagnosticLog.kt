@@ -52,7 +52,7 @@ object DiagnosticLog {
 
             val fileWriter = DiagnosticLogWriter(directory(application))
             writer = fileWriter
-            fileWriter.open(DiagnosticEnvelope.fileHeader(application))
+            fileWriter.open { DiagnosticEnvelope.fileHeader(application) }
 
             deviceState = DiagnosticDeviceState(application).also { state ->
                 state.start { reason ->

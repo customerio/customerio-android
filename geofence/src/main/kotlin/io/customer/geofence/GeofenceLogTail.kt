@@ -69,7 +69,7 @@ internal object GeofenceLogTail {
      * The only values that compose the format's separators on purpose. Everything else is treated
      * as an untrusted token: geofence identifiers are workspace-authored and can hold anything.
      */
-    private val COMPOSED_KEYS = setOf("ranked", "evicted", "ids")
+    private val COMPOSED_KEYS = setOf("ranked", "evicted", "ids", "gs", "tt")
 
     /**
      * Applied to every finished value. Only whitespace, which is what separates one `key=value`

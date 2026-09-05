@@ -148,6 +148,7 @@ class GeofenceLogTailTest : RobolectricTest() {
             Triple("syncFailed", listOf("ok", "why")) { it.logSyncFailed("timeout") },
             Triple("syncSucceeded", listOf("n", "mvmt")) { it.logSyncSucceeded(19, true) },
             Triple("apiFetchResult", listOf("ok", "n", "ms")) { it.logApiFetchResult(30, 420L) },
+
             Triple("unknownApiTransitionType", listOf("ok", "why", "value")) { it.logUnknownApiTransitionType("dwell") },
             Triple("movementRearmed", listOf("why")) { it.logMovementRearmedAfterFailedRefresh() },
             Triple("storageLoaded", listOf("n", "anchor")) { it.logStorageLoaded({ 30 }, true) },
@@ -468,5 +469,98 @@ class GeofenceLogTailTest : RobolectricTest() {
         evictedCalls shouldBeEqualTo 1
         distanceCalls shouldBeEqualTo 1
         regionCountCalls shouldBeEqualTo 1
+    }
+
+    private fun catalogRegion(
+        id: String = "11125",
+        name: String? = "Momo Dubai Test"
+    ) = GeofenceRegion(
+        id = id,
+        latitude = 25.109908,
+        longitude = 55.184004,
+        radius = 150f,
+        name = name,
+        geosetIds = listOf("4471", "9002")
+    )
+
+    @Test
+    fun fenceCatalog_givenNameWithSeparators_expectSanitizedButReadable() {
+        // A workspace-authored name is untrusted text in a format whose only structure is spaces
+        // and `=`. Left raw, `Momo Dubai Test` would split into three bogus fields.
+        GeofenceDiagnostics.setEnabledForTesting(true)
+        val logger = CapturingLogger()
+        GeofenceLogger(logger).logApiFetchResult(1, 10L, listOf(catalogRegion(name = "Momo Dubai, Test=1")))
+
+        val fields = parseTail(logger.messages.last())
+        fields.shouldNotBeNull()
+        fields["name"].shouldNotBeNull()
+        // Still recognisable to a human reading the log, which is half the point of logging it.
+        fields["name"]!!.contains("Momo") shouldBeEqualTo true
+        fields["name"]!!.contains(" ") shouldBeEqualTo false
+        fields["name"]!!.contains("=") shouldBeEqualTo false
+    }
+
+    /**
+     * Deliberately absent from [invocations]: that table asserts the gated-*tail* contract, where
+     * the gate strips detail and leaves the prose identical. The catalog is a different kind of
+     * record — it exists only for diagnostics, so the gate removes it entirely. Emitting bare
+     * "catalogued" lines to every customer's Logcat would be noise, and moving the detail into the
+     * prose to satisfy the table would leak coordinates with the gate off. These tests pin the same
+     * contract the table would have.
+     */
+    @Test
+    fun fenceCatalog_expectMachineKeyAndReplayClassification() {
+        GeofenceDiagnostics.setEnabledForTesting(true)
+        val logger = CapturingLogger()
+        GeofenceLogger(logger).logApiFetchResult(1, 10L, listOf(catalogRegion()))
+
+        val message = logger.messages.last()
+        message.startsWith("[Geofence] ") shouldBeEqualTo true
+        val fields = parseTail(message)
+        fields.shouldNotBeNull()
+        fields["ev"] shouldBeEqualTo "fence.cataloged"
+        fields["io"] shouldBeEqualTo "in"
+        for (key in listOf("id", "name", "gs", "lat", "lon", "rad", "tt")) {
+            if (fields[key] == null) throw AssertionError("missing $key= in '$message'")
+        }
+    }
+
+    @Test
+    fun fenceCatalog_expectOneRecordPerFence() {
+        GeofenceDiagnostics.setEnabledForTesting(true)
+        val logger = CapturingLogger()
+        GeofenceLogger(logger).logApiFetchResult(
+            3,
+            10L,
+            listOf(catalogRegion(id = "1"), catalogRegion(id = "2"), catalogRegion(id = "3"))
+        )
+        logger.messages.count { it.contains("ev=fence.cataloged") } shouldBeEqualTo 3
+    }
+
+    @Test
+    fun fenceCatalog_givenGeosetList_expectSeparatorsPreserved() {
+        // `gs` and `tt` compose commas on purpose, like `ids` and `ranked` — they must opt out of
+        // sanitising or the list collapses into one token.
+        GeofenceDiagnostics.setEnabledForTesting(true)
+        val logger = CapturingLogger()
+        GeofenceLogger(logger).logApiFetchResult(1, 10L, listOf(catalogRegion()))
+
+        val fields = parseTail(logger.messages.last())
+        fields.shouldNotBeNull()
+        fields["gs"] shouldBeEqualTo "4471,9002"
+        fields["tt"] shouldBeEqualTo "enter,exit"
+        fields["lat"] shouldBeEqualTo "25.10991"
+        fields["rad"] shouldBeEqualTo "150"
+    }
+
+    @Test
+    fun fenceCatalog_givenDiagnosticsOff_expectNoCatalogRecords() {
+        // The catalog carries no prose worth emitting on its own; with the gate off it must not
+        // exist at all, not merely lose its tail.
+        GeofenceDiagnostics.setEnabledForTesting(false)
+        val logger = CapturingLogger()
+        GeofenceLogger(logger).logApiFetchResult(1, 10L, listOf(catalogRegion()))
+
+        logger.messages.none { it.contains("catalogued") } shouldBeEqualTo true
     }
 }

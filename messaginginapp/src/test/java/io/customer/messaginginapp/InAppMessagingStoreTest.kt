@@ -18,6 +18,8 @@ import io.customer.messaginginapp.testutils.extension.pageRuleContains
 import io.customer.messaginginapp.testutils.extension.pageRuleEquals
 import io.customer.messaginginapp.type.InAppEventListener
 import io.customer.messaginginapp.type.InAppMessage
+import io.customer.messaginginapp.type.InAppMessageError
+import io.customer.messaginginapp.type.InAppMessageErrorReason
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.data.model.Region
 import io.mockk.Called
@@ -352,9 +354,14 @@ class InAppMessagingStoreTest : IntegrationTest() {
         initializeAndSetUser()
         val message = createInAppMessage(queueId = "1")
 
-        manager.dispatch(InAppMessagingAction.EngineAction.MessageLoadingFailed(message))
+        manager.dispatch(InAppMessagingAction.EngineAction.MessageLoadingFailed(message, InAppMessageError(reason = InAppMessageErrorReason.RENDER_FAILED)))
 
-        verify { inAppEventListener.errorWithMessage(InAppMessage.getFromGistMessage(message)) }
+        verify {
+            inAppEventListener.errorWithMessage(
+                InAppMessage.getFromGistMessage(message),
+                InAppMessageError(reason = InAppMessageErrorReason.RENDER_FAILED)
+            )
+        }
     }
 
     @Test
@@ -378,9 +385,14 @@ class InAppMessagingStoreTest : IntegrationTest() {
         initializeAndSetUser()
         val message = createInAppMessage(queueId = "1")
 
-        manager.dispatch(InAppMessagingAction.EngineAction.MessageLoadingFailed(message))
+        manager.dispatch(InAppMessagingAction.EngineAction.MessageLoadingFailed(message, InAppMessageError(reason = InAppMessageErrorReason.RENDER_FAILED)))
 
-        verify { inAppEventListener.errorWithMessage(InAppMessage.getFromGistMessage(message)) }
+        verify {
+            inAppEventListener.errorWithMessage(
+                InAppMessage.getFromGistMessage(message),
+                InAppMessageError(reason = InAppMessageErrorReason.RENDER_FAILED)
+            )
+        }
     }
 
     @Test

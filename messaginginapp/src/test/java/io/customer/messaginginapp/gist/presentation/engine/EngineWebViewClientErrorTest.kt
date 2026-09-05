@@ -14,9 +14,13 @@ import io.customer.messaginginapp.gist.data.model.engine.EngineWebConfiguration
 import io.customer.messaginginapp.state.InAppMessagingManager
 import io.customer.messaginginapp.state.InAppMessagingState
 import io.customer.messaginginapp.testutils.core.IntegrationTest
+import io.customer.messaginginapp.type.InAppMessageError
+import io.customer.messaginginapp.type.InAppMessageErrorReason
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.slot
 import io.mockk.verify
+import org.amshove.kluent.shouldBeEqualTo
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -76,7 +80,7 @@ class EngineWebViewClientErrorTest : IntegrationTest() {
         Shadows.shadowOf(webView).webViewClient
             .onReceivedError(webView, request(isMainFrame = true), mockk(relaxed = true))
 
-        verify(exactly = 1) { listener.error() }
+        verify(exactly = 1) { listener.error(any()) }
     }
 
     @Test
@@ -87,6 +91,7 @@ class EngineWebViewClientErrorTest : IntegrationTest() {
             .onReceivedError(webView, request(isMainFrame = false), mockk(relaxed = true))
 
         // A broken image must not take the whole message down.
+        verify(exactly = 0) { listener.error(any()) }
         verify(exactly = 0) { listener.error() }
     }
 
@@ -98,7 +103,7 @@ class EngineWebViewClientErrorTest : IntegrationTest() {
         Shadows.shadowOf(webView).webViewClient
             .onReceivedHttpError(webView, request(isMainFrame = true), response)
 
-        verify(exactly = 1) { listener.error() }
+        verify(exactly = 1) { listener.error(any()) }
     }
 
     @Test
@@ -109,6 +114,7 @@ class EngineWebViewClientErrorTest : IntegrationTest() {
         Shadows.shadowOf(webView).webViewClient
             .onReceivedHttpError(webView, request(isMainFrame = false), response)
 
+        verify(exactly = 0) { listener.error(any()) }
         verify(exactly = 0) { listener.error() }
     }
 
@@ -128,7 +134,7 @@ class EngineWebViewClientErrorTest : IntegrationTest() {
         // Recoverable certificate errors arrive here and nowhere else — Android only promises
         // ERROR_FAILED_SSL_HANDSHAKE for non-recoverable ones — so this is the only chance to
         // report the real cause instead of letting it fall through to a 5s timeout.
-        verify(exactly = 1) { listener.error() }
+        verify(exactly = 1) { listener.error(any()) }
     }
 
     @Test
@@ -145,6 +151,7 @@ class EngineWebViewClientErrorTest : IntegrationTest() {
         // Refused like any other, but a bad certificate on an image must not take the message down.
         verify(exactly = 1) { handler.cancel() }
         verify(exactly = 0) { handler.proceed() }
+        verify(exactly = 0) { listener.error(any()) }
         verify(exactly = 0) { listener.error() }
     }
 
@@ -169,6 +176,30 @@ class EngineWebViewClientErrorTest : IntegrationTest() {
 
         verify(exactly = 1) { handler.cancel() }
         verify(exactly = 0) { handler.proceed() }
+        verify(exactly = 0) { listener.error(any()) }
         verify(exactly = 0) { listener.error() }
+    }
+
+    /**
+     * An engine renders one message, so it fails at most once.
+     *
+     * The bootstrap `TimerTask` runs independently of the WebView callbacks, so a real failure
+     * followed by a delayed teardown could report `NETWORK` and then a second `TIMEOUT`, the latter
+     * overwriting the true cause. Cancelling the timer alone is not enough — it races with a task
+     * that has already started — so the latch is the guard and the cancel is belt-and-braces.
+     */
+    @Test
+    fun reportFailure_givenSecondFailure_expectOnlyTheFirstReported() {
+        val webView = startEngine()
+        val client = Shadows.shadowOf(webView).webViewClient
+        val captured = slot<InAppMessageError>()
+
+        // A network failure on the document, then the renderer dying underneath it.
+        client.onReceivedError(webView, request(isMainFrame = true), mockk(relaxed = true))
+        client.onRenderProcessGone(webView, null)
+
+        verify(exactly = 1) { listener.error(capture(captured)) }
+        // The first cause is the true one; anything after it is a consequence.
+        captured.captured.reason shouldBeEqualTo InAppMessageErrorReason.NETWORK
     }
 }

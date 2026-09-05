@@ -20,15 +20,6 @@ internal data class EngineWebEvent(
 class EngineWebViewInterface(private val listener: EngineWebViewListener) {
     private val logger = SDKComponent.logger
 
-    /**
-     * Receives the classified failure for an engine `error` event.
-     *
-     * [EngineWebViewListener.error] takes no arguments and is public API, so it cannot carry the
-     * renderer's own description yet. This internal seam lets the view classify and log it in the
-     * meantime; it goes away once the listener itself can take the error.
-     */
-    internal var onEngineError: ((InAppMessageError) -> Unit)? = null
-
     // Indicates whether the interface is attached to a web view and should continue to process messages
     private var isAttachedToWebView: Boolean = false
 
@@ -57,6 +48,18 @@ class EngineWebViewInterface(private val listener: EngineWebViewListener) {
         val event = Gson().fromJson(message, EngineWebMessage::class.java)
 
         logger.debug("Received event from WebView: $event")
+
+        // Handled before the parameters guard below: a failure has to reach the host even when the
+        // renderer sends no detail with it. Every other event is meaningless without its parameters.
+        if (event.gist.method == "error") {
+            listener.error(
+                InAppMessageError(
+                    reason = InAppMessageErrorReason.RENDER_FAILED,
+                    detail = event.gist.parameters?.let(::parseErrorDetail)
+                )
+            )
+            return
+        }
 
         event.gist.parameters?.let { eventParameters ->
             when (event.gist.method) {
@@ -88,20 +91,6 @@ class EngineWebViewInterface(private val listener: EngineWebViewListener) {
                                 listener.tap(name = name, action = action, system = system)
                             }
                         }
-                    }
-                }
-
-                "error" -> {
-                    val reporter = onEngineError
-                    if (reporter != null) {
-                        reporter(
-                            InAppMessageError(
-                                reason = InAppMessageErrorReason.RENDER_FAILED,
-                                detail = parseErrorDetail(eventParameters)
-                            )
-                        )
-                    } else {
-                        listener.error()
                     }
                 }
             }

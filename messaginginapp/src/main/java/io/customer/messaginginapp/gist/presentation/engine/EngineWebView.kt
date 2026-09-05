@@ -43,9 +43,7 @@ internal class EngineWebView @JvmOverloads constructor(
     private var timerTask: TimerTask? = null
     private var webView: WebView? = null
     private var elapsedTimer: ElapsedTimer = ElapsedTimer()
-    private val engineWebViewInterface = EngineWebViewInterface(this).apply {
-        onEngineError = { error -> reportFailure(error) }
-    }
+    private val engineWebViewInterface = EngineWebViewInterface(this)
     private val logger = SDKComponent.logger
     private var lastResolvedColorScheme: String? = null
     private var colorSchemeJob: Job? = null
@@ -57,6 +55,12 @@ internal class EngineWebView @JvmOverloads constructor(
      * certificate failure on the message itself from one on an image or font it pulls in.
      */
     private var documentUrl: String? = null
+
+    /**
+     * Set once the first failure is reported. An engine renders one message, so it fails at most
+     * once.
+     */
+    private var hasReportedFailure = false
 
     private val inAppMessagingManager = SDKComponent.inAppMessagingManager
 
@@ -439,6 +443,10 @@ internal class EngineWebView @JvmOverloads constructor(
         listener?.error()
     }
 
+    override fun error(error: InAppMessageError) {
+        reportFailure(error)
+    }
+
     /**
      * Tears down a WebView whose render process has died.
      *
@@ -467,14 +475,28 @@ internal class EngineWebView @JvmOverloads constructor(
     }
 
     /**
-     * Single exit for every failure in this view: classify, log, then notify the listener.
-     *
-     * [EngineWebViewListener.error] takes no arguments and is public API, so the classified error
-     * reaches the logs but not the host yet.
+     * Single exit for every failure in this view: classify, then notify the listener.
      */
     private fun reportFailure(error: InAppMessageError) {
-        logger.error("In-app message failed: ${error.describeForLogs()}")
-        listener?.error()
+        // First failure wins, and the latch — not the cancel — is what makes that deterministic.
+        // The bootstrap TimerTask runs independently of the WebView callbacks, so cancelling the
+        // timer alone still races with a task that has already started. Without this the host could
+        // be told NETWORK and then TIMEOUT about the same message, the second overwriting the real
+        // cause. Mirrors the same guard on iOS.
+        if (hasReportedFailure) return
+        hasReportedFailure = true
+        cleanupTimer()
+
+        val listener = this.listener
+        if (listener == null) {
+            // Nothing downstream will see this one, so it has to be logged here. The timeout timer
+            // can still fire after the view is detached and the listener cleared.
+            logger.error("In-app message failed with no listener attached: ${error.describeForLogs()}")
+            return
+        }
+        // Deliberately not logged on this path: the controller logs the same failure straight after,
+        // with the message id and route attached, so logging here too would double up on every one.
+        listener.error(error)
     }
 
     /**

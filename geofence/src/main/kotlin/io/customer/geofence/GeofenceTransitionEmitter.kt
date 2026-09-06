@@ -80,10 +80,10 @@ internal class GeofenceTransitionEmitter(
             cooldownFilter.release(userId, geofenceId, transition)
             return false
         }
-        // Only now: the rows are durable, so the crossing will be retried until it lands. Logged
-        // before this point it could claim an acceptance the write then rolled back.
+        // Below the write, not above it: logged earlier this could claim an acceptance the write
+        // then rolled back. The same ordering rule covers `markEnterEmitted` — a rolled-back write
+        // must not leave a mark that suppresses its own retry.
         logger.logTransitionAccepted(geofenceId, transition.name, entries.size)
-        // Only once the rows are durable, so a rolled-back write can't suppress its own retry.
         if (transition == Event.GeofenceTransition.ENTER && monitorsExit) {
             regionStore.markEnterEmitted(userId, geofenceId)
         }

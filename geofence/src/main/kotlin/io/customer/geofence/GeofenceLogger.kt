@@ -360,14 +360,6 @@ internal class GeofenceLogger(private val logger: Logger) {
     // MARK: - Transitions
 
     /**
-     * The position for this crossing is **not** repeated here.
-     *
-     * It lives on the `os.callback.received` record the receiver writes for the whole broadcast,
-     * which carries the OS's triggering fix and the ids it applied to — join on `id` within the
-     * same broadcast. Threading the `Location` down to this call site instead would mean widening
-     * `dispatchTransition`, which has 78 test references, for information already recorded.
-     */
-    /**
      * The SDK judged this crossing real and made it durable — the record replay asserts on.
      *
      * Emitted *after* the pending rows are on disk, not before. Logging it earlier claimed an
@@ -378,12 +370,20 @@ internal class GeofenceLogger(private val logger: Logger) {
      * scope; the two families must not be confused, because a device that is merely offline still
      * accepts crossings correctly.
      *
-     * [rows] is the per-geoset fan-out size, so one crossing reads as one acceptance.
+     * The position for this crossing is **not** repeated here. It lives on the
+     * `os.callback.received` record the receiver writes for the whole broadcast, which carries the
+     * OS's triggering fix and the ids it applied to — join on `id` within the same broadcast.
+     * Threading the `Location` down to this call site instead would mean widening
+     * `dispatchTransition`, which has 78 test references, for information already recorded.
+     *
+     * [rows] is the per-geoset fan-out size and rides in the tail as `n`, so one crossing reads as
+     * one acceptance. It is deliberately **not** added to the prose: this message predates the
+     * instrumentation, and the file's contract is that pre-existing prose is unchanged so a
+     * customer build with debug logging on sees exactly what it saw before.
      */
     fun logTransitionAccepted(geofenceId: String, transitionName: String, rows: Int) {
         logger.debug(
-            "Geofence '$geofenceId' $transitionName: accepted and queued for at-least-once delivery " +
-                "($rows row(s); WorkManager now, analytics pipeline on next foreground)" +
+            "Geofence '$geofenceId' $transitionName: queued for at-least-once delivery (WorkManager now, analytics pipeline on next foreground)" +
                 tail(
                     "transition.accepted",
                     GeofenceLogIo.OUTPUT,

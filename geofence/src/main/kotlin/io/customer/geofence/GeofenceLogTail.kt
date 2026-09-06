@@ -21,7 +21,7 @@ internal enum class GeofenceLogIo(val wire: String) {
  * Builds the machine-readable tail appended to a geofence log message.
  *
  * ```
- * [Geofence] Geofence 'notl_core' ENTER: queued ... || ev=transition.emitted io=out id=notl_core t=enter
+ * [Geofence] Geofence 'notl_core' ENTER: queued ... || ev=transition.accepted io=out id=notl_core t=enter n=1
  * ```
  *
  * Mirrors the iOS `GeofenceLog`. The key vocabulary matches; a few records are split

@@ -54,8 +54,6 @@ internal class GeofenceTransitionEmitter(
             logger.logTransitionSuppressed(geofenceId, transition.name, cooldownRemaining)
             return false
         }
-        logger.logTransitionEmitting(geofenceId, transition.name)
-
         // One transitionId shared across the per-geoset fan-out.
         val transitionId = UUID.randomUUID().toString()
         val name = geofenceName?.takeIf { it.isNotEmpty() }
@@ -82,6 +80,9 @@ internal class GeofenceTransitionEmitter(
             cooldownFilter.release(userId, geofenceId, transition)
             return false
         }
+        // Only now: the rows are durable, so the crossing will be retried until it lands. Logged
+        // before this point it could claim an acceptance the write then rolled back.
+        logger.logTransitionAccepted(geofenceId, transition.name, entries.size)
         // Only once the rows are durable, so a rolled-back write can't suppress its own retry.
         if (transition == Event.GeofenceTransition.ENTER && monitorsExit) {
             regionStore.markEnterEmitted(userId, geofenceId)

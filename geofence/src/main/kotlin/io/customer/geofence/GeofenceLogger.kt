@@ -367,13 +367,27 @@ internal class GeofenceLogger(private val logger: Logger) {
      * same broadcast. Threading the `Location` down to this call site instead would mean widening
      * `dispatchTransition`, which has 78 test references, for information already recorded.
      */
-    fun logTransitionEmitting(geofenceId: String, transitionName: String) {
+    /**
+     * The SDK judged this crossing real and made it durable — the record replay asserts on.
+     *
+     * Emitted *after* the pending rows are on disk, not before. Logging it earlier claimed an
+     * acceptance the persist could still roll back, and left the log saying a crossing had been
+     * taken when the cooldown had just been released for a retry.
+     *
+     * Named to match iOS. `delivery.*` covers what happens afterwards and is out of replay's
+     * scope; the two families must not be confused, because a device that is merely offline still
+     * accepts crossings correctly.
+     *
+     * [rows] is the per-geoset fan-out size, so one crossing reads as one acceptance.
+     */
+    fun logTransitionAccepted(geofenceId: String, transitionName: String, rows: Int) {
         logger.debug(
-            "Geofence '$geofenceId' $transitionName: queued for at-least-once delivery (WorkManager now, analytics pipeline on next foreground)" +
+            "Geofence '$geofenceId' $transitionName: accepted and queued for at-least-once delivery " +
+                "($rows row(s); WorkManager now, analytics pipeline on next foreground)" +
                 tail(
-                    "transition.emitted",
+                    "transition.accepted",
                     GeofenceLogIo.OUTPUT,
-                    listOf("id" to geofenceId, "t" to token(transitionName))
+                    listOf("id" to geofenceId, "t" to token(transitionName), "n" to int(rows))
                 ),
             tag = TAG
         )

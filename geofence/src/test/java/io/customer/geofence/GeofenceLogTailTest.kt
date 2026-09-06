@@ -132,7 +132,7 @@ class GeofenceLogTailTest : RobolectricTest() {
             Triple("movementIgnoredNonExit", listOf("t", "why")) { it.logMovementTriggerIgnoredNonExit("ENTER") },
             Triple("receiverSkipped", listOf("why")) { it.logReceiverSkipped("no identified user") },
             Triple("geofencingError", listOf("ok", "code")) { it.logGeofencingError(1000) },
-            Triple("transitionEmitting", listOf("id", "t")) { it.logTransitionEmitting("notl_core", "ENTER") },
+            Triple("transitionAccepted", listOf("id", "t", "n")) { it.logTransitionAccepted("notl_core", "ENTER", 2) },
             Triple("transitionSuppressed", listOf("id", "t", "why", "cd")) { it.logTransitionSuppressed("notl_core", "ENTER", 42.0) },
             Triple("initialEnterInside", listOf("id", "t", "why")) { it.logInitialEnterInside("notl_core") },
             Triple("droppedUnknownId", listOf("id", "why")) { it.logTransitionDroppedUnknownId("notl_core") },
@@ -379,7 +379,7 @@ class GeofenceLogTailTest : RobolectricTest() {
 
     @Test
     fun sanitize_givenWhitespaceInIdentifier_expectFolded() {
-        geofenceLogger.logTransitionEmitting("niagara on the lake", "ENTER")
+        geofenceLogger.logTransitionAccepted("niagara on the lake", "ENTER", 1)
 
         // Workspace-authored identifiers can contain anything; the parser splits on whitespace.
         parseTail(capturing.messages.last())!!["id"] shouldBeEqualTo "niagara_on_the_lake"
@@ -392,7 +392,7 @@ class GeofenceLogTailTest : RobolectricTest() {
         // format itself uses, and 20 `id` call sites went unprotected behind it.
         for (raw in listOf("store,north", "a=b", "aisle:3", "wing|west")) {
             val logger = CapturingLogger()
-            GeofenceLogger(logger).logTransitionEmitting(raw, "ENTER")
+            GeofenceLogger(logger).logTransitionAccepted(raw, "ENTER", 1)
 
             val tail = parseTail(logger.messages.last())
             tail.shouldNotBeNull()

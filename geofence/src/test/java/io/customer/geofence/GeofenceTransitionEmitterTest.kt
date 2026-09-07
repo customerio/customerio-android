@@ -128,6 +128,35 @@ class GeofenceTransitionEmitterTest : RobolectricTest() {
         emitted.shouldBeFalse()
         verify(exactly = 1) { mockCooldownFilter.release("user-1", "biz-1", Event.GeofenceTransition.ENTER) }
         coVerify(exactly = 0) { mockScheduler.schedule(any()) }
+        // The crossing was NOT accepted: the write failed and the cooldown was handed back for a
+        // retry. Claiming acceptance here is the regression this guards — replay asserts on this
+        // record, so a false positive is a crossing the harness believes was taken and was not.
+        verify(exactly = 0) { mockLogger.logTransitionAccepted(any(), any(), any()) }
+    }
+
+    @Test
+    fun emit_givenPersistSucceeds_expectAcceptedLoggedWithFanoutCount() = runTest {
+        every { mockCooldownFilter.tryAcquire(any(), any(), any()) } returns null
+        every { mockPendingStore.appendAll(any()) } returns true
+
+        emit(geosetIds = listOf("g1", "g2")).shouldBeTrue()
+
+        // `n` is the per-geoset row count, so one crossing reads as one acceptance rather than
+        // being inferred from however many delivery records follow it.
+        verify(exactly = 1) { mockLogger.logTransitionAccepted("biz-1", "ENTER", 2) }
+    }
+
+    @Test
+    fun emit_givenGated_expectNoAcceptedRecord() = runTest {
+        // A cooldown-suppressed crossing logs its own record and must not also claim acceptance,
+        // or it counts twice off-device. (Redundant-enter is the other gate with the same rule;
+        // that one is covered by emit_givenEnterAlreadyReported_.)
+        every { mockCooldownFilter.tryAcquire(any(), any(), any()) } returns 42.0
+
+        emit().shouldBeFalse()
+
+        verify(exactly = 0) { mockLogger.logTransitionAccepted(any(), any(), any()) }
+        verify(exactly = 0) { mockPendingStore.appendAll(any()) }
     }
 
     @Test
@@ -140,6 +169,8 @@ class GeofenceTransitionEmitterTest : RobolectricTest() {
         // Ahead of the cooldown, so the slot stays free for the next genuine transition.
         verify(exactly = 0) { mockCooldownFilter.tryAcquire(any(), any(), any()) }
         verify(exactly = 0) { mockPendingStore.appendAll(any()) }
+        verify(exactly = 0) { mockLogger.logTransitionAccepted(any(), any(), any()) }
+        verify(exactly = 1) { mockLogger.logEnterDroppedAlreadyReported("biz-1") }
     }
 
     @Test

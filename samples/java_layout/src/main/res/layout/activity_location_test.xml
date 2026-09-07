@@ -42,6 +42,22 @@
                 android:textSize="14sp"
                 android:textStyle="bold" />
 
+            <com.google.android.material.materialswitch.MaterialSwitch
+                android:id="@+id/diagnostic_filter_switch"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:checked="true"
+                android:text="@string/diagnostics_filter_switch" />
+
+            <TextView
+                android:id="@+id/diagnostic_filter_hint"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/diagnostics_filter_hint"
+                android:textColor="?android:attr/textColorTertiary"
+                android:textSize="12sp" />
+
             <Button
                 android:id="@+id/share_diagnostic_logs"
                 style="?attr/materialButtonStyle"

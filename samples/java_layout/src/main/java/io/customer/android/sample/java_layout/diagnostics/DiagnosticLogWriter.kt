@@ -98,6 +98,8 @@ internal class DiagnosticLogWriter(private val directory: File) {
         // the file but resets elapsedRealtime and may carry a different bootCount or build, so
         // without this every record after the first process is correlated to the wrong boot.
         val header = headerProvider?.invoke().orEmpty()
+        // A new file must be self-contained, so the next record re-states the device state.
+        DiagnosticLog.resetDeviceStateCadence()
         if (header.isNotEmpty()) write(header)
     }
 

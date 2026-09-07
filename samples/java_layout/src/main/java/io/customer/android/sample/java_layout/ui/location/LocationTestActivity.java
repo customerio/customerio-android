@@ -22,6 +22,8 @@ import com.google.android.material.snackbar.Snackbar;
 
 import io.customer.android.sample.java_layout.R;
 import io.customer.android.sample.java_layout.databinding.ActivityLocationTestBinding;
+import io.customer.android.sample.java_layout.diagnostics.DiagnosticFilter;
+import io.customer.android.sample.java_layout.diagnostics.DiagnosticLog;
 import io.customer.android.sample.java_layout.diagnostics.DiagnosticLogExport;
 import io.customer.android.sample.java_layout.ui.core.BaseActivity;
 import io.customer.geofence.ModuleGeofence;
@@ -158,6 +160,13 @@ public class LocationTestActivity extends BaseActivity<ActivityLocationTestBindi
     private void setupBackgroundPermissionButton() {
         binding.grantBackgroundLocation.setOnClickListener(v -> handleGrantBackgroundLocationTap());
         binding.shareDiagnosticLogs.setOnClickListener(v -> DiagnosticLogExport.share(LocationTestActivity.this));
+        binding.diagnosticFilterSwitch.setChecked(DiagnosticFilter.INSTANCE.isEnabled());
+        binding.diagnosticFilterSwitch.setOnCheckedChangeListener((button, checked) -> {
+            DiagnosticFilter.INSTANCE.setEnabled(checked);
+            // Recorded in the file so a capture says which way the switch was set while it ran.
+            DiagnosticLog.note(
+                    "Diagnostic filter " + (checked ? "enabled" : "disabled") + " from the location screen");
+        });
         refreshGrantBackgroundLocationUI();
     }
 

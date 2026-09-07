@@ -31,6 +31,7 @@ import io.customer.messaginginapp.ui.bridge.EngineWebViewDelegate
 import io.customer.sdk.core.di.SDKComponent
 import java.util.Timer
 import java.util.TimerTask
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.Job
 
 internal class EngineWebView @JvmOverloads constructor(
@@ -59,8 +60,13 @@ internal class EngineWebView @JvmOverloads constructor(
     /**
      * Set once the first failure is reported. An engine renders one message, so it fails at most
      * once.
+     *
+     * Atomic because three threads reach [reportFailure]: the bootstrap [TimerTask] on the timer's
+     * own thread, renderer errors on the WebView's JS bridge thread, and [WebViewClient] callbacks
+     * on the UI thread. A plain read-then-write lets two of them both observe false and both
+     * notify, and a non-volatile field gives no guarantee the write is ever seen by the others.
      */
-    private var hasReportedFailure = false
+    private val hasReportedFailure = AtomicBoolean(false)
 
     private val inAppMessagingManager = SDKComponent.inAppMessagingManager
 
@@ -482,9 +488,9 @@ internal class EngineWebView @JvmOverloads constructor(
         // The bootstrap TimerTask runs independently of the WebView callbacks, so cancelling the
         // timer alone still races with a task that has already started. Without this the host could
         // be told NETWORK and then TIMEOUT about the same message, the second overwriting the real
-        // cause. Mirrors the same guard on iOS.
-        if (hasReportedFailure) return
-        hasReportedFailure = true
+        // cause. The compare-and-set has to be atomic because those callers are on different
+        // threads; iOS can use a plain flag only because everything there is on the main thread.
+        if (!hasReportedFailure.compareAndSet(false, true)) return
         cleanupTimer()
 
         val listener = this.listener

@@ -107,13 +107,32 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
         // ID-format changes): events for unregistered IDs are dropped and the OS-side
         // registration is removed so it stops firing.
         val userStateGeneration = androidComponent.geofenceRegionStore.userStateGeneration()
-        val registeredIds = androidComponent.geofenceRegionStore.getRoutableRegisteredIds()
-        val (knownIds, unknownIds) = triggeringGeofenceIds.partition { it in registeredIds }
-        if (unknownIds.isNotEmpty()) {
-            unknownIds.forEach { logger.logTransitionDroppedUnknownId(it) }
-            // Result ignored — a failed removal self-heals on the next orphan event.
-            androidComponent.geofenceManager.removeGeofencesByIds(unknownIds)
+        val routableIds = androidComponent.geofenceRegionStore.getRoutableRegisteredIds()
+        val (routableTriggeringIds, unroutableIds) = triggeringGeofenceIds.partition { it in routableIds }
+        // An identify clears routing and only the completing refresh re-arms it, so between the two
+        // a live registration is unroutable without being an orphan. Removing it there strands it:
+        // the refresh that follows still sees the id in registeredIds with matching params, skips it
+        // as unchanged, and never re-adds it to the OS. Only evict what the bookkeeping no longer
+        // claims, and drop the rest — routing is what authorizes a business event.
+        val unarmedTriggerIds = if (unroutableIds.isEmpty()) {
+            emptyList()
+        } else {
+            val registeredIds = androidComponent.geofenceRegionStore.getRegisteredIds()
+            val (unarmedIds, orphanIds) = unroutableIds.partition { it in registeredIds }
+            orphanIds.forEach { logger.logTransitionDroppedUnknownId(it) }
+            if (orphanIds.isNotEmpty()) {
+                // Result ignored — a failed removal self-heals on the next orphan event.
+                androidComponent.geofenceManager.removeGeofencesByIds(orphanIds)
+            }
+            // The movement trigger is SDK-owned and carries no business meaning — routing it only
+            // re-fetches. It is also the only refresh path that runs without the app being opened,
+            // so dropping its EXIT here would leave an unarmed session with nothing to re-arm it
+            // until the next launch. handleMovement waits for the slot and runs as the current user.
+            val (triggerIds, businessIds) = unarmedIds.partition { it == GeofenceConstants.MOVEMENT_TRIGGER_ID }
+            businessIds.forEach { logger.logTransitionDroppedUnarmedId(it) }
+            triggerIds
         }
+        val knownIds = routableTriggeringIds + unarmedTriggerIds
 
         var movementRefreshJob: Job? = null
         knownIds.forEach { geofenceId ->

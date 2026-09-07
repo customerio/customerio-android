@@ -964,6 +964,61 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
     }
 
     @Test
+    fun dispatchTransition_givenRegisteredIdWhileRoutingUnarmed_expectDroppedButOsRegistrationKept() = runTest {
+        // The window between an identify clearing routing and the refresh that re-arms it. The fence
+        // is live and still claimed by registeredIds, so removing it here would strand it: the
+        // completing refresh sees matching params, skips it as unchanged, and never re-adds it.
+        every { mockStore.getRegisteredIds() } returns setOf("biz-known")
+        every { mockStore.getRoutableRegisteredIds() } returns emptySet()
+
+        receiver.dispatchTransition(
+            gmsTransitionType = Geofence.GEOFENCE_TRANSITION_ENTER,
+            triggeringGeofenceIds = listOf("biz-known"),
+            latitude = 0.0,
+            longitude = 0.0
+        )
+
+        coVerify(exactly = 0) { mockScheduler.schedule(any()) }
+        pendingStore.loadAll() shouldBeEqualTo emptyList()
+        coVerify(exactly = 0) { mockManager.removeGeofencesByIds(any()) }
+    }
+
+    @Test
+    fun dispatchTransition_givenUnarmedAndOrphanIds_expectOnlyOrphanRemoved() = runTest {
+        // Both are unroutable, but only the orphan has left the registration bookkeeping. Evicting
+        // the unarmed one alongside it is what loses a live fence for the rest of the session.
+        every { mockStore.getRegisteredIds() } returns setOf("biz-known")
+        every { mockStore.getRoutableRegisteredIds() } returns emptySet()
+
+        receiver.dispatchTransition(
+            gmsTransitionType = Geofence.GEOFENCE_TRANSITION_ENTER,
+            triggeringGeofenceIds = listOf("biz-known", "biz-orphan"),
+            latitude = 0.0,
+            longitude = 0.0
+        )
+
+        coVerify(exactly = 1) { mockManager.removeGeofencesByIds(listOf("biz-orphan")) }
+    }
+
+    @Test
+    fun dispatchTransition_givenMovementTriggerExitWhileRoutingUnarmed_expectRefreshStillDriven() = runTest {
+        // The trigger is the only refresh path that runs without the app being opened. Dropping its
+        // EXIT while routing is unarmed leaves the session with nothing to re-arm it until launch.
+        every { mockStore.getRegisteredIds() } returns setOf(GeofenceConstants.MOVEMENT_TRIGGER_ID)
+        every { mockStore.getRoutableRegisteredIds() } returns emptySet()
+
+        receiver.dispatchTransition(
+            gmsTransitionType = Geofence.GEOFENCE_TRANSITION_EXIT,
+            triggeringGeofenceIds = listOf(GeofenceConstants.MOVEMENT_TRIGGER_ID),
+            latitude = 1.0,
+            longitude = 2.0
+        )
+
+        verify { mockServices.onMovementTriggerExit(1.0, 2.0) }
+        coVerify(exactly = 0) { mockManager.removeGeofencesByIds(any()) }
+    }
+
+    @Test
     fun dispatchTransition_givenAllIdsKnown_expectNoRemoveCall() = runTest {
         // Normal (no-orphan) path: removeGeofencesByIds must NOT be called when all
         // incoming IDs are tracked.

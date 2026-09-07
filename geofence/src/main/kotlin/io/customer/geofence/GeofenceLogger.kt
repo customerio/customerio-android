@@ -89,6 +89,10 @@ internal class GeofenceLogger(private val logger: Logger) {
         logger.debug("Geofence '$geofenceId' transition dropped — id not in registered store", tag = TAG)
     }
 
+    fun logTransitionDroppedUnarmedId(geofenceId: String) {
+        logger.debug("Geofence '$geofenceId' transition dropped — registered but routing is not armed for this session; OS registration kept", tag = TAG)
+    }
+
     fun logTransitionDroppedRetiredId(geofenceId: String) {
         logger.debug("Geofence '$geofenceId' transition dropped — backend removed it and OS cleanup is pending", tag = TAG)
     }

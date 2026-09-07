@@ -101,6 +101,21 @@ class PolygonGeometryTest {
     }
 
     @Test
+    fun from_whenClosedRingUsesDecimalCoordinates_thenCanonicalizesClosingVertex() {
+        // Unwrapping sums a short arc per vertex, so on real-world decimals the closing position
+        // lands ~1e-13 from the one it repeats. Compared on the accumulated line the ring never looks
+        // closed, and the sliver edge that survives reads as a self-intersection.
+        PolygonGeometry.from(
+            listOf(
+                point(37.0, -122.1),
+                point(37.0, -122.1002),
+                point(37.0001, -122.1003),
+                point(37.0, -122.1)
+            )
+        ).vertices.size shouldBeEqualTo 3
+    }
+
+    @Test
     fun from_whenRingWindsAroundAPole_thenRejectsUnevaluableGeometry() {
         // Simple and non-degenerate, so nothing else rejects it, but it unwraps across 270 degrees.
         // The evaluator projects onto one flat frame, so it would answer against a closing chord

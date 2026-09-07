@@ -168,9 +168,15 @@ internal class PolygonGeometry private constructor(
             // GeoJSON — would otherwise survive unclosing and then be rejected for the zero-length
             // edge that closure left behind.
             val longitudes = unwrapLongitudes(vertices)
+
+            // Compared on the source positions, not the accumulated line: unwrapping sums a short
+            // arc per vertex, and on decimal coordinates that leaves a closing position ~1e-13 from
+            // the one it repeats. Exact equality there misses the closure and keeps a spurious edge,
+            // which then reads as a self-intersection. Normalising the difference keeps 180 and -180
+            // equal without inheriting any drift.
             fun samePosition(first: Int, second: Int): Boolean =
                 vertices[first].latitude == vertices[second].latitude &&
-                    longitudes[first] == longitudes[second]
+                    normalizeLongitude(vertices[first].longitude - vertices[second].longitude) == 0.0
 
             val collapsed = vertices.indices.filter { index -> index == 0 || !samePosition(index, index - 1) }
             val kept = if (collapsed.size > 1 && samePosition(collapsed.first(), collapsed.last())) {

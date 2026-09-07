@@ -12,6 +12,7 @@ import io.customer.sdk.communication.Event
 import io.customer.sdk.core.util.Clock
 import io.customer.sdk.data.store.SecureUserStore
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicLong
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.delay
@@ -83,6 +84,10 @@ internal class GeofenceRepositoryImpl(
     // or cancellation can't latch the gate.
     private val refreshInProgress = AtomicBoolean(false)
 
+    // Which user session the pass holding the slot is running for. A pass can only arm routing for
+    // its own generation, so a caller from a newer session must not treat it as covering theirs.
+    private val inFlightUserStateGeneration = AtomicLong(NO_SESSION)
+
     // Serializes state-mutation against reset() (sign-out). Held only around the
     // write block — the long-running API call happens outside the lock.
     private val stateMutex = Mutex()
@@ -90,16 +95,31 @@ internal class GeofenceRepositoryImpl(
     private fun tryTakeRefreshSlot(): Boolean = refreshInProgress.compareAndSet(false, true)
 
     private fun releaseRefreshSlot() {
+        inFlightUserStateGeneration.set(NO_SESSION)
         refreshInProgress.set(false)
     }
 
     @RequiresPermission(Manifest.permission.ACCESS_FINE_LOCATION)
     override suspend fun refresh(latitude: Double, longitude: Double): Result<Unit> {
         val containmentEpoch = store.containmentEpoch()
+        val userStateGeneration = store.userStateGeneration()
         if (!tryTakeRefreshSlot()) {
-            logger.logSyncSkipped("refresh already in progress")
-            return Result.success(Unit)
+            // Identify and app-launch fire together on the same anchor, so a duplicate still drops.
+            // A pass from an older session is different: beginUserSession has already cleared
+            // routing, and that pass can only refuse to arm the generation it no longer serves.
+            // Dropping here would leave routing empty with nothing pending, and the next callback
+            // would treat every live fence as unknown and remove it. So wait for the slot instead,
+            // keeping anchor semantics — this is still not a live fix.
+            if (userStateGeneration == inFlightUserStateGeneration.get()) {
+                logger.logSyncSkipped("refresh already in progress")
+                return Result.success(Unit)
+            }
+            if (!awaitRefreshSlot()) {
+                logger.logSyncSkipped("refresh already in progress after waiting")
+                return Result.success(Unit)
+            }
         }
+        inFlightUserStateGeneration.set(userStateGeneration)
         return runRefresh(latitude, longitude, FixSource.ANCHOR, containmentEpoch)
     }
 
@@ -112,6 +132,7 @@ internal class GeofenceRepositoryImpl(
             logger.logSyncSkipped("refresh already in progress after waiting")
             return Result.success(Unit)
         }
+        inFlightUserStateGeneration.set(store.userStateGeneration())
         return runRefresh(latitude, longitude, FixSource.LIVE, containmentEpoch)
     }
 
@@ -707,6 +728,10 @@ internal class GeofenceRepositoryImpl(
     )
 
     private companion object {
+        // No pass holds the slot. Distinct from any real generation, which starts at zero and only
+        // ever increases.
+        const val NO_SESSION = -1L
+
         // Long enough to outlast the slowest holder: a remote pass can spend the HTTP client's
         // connect plus read timeout (10s each) before it releases, and giving up on one that then
         // fails to register is the case that strands the trigger. Deliberately past the receiver's

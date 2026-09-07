@@ -744,6 +744,44 @@ class GeofenceRepositoryTest : RobolectricTest() {
     }
 
     @Test
+    fun refresh_givenIdentifyWhileAnotherRefreshHoldsTheSlot_expectRoutingArmedForTheNewSession() = runTest {
+        // A's pass is parked inside GMS registration when B identifies. B's refresh cannot be dropped
+        // as a duplicate: A can only arm A's generation, so it will refuse, and beginUserSession has
+        // already cleared routing. Dropping would leave routing empty with nothing pending, and the
+        // next callback would classify every live fence as unknown and remove it.
+        every { secureUserStore.getUserId() } returns "user-b"
+        every { store.getRegisteredIds() } returns emptySet()
+        coEvery { apiService.fetchGeofences(any()) } returns
+            Result.success(sampleResponse(maxBusinessGeofences = 3, localRefreshTriggerRadius = 1500f))
+        every { distanceFilter.nearest(any(), any(), any(), any(), any()) } returns
+            listOf(GeofenceRegion("biz-1", 0.0, 0.0, 100f))
+
+        // Generation 7 is A's; B's identify bumps it to 8 while A is still inside replaceGeofences.
+        every { store.userStateGeneration() } returns 7L
+        val armed = mutableListOf<Long>()
+        every { store.saveRoutableRegisteredIdsIfCurrent(any(), capture(armed)) } answers
+            { secondArg<Long>() == store.userStateGeneration() }
+        val registrationEntered = CompletableDeferred<Unit>()
+        val releaseRegistration = CompletableDeferred<Unit>()
+        coEvery { manager.replaceGeofences(any(), any()) } coAnswers {
+            registrationEntered.complete(Unit)
+            releaseRegistration.await()
+            Result.success(Unit)
+        }
+
+        val passA = launch { repository.refresh(latitude = 1.0, longitude = 2.0) }
+        registrationEntered.await()
+        every { store.userStateGeneration() } returns 8L
+        val passB = launch { repository.refresh(latitude = 1.0, longitude = 2.0) }
+        releaseRegistration.complete(Unit)
+        passA.join()
+        passB.join()
+
+        // A refused (7 is stale), then B ran and armed 8 rather than being dropped as a duplicate.
+        armed shouldBeEqualTo listOf(7L, 8L)
+    }
+
+    @Test
     fun refresh_givenSuccessfulRegistration_expectRoutingArmedForTheSameIds() = runTest {
         // beginUserSession writes an explicit empty routable set and getRoutableRegisteredIds stops
         // falling back once that key exists, so a refresh that registers without arming routing

@@ -340,6 +340,11 @@ private fun JsonElement.toPolygonVerticesOrNull(): List<PolygonCoordinate>? {
         if (position.size < 2) return null
         val longitude = (position[0] as? JsonPrimitive)?.doubleOrNull ?: return null
         val latitude = (position[1] as? JsonPrimitive)?.doubleOrNull ?: return null
+        // Not a range rule — the backend owns those. A position is decoded as a JsonElement, so the
+        // literal "NaN" parses to a Double and then passes every geometry check, because each of
+        // them compares and every comparison against NaN is false. It only surfaces later, in the
+        // strict cache encoder, by which point the sync has already registered.
+        if (!longitude.isFinite() || !latitude.isFinite()) return null
         PolygonCoordinate(latitude, longitude)
     }
 }

@@ -161,6 +161,35 @@ class GeofenceApiResponseTest : RobolectricTest() {
     }
 
     @Test
+    fun parseAndMap_givenPolygonPositionThatIsNotFinite_expectRecordDroppedNotWholeSync() {
+        // Positions decode as JsonElement, so the literal "NaN" becomes a Double and passes every
+        // geometry check — each one compares, and every comparison against NaN is false. It would
+        // surface only in the strict cache encoder, after the sync had already registered.
+        val regions = parseRegions(
+            """
+            {
+              "geofences": [
+                {
+                  "id": "not-a-number",
+                  "shape": "polygon",
+                  "enclosing_circle": { "latitude": 0.0, "longitude": 0.0, "base_radius_m": 100 },
+                  "geometry": {
+                    "type": "Polygon",
+                    "coordinates": [[[0, 0], [1, 0], [1, 1], [0, "NaN"], [0, 0]]]
+                  }
+                },
+                { "id": "circle", "latitude": 0, "longitude": 0, "radius": 100 }
+              ]
+            }
+            """.trimIndent(),
+            EnabledPolygonSupport
+        )
+
+        regions.map(GeofenceRegion::id) shouldBeEqualTo listOf("circle")
+        verify { mockLogger.logPolygonDropped("not-a-number", "ring is malformed, unsupported or fails validation") }
+    }
+
+    @Test
     fun parseAndMap_givenPolygonWithOutOfRangeWakeCircleCenter_expectRecordDroppedNotWholeSync() {
         // Geofence.Builder throws on an out-of-range centre and registration builds the batch in one
         // map, so letting this through fails every fence in the sync, not just this record.

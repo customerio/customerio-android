@@ -1249,6 +1249,35 @@ class GeofenceRepositoryTest : RobolectricTest() {
     }
 
     @Test
+    fun refresh_givenMovementHoldingTheSlotForSameSession_expectDroppedWithoutWaiting() = runTest {
+        // The movement pass serves the same session, so a refresh behind it is a duplicate and
+        // should drop on the spot. Without the generation stamp the slot reads as NO_SESSION and
+        // this polls out the full wait before giving up.
+        every { secureUserStore.getUserId() } returns "user-42"
+        every { store.getRegisteredIds() } returns emptySet()
+        every { store.userStateGeneration() } returns 7L
+        coEvery { apiService.fetchGeofences(any()) } returns
+            Result.success(sampleResponse(maxBusinessGeofences = 3))
+        every { distanceFilter.nearest(any(), any(), any(), any(), any()) } returns emptyList()
+        val registrationEntered = CompletableDeferred<Unit>()
+        val releaseRegistration = CompletableDeferred<Unit>()
+        coEvery { manager.replaceGeofences(any(), any()) } coAnswers {
+            registrationEntered.complete(Unit)
+            releaseRegistration.await()
+            Result.success(Unit)
+        }
+
+        val movement = launch { repository.handleMovement(latitude = 1.0, longitude = 2.0) }
+        registrationEntered.await()
+        repository.refresh(latitude = 3.0, longitude = 4.0)
+        releaseRegistration.complete(Unit)
+        movement.join()
+
+        verify { logger.logSyncSkipped("refresh already in progress") }
+        verify(exactly = 0) { logger.logSyncSkipped("refresh already in progress after waiting") }
+    }
+
+    @Test
     fun refresh_givenInFlightGateCleared_expectSubsequentCallProceeds() = runTest {
         // Pins the contract that the in-flight gate is released even on failure,
         // so a follow-up refresh isn't permanently locked out.

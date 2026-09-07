@@ -288,6 +288,9 @@ internal class GeofenceRepositoryImpl(
             return Result.success(Unit)
         }
         try {
+            // Same as the other two slot holders: a caller serving this session can then recognise
+            // the holder as its own and drop immediately instead of polling out the whole wait.
+            inFlightUserStateGeneration.set(store.userStateGeneration())
             val userId = secureUserStore.getUserId()
             if (userId.isNullOrBlank()) {
                 logger.logSyncSkipped("no identified user")

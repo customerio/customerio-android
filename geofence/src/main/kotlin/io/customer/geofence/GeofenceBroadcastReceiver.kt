@@ -64,15 +64,22 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
 
     @VisibleForTesting
     internal suspend fun handleGeofencingEvent(geofencingEvent: GeofencingEvent?) {
-        if (geofencingEvent == null) return
         val logger = SDKComponent.geofenceLogger
+        if (geofencingEvent == null) {
+            logger.logInfo("broadcast_unparseable_intent")
+            return
+        }
 
         if (geofencingEvent.hasError()) {
             logger.logGeofencingError(geofencingEvent.errorCode)
             return
         }
 
-        val triggeringGeofenceIds = geofencingEvent.triggeringGeofences?.map { it.requestId } ?: return
+        val triggeringGeofenceIds = geofencingEvent.triggeringGeofences?.map { it.requestId }
+            ?: run {
+                logger.logInfo("broadcast_no_triggering_geofences")
+                return
+            }
         val location = geofencingEvent.triggeringLocation
         // Logged here, before any routing decision and before the Location is narrowed to a pair
         // of doubles. This is the only place the OS's own triggering fix — accuracy, age, mock
@@ -134,7 +141,7 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
                 Geofence.GEOFENCE_TRANSITION_ENTER -> Event.GeofenceTransition.ENTER
                 Geofence.GEOFENCE_TRANSITION_EXIT -> Event.GeofenceTransition.EXIT
                 else -> {
-                    logger.logUnknownTransition(gmsTransitionType)
+                    logger.logUnknownTransition(geofenceId, gmsTransitionType)
                     return@forEach
                 }
             }

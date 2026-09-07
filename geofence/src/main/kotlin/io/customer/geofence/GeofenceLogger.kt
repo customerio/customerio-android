@@ -25,8 +25,11 @@ internal enum class GeofenceLaunchReason(val wire: String) {
  *
  * Every record carries a ` || key=value` tail after its human-readable prose: `ev=` is a stable
  * machine key (prose is what gets reworded; `ev` is the contract) and `io=` classifies the record
- * for replay. Pre-existing prose is unchanged; records added by this work emit their prose whether
- * or not diagnostics are on — only the tail is gated.
+ * for replay. The nine prose lines `docs/manual-tests` greps for are unchanged; three of them are
+ * pinned by `documentedProse_expectExactStringsManualTestsGrepFor`, the rest by nothing but care; other prose may be improved (the
+ * unsupported-transition line gained the fence id, since one record per fence naming none of them
+ * was useless). Records added by this work emit their prose whether or not diagnostics are on —
+ * only the tail is gated.
  *
  * Reason tokens are **derived** from the existing prose rather than replacing it with an enum.
  * That keeps every `reason: String` signature exactly as it was — `logSyncSkipped` alone has 20
@@ -313,13 +316,39 @@ internal class GeofenceLogger(private val logger: Logger) {
         )
     }
 
-    fun logUnknownTransition(transitionType: Int) {
+    /**
+     * Something worth reading in a log, deliberately outside the asserted vocabulary.
+     *
+     * `ev=info` is the bucket for records a human wants when explaining a capture but a scenario
+     * must never assert on. Two reasons it exists rather than reusing a semantic key:
+     *
+     * - Unexpected cases do not deserve invented semantics. Minting a new `ev` for every oddity
+     *   grows the vocabulary faster than anyone can keep it aligned across platforms.
+     * - More importantly, the obvious reuse is actively wrong. Filing these under
+     *   `os.callback.dropped` would inflate the received-vs-dropped count — the count that
+     *   separates "the OS never reported it" from "we discarded it", which is the question a
+     *   paired drive exists to answer. Every real `os.callback.dropped` nets against an
+     *   `os.callback.received`; a broadcast we could not read has no receipt to net against.
+     *
+     * `io=obs`, so the off-device transform drops the whole family rather than replaying it.
+     */
+    fun logInfo(reason: String, fields: List<Pair<String, String?>> = emptyList()) {
         logger.debug(
-            "Ignoring geofence transition type=$transitionType (only ENTER and EXIT are tracked)" +
+            "Geofence note: ${reason.replace('_', ' ')}" +
+                tail("info", GeofenceLogIo.OBSERVATION, listOf("why" to reason) + fields),
+            tag = TAG
+        )
+    }
+
+    /** [geofenceId] because this is called per fence inside the broadcast loop — without it a
+     *  DWELL over three fences produces three identical records naming none of them. */
+    fun logUnknownTransition(geofenceId: String, transitionType: Int) {
+        logger.debug(
+            "Ignoring geofence transition type=$transitionType for '$geofenceId' (only ENTER and EXIT are tracked)" +
                 tail(
                     "os.callback.dropped",
                     GeofenceLogIo.INPUT,
-                    listOf("gms" to int(transitionType), "why" to "unsupported_transition_type")
+                    listOf("id" to geofenceId, "gms" to int(transitionType), "why" to "unsupported_transition_type")
                 ),
             tag = TAG
         )
@@ -360,7 +389,10 @@ internal class GeofenceLogger(private val logger: Logger) {
     // MARK: - Transitions
 
     /**
-     * The SDK judged this crossing real and made it durable — the record replay asserts on.
+     * The SDK judged this crossing real and wrote it down — the record replay asserts on.
+     *
+     * It promises nothing about what happens to the row next: that is the `delivery.*` family's
+     * business and is out of the harness's scope.
      *
      * Emitted *after* the pending rows are on disk, not before. Logging it earlier claimed an
      * acceptance the persist could still roll back, and left the log saying a crossing had been
@@ -372,7 +404,8 @@ internal class GeofenceLogger(private val logger: Logger) {
      *
      * The position for this crossing is **not** repeated here. It lives on the
      * `os.callback.received` record the receiver writes for the whole broadcast, which carries the
-     * OS's triggering fix and the ids it applied to — join on `id` within the same broadcast.
+     * OS's triggering fix and the ids it applied to — find this crossing's `id` in that record's
+     * `ids` list (a comma-separated list, not an `id` field; iOS is the one that emits `id` here).
      * Threading the `Location` down to this call site instead would mean widening
      * `dispatchTransition`, which has 78 test references, for information already recorded.
      *

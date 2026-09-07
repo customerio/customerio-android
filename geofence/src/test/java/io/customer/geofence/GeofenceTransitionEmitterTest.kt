@@ -148,8 +148,9 @@ class GeofenceTransitionEmitterTest : RobolectricTest() {
 
     @Test
     fun emit_givenGated_expectNoAcceptedRecord() = runTest {
-        // Cooldown and redundant-enter both log their own record; neither may also claim
-        // acceptance, or a suppressed crossing counts twice off-device.
+        // A cooldown-suppressed crossing logs its own record and must not also claim acceptance,
+        // or it counts twice off-device. (Redundant-enter is the other gate with the same rule;
+        // that one is covered by emit_givenEnterAlreadyReported_.)
         every { mockCooldownFilter.tryAcquire(any(), any(), any()) } returns 42.0
 
         emit().shouldBeFalse()
@@ -168,6 +169,8 @@ class GeofenceTransitionEmitterTest : RobolectricTest() {
         // Ahead of the cooldown, so the slot stays free for the next genuine transition.
         verify(exactly = 0) { mockCooldownFilter.tryAcquire(any(), any(), any()) }
         verify(exactly = 0) { mockPendingStore.appendAll(any()) }
+        verify(exactly = 0) { mockLogger.logTransitionAccepted(any(), any(), any()) }
+        verify(exactly = 1) { mockLogger.logEnterDroppedAlreadyReported("biz-1") }
     }
 
     @Test

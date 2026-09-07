@@ -7,19 +7,23 @@ import org.junit.Test
 
 class PolygonGeometryTest {
     @Test
-    fun from_whenPolygonIsConcave_thenRejectsV1Geometry() {
-        invoking {
-            PolygonGeometry.from(
-                listOf(
-                    point(0.0, 0.0),
-                    point(0.0, 3.0),
-                    point(1.0, 3.0),
-                    point(1.0, 1.0),
-                    point(3.0, 1.0),
-                    point(3.0, 0.0)
-                )
+    fun from_whenPolygonIsConcave_thenAcceptsAndAnswersInsideTheNotch() {
+        // Concavity is the backend's call, not ours. What matters is that the ray cast still gets
+        // the reflex corner right: the notch of an L is outside, both arms are inside.
+        val lShape = PolygonGeometry.from(
+            listOf(
+                point(0.0, 0.0),
+                point(0.0, 3.0),
+                point(1.0, 3.0),
+                point(1.0, 1.0),
+                point(3.0, 1.0),
+                point(3.0, 0.0)
             )
-        } shouldThrow IllegalArgumentException::class
+        )
+
+        lShape.relationTo(point(2.0, 2.0)) shouldBeEqualTo PolygonPointRelation.OUTSIDE
+        lShape.relationTo(point(0.5, 2.5)) shouldBeEqualTo PolygonPointRelation.INSIDE
+        lShape.relationTo(point(2.5, 0.5)) shouldBeEqualTo PolygonPointRelation.INSIDE
     }
 
     @Test
@@ -84,16 +88,18 @@ class PolygonGeometryTest {
     }
 
     @Test
-    fun from_whenPolygonApproachesGeographicPole_thenRejectsUnsupportedGeometry() {
-        invoking {
-            PolygonGeometry.from(
-                listOf(
-                    point(89.92593569795733, -145.18356655630183),
-                    point(89.8623631437237, 16.93650091099056),
-                    point(89.9222388615163, 60.8667321459084)
-                )
+    fun from_whenPolygonApproachesGeographicPole_thenAccepted() {
+        // Circles at the pole were always registerable; rejecting a polygon there was the SDK
+        // holding the payload to a stricter rule than the backend or the rest of the module.
+        val nearPole = PolygonGeometry.from(
+            listOf(
+                point(89.92, 10.0),
+                point(89.86, 11.0),
+                point(89.92, 12.0)
             )
-        } shouldThrow IllegalArgumentException::class
+        )
+
+        nearPole.vertices.size shouldBeEqualTo 3
     }
 
     private fun square(): PolygonGeometry = PolygonGeometry.from(

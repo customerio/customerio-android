@@ -161,6 +161,68 @@ class GeofenceApiResponseTest : RobolectricTest() {
     }
 
     @Test
+    fun parseAndMap_givenPolygonPositionThatIsNotFinite_expectRecordDroppedNotWholeSync() {
+        // Positions decode as JsonElement, so the literal "NaN" becomes a Double and passes every
+        // geometry check — each one compares, and every comparison against NaN is false. It would
+        // surface only in the strict cache encoder, after the sync had already registered.
+        val regions = parseRegions(
+            """
+            {
+              "geofences": [
+                {
+                  "id": "not-a-number",
+                  "shape": "polygon",
+                  "enclosing_circle": { "latitude": 0.0, "longitude": 0.0, "base_radius_m": 100 },
+                  "geometry": {
+                    "type": "Polygon",
+                    "coordinates": [[[0, 0], [1, 0], [1, 1], [0, "NaN"], [0, 0]]]
+                  }
+                },
+                { "id": "circle", "latitude": 0, "longitude": 0, "radius": 100 }
+              ]
+            }
+            """.trimIndent(),
+            EnabledPolygonSupport
+        )
+
+        regions.map(GeofenceRegion::id) shouldBeEqualTo listOf("circle")
+        verify { mockLogger.logPolygonDropped("not-a-number", "ring is malformed, unsupported or fails validation") }
+    }
+
+    @Test
+    fun parseAndMap_givenPolygonWithOutOfRangeWakeCircleCenter_expectRecordDroppedNotWholeSync() {
+        // Geofence.Builder throws on an out-of-range centre and registration builds the batch in one
+        // map, so letting this through fails every fence in the sync, not just this record.
+        val regions = parseRegions(
+            """
+            {
+              "geofences": [
+                {
+                  "id": "bad-center",
+                  "shape": "polygon",
+                  "enclosing_circle": { "latitude": 91.0, "longitude": 0.0, "base_radius_m": 100 },
+                  "geometry": {
+                    "type": "Polygon",
+                    "coordinates": [[[0, 0], [0.01, 0], [0.01, 0.01], [0, 0.01], [0, 0]]]
+                  }
+                },
+                { "id": "circle", "latitude": 0, "longitude": 0, "radius": 100 }
+              ]
+            }
+            """.trimIndent(),
+            EnabledPolygonSupport
+        )
+
+        regions.map(GeofenceRegion::id) shouldBeEqualTo listOf("circle")
+        verify {
+            mockLogger.logPolygonDropped(
+                "bad-center",
+                "backend-provided enclosing circle is invalid or does not contain the polygon"
+            )
+        }
+    }
+
+    @Test
     fun parseAndMap_givenPolygonWithoutBackendWakeCircle_expectDropped() {
         val regions = parseRegions(
             """
@@ -186,7 +248,7 @@ class GeofenceApiResponseTest : RobolectricTest() {
     }
 
     @Test
-    fun parseAndMap_givenConcavePolygon_expectDroppedByV1Envelope() {
+    fun parseAndMap_givenConcavePolygon_expectMapped() {
         val regions = parseRegions(
             """
             {
@@ -207,8 +269,9 @@ class GeofenceApiResponseTest : RobolectricTest() {
             EnabledPolygonSupport
         )
 
-        regions.map(GeofenceRegion::id) shouldBeEqualTo listOf("circle")
-        verify { mockLogger.logPolygonDropped(eq("concave"), any()) }
+        // The backend admits concave rings and the ray cast handles them, so re-checking convexity
+        // here only put the SDK out of step with the payload it was sent.
+        regions.map(GeofenceRegion::id) shouldBeEqualTo listOf("concave", "circle")
     }
 
     @Test
@@ -352,7 +415,7 @@ class GeofenceApiResponseTest : RobolectricTest() {
     }
 
     @Test
-    fun parseAndMap_givenPolygonBeyondMaxVertexCount_expectDroppedWithoutCostingOtherRegions() {
+    fun parseAndMap_givenPolygonBeyondTheFormerVertexCap_expectMapped() {
         val ring = (0 until 600).joinToString(",") { index ->
             val angle = 2.0 * Math.PI * index / 600.0
             "[${0.002 * kotlin.math.cos(angle)}, ${0.002 * kotlin.math.sin(angle)}]"
@@ -374,8 +437,9 @@ class GeofenceApiResponseTest : RobolectricTest() {
             EnabledPolygonSupport
         )
 
-        regions.map(GeofenceRegion::id) shouldBeEqualTo listOf("circle")
-        verify { mockLogger.logPolygonDropped(eq("too-many"), any()) }
+        // Vertex count is the backend's admission policy, not something the ring needs to be usable.
+        regions.map(GeofenceRegion::id) shouldBeEqualTo listOf("too-many", "circle")
+        regions.first().polygonVertices?.size shouldBeEqualTo 600
     }
 
     // ---------- region shape ----------

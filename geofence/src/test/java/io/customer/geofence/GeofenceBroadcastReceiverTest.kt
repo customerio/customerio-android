@@ -14,7 +14,9 @@ import io.customer.geofence.worker.GeofenceEventScheduler
 import io.customer.sdk.communication.Event
 import io.customer.sdk.communication.EventBus
 import io.customer.sdk.core.di.SDKComponent
+import io.customer.sdk.core.util.CioLogLevel
 import io.customer.sdk.core.util.Clock
+import io.customer.sdk.core.util.Logger
 import io.customer.sdk.data.store.SecureUserStore
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -37,6 +39,7 @@ import org.amshove.kluent.shouldBeNull
 import org.amshove.kluent.shouldNotBeBlank
 import org.amshove.kluent.shouldNotBeNull
 import org.amshove.kluent.shouldNotContain
+import org.junit.After
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -53,6 +56,45 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
     private val mockStore: GeofenceRegionStore = mockk(relaxed = true)
     private val mockManager: GeofenceManager = mockk(relaxed = true)
     private val mockSecureUserStore: SecureUserStore = mockk(relaxed = true)
+
+    /**
+     * Captures what the SDK actually wrote. The geofence logger is a computed singleton over the
+     * SDK `Logger`, so it cannot be mocked directly — and asserting the emitted record is the
+     * stronger check anyway: it covers the `ev=` a parser dispatches on, not merely that some
+     * method was called.
+     */
+    private class CapturingLogger : Logger {
+        val messages = mutableListOf<String>()
+        override var logLevel: CioLogLevel = CioLogLevel.DEBUG
+        override fun setLogDispatcher(dispatcher: ((CioLogLevel, String) -> Unit)?) = Unit
+        override fun info(message: String, tag: String?) { messages.add(message) }
+        override fun debug(message: String, tag: String?) { messages.add(message) }
+        override fun error(message: String, tag: String?, throwable: Throwable?) { messages.add(message) }
+    }
+
+    private val capturingLogger = CapturingLogger()
+
+    @After
+    fun resetDiagnostics() {
+        // null, not false: null restores the manifest value, false pins the gate off for every
+        // later test class in this JVM.
+        GeofenceDiagnostics.setEnabledForTesting(null)
+    }
+
+    /**
+     * The point of these records: a broadcast the SDK woke for and could make nothing of must
+     * leave a trace, or the capture is byte-identical to a process the OS never talked to.
+     * Asserted on the emitted tail so deleting the log line fails the test.
+     */
+    private fun expectRecorded(ev: String, why: String) {
+        val match = capturingLogger.messages.firstOrNull { it.contains("ev=$ev") && it.contains("why=$why") }
+        if (match == null) {
+            throw AssertionError(
+                "expected a record with ev=$ev why=$why; captured:\n" +
+                    capturingLogger.messages.joinToString("\n  ", prefix = "  ")
+            )
+        }
+    }
 
     // Real-time behavior by default so entry timestamps stay realistic; the dispatch-budget
     // test re-stubs elapsedRealtime to simulate time already spent inside a dispatch.
@@ -76,6 +118,7 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
                     sdk {
                         overrideDependency<EventBus>(mockEventBus)
                         overrideDependency<Clock>(mockClock)
+                        overrideDependency<Logger>(capturingLogger)
                     }
                     android {
                         overrideDependency<GeofenceEventScheduler>(mockScheduler)
@@ -88,6 +131,9 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
                 }
             }
         )
+        // The tail is gated, and these tests assert on `ev=` — the machine key a parser reads,
+        // not the prose, which is what makes deleting a log line fail rather than just reword it.
+        GeofenceDiagnostics.setEnabledForTesting(true)
         // Default: cooldown allows emission. Tests override this to test suppression.
         every { mockCooldownFilter.tryAcquire(any(), any(), any()) } returns null
         // Default: an identified user is the common case; the snapshot lands on the entry.
@@ -122,6 +168,7 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
 
         coVerify(exactly = 0) { mockScheduler.schedule(any()) }
         pendingStore.loadAll() shouldBeEqualTo emptyList()
+        expectRecorded("info", "broadcast_unparseable_intent")
     }
 
     @Test
@@ -149,6 +196,7 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
 
         coVerify(exactly = 0) { mockScheduler.schedule(any()) }
         pendingStore.loadAll() shouldBeEqualTo emptyList()
+        expectRecorded("info", "broadcast_no_triggering_geofences")
     }
 
     @Test
@@ -378,6 +426,11 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
 
         coVerify(exactly = 0) { mockScheduler.schedule(any()) }
         pendingStore.loadAll() shouldBeEqualTo emptyList()
+        // Named, so a DWELL over several fences does not produce identical records naming none.
+        expectRecorded("os.callback.dropped", "unsupported_transition_type")
+        // Trailing space: "biz-geofence" is a prefix of "biz-geofence-2", which this suite also
+        // registers, so an unanchored contains would pass on the wrong fence.
+        capturingLogger.messages.any { it.contains("id=biz-geofence ") } shouldBeEqualTo true
     }
 
     @Test

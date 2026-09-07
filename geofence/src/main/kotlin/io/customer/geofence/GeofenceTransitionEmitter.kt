@@ -54,14 +54,16 @@ internal class GeofenceTransitionEmitter(
             logger.logTransitionSuppressed(geofenceId, transition.name, cooldownRemaining)
             return false
         }
-        logger.logTransitionEmitting(geofenceId, transition.name)
-
         // One transitionId shared across the per-geoset fan-out.
         val transitionId = UUID.randomUUID().toString()
         val name = geofenceName?.takeIf { it.isNotEmpty() }
         // One event per geoset; no geosets → one null-geoset event. Distinct so a repeated geoset
         // doesn't duplicate.
-        val geosets: List<String?> = geosetIds.distinct().takeIf { it.isNotEmpty() } ?: listOf(null)
+        // Blanks dropped as well as duplicates, matching iOS. A catalog row carrying "" otherwise
+        // persists a row with an empty geosetId and reports n=2 where iOS reports n=1 — and now
+        // that `n` is an asserted field, that reads as an SDK behaviour difference that isn't one.
+        val geosets: List<String?> = geosetIds.filter { it.isNotEmpty() }.distinct()
+            .takeIf { it.isNotEmpty() } ?: listOf(null)
         val entries = geosets.map { geosetId ->
             PendingGeofenceDelivery(
                 geofenceId = geofenceId,
@@ -82,7 +84,10 @@ internal class GeofenceTransitionEmitter(
             cooldownFilter.release(userId, geofenceId, transition)
             return false
         }
-        // Only once the rows are durable, so a rolled-back write can't suppress its own retry.
+        // Below the write, not above it: logged earlier this could claim an acceptance the write
+        // then rolled back. The same ordering rule covers `markEnterEmitted` — a rolled-back write
+        // must not leave a mark that suppresses its own retry.
+        logger.logTransitionAccepted(geofenceId, transition.name, entries.size)
         if (transition == Event.GeofenceTransition.ENTER && monitorsExit) {
             regionStore.markEnterEmitted(userId, geofenceId)
         }

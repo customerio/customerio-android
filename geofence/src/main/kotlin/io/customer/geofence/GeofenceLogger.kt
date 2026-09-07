@@ -25,8 +25,11 @@ internal enum class GeofenceLaunchReason(val wire: String) {
  *
  * Every record carries a ` || key=value` tail after its human-readable prose: `ev=` is a stable
  * machine key (prose is what gets reworded; `ev` is the contract) and `io=` classifies the record
- * for replay. Pre-existing prose is unchanged; records added by this work emit their prose whether
- * or not diagnostics are on — only the tail is gated.
+ * for replay. The nine prose lines `docs/manual-tests` greps for are unchanged; three of them are
+ * pinned by `documentedProse_expectExactStringsManualTestsGrepFor`, the rest by nothing but care; other prose may be improved (the
+ * unsupported-transition line gained the fence id, since one record per fence naming none of them
+ * was useless). Records added by this work emit their prose whether or not diagnostics are on —
+ * only the tail is gated.
  *
  * Reason tokens are **derived** from the existing prose rather than replacing it with an enum.
  * That keeps every `reason: String` signature exactly as it was — `logSyncSkipped` alone has 20
@@ -313,13 +316,39 @@ internal class GeofenceLogger(private val logger: Logger) {
         )
     }
 
-    fun logUnknownTransition(transitionType: Int) {
+    /**
+     * Something worth reading in a log, deliberately outside the asserted vocabulary.
+     *
+     * `ev=info` is the bucket for records a human wants when explaining a capture but a scenario
+     * must never assert on. Two reasons it exists rather than reusing a semantic key:
+     *
+     * - Unexpected cases do not deserve invented semantics. Minting a new `ev` for every oddity
+     *   grows the vocabulary faster than anyone can keep it aligned across platforms.
+     * - More importantly, the obvious reuse is actively wrong. Filing these under
+     *   `os.callback.dropped` would inflate the received-vs-dropped count — the count that
+     *   separates "the OS never reported it" from "we discarded it", which is the question a
+     *   paired drive exists to answer. Every real `os.callback.dropped` nets against an
+     *   `os.callback.received`; a broadcast we could not read has no receipt to net against.
+     *
+     * `io=obs`, so the off-device transform drops the whole family rather than replaying it.
+     */
+    fun logInfo(reason: String, fields: List<Pair<String, String?>> = emptyList()) {
         logger.debug(
-            "Ignoring geofence transition type=$transitionType (only ENTER and EXIT are tracked)" +
+            "Geofence note: ${reason.replace('_', ' ')}" +
+                tail("info", GeofenceLogIo.OBSERVATION, listOf("why" to reason) + fields),
+            tag = TAG
+        )
+    }
+
+    /** [geofenceId] because this is called per fence inside the broadcast loop — without it a
+     *  DWELL over three fences produces three identical records naming none of them. */
+    fun logUnknownTransition(geofenceId: String, transitionType: Int) {
+        logger.debug(
+            "Ignoring geofence transition type=$transitionType for '$geofenceId' (only ENTER and EXIT are tracked)" +
                 tail(
                     "os.callback.dropped",
                     GeofenceLogIo.INPUT,
-                    listOf("gms" to int(transitionType), "why" to "unsupported_transition_type")
+                    listOf("id" to geofenceId, "gms" to int(transitionType), "why" to "unsupported_transition_type")
                 ),
             tag = TAG
         )
@@ -360,20 +389,38 @@ internal class GeofenceLogger(private val logger: Logger) {
     // MARK: - Transitions
 
     /**
-     * The position for this crossing is **not** repeated here.
+     * The SDK judged this crossing real and wrote it down — the record replay asserts on.
      *
-     * It lives on the `os.callback.received` record the receiver writes for the whole broadcast,
-     * which carries the OS's triggering fix and the ids it applied to — join on `id` within the
-     * same broadcast. Threading the `Location` down to this call site instead would mean widening
+     * It promises nothing about what happens to the row next: that is the `delivery.*` family's
+     * business and is out of the harness's scope.
+     *
+     * Emitted *after* the pending rows are on disk, not before. Logging it earlier claimed an
+     * acceptance the persist could still roll back, and left the log saying a crossing had been
+     * taken when the cooldown had just been released for a retry.
+     *
+     * Named to match iOS. `delivery.*` covers what happens afterwards and is out of replay's
+     * scope; the two families must not be confused, because a device that is merely offline still
+     * accepts crossings correctly.
+     *
+     * The position for this crossing is **not** repeated here. It lives on the
+     * `os.callback.received` record the receiver writes for the whole broadcast, which carries the
+     * OS's triggering fix and the ids it applied to — find this crossing's `id` in that record's
+     * `ids` list (a comma-separated list, not an `id` field; iOS is the one that emits `id` here).
+     * Threading the `Location` down to this call site instead would mean widening
      * `dispatchTransition`, which has 78 test references, for information already recorded.
+     *
+     * [rows] is the per-geoset fan-out size and rides in the tail as `n`, so one crossing reads as
+     * one acceptance. It is deliberately **not** added to the prose: this message predates the
+     * instrumentation, and the file's contract is that pre-existing prose is unchanged so a
+     * customer build with debug logging on sees exactly what it saw before.
      */
-    fun logTransitionEmitting(geofenceId: String, transitionName: String) {
+    fun logTransitionAccepted(geofenceId: String, transitionName: String, rows: Int) {
         logger.debug(
             "Geofence '$geofenceId' $transitionName: queued for at-least-once delivery (WorkManager now, analytics pipeline on next foreground)" +
                 tail(
-                    "transition.emitted",
+                    "transition.accepted",
                     GeofenceLogIo.OUTPUT,
-                    listOf("id" to geofenceId, "t" to token(transitionName))
+                    listOf("id" to geofenceId, "t" to token(transitionName), "n" to int(rows))
                 ),
             tag = TAG
         )
@@ -557,7 +604,11 @@ internal class GeofenceLogger(private val logger: Logger) {
     }
 
     /** Outcome of a nearby-geofence fetch. An **input**: replay feeds the response back. */
-    fun logApiFetchResult(returnedCount: Int, elapsedMillis: Long?) {
+    fun logApiFetchResult(
+        returnedCount: Int,
+        elapsedMillis: Long?,
+        regions: List<GeofenceRegion> = emptyList()
+    ) {
         logger.debug(
             "Fetched $returnedCount nearby geofence(s) from the server" +
                 tail(
@@ -571,6 +622,43 @@ internal class GeofenceLogger(private val logger: Logger) {
                 ),
             tag = TAG
         )
+        logFenceCatalog(regions)
+    }
+
+    /**
+     * One record per fetched fence, describing the circle the server sent.
+     *
+     * Without this a capture names fences only by opaque id: a replay cannot place them, and nobody
+     * reading the log can tell which geoset a crossing belonged to. Re-fetching the geometry from
+     * the workspace later is not equivalent — fences move, and a drive replayed months on would
+     * silently get today's circles instead of the ones it actually ran against.
+     *
+     * Gated whole rather than relying on `tail()` returning empty, because these records carry no
+     * prose worth emitting on their own — with diagnostics off they should not exist at all.
+     */
+    private fun logFenceCatalog(regions: List<GeofenceRegion>) {
+        if (regions.isEmpty() || !GeofenceDiagnostics.isEnabled) return
+        for (region in regions) {
+            logger.debug(
+                "Geofence '${region.id}' catalogued" +
+                    tail(
+                        "fence.cataloged",
+                        GeofenceLogIo.INPUT,
+                        listOf(
+                            "id" to region.id,
+                            // Sanitized like any other value: a workspace-authored name can contain
+                            // spaces, commas and `=`, all of which would break the parser's split.
+                            "name" to region.name,
+                            "gs" to composedList(region.geosetIds),
+                            "lat" to num(region.latitude, 5),
+                            "lon" to num(region.longitude, 5),
+                            "rad" to num(region.radius, 0),
+                            "tt" to composedList(region.transitionTypes.map { it.name.lowercase() })
+                        )
+                    ),
+                tag = TAG
+            )
+        }
     }
 
     fun logApiFetchFailed(message: String?) {

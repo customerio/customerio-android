@@ -359,7 +359,8 @@ internal class GeofenceRepositoryImpl(
                 // offered and what survived the cap is the thing worth being able to see.
                 logger.logApiFetchResult(
                     returnedCount = response.geofences.size,
-                    elapsedMillis = fetchElapsedMillis
+                    elapsedMillis = fetchElapsedMillis,
+                    regions = regions
                 )
                 // Config preference: server-shipped > last cached > constants.
                 val config = parsedConfig ?: store.getCachedConfigOrFallback()

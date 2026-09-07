@@ -341,6 +341,34 @@ class PolygonLocationEngineTest : RobolectricTest() {
     }
 
     @Test
+    fun processResponsiveLocation_givenEnclosingCircleEditedButRingUnchanged_expectTransitionStillCommitted() = runTest {
+        // The transition revision covers the enclosing circle as well as the ring, so a catalog sync
+        // that only retunes the wake radius still bumps it. A fence cache keyed on the ring alone
+        // would keep serving the old revision, and the processor drops those as replaced geometry.
+        engine.processResponsiveLocation(insideFix())
+        store.getEnteredIds() shouldContainSame setOf(POLYGON_ID)
+        store.saveCachedRegions(listOf(polygonRegion().copy(radius = 900f)))
+
+        engine.processResponsiveLocation(outsideFix(elapsedRealtimeNanos = SystemClock.elapsedRealtimeNanos()))
+
+        store.getEnteredIds().shouldBeEmpty()
+        coVerify(exactly = 1) {
+            emitter.emitWithRetainedAttempt(
+                POLYGON_ID,
+                Event.GeofenceTransition.EXIT,
+                any(),
+                any(),
+                any(),
+                any(),
+                any(),
+                any(),
+                any(),
+                any()
+            )
+        }
+    }
+
+    @Test
     fun processResponsiveLocation_givenCachedRingThatNoLongerValidates_expectPolygonSkippedNotTreatedAsItsCircle() = runTest {
         // Self-intersecting ring: the region still carries a wide enclosing trigger circle, and the fix
         // is well inside that circle. Falling back to it would report ENTER for the wrong area.

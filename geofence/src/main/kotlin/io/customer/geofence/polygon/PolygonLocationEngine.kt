@@ -54,7 +54,7 @@ internal class PolygonLocationEngine(
     // Keyed on the rings themselves, not on the active id set: a sync can replace a polygon's
     // geometry without changing which polygons are active, and evaluating the ring it replaced
     // reports the device inside a fence that has moved.
-    private var cachedFenceSignature: Map<String, List<PolygonCoordinate>?> = emptyMap()
+    private var cachedFenceSignature: Map<String, Int> = emptyMap()
     private var cachedFences: List<PolygonFence> = emptyList()
 
     /**
@@ -235,7 +235,9 @@ internal class PolygonLocationEngine(
         // One catalog read. getCachedRegion decodes the whole catalog per call, so reading once and
         // filtering costs less than the per-id lookups this used to do on every rebuild.
         val regions = store.getCachedRegions().filter { it.id in activeIds && it.isPolygon }
-        val signature = regions.associate { it.id to it.polygonVertices }
+        // Keyed on the transition revision, not just the ring: it also covers the enclosing circle,
+        // and a fence rebuilt from a stale revision has its detections dropped as replaced geometry.
+        val signature = regions.associate { it.id to it.transitionRevision() }
         if (signature == cachedFenceSignature) return cachedFences
         geometryCache.keys.retainAll(regions.mapTo(mutableSetOf()) { it.id })
         cachedFenceSignature = signature

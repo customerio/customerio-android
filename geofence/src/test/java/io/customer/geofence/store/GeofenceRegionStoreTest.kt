@@ -421,7 +421,11 @@ class GeofenceRegionStoreTest : RobolectricTest() {
     }
 
     @Test
-    fun beginUserSession_givenLegacyRegistrationsWithoutOwnerOrRoutingKey_expectAdoptsWithoutCoverageLoss() {
+    fun beginUserSession_givenLegacyRegistrationsWithoutOwner_expectRegistrationsKeptAndSessionReopened() {
+        // Nothing records who the persisted state belongs to, so it opens as a switch rather than
+        // being adopted on the assumption that the caller names its owner. Registrations survive,
+        // so the live fences keep firing; routing and containment do not, so nothing is attributed
+        // to this user until a refresh re-arms them.
         store.saveRegisteredIds(setOf("biz-1"))
         store.recordEntered("biz-1")
         val recreated = GeofenceRegionStoreImpl(
@@ -429,13 +433,15 @@ class GeofenceRegionStoreTest : RobolectricTest() {
             jsonSerializer = GeofenceJsonSerializer(),
             logger = mockk(relaxed = true)
         )
+        val generationBefore = recreated.userStateGeneration()
 
         recreated.beginUserSession("user-1")
 
         recreated.activeUserSessionId() shouldBeEqualTo "user-1"
         recreated.getRegisteredIds() shouldBeEqualTo setOf("biz-1")
-        recreated.getRoutableRegisteredIds() shouldBeEqualTo setOf("biz-1")
-        recreated.getEnteredIds() shouldBeEqualTo setOf("biz-1")
+        recreated.userStateGeneration() shouldBeEqualTo generationBefore + 1L
+        recreated.getRoutableRegisteredIds().shouldBeEmpty()
+        recreated.getEnteredIds().shouldBeEmpty()
     }
 
     @Test
@@ -501,22 +507,17 @@ class GeofenceRegionStoreTest : RobolectricTest() {
     }
 
     @Test
-    fun beginUserSession_givenLegacyInstallAdoptedMidRefresh_expectInFlightWriteStillArmsRouting() {
-        // Upgraded install: registrations persisted, no session owner and no routing key. A launch
-        // refresh snapshots the generation, then a callback adopts that same user while the refresh
-        // waits on GMS. Adoption changes no user, so it must not invalidate the pass: if it did, the
-        // pass would still save its registered ids but skip the catalog it gates on the generation,
-        // and routing falls back to those ids here, so the new fence would fire with no cached row.
+    fun beginUserSession_givenUnownedStateAndAnInFlightPass_expectThatPassRefused() {
+        // The pass began before anyone owned this state, so it cannot arm routing for the session
+        // that now does. Refusing is what sends the incoming user down its own refresh instead of
+        // inheriting a set that was ranked for someone else.
         store.saveRegisteredIds(setOf("biz-1"))
         val inFlightGeneration = store.userStateGeneration()
 
         store.beginUserSession("user-1")
 
-        store.activeUserSessionId() shouldBeEqualTo "user-1"
-        store.userStateGeneration() shouldBeEqualTo inFlightGeneration
-        store.saveRoutableRegisteredIdsIfCurrent(setOf("biz-1", "biz-2"), inFlightGeneration)
-            .shouldBeTrue()
-        store.getRoutableRegisteredIds() shouldBeEqualTo setOf("biz-1", "biz-2")
+        store.saveRoutableRegisteredIdsIfCurrent(setOf("biz-1"), inFlightGeneration).shouldBeFalse()
+        store.getRoutableRegisteredIds().shouldBeEmpty()
     }
 
     @Test
@@ -567,10 +568,12 @@ class GeofenceRegionStoreTest : RobolectricTest() {
     }
 
     @Test
-    fun getRoutableRegisteredIds_givenPreFeatureStore_expectFallsBackToRegisteredIds() {
+    fun getRoutableRegisteredIds_givenRegistrationsNoSessionHasClaimed_expectEmpty() {
+        // A registration routes only once a pass has armed it for a known session. Falling back to
+        // the registered set would route a previous install's fences for whoever identifies next.
         store.saveRegisteredIds(setOf("biz-legacy"))
 
-        store.getRoutableRegisteredIds() shouldBeEqualTo setOf("biz-legacy")
+        store.getRoutableRegisteredIds().shouldBeEmpty()
     }
 
     @Test

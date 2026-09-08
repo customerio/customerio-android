@@ -127,6 +127,8 @@ internal interface GeofenceRegionStore {
      * Returns whether the write happened.
      */
     fun saveRoutableRegisteredIdsIfCurrent(ids: Set<String>, expectedUserStateGeneration: Long): Boolean
+
+    /** Empty until a pass arms it: a registration only routes once a session has claimed it. */
     fun getRoutableRegisteredIds(): Set<String>
 
     /** Polygon enclosing circles currently known to contain the device. */
@@ -464,18 +466,11 @@ internal class GeofenceRegionStoreImpl(
     override fun beginUserSession(userId: String) = synchronized(enteredLock) {
         val currentOwner = prefs.read { getString(KEY_USER_STATE_OWNER, null) }
         if (currentOwner == userId) return@synchronized
+        // An absent owner means an install upgraded from a version without these keys, and nothing
+        // records who the persisted state belongs to. Adopting whoever is identified now was a guess
+        // that a late read or a replayed identify can get wrong, so an unowned session opens as a
+        // switch. OS registrations survive it, so live fences keep firing once a refresh re-arms them.
         val nextGeneration = currentUserStateGenerationLocked() + 1L
-        val hasRoutingState = prefs.read { contains(KEY_ROUTABLE_REGISTERED_IDS) } == true
-        if (currentOwner == null && !hasRoutingState) {
-            // Upgrade migration: older SDKs persisted a secure user and registrations but no
-            // geofence-session owner/routing key. Adopt that same persisted session without
-            // discarding valid OS registrations or containment before the first callback.
-            // The generation deliberately stays put, because nothing changed hands. Moving it
-            // would invalidate a refresh already in flight, which would then skip the catalog
-            // write it gates on that generation after its registered-id write already landed.
-            prefs.edit(commit = true) { putString(KEY_USER_STATE_OWNER, userId) }
-            return@synchronized
-        }
         prefs.edit(commit = true) {
             putString(KEY_USER_STATE_OWNER, userId)
             putLong(KEY_USER_STATE_GENERATION, nextGeneration)
@@ -577,11 +572,8 @@ internal class GeofenceRegionStoreImpl(
         true
     }
 
-    override fun getRoutableRegisteredIds(): Set<String> {
-        val hasExplicitRoutingState = prefs.read { contains(KEY_ROUTABLE_REGISTERED_IDS) } == true
-        if (!hasExplicitRoutingState) return getRegisteredIds()
-        return readJson(KEY_ROUTABLE_REGISTERED_IDS, ID_SET_SERIALIZER) ?: emptySet()
-    }
+    override fun getRoutableRegisteredIds(): Set<String> =
+        readJson(KEY_ROUTABLE_REGISTERED_IDS, ID_SET_SERIALIZER) ?: emptySet()
 
     override fun getActivePolygonIds(): Set<String> = synchronized(activePolygonLock) {
         readJson(KEY_ACTIVE_POLYGON_IDS, ID_SET_SERIALIZER) ?: emptySet()
@@ -818,8 +810,6 @@ internal class GeofenceRegionStoreImpl(
                 remove(KEY_LAST_REGISTRATION_UPTIME)
                 remove(KEY_LAST_REGISTRATION_PACKAGE_UPDATE_TIME)
             } else {
-                // Explicit empty is distinct from key absence. Absence is the upgrade path for SDK
-                // versions that only stored registered_ids and must remain routable until refreshed.
                 putString(KEY_ROUTABLE_REGISTERED_IDS, jsonSerializer.encode(ID_SET_SERIALIZER, emptySet()))
             }
             if (!resetWasSuperseded) {

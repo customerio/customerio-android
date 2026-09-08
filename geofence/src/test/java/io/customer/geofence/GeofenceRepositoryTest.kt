@@ -257,8 +257,7 @@ class GeofenceRepositoryTest : RobolectricTest() {
         verify { logger.logMovementRearmedAfterFailedRefresh() }
         // Anchor and freshness stay untouched, so the next EXIT still fetches remotely rather than
         // treating the re-rank as a successful sync.
-        verify(exactly = 0) { store.saveLastApiFetchLocation(any()) }
-        verify(exactly = 0) { store.setLastSyncTimestamp(any()) }
+        verify(exactly = 0) { store.saveApiFetchStateIfCurrent(any(), any(), any()) }
     }
 
     @Test
@@ -427,7 +426,7 @@ class GeofenceRepositoryTest : RobolectricTest() {
         result.exceptionOrNull() shouldBeEqualTo error
         verify { logger.logSyncFailed(match { it?.contains("network down") == true }) }
         verify(exactly = 0) { store.saveRegisteredIds(any()) }
-        verify(exactly = 0) { store.setLastSyncTimestamp(any()) }
+        verify(exactly = 0) { store.saveApiFetchStateIfCurrent(any(), any(), any()) }
         coVerify(exactly = 0) { manager.replaceGeofences(any(), any()) }
     }
 
@@ -823,7 +822,7 @@ class GeofenceRepositoryTest : RobolectricTest() {
         repository.refresh(latitude = 12.34, longitude = 56.78)
 
         verify { logger.logSyncSkipped("user changed before routing could be armed") }
-        verify(exactly = 0) { store.setLastSyncTimestamp(any()) }
+        verify(exactly = 0) { store.saveApiFetchStateIfCurrent(any(), any(), any()) }
     }
 
     @Test
@@ -841,7 +840,32 @@ class GeofenceRepositoryTest : RobolectricTest() {
 
         repository.refresh(latitude = 12.34, longitude = 56.78)
 
-        verify { store.setLastSyncTimestamp(any()) }
+        verify { store.saveApiFetchStateIfCurrent(any(), any(), 7L) }
+    }
+
+    @Test
+    fun refresh_givenIdentifyLandsAfterRoutingArmed_expectFreshnessOfferedForThePassGeneration() = runTest {
+        // The window this guards: routing is armed, then an identify bumps the generation before
+        // the pass stamps the cache. The pass must offer its own generation so the store refuses,
+        // rather than re-reading and stamping the new session fresh off this pass's fetch.
+        var generation = 7L
+        every { secureUserStore.getUserId() } returns "user-42"
+        every { store.getRegisteredIds() } returns emptySet()
+        every { store.userStateGeneration() } answers { generation }
+        every { store.saveRoutableRegisteredIdsIfCurrent(any(), any()) } answers {
+            generation = 8L
+            true
+        }
+        coEvery { apiService.fetchGeofences(any()) } returns
+            Result.success(sampleResponse(maxBusinessGeofences = 3, localRefreshTriggerRadius = 1500f))
+        every { distanceFilter.nearest(any(), 12.34, 56.78, 3, any()) } returns
+            listOf(GeofenceRegion("biz-1", 0.0, 0.0, 100f))
+        coEvery { manager.replaceGeofences(any(), any()) } returns Result.success(Unit)
+
+        repository.refresh(latitude = 12.34, longitude = 56.78)
+
+        verify { store.saveApiFetchStateIfCurrent(any(), any(), 7L) }
+        verify(exactly = 0) { store.saveApiFetchStateIfCurrent(any(), any(), 8L) }
     }
 
     @Test
@@ -858,7 +882,7 @@ class GeofenceRepositoryTest : RobolectricTest() {
         val result = repository.refresh(latitude = 12.34, longitude = 56.78)
 
         result.isSuccess shouldBeEqualTo true
-        verify { store.setLastSyncTimestamp(any()) }
+        verify { store.saveApiFetchStateIfCurrent(any(), any(), any()) }
         verify { distanceFilter.nearest(any(), 12.34, 56.78, 3, any()) }
         verify { logger.logSyncSucceeded(filtered.size, movementTriggerRegistered = true) }
         // Store holds the IDs of exactly what was registered (movement trigger + business),
@@ -891,7 +915,7 @@ class GeofenceRepositoryTest : RobolectricTest() {
         val anchorSlot = slot<GeofenceLocation>()
         every { store.saveCachedRegions(capture(regionsSlot)) } returns Unit
         every { store.saveCachedConfig(capture(configSlot)) } returns Unit
-        every { store.saveLastApiFetchLocation(capture(anchorSlot)) } returns Unit
+        every { store.saveApiFetchStateIfCurrent(capture(anchorSlot), any(), any()) } returns true
 
         repository.refresh(latitude = 12.34, longitude = 56.78)
 
@@ -918,7 +942,7 @@ class GeofenceRepositoryTest : RobolectricTest() {
 
         verify(exactly = 0) { store.saveCachedRegions(any()) }
         verify(exactly = 0) { store.saveCachedConfig(any()) }
-        verify(exactly = 0) { store.saveLastApiFetchLocation(any()) }
+        verify(exactly = 0) { store.saveApiFetchStateIfCurrent(any(), any(), any()) }
     }
 
     @Test
@@ -1295,7 +1319,7 @@ class GeofenceRepositoryTest : RobolectricTest() {
         result.exceptionOrNull() shouldBeEqualTo error
         coVerify(exactly = 0) { manager.removeGeofencesByIds(any()) }
         verify(exactly = 0) { store.saveRegisteredIds(any()) }
-        verify(exactly = 0) { store.setLastSyncTimestamp(any()) }
+        verify(exactly = 0) { store.saveApiFetchStateIfCurrent(any(), any(), any()) }
         verify(exactly = 0) { logger.logSyncSucceeded(any(), any()) }
     }
 
@@ -1393,7 +1417,7 @@ class GeofenceRepositoryTest : RobolectricTest() {
 
         result.isSuccess shouldBeEqualTo true
         verify(exactly = 0) { store.saveRegisteredIds(any()) }
-        verify(exactly = 0) { store.setLastSyncTimestamp(any()) }
+        verify(exactly = 0) { store.saveApiFetchStateIfCurrent(any(), any(), any()) }
         coVerify(exactly = 0) { manager.replaceGeofences(any(), any()) }
         verify { logger.logSyncSkipped(match { it.contains("user changed") }) }
     }
@@ -1749,8 +1773,7 @@ class GeofenceRepositoryTest : RobolectricTest() {
 
         verify(exactly = 0) { store.saveCachedRegions(any()) }
         verify(exactly = 0) { store.saveCachedConfig(any()) }
-        verify(exactly = 0) { store.saveLastApiFetchLocation(any()) }
-        verify(exactly = 0) { store.setLastSyncTimestamp(any()) }
+        verify(exactly = 0) { store.saveApiFetchStateIfCurrent(any(), any(), any()) }
     }
 
     @Test
@@ -2016,8 +2039,7 @@ class GeofenceRepositoryTest : RobolectricTest() {
 
         repository.restoreFromCache()
 
-        verify(exactly = 0) { store.saveLastApiFetchLocation(any()) }
-        verify(exactly = 0) { store.setLastSyncTimestamp(any()) }
+        verify(exactly = 0) { store.saveApiFetchStateIfCurrent(any(), any(), any()) }
     }
 
     @Test

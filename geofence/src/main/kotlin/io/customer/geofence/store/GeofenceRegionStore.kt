@@ -234,7 +234,6 @@ internal interface GeofenceRegionStore {
     fun saveCachedConfig(config: GeofenceConfig)
     fun getCachedConfig(): GeofenceConfig?
 
-    fun saveLastApiFetchLocation(location: GeofenceLocation)
     fun getLastApiFetchLocation(): GeofenceLocation?
 
     fun saveLastMovementTriggerLocation(location: GeofenceLocation)
@@ -242,7 +241,17 @@ internal interface GeofenceRegionStore {
     fun clearLastMovementTriggerLocation()
 
     fun getLastSyncTimestamp(): Long?
-    fun setLastSyncTimestamp(timestamp: Long)
+
+    /**
+     * Marks the cache fresh as of [location], but only while [expectedUserStateGeneration] is still
+     * current. Anchor and timestamp move together because they describe the same fetch, and the
+     * check shares [beginUserSession]'s lock so an identify cannot land between them.
+     */
+    fun saveApiFetchStateIfCurrent(
+        location: GeofenceLocation,
+        syncTimestamp: Long,
+        expectedUserStateGeneration: Long
+    ): Boolean
 
     /**
      * Sign-out wipe. Drops the anchor, movement-trigger location, registered
@@ -771,7 +780,7 @@ internal class GeofenceRegionStoreImpl(
     override fun getCachedConfig(): GeofenceConfig? =
         readJson(KEY_CACHED_CONFIG, GeofenceConfig.serializer())
 
-    override fun saveLastApiFetchLocation(location: GeofenceLocation) =
+    private fun saveLastApiFetchLocation(location: GeofenceLocation) =
         writeEncryptedJson(KEY_LAST_API_FETCH_LOCATION, GeofenceLocation.serializer(), location)
 
     override fun getLastApiFetchLocation(): GeofenceLocation? =
@@ -791,8 +800,19 @@ internal class GeofenceRegionStoreImpl(
         if (contains(KEY_LAST_SYNC)) getLong(KEY_LAST_SYNC, 0L) else null
     }
 
-    override fun setLastSyncTimestamp(timestamp: Long) {
+    private fun setLastSyncTimestamp(timestamp: Long) {
         prefs.edit { putLong(KEY_LAST_SYNC, timestamp) }
+    }
+
+    override fun saveApiFetchStateIfCurrent(
+        location: GeofenceLocation,
+        syncTimestamp: Long,
+        expectedUserStateGeneration: Long
+    ): Boolean = synchronized(enteredLock) {
+        if (expectedUserStateGeneration != currentUserStateGenerationLocked()) return@synchronized false
+        saveLastApiFetchLocation(location)
+        setLastSyncTimestamp(syncTimestamp)
+        true
     }
 
     override fun clearUserScopedState() {

@@ -407,11 +407,21 @@ internal class GeofenceRepositoryImpl(
                     // Cache + anchor + timestamp only on remote fetch; Tier A reuses them.
                     // Skip the config save when backend didn't ship one this response —
                     // a null parse must not clobber a previously cached value.
-                    onRegistered = {
+                    onRegistered = { userStateGeneration ->
                         store.saveCachedRegions(regions)
                         parsedConfig?.let { store.saveCachedConfig(it) }
-                        store.saveLastApiFetchLocation(GeofenceLocation(latitude, longitude))
-                        store.setLastSyncTimestamp(clock.currentTimeMillis())
+                        // Offered with the pass's own generation, not a re-read: an identify
+                        // landing after routing was armed would otherwise stamp the new session's
+                        // cache fresh off this pass, and its refresh would then SKIP and leave
+                        // routing empty until a movement EXIT re-armed it.
+                        val stamped = store.saveApiFetchStateIfCurrent(
+                            location = GeofenceLocation(latitude, longitude),
+                            syncTimestamp = clock.currentTimeMillis(),
+                            expectedUserStateGeneration = userStateGeneration
+                        )
+                        if (!stamped) {
+                            logger.logSyncSkipped("cache left stale for a session that changed mid-pass")
+                        }
                     }
                 )
             },
@@ -486,7 +496,7 @@ internal class GeofenceRepositoryImpl(
         containmentEpoch: Long,
         fixSource: FixSource,
         register: suspend (List<GeofenceRegion>) -> Result<Unit> = ::registerWithBusinessDiff,
-        onRegistered: () -> Unit = {}
+        onRegistered: (userStateGeneration: Long) -> Unit = {}
     ): Result<Unit> {
         // Pure mapping + filter — no shared state, kept outside the lock.
         val nearest = distanceFilter.nearest(
@@ -611,7 +621,7 @@ internal class GeofenceRepositoryImpl(
                         store.clearLastMovementTriggerLocation()
                     }
                     if (routingArmed) {
-                        onRegistered()
+                        onRegistered(userStateGeneration)
                     } else {
                         // An identify landed mid-pass, so these registrations belong to the departing
                         // user and routing was left cleared for the new one. Stamping the sync fresh

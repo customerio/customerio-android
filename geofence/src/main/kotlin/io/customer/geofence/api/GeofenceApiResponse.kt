@@ -202,7 +202,10 @@ internal fun GeofenceApiRegion.toDomain(
     polygonSupport: PolygonSupport = PolygonSupport.Disabled
 ): GeofenceRegion? {
     if (id.isBlank()) return null
-    return when (shape?.lowercase()) {
+    // Surrounding whitespace is not a shape the backend meant to name, and neither is an empty
+    // string: both are the field carrying nothing, so they route as if it were absent rather than
+    // dropping the record as an unsupported shape.
+    return when (shape?.trim()?.lowercase()?.takeIf(String::isNotEmpty)) {
         null, CIRCLE_SHAPE -> {
             if (geometry != null || enclosingCircle != null) {
                 SDKComponent.geofenceLogger.logPolygonDropped(id, "shape discriminator is missing or inconsistent")
@@ -292,7 +295,7 @@ private fun GeofenceApiRegion.toPolygonRegionOrNull(
         )
     }
     if (trigger == null) {
-        logger.logPolygonDropped(id, "backend-provided enclosing circle is invalid or does not contain the polygon")
+        logger.logPolygonDropped(id, "enclosing circle is missing, its centre is out of range, or its radius is unusable")
         return null
     }
     return GeofenceRegion(

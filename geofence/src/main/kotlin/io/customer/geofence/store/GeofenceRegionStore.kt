@@ -470,10 +470,10 @@ internal class GeofenceRegionStoreImpl(
             // Upgrade migration: older SDKs persisted a secure user and registrations but no
             // geofence-session owner/routing key. Adopt that same persisted session without
             // discarding valid OS registrations or containment before the first callback.
-            prefs.edit(commit = true) {
-                putString(KEY_USER_STATE_OWNER, userId)
-                putLong(KEY_USER_STATE_GENERATION, nextGeneration)
-            }
+            // The generation deliberately stays put, because nothing changed hands. Moving it
+            // would invalidate a refresh already in flight, which would then skip the catalog
+            // write it gates on that generation after its registered-id write already landed.
+            prefs.edit(commit = true) { putString(KEY_USER_STATE_OWNER, userId) }
             return@synchronized
         }
         prefs.edit(commit = true) {

@@ -501,6 +501,25 @@ class GeofenceRegionStoreTest : RobolectricTest() {
     }
 
     @Test
+    fun beginUserSession_givenLegacyInstallAdoptedMidRefresh_expectInFlightWriteStillArmsRouting() {
+        // Upgraded install: registrations persisted, no session owner and no routing key. A launch
+        // refresh snapshots the generation, then a callback adopts that same user while the refresh
+        // waits on GMS. Adoption changes no user, so it must not invalidate the pass: if it did, the
+        // pass would still save its registered ids but skip the catalog it gates on the generation,
+        // and routing falls back to those ids here, so the new fence would fire with no cached row.
+        store.saveRegisteredIds(setOf("biz-1"))
+        val inFlightGeneration = store.userStateGeneration()
+
+        store.beginUserSession("user-1")
+
+        store.activeUserSessionId() shouldBeEqualTo "user-1"
+        store.userStateGeneration() shouldBeEqualTo inFlightGeneration
+        store.saveRoutableRegisteredIdsIfCurrent(setOf("biz-1", "biz-2"), inFlightGeneration)
+            .shouldBeTrue()
+        store.getRoutableRegisteredIds() shouldBeEqualTo setOf("biz-1", "biz-2")
+    }
+
+    @Test
     fun getRoutableRegisteredIds_givenIdentifySwitchThenRefresh_expectRoutingRearmed() {
         // The A-to-B loop end to end: A is registered and routable, identify B clears routing, and
         // the refresh that follows re-arms it. Without the re-arm the explicit empty set persists and

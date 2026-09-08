@@ -174,6 +174,36 @@ class GeofenceServicesTest : RobolectricTest() {
     }
 
     @Test
+    fun onAppLaunch_expectSessionOpenedBeforeTheRefresh() = runTest(StandardTestDispatcher()) {
+        // Upgraded install with no session-owner key: the first beginUserSession adopts rather than
+        // switches. Opening it here makes it name the launching user, so an identify arriving while
+        // this pass holds the slot bumps the generation and is not dropped as a duplicate of it.
+        every { secureUserStore.getUserId() } returns "user-a"
+        coEvery { repository.refresh(any(), any()) } returns Result.success(Unit)
+        val services = servicesWith(this)
+
+        services.onAppLaunch(latitude = 1.0, longitude = 2.0)
+        advanceUntilIdle()
+
+        coVerifyOrder {
+            regionStore.beginUserSession("user-a")
+            repository.refresh(1.0, 2.0)
+        }
+    }
+
+    @Test
+    fun onAppLaunch_givenNoIdentifiedUser_expectNoSessionOpened() = runTest(StandardTestDispatcher()) {
+        every { secureUserStore.getUserId() } returns null
+        coEvery { repository.refresh(any(), any()) } returns Result.success(Unit)
+        val services = servicesWith(this)
+
+        services.onAppLaunch(latitude = 1.0, longitude = 2.0)
+        advanceUntilIdle()
+
+        verify(exactly = 0) { regionStore.beginUserSession(any()) }
+    }
+
+    @Test
     fun onAppLaunch_expectRefreshCalled() = runTest(StandardTestDispatcher()) {
         coEvery { repository.refresh(any(), any()) } returns Result.success(Unit)
         val services = servicesWith(this)

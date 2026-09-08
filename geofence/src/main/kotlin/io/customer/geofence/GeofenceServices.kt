@@ -132,6 +132,10 @@ internal class GeofenceServicesImpl(
     }
 
     override fun onAppLaunch(latitude: Double?, longitude: Double?) {
+        // On an install upgraded from a version without the session keys, the first beginUserSession
+        // adopts whoever is identified rather than switching. Opening it here makes that adoption
+        // name the launching user, so a later identify is seen as the switch it is, not absorbed.
+        secureUserStore.getUserId()?.takeIf { it.isNotEmpty() }?.let(regionStore::beginUserSession)
         triggerSync(
             reason = REASON_APP_LAUNCH,
             latitude = latitude,

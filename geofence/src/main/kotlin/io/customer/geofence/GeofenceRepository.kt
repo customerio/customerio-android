@@ -536,6 +536,25 @@ internal class GeofenceRepositoryImpl(
                         newIds + staleIds
                     }
                     store.saveRegisteredIds(idsToSave)
+                    // A stale id whose removal failed stays registered and routable, so it keeps
+                    // firing after the backend deleted it. Retain its last known definition: the
+                    // receiver reads that to tell a retired fence from one it simply has no cache
+                    // row for, and only the former may be dropped and cleaned up. Without this the
+                    // retained set is never written, so that branch can never be taken. The catalog
+                    // here is still the pre-sync one — saveCachedRegions runs later, in onRegistered.
+                    store.saveRetainedRegisteredRegions(
+                        if (staleRemovalSucceeded) {
+                            emptyList()
+                        } else {
+                            // Merged with what is already retained: the first failure is the last
+                            // pass that still sees the deleted fence in the catalog, so rebuilding
+                            // from the catalog alone would drop the tombstone on the very next
+                            // retry and leave the id registered with nothing to identify it.
+                            val cachedById = store.getCachedRegions().associateBy { it.id }
+                            val retainedById = store.getRetainedRegisteredRegions().associateBy { it.id }
+                            staleIds.mapNotNull { cachedById[it] ?: retainedById[it] }
+                        }
+                    )
                     // Routing is armed separately: beginUserSession writes an explicit empty routable
                     // set, and getRoutableRegisteredIds stops falling back to the registered set once
                     // that key exists. Without this write the first callback after an identify

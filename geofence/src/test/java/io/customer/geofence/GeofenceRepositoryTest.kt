@@ -1169,6 +1169,85 @@ class GeofenceRepositoryTest : RobolectricTest() {
     }
 
     @Test
+    fun refresh_givenStaleRemovalFails_expectDefinitionRetainedAsTombstone() = runTest {
+        // The unremoved id keeps firing after the backend deleted it. The receiver tells a retired
+        // fence from one it has no cache row for by this retained definition, so without the write
+        // that branch can never be taken and a deleted fence reports business activity.
+        val staleRegion = GeofenceRegion("biz-old", 1.0, 2.0, 150f)
+        val newRegion = GeofenceRegion("biz-new", 0.0, 0.0, 100f)
+        every { secureUserStore.getUserId() } returns "user-42"
+        every { store.getRegisteredIds() } returns setOf("biz-old")
+        every { store.getCachedRegions() } returns listOf(staleRegion)
+        coEvery { apiService.fetchGeofences(any()) } returns
+            Result.success(sampleResponse(maxBusinessGeofences = 3))
+        every { distanceFilter.nearest(any(), any(), any(), any(), any()) } returns listOf(newRegion)
+        coEvery { manager.replaceGeofences(any(), any()) } returns Result.success(Unit)
+        coEvery { manager.removeGeofencesByIds(any()) } returns
+            Result.failure(RuntimeException("remove boom"))
+        val retained = slot<List<GeofenceRegion>>()
+        every { store.saveRetainedRegisteredRegions(capture(retained)) } returns Unit
+
+        repository.refresh(latitude = 0.0, longitude = 0.0)
+
+        retained.captured shouldBeEqualTo listOf(staleRegion)
+    }
+
+    @Test
+    fun refresh_givenStaleRemovalFailsRepeatedly_expectTombstoneSurvivesTheCatalogDroppingIt() = runTest {
+        // The first failure is the last pass that still sees the deleted fence in the catalog: the
+        // sync that follows saves a catalog without it. Rebuilding the retained set from the catalog
+        // alone would lose the tombstone on the first retry, leaving the id registered and routable
+        // with nothing left to identify it as retired.
+        val staleRegion = GeofenceRegion("biz-old", 1.0, 2.0, 150f)
+        val newRegion = GeofenceRegion("biz-new", 0.0, 0.0, 100f)
+        every { secureUserStore.getUserId() } returns "user-42"
+        every { store.getRegisteredIds() } returns setOf("biz-old")
+        coEvery { apiService.fetchGeofences(any()) } returns
+            Result.success(sampleResponse(maxBusinessGeofences = 3))
+        every { distanceFilter.nearest(any(), any(), any(), any(), any()) } returns listOf(newRegion)
+        coEvery { manager.replaceGeofences(any(), any()) } returns Result.success(Unit)
+        coEvery { manager.removeGeofencesByIds(any()) } returns
+            Result.failure(RuntimeException("remove boom"))
+        val retained = mutableListOf<List<GeofenceRegion>>()
+        every { store.saveRetainedRegisteredRegions(capture(retained)) } returns Unit
+
+        // Pass 1: the catalog still holds the deleted fence, nothing retained yet.
+        every { store.getCachedRegions() } returns listOf(staleRegion)
+        every { store.getRetainedRegisteredRegions() } returns emptyList()
+        repository.refresh(latitude = 0.0, longitude = 0.0)
+
+        // Pass 2: the catalog has moved on, and the tombstone from pass 1 is all that is left.
+        every { store.getCachedRegions() } returns emptyList()
+        every { store.getRetainedRegisteredRegions() } returns listOf(staleRegion)
+        repository.refresh(latitude = 0.0, longitude = 0.0)
+
+        // Both writes, so the test documents the hand-off rather than just the surviving end of it.
+        retained.first() shouldBeEqualTo listOf(staleRegion)
+        retained.last() shouldBeEqualTo listOf(staleRegion)
+    }
+
+    @Test
+    fun refresh_givenStaleRemovalSucceeds_expectTombstonesCleared() = runTest {
+        // Nothing is orphaned in the OS, so a retained definition would outlive its purpose and keep
+        // suppressing an id a later sync may legitimately register again.
+        val newRegion = GeofenceRegion("biz-new", 0.0, 0.0, 100f)
+        every { secureUserStore.getUserId() } returns "user-42"
+        every { store.getRegisteredIds() } returns setOf("biz-old")
+        every { store.getCachedRegions() } returns listOf(GeofenceRegion("biz-old", 1.0, 2.0, 150f))
+        coEvery { apiService.fetchGeofences(any()) } returns
+            Result.success(sampleResponse(maxBusinessGeofences = 3))
+        every { distanceFilter.nearest(any(), any(), any(), any(), any()) } returns listOf(newRegion)
+        coEvery { manager.replaceGeofences(any(), any()) } returns Result.success(Unit)
+        coEvery { manager.removeGeofencesByIds(any()) } returns Result.success(Unit)
+        val retained = slot<List<GeofenceRegion>>()
+        every { store.saveRetainedRegisteredRegions(capture(retained)) } returns Unit
+
+        repository.refresh(latitude = 0.0, longitude = 0.0)
+
+        retained.captured.shouldBeEmpty()
+    }
+
+    @Test
     fun refresh_givenAllPreviousAbsentFromNew_expectBusinessRemovedButTriggerKept() = runTest {
         // No fences in this response: previously registered business IDs are removed as
         // stale, but the movement trigger stays so a later EXIT can re-fetch — the

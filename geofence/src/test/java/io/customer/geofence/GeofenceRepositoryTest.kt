@@ -416,6 +416,9 @@ class GeofenceRepositoryTest : RobolectricTest() {
     fun refresh_givenApiFailure_expectFailurePropagatedAndNoPersistOrRegister() = runTest {
         val error = IOException("network down")
         every { secureUserStore.getUserId() } returns "user-42"
+        // Armed, so the failed pass has nothing to recover and must not re-rank. Left unarmed this
+        // would register from the cache, and the claim below would hold only for an empty catalog.
+        every { store.getRoutableRegisteredIds() } returns setOf("biz-1")
         coEvery { apiService.fetchGeofences(any()) } returns Result.failure(error)
 
         val result = repository.refresh(latitude = 12.34, longitude = 56.78)

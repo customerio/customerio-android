@@ -156,7 +156,19 @@ internal class GeofenceRepositoryImpl(
             // a just-identified user unmonitored. Pref reads only; network stays outside the lock.
             val action = stateMutex.withLock { refreshAction(LocationCoordinates(latitude, longitude), config) }
             return when (action) {
-                RefreshAction.REMOTE -> performRemoteRefresh(userId, latitude, longitude, containmentEpoch, fixSource)
+                RefreshAction.REMOTE -> {
+                    val remote = performRemoteRefresh(userId, latitude, longitude, containmentEpoch, fixSource)
+                    // A session with nothing armed cannot recover on its own: its fences are still
+                    // registered but unroutable, and only a completing pass arms them. Re-rank from
+                    // the cache so an offline start still routes, as a failed movement pass does.
+                    if (remote.isFailure &&
+                        store.getRoutableRegisteredIds().isEmpty() &&
+                        store.getCachedRegions().isNotEmpty()
+                    ) {
+                        performLocalRefresh(userId, latitude, longitude, config, containmentEpoch, fixSource)
+                    }
+                    remote
+                }
                 RefreshAction.LOCAL -> performLocalRefresh(userId, latitude, longitude, config, containmentEpoch, fixSource)
                 RefreshAction.SKIP -> {
                     logger.logSyncSkippedFresh()

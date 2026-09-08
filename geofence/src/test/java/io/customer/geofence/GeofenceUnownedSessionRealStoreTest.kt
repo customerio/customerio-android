@@ -18,6 +18,7 @@ import kotlinx.coroutines.test.runTest
 import org.amshove.kluent.shouldBeEmpty
 import org.amshove.kluent.shouldBeEqualTo
 import org.amshove.kluent.shouldBeNull
+import org.amshove.kluent.shouldBeTrue
 import org.amshove.kluent.shouldContain
 import org.amshove.kluent.shouldContainSame
 import org.junit.Test
@@ -100,22 +101,50 @@ class GeofenceUnownedSessionRealStoreTest : RobolectricTest() {
     }
 
     @Test
-    fun unownedSessionWithNoNetwork_expectMovementReArmsRoutingFromTheCache() = runTest {
-        // The justification for the trade: an upgrade with no network still recovers, because the
-        // movement trigger is exempt from the unarmed drop and its pass re-ranks from the catalog.
+    fun unownedSessionWithNoNetwork_expectRoutingArmedFromTheCachedCatalog() = runTest {
+        // Without this the switch would strand an offline upgrade: fences registered, routing empty,
+        // and no completing pass to arm them until the network returns or the device leaves the
+        // trigger radius. The remote pass still reports its failure; the re-rank is what recovers.
         coEvery { apiService.fetchGeofences(any()) } returns Result.failure(IOException("offline"))
 
         store.beginUserSession(USER)
+        val result = repository.refresh(latitude = 0.0, longitude = 0.0)
+
+        // Armed because the fetch was attempted and failed, not because it never ran.
+        coVerify(exactly = 1) { apiService.fetchGeofences(any()) }
+        result.isFailure shouldBeEqualTo true
+        store.getRoutableRegisteredIds() shouldContainSame store.getRegisteredIds()
+        store.getRoutableRegisteredIds() shouldContain fence.id
+    }
+
+    @Test
+    fun armedSessionWithNoNetwork_expectNoLocalReRank() = runTest {
+        // The re-rank recovers an unarmed session; it is not a general fallback. A session already
+        // routing must not re-register from a stale cache every time a fetch happens to fail.
+        store.beginUserSession(USER)
+        store.saveRoutableRegisteredIdsIfCurrent(store.getRegisteredIds(), store.userStateGeneration())
+            .shouldBeTrue()
+        coEvery { apiService.fetchGeofences(any()) } returns Result.failure(IOException("offline"))
+
         repository.refresh(latitude = 0.0, longitude = 0.0)
 
-        // Not just "empty": empty because the fetch was attempted and failed. Without this the
-        // assertion also holds when the pass never fetched at all.
+        // The remote attempt has to have happened, or "did not re-register" is true only because
+        // the pass never went remote at all.
         coVerify(exactly = 1) { apiService.fetchGeofences(any()) }
-        store.getRoutableRegisteredIds().shouldBeEmpty()
+        coVerify(exactly = 0) { manager.replaceGeofences(any(), any()) }
+        store.getRoutableRegisteredIds() shouldContainSame store.getRegisteredIds()
+    }
+
+    @Test
+    fun unownedSessionWithNoNetwork_expectMovementAlsoReArmsFromTheCache() = runTest {
+        // The other half of the recovery, and the one the movement trigger's unarmed exemption
+        // exists for: a wake with no network still re-ranks rather than leaving the session dark.
+        coEvery { apiService.fetchGeofences(any()) } returns Result.failure(IOException("offline"))
+        store.beginUserSession(USER)
+        store.saveRoutableRegisteredIdsIfCurrent(emptySet(), store.userStateGeneration()).shouldBeTrue()
 
         repository.handleMovement(latitude = 0.0, longitude = 0.0)
 
-        store.getRoutableRegisteredIds() shouldContainSame store.getRegisteredIds()
         store.getRoutableRegisteredIds() shouldContain fence.id
     }
 

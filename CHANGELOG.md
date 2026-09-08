@@ -1,3 +1,9 @@
+## [4.20.3](https://github.com/customerio/customerio-android/compare/4.20.2...4.20.3) (2026-09-08)
+
+### Bug Fixes
+
+* **deps:** update Faraday security pin to 1.10.6 ([#845](https://github.com/customerio/customerio-android/issues/845)) ([787d310](https://github.com/customerio/customerio-android/commit/787d3100a5289840be6b6c22e2e60409bc47c06b))
+
 ## [4.20.2](https://github.com/customerio/customerio-android/compare/4.20.1...4.20.2) (2026-08-21)
 
 ### Bug Fixes

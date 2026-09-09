@@ -99,28 +99,12 @@ jobs:
           script: |
             echo "Waiting for device to come online..."
             adb wait-for-device
-            
             echo "Waiting for boot to complete..."
-            boot_complete=""
-            attempts=0
-            max_attempts=60
-            while [ "$boot_complete" != "1" ] && [ $attempts -lt $max_attempts ]; do
-              boot_complete=$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')
-              if [ "$boot_complete" != "1" ]; then
-                sleep 2
-                attempts=$((attempts + 1))
-                echo "Boot check attempt $attempts/$max_attempts..."
-              fi
-            done
-            
-            if [ "$boot_complete" != "1" ]; then
-              echo "ERROR: Emulator did not boot within timeout"
-              exit 1
-            fi
-            
+            boot_complete=""; attempts=0; max_attempts=60
+            while [ "$boot_complete" != "1" ] && [ $attempts -lt $max_attempts ]; do boot_complete=$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r'); if [ "$boot_complete" != "1" ]; then sleep 2; attempts=$((attempts + 1)); echo "Boot check attempt $attempts/$max_attempts..."; fi; done
+            if [ "$boot_complete" != "1" ]; then echo "ERROR: Emulator did not boot within timeout"; exit 1; fi
             echo "Device booted. Waiting for package manager..."
             adb shell pm wait-for-ready 2>/dev/null || sleep 5
-            
             echo "Running instrumentation tests..."
             ./gradlew :samples:${{ matrix.sample }}:connectedDebugAndroidTest --no-daemon --stacktrace -PuseKsp=true
 
@@ -139,28 +123,12 @@ jobs:
           script: |
             echo "Retry: Waiting for device to come online..."
             adb wait-for-device
-            
             echo "Retry: Waiting for boot to complete..."
-            boot_complete=""
-            attempts=0
-            max_attempts=90
-            while [ "$boot_complete" != "1" ] && [ $attempts -lt $max_attempts ]; do
-              boot_complete=$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')
-              if [ "$boot_complete" != "1" ]; then
-                sleep 2
-                attempts=$((attempts + 1))
-                echo "Boot check attempt $attempts/$max_attempts..."
-              fi
-            done
-            
-            if [ "$boot_complete" != "1" ]; then
-              echo "ERROR: Emulator did not boot within timeout"
-              exit 1
-            fi
-            
+            boot_complete=""; attempts=0; max_attempts=90
+            while [ "$boot_complete" != "1" ] && [ $attempts -lt $max_attempts ]; do boot_complete=$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r'); if [ "$boot_complete" != "1" ]; then sleep 2; attempts=$((attempts + 1)); echo "Boot check attempt $attempts/$max_attempts..."; fi; done
+            if [ "$boot_complete" != "1" ]; then echo "ERROR: Emulator did not boot within timeout"; exit 1; fi
             echo "Device booted. Waiting for package manager..."
             adb shell pm wait-for-ready 2>/dev/null || sleep 10
-            
             echo "Running instrumentation tests (retry)..."
             ./gradlew :samples:${{ matrix.sample }}:connectedDebugAndroidTest --no-daemon --stacktrace -PuseKsp=true
 

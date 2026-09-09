@@ -112,6 +112,42 @@ class GeofenceTransitionEmitterTest : RobolectricTest() {
     }
 
     @Test
+    fun emit_givenPersistSucceeds_expectAcceptedLoggedWithFanoutCount() = runTest {
+        every { mockCooldownFilter.suppressedForSeconds(any(), any(), any()) } returns null
+        every { mockPendingStore.appendAll(any()) } returns true
+
+        emit(geosetIds = listOf("g1", "g2"))
+
+        // `n` is the per-geoset row count, so one crossing reads as one acceptance rather than
+        // being inferred from however many delivery records follow it.
+        verify(exactly = 1) { mockLogger.logTransitionAccepted("biz-1", "ENTER", 2) }
+    }
+
+    @Test
+    fun emit_givenPersistFails_expectNoAcceptedRecord() = runTest {
+        // The record sits below the durable write on purpose: logged above it, a crossing the
+        // write then failed to make would still read as accepted.
+        every { mockCooldownFilter.suppressedForSeconds(any(), any(), any()) } returns null
+        every { mockPendingStore.appendAll(any()) } returns false
+
+        emit()
+
+        verify(exactly = 0) { mockLogger.logTransitionAccepted(any(), any(), any()) }
+    }
+
+    @Test
+    fun emit_givenCooldownSuppresses_expectNoAcceptedRecord() = runTest {
+        // A suppressed crossing logs its own record and must not also claim acceptance, or it
+        // counts twice off-device.
+        every { mockCooldownFilter.suppressedForSeconds(any(), any(), any()) } returns 42.0
+
+        emit()
+
+        verify(exactly = 0) { mockLogger.logTransitionAccepted(any(), any(), any()) }
+        verify(exactly = 0) { mockPendingStore.appendAll(any()) }
+    }
+
+    @Test
     fun emit_givenBlankGeosetAlongsideReal_expectBlankDropped() = runTest {
         // A catalog row carrying "" would otherwise persist an entry with an empty geosetId and
         // report two events where iOS reports one, which reads as a platform difference that isn't.

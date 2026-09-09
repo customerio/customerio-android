@@ -492,6 +492,8 @@ class GeofenceRepositoryTest : RobolectricTest() {
         verify { store.clearLastMovementTriggerLocation() }
         // Region count alone can't distinguish this from an empty-but-still-monitoring sync.
         verify { logger.logSyncSucceeded(0, movementTriggerRegistered = false, elapsedMillis = any()) }
+        // Nothing is monitoring, so claiming a registered movement trigger would be a false record.
+        verify(exactly = 0) { logger.logMovementTriggerRegistered(any(), any(), any()) }
     }
 
     @Test
@@ -1976,6 +1978,9 @@ class GeofenceRepositoryTest : RobolectricTest() {
 
         result.isSuccess shouldBeEqualTo true
         coVerify { manager.replaceGeofencesForBootRestore(any()) }
+        // This path bypasses refreshAction, so it emits the storage record itself. A boot restore
+        // is the case that record exists for and was the one pass that never produced it.
+        verify { logger.logStorageLoaded(any(), hasAnchor = true) }
     }
 
     @Test

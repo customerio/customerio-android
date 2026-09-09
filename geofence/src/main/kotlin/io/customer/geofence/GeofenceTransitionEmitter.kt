@@ -206,9 +206,11 @@ internal class GeofenceTransitionEmitter(
             // One transitionId shared across the per-geoset fan-out.
             val transitionId = UUID.randomUUID().toString()
             val name = geofenceName?.takeIf { it.isNotEmpty() }
-            // One event per geoset; no geosets → one null-geoset event. Distinct so a repeated
-            // geoset doesn't duplicate.
-            val geosets: List<String?> = geosetIds.distinct().takeIf { it.isNotEmpty() } ?: listOf(null)
+            // One event per geoset; no geosets → one null-geoset event. Blanks dropped as well as
+            // duplicates, matching iOS: a catalog row carrying "" otherwise persists a row with an
+            // empty geosetId and reports two events where iOS reports one.
+            val geosets: List<String?> = geosetIds.filter { it.isNotEmpty() }.distinct()
+                .takeIf { it.isNotEmpty() } ?: listOf(null)
             geosets.map { geosetId ->
                 PendingGeofenceDelivery(
                     geofenceId = geofenceId,

@@ -112,6 +112,35 @@ class GeofenceTransitionEmitterTest : RobolectricTest() {
     }
 
     @Test
+    fun emit_givenBlankGeosetAlongsideReal_expectBlankDropped() = runTest {
+        // A catalog row carrying "" would otherwise persist an entry with an empty geosetId and
+        // report two events where iOS reports one, which reads as a platform difference that isn't.
+        every { mockCooldownFilter.suppressedForSeconds(any(), any(), any()) } returns null
+        every { mockPendingStore.appendAll(any()) } returns true
+        val entries = slot<List<PendingGeofenceDelivery>>()
+
+        emit(geosetIds = listOf("", "g1"))
+
+        verify { mockPendingStore.appendAll(capture(entries)) }
+        entries.captured.map { it.geosetId } shouldBeEqualTo listOf("g1")
+        coVerify(exactly = 1) { mockScheduler.schedule(any()) }
+    }
+
+    @Test
+    fun emit_givenEveryGeosetBlank_expectOneNullGeosetEvent() = runTest {
+        // Dropping every id must land on the no-geosets path rather than emitting nothing at all.
+        every { mockCooldownFilter.suppressedForSeconds(any(), any(), any()) } returns null
+        every { mockPendingStore.appendAll(any()) } returns true
+        val entries = slot<List<PendingGeofenceDelivery>>()
+
+        emit(geosetIds = listOf("", ""))
+
+        verify { mockPendingStore.appendAll(capture(entries)) }
+        entries.captured.map { it.geosetId } shouldBeEqualTo listOf(null)
+        coVerify(exactly = 1) { mockScheduler.schedule(any()) }
+    }
+
+    @Test
     fun emit_givenSchedulerThrowsForOneGeoset_expectRemainingStillScheduled() = runTest {
         // A scheduler failure for one geoset must not abandon the rest of the batch; the row is
         // already persisted, so the foreground flush still delivers the un-scheduled one.

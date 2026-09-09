@@ -195,8 +195,9 @@ internal class GeofenceTransitionEmitter(
             logger.logEnterDroppedAlreadyReported(geofenceId)
             return@withLock Result.SUPPRESSED
         }
-        if (!isRecovery && !cooldownFilter.isAllowed(userId, geofenceId, transition)) {
-            logger.logTransitionSuppressed(geofenceId, transition.name)
+        val suppressedFor = if (isRecovery) null else cooldownFilter.suppressedForSeconds(userId, geofenceId, transition)
+        if (suppressedFor != null) {
+            logger.logTransitionSuppressed(geofenceId, transition.name, suppressedFor)
             return@withLock Result.SUPPRESSED
         }
         logger.logTransitionEmitting(geofenceId, transition.name)

@@ -20,11 +20,9 @@ interface UrlQuerySanitizerWrapper {
  * contain spaces (e.g. a destination URL with `name=A B, Inc`) would therefore arrive at the
  * caller corrupted.
  *
- * Instead, we construct the sanitizer explicitly and register [UrlQuerySanitizer.getUrlAndSpaceLegal]
- * as the unregistered-parameter value sanitizer. That sanitizer accepts all URL-legal characters
- * plus space, so spaces are preserved while all other printable-ASCII characters (including the
- * base64 alphabet used by the `showMessage` properties parameter) continue to pass through
- * unchanged.
+ * Decode query values with [UrlQuerySanitizer.getUrlAndSpaceLegal] so spaces and encoded URL
+ * characters survive extraction. Nested URLs and base64 properties must still be query-encoded;
+ * a raw '+' is decoded as a space by the query parser.
  */
 internal class AndroidUrlQuerySanitizer(
     url: String

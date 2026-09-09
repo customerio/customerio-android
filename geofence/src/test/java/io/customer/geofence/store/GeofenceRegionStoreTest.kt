@@ -491,7 +491,7 @@ class GeofenceRegionStoreTest : RobolectricTest() {
         store.activatePolygon("biz-1")
         store.recordPolygonCoarseInside("biz-1")
         store.recordEntered("biz-1")
-        store.setLastSyncTimestamp(100L)
+        store.saveApiFetchStateIfCurrent(GeofenceLocation(1.0, 2.0), 100L, resetGeneration)
 
         store.beginUserSession("user-B")
         val userBGeneration = store.userStateGeneration()
@@ -1044,22 +1044,22 @@ class GeofenceRegionStoreTest : RobolectricTest() {
     }
 
     @Test
-    fun saveLastApiFetchLocation_thenGet_expectRoundTrip() {
+    fun saveApiFetchStateIfCurrent_thenGet_expectAnchorRoundTrip() {
         val location = GeofenceLocation(latitude = 37.7749, longitude = -122.4194)
 
-        store.saveLastApiFetchLocation(location)
+        store.saveApiFetchStateIfCurrent(location, 1L, store.userStateGeneration())
 
         store.getLastApiFetchLocation() shouldBeEqualTo location
     }
 
     @Test
-    fun saveLastApiFetchLocation_givenNewStoreInstance_expectValueDecryptedCorrectly() {
+    fun saveApiFetchStateIfCurrent_givenNewStoreInstance_expectAnchorDecryptedCorrectly() {
         // Cross-instance round trip. Location snapshots are encrypted via
         // [PreferenceCrypto] (Android Keystore); a fresh store must be able to
         // decrypt what a prior store wrote — otherwise process restarts would
         // wipe the anchor and break the Tier-B distance check.
         val location = GeofenceLocation(latitude = 37.7749, longitude = -122.4194)
-        store.saveLastApiFetchLocation(location)
+        store.saveApiFetchStateIfCurrent(location, 1L, store.userStateGeneration())
 
         val newInstance = GeofenceRegionStoreImpl(
             context = applicationMock,
@@ -1114,18 +1114,53 @@ class GeofenceRegionStoreTest : RobolectricTest() {
     }
 
     @Test
-    fun setLastSyncTimestamp_thenGet_expectStoredValue() {
-        store.setLastSyncTimestamp(1_700_000_000L)
+    fun saveApiFetchStateIfCurrent_thenGet_expectTimestampStored() {
+        store.saveApiFetchStateIfCurrent(GeofenceLocation(1.0, 2.0), 1_700_000_000L, store.userStateGeneration())
 
         store.getLastSyncTimestamp() shouldBeEqualTo 1_700_000_000L
     }
 
     @Test
-    fun setLastSyncTimestamp_givenSubsequentSet_expectOverwrite() {
-        store.setLastSyncTimestamp(100L)
-        store.setLastSyncTimestamp(200L)
+    fun saveApiFetchStateIfCurrent_givenSubsequentWrite_expectOverwrite() {
+        val generation = store.userStateGeneration()
+        store.saveApiFetchStateIfCurrent(GeofenceLocation(1.0, 2.0), 100L, generation)
+        store.saveApiFetchStateIfCurrent(GeofenceLocation(1.0, 2.0), 200L, generation)
 
         store.getLastSyncTimestamp() shouldBeEqualTo 200L
+    }
+
+    @Test
+    fun saveApiFetchStateIfCurrent_givenGenerationStillCurrent_expectAnchorAndFreshnessWritten() {
+        store.beginUserSession("user-a")
+
+        val stamped = store.saveApiFetchStateIfCurrent(
+            location = GeofenceLocation(12.34, 56.78),
+            syncTimestamp = 900L,
+            expectedUserStateGeneration = store.userStateGeneration()
+        )
+
+        stamped.shouldBeTrue()
+        store.getLastApiFetchLocation() shouldBeEqualTo GeofenceLocation(12.34, 56.78)
+        store.getLastSyncTimestamp() shouldBeEqualTo 900L
+    }
+
+    @Test
+    fun saveApiFetchStateIfCurrent_givenIdentifyLandedAfterRoutingWasArmed_expectNothingStamped() {
+        // The pass arms routing, then an identify lands before it stamps the cache. Stamping the
+        // new session fresh off this pass would make its own refresh SKIP, leaving routing empty.
+        store.beginUserSession("user-a")
+        val passGeneration = store.userStateGeneration()
+        store.beginUserSession("user-b")
+
+        val stamped = store.saveApiFetchStateIfCurrent(
+            location = GeofenceLocation(12.34, 56.78),
+            syncTimestamp = 900L,
+            expectedUserStateGeneration = passGeneration
+        )
+
+        stamped.shouldBeFalse()
+        store.getLastApiFetchLocation().shouldBeNull()
+        store.getLastSyncTimestamp().shouldBeNull()
     }
 
     // --- clearAll wipes everything ---
@@ -1146,9 +1181,8 @@ class GeofenceRegionStoreTest : RobolectricTest() {
                 maxMonitoringDistance = 1_000_000f
             )
         )
-        store.saveLastApiFetchLocation(GeofenceLocation(1.0, 2.0))
+        store.saveApiFetchStateIfCurrent(GeofenceLocation(1.0, 2.0), 12_345L, store.userStateGeneration())
         store.saveLastMovementTriggerLocation(GeofenceLocation(3.0, 4.0))
-        store.setLastSyncTimestamp(12_345L)
         store.recordEntered("biz-1")
 
         store.clearAll()
@@ -1184,11 +1218,10 @@ class GeofenceRegionStoreTest : RobolectricTest() {
         store.saveRetainedRegisteredRegions(listOf(GeofenceRegion("biz-stale", 1.0, 1.0, 50f)))
         store.recordEntered("biz-1")
         store.markEnterEmitted(USER, "biz-1")
-        store.saveLastApiFetchLocation(GeofenceLocation(1.0, 2.0))
+        store.saveApiFetchStateIfCurrent(GeofenceLocation(1.0, 2.0), 12_345L, store.userStateGeneration())
         store.saveLastMovementTriggerLocation(GeofenceLocation(3.0, 4.0))
         store.setLastRegistrationUptime(99_999L)
         store.setLastRegistrationPackageUpdateTime(88_888L)
-        store.setLastSyncTimestamp(12_345L)
 
         store.clearUserScopedState()
 
@@ -1225,7 +1258,7 @@ class GeofenceRegionStoreTest : RobolectricTest() {
         store.recordPolygonCoarseInside(registered.id)
         store.recordEntered(registered.id)
         store.markEnterEmitted(USER, registered.id)
-        store.setLastSyncTimestamp(12_345L)
+        store.saveApiFetchStateIfCurrent(GeofenceLocation(1.0, 2.0), 12_345L, store.userStateGeneration())
 
         store.clearUserSessionRetainingOsRegistrations()
 
@@ -1343,8 +1376,12 @@ class GeofenceRegionStoreTest : RobolectricTest() {
     }
 
     @Test
-    fun saveLastApiFetchLocation_expectStableJsonKeys() {
-        store.saveLastApiFetchLocation(GeofenceLocation(latitude = 12.34, longitude = 56.78))
+    fun saveApiFetchStateIfCurrent_expectStableAnchorJsonKeys() {
+        store.saveApiFetchStateIfCurrent(
+            GeofenceLocation(latitude = 12.34, longitude = 56.78),
+            1L,
+            store.userStateGeneration()
+        )
 
         val raw = readRaw("last_api_fetch_location")
         raw shouldContain "\"latitude\""

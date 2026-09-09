@@ -67,7 +67,11 @@ class GeofenceContainmentRealStoreTest : RobolectricTest() {
         // State a successful anchor pass leaves behind: registered and stamped, containment unjudged.
         store.saveCachedRegions(listOf(fence))
         store.saveCachedConfig(sampleConfig())
-        store.setLastSyncTimestamp(System.currentTimeMillis())
+        store.saveApiFetchStateIfCurrent(
+            location = GeofenceLocation(0.0, 0.0),
+            syncTimestamp = System.currentTimeMillis(),
+            expectedUserStateGeneration = store.userStateGeneration()
+        )
         store.saveRegisteredIds(setOf(GeofenceConstants.MOVEMENT_TRIGGER_ID, fence.id))
         store.saveLastMovementTriggerLocation(GeofenceLocation(0.0, 0.0))
         store.setLastRegistrationUptime(clock.elapsedRealtime())

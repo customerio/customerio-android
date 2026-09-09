@@ -72,8 +72,11 @@ class GeofenceUnownedSessionRealStoreTest : RobolectricTest() {
         store.saveCachedRegions(listOf(fence))
         store.saveCachedConfig(sampleConfig())
         store.saveRegisteredIds(setOf(GeofenceConstants.MOVEMENT_TRIGGER_ID, fence.id))
-        store.saveLastApiFetchLocation(GeofenceLocation(0.0, 0.0))
-        store.setLastSyncTimestamp(System.currentTimeMillis())
+        store.saveApiFetchStateIfCurrent(
+            location = GeofenceLocation(0.0, 0.0),
+            syncTimestamp = System.currentTimeMillis(),
+            expectedUserStateGeneration = store.userStateGeneration()
+        )
         store.saveLastMovementTriggerLocation(GeofenceLocation(0.0, 0.0))
         store.setLastRegistrationUptime(clock.elapsedRealtime())
     }

@@ -1,3 +1,9 @@
+## [4.20.4](https://github.com/customerio/customerio-android/compare/4.20.3...4.20.4) (2026-09-09)
+
+### Bug Fixes
+
+* surface the failure reason on in-app error callback ([#828](https://github.com/customerio/customerio-android/issues/828)) ([f9789ae](https://github.com/customerio/customerio-android/commit/f9789aeaff8a1a9c662fc9b587c9dfb0b09cde40))
+
 ## [4.20.3](https://github.com/customerio/customerio-android/compare/4.20.2...4.20.3) (2026-09-08)
 
 ### Bug Fixes

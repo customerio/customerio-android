@@ -1,3 +1,9 @@
+## [4.21.0](https://github.com/customerio/customerio-android/compare/4.20.4...4.21.0) (2026-09-09)
+
+### Features
+
+* **inbox:** replace visual inbox empty-state text with a dimmed bell ([#834](https://github.com/customerio/customerio-android/issues/834)) ([a6ff2e2](https://github.com/customerio/customerio-android/commit/a6ff2e2f505201f0c03012274fc057dee10ad463))
+
 ## [4.20.4](https://github.com/customerio/customerio-android/compare/4.20.3...4.20.4) (2026-09-09)
 
 ### Bug Fixes

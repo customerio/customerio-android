@@ -3,6 +3,7 @@ package io.customer.android.sample.kotlin_compose.data.sdk
 import io.customer.android.sample.kotlin_compose.util.Logger
 import io.customer.messaginginapp.type.InAppEventListener
 import io.customer.messaginginapp.type.InAppMessage
+import io.customer.messaginginapp.type.InAppMessageError
 import io.customer.sdk.CustomerIO
 
 /**
@@ -20,9 +21,25 @@ class InAppMessageEventListener(private val logger: Logger = Logger()) : InAppEv
         trackInAppEvent("messageDismissed", message)
     }
 
+    // Still a required member of the interface. The SDK always calls the overload below, so this
+    // only runs if something reports a failure without classifying it.
     override fun errorWithMessage(message: InAppMessage) {
-        logInAppEvent("in-app message: errorWithMessage. message: $message")
+        logInAppEvent("in-app message: errorWithMessage (no reason). message: $message")
         trackInAppEvent("errorWithMessage", message)
+    }
+
+    override fun errorWithMessage(message: InAppMessage, error: InAppMessageError) {
+        logInAppEvent("in-app message: errorWithMessage. reason: ${error.reason}, detail: ${error.detail}, message: $message")
+        // `detail` is deliberately logged but not tracked: it is diagnostic text, partly supplied by
+        // the renderer, and not something to forward verbatim to analytics.
+        trackInAppEvent(
+            "errorWithMessage",
+            message,
+            hashMapOf(
+                "error-reason" to error.reason.name,
+                "error-code" to (error.code?.toString() ?: "NULL")
+            )
+        )
     }
 
     override fun messageActionTaken(

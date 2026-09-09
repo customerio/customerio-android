@@ -6,8 +6,12 @@ package io.customer.messaginginapp.type
  * The entries are deliberately coarse: each maps to a different thing an integrator would do about
  * it — check connectivity, look at a slow renderer, report the message content to us, or file an
  * SDK bug. Finer detail belongs in [InAppMessageError.detail].
+ *
+ * **Keep a fallback branch when you switch on this.** More reasons may be added in future releases,
+ * and an exhaustive `when` expression over this enum will stop compiling when that happens. An
+ * `else ->` branch keeps your listener building across SDK upgrades.
  */
-internal enum class InAppMessageErrorReason {
+enum class InAppMessageErrorReason {
     /** The renderer could not be reached: navigation failed, TLS failed, or the host errored. */
     NETWORK,
 
@@ -29,17 +33,23 @@ internal enum class InAppMessageErrorReason {
  *
  * @param reason the coarse category; branch on this.
  * @param detail human-readable detail from the layer that failed — a WebView error description, or
- * the message the renderer itself reported. Free-form and unstable: log it, don't parse it.
+ * the message the renderer itself reported. Free-form, unstable, and partly renderer-supplied, so
+ * treat it as **local diagnostics only**: write it to your logs, don't parse it, and don't forward
+ * it verbatim to analytics or crash reporting. Branch on [reason] instead.
  * @param code the underlying platform error code where the failing layer had one, e.g. a
  * [android.webkit.WebResourceError] code or an HTTP status. Null when there was no numeric code.
  */
-internal data class InAppMessageError(
+data class InAppMessageError(
     val reason: InAppMessageErrorReason,
     val detail: String? = null,
     val code: Int? = null
 ) {
-    /** Compact form for logs: `NETWORK (-2): net::ERR_NAME_NOT_RESOLVED` */
-    fun describeForLogs(): String = buildString {
+    /**
+     * Compact form for logs: `NETWORK (-2): net::ERR_NAME_NOT_RESOLVED`
+     *
+     * Internal: hosts should read [reason], [detail] and [code] rather than depend on this format.
+     */
+    internal fun describeForLogs(): String = buildString {
         append(reason.name)
         code?.let { append(" ($it)") }
         detail?.let { append(": $it") }

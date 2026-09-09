@@ -10,6 +10,8 @@ import io.customer.messaginginapp.state.MessageBuilderMock.createMessage
 import io.customer.messaginginapp.testutils.core.JUnitTest
 import io.customer.messaginginapp.testutils.extension.createInAppMessage
 import io.customer.messaginginapp.testutils.extension.createInboxMessage
+import io.customer.messaginginapp.type.InAppMessageError
+import io.customer.messaginginapp.type.InAppMessageErrorReason
 import io.customer.sdk.communication.Event
 import io.customer.sdk.communication.EventBus
 import io.customer.sdk.core.util.Logger
@@ -148,10 +150,15 @@ class InAppMessagingMiddlewaresTest : JUnitTest() {
         val message = createMessage(elementId = elementId)
 
         val middleware = gistListenerMiddleware(mockGistListener)
-        val action = InAppMessagingAction.EngineAction.MessageLoadingFailed(message)
+        val action = InAppMessagingAction.EngineAction.MessageLoadingFailed(message, InAppMessageError(reason = InAppMessageErrorReason.RENDER_FAILED))
         middleware(store)(nextFn)(action)
 
-        verify { mockGistListener.onError(message) }
+        verify {
+            mockGistListener.onError(
+                message,
+                InAppMessageError(reason = InAppMessageErrorReason.RENDER_FAILED)
+            )
+        }
 
         verify { nextFn(action) }
     }

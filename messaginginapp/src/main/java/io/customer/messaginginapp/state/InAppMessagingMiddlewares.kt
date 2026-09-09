@@ -341,7 +341,7 @@ internal fun gistListenerMiddleware(gistListener: GistListener?) = middleware<In
         }
 
         is InAppMessagingAction.EngineAction.MessageLoadingFailed -> {
-            gistListener?.onError(action.message)
+            gistListener?.onError(action.message, action.error)
         }
 
         is InAppMessagingAction.EngineAction.Tap -> {

@@ -248,12 +248,7 @@ internal abstract class InAppMessageViewController<ViewCallback : InAppMessageVi
             reason = InAppMessageErrorReason.RENDER_FAILED,
             detail = "Failed to load route: $route"
         )
-        logViewEvent("In-app message failed: ${error.describeForLogs()}")
-        currentMessage?.let { message ->
-            inAppMessagingManager.dispatch(
-                InAppMessagingAction.EngineAction.MessageLoadingFailed(message)
-            )
-        }
+        this.error(error)
     }
 
     final override fun routeLoaded(route: String) {
@@ -274,10 +269,25 @@ internal abstract class InAppMessageViewController<ViewCallback : InAppMessageVi
     }
 
     override fun error() {
-        logViewEvent("Error loading engine for message: ${currentMessage?.messageId} on route: $currentRoute")
+        // Only reachable from an implementation that predates the classified callback. EngineWebView
+        // always classifies, so treat an unlabelled failure as an SDK-side gap rather than inventing
+        // a cause.
+        error(
+            InAppMessageError(
+                reason = InAppMessageErrorReason.INTERNAL_ERROR,
+                detail = "Engine reported a failure with no reason"
+            )
+        )
+    }
+
+    override fun error(error: InAppMessageError) {
+        logViewEvent(
+            "In-app message ${currentMessage?.messageId} failed on route $currentRoute: " +
+                error.describeForLogs()
+        )
         currentMessage?.let { message ->
             inAppMessagingManager.dispatch(
-                InAppMessagingAction.EngineAction.MessageLoadingFailed(message)
+                InAppMessagingAction.EngineAction.MessageLoadingFailed(message, error)
             )
         }
     }

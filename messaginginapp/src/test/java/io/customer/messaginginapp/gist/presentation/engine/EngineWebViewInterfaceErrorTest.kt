@@ -23,15 +23,31 @@ import org.robolectric.RobolectricTestRunner
 @RunWith(RobolectricTestRunner::class)
 class EngineWebViewInterfaceErrorTest : RobolectricTest() {
 
-    private lateinit var received: MutableList<InAppMessageError>
+    /**
+     * Captures what the bridge hands to the listener, which is the real production path.
+     */
+    private class RecordingListener : EngineWebViewListener {
+        val received = mutableListOf<InAppMessageError>()
+        var reasonLessCallCount = 0
+
+        override fun bootstrapped() {}
+        override fun tap(name: String, action: String, system: Boolean) {}
+        override fun routeChanged(newRoute: String) {}
+        override fun routeError(route: String) {}
+        override fun routeLoaded(route: String) {}
+        override fun sizeChanged(width: Double, height: Double) {}
+        override fun error() { reasonLessCallCount++ }
+        override fun error(error: InAppMessageError) { received.add(error) }
+    }
+
+    private lateinit var listener: RecordingListener
     private lateinit var engineWebViewInterface: EngineWebViewInterface
+    private val received: MutableList<InAppMessageError> get() = listener.received
 
     override fun setup(testConfig: TestConfig) {
         super.setup(testConfig)
-        received = mutableListOf()
-        engineWebViewInterface = EngineWebViewInterface(mockk(relaxed = true)).apply {
-            onEngineError = { received.add(it) }
-        }
+        listener = RecordingListener()
+        engineWebViewInterface = EngineWebViewInterface(listener)
         // postMessage ignores everything until the interface is attached to a WebView.
         attachToWebView()
     }
@@ -85,6 +101,37 @@ class EngineWebViewInterfaceErrorTest : RobolectricTest() {
 
         received.single().reason shouldBeEqualTo InAppMessageErrorReason.RENDER_FAILED
         received.single().detail.shouldBeNull()
+    }
+
+    /**
+     * The renderer always sends `{ target, errorMessage }` today, but a failure must still reach the
+     * host if it ever arrives bare. iOS already behaves this way — its `error` case sits outside any
+     * parameters guard — so dropping it here would put the two platforms out of step on the one path
+     * this work exists to protect.
+     */
+    @Test
+    fun postMessage_givenErrorWithNoParametersAtAll_expectStillReported() {
+        val payload = mapOf(
+            "gist" to mapOf(
+                "instanceId" to "test-instance",
+                "method" to "error"
+            )
+        )
+
+        engineWebViewInterface.postMessage(Gson().toJson(payload))
+
+        received.size shouldBeEqualTo 1
+        received.single().reason shouldBeEqualTo InAppMessageErrorReason.RENDER_FAILED
+        received.single().detail.shouldBeNull()
+    }
+
+    @Test
+    fun postMessage_givenError_expectClassifiedOverloadUsedNotTheReasonLessOne() {
+        postErrorEvent(mapOf("errorMessage" to "Boom"))
+
+        received.size shouldBeEqualTo 1
+        // The reason-less callback exists only for source compatibility; the SDK must not use it.
+        listener.reasonLessCallCount shouldBeEqualTo 0
     }
 
     @Test

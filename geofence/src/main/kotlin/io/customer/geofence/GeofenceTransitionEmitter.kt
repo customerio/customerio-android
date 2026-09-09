@@ -200,8 +200,6 @@ internal class GeofenceTransitionEmitter(
             logger.logTransitionSuppressed(geofenceId, transition.name, suppressedFor)
             return@withLock Result.SUPPRESSED
         }
-        logger.logTransitionEmitting(geofenceId, transition.name)
-
         val entries = stagedEntries.ifEmpty {
             // One transitionId shared across the per-geoset fan-out.
             val transitionId = UUID.randomUUID().toString()
@@ -241,7 +239,10 @@ internal class GeofenceTransitionEmitter(
             logger.logPersistFailed(geofenceId, transition.name)
             return@withLock Result.PERSIST_FAILED
         }
-        // Only once the rows are durable, so an interrupted write can't suppress its own retry.
+        // Below the write, not above it: logged earlier this could claim an acceptance the write
+        // then failed to make. The same ordering rule covers the cooldown record, so an interrupted
+        // write cannot suppress its own retry.
+        logger.logTransitionAccepted(geofenceId, transition.name, entries.size)
         cooldownFilter.record(userId, geofenceId, transition)
         entries.forEach { entry ->
             // Isolate the scheduler so one failure can't abandon the rest of the batch.

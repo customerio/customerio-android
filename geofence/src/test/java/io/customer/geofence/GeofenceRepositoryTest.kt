@@ -424,7 +424,7 @@ class GeofenceRepositoryTest : RobolectricTest() {
 
         result.isFailure shouldBeEqualTo true
         result.exceptionOrNull() shouldBeEqualTo error
-        verify { logger.logSyncFailed(match { it?.contains("network down") == true }) }
+        verify { logger.logApiFetchFailed(match { it?.contains("network down") == true }) }
         verify(exactly = 0) { store.saveRegisteredIds(any()) }
         verify(exactly = 0) { store.saveApiFetchStateIfCurrent(any(), any(), any()) }
         coVerify(exactly = 0) { manager.replaceGeofences(any(), any()) }
@@ -491,7 +491,7 @@ class GeofenceRepositoryTest : RobolectricTest() {
         verify(exactly = 0) { store.saveLastMovementTriggerLocation(any()) }
         verify { store.clearLastMovementTriggerLocation() }
         // Region count alone can't distinguish this from an empty-but-still-monitoring sync.
-        verify { logger.logSyncSucceeded(0, movementTriggerRegistered = false) }
+        verify { logger.logSyncSucceeded(0, movementTriggerRegistered = false, elapsedMillis = any()) }
     }
 
     @Test
@@ -534,7 +534,7 @@ class GeofenceRepositoryTest : RobolectricTest() {
         captured.captured.map { it.id } shouldBeEqualTo listOf(GeofenceConstants.MOVEMENT_TRIGGER_ID)
         verify { store.saveLastMovementTriggerLocation(GeofenceLocation(12.34, 56.78)) }
         verify(exactly = 0) { store.clearLastMovementTriggerLocation() }
-        verify { logger.logSyncSucceeded(0, movementTriggerRegistered = true) }
+        verify { logger.logSyncSucceeded(0, movementTriggerRegistered = true, elapsedMillis = any()) }
     }
 
     @Test
@@ -884,7 +884,7 @@ class GeofenceRepositoryTest : RobolectricTest() {
         result.isSuccess shouldBeEqualTo true
         verify { store.saveApiFetchStateIfCurrent(any(), any(), any()) }
         verify { distanceFilter.nearest(any(), 12.34, 56.78, 3, any()) }
-        verify { logger.logSyncSucceeded(filtered.size, movementTriggerRegistered = true) }
+        verify { logger.logSyncSucceeded(filtered.size, movementTriggerRegistered = true, elapsedMillis = any()) }
         // Store holds the IDs of exactly what was registered (movement trigger + business),
         // so the next refresh's stale-cleanup diff is accurate.
         verify { store.saveRegisteredIds(captured.captured.map { it.id }.toSet()) }
@@ -1189,7 +1189,9 @@ class GeofenceRepositoryTest : RobolectricTest() {
             manager.replaceGeofences(any(), any())
             manager.removeGeofencesByIds(any())
         }
-        verify { logger.logSyncSucceeded(1, movementTriggerRegistered = true) }
+        // Two, not one: the stale fence whose removal failed is still monitored by the OS, and
+        // the count answers "what is actually monitored" rather than "what ranking selected".
+        verify { logger.logSyncSucceeded(2, movementTriggerRegistered = true, elapsedMillis = any()) }
         // Persisted set includes the unremoved stale ID — next refresh will retry it.
         persisted.captured shouldContainSame
             setOf(GeofenceConstants.MOVEMENT_TRIGGER_ID, "biz-new", "biz-old")
@@ -1320,7 +1322,7 @@ class GeofenceRepositoryTest : RobolectricTest() {
         coVerify(exactly = 0) { manager.removeGeofencesByIds(any()) }
         verify(exactly = 0) { store.saveRegisteredIds(any()) }
         verify(exactly = 0) { store.saveApiFetchStateIfCurrent(any(), any(), any()) }
-        verify(exactly = 0) { logger.logSyncSucceeded(any(), any()) }
+        verify(exactly = 0) { logger.logSyncSucceeded(any(), any(), any()) }
     }
 
     @Test

@@ -35,7 +35,7 @@ class GeofenceCooldownFilterTest : RobolectricTest() {
     }
 
     @Test
-    fun cooldown_givenNoPreviousEmit_expectTrueAndRecorded() {
+    fun cooldown_givenNoPreviousEmit_expectAllowedAndRecorded() {
         every { mockStore.getLastEmitTimestamp(any(), any(), any()) } returns null
         every { mockClock.currentTimeMillis() } returns 100_000L
 
@@ -107,7 +107,7 @@ class GeofenceCooldownFilterTest : RobolectricTest() {
     }
 
     @Test
-    fun cooldown_givenPreviousEmitOutsideCooldown_expectTrueAndRecorded() {
+    fun cooldown_givenPreviousEmitOutsideCooldown_expectAllowedAndRecorded() {
         val lastEmit = 100_000L
         val now = lastEmit + GeofenceConstants.DEDUPE_COOLDOWN_MS + 1
         every { mockStore.getLastEmitTimestamp("user-1", "biz-1", Event.GeofenceTransition.ENTER) } returns lastEmit
@@ -154,9 +154,11 @@ class GeofenceCooldownFilterTest : RobolectricTest() {
         val lastEmit = 100_000L
         every { mockStore.getLastEmitTimestamp("user-1", "biz-1", Event.GeofenceTransition.ENTER) } returns lastEmit
 
-        // Inside the server window but well outside the constant fallback → must block.
-        every { mockClock.currentTimeMillis() } returns lastEmit + serverCooldownMs - 1
-        filter.suppressedForSeconds("user-1", "biz-1", Event.GeofenceTransition.ENTER).shouldNotBeNull()
+        // Inside the server window but well outside the constant fallback → must block, and the
+        // remainder must be measured against the server window rather than the fallback constant.
+        every { mockClock.currentTimeMillis() } returns lastEmit + 1_000
+        filter.suppressedForSeconds("user-1", "biz-1", Event.GeofenceTransition.ENTER) shouldBeEqualTo
+            (serverCooldownMs - 1_000) / 1000.0
 
         // Past the server window but still inside the constant fallback → must allow.
         every { mockClock.currentTimeMillis() } returns lastEmit + serverCooldownMs + 1

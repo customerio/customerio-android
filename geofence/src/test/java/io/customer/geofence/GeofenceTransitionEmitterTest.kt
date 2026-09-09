@@ -242,6 +242,30 @@ class GeofenceTransitionEmitterTest : RobolectricTest() {
     }
 
     @Test
+    fun emit_givenStagedAttemptWithinTheCooldown_expectDeliveredNotSuppressed() = runTest {
+        // A staged row is a crossing already accepted whose outbox append failed. Its own first
+        // attempt recorded the cooldown, so running the check over the retry would let that window
+        // eat the crossing outright.
+        val staged = PendingGeofenceDelivery(
+            geofenceId = "biz-1",
+            transition = Event.GeofenceTransition.ENTER,
+            timestamp = 99L,
+            userId = "user-1",
+            transitionId = "staged-enter"
+        )
+        every {
+            mockRegionStore.getPendingTransitionEntries("user-1", "biz-1", Event.GeofenceTransition.ENTER)
+        } returns listOf(staged)
+        every { mockCooldownFilter.suppressedForSeconds(any(), any(), any()) } returns 12.0
+        every { mockPendingStore.appendAll(listOf(staged)) } returns true
+
+        emit()
+
+        verify { mockPendingStore.appendAll(listOf(staged)) }
+        verify(exactly = 0) { mockCooldownFilter.suppressedForSeconds(any(), any(), any()) }
+    }
+
+    @Test
     fun recoverPendingTransitions_givenOldUserGeneration_expectDeliversButDoesNotRestoreContainment() = runTest {
         val staged = PendingGeofenceDelivery(
             geofenceId = "biz-1",

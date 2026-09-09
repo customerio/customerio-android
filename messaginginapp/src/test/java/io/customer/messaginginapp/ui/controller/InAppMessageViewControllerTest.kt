@@ -240,6 +240,22 @@ class InAppMessageViewControllerTest : JUnitTest() {
     }
 
     @Test
+    fun testTap_whenLoadPageUrlHasLeadingWhitespace_thenTrimsPrefixAndPreservesQuerySpaces() {
+        val destination = "https://example.com/?name=100Plus Animal Rescue, Inc "
+        every { platformDelegate.sanitizeUrlQuery(any()) } returns FakeQuerySanitizer(
+            mapOf("url" to "  $destination")
+        )
+        controller.setMessageAndRouteForTest(
+            message = createInAppMessage(),
+            route = String.random
+        )
+
+        controller.tap(name = "Open URL", action = createGistAction("loadPage"), system = false)
+
+        verify(exactly = 1) { platformDelegate.openUrl(url = destination, useLaunchFlags = false) }
+    }
+
+    @Test
     fun tap_givenShowMessageAction_expectDismissCurrentAndShowNewMessage() {
         val givenMessage = createInAppMessage()
         val tapGestureProperties = givenMessage.properties?.filterNotNullValues() ?: emptyMap()

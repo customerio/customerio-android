@@ -173,7 +173,8 @@ internal abstract class InAppMessageViewController<ViewCallback : InAppMessageVi
                     }
 
                     "loadPage" -> {
-                        val url = urlQuery.getValue("url")
+                        // Preserve the previous tolerance for whitespace before the URL scheme.
+                        val url = urlQuery.getValue("url").trimStart()
                         logViewEvent("Opening URL: $url")
                         platformDelegate.openUrl(url = url, useLaunchFlags = false)
                     }

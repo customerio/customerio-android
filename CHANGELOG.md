@@ -1,3 +1,9 @@
+## [4.21.1](https://github.com/customerio/customerio-android/compare/4.21.0...4.21.1) (2026-09-09)
+
+### Bug Fixes
+
+* **messaginginapp:** preserve spaces in in-app open-url query values ([7fa9996](https://github.com/customerio/customerio-android/commit/7fa999681eda4842e5b8854416985169c9af7585))
+
 ## [4.21.0](https://github.com/customerio/customerio-android/compare/4.20.4...4.21.0) (2026-09-09)
 
 ### Features

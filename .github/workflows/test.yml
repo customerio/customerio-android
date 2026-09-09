@@ -93,25 +93,8 @@ jobs:
           force-avd-creation: false
           emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           disable-animations: true
-          # Extended boot timeout to handle cold runner delays
           emulator-boot-timeout: 900
-          script: |
-            # Wait for ADB to stabilize after emulator-runner's boot check
-            adb wait-for-device
-            sleep 10
-            # Verify boot is really complete
-            for i in 1 2 3 4 5; do
-              if adb shell getprop sys.boot_completed | grep -q "1"; then
-                echo "Boot confirmed complete"
-                break
-              fi
-              echo "Waiting for boot... attempt $i"
-              sleep 5
-            done
-            # Wait for package manager to be ready
-            adb shell pm wait-for-ready 2>/dev/null || sleep 5
-            echo "Starting instrumentation tests..."
-            ./gradlew :samples:${{ matrix.sample }}:connectedDebugAndroidTest --no-daemon --stacktrace -PuseKsp=true
+          script: bash .github/scripts/run-instrumentation-tests.sh ${{ matrix.sample }} 30
 
       # Retry on emulator startup failures only
       - name: Retry instrumentation tests on startup failure
@@ -126,23 +109,7 @@ jobs:
           emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           disable-animations: true
           emulator-boot-timeout: 1200
-          script: |
-            # Wait for ADB to stabilize after emulator-runner's boot check
-            adb wait-for-device
-            sleep 15
-            # Verify boot is really complete
-            for i in 1 2 3 4 5 6 7 8 9 10; do
-              if adb shell getprop sys.boot_completed | grep -q "1"; then
-                echo "Boot confirmed complete"
-                break
-              fi
-              echo "Waiting for boot... attempt $i"
-              sleep 5
-            done
-            # Wait for package manager to be ready
-            adb shell pm wait-for-ready 2>/dev/null || sleep 10
-            echo "Starting instrumentation tests (retry)..."
-            ./gradlew :samples:${{ matrix.sample }}:connectedDebugAndroidTest --no-daemon --stacktrace -PuseKsp=true
+          script: bash .github/scripts/run-instrumentation-tests.sh ${{ matrix.sample }} 60
 
       - name: Publish test results
         uses: mikepenz/action-junit-report@cf701569b05ccdd861a76b8607a66d76f6fd4857 # v5.5.1

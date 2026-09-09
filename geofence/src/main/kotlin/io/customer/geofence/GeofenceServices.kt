@@ -117,6 +117,12 @@ internal class GeofenceServicesImpl(
         )
 
     override fun onUserIdentified(latitude: Double?, longitude: Double?) {
+        // Establish the session boundary here, not on the first OS callback. beginUserSession clears
+        // routing and the last-sync stamp, so opening it now sends the refresh below down the REMOTE
+        // path and arms routing for the new user before any transition can arrive. Left to the
+        // receiver, the identify would SKIP as fresh, and the first callback would then open the
+        // session, read the empty routable set it had just written, and remove every live fence.
+        secureUserStore.getUserId()?.takeIf { it.isNotEmpty() }?.let(regionStore::beginUserSession)
         triggerSync(
             reason = REASON_USER_IDENTIFIED,
             latitude = latitude,
@@ -126,6 +132,11 @@ internal class GeofenceServicesImpl(
     }
 
     override fun onAppLaunch(latitude: Double?, longitude: Double?) {
+        // Launch establishes a session where none exists; it must never redefine one. This runs
+        // asynchronously, so an identify can land between reading the user and reaching the store,
+        // and reopening the older user would clear the routing that identify's refresh just armed.
+        secureUserStore.getUserId()?.takeIf { it.isNotEmpty() }
+            ?.let(regionStore::beginUserSessionIfAbsent)
         triggerSync(
             reason = REASON_APP_LAUNCH,
             latitude = latitude,

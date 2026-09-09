@@ -12,6 +12,7 @@ import io.customer.sdk.communication.Event
 import io.customer.sdk.core.util.Clock
 import io.customer.sdk.data.store.SecureUserStore
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicLong
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.delay
@@ -83,6 +84,10 @@ internal class GeofenceRepositoryImpl(
     // or cancellation can't latch the gate.
     private val refreshInProgress = AtomicBoolean(false)
 
+    // Which user session the pass holding the slot is running for. A pass can only arm routing for
+    // its own generation, so a caller from a newer session must not treat it as covering theirs.
+    private val inFlightUserStateGeneration = AtomicLong(NO_SESSION)
+
     // Serializes state-mutation against reset() (sign-out). Held only around the
     // write block — the long-running API call happens outside the lock.
     private val stateMutex = Mutex()
@@ -90,16 +95,31 @@ internal class GeofenceRepositoryImpl(
     private fun tryTakeRefreshSlot(): Boolean = refreshInProgress.compareAndSet(false, true)
 
     private fun releaseRefreshSlot() {
+        inFlightUserStateGeneration.set(NO_SESSION)
         refreshInProgress.set(false)
     }
 
     @RequiresPermission(Manifest.permission.ACCESS_FINE_LOCATION)
     override suspend fun refresh(latitude: Double, longitude: Double): Result<Unit> {
         val containmentEpoch = store.containmentEpoch()
+        val userStateGeneration = store.userStateGeneration()
         if (!tryTakeRefreshSlot()) {
-            logger.logSyncSkipped("refresh already in progress")
-            return Result.success(Unit)
+            // Identify and app-launch fire together on the same anchor, so a duplicate still drops.
+            // A pass from an older session is different: beginUserSession has already cleared
+            // routing, and that pass can only refuse to arm the generation it no longer serves.
+            // Dropping here would leave routing empty with nothing pending, and the next callback
+            // would treat every live fence as unknown and remove it. So wait for the slot instead,
+            // keeping anchor semantics — this is still not a live fix.
+            if (userStateGeneration == inFlightUserStateGeneration.get()) {
+                logger.logSyncSkipped("refresh already in progress")
+                return Result.success(Unit)
+            }
+            if (!awaitRefreshSlot()) {
+                logger.logSyncSkipped("refresh already in progress after waiting")
+                return Result.success(Unit)
+            }
         }
+        inFlightUserStateGeneration.set(userStateGeneration)
         return runRefresh(latitude, longitude, FixSource.ANCHOR, containmentEpoch)
     }
 
@@ -112,6 +132,7 @@ internal class GeofenceRepositoryImpl(
             logger.logSyncSkipped("refresh already in progress after waiting")
             return Result.success(Unit)
         }
+        inFlightUserStateGeneration.set(store.userStateGeneration())
         return runRefresh(latitude, longitude, FixSource.LIVE, containmentEpoch)
     }
 
@@ -135,7 +156,19 @@ internal class GeofenceRepositoryImpl(
             // a just-identified user unmonitored. Pref reads only; network stays outside the lock.
             val action = stateMutex.withLock { refreshAction(LocationCoordinates(latitude, longitude), config) }
             return when (action) {
-                RefreshAction.REMOTE -> performRemoteRefresh(userId, latitude, longitude, containmentEpoch, fixSource)
+                RefreshAction.REMOTE -> {
+                    val remote = performRemoteRefresh(userId, latitude, longitude, containmentEpoch, fixSource)
+                    // A session with nothing armed cannot recover on its own: its fences are still
+                    // registered but unroutable, and only a completing pass arms them. Re-rank from
+                    // the cache so an offline start still routes, as a failed movement pass does.
+                    if (remote.isFailure &&
+                        store.getRoutableRegisteredIds().isEmpty() &&
+                        store.getCachedRegions().isNotEmpty()
+                    ) {
+                        performLocalRefresh(userId, latitude, longitude, config, containmentEpoch, fixSource)
+                    }
+                    remote
+                }
                 RefreshAction.LOCAL -> performLocalRefresh(userId, latitude, longitude, config, containmentEpoch, fixSource)
                 RefreshAction.SKIP -> {
                     logger.logSyncSkippedFresh()
@@ -267,6 +300,9 @@ internal class GeofenceRepositoryImpl(
             return Result.success(Unit)
         }
         try {
+            // Same as the other two slot holders: a caller serving this session can then recognise
+            // the holder as its own and drop immediately instead of polling out the whole wait.
+            inFlightUserStateGeneration.set(store.userStateGeneration())
             val userId = secureUserStore.getUserId()
             if (userId.isNullOrBlank()) {
                 logger.logSyncSkipped("no identified user")
@@ -478,6 +514,9 @@ internal class GeofenceRepositoryImpl(
                 logger.logSyncSkipped("user changed during refresh")
                 return@withLock Result.success(Unit)
             }
+            // Snapshot for the routing arm below. beginUserSession bumps this under its own lock, so
+            // an identify landing after this point invalidates the write rather than racing it.
+            val userStateGeneration = store.userStateGeneration()
             // Synthesis baseline, snapshotted before register/persist mutate the store. No reboot
             // override here (unlike the registration diff): a reboot re-registers with
             // INITIAL_TRIGGER_ENTER, so the OS re-reports these itself.
@@ -509,6 +548,30 @@ internal class GeofenceRepositoryImpl(
                         newIds + staleIds
                     }
                     store.saveRegisteredIds(idsToSave)
+                    // A stale id whose removal failed stays registered and routable, so it keeps
+                    // firing after the backend deleted it. Retain its last known definition: the
+                    // receiver reads that to tell a retired fence from one it simply has no cache
+                    // row for, and only the former may be dropped and cleaned up. Without this the
+                    // retained set is never written, so that branch can never be taken. The catalog
+                    // here is still the pre-sync one — saveCachedRegions runs later, in onRegistered.
+                    store.saveRetainedRegisteredRegions(
+                        if (staleRemovalSucceeded) {
+                            emptyList()
+                        } else {
+                            // Merged with what is already retained: the first failure is the last
+                            // pass that still sees the deleted fence in the catalog, so rebuilding
+                            // from the catalog alone would drop the tombstone on the very next
+                            // retry and leave the id registered with nothing to identify it.
+                            val cachedById = store.getCachedRegions().associateBy { it.id }
+                            val retainedById = store.getRetainedRegisteredRegions().associateBy { it.id }
+                            staleIds.mapNotNull { cachedById[it] ?: retainedById[it] }
+                        }
+                    )
+                    // Routing is armed separately: beginUserSession writes an explicit empty routable
+                    // set, and getRoutableRegisteredIds stops falling back to the registered set once
+                    // that key exists. Without this write the first callback after an identify
+                    // classifies every live ID as unknown and removes it from the OS.
+                    val routingArmed = store.saveRoutableRegisteredIdsIfCurrent(idsToSave, userStateGeneration)
                     // An exact point check, with no accuracy margin in either direction. Widening
                     // the inside test would make a fence smaller than the fix unjudgable, so the
                     // initial-ENTER backstop would never fire; narrowing the outside test would keep
@@ -547,7 +610,16 @@ internal class GeofenceRepositoryImpl(
                     } else {
                         store.clearLastMovementTriggerLocation()
                     }
-                    onRegistered()
+                    if (routingArmed) {
+                        onRegistered()
+                    } else {
+                        // An identify landed mid-pass, so these registrations belong to the departing
+                        // user and routing was left cleared for the new one. Stamping the sync fresh
+                        // anyway would make the new user's own refresh SKIP on our timestamp and
+                        // never arm routing, and its first callback would then remove every fence.
+                        // Leaving the stamp stale sends that refresh down the remote path instead.
+                        logger.logSyncSkipped("user changed before routing could be armed")
+                    }
                     logger.logSyncSucceeded(nearest.size, movementTriggerRegistered = monitoringEnabled)
                 }
             }
@@ -690,6 +762,10 @@ internal class GeofenceRepositoryImpl(
     )
 
     private companion object {
+        // No pass holds the slot. Distinct from any real generation, which starts at zero and only
+        // ever increases.
+        const val NO_SESSION = -1L
+
         // Long enough to outlast the slowest holder: a remote pass can spend the HTTP client's
         // connect plus read timeout (10s each) before it releases, and giving up on one that then
         // fails to register is the case that strands the trigger. Deliberately past the receiver's

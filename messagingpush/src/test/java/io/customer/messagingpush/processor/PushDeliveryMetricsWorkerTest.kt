@@ -8,12 +8,16 @@ import io.customer.commontest.extensions.random
 import io.customer.messagingpush.PushDeliveryTracker
 import io.customer.messagingpush.store.PendingPushDeliveryMetric
 import io.customer.messagingpush.testutils.core.IntegrationTest
+import io.customer.sdk.data.store.PendingDeliveryResult
 import io.customer.sdk.data.store.PendingDeliveryStore
+import io.customer.sdk.data.store.claimSendRestore
 import io.customer.sdk.events.Metric
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.mockkStatic
+import io.mockk.unmockkStatic
 import io.mockk.verify
 import java.io.IOException
 import java.net.SocketTimeoutException
@@ -487,6 +491,30 @@ class PushDeliveryMetricsWorkerTest : IntegrationTest() {
         verify(exactly = 1) {
             mockPendingStore.append(PendingPushDeliveryMetric(deliveryId = deliveryId, token = deliveryToken))
         }
+    }
+
+    @Test
+    fun doWork_givenSendSucceededButEntryStillQueued_expectSuccessWithoutResend() = runTest {
+        // The shared result type also serves the at-least-once helper, so this worker must map
+        // DeliveredNotRemoved too. The metric already reached the backend and carries no id the
+        // backend dedupes on, so the outcome must be success — a retry would resend and double-count.
+        val deliveryId = String.random
+        val deliveryToken = String.random
+        val inputData = createInputData(deliveryId, deliveryToken)
+
+        mockkStatic("io.customer.sdk.data.store.PendingDeliveryClaimKt")
+        val result = try {
+            coEvery {
+                mockPendingStore.claimSendRestore<PendingPushDeliveryMetric>(any(), any(), any())
+            } returns PendingDeliveryResult.DeliveredNotRemoved
+
+            createWorker(inputData).doWork()
+        } finally {
+            unmockkStatic("io.customer.sdk.data.store.PendingDeliveryClaimKt")
+        }
+
+        result shouldBeEqualTo androidx.work.ListenableWorker.Result.success()
+        coVerify(exactly = 0) { mockPushDeliveryTracker.trackMetric(any(), any(), any()) }
     }
 
     @Test

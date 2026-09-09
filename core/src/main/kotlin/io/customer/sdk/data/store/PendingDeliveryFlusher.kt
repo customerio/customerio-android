@@ -22,7 +22,8 @@ import kotlinx.coroutines.launch
  *
  * Entries are processed in isolation: one failed cancel/publish does not abort
  * the batch, and an unclaimed or failed entry survives for the next flush. The
- * worker's unique-work name must equal [PendingDeliveryStore.PendingDeliveryEntry.key].
+ * [uniqueWorkName] maps an entry to its independently cancellable worker name. Return null when a
+ * feature uses a shared ordered work chain; removing the outbox row then makes that worker a no-op.
  *
  * Both push (`handoffPendingPushDeliveryToAnalyticsPipeline`) and geofence
  * share this so the drain logic lives in one place — only the [publish]
@@ -32,7 +33,9 @@ import kotlinx.coroutines.launch
 class PendingDeliveryFlusher<T : PendingDeliveryStore.PendingDeliveryEntry>(
     private val store: PendingDeliveryStore<T>,
     private val workManagerProvider: CustomerIOWorkManagerProvider,
-    private val dispatchersProvider: DispatchersProvider
+    private val dispatchersProvider: DispatchersProvider,
+    private val uniqueWorkName: (T) -> String? = { it.key },
+    private val stopOnFailure: Boolean = false
 ) {
 
     /**
@@ -98,11 +101,12 @@ class PendingDeliveryFlusher<T : PendingDeliveryStore.PendingDeliveryEntry>(
 
                 val workManager = workManagerProvider.getWorkManager()
                 var publishedCount = 0
-                pending.forEach { entry ->
+                for (entry in pending) {
                     try {
                         suspend fun cancelWorker() {
-                            if (workManager != null) {
-                                workManager.cancelUniqueWork(entry.key).await()
+                            val workName = uniqueWorkName(entry)
+                            if (workManager != null && workName != null) {
+                                workManager.cancelUniqueWork(workName).await()
                                 callbacks.onWorkCancelled(entry)
                             }
                         }
@@ -111,7 +115,7 @@ class PendingDeliveryFlusher<T : PendingDeliveryStore.PendingDeliveryEntry>(
                                 // A false claim (already gone, or the removing write failed) means we don't own
                                 // the send — back off; the row is retried on the next flush.
                                 cancelWorker()
-                                if (!store.claim(entry.key)) return@forEach
+                                if (!store.claim(entry.key)) continue
                                 publish(entry)
                             }
                             DeliveryGuarantee.AT_LEAST_ONCE -> {
@@ -134,6 +138,7 @@ class PendingDeliveryFlusher<T : PendingDeliveryStore.PendingDeliveryEntry>(
                         throw ce
                     } catch (ex: Exception) {
                         callbacks.onEntryFailed(entry, ex)
+                        if (stopOnFailure) break
                     }
                 }
                 callbacks.onComplete(publishedCount)

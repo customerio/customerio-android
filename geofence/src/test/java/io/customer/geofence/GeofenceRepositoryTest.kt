@@ -64,6 +64,9 @@ class GeofenceRepositoryTest : RobolectricTest() {
         // Default: mirror real time so tests using relative timestamps work
         // without churn. Override for deterministic timing.
         every { clock.currentTimeMillis() } answers { System.currentTimeMillis() }
+        // The relaxed mock would answer false, which is the "an identify landed mid-pass" branch.
+        // Default to the ordinary outcome so only the tests that mean to exercise a refusal do.
+        every { store.saveRoutableRegisteredIdsIfCurrent(any(), any()) } returns true
         repository = buildRepository()
     }
 
@@ -413,6 +416,9 @@ class GeofenceRepositoryTest : RobolectricTest() {
     fun refresh_givenApiFailure_expectFailurePropagatedAndNoPersistOrRegister() = runTest {
         val error = IOException("network down")
         every { secureUserStore.getUserId() } returns "user-42"
+        // Armed, so the failed pass has nothing to recover and must not re-rank. Left unarmed this
+        // would register from the cache, and the claim below would hold only for an empty catalog.
+        every { store.getRoutableRegisteredIds() } returns setOf("biz-1")
         coEvery { apiService.fetchGeofences(any()) } returns Result.failure(error)
 
         val result = repository.refresh(latitude = 12.34, longitude = 56.78)
@@ -738,6 +744,104 @@ class GeofenceRepositoryTest : RobolectricTest() {
         val pruned = slot<Set<String>>()
         verify { store.pruneEmittedEnterIds(capture(pruned)) }
         pruned.captured shouldContain "biz-inside"
+    }
+
+    @Test
+    fun refresh_givenIdentifyWhileAnotherRefreshHoldsTheSlot_expectRoutingArmedForTheNewSession() = runTest {
+        // A's pass is parked inside GMS registration when B identifies. B's refresh cannot be dropped
+        // as a duplicate: A can only arm A's generation, so it will refuse, and beginUserSession has
+        // already cleared routing. Dropping would leave routing empty with nothing pending, and the
+        // next callback would classify every live fence as unknown and remove it.
+        every { secureUserStore.getUserId() } returns "user-b"
+        every { store.getRegisteredIds() } returns emptySet()
+        coEvery { apiService.fetchGeofences(any()) } returns
+            Result.success(sampleResponse(maxBusinessGeofences = 3, localRefreshTriggerRadius = 1500f))
+        every { distanceFilter.nearest(any(), any(), any(), any(), any()) } returns
+            listOf(GeofenceRegion("biz-1", 0.0, 0.0, 100f))
+
+        // Generation 7 is A's; B's identify bumps it to 8 while A is still inside replaceGeofences.
+        every { store.userStateGeneration() } returns 7L
+        val armed = mutableListOf<Long>()
+        every { store.saveRoutableRegisteredIdsIfCurrent(any(), capture(armed)) } answers
+            { secondArg<Long>() == store.userStateGeneration() }
+        val registrationEntered = CompletableDeferred<Unit>()
+        val releaseRegistration = CompletableDeferred<Unit>()
+        coEvery { manager.replaceGeofences(any(), any()) } coAnswers {
+            registrationEntered.complete(Unit)
+            releaseRegistration.await()
+            Result.success(Unit)
+        }
+
+        val passA = launch { repository.refresh(latitude = 1.0, longitude = 2.0) }
+        registrationEntered.await()
+        every { store.userStateGeneration() } returns 8L
+        val passB = launch { repository.refresh(latitude = 1.0, longitude = 2.0) }
+        releaseRegistration.complete(Unit)
+        passA.join()
+        passB.join()
+
+        // A refused (7 is stale), then B ran and armed 8 rather than being dropped as a duplicate.
+        armed shouldBeEqualTo listOf(7L, 8L)
+    }
+
+    @Test
+    fun refresh_givenSuccessfulRegistration_expectRoutingArmedForTheSameIds() = runTest {
+        // beginUserSession writes an explicit empty routable set and getRoutableRegisteredIds stops
+        // falling back once that key exists, so a refresh that registers without arming routing
+        // leaves the receiver treating every live ID as unknown and removing it from the OS.
+        every { secureUserStore.getUserId() } returns "user-42"
+        every { store.getRegisteredIds() } returns emptySet()
+        every { store.userStateGeneration() } returns 7L
+        coEvery { apiService.fetchGeofences(any()) } returns
+            Result.success(sampleResponse(maxBusinessGeofences = 3, localRefreshTriggerRadius = 1500f))
+        every { distanceFilter.nearest(any(), 12.34, 56.78, 3, any()) } returns
+            listOf(GeofenceRegion("biz-1", 0.0, 0.0, 100f))
+        val captured = slot<List<GeofenceRegion>>()
+        coEvery { manager.replaceGeofences(capture(captured), any()) } returns Result.success(Unit)
+
+        repository.refresh(latitude = 12.34, longitude = 56.78)
+
+        val registered = captured.captured.map { it.id }.toSet()
+        verify { store.saveRoutableRegisteredIdsIfCurrent(registered, 7L) }
+    }
+
+    @Test
+    fun refresh_givenUserChangedBeforeRoutingWasArmed_expectSyncNotStampedFresh() = runTest {
+        // The store refuses the stale write, so routing stays cleared for the new user. Stamping the
+        // sync anyway would make that user's own refresh SKIP on this timestamp and never arm
+        // routing, and its first callback would then remove every live fence from the OS.
+        every { secureUserStore.getUserId() } returns "user-42"
+        every { store.getRegisteredIds() } returns emptySet()
+        every { store.userStateGeneration() } returns 7L
+        every { store.saveRoutableRegisteredIdsIfCurrent(any(), any()) } returns false
+        coEvery { apiService.fetchGeofences(any()) } returns
+            Result.success(sampleResponse(maxBusinessGeofences = 3, localRefreshTriggerRadius = 1500f))
+        every { distanceFilter.nearest(any(), 12.34, 56.78, 3, any()) } returns
+            listOf(GeofenceRegion("biz-1", 0.0, 0.0, 100f))
+        coEvery { manager.replaceGeofences(any(), any()) } returns Result.success(Unit)
+
+        repository.refresh(latitude = 12.34, longitude = 56.78)
+
+        verify { logger.logSyncSkipped("user changed before routing could be armed") }
+        verify(exactly = 0) { store.setLastSyncTimestamp(any()) }
+    }
+
+    @Test
+    fun refresh_givenRoutingArmed_expectSyncStampedFresh() = runTest {
+        // Control: the stamp is skipped because routing was refused, not because it never happens.
+        every { secureUserStore.getUserId() } returns "user-42"
+        every { store.getRegisteredIds() } returns emptySet()
+        every { store.userStateGeneration() } returns 7L
+        every { store.saveRoutableRegisteredIdsIfCurrent(any(), any()) } returns true
+        coEvery { apiService.fetchGeofences(any()) } returns
+            Result.success(sampleResponse(maxBusinessGeofences = 3, localRefreshTriggerRadius = 1500f))
+        every { distanceFilter.nearest(any(), 12.34, 56.78, 3, any()) } returns
+            listOf(GeofenceRegion("biz-1", 0.0, 0.0, 100f))
+        coEvery { manager.replaceGeofences(any(), any()) } returns Result.success(Unit)
+
+        repository.refresh(latitude = 12.34, longitude = 56.78)
+
+        verify { store.setLastSyncTimestamp(any()) }
     }
 
     @Test
@@ -1068,6 +1172,85 @@ class GeofenceRepositoryTest : RobolectricTest() {
     }
 
     @Test
+    fun refresh_givenStaleRemovalFails_expectDefinitionRetainedAsTombstone() = runTest {
+        // The unremoved id keeps firing after the backend deleted it. The receiver tells a retired
+        // fence from one it has no cache row for by this retained definition, so without the write
+        // that branch can never be taken and a deleted fence reports business activity.
+        val staleRegion = GeofenceRegion("biz-old", 1.0, 2.0, 150f)
+        val newRegion = GeofenceRegion("biz-new", 0.0, 0.0, 100f)
+        every { secureUserStore.getUserId() } returns "user-42"
+        every { store.getRegisteredIds() } returns setOf("biz-old")
+        every { store.getCachedRegions() } returns listOf(staleRegion)
+        coEvery { apiService.fetchGeofences(any()) } returns
+            Result.success(sampleResponse(maxBusinessGeofences = 3))
+        every { distanceFilter.nearest(any(), any(), any(), any(), any()) } returns listOf(newRegion)
+        coEvery { manager.replaceGeofences(any(), any()) } returns Result.success(Unit)
+        coEvery { manager.removeGeofencesByIds(any()) } returns
+            Result.failure(RuntimeException("remove boom"))
+        val retained = slot<List<GeofenceRegion>>()
+        every { store.saveRetainedRegisteredRegions(capture(retained)) } returns Unit
+
+        repository.refresh(latitude = 0.0, longitude = 0.0)
+
+        retained.captured shouldBeEqualTo listOf(staleRegion)
+    }
+
+    @Test
+    fun refresh_givenStaleRemovalFailsRepeatedly_expectTombstoneSurvivesTheCatalogDroppingIt() = runTest {
+        // The first failure is the last pass that still sees the deleted fence in the catalog: the
+        // sync that follows saves a catalog without it. Rebuilding the retained set from the catalog
+        // alone would lose the tombstone on the first retry, leaving the id registered and routable
+        // with nothing left to identify it as retired.
+        val staleRegion = GeofenceRegion("biz-old", 1.0, 2.0, 150f)
+        val newRegion = GeofenceRegion("biz-new", 0.0, 0.0, 100f)
+        every { secureUserStore.getUserId() } returns "user-42"
+        every { store.getRegisteredIds() } returns setOf("biz-old")
+        coEvery { apiService.fetchGeofences(any()) } returns
+            Result.success(sampleResponse(maxBusinessGeofences = 3))
+        every { distanceFilter.nearest(any(), any(), any(), any(), any()) } returns listOf(newRegion)
+        coEvery { manager.replaceGeofences(any(), any()) } returns Result.success(Unit)
+        coEvery { manager.removeGeofencesByIds(any()) } returns
+            Result.failure(RuntimeException("remove boom"))
+        val retained = mutableListOf<List<GeofenceRegion>>()
+        every { store.saveRetainedRegisteredRegions(capture(retained)) } returns Unit
+
+        // Pass 1: the catalog still holds the deleted fence, nothing retained yet.
+        every { store.getCachedRegions() } returns listOf(staleRegion)
+        every { store.getRetainedRegisteredRegions() } returns emptyList()
+        repository.refresh(latitude = 0.0, longitude = 0.0)
+
+        // Pass 2: the catalog has moved on, and the tombstone from pass 1 is all that is left.
+        every { store.getCachedRegions() } returns emptyList()
+        every { store.getRetainedRegisteredRegions() } returns listOf(staleRegion)
+        repository.refresh(latitude = 0.0, longitude = 0.0)
+
+        // Both writes, so the test documents the hand-off rather than just the surviving end of it.
+        retained.first() shouldBeEqualTo listOf(staleRegion)
+        retained.last() shouldBeEqualTo listOf(staleRegion)
+    }
+
+    @Test
+    fun refresh_givenStaleRemovalSucceeds_expectTombstonesCleared() = runTest {
+        // Nothing is orphaned in the OS, so a retained definition would outlive its purpose and keep
+        // suppressing an id a later sync may legitimately register again.
+        val newRegion = GeofenceRegion("biz-new", 0.0, 0.0, 100f)
+        every { secureUserStore.getUserId() } returns "user-42"
+        every { store.getRegisteredIds() } returns setOf("biz-old")
+        every { store.getCachedRegions() } returns listOf(GeofenceRegion("biz-old", 1.0, 2.0, 150f))
+        coEvery { apiService.fetchGeofences(any()) } returns
+            Result.success(sampleResponse(maxBusinessGeofences = 3))
+        every { distanceFilter.nearest(any(), any(), any(), any(), any()) } returns listOf(newRegion)
+        coEvery { manager.replaceGeofences(any(), any()) } returns Result.success(Unit)
+        coEvery { manager.removeGeofencesByIds(any()) } returns Result.success(Unit)
+        val retained = slot<List<GeofenceRegion>>()
+        every { store.saveRetainedRegisteredRegions(capture(retained)) } returns Unit
+
+        repository.refresh(latitude = 0.0, longitude = 0.0)
+
+        retained.captured.shouldBeEmpty()
+    }
+
+    @Test
     fun refresh_givenAllPreviousAbsentFromNew_expectBusinessRemovedButTriggerKept() = runTest {
         // No fences in this response: previously registered business IDs are removed as
         // stale, but the movement trigger stays so a later EXIT can re-fetch — the
@@ -1145,6 +1328,35 @@ class GeofenceRepositoryTest : RobolectricTest() {
         maxObservedConcurrency.get() shouldBeEqualTo 1
         coVerify(exactly = 1) { apiService.fetchGeofences(any()) }
         verify { logger.logSyncSkipped(match { it.contains("refresh already in progress") }) }
+    }
+
+    @Test
+    fun refresh_givenMovementHoldingTheSlotForSameSession_expectDroppedWithoutWaiting() = runTest {
+        // The movement pass serves the same session, so a refresh behind it is a duplicate and
+        // should drop on the spot. Without the generation stamp the slot reads as NO_SESSION and
+        // this polls out the full wait before giving up.
+        every { secureUserStore.getUserId() } returns "user-42"
+        every { store.getRegisteredIds() } returns emptySet()
+        every { store.userStateGeneration() } returns 7L
+        coEvery { apiService.fetchGeofences(any()) } returns
+            Result.success(sampleResponse(maxBusinessGeofences = 3))
+        every { distanceFilter.nearest(any(), any(), any(), any(), any()) } returns emptyList()
+        val registrationEntered = CompletableDeferred<Unit>()
+        val releaseRegistration = CompletableDeferred<Unit>()
+        coEvery { manager.replaceGeofences(any(), any()) } coAnswers {
+            registrationEntered.complete(Unit)
+            releaseRegistration.await()
+            Result.success(Unit)
+        }
+
+        val movement = launch { repository.handleMovement(latitude = 1.0, longitude = 2.0) }
+        registrationEntered.await()
+        repository.refresh(latitude = 3.0, longitude = 4.0)
+        releaseRegistration.complete(Unit)
+        movement.join()
+
+        verify { logger.logSyncSkipped("refresh already in progress") }
+        verify(exactly = 0) { logger.logSyncSkipped("refresh already in progress after waiting") }
     }
 
     @Test

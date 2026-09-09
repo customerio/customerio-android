@@ -65,17 +65,15 @@ class GeofenceEventSchedulerTest : RobolectricTest() {
         verify(exactly = 1) {
             workManager.enqueueUniqueWork(
                 capture(uniqueKeySlot),
-                ExistingWorkPolicy.KEEP,
+                ExistingWorkPolicy.APPEND_OR_REPLACE,
                 capture(workRequestSlot)
             )
         }
-        uniqueKeySlot.captured shouldBeEqualTo "biz-geofence-1_ENTER_1234_none"
+        uniqueKeySlot.captured shouldBeEqualTo "cio-geofence-delivery-queue"
 
-        // inputData carries only the store key; the worker loads the full row from the pending store.
+        // WorkManager carries no event data; every node drains the oldest durable store row.
         val input = workRequestSlot.captured.workSpec.input
-        input.getString("entry_key") shouldBeEqualTo "biz-geofence-1_ENTER_1234_none"
-        input.hasKeyWithValueOfType("geofence_id", String::class.java) shouldBeEqualTo false
-        input.hasKeyWithValueOfType("metadata", String::class.java) shouldBeEqualTo false
+        input.keyValueMap.size shouldBeEqualTo 0
 
         val constraints = workRequestSlot.captured.workSpec.constraints
         constraints shouldNotBe null
@@ -100,12 +98,15 @@ class GeofenceEventSchedulerTest : RobolectricTest() {
         )
 
         verify(exactly = 1) {
-            workManager.enqueueUniqueWork(capture(uniqueKeySlot), ExistingWorkPolicy.KEEP, capture(workRequestSlot))
+            workManager.enqueueUniqueWork(
+                capture(uniqueKeySlot),
+                ExistingWorkPolicy.APPEND_OR_REPLACE,
+                capture(workRequestSlot)
+            )
         }
-        // Key carries the geoset so per-geoset workers don't collide under ExistingWorkPolicy.KEEP,
-        // and it's the same key inputData carries for the worker's store lookup.
-        uniqueKeySlot.captured shouldBeEqualTo "biz-geofence-1_ENTER_1234_9"
-        workRequestSlot.captured.workSpec.input.getString("entry_key") shouldBeEqualTo "biz-geofence-1_ENTER_1234_9"
+        // All transitions share one continuation chain and the outbox owns their order.
+        uniqueKeySlot.captured shouldBeEqualTo "cio-geofence-delivery-queue"
+        workRequestSlot.captured.workSpec.input.keyValueMap.size shouldBeEqualTo 0
     }
 
     @Test

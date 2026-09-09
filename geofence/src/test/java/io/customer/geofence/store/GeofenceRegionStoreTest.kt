@@ -421,7 +421,11 @@ class GeofenceRegionStoreTest : RobolectricTest() {
     }
 
     @Test
-    fun beginUserSession_givenLegacyRegistrationsWithoutOwnerOrRoutingKey_expectAdoptsWithoutCoverageLoss() {
+    fun beginUserSession_givenLegacyRegistrationsWithoutOwner_expectRegistrationsKeptAndSessionReopened() {
+        // Nothing records who the persisted state belongs to, so it opens as a switch rather than
+        // being adopted on the assumption that the caller names its owner. Registrations survive,
+        // so the live fences keep firing; routing and containment do not, so nothing is attributed
+        // to this user until a refresh re-arms them.
         store.saveRegisteredIds(setOf("biz-1"))
         store.recordEntered("biz-1")
         val recreated = GeofenceRegionStoreImpl(
@@ -429,13 +433,53 @@ class GeofenceRegionStoreTest : RobolectricTest() {
             jsonSerializer = GeofenceJsonSerializer(),
             logger = mockk(relaxed = true)
         )
+        val generationBefore = recreated.userStateGeneration()
 
         recreated.beginUserSession("user-1")
 
         recreated.activeUserSessionId() shouldBeEqualTo "user-1"
         recreated.getRegisteredIds() shouldBeEqualTo setOf("biz-1")
-        recreated.getRoutableRegisteredIds() shouldBeEqualTo setOf("biz-1")
-        recreated.getEnteredIds() shouldBeEqualTo setOf("biz-1")
+        recreated.userStateGeneration() shouldBeEqualTo generationBefore + 1L
+        recreated.getRoutableRegisteredIds().shouldBeEmpty()
+        recreated.getEnteredIds().shouldBeEmpty()
+    }
+
+    @Test
+    fun beginUserSessionIfAbsent_givenNoOwner_expectSessionOpened() {
+        val generationBefore = store.userStateGeneration()
+
+        store.beginUserSessionIfAbsent("user-1")
+
+        store.activeUserSessionId() shouldBeEqualTo "user-1"
+        store.userStateGeneration() shouldBeEqualTo generationBefore + 1L
+    }
+
+    @Test
+    fun beginUserSessionIfAbsent_givenADifferentOwner_expectSessionUntouched() {
+        // The whole point of the variant: a caller that read its user earlier must not undo a
+        // session opened since, so routing armed for the current owner survives.
+        store.beginUserSession("user-2")
+        val generation = store.userStateGeneration()
+        store.saveRoutableRegisteredIdsIfCurrent(setOf("biz-1"), generation).shouldBeTrue()
+
+        store.beginUserSessionIfAbsent("user-1")
+
+        store.activeUserSessionId() shouldBeEqualTo "user-2"
+        store.userStateGeneration() shouldBeEqualTo generation
+        store.getRoutableRegisteredIds() shouldBeEqualTo setOf("biz-1")
+    }
+
+    @Test
+    fun beginUserSessionIfAbsent_givenSignOutClearedTheOwner_expectSessionOpened() {
+        // Absent means no owner, not "never opened": sign-out has already moved the generation on,
+        // and a persisted re-identify still has to open a session here.
+        store.beginUserSession("user-1")
+        store.clearUserScopedState()
+        store.activeUserSessionId().shouldBeNull()
+
+        store.beginUserSessionIfAbsent("user-1")
+
+        store.activeUserSessionId() shouldBeEqualTo "user-1"
     }
 
     @Test
@@ -501,6 +545,50 @@ class GeofenceRegionStoreTest : RobolectricTest() {
     }
 
     @Test
+    fun beginUserSession_givenUnownedStateAndAnInFlightPass_expectThatPassRefused() {
+        // The pass began before anyone owned this state, so it cannot arm routing for the session
+        // that now does. Refusing is what sends the incoming user down its own refresh instead of
+        // inheriting a set that was ranked for someone else.
+        store.saveRegisteredIds(setOf("biz-1"))
+        val inFlightGeneration = store.userStateGeneration()
+
+        store.beginUserSession("user-1")
+
+        store.saveRoutableRegisteredIdsIfCurrent(setOf("biz-1"), inFlightGeneration).shouldBeFalse()
+        store.getRoutableRegisteredIds().shouldBeEmpty()
+    }
+
+    @Test
+    fun getRoutableRegisteredIds_givenIdentifySwitchThenRefresh_expectRoutingRearmed() {
+        // The A-to-B loop end to end: A is registered and routable, identify B clears routing, and
+        // the refresh that follows re-arms it. Without the re-arm the explicit empty set persists and
+        // every later callback is classified as unknown.
+        store.beginUserSession("user-a")
+        store.saveRegisteredIds(setOf("biz-1"))
+        store.saveRoutableRegisteredIdsIfCurrent(setOf("biz-1"), store.userStateGeneration())
+        store.getRoutableRegisteredIds() shouldBeEqualTo setOf("biz-1")
+
+        store.beginUserSession("user-b")
+        store.getRoutableRegisteredIds().shouldBeEmpty()
+
+        store.saveRegisteredIds(setOf("biz-2"))
+        store.saveRoutableRegisteredIdsIfCurrent(setOf("biz-2"), store.userStateGeneration())
+
+        store.getRoutableRegisteredIds() shouldBeEqualTo setOf("biz-2")
+    }
+
+    @Test
+    fun saveRoutableRegisteredIdsIfCurrent_givenStaleGeneration_expectRefusedAndRoutingLeftCleared() {
+        store.beginUserSession("user-a")
+        val staleGeneration = store.userStateGeneration()
+        store.beginUserSession("user-b")
+
+        store.saveRoutableRegisteredIdsIfCurrent(setOf("biz-1"), staleGeneration) shouldBeEqualTo false
+
+        store.getRoutableRegisteredIds().shouldBeEmpty()
+    }
+
+    @Test
     fun saveRegisteredIds_thenGet_expectRoundTrip() {
         val ids = setOf("cio_movement_trigger", "biz-1", "biz-2")
 
@@ -518,10 +606,12 @@ class GeofenceRegionStoreTest : RobolectricTest() {
     }
 
     @Test
-    fun getRoutableRegisteredIds_givenPreFeatureStore_expectFallsBackToRegisteredIds() {
+    fun getRoutableRegisteredIds_givenRegistrationsNoSessionHasClaimed_expectEmpty() {
+        // A registration routes only once a pass has armed it for a known session. Falling back to
+        // the registered set would route a previous install's fences for whoever identifies next.
         store.saveRegisteredIds(setOf("biz-legacy"))
 
-        store.getRoutableRegisteredIds() shouldBeEqualTo setOf("biz-legacy")
+        store.getRoutableRegisteredIds().shouldBeEmpty()
     }
 
     @Test
@@ -1147,7 +1237,7 @@ class GeofenceRegionStoreTest : RobolectricTest() {
         store.getCoarseInsidePolygonIds().shouldBeEmpty()
         store.getEnteredIds().shouldBeEmpty()
         store.hasEmittedEnter(USER, registered.id).shouldBeFalse()
-        store.hasActiveUserSession().shouldBeFalse()
+        store.activeUserSessionId().shouldBeNull()
         store.userStateGeneration() shouldBeEqualTo generation + 1L
         store.getLastSyncTimestamp().shouldBeNull()
 

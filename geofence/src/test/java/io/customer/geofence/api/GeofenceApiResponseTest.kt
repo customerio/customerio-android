@@ -161,6 +161,113 @@ class GeofenceApiResponseTest : RobolectricTest() {
     }
 
     @Test
+    fun parseAndMap_givenShapePaddedWithWhitespace_expectRoutedNotDroppedAsUnsupported() {
+        val regions = parseRegions(
+            """
+            {
+              "geofences": [
+                { "id": "padded", "shape": " Circle ", "latitude": 1, "longitude": 2, "radius": 100 },
+                { "id": "circle", "latitude": 0, "longitude": 0, "radius": 100 }
+              ]
+            }
+            """.trimIndent(),
+            EnabledPolygonSupport
+        )
+
+        regions.map(GeofenceRegion::id) shouldBeEqualTo listOf("padded", "circle")
+        verify(exactly = 0) { mockLogger.logUnsupportedGeometryDropped("padded", any()) }
+    }
+
+    @Test
+    fun parseAndMap_givenBlankShape_expectTreatedAsAbsentNotUnsupported() {
+        // A field carrying only whitespace names no shape at all, so it routes the way a missing
+        // discriminator does rather than dropping the record.
+        val regions = parseRegions(
+            """
+            {
+              "geofences": [
+                { "id": "blank", "shape": "   ", "latitude": 1, "longitude": 2, "radius": 100 },
+                { "id": "circle", "latitude": 0, "longitude": 0, "radius": 100 }
+              ]
+            }
+            """.trimIndent(),
+            EnabledPolygonSupport
+        )
+
+        regions.map(GeofenceRegion::id) shouldBeEqualTo listOf("blank", "circle")
+        verify(exactly = 0) { mockLogger.logUnsupportedGeometryDropped("blank", any()) }
+    }
+
+    @Test
+    fun parseAndMap_givenPaddedPolygonShape_expectRoutedToPolygonBranch() {
+        // The trim has to apply to every discriminator, not just the circle one.
+        val region = parseRegions(
+            polygonAndCircleJson().replace("\"shape\": \"polygon\"", "\"shape\": \" Polygon \""),
+            EnabledPolygonSupport
+        ).single { it.id == "campus" }
+
+        region.isPolygon.shouldBeTrue()
+    }
+
+    @Test
+    fun parseAndMap_givenPaddedUnknownShape_expectRawValueReported() {
+        // The drop reason has to name what the server actually sent, not the trimmed form used for
+        // matching, or the log sends someone looking for a shape string that was never on the wire.
+        parseRegions(
+            """
+            {
+              "geofences": [
+                { "id": "odd", "shape": " Hexagon ", "latitude": 1, "longitude": 2, "radius": 100 },
+                { "id": "circle", "latitude": 0, "longitude": 0, "radius": 100 }
+              ]
+            }
+            """.trimIndent(),
+            EnabledPolygonSupport
+        )
+
+        verify { mockLogger.logUnsupportedGeometryDropped("odd", " Hexagon ") }
+    }
+
+    @Test
+    fun parseAndMap_givenBlankShapeCarryingGeometry_expectDroppedAsInconsistentNotRegistered() {
+        // Routing a blank discriminator as absent must not weaken the inconsistency guard: the
+        // record still carries geometry, so falling back to its circle fields would register a
+        // fence the backend never described.
+        val regions = parseRegions(
+            """
+            {
+              "geofences": [
+                {
+                  "id": "blank-with-geometry",
+                  "shape": " ",
+                  "latitude": 37.775,
+                  "longitude": -122.419,
+                  "radius": 250,
+                  "geometry": {
+                    "type": "Polygon",
+                    "coordinates": [[
+                      [-122.4200, 37.7745],
+                      [-122.4188, 37.7745],
+                      [-122.4188, 37.7755],
+                      [-122.4200, 37.7755],
+                      [-122.4200, 37.7745]
+                    ]]
+                  }
+                },
+                { "id": "circle", "latitude": 0, "longitude": 0, "radius": 100 }
+              ]
+            }
+            """.trimIndent(),
+            EnabledPolygonSupport
+        )
+
+        regions.map(GeofenceRegion::id) shouldBeEqualTo listOf("circle")
+        verify {
+            mockLogger.logPolygonDropped("blank-with-geometry", "shape discriminator is missing or inconsistent")
+        }
+    }
+
+    @Test
     fun parseAndMap_givenPolygonPositionThatIsNotFinite_expectRecordDroppedNotWholeSync() {
         // Positions decode as JsonElement, so the literal "NaN" becomes a Double and passes every
         // geometry check — each one compares, and every comparison against NaN is false. It would
@@ -217,7 +324,7 @@ class GeofenceApiResponseTest : RobolectricTest() {
         verify {
             mockLogger.logPolygonDropped(
                 "bad-center",
-                "backend-provided enclosing circle is invalid or does not contain the polygon"
+                "enclosing circle is missing, its centre is out of range, or its radius is unusable"
             )
         }
     }

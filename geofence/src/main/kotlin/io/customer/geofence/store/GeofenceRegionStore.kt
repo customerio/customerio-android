@@ -104,6 +104,14 @@ internal interface GeofenceRegionStore {
     /** Invalidates in-flight transition work when the identified profile changes. */
     fun beginUserSession(userId: String)
 
+    /**
+     * Opens a session for [userId] only while none is recorded, checked and written under one lock.
+     *
+     * For callers that read the identified user before calling: a concurrent identify can land in
+     * between, and this must not undo it by reopening the older user.
+     */
+    fun beginUserSessionIfAbsent(userId: String)
+
     /** Atomically commits containment and clears its staged transition for this user generation. */
     fun commitBusinessTransition(
         geofenceId: String,
@@ -470,6 +478,15 @@ internal class GeofenceRegionStoreImpl(
         // records who the persisted state belongs to. Adopting whoever is identified now was a guess
         // that a late read or a replayed identify can get wrong, so an unowned session opens as a
         // switch. OS registrations survive it, so live fences keep firing once a refresh re-arms them.
+        openUserSessionLocked(userId)
+    }
+
+    override fun beginUserSessionIfAbsent(userId: String) = synchronized(enteredLock) {
+        if (hasActiveUserSessionLocked()) return@synchronized
+        openUserSessionLocked(userId)
+    }
+
+    private fun openUserSessionLocked(userId: String) {
         val nextGeneration = currentUserStateGenerationLocked() + 1L
         prefs.edit(commit = true) {
             putString(KEY_USER_STATE_OWNER, userId)

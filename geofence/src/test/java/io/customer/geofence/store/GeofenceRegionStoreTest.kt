@@ -445,6 +445,44 @@ class GeofenceRegionStoreTest : RobolectricTest() {
     }
 
     @Test
+    fun beginUserSessionIfAbsent_givenNoOwner_expectSessionOpened() {
+        val generationBefore = store.userStateGeneration()
+
+        store.beginUserSessionIfAbsent("user-1")
+
+        store.activeUserSessionId() shouldBeEqualTo "user-1"
+        store.userStateGeneration() shouldBeEqualTo generationBefore + 1L
+    }
+
+    @Test
+    fun beginUserSessionIfAbsent_givenADifferentOwner_expectSessionUntouched() {
+        // The whole point of the variant: a caller that read its user earlier must not undo a
+        // session opened since, so routing armed for the current owner survives.
+        store.beginUserSession("user-2")
+        val generation = store.userStateGeneration()
+        store.saveRoutableRegisteredIdsIfCurrent(setOf("biz-1"), generation).shouldBeTrue()
+
+        store.beginUserSessionIfAbsent("user-1")
+
+        store.activeUserSessionId() shouldBeEqualTo "user-2"
+        store.userStateGeneration() shouldBeEqualTo generation
+        store.getRoutableRegisteredIds() shouldBeEqualTo setOf("biz-1")
+    }
+
+    @Test
+    fun beginUserSessionIfAbsent_givenSignOutClearedTheOwner_expectSessionOpened() {
+        // Absent means no owner, not "never opened": sign-out has already moved the generation on,
+        // and a persisted re-identify still has to open a session here.
+        store.beginUserSession("user-1")
+        store.clearUserScopedState()
+        store.activeUserSessionId().shouldBeNull()
+
+        store.beginUserSessionIfAbsent("user-1")
+
+        store.activeUserSessionId() shouldBeEqualTo "user-1"
+    }
+
+    @Test
     fun completeUserReset_givenNewUserBeganWhileOsClearWasInFlight_expectPreservesNewOwner() {
         store.beginUserSession("user-A")
         val resetGeneration = store.userStateGeneration()

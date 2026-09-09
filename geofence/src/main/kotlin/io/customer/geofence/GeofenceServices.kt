@@ -132,10 +132,11 @@ internal class GeofenceServicesImpl(
     }
 
     override fun onAppLaunch(latitude: Double?, longitude: Double?) {
-        // On an install upgraded from a version without the session keys, the first beginUserSession
-        // adopts whoever is identified rather than switching. Opening it here makes that adoption
-        // name the launching user, so a later identify is seen as the switch it is, not absorbed.
-        secureUserStore.getUserId()?.takeIf { it.isNotEmpty() }?.let(regionStore::beginUserSession)
+        // Launch establishes a session where none exists; it must never redefine one. This runs
+        // asynchronously, so an identify can land between reading the user and reaching the store,
+        // and reopening the older user would clear the routing that identify's refresh just armed.
+        secureUserStore.getUserId()?.takeIf { it.isNotEmpty() }
+            ?.let(regionStore::beginUserSessionIfAbsent)
         triggerSync(
             reason = REASON_APP_LAUNCH,
             latitude = latitude,

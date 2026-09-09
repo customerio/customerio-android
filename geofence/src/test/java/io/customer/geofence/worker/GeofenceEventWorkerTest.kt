@@ -7,11 +7,15 @@ import io.customer.commontest.config.ApplicationArgument
 import io.customer.commontest.config.TestConfig
 import io.customer.commontest.config.testConfigurationDefault
 import io.customer.commontest.core.RobolectricTest
+import io.customer.geofence.GeofenceDiagnostics
+import io.customer.geofence.GeofenceLogger
 import io.customer.geofence.di.pendingGeofenceDeliveryStore
 import io.customer.geofence.store.PendingGeofenceDelivery
 import io.customer.sdk.communication.Event
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.network.HttpRequestFailure
+import io.customer.sdk.core.util.CioLogLevel
+import io.customer.sdk.core.util.Logger
 import io.customer.sdk.data.store.PendingDeliveryStore
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -24,6 +28,8 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonPrimitive
 import org.amshove.kluent.shouldBeEqualTo
 import org.amshove.kluent.shouldBeTrue
+import org.amshove.kluent.shouldContain
+import org.junit.After
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -33,6 +39,21 @@ class GeofenceEventWorkerTest : RobolectricTest() {
 
     private val tracker: GeofenceEventTracker = mockk(relaxed = true)
 
+    /** Captures formatted messages: the tail's value is the assertion, not a call count. */
+    private class CapturingLogger : Logger {
+        val messages = mutableListOf<String>()
+        override var logLevel: CioLogLevel = CioLogLevel.DEBUG
+        override fun setLogDispatcher(dispatcher: ((CioLogLevel, String) -> Unit)?) = Unit
+        override fun info(message: String, tag: String?) = record(message)
+        override fun debug(message: String, tag: String?) = record(message)
+        override fun error(message: String, tag: String?, throwable: Throwable?) = record(message)
+        private fun record(message: String) {
+            messages.add(message)
+        }
+    }
+
+    private val capturing = CapturingLogger()
+
     private val store get() = SDKComponent.android().pendingGeofenceDeliveryStore
 
     override fun setup(testConfig: TestConfig) {
@@ -40,11 +61,27 @@ class GeofenceEventWorkerTest : RobolectricTest() {
             testConfigurationDefault {
                 argument(ApplicationArgument(applicationMock))
                 diGraph {
+                    sdk { overrideDependency<GeofenceLogger>(GeofenceLogger(capturing)) }
                     android { overrideDependency<GeofenceEventTracker>(tracker) }
                 }
             }
         )
         store.removeAll()
+        GeofenceDiagnostics.setEnabledForTesting(true)
+    }
+
+    @After
+    fun resetDiagnostics() {
+        // null, not false: false would pin the gate off for every later test class in this JVM.
+        GeofenceDiagnostics.setEnabledForTesting(null)
+    }
+
+    private fun deliveryFailedTail(): String {
+        // Filtered on the machine key plus the field, not the prose: logEventDeliveryRetryable also
+        // emits ev=delivery.failed, and matching on wording turns a reword into a confusing throw.
+        val matches = capturing.messages.filter { "ev=delivery.failed" in it && "retry=" in it }
+        matches.size shouldBeEqualTo 1
+        return matches.first()
     }
 
     // inputData carries only the store key; the worker loads the full row from the pending store, so
@@ -189,6 +226,9 @@ class GeofenceEventWorkerTest : RobolectricTest() {
         // The rejected head is dropped rather than retried, and the drain continues past it.
         attempts shouldBeEqualTo listOf(enter, exit)
         store.loadAll().isEmpty().shouldBeTrue()
+        // The tail has to say what actually happened to the row, or a replay run reads a dropped
+        // transition as one still queued.
+        deliveryFailedTail() shouldContain "retry=false"
     }
 
     @Test
@@ -202,6 +242,26 @@ class GeofenceEventWorkerTest : RobolectricTest() {
 
         result shouldBeEqualTo ListenableWorker.Result.retry()
         store.loadAll().map { it.key } shouldBeEqualTo listOf("biz_ENTER_tid-seed_none")
+    }
+
+    @Test
+    fun doWork_givenTerminalRejectionWhoseRemovalFails_expectRowKeptAndTailSaysItWillRetry() = runTest {
+        // The case the retry field exists for. The payload is refused permanently, but the row that
+        // proves it could not be removed, so it is still queued and the tail must not report it as
+        // dropped. Reading retry=false here would send someone looking for a transition that is
+        // still on disk.
+        val entry = seed("biz", Event.GeofenceTransition.ENTER, timestamp = 0L)
+        val failingRemoval = spyk(store) { every { remove(any()) } returns false }
+        SDKComponent.android()
+            .overrideDependency<PendingDeliveryStore<PendingGeofenceDelivery>>(failingRemoval)
+        coEvery { tracker.trackEvent(any()) } returns
+            Result.failure(HttpRequestFailure(400, "invalid payload"))
+
+        val result = createWorker(inputDataFor(entry.key)).doWork()
+
+        result shouldBeEqualTo ListenableWorker.Result.retry()
+        failingRemoval.loadAll().map { it.key } shouldBeEqualTo listOf(entry.key)
+        deliveryFailedTail() shouldContain "retry=true"
     }
 
     @Test
@@ -221,6 +281,8 @@ class GeofenceEventWorkerTest : RobolectricTest() {
         }
 
         createWorker(Data.EMPTY).doWork() shouldBeEqualTo ListenableWorker.Result.retry()
+        // Same log method as the permanent-rejection case, opposite disposal: this row survives.
+        deliveryFailedTail() shouldContain "retry=true"
         createWorker(Data.EMPTY).doWork() shouldBeEqualTo ListenableWorker.Result.success()
 
         attempts shouldBeEqualTo listOf(enter, enter, exit)

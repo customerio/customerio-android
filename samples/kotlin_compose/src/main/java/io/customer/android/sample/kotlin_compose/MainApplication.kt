@@ -9,6 +9,7 @@ import io.customer.geofence.ModuleGeofence
 import io.customer.location.ModuleLocation
 import io.customer.messaginginapp.MessagingInAppModuleConfig
 import io.customer.messaginginapp.ModuleMessagingInApp
+import io.customer.messaginginapp.type.NotificationInboxAccessibilityLabels
 import io.customer.messagingpush.ModuleMessagingPushFCM
 import io.customer.sdk.CustomerIO
 import io.customer.sdk.CustomerIOConfigBuilder
@@ -38,6 +39,17 @@ class MainApplication : Application() {
                         region = Region.US
                     ).setEventListener(InAppMessageEventListener())
                         .setInboxEventListener(SampleInboxEventListener())
+                        // Visual Notification Inbox TalkBack labels. The SDK ships none of its own (so no
+                        // English leaks into a localized app); the host supplies them in its language.
+                        // `bellWithUnreadCount` is a lambda so the app applies its own plural rules.
+                        .setNotificationInboxAccessibilityLabels(
+                            NotificationInboxAccessibilityLabels(
+                                bell = "Notifications",
+                                bellWithUnreadCount = { count -> if (count == 1) "Notifications, 1 unread" else "Notifications, $count unread" },
+                                loadingIndicator = "Loading inbox",
+                                emptyState = "No notifications"
+                            )
+                        )
                         .build()
                 )
             )

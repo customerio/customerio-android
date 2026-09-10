@@ -822,9 +822,9 @@ internal class GeofenceLogger(private val logger: Logger) {
         )
     }
 
-    fun logEventWorkerEntryMissing(key: String) {
+    fun logEventWorkerEntryMissing(key: String? = null) {
         logger.debug(
-            "Geofence event worker skipped: no pending entry for '$key' (already delivered via the analytics pipeline)" +
+            "Geofence event worker skipped: nothing left in the pending queue (already delivered via the analytics pipeline)" +
                 tail(
                     "delivery.sent",
                     GeofenceLogIo.OUTPUT,

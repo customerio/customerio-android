@@ -26,6 +26,7 @@ import java.io.IOException
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonPrimitive
+import org.amshove.kluent.shouldBeEmpty
 import org.amshove.kluent.shouldBeEqualTo
 import org.amshove.kluent.shouldBeTrue
 import org.amshove.kluent.shouldContain
@@ -174,6 +175,33 @@ class GeofenceEventWorkerTest : RobolectricTest() {
 
         result shouldBeEqualTo ListenableWorker.Result.success()
         coVerify(exactly = 0) { tracker.trackEvent(any()) }
+    }
+
+    // logEventDeliverySkippedAlreadyDelivered shares ev and why; only the per-row record carries id.
+    private fun emptyQueueRecords(): List<String> =
+        capturing.messages.filter {
+            "ev=delivery.sent" in it && "why=already_delivered" in it && "id=" !in it
+        }
+
+    @Test
+    fun doWork_givenEmptyQueueOnWake_expectAlreadyDeliveredRecord() = runTest {
+        createWorker(Data.EMPTY).doWork() shouldBeEqualTo ListenableWorker.Result.success()
+
+        emptyQueueRecords().size shouldBeEqualTo 1
+    }
+
+    @Test
+    fun doWork_givenQueueDrainedSuccessfully_expectNoAlreadyDeliveredRecord() = runTest {
+        // The drain exits through the same empty-queue branch, so without the guard every
+        // successful delivery would also report a flush that overtook it.
+        seed("biz-1", Event.GeofenceTransition.ENTER)
+        seed("biz-2", Event.GeofenceTransition.EXIT)
+        coEvery { tracker.trackEvent(any()) } returns Result.success(Unit)
+
+        createWorker(Data.EMPTY).doWork() shouldBeEqualTo ListenableWorker.Result.success()
+
+        store.loadAll().isEmpty().shouldBeTrue()
+        emptyQueueRecords().shouldBeEmpty()
     }
 
     @Test

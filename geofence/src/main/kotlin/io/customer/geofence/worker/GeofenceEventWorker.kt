@@ -77,8 +77,16 @@ internal class GeofenceEventWorker(
         // Every node drains the oldest durable row, not the row that happened to schedule it. This
         // preserves transition order even after retries, foreground handoff, or process death.
         val store = SDKComponent.android().pendingGeofenceDeliveryStore
+        var sawEntry = false
         while (true) {
-            val entry = store.loadAll().firstOrNull() ?: return Result.success()
+            val entry = store.loadAll().firstOrNull() ?: run {
+                // Only when the wake found nothing at all. Draining the queue empty is the normal
+                // success path, and recording that as an already-delivered skip would report a
+                // flush overtaking us on every successful delivery.
+                if (!sawEntry) logger.logEventWorkerEntryMissing()
+                return Result.success()
+            }
+            sawEntry = true
 
             // Shouldn't happen — the receiver drops anonymous transitions before persisting. It is
             // also unrecoverable: the userId was snapshotted at queue time and no later attempt can

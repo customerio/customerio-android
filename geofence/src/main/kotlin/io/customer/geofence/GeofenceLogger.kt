@@ -822,13 +822,13 @@ internal class GeofenceLogger(private val logger: Logger) {
         )
     }
 
-    fun logEventWorkerEntryMissing(key: String) {
+    fun logEventWorkerEntryMissing() {
         logger.debug(
-            "Geofence event worker skipped: no pending entry for '$key' (already delivered via the analytics pipeline)" +
+            "Geofence event worker woke with nothing to send: an earlier node in the delivery chain drained the queue, or the foreground flush did" +
                 tail(
                     "delivery.sent",
                     GeofenceLogIo.OUTPUT,
-                    listOf("key" to key, "why" to "already_delivered")
+                    listOf("why" to "queue_empty")
                 ),
             tag = TAG
         )
@@ -981,10 +981,6 @@ internal class GeofenceLogger(private val logger: Logger) {
 
     fun logTransitionDroppedUnarmedId(geofenceId: String) {
         logger.debug("Geofence '$geofenceId' transition dropped — registered but routing is not armed for this session; OS registration kept", tag = TAG)
-    }
-
-    fun logTransitionEmitting(geofenceId: String, transitionName: String) {
-        logger.debug("Geofence '$geofenceId' $transitionName: queued for at-least-once delivery (WorkManager now, analytics pipeline on next foreground)", tag = TAG)
     }
 
     fun logUnsupportedGeometryDropped(geofenceId: String, type: String) {

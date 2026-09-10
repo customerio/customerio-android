@@ -172,7 +172,7 @@ class GeofenceLogTailTest : RobolectricTest() {
             Row("deliveryDeferredAnonymous", "delivery.queued", listOf("id", "t", "why")) { it.logEventDeliveryDeferredAnonymous("notl_core", "ENTER") },
             Row("eventDelivered", "delivery.sent", listOf("id", "t", "via")) { it.logEventDelivered("notl_core", "ENTER") },
             Row("deliverySkippedAlreadyDelivered", "delivery.sent", listOf("id", "t", "why")) { it.logEventDeliverySkippedAlreadyDelivered("notl_core", "ENTER") },
-            Row("workerEntryMissing", "delivery.sent", listOf("key", "why")) { it.logEventWorkerEntryMissing("notl_core:ENTER") },
+            Row("workerEntryMissing", "delivery.sent", listOf("why")) { it.logEventWorkerEntryMissing() },
             Row("flushSnapshot", "delivery.flush", listOf("n", "phase")) { it.logForegroundFlushSnapshot(3) },
             Row("flushCancelled", "delivery.flush", listOf("id", "t", "why")) { it.logForegroundFlushCancelledWorkManager("notl_core", "ENTER") },
             Row("flushPublished", "delivery.sent", listOf("id", "t", "via")) { it.logForegroundFlushPublished("notl_core", "ENTER") },

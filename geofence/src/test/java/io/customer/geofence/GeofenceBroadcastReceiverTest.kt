@@ -119,7 +119,7 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
                     sdk {
                         overrideDependency<EventBus>(mockEventBus)
                         overrideDependency<Clock>(mockClock)
-                        overrideDependency<GeofenceLogger>(GeofenceLogger(capturingLogger))
+                        overrideDependency<Logger>(capturingLogger)
                     }
                     android {
                         overrideDependency<GeofenceEventScheduler>(mockScheduler)

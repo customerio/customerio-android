@@ -1,14 +1,30 @@
 name: Publish Snapshot builds
 
-on: [pull_request]
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, edited]
+    paths-ignore:
+      - '**/*.md'
 
 permissions:
+  contents: read
   pull-requests: write # Write access needed to create a comment.
 
 jobs:
   publish:
     name: Snapshot build and publish
+    # Internal branch snapshots are a PR integration contract for wrapper SDKs,
+    # not a release-only side effect. Keep publishing them for every code PR.
+    if: >-
+      (github.event.action != 'edited' || github.event.changes.base != null) &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.user.login != 'dependabot[bot]'
     runs-on: ubuntu-latest
+    # A canceled multi-module upload can expose a mixed SNAPSHOT to wrappers.
+    # Queue the newest pending publish and let the active upload finish.
+    concurrency:
+      group: snapshot-publish-${{ github.ref }}
+      cancel-in-progress: false
     outputs:
       snapshot_version: ${{ steps.set-snapshot-version.outputs.VERSION }}
     steps:
@@ -22,7 +38,7 @@ jobs:
         env:
           # Get the current branch name and replace all / characters with - as / is invalid in gradle names.
           PR_HEAD_REF: ${{ github.event.pull_request.head.ref }}
-        run: echo "VERSION=$(echo ${PR_HEAD_REF} | sed -r 's/\//-/g')-SNAPSHOT" >> $GITHUB_OUTPUT
+        run: echo "VERSION=${PR_HEAD_REF//\//-}-SNAPSHOT" >> "$GITHUB_OUTPUT"
 
       - name: Publish to MavenCentral
         run: ./gradlew publishReleasePublicationToSonatypeRepository
@@ -56,103 +72,41 @@ jobs:
           edit-mode: replace
           token: ${{ secrets.GITHUB_TOKEN }}
 
-  # This job depends on the publish job to finish so we can use the snapshot version to verify
-  # gradle compatibility of the sample apps with actual releases of the SDK with latest changes.
+  # Build compatibility is correctness coverage, so it runs for every code PR
+  # independently of release naming and snapshot publication.
   gradle-compatibility-builds:
-    name: ${{ matrix.sample-app }} build with AGP ${{ matrix.agp-version }}
-    needs: publish
+    name: Sample apps build with AGP 8.9.1
+    if: github.event.action != 'edited' || github.event.changes.base != null
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        # Matrix of sample apps and AGP versions to test
-        # List all sample apps here that you want to test with the AGP versions.
-        sample-app-with-agp:
-          - "java_layout_min"
-          - "kotlin_compose_min"
-          - "java_layout_max"
-          - "kotlin_compose_max"
-        include:
-          # Minimum supported versions (compatible with Kotlin 2.1)
-          - sample-app-with-agp: "java_layout_min"
-            sample-app: "java_layout"
-            cio-siteid-secret-key: "CUSTOMERIO_JAVA_WORKSPACE_SITE_ID"
-            cio-cdpapikey-secret-key: "CUSTOMERIO_JAVA_WORKSPACE_CDP_API_KEY"
-            agp-version: "8.0"
-            gradle-version: "8.0"
-          - sample-app-with-agp: "kotlin_compose_min"
-            sample-app: "kotlin_compose"
-            cio-siteid-secret-key: "CUSTOMERIO_KOTLIN_WORKSPACE_SITE_ID"
-            cio-cdpapikey-secret-key: "CUSTOMERIO_KOTLIN_WORKSPACE_CDP_API_KEY"
-            agp-version: "8.0"
-            gradle-version: "8.0"
-          - sample-app-with-agp: "java_layout_max"
-            sample-app: "java_layout"
-            cio-siteid-secret-key: "CUSTOMERIO_JAVA_WORKSPACE_SITE_ID"
-            cio-cdpapikey-secret-key: "CUSTOMERIO_JAVA_WORKSPACE_CDP_API_KEY"
-            agp-version: "8.6.1"
-            gradle-version: "8.9"
-          - sample-app-with-agp: "kotlin_compose_max"
-            sample-app: "kotlin_compose"
-            cio-siteid-secret-key: "CUSTOMERIO_KOTLIN_WORKSPACE_SITE_ID"
-            cio-cdpapikey-secret-key: "CUSTOMERIO_KOTLIN_WORKSPACE_CDP_API_KEY"
-            agp-version: "8.6.1"
-            gradle-version: "8.9"
+    concurrency:
+      group: gradle-compatibility-${{ github.ref }}
+      cancel-in-progress: true
 
     steps:
       - uses: actions/checkout@v4
 
-      # If using sd on macos, "brew install" works great. for Linux, this is the recommended way.
-      - name: Install sd CLI to use later in the workflow
-        uses: kenji-miyake/setup-sd@08c14e27d65a1c215342ef00c81583ae67f4c5ef # v2.0.0
-
-      - name: Install tools from Gemfile (ruby language) used for building our apps with
-        uses: ruby/setup-ruby@95ef2b042f9d7a56d8268cba8559e2842e2ad01b # v1.321.0
-        with:
-          ruby-version: '3.4'
-          bundler-cache: true
-
       - name: Setup local.properties file for sample app
-        # Use recently published snapshot version to make sure we're testing the latest changes.
+        # These APKs compile the PR's local SDK modules and are not distributed,
+        # so workspace credentials and a published snapshot are unnecessary.
         run: |
-          touch "samples/local.properties"
-          echo "sdkVersion=${{ needs.publish.outputs.snapshot_version }}" >> "samples/local.properties"
-          echo "siteId=${{ secrets[matrix.cio-siteid-secret-key] }}" >> "samples/local.properties"
-          echo "cdpApiKey=${{ secrets[matrix.cio-cdpapikey-secret-key] }}" >> "samples/local.properties"
+          {
+            printf 'siteId=ci-build-placeholder\n'
+            printf 'cdpApiKey=ci-build-placeholder\n'
+          } > "samples/local.properties"
 
       - name: Update files for Gradle compatibility
-        # If AGP version matches the default value, we don't need to specify further versions.
+        # API 36 requires AGP 8.9.1 or newer, and AGP 8.9 requires Gradle 8.11.1.
+        # https://developer.android.com/build/releases/about-agp#api-level-support
         run: |
           ./scripts/update-gradle-compatibility.sh \
-          --agpVersion ${{ matrix.agp-version }} \
-          --gradleVersion ${{ matrix.gradle-version }}
+          --agpVersion 8.9.1 \
+          --gradleVersion 8.11.1
 
-      - name: Install Java
-        uses: actions/setup-java@v4
-        with:
-          distribution: "temurin"
-          java-version: "17"
+      # Uses the same Java, Android SDK, wrapper validation, and Gradle-owned
+      # caching path as the rest of this repository's CI.
+      - uses: ./.github/actions/setup-android
 
-      - name: Install Android SDK
-        uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407 # v3.2.2
-
-      - name: Cache Gradle dependencies
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.gradle/caches
-            ~/.gradle/wrapper
-          key: ${{ runner.os }}-gradle-${{ matrix.gradle-version }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
-          restore-keys: |
-            ${{ runner.os }}-gradle-${{ matrix.gradle-version }}-
-
-      - name: Verify gradle scripts are valid gradle scripts
-        uses: gradle/actions/wrapper-validation@af1da67850ed9a4cedd57bfd976089dd991e2582 # v4.3.1
-
-      - name: Set up Gradle Version ${{ matrix.gradle-version }}
-        uses: gradle/actions/setup-gradle@af1da67850ed9a4cedd57bfd976089dd991e2582 # v4.3.1
-        with:
-          gradle-version: ${{ matrix.gradle-version }}
-
-      - name: Building ${{ matrix.sample-app }} with AGP version ${{ matrix.agp-version }}
-        run: ./gradlew ":samples:${{ matrix.sample-app }}:assembleRelease"
+      # Build the Groovy and Kotlin DSL consumers together so their shared SDK
+      # modules are configured and compiled only once.
+      - name: Build Groovy and Kotlin DSL sample apps
+        run: ./gradlew :samples:java_layout:assembleRelease :samples:kotlin_compose:assembleRelease

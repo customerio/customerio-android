@@ -11,6 +11,7 @@ import io.customer.messaginginapp.state.InAppMessagingState
 import io.customer.messaginginapp.state.ModalMessageState
 import io.customer.messaginginapp.store.InAppPreferenceStore
 import io.customer.messaginginapp.type.ColorScheme
+import io.customer.messaginginapp.type.InAppMessageError
 import io.customer.sdk.core.di.SDKComponent
 
 internal interface GistProvider {
@@ -96,5 +97,12 @@ interface GistListener {
     fun onMessageDismissed(message: Message)
     fun onMessageCancelled(message: Message)
     fun onError(message: Message)
+
+    /**
+     * Called when a message fails to load or render, with the reason it failed.
+     *
+     * Defaulted so implementations written against the reason-less callback keep compiling.
+     */
+    fun onError(message: Message, error: InAppMessageError) = onError(message)
     fun onAction(message: Message, currentRoute: String, action: String, name: String)
 }

@@ -20,6 +20,8 @@ import io.customer.messaginginapp.testutils.extension.createInAppMessage
 import io.customer.messaginginapp.testutils.extension.mapToInAppMessage
 import io.customer.messaginginapp.testutils.extension.setMessageAndRouteForTest
 import io.customer.messaginginapp.testutils.fakes.FakeQuerySanitizer
+import io.customer.messaginginapp.type.InAppMessageError
+import io.customer.messaginginapp.type.InAppMessageErrorReason
 import io.customer.messaginginapp.type.InlineMessageActionListener
 import io.customer.messaginginapp.ui.bridge.EngineWebViewDelegate
 import io.customer.messaginginapp.ui.bridge.InAppHostViewDelegate
@@ -238,6 +240,22 @@ class InAppMessageViewControllerTest : JUnitTest() {
     }
 
     @Test
+    fun testTap_whenLoadPageUrlHasLeadingWhitespace_thenTrimsPrefixAndPreservesQuerySpaces() {
+        val destination = "https://example.com/?name=100Plus Animal Rescue, Inc "
+        every { platformDelegate.sanitizeUrlQuery(any()) } returns FakeQuerySanitizer(
+            mapOf("url" to "  $destination")
+        )
+        controller.setMessageAndRouteForTest(
+            message = createInAppMessage(),
+            route = String.random
+        )
+
+        controller.tap(name = "Open URL", action = createGistAction("loadPage"), system = false)
+
+        verify(exactly = 1) { platformDelegate.openUrl(url = destination, useLaunchFlags = false) }
+    }
+
+    @Test
     fun tap_givenShowMessageAction_expectDismissCurrentAndShowNewMessage() {
         val givenMessage = createInAppMessage()
         val tapGestureProperties = givenMessage.properties?.filterNotNullValues() ?: emptyMap()
@@ -353,7 +371,13 @@ class InAppMessageViewControllerTest : JUnitTest() {
 
         verifyOrder {
             inAppMessagingManager.dispatch(
-                InAppMessagingAction.EngineAction.MessageLoadingFailed(givenMessage)
+                InAppMessagingAction.EngineAction.MessageLoadingFailed(
+                    givenMessage,
+                    InAppMessageError(
+                        reason = InAppMessageErrorReason.RENDER_FAILED,
+                        detail = "Failed to load route: Error loading message"
+                    )
+                )
             )
         }
     }
@@ -472,11 +496,37 @@ class InAppMessageViewControllerTest : JUnitTest() {
         val givenMessage = createInAppMessage()
         controller.setMessageAndRouteForTest(message = givenMessage, route = String.random)
 
+        val givenError = InAppMessageError(
+            reason = InAppMessageErrorReason.NETWORK,
+            detail = "net::ERR_NAME_NOT_RESOLVED",
+            code = -2
+        )
+
+        controller.error(givenError)
+
+        verifyOrder {
+            inAppMessagingManager.dispatch(
+                InAppMessagingAction.EngineAction.MessageLoadingFailed(givenMessage, givenError)
+            )
+        }
+    }
+
+    @Test
+    fun engineListener_givenUnclassifiedEngineError_expectInternalErrorReason() {
+        val givenMessage = createInAppMessage()
+        controller.setMessageAndRouteForTest(message = givenMessage, route = String.random)
+
         controller.error()
 
         verifyOrder {
             inAppMessagingManager.dispatch(
-                InAppMessagingAction.EngineAction.MessageLoadingFailed(givenMessage)
+                InAppMessagingAction.EngineAction.MessageLoadingFailed(
+                    givenMessage,
+                    InAppMessageError(
+                        reason = InAppMessageErrorReason.INTERNAL_ERROR,
+                        detail = "Engine reported a failure with no reason"
+                    )
+                )
             )
         }
     }

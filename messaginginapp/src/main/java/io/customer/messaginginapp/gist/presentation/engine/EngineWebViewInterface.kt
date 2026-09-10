@@ -3,6 +3,8 @@ package io.customer.messaginginapp.gist.presentation.engine
 import android.webkit.JavascriptInterface
 import android.webkit.WebView
 import com.google.gson.Gson
+import io.customer.messaginginapp.type.InAppMessageError
+import io.customer.messaginginapp.type.InAppMessageErrorReason
 import io.customer.sdk.core.di.SDKComponent
 
 internal data class EngineWebMessage(
@@ -47,6 +49,18 @@ class EngineWebViewInterface(private val listener: EngineWebViewListener) {
 
         logger.debug("Received event from WebView: $event")
 
+        // Handled before the parameters guard below: a failure has to reach the host even when the
+        // renderer sends no detail with it. Every other event is meaningless without its parameters.
+        if (event.gist.method == "error") {
+            listener.error(
+                InAppMessageError(
+                    reason = InAppMessageErrorReason.RENDER_FAILED,
+                    detail = event.gist.parameters?.let(::parseErrorDetail)
+                )
+            )
+            return
+        }
+
         event.gist.parameters?.let { eventParameters ->
             when (event.gist.method) {
                 "bootstrapped" -> listener.bootstrapped()
@@ -79,9 +93,25 @@ class EngineWebViewInterface(private val listener: EngineWebViewListener) {
                         }
                     }
                 }
-
-                "error" -> listener.error()
             }
+        }
+    }
+
+    /**
+     * Pulls the renderer's own description of a failure out of an `error` event.
+     *
+     * The renderer sends `{ target, errorMessage }` — e.g. `Unable to find "step-2" in payload.`
+     * That string is the only first-hand account of why a message would not render.
+     */
+    private fun parseErrorDetail(parameters: Map<String, Any>): String? {
+        val errorMessage = parameters["errorMessage"] as? String
+        val target = parameters["target"] as? String
+
+        return when {
+            errorMessage != null && target != null -> "$errorMessage (target: $target)"
+            errorMessage != null -> errorMessage
+            target != null -> "Engine reported an error for target: $target"
+            else -> null
         }
     }
 

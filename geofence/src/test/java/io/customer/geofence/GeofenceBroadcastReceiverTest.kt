@@ -132,6 +132,8 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
                 }
             }
         )
+        // The tail is gated, and these tests assert on `ev=` — the machine key a parser reads,
+        // not the prose, which is what makes deleting a log line fail rather than just reword it.
         GeofenceDiagnostics.setEnabledForTesting(true)
         // Default: cooldown allows emission. Tests override this to test suppression.
         every { mockCooldownFilter.suppressedForSeconds(any(), any(), any()) } returns null

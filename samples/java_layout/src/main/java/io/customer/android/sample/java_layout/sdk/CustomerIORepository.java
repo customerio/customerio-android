@@ -13,6 +13,7 @@ import io.customer.android.sample.java_layout.di.ApplicationGraph;
 import io.customer.android.sample.java_layout.support.Optional;
 import io.customer.geofence.ModuleGeofence;
 import io.customer.messaginginapp.MessagingInAppModuleConfig;
+import io.customer.messaginginapp.type.NotificationInboxAccessibilityLabels;
 import io.customer.messaginginapp.ModuleMessagingInApp;
 import io.customer.location.LocationModuleConfig;
 import io.customer.location.ModuleLocation;
@@ -27,6 +28,7 @@ import io.customer.messagingpush.livenotification.LiveNotificationType;
 import io.customer.sdk.CustomerIO;
 import io.customer.sdk.CustomerIOConfig;
 import io.customer.sdk.CustomerIOConfigBuilder;
+import io.customer.sdk.core.util.CioLogLevel;
 
 /**
  * Repository class to hold all Customer.io related operations at single place
@@ -101,6 +103,16 @@ public class CustomerIORepository {
                     new MessagingInAppModuleConfig.Builder(sdkConfig.getSiteId(), sdkConfig.getRegion())
                             .setEventListener(new InAppMessageEventListener(appGraph.getLogger()))
                             .setInboxEventListener(new SampleInboxEventListener(appGraph.getLogger()))
+                            // Visual Notification Inbox TalkBack labels. The SDK ships none of its own (so
+                            // no English leaks into a localized app); the host supplies them in its
+                            // language. `bellWithUnreadCount` is a function so the app applies its own
+                            // plural rules.
+                            .setNotificationInboxAccessibilityLabels(new NotificationInboxAccessibilityLabels(
+                                    "Notifications",
+                                    count -> count == 1 ? "Notifications, 1 unread" : "Notifications, " + count + " unread",
+                                    "Loading inbox",
+                                    "No notifications"
+                            ))
                             .build()
             ));
         }
@@ -133,7 +145,12 @@ public class CustomerIORepository {
         builder.autoTrackDeviceAttributes(sdkConfig.isDeviceAttributesTrackingEnabled());
         builder.trackApplicationLifecycleEvents(sdkConfig.isApplicationLifecycleTrackingEnabled());
         builder.region(sdkConfig.getRegion());
-        builder.logLevel(sdkConfig.getLogLevel());
+        // Forced to DEBUG rather than taking the stored setting. The SDK filters by level
+        // *before* the dispatcher runs, and CustomerIO.initialize re-applies the configured level
+        // over whatever the sink set at install time — so a stored level of ERROR would produce an
+        // empty file after a three-hour drive. Diagnostics win over the setting; the Location Test
+        // screen says so on screen.
+        builder.logLevel(CioLogLevel.DEBUG);
         builder.screenViewUse(sdkConfig.getScreenViewUse());
     }
 

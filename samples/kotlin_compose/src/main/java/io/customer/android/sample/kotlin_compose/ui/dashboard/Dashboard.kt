@@ -34,6 +34,7 @@ import io.customer.android.sample.kotlin_compose.ui.components.HeaderText
 import io.customer.android.sample.kotlin_compose.ui.components.SettingsIcon
 import io.customer.android.sample.kotlin_compose.ui.components.TrackScreenLifecycle
 import io.customer.android.sample.kotlin_compose.ui.components.VersionText
+import io.customer.android.sample.kotlin_compose.ui.inbox.VisualInboxActivity
 import io.customer.android.sample.kotlin_compose.ui.inline.InlineMessagesNavigationActivity
 import io.customer.android.sample.kotlin_compose.ui.inline.InlineMessagesTabbedActivity
 import io.customer.messaginginbox.NotificationInboxOverlay
@@ -42,7 +43,7 @@ import kotlinx.coroutines.launch
 
 // Host-supplied custom fonts for the Visual Inbox. Keys must match the workspace theme's `fontFamily`
 // tokens; Jist resolves a theme font ONLY from this map (falls back to the system font otherwise).
-private val jistCustomFonts: Map<String, FontFamily> = mapOf(
+internal val jistCustomFonts: Map<String, FontFamily> = mapOf(
     "Abril Fatface" to FontFamily(Font(R.font.abril_fatface, FontWeight.Normal)),
     "DM Sans" to FontFamily(
         Font(R.font.dm_sans_regular, FontWeight.Normal),
@@ -187,6 +188,14 @@ fun SendEventsView(
             text = "Inline Examples (Tabs)",
             onClick = {
                 context.startActivity(Intent(context, InlineMessagesTabbedActivity::class.java))
+            }
+        )
+        // Standalone Visual Notification Inbox screen (the embeddable list, no bell/sheet) — shown
+        // alongside the drop-in overlay mounted on this dashboard so both integrations are exercised.
+        ActionButton(
+            text = "Visual Inbox (Screen)",
+            onClick = {
+                context.startActivity(Intent(context, VisualInboxActivity::class.java))
             }
         )
         ActionButton(

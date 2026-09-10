@@ -1,19 +1,52 @@
 name: Build sample apps
 
 on:
-  pull_request: # build sample apps for every commit pushed to an open pull request (including drafts)
+  pull_request:
+    types: [opened, synchronize, reopened, edited, labeled]
   push:
     branches: [ main, feature/* ]
   release: # build sample apps for every git tag created. These are known as "stable" builds that are suitable for people outside the mobile team. 
     types: [ published ]
+  workflow_dispatch:
 
 concurrency: # cancel previous workflow run if one exists. 
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  # Unrelated labels and body-only edits must not cancel an in-flight release or
+  # ci:full run. They share a separate group from meaningful validation events.
+  group: >-
+    ${{ github.workflow }}-${{ github.ref }}-${{
+      github.event_name == 'pull_request' &&
+      ((github.event.action == 'labeled' && github.event.label.name != 'ci:full') ||
+      (github.event.action == 'edited' &&
+      github.event.changes.title == null &&
+      github.event.changes.base == null)) &&
+      'metadata' || 'validation'
+    }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  release_policy:
+    if: github.event_name == 'pull_request'
+    uses: ./.github/workflows/reusable-release-policy.yml
+    permissions:
+      contents: read
+    with:
+      pr_title: ${{ github.event.pull_request.title }}
+      base_sha: ${{ github.event.pull_request.base.sha }}
+      head_sha: ${{ github.event.pull_request.head.sha }}
+      ci_full: ${{ contains(github.event.pull_request.labels.*.name, 'ci:full') }}
+
   update-pr-comment:
-    if: ${{ github.event_name == 'pull_request' }}
+    if: >-
+      always() &&
+      github.event_name == 'pull_request' &&
+      needs.release_policy.outputs.full_validation == 'true' &&
+      (github.event.action != 'edited' ||
+      github.event.changes.title != null ||
+      github.event.changes.base != null) &&
+      (github.event.action != 'labeled' || github.event.label.name == 'ci:full') &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.user.login != 'dependabot[bot]'
+    needs: release_policy
     runs-on: ubuntu-latest
     permissions:
       pull-requests: write # to be able to comment on PR
@@ -26,10 +59,20 @@ jobs:
           status: "⏳ Building the sample apps..."
 
   build-sample-apps:
-    if: ${{ always() }} # do not skip running this step if update-pr-comment does not run
-    needs: [ update-pr-comment ] # wait for PR comment to be created saying new builds are being made.
+    # Unit/instrumentation and AGP-floor jobs own correctness on every code PR.
+    # Release intent or ci:full controls signing and distribution only.
+    if: >-
+      always() &&
+      (github.event_name != 'pull_request' ||
+      (needs.release_policy.outputs.full_validation == 'true' &&
+      (github.event.action != 'edited' ||
+      github.event.changes.title != null ||
+      github.event.changes.base != null) &&
+      (github.event.action != 'labeled' || github.event.label.name == 'ci:full') &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.user.login != 'dependabot[bot]'))
+    needs: [ release_policy, update-pr-comment ] # wait for PR comment to be created saying new builds are being made.
     uses: ./.github/workflows/reusable_build_sample_apps.yml
     with:
       use_latest_sdk_version: false
     secrets: inherit
-

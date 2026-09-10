@@ -5,7 +5,9 @@ import android.content.Context
 import android.content.res.Configuration
 import android.graphics.Color
 import android.net.http.SslError
+import android.os.Build
 import android.util.AttributeSet
+import android.webkit.RenderProcessGoneDetail
 import android.webkit.SslErrorHandler
 import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
@@ -23,10 +25,13 @@ import io.customer.messaginginapp.gist.data.model.engine.EngineWebConfiguration
 import io.customer.messaginginapp.gist.utilities.ElapsedTimer
 import io.customer.messaginginapp.state.InAppMessagingState
 import io.customer.messaginginapp.type.ColorScheme
+import io.customer.messaginginapp.type.InAppMessageError
+import io.customer.messaginginapp.type.InAppMessageErrorReason
 import io.customer.messaginginapp.ui.bridge.EngineWebViewDelegate
 import io.customer.sdk.core.di.SDKComponent
 import java.util.Timer
 import java.util.TimerTask
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.Job
 
 internal class EngineWebView @JvmOverloads constructor(
@@ -43,6 +48,25 @@ internal class EngineWebView @JvmOverloads constructor(
     private val logger = SDKComponent.logger
     private var lastResolvedColorScheme: String? = null
     private var colorSchemeJob: Job? = null
+
+    /**
+     * The renderer document this view loaded.
+     *
+     * `onReceivedSslError` gives no [WebResourceRequest], so this is the only way to tell a
+     * certificate failure on the message itself from one on an image or font it pulls in.
+     */
+    private var documentUrl: String? = null
+
+    /**
+     * Set once the first failure is reported. An engine renders one message, so it fails at most
+     * once.
+     *
+     * Atomic because three threads reach [reportFailure]: the bootstrap [TimerTask] on the timer's
+     * own thread, renderer errors on the WebView's JS bridge thread, and [WebViewClient] callbacks
+     * on the UI thread. A plain read-then-write lets two of them both observe false and both
+     * notify, and a non-volatile field gives no guarantee the write is ever seen by the others.
+     */
+    private val hasReportedFailure = AtomicBoolean(false)
 
     private val inAppMessagingManager = SDKComponent.inAppMessagingManager
 
@@ -187,8 +211,8 @@ internal class EngineWebView @JvmOverloads constructor(
         elapsedTimer.start("Engine render for message: ${configuration.messageId}")
         val messageData = mapOf("options" to configuration)
         val jsonString = Gson().toJson(messageData)
-        val messageUrl =
-            "${state.environment.getGistRendererUrl()}/index.html"
+        val messageUrl = "${state.environment.getGistRendererUrl()}/index.html"
+        documentUrl = messageUrl
         logger.debug("Rendering message with URL: $messageUrl")
         webView?.let {
             it.settings.javaScriptEnabled = true
@@ -242,23 +266,13 @@ internal class EngineWebView @JvmOverloads constructor(
                     description: String,
                     failingUrl: String?
                 ) {
-                    listener?.error()
-                }
-
-                override fun onReceivedHttpError(
-                    view: WebView?,
-                    request: WebResourceRequest?,
-                    errorResponse: WebResourceResponse?
-                ) {
-                    listener?.error()
-                }
-
-                override fun onReceivedError(
-                    view: WebView?,
-                    request: WebResourceRequest?,
-                    error: WebResourceError?
-                ) {
-                    listener?.error()
+                    reportFailure(
+                        InAppMessageError(
+                            reason = InAppMessageErrorReason.NETWORK,
+                            detail = description,
+                            code = errorCod
+                        )
+                    )
                 }
 
                 override fun onReceivedSslError(
@@ -266,7 +280,102 @@ internal class EngineWebView @JvmOverloads constructor(
                     handler: SslErrorHandler?,
                     error: SslError?
                 ) {
-                    listener?.error()
+                    // Cancel unconditionally, whatever the resource. Overriding this removes the
+                    // platform default's cancel(), so the handler has to be resolved here or the
+                    // request stays suspended, and we never continue past a certificate error.
+                    handler?.cancel()
+
+                    // Reporting is gated separately. This fires for every resource, so a bad
+                    // certificate on an image would otherwise dismiss a renderable message. There
+                    // is no WebResourceRequest here, so the document has to be identified by URL.
+                    //
+                    // We cannot lean on onReceivedError instead: Android only promises
+                    // ERROR_FAILED_SSL_HANDSHAKE for non-recoverable SSL failures, while the
+                    // recoverable ones — expired, untrusted, hostname mismatch — arrive here and
+                    // nowhere else. Dropping this override made those surface as a 5s TIMEOUT.
+                    val failedUrl = error?.url
+                    if (failedUrl == null || failedUrl != documentUrl) return
+
+                    reportFailure(
+                        InAppMessageError(
+                            reason = InAppMessageErrorReason.NETWORK,
+                            detail = "SSL error loading the renderer",
+                            code = error.primaryError
+                        )
+                    )
+                }
+
+                override fun onReceivedHttpError(
+                    view: WebView?,
+                    request: WebResourceRequest?,
+                    errorResponse: WebResourceResponse?
+                ) {
+                    // Also fired per resource: a 404 on an image is not a message-level failure.
+                    if (request?.isForMainFrame != true) return
+
+                    reportFailure(
+                        InAppMessageError(
+                            reason = InAppMessageErrorReason.NETWORK,
+                            detail = errorResponse?.reasonPhrase,
+                            code = errorResponse?.statusCode
+                        )
+                    )
+                }
+
+                override fun onReceivedError(
+                    view: WebView?,
+                    request: WebResourceRequest?,
+                    error: WebResourceError?
+                ) {
+                    // Fired for every resource, not just the page — images, fonts, iframes. Only a
+                    // main-frame failure means the message cannot render; reporting a subresource
+                    // would dismiss a message that was otherwise fine. The deprecated overload
+                    // above is main-frame-only already, so this also keeps API 21-22 consistent.
+                    if (request?.isForMainFrame != true) return
+
+                    // description/errorCode are API 23+; below that the deprecated overload above
+                    // is the one the platform calls, and it carries the same detail.
+                    val hasDetail = Build.VERSION.SDK_INT >= Build.VERSION_CODES.M
+                    reportFailure(
+                        InAppMessageError(
+                            reason = InAppMessageErrorReason.NETWORK,
+                            detail = if (hasDetail) error?.description?.toString() else null,
+                            code = if (hasDetail) error?.errorCode else null
+                        )
+                    )
+                }
+
+                /**
+                 * The WebView's renderer process died, so the message can never finish loading.
+                 *
+                 * Returning `true` is the point of overriding this: it tells the platform we have
+                 * handled the loss. Without it the default behaviour kills the host app's process
+                 * along with the renderer, so a message that crashes its renderer would take the
+                 * whole app down. Before this the SDK had no override at all, which left a blank
+                 * WebView and no failure callback.
+                 */
+                override fun onRenderProcessGone(
+                    view: WebView?,
+                    detail: RenderProcessGoneDetail?
+                ): Boolean {
+                    val didCrash = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                        detail?.didCrash()
+                    } else {
+                        null
+                    }
+                    // Tear the dead view down before reporting. The platform treats it as unusable
+                    // once the renderer is gone, and normal teardown cannot do it: releaseResources()
+                    // bails out while the view is still attached, and the modal path never calls it
+                    // at all. Doing it here also makes the later stopLoading()/releaseResources()
+                    // calls on the dismissal path no-ops, since webView is already null.
+                    releaseCrashedWebView()
+                    reportFailure(
+                        InAppMessageError(
+                            reason = InAppMessageErrorReason.WEB_VIEW_CRASHED,
+                            detail = "WebView render process gone (didCrash: $didCrash)"
+                        )
+                    )
+                    return true
                 }
             }
 
@@ -278,8 +387,12 @@ internal class EngineWebView @JvmOverloads constructor(
         timerTask = object : TimerTask() {
             override fun run() {
                 if (timer != null) {
-                    logger.debug("Message global timeout, cancelling display.")
-                    listener?.error()
+                    reportFailure(
+                        InAppMessageError(
+                            reason = InAppMessageErrorReason.TIMEOUT,
+                            detail = "Engine did not bootstrap within ${TIMEOUT_DURATION}ms"
+                        )
+                    )
                     cleanupTimer()
                 }
             }
@@ -334,6 +447,62 @@ internal class EngineWebView @JvmOverloads constructor(
 
     override fun error() {
         listener?.error()
+    }
+
+    override fun error(error: InAppMessageError) {
+        reportFailure(error)
+    }
+
+    /**
+     * Tears down a WebView whose render process has died.
+     *
+     * Separate from [releaseResources] on purpose. That path is for orderly teardown: it refuses to
+     * run while the view is still attached, and it drives the WebView (stopLoading, then destroy) in
+     * a way the platform no longer supports once the renderer is gone. Here the view is already
+     * unusable, so the only safe actions are to detach it and destroy it — and it has to happen
+     * while still attached, because that is the state a renderer crash leaves us in.
+     */
+    private fun releaseCrashedWebView() {
+        colorSchemeJob?.cancel()
+        colorSchemeJob = null
+        cleanupTimer()
+
+        val view = webView ?: return
+        webView = null
+
+        // Guarded step by step: the renderer is already gone, so any of these can throw and none of
+        // them should stop the rest from running.
+        runCatching { engineWebViewInterface.detach(webView = view) }
+            .onFailure { logger.error("Error detaching JS interface from crashed WebView: ${it.message}") }
+        runCatching { if (view.parent != null) removeView(view) }
+            .onFailure { logger.error("Error removing crashed WebView from parent: ${it.message}") }
+        runCatching { view.destroy() }
+            .onFailure { logger.error("Error destroying crashed WebView: ${it.message}") }
+    }
+
+    /**
+     * Single exit for every failure in this view: classify, then notify the listener.
+     */
+    private fun reportFailure(error: InAppMessageError) {
+        // First failure wins, and the latch — not the cancel — is what makes that deterministic.
+        // The bootstrap TimerTask runs independently of the WebView callbacks, so cancelling the
+        // timer alone still races with a task that has already started. Without this the host could
+        // be told NETWORK and then TIMEOUT about the same message, the second overwriting the real
+        // cause. The compare-and-set has to be atomic because those callers are on different
+        // threads; iOS can use a plain flag only because everything there is on the main thread.
+        if (!hasReportedFailure.compareAndSet(false, true)) return
+        cleanupTimer()
+
+        val listener = this.listener
+        if (listener == null) {
+            // Nothing downstream will see this one, so it has to be logged here. The timeout timer
+            // can still fire after the view is detached and the listener cleared.
+            logger.error("In-app message failed with no listener attached: ${error.describeForLogs()}")
+            return
+        }
+        // Deliberately not logged on this path: the controller logs the same failure straight after,
+        // with the message id and route attached, so logging here too would double up on every one.
+        listener.error(error)
     }
 
     /**

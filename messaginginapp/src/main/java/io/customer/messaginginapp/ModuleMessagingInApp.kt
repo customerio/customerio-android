@@ -14,6 +14,8 @@ import io.customer.messaginginapp.inbox.VisualInbox
 import io.customer.messaginginapp.state.InAppMessagingAction
 import io.customer.messaginginapp.type.ColorScheme
 import io.customer.messaginginapp.type.InAppMessage
+import io.customer.messaginginapp.type.InAppMessageError
+import io.customer.messaginginapp.type.InAppMessageErrorReason
 import io.customer.messaginginapp.type.InboxEventListener
 import io.customer.sdk.communication.Event
 import io.customer.sdk.communication.subscribe
@@ -151,8 +153,18 @@ class ModuleMessagingInApp(
     override fun onMessageCancelled(message: Message) {}
 
     override fun onError(message: Message) {
-        logger.error("Error occurred on message: $message")
-        moduleConfig.eventListener?.errorWithMessage(InAppMessage.getFromGistMessage(message))
+        onError(
+            message = message,
+            error = InAppMessageError(reason = InAppMessageErrorReason.INTERNAL_ERROR)
+        )
+    }
+
+    override fun onError(message: Message, error: InAppMessageError) {
+        logger.error("Error occurred on message: $message — ${error.describeForLogs()}")
+        moduleConfig.eventListener?.errorWithMessage(
+            InAppMessage.getFromGistMessage(message),
+            error
+        )
     }
 
     override fun onAction(message: Message, currentRoute: String, action: String, name: String) {

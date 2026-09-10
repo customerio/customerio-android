@@ -1,6 +1,16 @@
 name: Lint
-# only run on PRs and when push a commit on a branch that we don't deploy on. 
-on: [push, pull_request]
+# Avoid duplicate push + pull_request runs for the same branch update.
+on:
+  push:
+    branches: [main, beta]
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths-ignore:
+      - '**/*.md'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   android-lint:

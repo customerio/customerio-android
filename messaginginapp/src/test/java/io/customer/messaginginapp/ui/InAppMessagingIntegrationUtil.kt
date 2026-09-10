@@ -5,6 +5,8 @@ import io.customer.commontest.util.ScopeProviderStub
 import io.customer.messaginginapp.gist.data.model.Message
 import io.customer.messaginginapp.state.InAppMessagingAction
 import io.customer.messaginginapp.state.InAppMessagingManager
+import io.customer.messaginginapp.type.InAppMessageError
+import io.customer.messaginginapp.type.InAppMessageErrorReason
 
 object InAppMessagingIntegrationUtil {
     internal fun Message.testMatchAndEmbed(
@@ -57,7 +59,7 @@ object InAppMessagingIntegrationUtil {
         manager: InAppMessagingManager,
         scopeProvider: ScopeProviderStub
     ) {
-        manager.dispatch(InAppMessagingAction.EngineAction.MessageLoadingFailed(this))
+        manager.dispatch(InAppMessagingAction.EngineAction.MessageLoadingFailed(this, InAppMessageError(reason = InAppMessageErrorReason.RENDER_FAILED)))
             .flushCoroutines(scopeProvider.inAppLifecycleScope)
     }
 }

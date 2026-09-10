@@ -11,6 +11,8 @@ import io.customer.messaginginapp.gist.data.model.engine.EngineWebConfiguration
 import io.customer.messaginginapp.gist.presentation.engine.EngineWebViewListener
 import io.customer.messaginginapp.state.InAppMessagingAction
 import io.customer.messaginginapp.type.InAppMessage
+import io.customer.messaginginapp.type.InAppMessageError
+import io.customer.messaginginapp.type.InAppMessageErrorReason
 import io.customer.messaginginapp.type.InlineMessageActionListener
 import io.customer.messaginginapp.ui.bridge.EngineWebViewDelegate
 import io.customer.messaginginapp.ui.bridge.InAppHostViewDelegate
@@ -171,7 +173,8 @@ internal abstract class InAppMessageViewController<ViewCallback : InAppMessageVi
                     }
 
                     "loadPage" -> {
-                        val url = urlQuery.getValue("url")
+                        // Preserve the previous tolerance for whitespace before the URL scheme.
+                        val url = urlQuery.getValue("url").trimStart()
                         logViewEvent("Opening URL: $url")
                         platformDelegate.openUrl(url = url, useLaunchFlags = false)
                     }
@@ -239,12 +242,14 @@ internal abstract class InAppMessageViewController<ViewCallback : InAppMessageVi
     }
 
     override fun routeError(route: String) {
-        logViewEvent("Route error: $route")
-        currentMessage?.let { message ->
-            inAppMessagingManager.dispatch(
-                InAppMessagingAction.EngineAction.MessageLoadingFailed(message)
-            )
-        }
+        // The renderer has not emitted `routeError` since the 3.0 bundle, so this path is
+        // effectively unreachable today. Classified anyway so it behaves like the live sites if a
+        // future renderer brings it back.
+        val error = InAppMessageError(
+            reason = InAppMessageErrorReason.RENDER_FAILED,
+            detail = "Failed to load route: $route"
+        )
+        this.error(error)
     }
 
     final override fun routeLoaded(route: String) {
@@ -265,10 +270,25 @@ internal abstract class InAppMessageViewController<ViewCallback : InAppMessageVi
     }
 
     override fun error() {
-        logViewEvent("Error loading engine for message: ${currentMessage?.messageId} on route: $currentRoute")
+        // Only reachable from an implementation that predates the classified callback. EngineWebView
+        // always classifies, so treat an unlabelled failure as an SDK-side gap rather than inventing
+        // a cause.
+        error(
+            InAppMessageError(
+                reason = InAppMessageErrorReason.INTERNAL_ERROR,
+                detail = "Engine reported a failure with no reason"
+            )
+        )
+    }
+
+    override fun error(error: InAppMessageError) {
+        logViewEvent(
+            "In-app message ${currentMessage?.messageId} failed on route $currentRoute: " +
+                error.describeForLogs()
+        )
         currentMessage?.let { message ->
             inAppMessagingManager.dispatch(
-                InAppMessagingAction.EngineAction.MessageLoadingFailed(message)
+                InAppMessagingAction.EngineAction.MessageLoadingFailed(message, error)
             )
         }
     }

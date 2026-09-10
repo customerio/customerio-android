@@ -4,7 +4,7 @@ source "https://rubygems.org"
 
 # Security pins for transitive deps (MBL-1694)
 gem 'webrick', '1.8.2'
-gem 'faraday', '1.10.5'
+gem 'faraday', '1.10.6'
 gem 'rexml', '3.3.3'
 gem 'aws-sdk-s3', '1.208.0'
 

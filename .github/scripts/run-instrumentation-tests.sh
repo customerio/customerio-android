@@ -18,7 +18,12 @@ rm -f "$FAILURE_MARKER_FILE"
 
 # Write script-started breadcrumb immediately
 # Workflow uses this to detect action-level failures vs script failures
-date -Iseconds > "$SCRIPT_STARTED_FILE"
+# Fail fast if write fails - prevents misclassifying Gradle failures as boot failures
+if ! date -Iseconds > "$SCRIPT_STARTED_FILE"; then
+    echo "ERROR: Failed to write script-started breadcrumb to $SCRIPT_STARTED_FILE"
+    echo "::error::Cannot write breadcrumb file - aborting to prevent misclassification"
+    exit 1
+fi
 
 mark_startup_failure() {
     echo "STARTUP_FAILURE" > "$FAILURE_MARKER_FILE"

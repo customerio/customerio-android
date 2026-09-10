@@ -16,20 +16,23 @@ internal class GeofenceCooldownFilter(
     private val clock: Clock
 ) {
     /**
-     * Atomically checks the cooldown and records the emit if allowed. Returns true if the
-     * caller should proceed to emit, false if the transition is within the cooldown window.
+     * `null` when the caller should proceed to emit, otherwise the seconds still left on the
+     * window. The check already computes that figure, so returning it rather than recomputing
+     * keeps reporting a suppression free of a second store read on a background wake.
+     *
+     * Checks only. [record] is the separate write, so there is nothing to roll back.
      */
     @Synchronized
-    fun isAllowed(
+    fun suppressedForSeconds(
         userId: String,
         geofenceId: String,
         transition: Event.GeofenceTransition
-    ): Boolean {
+    ): Double? {
         val cooldownMs = regionStore.getCachedConfig()?.duplicateEventsExpiry
             ?: GeofenceConstants.DEDUPE_COOLDOWN_MS
-        val last = store.getLastEmitTimestamp(userId, geofenceId, transition)
-        val now = clock.currentTimeMillis()
-        return last == null || (now - last) >= cooldownMs
+        val last = store.getLastEmitTimestamp(userId, geofenceId, transition) ?: return null
+        val elapsed = clock.currentTimeMillis() - last
+        return if (elapsed < cooldownMs) (cooldownMs - elapsed) / 1000.0 else null
     }
 
     @Synchronized

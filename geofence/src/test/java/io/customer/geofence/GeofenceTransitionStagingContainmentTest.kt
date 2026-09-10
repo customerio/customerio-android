@@ -55,7 +55,7 @@ class GeofenceTransitionStagingContainmentTest : RobolectricTest() {
         regionStore.saveRegisteredIds(setOf(GEOFENCE_ID))
         regionStore.saveRoutableRegisteredIds(setOf(GEOFENCE_ID))
         every { secureUserStore.getUserId() } returns USER_ID
-        every { cooldownFilter.isAllowed(any(), any(), any()) } returns true
+        every { cooldownFilter.suppressedForSeconds(any(), any(), any()) } returns null
         outbox = spyk(
             PendingDeliveryStore(
                 context = applicationMock,

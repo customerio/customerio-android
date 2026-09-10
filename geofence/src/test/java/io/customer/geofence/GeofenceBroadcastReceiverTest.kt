@@ -14,7 +14,9 @@ import io.customer.geofence.worker.GeofenceEventScheduler
 import io.customer.sdk.communication.Event
 import io.customer.sdk.communication.EventBus
 import io.customer.sdk.core.di.SDKComponent
+import io.customer.sdk.core.util.CioLogLevel
 import io.customer.sdk.core.util.Clock
+import io.customer.sdk.core.util.Logger
 import io.customer.sdk.data.store.SecureUserStore
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -34,9 +36,11 @@ import kotlinx.serialization.json.JsonPrimitive
 import org.amshove.kluent.shouldBeEmpty
 import org.amshove.kluent.shouldBeEqualTo
 import org.amshove.kluent.shouldBeNull
+import org.amshove.kluent.shouldContain
 import org.amshove.kluent.shouldNotBeBlank
 import org.amshove.kluent.shouldNotBeNull
 import org.amshove.kluent.shouldNotContain
+import org.junit.After
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -68,6 +72,45 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
 
     private lateinit var receiver: GeofenceBroadcastReceiver
 
+    /**
+     * Captures what the SDK actually wrote. Asserting the emitted record covers the `ev=` a parser
+     * dispatches on, not merely that some method was called.
+     */
+    private class CapturingLogger : Logger {
+        val messages = mutableListOf<String>()
+        override var logLevel: CioLogLevel = CioLogLevel.DEBUG
+        override fun setLogDispatcher(dispatcher: ((CioLogLevel, String) -> Unit)?) = Unit
+        override fun info(message: String, tag: String?) { messages.add(message) }
+        override fun debug(message: String, tag: String?) { messages.add(message) }
+        override fun error(message: String, tag: String?, throwable: Throwable?) { messages.add(message) }
+    }
+
+    private val capturingLogger = CapturingLogger()
+
+    @After
+    fun resetDiagnostics() {
+        // null, not false: false would pin the gate off for every later test class in this JVM.
+        GeofenceDiagnostics.setEnabledForTesting(null)
+    }
+
+    /**
+     * A broadcast the SDK woke for and could make nothing of must leave a trace, or the capture is
+     * byte-identical to a process the OS never talked to. Asserted on the emitted tail, so deleting
+     * the log line fails the test.
+     */
+    private fun recordFor(ev: String): String? =
+        capturingLogger.messages.firstOrNull { "ev=$ev" in it }
+
+    private fun expectRecorded(ev: String, why: String) {
+        val match = capturingLogger.messages.firstOrNull { "ev=$ev" in it && "why=$why" in it }
+        if (match == null) {
+            throw AssertionError(
+                "expected a record with ev=$ev why=$why; captured:\n" +
+                    capturingLogger.messages.joinToString("\n  ", prefix = "  ")
+            )
+        }
+    }
+
     override fun setup(testConfig: TestConfig) {
         super.setup(
             testConfigurationDefault {
@@ -76,6 +119,7 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
                     sdk {
                         overrideDependency<EventBus>(mockEventBus)
                         overrideDependency<Clock>(mockClock)
+                        overrideDependency<GeofenceLogger>(GeofenceLogger(capturingLogger))
                     }
                     android {
                         overrideDependency<GeofenceEventScheduler>(mockScheduler)
@@ -88,6 +132,7 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
                 }
             }
         )
+        GeofenceDiagnostics.setEnabledForTesting(true)
         // Default: cooldown allows emission. Tests override this to test suppression.
         every { mockCooldownFilter.suppressedForSeconds(any(), any(), any()) } returns null
         every { mockStore.savePendingTransitionEntries(any(), any()) } returns true
@@ -136,6 +181,9 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
 
         coVerify(exactly = 0) { mockScheduler.schedule(any()) }
         pendingStore.loadAll() shouldBeEqualTo emptyList()
+        // A wake the SDK could make nothing of still has to leave a trace, or the capture is
+        // indistinguishable from a process the OS never talked to.
+        expectRecorded("info", "broadcast_unparseable_intent")
     }
 
     @Test
@@ -163,6 +211,7 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
 
         coVerify(exactly = 0) { mockScheduler.schedule(any()) }
         pendingStore.loadAll() shouldBeEqualTo emptyList()
+        expectRecorded("info", "broadcast_no_triggering_geofences")
     }
 
     @Test
@@ -179,6 +228,25 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
 
         val entry = pendingStore.loadAll().single()
         entry.geofenceId shouldBeEqualTo "biz-1"
+        // No fix to describe, and the record has to say so rather than omit the field.
+        recordFor("os.callback.received").shouldNotBeNull() shouldContain "src=none"
+    }
+
+    @Test
+    fun handleGeofencingEvent_givenTriggeringLocation_expectCallbackRecordedWithTheOsFix() = runTest {
+        // Recorded before any routing decision and before the Location is narrowed to two doubles,
+        // which is the only point where the OS's own fix still exists.
+        val event = buildGeofencingEvent(
+            transition = Geofence.GEOFENCE_TRANSITION_ENTER,
+            geofenceIds = listOf("biz-1"),
+            location = realLocation(37.7749, -122.4194)
+        )
+
+        receiver.handleGeofencingEvent(event)
+
+        val record = recordFor("os.callback.received").shouldNotBeNull()
+        record shouldContain "src=os_trigger"
+        record shouldContain "n=1"
     }
 
     @Test

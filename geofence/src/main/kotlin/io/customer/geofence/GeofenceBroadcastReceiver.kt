@@ -160,7 +160,7 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
                 Geofence.GEOFENCE_TRANSITION_ENTER -> Event.GeofenceTransition.ENTER
                 Geofence.GEOFENCE_TRANSITION_EXIT -> Event.GeofenceTransition.EXIT
                 else -> {
-                    logger.logUnknownTransition(gmsTransitionType)
+                    logger.logUnknownTransition(geofenceId, gmsTransitionType)
                     return@forEach
                 }
             }

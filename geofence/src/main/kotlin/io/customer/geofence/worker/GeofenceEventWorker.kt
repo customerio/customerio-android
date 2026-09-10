@@ -124,18 +124,20 @@ internal class GeofenceEventWorker(
                     return Result.retry()
                 }
                 is PendingDeliveryResult.Failed -> {
-                    logger.logEventDeliveryFailed(
-                        entry.geofenceId,
-                        entry.transition.name,
-                        outcome.cause?.message
-                    )
                     // A refused payload is refused identically next time, so retrying only holds the
                     // head of an ordered queue and every transition behind it. Same disposal as the
                     // anonymous row above: drop it and carry on. Narrow on purpose — only a terminal
                     // HTTP status is known-permanent. Anything else (a bad state, a serialization
                     // slip) may well succeed on the next attempt, so it keeps the row and retries.
                     val cause = outcome.cause
-                    if (cause is HttpRequestFailure && !cause.isRetryable && store.remove(entry.key)) {
+                    val dropped = cause is HttpRequestFailure && !cause.isRetryable && store.remove(entry.key)
+                    logger.logEventDeliveryFailed(
+                        entry.geofenceId,
+                        entry.transition.name,
+                        cause?.message,
+                        willRetry = !dropped
+                    )
+                    if (dropped) {
                         continue
                     }
                     // Still not Result.failure(): a terminal node cancels every existing dependent in

@@ -81,6 +81,11 @@ jobs:
           disable-animations: false
           script: echo "Generated AVD snapshot for caching."
 
+      # Clear script-started breadcrumb before each attempt
+      # Used to distinguish action-level failures from script/test failures
+      - name: Clear script-started marker
+        run: rm -f .script-started
+
       # Run the actual tests with extended boot timeout for cold runners
       # continue-on-error allows retry step to run and potentially rescue a startup failure
       - name: Run instrumentation tests
@@ -98,11 +103,38 @@ jobs:
           emulator-boot-timeout: 900
           script: bash .github/scripts/run-instrumentation-tests.sh ${{ matrix.sample }} 30
 
-      # Retry ONLY on emulator startup failures (indicated by marker file)
+      # Determine if failure is eligible for retry
+      # Startup failure = marker file present OR (action failed AND script never started)
+      # Genuine failure = script started, no startup marker, and step failed
+      - name: Check retry eligibility
+        id: check-retry
+        if: steps.run-tests.outcome == 'failure'
+        run: |
+          if [ -f ".emulator-startup-failed" ]; then
+            echo "Startup failure detected via marker file"
+            echo "should_retry=true" >> "$GITHUB_OUTPUT"
+          elif [ ! -f ".script-started" ]; then
+            echo "Action-level failure detected: script never started (no .script-started breadcrumb)"
+            echo "This indicates the emulator action failed before invoking our script"
+            echo "should_retry=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Script started but failed without startup marker"
+            echo "This indicates a genuine test or Gradle failure"
+            echo "should_retry=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      # Clear markers before retry attempt
+      - name: Clear markers before retry
+        if: steps.run-tests.outcome == 'failure' && steps.check-retry.outputs.should_retry == 'true'
+        run: |
+          rm -f .emulator-startup-failed
+          rm -f .script-started
+
+      # Retry ONLY on emulator startup failures (marker file OR action-level failure)
       # Does NOT retry genuine test failures - those fail fast as expected
       - name: Retry instrumentation tests on startup failure
         id: retry-tests
-        if: steps.run-tests.outcome == 'failure' && hashFiles('.emulator-startup-failed') != ''
+        if: steps.run-tests.outcome == 'failure' && steps.check-retry.outputs.should_retry == 'true'
         uses: reactivecircus/android-emulator-runner@324029e2f414c084d8b15ba075288885e74aef9c # v2.34.0
         with:
           api-level: ${{ matrix.api-level }}
@@ -125,8 +157,11 @@ jobs:
           elif [ "${{ steps.retry-tests.outcome }}" == "success" ]; then
             echo "✅ Tests passed on retry (startup failure recovered)"
             exit 0
+          elif [ "${{ steps.check-retry.outputs.should_retry }}" == "false" ]; then
+            echo "❌ Tests failed (genuine test/Gradle failure, retry not attempted)"
+            exit 1
           elif [ "${{ steps.retry-tests.outcome }}" == "skipped" ] && [ "${{ steps.run-tests.outcome }}" == "failure" ]; then
-            echo "❌ Tests failed (genuine test failure, retry not attempted)"
+            echo "❌ Tests failed (retry was not eligible)"
             exit 1
           else
             echo "❌ Tests failed on both attempts"

@@ -22,6 +22,8 @@ rm -f "$FAILURE_MARKER_FILE"
 if ! date -Iseconds > "$SCRIPT_STARTED_FILE"; then
     echo "ERROR: Failed to write script-started breadcrumb to $SCRIPT_STARTED_FILE"
     echo "::error::Cannot write breadcrumb file - aborting to prevent misclassification"
+    # Remove empty/partial breadcrumb so workflow doesn't misclassify as test failure
+    rm -f "$SCRIPT_STARTED_FILE"
     exit 1
 fi
 

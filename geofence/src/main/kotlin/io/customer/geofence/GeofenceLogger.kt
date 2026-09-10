@@ -822,13 +822,13 @@ internal class GeofenceLogger(private val logger: Logger) {
         )
     }
 
-    fun logEventWorkerEntryMissing(key: String? = null) {
+    fun logEventWorkerEntryMissing() {
         logger.debug(
-            "Geofence event worker skipped: nothing left in the pending queue (already delivered via the analytics pipeline)" +
+            "Geofence event worker woke with nothing to send: an earlier node in the delivery chain drained the queue, or the foreground flush did" +
                 tail(
                     "delivery.sent",
                     GeofenceLogIo.OUTPUT,
-                    listOf("key" to key, "why" to "already_delivered")
+                    listOf("why" to "queue_empty")
                 ),
             tag = TAG
         )

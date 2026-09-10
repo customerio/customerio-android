@@ -983,10 +983,6 @@ internal class GeofenceLogger(private val logger: Logger) {
         logger.debug("Geofence '$geofenceId' transition dropped — registered but routing is not armed for this session; OS registration kept", tag = TAG)
     }
 
-    fun logTransitionEmitting(geofenceId: String, transitionName: String) {
-        logger.debug("Geofence '$geofenceId' $transitionName: queued for at-least-once delivery (WorkManager now, analytics pipeline on next foreground)", tag = TAG)
-    }
-
     fun logUnsupportedGeometryDropped(geofenceId: String, type: String) {
         logger.error(
             "Geofence '$geofenceId' dropped — unsupported geometry type='$type' (only Polygon is understood). Not degraded to a circle; check SDK / backend version alignment.",

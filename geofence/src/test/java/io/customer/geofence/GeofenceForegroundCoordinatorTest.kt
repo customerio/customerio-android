@@ -117,7 +117,7 @@ class GeofenceForegroundCoordinatorTest {
     }
 
     @Test
-    fun refreshOnForeground_givenAutomatic_expectArmedAndSilentFetch() {
+    fun takeFixForRefresh_givenAutomatic_expectArmedAndSilentFetch() {
         coordinatorWith(GeofenceLocationMode.AUTOMATIC, secureUserStore = identifiedUserStore)
             .takeFixForRefresh() shouldBeEqualTo true
 
@@ -128,7 +128,7 @@ class GeofenceForegroundCoordinatorTest {
     }
 
     @Test
-    fun refreshOnForeground_givenManual_expectNoFetchOrArm() {
+    fun takeFixForRefresh_givenManual_expectNoFetchOrArm() {
         coordinatorWith(GeofenceLocationMode.MANUAL, secureUserStore = identifiedUserStore)
             .takeFixForRefresh() shouldBeEqualTo false
 
@@ -137,7 +137,7 @@ class GeofenceForegroundCoordinatorTest {
     }
 
     @Test
-    fun refreshOnForeground_givenSyncAlreadyAwaitingLocation_expectDeferredToStuckSyncPath() {
+    fun takeFixForRefresh_givenSyncAlreadyAwaitingLocation_expectDeferredToStuckSyncPath() {
         // Stub the field the coordinator holds; a local mock would be shadowed.
         every { mockServices.isAwaitingLocation() } returns true
 
@@ -149,7 +149,7 @@ class GeofenceForegroundCoordinatorTest {
     }
 
     @Test
-    fun refreshOnForeground_givenNoIdentifiedUser_expectNoFetchOrArm() {
+    fun takeFixForRefresh_givenNoIdentifiedUser_expectNoFetchOrArm() {
         val signedOutStore: SecureUserStore = mockk {
             every { getUserId() } returns null
         }

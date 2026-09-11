@@ -4,6 +4,7 @@ import android.location.Location
 import io.customer.commontest.config.TestConfig
 import io.customer.commontest.config.testConfigurationDefault
 import io.customer.commontest.core.RobolectricTest
+import io.customer.geofence.polygon.PolygonCoordinate
 import io.customer.sdk.core.util.CioLogLevel
 import io.customer.sdk.core.util.Logger
 import org.amshove.kluent.shouldBeEqualTo
@@ -585,6 +586,23 @@ class GeofenceLogTailTest : RobolectricTest() {
         regionCountCalls shouldBeEqualTo 1
     }
 
+    private fun polygonCatalogRegion(
+        vertexCount: Int = 4,
+        baseRadiusMeters: Double = 900.0
+    ) = GeofenceRegion(
+        id = "poly-1",
+        latitude = 25.109908,
+        longitude = 55.184004,
+        // What GMS registers: the backend circle plus our platform margin.
+        radius = (baseRadiusMeters + 1_000.0).toFloat(),
+        name = "Polygon Fence",
+        geosetIds = listOf("4471"),
+        polygonVertices = List(vertexCount) { index ->
+            PolygonCoordinate(25.10 + index / 10_000.0, 55.18 + index / 10_000.0)
+        },
+        baseRadiusMeters = baseRadiusMeters
+    )
+
     private fun catalogRegion(
         id: String = "11125",
         name: String? = "Momo Dubai Test"
@@ -634,9 +652,78 @@ class GeofenceLogTailTest : RobolectricTest() {
         fields.shouldNotBeNull()
         fields["ev"] shouldBeEqualTo "fence.cataloged"
         fields["io"] shouldBeEqualTo "in"
-        for (key in listOf("id", "name", "gs", "lat", "lon", "rad", "tt")) {
+        for (key in listOf("id", "name", "gs", "sh", "lat", "lon", "rad", "tt")) {
             if (fields[key] == null) throw AssertionError("missing $key= in '$message'")
         }
+    }
+
+    @Test
+    fun fenceCatalog_givenPolygon_expectShapeVertexCountAndRing() {
+        GeofenceDiagnostics.setEnabledForTesting(true)
+        val logger = CapturingLogger()
+        GeofenceLogger(logger).logApiFetchResult(1, 10L, listOf(polygonCatalogRegion(vertexCount = 4)))
+
+        val fields = parseTail(logger.messages.last())
+        fields.shouldNotBeNull()
+        fields["sh"] shouldBeEqualTo "polygon"
+        fields["nv"] shouldBeEqualTo "4"
+        // lat_lon pairs in SDK order, comma separated, commas intact.
+        fields["ring"]?.split(",")?.size shouldBeEqualTo 4
+        fields["ring"]?.startsWith("25.10000_55.18000") shouldBeEqualTo true
+    }
+
+    @Test
+    fun fenceCatalog_givenPolygon_expectBackendRadiusNotTheRegisteredOne() {
+        // The registered radius carries our platform margin. Emitting it would read as a
+        // cross-platform discrepancy that is only padding, and overstates the fence by a kilometre.
+        GeofenceDiagnostics.setEnabledForTesting(true)
+        val logger = CapturingLogger()
+        GeofenceLogger(logger).logApiFetchResult(1, 10L, listOf(polygonCatalogRegion(baseRadiusMeters = 900.0)))
+
+        parseTail(logger.messages.last())?.get("rad") shouldBeEqualTo "900"
+    }
+
+    @Test
+    fun fenceCatalog_givenPolygonWithoutBackendRadius_expectRadOmittedNotPadded() {
+        // The mapper drops such a polygon today, so this pins the direction of the failure if that
+        // ever changes: absent is recoverable, the padded radius is the bug this record had.
+        GeofenceDiagnostics.setEnabledForTesting(true)
+        val logger = CapturingLogger()
+        val region = polygonCatalogRegion().copy(baseRadiusMeters = null)
+        GeofenceLogger(logger).logApiFetchResult(1, 10L, listOf(region))
+
+        val fields = parseTail(logger.messages.last())
+        fields.shouldNotBeNull()
+        fields["sh"] shouldBeEqualTo "polygon"
+        fields["rad"].shouldBeNull()
+    }
+
+    @Test
+    fun fenceCatalog_givenCircle_expectShapeCircleAndNoRing() {
+        GeofenceDiagnostics.setEnabledForTesting(true)
+        val logger = CapturingLogger()
+        GeofenceLogger(logger).logApiFetchResult(1, 10L, listOf(catalogRegion()))
+
+        val fields = parseTail(logger.messages.last())
+        fields.shouldNotBeNull()
+        fields["sh"] shouldBeEqualTo "circle"
+        fields["nv"].shouldBeNull()
+        fields["ring"].shouldBeNull()
+        fields["rad"] shouldBeEqualTo "150"
+    }
+
+    @Test
+    fun fenceCatalog_givenRingLongerThanTheCap_expectCountStaysAuthoritative() {
+        // A truncated ring still looks like a valid polygon, so the count is what lets a consumer
+        // notice and refuse instead of computing membership against part of the shape.
+        GeofenceDiagnostics.setEnabledForTesting(true)
+        val logger = CapturingLogger()
+        GeofenceLogger(logger).logApiFetchResult(1, 10L, listOf(polygonCatalogRegion(vertexCount = 30)))
+
+        val fields = parseTail(logger.messages.last())
+        fields.shouldNotBeNull()
+        fields["nv"] shouldBeEqualTo "30"
+        fields["ring"]?.endsWith(",+5") shouldBeEqualTo true
     }
 
     @Test

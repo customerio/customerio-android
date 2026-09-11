@@ -1,6 +1,5 @@
 package io.customer.geofence
 
-import androidx.annotation.VisibleForTesting
 import androidx.lifecycle.ProcessLifecycleOwner
 import io.customer.base.internal.InternalCustomerIOApi
 import io.customer.geofence.di.geofenceDeliveryFlusher
@@ -98,7 +97,6 @@ class ModuleGeofence @JvmOverloads constructor(
     }
 
     /** Foreground and anchor decisions, built here so a test can drive them without a lifecycle owner. */
-    @VisibleForTesting
     @OptIn(InternalCustomerIOApi::class)
     internal fun foregroundCoordinator(
         sdkAndroid: AndroidSDKComponent,

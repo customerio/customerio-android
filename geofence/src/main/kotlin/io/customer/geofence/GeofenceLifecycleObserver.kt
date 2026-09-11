@@ -26,13 +26,40 @@ internal class GeofenceLifecycleObserver(
     private val deliveryFlusher: PendingDeliveryFlusher<PendingGeofenceDelivery>,
     private val eventBus: EventBus,
     private val regionStore: GeofenceRegionStore,
+    private val permissionChecker: GeofencePermissionChecker,
     private val logger: GeofenceLogger,
     private val onForeground: () -> Unit
 ) : DefaultLifecycleObserver {
 
+    /**
+     * Last tier reported, so an unchanged permission is not re-logged on every foreground.
+     *
+     * In memory, not persisted: a cold start should report the tier once, because the process has
+     * no idea what it was before it existed.
+     */
+    private var lastReportedPermissionTier: String? = null
+
     override fun onStart(owner: LifecycleOwner) {
+        // Before the flush and the refresh, both of which behave differently depending on it.
+        reportPermissionTierIfChanged()
         flushPendingGeofenceDeliveries()
         onForeground()
+    }
+
+    /**
+     * Android exposes no permission observer, so a grant or revocation is only ever discovered by
+     * asking. Foreground entry is when to ask: it is the moment a user returning from Settings
+     * comes back, and it is the only point the SDK is reliably running when they do.
+     */
+    private fun reportPermissionTierIfChanged() {
+        val tier = when {
+            !permissionChecker.hasFineLocationPermission() -> GeofenceLogger.PERMISSION_DENIED
+            permissionChecker.isBackgroundDeliveryAvailable() -> GeofenceLogger.PERMISSION_ALWAYS
+            else -> GeofenceLogger.PERMISSION_WHEN_IN_USE
+        }
+        if (tier == lastReportedPermissionTier) return
+        lastReportedPermissionTier = tier
+        logger.logPermissionTier(tier)
     }
 
     private fun flushPendingGeofenceDeliveries() {

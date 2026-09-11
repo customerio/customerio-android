@@ -165,7 +165,10 @@ internal object GeofenceLogTail {
         if (location == null) return fields
 
         if (location.hasAccuracy()) fields.add("acc" to num(location.accuracy))
-        fields.add("age" to num(fixAgeSeconds(location)))
+        // Full precision, matching iOS. A replay rebuilds the fix's timestamp from this age and
+        // every freshness rule then measures against it; rounding to 0.1 s moved reconstructed
+        // fixes up to 100 ms from where the device had them.
+        fields.add("age" to num(fixAgeSeconds(location), 6))
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && location.hasVerticalAccuracy()) {
             fields.add("vacc" to num(location.verticalAccuracyMeters))
         }

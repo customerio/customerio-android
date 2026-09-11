@@ -10,6 +10,7 @@ import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
 import io.mockk.verify
+import io.mockk.verifyOrder
 import kotlinx.serialization.json.JsonPrimitive
 import org.amshove.kluent.shouldBeEqualTo
 import org.junit.Test
@@ -22,15 +23,53 @@ class GeofenceLifecycleObserverTest {
     private val mockRegionStore: GeofenceRegionStore = mockk(relaxed = true)
     private val mockLogger: GeofenceLogger = mockk(relaxed = true)
 
+    // Granted-and-always by default: the tier report is incidental to what these tests assert, and
+    // the two tests that care about it set their own.
+    private val mockPermissionChecker: GeofencePermissionChecker = mockk(relaxed = true) {
+        every { hasFineLocationPermission() } returns true
+        every { isBackgroundDeliveryAvailable() } returns true
+    }
+
     private var foregroundHookRuns = 0
 
     private val observer = GeofenceLifecycleObserver(
         deliveryFlusher = mockDeliveryFlusher,
         eventBus = mockEventBus,
         regionStore = mockRegionStore,
+        permissionChecker = mockPermissionChecker,
         logger = mockLogger,
         onForeground = { foregroundHookRuns++ }
     )
+
+    @Test
+    fun onStart_givenPermissionUnchanged_expectTierReportedOnceNotPerForeground() {
+        // Android has no permission observer, so the tier is read on every foreground entry. Only a
+        // change is worth a record — otherwise a user who opens the app ten times produces ten
+        // identical `permission.changed` inputs and a replay injects ten permission changes that
+        // never happened.
+        observer.onStart(owner)
+        observer.onStart(owner)
+        observer.onStart(owner)
+
+        verify(exactly = 1) { mockLogger.logPermissionTier(GeofenceLogger.PERMISSION_ALWAYS) }
+    }
+
+    @Test
+    fun onStart_givenPermissionDowngradedBetweenForegrounds_expectBothTiersReported() {
+        // The case the record exists for: the user went to Settings and revoked background access
+        // while the app was away. Nothing else in the SDK would notice until the next sync failed.
+        observer.onStart(owner)
+        every { mockPermissionChecker.isBackgroundDeliveryAvailable() } returns false
+        observer.onStart(owner)
+        every { mockPermissionChecker.hasFineLocationPermission() } returns false
+        observer.onStart(owner)
+
+        verifyOrder {
+            mockLogger.logPermissionTier(GeofenceLogger.PERMISSION_ALWAYS)
+            mockLogger.logPermissionTier(GeofenceLogger.PERMISSION_WHEN_IN_USE)
+            mockLogger.logPermissionTier(GeofenceLogger.PERMISSION_DENIED)
+        }
+    }
 
     @Test
     fun onStart_expectPendingDeliveriesFlushedOncePerForegroundEntry() {

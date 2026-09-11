@@ -68,7 +68,7 @@ internal class GeofenceRepositoryImpl(
     private val apiService: GeofenceApiService,
     private val store: GeofenceRegionStore,
     private val distanceFilter: GeofenceDistanceFilter,
-    private val manager: GeofenceManager,
+    private val manager: GeofenceRegistrar,
     private val secureUserStore: SecureUserStore,
     private val cooldownFilter: GeofenceCooldownFilter,
     private val transitionEmitter: GeofenceTransitionEmitter,
@@ -638,7 +638,7 @@ internal class GeofenceRepositoryImpl(
         // here means this reset was superseded by a new sign-in — skip the wipe (see interface doc).
         val currentUserId = secureUserStore.getUserId()?.takeIf { it.isNotEmpty() }
         if (currentUserId != null) {
-            logger.logSyncSkipped("reset superseded by signed-in user")
+            logger.logResetSuperseded()
             return@withLock Result.success(Unit)
         }
         // Clear OS-side first. On failure, preserve store state so the next refresh's stale-cleanup
@@ -647,6 +647,7 @@ internal class GeofenceRepositoryImpl(
         manager.clearAll().also { result ->
             if (result.isSuccess) {
                 store.clearUserScopedState()
+                logger.logResetCompleted()
             }
             // Wipe the departing user's cooldown history on any genuine sign-out, even if the
             // OS clear failed — keys are user-scoped, so this is data hygiene, not correctness.

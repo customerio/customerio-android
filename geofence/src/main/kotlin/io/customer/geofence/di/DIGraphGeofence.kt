@@ -3,6 +3,7 @@ package io.customer.geofence.di
 import com.google.android.gms.location.GeofencingClient
 import com.google.android.gms.location.LocationServices
 import io.customer.geofence.GeofenceCooldownFilter
+import io.customer.geofence.GeofenceCrossingPipeline
 import io.customer.geofence.GeofenceDistanceFilter
 import io.customer.geofence.GeofenceJsonSerializer
 import io.customer.geofence.GeofenceLogger
@@ -10,6 +11,7 @@ import io.customer.geofence.GeofenceManager
 import io.customer.geofence.GeofencePackageInfo
 import io.customer.geofence.GeofencePermissionChecker
 import io.customer.geofence.GeofenceReceiverToggle
+import io.customer.geofence.GeofenceRegistrar
 import io.customer.geofence.GeofenceRepository
 import io.customer.geofence.GeofenceRepositoryImpl
 import io.customer.geofence.GeofenceServices
@@ -43,13 +45,28 @@ internal val AndroidSDKComponent.geofencingClient: GeofencingClient
 internal val AndroidSDKComponent.geofenceReceiverToggle: GeofenceReceiverToggle
     get() = newInstance { GeofenceReceiverToggle(applicationContext) }
 
-internal val AndroidSDKComponent.geofenceManager: GeofenceManager
-    get() = singleton {
+internal val AndroidSDKComponent.geofenceManager: GeofenceRegistrar
+    get() = singleton<GeofenceRegistrar> {
         GeofenceManager(
             context = applicationContext,
             client = geofencingClient,
             receiverToggle = geofenceReceiverToggle,
             permissionChecker = geofencePermissionChecker,
+            logger = SDKComponent.geofenceLogger
+        )
+    }
+
+// A singleton because its transition mutex has to outlive any one broadcast: a BroadcastReceiver
+// instance lives for a single delivery, and two crossings for one fence must not interleave.
+internal val AndroidSDKComponent.geofenceCrossingPipeline: GeofenceCrossingPipeline
+    get() = singleton {
+        GeofenceCrossingPipeline(
+            regionStore = geofenceRegionStore,
+            secureUserStore = secureUserStore,
+            transitionEmitter = geofenceTransitionEmitter,
+            services = geofenceServices,
+            registrar = geofenceManager,
+            clock = SDKComponent.clock,
             logger = SDKComponent.geofenceLogger
         )
     }

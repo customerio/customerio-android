@@ -1261,7 +1261,9 @@ class GeofenceRepositoryTest : RobolectricTest() {
         // Registrations survive, so their suppression windows must too — wiping the
         // cooldown here would let still-registered fences re-emit inside the window.
         verify(exactly = 0) { cooldownFilter.clearAll() }
-        verify { logger.logSyncSkipped(match { it.contains("reset superseded") }) }
+        // The superseded branch is now an asserted output, not an internal skip: a regression that
+        // wipes an active user's geofences is the damaging direction and needs scenario coverage.
+        verify { logger.logResetSuperseded() }
     }
 
     @Test

@@ -5,6 +5,7 @@ import androidx.lifecycle.ProcessLifecycleOwner
 import io.customer.base.internal.InternalCustomerIOApi
 import io.customer.geofence.di.geofenceDeliveryFlusher
 import io.customer.geofence.di.geofenceLogger
+import io.customer.geofence.di.geofencePermissionChecker
 import io.customer.geofence.di.geofenceRegionStore
 import io.customer.geofence.di.geofenceServices
 import io.customer.location.LocationCoordinates
@@ -17,7 +18,6 @@ import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.module.CustomerIOModule
 import io.customer.sdk.core.util.HandlerMainThreadPoster
 import io.customer.sdk.core.util.MainThreadPoster
-import io.customer.sdk.data.store.SecureUserStore
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
@@ -98,18 +98,23 @@ class ModuleGeofence @JvmOverloads constructor(
     }
 
     /**
-     * In [GeofenceLocationMode.AUTOMATIC], acquires a silent (no-analytics) fix when none is
-     * available; the returning fix drives the sync via [GeofenceServices.onLocationAcquired].
-     * MANUAL leaves it to the host. Lives here (not [GeofenceServices]) as it needs [ModuleLocation].
+     * The foreground and anchor decisions, lifted out of this class so a test can drive them
+     * without a lifecycle owner. See [GeofenceForegroundCoordinator].
      */
     @VisibleForTesting
     @OptIn(InternalCustomerIOApi::class)
-    internal fun autoAcquireIfNeeded(locationModule: ModuleLocation, currentLocation: LocationCoordinates?) {
-        if (currentLocation != null) return
-        if (moduleConfig.locationMode != GeofenceLocationMode.AUTOMATIC) return
-        // No-ops without location permission.
-        locationModule.locationServices.requestLocationUpdateSilently()
-    }
+    internal fun foregroundCoordinator(
+        sdkAndroid: AndroidSDKComponent,
+        locationModule: ModuleLocation
+    ): GeofenceForegroundCoordinator = GeofenceForegroundCoordinator(
+        services = sdkAndroid.geofenceServices,
+        secureUserStore = sdkAndroid.secureUserStore,
+        locationServices = locationModule.locationServices,
+        regionStore = sdkAndroid.geofenceRegionStore,
+        lastKnownLocation = { locationModule.lastKnownLocationOrNull() },
+        locationMode = moduleConfig.locationMode,
+        logger = SDKComponent.geofenceLogger
+    )
 
     /**
      * Subscribe to the SDK-wide events geofencing reacts to: fresh location fixes,
@@ -124,6 +129,10 @@ class ModuleGeofence @JvmOverloads constructor(
         // GPS fix: GeofenceServices holds a "last skipped for no-location" flag
         // and re-triggers a refresh when a fresh fix arrives.
         eventBus.subscribe<Event.LocationAcquired> {
+            // The one place a position crosses into geofencing from outside. Logged before the
+            // handler so a replay can inject it whether or not the handler acts on it — the flags
+            // in GeofenceServices decide that, and a discarded fix is still a fix that arrived.
+            SDKComponent.geofenceLogger.logLocationFix(it.latitude, it.longitude)
             sdkAndroid.geofenceServices.onLocationAcquired(it.latitude, it.longitude)
         }
 
@@ -131,12 +140,14 @@ class ModuleGeofence @JvmOverloads constructor(
         // nearby set fetched, anchored at the current registration center.
         eventBus.subscribe<Event.UserChangedEvent> {
             if (!it.userId.isNullOrEmpty()) {
-                val anchor = refreshAnchor(sdkAndroid, locationModule)
+                SDKComponent.geofenceLogger.logIdentityChanged(identified = true)
+                val coordinator = foregroundCoordinator(sdkAndroid, locationModule)
+                val anchor = coordinator.anchor()
                 sdkAndroid.geofenceServices.onUserIdentified(
                     latitude = anchor?.latitude,
                     longitude = anchor?.longitude
                 )
-                autoAcquireIfNeeded(locationModule, anchor)
+                coordinator.autoAcquireIfNeeded(anchor)
             }
         }
 
@@ -146,6 +157,9 @@ class ModuleGeofence @JvmOverloads constructor(
         // before `UserChangedEvent(null)`, so it's the explicit "wipe user state"
         // signal — analogous to analytics.reset().
         eventBus.subscribe<Event.ResetEvent> {
+            // Not on the `UserChangedEvent(null)` that follows: sign-out publishes both, and one
+            // identity transition must produce one record.
+            SDKComponent.geofenceLogger.logIdentityChanged(identified = false)
             sdkAndroid.geofenceServices.onUserSignedOut()
         }
     }
@@ -175,6 +189,7 @@ class ModuleGeofence @JvmOverloads constructor(
                     deliveryFlusher = sdkAndroid.geofenceDeliveryFlusher,
                     eventBus = eventBus,
                     regionStore = sdkAndroid.geofenceRegionStore,
+                    permissionChecker = sdkAndroid.geofencePermissionChecker,
                     logger = logger,
                     onForeground = {
                         // Off the main thread: deciding whether to take a fix needs the identity read,
@@ -182,9 +197,7 @@ class ModuleGeofence @JvmOverloads constructor(
                         val foregroundScope = SDKComponent.scopeProvider.geofenceScope
                         foregroundScope.launch {
                             try {
-                                if (!refreshOnForeground(sdkAndroid.geofenceServices, sdkAndroid.secureUserStore, locationModule)) {
-                                    retrySyncAwaitingLocation(sdkAndroid, locationModule)
-                                }
+                                foregroundCoordinator(sdkAndroid, locationModule).onForeground()
                             } catch (e: CancellationException) {
                                 throw e
                             } catch (e: Throwable) {
@@ -208,12 +221,13 @@ class ModuleGeofence @JvmOverloads constructor(
                 try {
                     val existingUserId = sdkAndroid.secureUserStore.getUserId()
                     if (!existingUserId.isNullOrEmpty()) {
-                        val anchor = refreshAnchor(sdkAndroid, locationModule)
+                        val coordinator = foregroundCoordinator(sdkAndroid, locationModule)
+                        val anchor = coordinator.anchor()
                         sdkAndroid.geofenceServices.onAppLaunch(
                             latitude = anchor?.latitude,
                             longitude = anchor?.longitude
                         )
-                        autoAcquireIfNeeded(locationModule, anchor)
+                        coordinator.autoAcquireIfNeeded(anchor)
                     }
                 } catch (e: CancellationException) {
                     throw e
@@ -229,86 +243,6 @@ class ModuleGeofence @JvmOverloads constructor(
             }
         }
     }
-
-    /**
-     * Refreshes discovery from a live fix on foreground entry: OS geofence callbacks can stop for
-     * hours, and every other path anchors at the last registration center — where the device used to
-     * be — so nothing else notices it has moved.
-     *
-     * Returns false when no fix was taken: MANUAL leaves fixes to the host, nobody is identified to
-     * sync for, or a sync is already stuck without one and [retrySyncAwaitingLocation] owns that case.
-     */
-    @VisibleForTesting
-    @OptIn(InternalCustomerIOApi::class)
-    internal fun refreshOnForeground(
-        services: GeofenceServices,
-        secureUserStore: SecureUserStore,
-        locationModule: ModuleLocation
-    ): Boolean {
-        if (moduleConfig.locationMode != GeofenceLocationMode.AUTOMATIC) return false
-        if (services.isAwaitingLocation()) return false
-        // The sync drops a fix that arrives with nobody identified, so taking one before the first
-        // identify — or on every resume after sign-out — spends location and battery on nothing.
-        if (secureUserStore.getUserId().isNullOrEmpty()) return false
-        // Arm before requesting, so the returning fix drives the sync.
-        services.onRefreshRequested()
-        locationModule.locationServices.requestLocationUpdateSilently()
-        return true
-    }
-
-    /**
-     * A silent fix that never arrives — cancelled when the app backgrounds mid-fetch, timed out,
-     * location services off — leaves the sync armed with nothing to consume it, and nothing else
-     * re-requests one until the next cold launch. Foreground entry is the next chance.
-     */
-    private fun retrySyncAwaitingLocation(sdkAndroid: AndroidSDKComponent, locationModule: ModuleLocation) {
-        // Cheap atomic reads, so the healthy case never reaches the anchor read below.
-        if (!sdkAndroid.geofenceServices.isAwaitingLocation()) return
-        // Anchor read hits SharedPreferences plus a Keystore decrypt; onStart is the main thread.
-        val retryScope = SDKComponent.scopeProvider.geofenceScope
-        retryScope.launch {
-            try {
-                if (sdkAndroid.geofenceServices.isHostRefreshPending()) {
-                    // The host asked for a live fix — an anchor can't satisfy it, so don't sync
-                    // from one. Re-request like refreshFromCurrentLocation does (mode-independent);
-                    // the arriving fix consumes the flag and drives the sync.
-                    locationModule.locationServices.requestLocationUpdateSilently()
-                    return@launch
-                }
-                val anchor = refreshAnchor(sdkAndroid, locationModule)
-                // Re-check after the anchor read: a fix that landed meanwhile has already consumed
-                // the flags and synced — retrying now would re-center on the pre-fix anchor.
-                if (!sdkAndroid.geofenceServices.isAwaitingLocation()) return@launch
-                sdkAndroid.geofenceServices.onForegroundRetry(
-                    latitude = anchor?.latitude,
-                    longitude = anchor?.longitude
-                )
-                autoAcquireIfNeeded(locationModule, anchor)
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Throwable) {
-                SDKComponent.geofenceLogger.logSyncFailed("foreground retry failed: ${e.message}")
-            } finally {
-                retryScope.cancel()
-            }
-        }
-    }
-
-    private fun refreshAnchor(sdkAndroid: AndroidSDKComponent, locationModule: ModuleLocation): LocationCoordinates? =
-        resolveAnchor(
-            registrationCenter = sdkAndroid.geofenceRegionStore.getLastMovementTriggerLocation(),
-            lastKnown = locationModule.lastKnownLocationOrNull()
-        )
-
-    /**
-     * Location to anchor an identify/launch refresh at: the last registration center (walked by
-     * background movement EXITs) if set, else the location cache. Movement never updates the cache,
-     * so on relaunch it can be stale — ranking a refresh from it after the device moved while the
-     * app was dead would clobber the good registration with a set ranked around a stale position.
-     */
-    @VisibleForTesting
-    internal fun resolveAnchor(registrationCenter: GeofenceLocation?, lastKnown: LocationCoordinates?): LocationCoordinates? =
-        registrationCenter?.let { LocationCoordinates(latitude = it.latitude, longitude = it.longitude) } ?: lastKnown
 
     companion object {
         /**

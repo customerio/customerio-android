@@ -15,6 +15,8 @@ import io.customer.messagingpush.activity.NotificationClickReceiverActivity
 import io.customer.messagingpush.data.model.CustomerIOParsedPushPayload
 import io.customer.messagingpush.di.liveNotificationStore
 import io.customer.messagingpush.di.pushModuleConfig
+import io.customer.messagingpush.livenotification.LiveNotificationBranding
+import io.customer.messagingpush.livenotification.LiveNotificationBrandingSerializer
 import io.customer.messagingpush.livenotification.LiveNotificationDismissReceiver
 import io.customer.messagingpush.livenotification.template.TemplateAssets
 import io.customer.messagingpush.livenotification.template.TemplateRegistry
@@ -153,9 +155,20 @@ internal class LiveNotificationHandler(
         }
 
         val activityType = bundle.getString(NOTIFICATION_TYPE_KEY)
-        if (activityType == null || activityType !in SDKComponent.pushModuleConfig.liveNotificationTypes) {
-            SDKComponent.logger.debug(
-                "Live notification type '$activityType' is not enabled; ignoring activity '$activityId'."
+        val enabledTypes = enabledActivityTypes()
+        if (activityType == null || activityType !in enabledTypes) {
+            // Escalated from debug: reaching here means Customer.io delivered a live notification
+            // for a type this app doesn't render, which is a misconfiguration the customer needs to
+            // see. error is the only level visible at the SDK's default log level.
+            SDKComponent.logger.error(
+                if (enabledTypes.isEmpty()) {
+                    "Live notification type '$activityType' is not enabled; ignoring activity " +
+                        "'$activityId'. This app has never enabled live notifications — enable the " +
+                        "type via MessagingPushModuleConfig if it should render."
+                } else {
+                    "Live notification type '$activityType' is not enabled; ignoring activity " +
+                        "'$activityId'. Enabled types are $enabledTypes."
+                }
             )
             return
         }
@@ -221,7 +234,7 @@ internal class LiveNotificationHandler(
 
         val template = TemplateRegistry.find(activityType)
         val data = extractData(bundle)
-        val branding = SDKComponent.pushModuleConfig.liveNotificationBranding
+        val branding = branding(context)
         // Branding overrides the status-bar icon for live notifications only.
         val effectiveSmallIcon = branding?.smallIcon ?: smallIcon
 
@@ -337,6 +350,34 @@ internal class LiveNotificationHandler(
         // (local); the tracked activity type is intentionally kept (not cleared) so a
         // subsequent logout can still cancel an ended-but-still-visible notification.
     }
+
+    /**
+     * The activity types this app renders, falling back to the persisted opt-in when the module
+     * config carries none.
+     *
+     * A cold process — one Android started solely to deliver an FCM message — never runs
+     * `CustomerIO.initialize`, so the push module isn't registered and [pushModuleConfig] resolves
+     * to its defaults. The resulting empty set is ambiguous: it means both "this app never enabled
+     * live notifications" and "this app did, but this process hasn't loaded that yet". The persisted
+     * copy tells them apart, so a push delivered after ordinary process death still renders.
+     *
+     * A populated config always wins, so *disabling* a type takes effect immediately in a running
+     * process rather than waiting for the persisted copy to be rewritten, and an app that never
+     * enabled the feature keeps ignoring these pushes.
+     */
+    private fun enabledActivityTypes(): Set<String> =
+        SDKComponent.pushModuleConfig.liveNotificationTypes
+            .ifEmpty { SDKComponent.liveNotificationStore.enabledActivityTypes() }
+
+    /**
+     * Branding for this render, falling back to the persisted copy in a cold process for the same
+     * reason as [enabledActivityTypes] — otherwise a cold render would drop the branded small icon
+     * and logo, visibly changing an ongoing notification a warm process had already posted.
+     */
+    private fun branding(context: Context): LiveNotificationBranding? =
+        SDKComponent.pushModuleConfig.liveNotificationBranding
+            ?: SDKComponent.liveNotificationStore.brandingJson()
+                ?.let { LiveNotificationBrandingSerializer.decode(context, it) }
 
     private fun buildSdkNotification(
         context: Context,

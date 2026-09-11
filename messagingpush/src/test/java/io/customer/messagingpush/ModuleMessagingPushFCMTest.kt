@@ -1,5 +1,6 @@
 package io.customer.messagingpush
 
+import android.graphics.Color
 import androidx.work.Operation
 import androidx.work.WorkManager
 import com.google.common.util.concurrent.Futures
@@ -10,6 +11,10 @@ import io.customer.commontest.extensions.assertCalledOnce
 import io.customer.commontest.extensions.random
 import io.customer.commontest.util.DispatchersProviderStub
 import io.customer.messagingpush.di.fcmTokenProvider
+import io.customer.messagingpush.di.liveNotificationStore
+import io.customer.messagingpush.livenotification.LiveNotificationBranding
+import io.customer.messagingpush.livenotification.LiveNotificationBrandingSerializer
+import io.customer.messagingpush.livenotification.LiveNotificationType
 import io.customer.messagingpush.logger.PushNotificationLogger
 import io.customer.messagingpush.provider.DeviceTokenProvider
 import io.customer.messagingpush.store.PendingPushDeliveryMetric
@@ -26,7 +31,11 @@ import io.mockk.mockk
 import io.mockk.verify
 import io.mockk.verifyOrder
 import kotlinx.coroutines.test.runTest
+import org.amshove.kluent.shouldBeEmpty
+import org.amshove.kluent.shouldBeEqualTo
+import org.amshove.kluent.shouldBeNull
 import org.amshove.kluent.shouldBeTrue
+import org.amshove.kluent.shouldContainSame
 import org.amshove.kluent.shouldNotBeNull
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -79,6 +88,48 @@ class ModuleMessagingPushFCMTest : IntegrationTest() {
         ModuleMessagingPushFCM.foregroundObserver = null
         eventBus.removeAllSubscriptions()
         super.teardown()
+    }
+
+    @Test
+    fun initialize_givenLiveNotificationsEnabled_persistsOptInForColdProcesses() {
+        // A process Android starts solely to deliver an FCM message runs no app code, so the module
+        // config is unavailable there. Mirroring the opt-in into storage at init is what lets such a
+        // process tell "never enabled" apart from "not loaded yet" and render at all.
+        val givenBranding = LiveNotificationBranding(
+            companyName = "Acme",
+            accentColor = Color.RED,
+            smallIcon = android.R.drawable.ic_dialog_info
+        )
+
+        ModuleMessagingPushFCM(
+            MessagingPushModuleConfig.Builder()
+                .enableLiveNotificationTypes(LiveNotificationType.SEGMENTS)
+                .setLiveNotificationBranding(givenBranding)
+                .build()
+        ).initialize()
+
+        val store = SDKComponent.liveNotificationStore
+        store.enabledActivityTypes() shouldContainSame setOf(LiveNotificationType.SEGMENTS.identifier)
+        LiveNotificationBrandingSerializer.decode(
+            contextMock,
+            requireNotNull(store.brandingJson())
+        ) shouldBeEqualTo givenBranding
+    }
+
+    @Test
+    fun initialize_givenLiveNotificationsNotEnabled_clearsPersistedOptIn() {
+        // The persist runs on every init, outside the registrar's non-empty guard: that is how
+        // un-enabling a type — or the whole feature — reaches the next cold process. Left stale, the
+        // persisted copy would keep rendering pushes the app no longer wants.
+        val store = SDKComponent.liveNotificationStore
+        store.setEnabledActivityTypes(setOf(LiveNotificationType.SEGMENTS.identifier))
+        store.setBrandingJson("""{"companyName":"Acme","accentColor":1}""")
+
+        // `module` is built with the default config, which enables nothing.
+        module.initialize()
+
+        store.enabledActivityTypes().shouldBeEmpty()
+        store.brandingJson().shouldBeNull()
     }
 
     @Test

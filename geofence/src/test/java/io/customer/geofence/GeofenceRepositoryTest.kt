@@ -431,6 +431,36 @@ class GeofenceRepositoryTest : RobolectricTest() {
     }
 
     @Test
+    fun refresh_givenResponseMappingThrows_expectTheFetchStillCatalogued() = runTest {
+        // The catalog runs before mapping, so the response that could not be used at all is still
+        // described. Cataloguing after the mapper is what left the failing fences invisible.
+        every { secureUserStore.getUserId() } returns "user-42"
+        every { store.getLastSyncTimestamp() } returns null
+        coEvery { apiService.fetchGeofences(any()) } returns
+            Result.success(sampleResponse(maxBusinessGeofences = 3))
+        mockkStatic("io.customer.geofence.api.GeofenceApiResponseKt")
+        try {
+            every { any<GeofenceApiResponse>().toDomainRegions() } throws IllegalStateException("mapper defect")
+
+            repository.refresh(latitude = 12.34, longitude = 56.78).isFailure shouldBeEqualTo true
+
+            // Captured rather than matched: the lambda reaching a verify block is mockk's stand-in,
+            // and invoking that throws. The captured one is what production actually passed.
+            val catalog = slot<() -> List<GeofenceCatalogEntry>>()
+            verify {
+                logger.logApiFetchResult(
+                    returnedCount = any(),
+                    elapsedMillis = any(),
+                    catalog = capture(catalog)
+                )
+            }
+            catalog.captured().isNotEmpty() shouldBeEqualTo true
+        } finally {
+            unmockkStatic("io.customer.geofence.api.GeofenceApiResponseKt")
+        }
+    }
+
+    @Test
     fun refresh_givenResponseMappingThrows_expectFailureNotEmptySuccess() = runTest {
         // Unusable response fails the refresh; nothing registered, removed, or persisted.
         every { secureUserStore.getUserId() } returns "user-42"

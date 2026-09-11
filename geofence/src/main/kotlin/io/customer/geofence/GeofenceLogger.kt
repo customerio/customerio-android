@@ -651,10 +651,15 @@ internal class GeofenceLogger(private val logger: Logger) {
     }
 
     /** Outcome of a nearby-geofence fetch. An **input**: replay feeds the response back. */
+    /**
+     * [catalog] is a lambda for the same reason [logRankEvaluated]'s lists are: building it decodes
+     * and validates every polygon ring a second time, on a background fetch path, and none of that
+     * is wanted unless the rows will actually be written.
+     */
     fun logApiFetchResult(
         returnedCount: Int,
         elapsedMillis: Long?,
-        regions: List<GeofenceRegion> = emptyList()
+        catalog: () -> List<GeofenceCatalogEntry> = { emptyList() }
     ) {
         logger.debug(
             "Fetched $returnedCount nearby geofence(s) from the server" +
@@ -669,11 +674,13 @@ internal class GeofenceLogger(private val logger: Logger) {
                 ),
             tag = TAG
         )
-        logFenceCatalog(regions)
+        logFenceCatalog(catalog)
     }
 
     /**
      * One record per fetched fence, describing the shape the server sent.
+     *
+     * Built from the wire before validation runs, so a record the mapper drops still earns a row.
      *
      * Without this a capture names fences only by opaque id: a replay cannot place them, and nobody
      * reading the log can tell which geoset a crossing belonged to. Re-fetching the geometry from
@@ -683,39 +690,35 @@ internal class GeofenceLogger(private val logger: Logger) {
      * Gated whole rather than relying on `tail()` returning empty, because these records carry no
      * prose worth emitting on their own — with diagnostics off they should not exist at all.
      */
-    private fun logFenceCatalog(regions: List<GeofenceRegion>) {
-        if (regions.isEmpty() || !GeofenceDiagnostics.isEnabled) return
-        for (region in regions) {
+    private fun logFenceCatalog(catalog: () -> List<GeofenceCatalogEntry>) {
+        if (!GeofenceDiagnostics.isEnabled) return
+        val entries = catalog()
+        if (entries.isEmpty()) return
+        for (entry in entries) {
             logger.debug(
-                "Geofence '${region.id}' catalogued" +
+                "Geofence '${entry.id}' catalogued" +
                     tail(
                         "fence.cataloged",
                         GeofenceLogIo.INPUT,
                         listOf(
-                            "id" to region.id,
+                            "id" to entry.id,
                             // Sanitized like any other value: a workspace-authored name can contain
                             // spaces, commas and `=`, all of which would break the parser's split.
-                            "name" to region.name,
-                            "gs" to composedList(region.geosetIds),
+                            "name" to entry.name,
+                            "gs" to composedList(entry.geosetIds),
                             // Without this a polygon reads as an ordinary circle, and a replay
                             // places the trigger circle as though it were the fence.
-                            "sh" to if (region.isPolygon) "polygon" else "circle",
-                            "lat" to num(region.latitude, 5),
-                            "lon" to num(region.longitude, 5),
-                            // The backend's circle, not the radius we register: a polygon's
-                            // registered radius carries our platform margin, which would read as a
-                            // cross-platform discrepancy that is only padding.
+                            "sh" to entry.shape,
+                            "lat" to num(entry.latitude, 5),
+                            "lon" to num(entry.longitude, 5),
                             // A polygon reports the backend's circle, never the one we register:
                             // that carries our platform margin and would overstate the fence by a
                             // kilometre. Absent rather than substituted, so a polygon that somehow
                             // reaches here without one omits the field instead of lying about it.
-                            "rad" to num(
-                                if (region.isPolygon) region.baseRadiusMeters else region.radius.toDouble(),
-                                0
-                            ),
-                            "nv" to int(region.polygonVertices?.size),
-                            "ring" to region.polygonVertices?.let(::ringPairs)?.let(::composedList),
-                            "tt" to composedList(region.transitionTypes.map { it.name.lowercase() })
+                            "rad" to num(entry.radiusMeters, 0),
+                            "nv" to int(entry.vertices?.size),
+                            "ring" to entry.vertices?.let(::ringPairs)?.let(::composedList),
+                            "tt" to composedList(entry.transitionTypes)
                         )
                     ),
                 tag = TAG

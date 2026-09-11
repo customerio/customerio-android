@@ -1200,6 +1200,181 @@ class GeofenceApiResponseTest : RobolectricTest() {
         }
     """.trimIndent()
 
+    // ---------- catalog: built from the wire, before anything is dropped ----------
+
+    @Test
+    fun toCatalogEntries_expectOneEntryPerWireRecordEvenWhenOneIsDropped() {
+        val response = parseResponse(polygonAndCircleJson())
+
+        // With polygon monitoring off the mapper keeps only the circle. The catalog is the record
+        // of what the server sent, so it must still describe both.
+        response.toDomainRegions().map(GeofenceRegion::id) shouldBeEqualTo listOf("circle")
+        response.toCatalogEntries().map { it.id } shouldBeEqualTo listOf("campus", "circle")
+    }
+
+    @Test
+    fun toCatalogEntries_givenEmptyResponse_expectNoEntries() {
+        parseResponse("""{ "geofences": [] }""").toCatalogEntries().shouldBeEmpty()
+    }
+
+    @Test
+    fun toCatalogEntries_givenPolygon_expectEnclosingCircleAndCanonicalRing() {
+        val entry = parseResponse(polygonOnlyJson()).toCatalogEntries().single()
+
+        entry.shape shouldBeEqualTo "polygon"
+        // The backend's circle, not the padded radius the SDK would register.
+        entry.latitude shouldBeEqualTo 37.775
+        entry.longitude shouldBeEqualTo -122.4194
+        entry.radiusMeters shouldBeEqualTo 100.0
+        // Five wire positions, closing vertex dropped: the count a consumer checks truncation with.
+        entry.vertices?.size shouldBeEqualTo 4
+    }
+
+    @Test
+    fun toCatalogEntries_givenUnbuildableRing_expectRowKeptWithoutVertices() {
+        // The case the catalog exists for: the mapper drops this record entirely, so before this
+        // change the capture had no row naming it at all.
+        val response = parseResponse(
+            """
+            {
+              "geofences": [
+                {
+                  "id": "bad-ring",
+                  "shape": "polygon",
+                  "enclosing_circle": { "latitude": 37.775, "longitude": -122.4194, "base_radius_m": 100 },
+                  "geometry": { "type": "Polygon", "coordinates": [[[-122.42, 37.77], [-122.41, 37.77]]] }
+                }
+              ]
+            }
+            """.trimIndent()
+        )
+
+        val entry = response.toCatalogEntries().single()
+        entry.id shouldBeEqualTo "bad-ring"
+        entry.shape shouldBeEqualTo "polygon"
+        // Absent, never a ring we could not build: a half-decoded ring answers membership wrongly.
+        entry.vertices.shouldBeNull()
+        entry.radiusMeters shouldBeEqualTo 100.0
+        invoking { response.toDomainRegions(EnabledPolygonSupport) } shouldThrow Exception::class
+    }
+
+    @Test
+    fun toCatalogEntries_givenPolygonWithoutEnclosingCircle_expectPlacementAbsentNotSubstituted() {
+        // The flat fields describe a different shape. Falling back to them would place a polygon at
+        // a circle's centre and radius, which reads as a real fence rather than a missing one.
+        val entry = parseResponse(
+            """
+            {
+              "geofences": [
+                {
+                  "id": "no-circle",
+                  "shape": "polygon",
+                  "latitude": 1.0,
+                  "longitude": 2.0,
+                  "radius": 50,
+                  "geometry": {
+                    "type": "Polygon",
+                    "coordinates": [[
+                      [-122.4200, 37.7745],
+                      [-122.4188, 37.7745],
+                      [-122.4188, 37.7755],
+                      [-122.4200, 37.7745]
+                    ]]
+                  }
+                }
+              ]
+            }
+            """.trimIndent()
+        ).toCatalogEntries().single()
+
+        entry.shape shouldBeEqualTo "polygon"
+        entry.latitude.shouldBeNull()
+        entry.longitude.shouldBeNull()
+        entry.radiusMeters.shouldBeNull()
+        // The row still exists, and the ring it did send is still reported.
+        entry.vertices?.size shouldBeEqualTo 3
+    }
+
+    @Test
+    fun toCatalogEntries_givenGeometryWithoutDiscriminator_expectCircleClaimAndTheRing() {
+        // The mis-described record: the mapper drops it as undescribed_shape. The row keeps both
+        // halves of the contradiction — the claim it made and the geometry it actually sent —
+        // because a row saying only "circle" is indistinguishable from a plain circle.
+        val entry = parseResponse(
+            """
+            {
+              "geofences": [
+                {
+                  "id": "mismatched",
+                  "latitude": 1.0,
+                  "longitude": 2.0,
+                  "radius": 50,
+                  "geometry": {
+                    "type": "Polygon",
+                    "coordinates": [[
+                      [-122.4200, 37.7745],
+                      [-122.4188, 37.7745],
+                      [-122.4188, 37.7755],
+                      [-122.4200, 37.7745]
+                    ]]
+                  }
+                }
+              ]
+            }
+            """.trimIndent()
+        ).toCatalogEntries().single()
+
+        entry.shape shouldBeEqualTo "circle"
+        entry.vertices?.size shouldBeEqualTo 3
+        // Read as a circle, so its placement is the flat fields it claimed.
+        entry.latitude shouldBeEqualTo 1.0
+        entry.radiusMeters shouldBeEqualTo 50.0
+    }
+
+    @Test
+    fun toCatalogEntries_givenUnsupportedShape_expectTheClaimVerbatim() {
+        val entry = parseResponse(
+            """
+            { "geofences": [ { "id": "odd", "shape": "Hexagon", "latitude": 1.0, "longitude": 2.0, "radius": 50 } ] }
+            """.trimIndent()
+        ).toCatalogEntries().single()
+
+        // What the server claimed, lowercased but not judged — the drop record carries the verdict.
+        entry.shape shouldBeEqualTo "hexagon"
+        entry.latitude shouldBeEqualTo 1.0
+        entry.radiusMeters shouldBeEqualTo 50.0
+    }
+
+    @Test
+    fun toCatalogEntries_givenLegacyRecord_expectCircleAndResolvedTransitionTypes() {
+        val entry = parseResponse(
+            """
+            { "geofences": [ { "id": "legacy", "latitude": 1.0, "longitude": 2.0, "radius": 50 } ] }
+            """.trimIndent()
+        ).toCatalogEntries().single()
+
+        // No discriminator is how every pre-polygon response looks; it is a circle, not an unknown.
+        entry.shape shouldBeEqualTo "circle"
+        entry.vertices.shouldBeNull()
+        entry.transitionTypes shouldBeEqualTo listOf("enter", "exit")
+    }
+
+    @Test
+    fun toCatalogEntries_givenUnknownTransitionType_expectReportedOnceNotTwice() {
+        val response = parseResponse(
+            """
+            { "geofences": [ { "id": "c", "latitude": 1.0, "longitude": 2.0, "radius": 50, "transition_types": ["dwell"] } ] }
+            """.trimIndent()
+        )
+
+        // Production order: catalog first, then mapping. Both resolve transition types, and only
+        // the mapper may report an unknown one — otherwise every unknown value is counted twice.
+        response.toCatalogEntries()
+        response.toDomainRegions()
+
+        verify(exactly = 1) { mockLogger.logUnknownApiTransitionType("dwell") }
+    }
+
     // ---------- helpers ----------
 
     private val jsonSerializer = GeofenceJsonSerializer()

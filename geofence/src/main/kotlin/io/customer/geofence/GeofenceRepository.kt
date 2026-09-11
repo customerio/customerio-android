@@ -3,6 +3,7 @@ package io.customer.geofence
 import android.Manifest
 import androidx.annotation.RequiresPermission
 import io.customer.geofence.api.GeofenceApiService
+import io.customer.geofence.api.toCatalogEntries
 import io.customer.geofence.api.toDomainConfig
 import io.customer.geofence.api.toDomainRegions
 import io.customer.geofence.store.GeofenceRegionStore
@@ -405,6 +406,14 @@ internal class GeofenceRepositoryImpl(
         val fetchElapsedMillis = clock.elapsedRealtime() - fetchStartedAt
         return fetchResult.fold(
             onSuccess = { response ->
+                // Before mapping: a dropped record still gets catalogued, and a response where
+                // every record drops is still described rather than lost with the failure. The
+                // count is off the wire, so the gap against what survived the cap stays visible.
+                logger.logApiFetchResult(
+                    returnedCount = response.geofences.size,
+                    elapsedMillis = fetchElapsedMillis,
+                    catalog = { response.toCatalogEntries() }
+                )
                 // An unusable response throws (see toDomainRegions) — fail the refresh and
                 // keep current registrations; never let it escape the handler-less scope.
                 val mapped = runCatching {
@@ -414,13 +423,6 @@ internal class GeofenceRepositoryImpl(
                     return@fold Result.failure(e)
                 }
                 val (regions, parsedConfig) = mapped
-                // The count off the wire, before local ranking. The gap between what the server
-                // offered and what survived the cap is the thing worth being able to see.
-                logger.logApiFetchResult(
-                    returnedCount = response.geofences.size,
-                    elapsedMillis = fetchElapsedMillis,
-                    regions = regions
-                )
                 // Config preference: server-shipped > last cached > constants.
                 val config = parsedConfig ?: store.getCachedConfigOrFallback()
                 registerNearestAndPersist(

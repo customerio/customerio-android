@@ -54,7 +54,7 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
     private val mockServices: GeofenceServices = mockk(relaxed = true)
     private val mockCooldownFilter: GeofenceCooldownFilter = mockk(relaxed = true)
     private val mockStore: GeofenceRegionStore = mockk(relaxed = true)
-    private val mockManager: GeofenceManager = mockk(relaxed = true)
+    private val mockManager: GeofenceRegistrar = mockk(relaxed = true)
     private val mockSecureUserStore: SecureUserStore = mockk(relaxed = true)
 
     /**
@@ -125,7 +125,7 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
                         overrideDependency<GeofenceServices>(mockServices)
                         overrideDependency<GeofenceCooldownFilter>(mockCooldownFilter)
                         overrideDependency<GeofenceRegionStore>(mockStore)
-                        overrideDependency<GeofenceManager>(mockManager)
+                        overrideDependency<GeofenceRegistrar>(mockManager)
                         overrideDependency<SecureUserStore>(mockSecureUserStore)
                     }
                 }

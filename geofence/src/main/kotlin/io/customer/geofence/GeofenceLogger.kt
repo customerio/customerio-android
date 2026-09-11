@@ -7,6 +7,7 @@ import io.customer.geofence.GeofenceLogTail.int
 import io.customer.geofence.GeofenceLogTail.list
 import io.customer.geofence.GeofenceLogTail.num
 import io.customer.geofence.GeofenceLogTail.token
+import io.customer.geofence.polygon.PolygonCoordinate
 import io.customer.sdk.core.util.Logger
 
 /**
@@ -650,9 +651,17 @@ internal class GeofenceLogger(private val logger: Logger) {
                             // spaces, commas and `=`, all of which would break the parser's split.
                             "name" to region.name,
                             "gs" to composedList(region.geosetIds),
+                            // Without this a polygon reads as an ordinary circle, and a replay
+                            // places the trigger circle as though it were the fence.
+                            "sh" to if (region.isPolygon) "polygon" else "circle",
                             "lat" to num(region.latitude, 5),
                             "lon" to num(region.longitude, 5),
-                            "rad" to num(region.radius, 0),
+                            // The backend's circle, not the radius we register: a polygon's
+                            // registered radius carries our platform margin, which would read as a
+                            // cross-platform discrepancy that is only padding.
+                            "rad" to num(region.baseRadiusMeters ?: region.radius.toDouble(), 0),
+                            "nv" to int(region.polygonVertices?.size),
+                            "ring" to region.polygonVertices?.let(::ringPairs)?.let(::composedList),
                             "tt" to composedList(region.transitionTypes.map { it.name.lowercase() })
                         )
                     ),
@@ -660,6 +669,20 @@ internal class GeofenceLogger(private val logger: Logger) {
             )
         }
     }
+
+    /**
+     * Outer ring as `lat_lon` pairs in the SDK's order, not the wire's GeoJSON order.
+     *
+     * Capped like any list, so `nv` is the authoritative count and a consumer finding fewer pairs
+     * than vertices must refuse rather than use what it got: a truncated ring is still a
+     * valid-looking polygon, so it answers a membership question confidently and wrongly.
+     */
+    private fun ringPairs(vertices: List<PolygonCoordinate>): List<String> =
+        vertices.mapNotNull { vertex ->
+            val lat = num(vertex.latitude, 5) ?: return@mapNotNull null
+            val lon = num(vertex.longitude, 5) ?: return@mapNotNull null
+            "${lat}_$lon"
+        }
 
     fun logApiFetchFailed(message: String?) {
         logger.error(

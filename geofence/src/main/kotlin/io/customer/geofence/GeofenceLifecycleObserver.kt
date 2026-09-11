@@ -26,13 +26,31 @@ internal class GeofenceLifecycleObserver(
     private val deliveryFlusher: PendingDeliveryFlusher<PendingGeofenceDelivery>,
     private val eventBus: EventBus,
     private val regionStore: GeofenceRegionStore,
+    private val permissionChecker: GeofencePermissionChecker,
     private val logger: GeofenceLogger,
     private val onForeground: () -> Unit
 ) : DefaultLifecycleObserver {
 
+    /** Last tier reported, so an unchanged permission is not re-logged on every foreground. */
+    private var lastReportedPermissionTier: String? = null
+
     override fun onStart(owner: LifecycleOwner) {
+        // Before the flush and the refresh, both of which behave differently depending on it.
+        reportPermissionTierIfChanged()
         flushPendingGeofenceDeliveries()
         onForeground()
+    }
+
+    /** Android has no permission observer, so the tier is polled on foreground entry. */
+    private fun reportPermissionTierIfChanged() {
+        val tier = when {
+            !permissionChecker.hasFineLocationPermission() -> GeofenceLogger.PERMISSION_DENIED
+            permissionChecker.isBackgroundDeliveryAvailable() -> GeofenceLogger.PERMISSION_ALWAYS
+            else -> GeofenceLogger.PERMISSION_WHEN_IN_USE
+        }
+        if (tier == lastReportedPermissionTier) return
+        lastReportedPermissionTier = tier
+        logger.logPermissionTier(tier)
     }
 
     private fun flushPendingGeofenceDeliveries() {

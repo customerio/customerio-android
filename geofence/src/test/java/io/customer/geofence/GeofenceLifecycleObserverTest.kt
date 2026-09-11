@@ -10,6 +10,7 @@ import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
 import io.mockk.verify
+import io.mockk.verifyOrder
 import kotlinx.serialization.json.JsonPrimitive
 import org.amshove.kluent.shouldBeEqualTo
 import org.junit.Test
@@ -22,15 +23,46 @@ class GeofenceLifecycleObserverTest {
     private val mockRegionStore: GeofenceRegionStore = mockk(relaxed = true)
     private val mockLogger: GeofenceLogger = mockk(relaxed = true)
 
+    // Granted-and-always by default; the two tier tests set their own.
+    private val mockPermissionChecker: GeofencePermissionChecker = mockk(relaxed = true) {
+        every { hasFineLocationPermission() } returns true
+        every { isBackgroundDeliveryAvailable() } returns true
+    }
+
     private var foregroundHookRuns = 0
 
     private val observer = GeofenceLifecycleObserver(
         deliveryFlusher = mockDeliveryFlusher,
         eventBus = mockEventBus,
         regionStore = mockRegionStore,
+        permissionChecker = mockPermissionChecker,
         logger = mockLogger,
         onForeground = { foregroundHookRuns++ }
     )
+
+    @Test
+    fun onStart_givenPermissionUnchanged_expectTierReportedOnceNotPerForeground() {
+        observer.onStart(owner)
+        observer.onStart(owner)
+        observer.onStart(owner)
+
+        verify(exactly = 1) { mockLogger.logPermissionTier(GeofenceLogger.PERMISSION_ALWAYS) }
+    }
+
+    @Test
+    fun onStart_givenPermissionDowngradedBetweenForegrounds_expectBothTiersReported() {
+        observer.onStart(owner)
+        every { mockPermissionChecker.isBackgroundDeliveryAvailable() } returns false
+        observer.onStart(owner)
+        every { mockPermissionChecker.hasFineLocationPermission() } returns false
+        observer.onStart(owner)
+
+        verifyOrder {
+            mockLogger.logPermissionTier(GeofenceLogger.PERMISSION_ALWAYS)
+            mockLogger.logPermissionTier(GeofenceLogger.PERMISSION_WHEN_IN_USE)
+            mockLogger.logPermissionTier(GeofenceLogger.PERMISSION_DENIED)
+        }
+    }
 
     @Test
     fun onStart_expectPendingDeliveriesFlushedOncePerForegroundEntry() {

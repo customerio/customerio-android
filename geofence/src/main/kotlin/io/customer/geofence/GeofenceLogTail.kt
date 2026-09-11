@@ -165,7 +165,8 @@ internal object GeofenceLogTail {
         if (location == null) return fields
 
         if (location.hasAccuracy()) fields.add("acc" to num(location.accuracy))
-        fields.add("age" to num(fixAgeSeconds(location)))
+        // Full precision, matching iOS's tail.
+        fields.add("age" to num(fixAgeSeconds(location), 6))
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && location.hasVerticalAccuracy()) {
             fields.add("vacc" to num(location.verticalAccuracyMeters))
         }

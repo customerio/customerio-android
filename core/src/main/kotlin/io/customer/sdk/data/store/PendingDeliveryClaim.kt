@@ -65,7 +65,7 @@ suspend fun <T : PendingDeliveryStore.PendingDeliveryEntry> PendingDeliveryStore
         // A false claim is either another channel taking the entry (now gone) or the removing write
         // failing (still present). Only the former was delivered elsewhere; a still-present entry was
         // claimed by no one, so retry rather than reporting success.
-        return if (get(entry.key) == null) {
+        return if (contains(entry.key) == false) {
             PendingDeliveryResult.AlreadyClaimed
         } else {
             PendingDeliveryResult.Retryable(null)
@@ -109,7 +109,7 @@ suspend fun <T : PendingDeliveryStore.PendingDeliveryEntry> PendingDeliveryStore
     isRetryable: (Throwable?) -> Boolean = { it is IOException },
     send: suspend () -> Result<Unit>
 ): PendingDeliveryResult {
-    if (loadAll().none { it.key == entry.key }) return PendingDeliveryResult.AlreadyClaimed
+    if (contains(entry.key) == false) return PendingDeliveryResult.AlreadyClaimed
 
     val result = send()
     return when {

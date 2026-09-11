@@ -10,6 +10,7 @@ import kotlin.concurrent.withLock
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonArray
 
 /**
  * Disk-backed queue of entries waiting on confirmation that they reached the
@@ -31,15 +32,16 @@ import kotlinx.serialization.json.Json
  * the queue never grows without bound when the primary delivery path is
  * failing.
  *
- * Mutating operations skip the write when nothing actually changed, so a
- * transient read failure (a corrupted file, a brief IO error) cannot silently
- * wipe legitimate entries.
+ * A read that fails is reported as unreadable rather than empty, and every mutating operation
+ * declines to write over it, so a brief IO error cannot silently wipe legitimate entries. Rows that
+ * are readable but cannot be decoded are dropped individually and counted — one bad row costs its
+ * own delivery, not the whole queue.
  */
 @InternalCustomerIOApi
 class PendingDeliveryStore<T : PendingDeliveryStore.PendingDeliveryEntry>(
     context: Context,
     fileName: String,
-    elementSerializer: KSerializer<T>,
+    private val elementSerializer: KSerializer<T>,
     private val logger: Logger,
     private val maxEntries: Int = DEFAULT_MAX_ENTRIES
 ) {
@@ -77,7 +79,9 @@ class PendingDeliveryStore<T : PendingDeliveryStore.PendingDeliveryEntry>(
             // A caller recovering a staged outbox attempt may append the same stable keys again.
             // Replace those rows atomically instead of duplicating one physical delivery.
             val incomingKeys = entries.mapTo(mutableSetOf(), PendingDeliveryEntry::key)
-            val all = readAll().filterNot { it.key in incomingKeys }.toMutableList()
+            // Entries we could not read are still on disk; writing without them discards them.
+            val current = readAll() ?: return@withLock false
+            val all = current.filterNot { it.key in incomingKeys }.toMutableList()
             all.addAll(entries)
             while (all.size > maxEntries) {
                 all.removeAt(0)
@@ -87,10 +91,18 @@ class PendingDeliveryStore<T : PendingDeliveryStore.PendingDeliveryEntry>(
     }
 
     /** Returns all pending entries in insertion order. */
-    fun loadAll(): List<T> = lock.withLock { readAll() }
+    fun loadAll(): List<T> = lock.withLock { readAll().orEmpty() }
 
     /** Returns the entry whose [PendingDeliveryEntry.key] equals [key], or null if none is present. */
-    fun get(key: String): T? = lock.withLock { readAll().firstOrNull { it.key == key } }
+    fun get(key: String): T? = lock.withLock { readAll()?.firstOrNull { it.key == key } }
+
+    /**
+     * Whether [key] is present, or `null` when the queue could not be read so presence is unknown.
+     *
+     * A caller deciding whether another channel already delivered an entry must not read unknown as
+     * absent: that reports a delivery which never happened and drops the entry from consideration.
+     */
+    fun contains(key: String): Boolean? = lock.withLock { readAll()?.any { it.key == key } }
 
     /**
      * Remove the entry whose [PendingDeliveryEntry.key] equals [key]. No-op
@@ -104,7 +116,9 @@ class PendingDeliveryStore<T : PendingDeliveryStore.PendingDeliveryEntry>(
      */
     fun remove(key: String): Boolean {
         return lock.withLock {
-            val entries = readAll()
+            // Unreadable is not absent: reporting removal would mark work done while the row
+            // is still on disk, waiting to be delivered again.
+            val entries = readAll() ?: return@withLock false
             val filtered = entries.filterNot { it.key == key }
             if (filtered.size == entries.size) return@withLock true
             writeAll(filtered)
@@ -126,7 +140,8 @@ class PendingDeliveryStore<T : PendingDeliveryStore.PendingDeliveryEntry>(
      * present for the other channel to claim.
      */
     fun claim(key: String): Boolean = lock.withLock {
-        val entries = readAll()
+        // A queue we cannot read yields no claim, leaving the entry for the other channel.
+        val entries = readAll() ?: return@withLock false
         val filtered = entries.filterNot { it.key == key }
         if (filtered.size == entries.size) return@withLock false
         writeAll(filtered)
@@ -141,7 +156,7 @@ class PendingDeliveryStore<T : PendingDeliveryStore.PendingDeliveryEntry>(
         if (keys.isEmpty()) return
         val keySet = keys.toSet()
         lock.withLock {
-            val entries = readAll()
+            val entries = readAll() ?: return@withLock
             val filtered = entries.filterNot { it.key in keySet }
             if (filtered.size == entries.size) return@withLock
             writeAll(filtered)
@@ -155,20 +170,55 @@ class PendingDeliveryStore<T : PendingDeliveryStore.PendingDeliveryEntry>(
         }
     }
 
-    private fun readAll(): List<T> {
+    /**
+     * Entries on disk, or `null` when the file is there but could not be read.
+     *
+     * Bytes we did read but cannot decode are the opposite case: those rows can never be delivered,
+     * and refusing to write would strand the queue behind them forever, so they are dropped.
+     */
+    private fun readAll(): List<T>? {
         if (!file.exists()) return emptyList()
-        return try {
-            val text = file.readText()
-            if (text.isBlank()) return emptyList()
-            Json.decodeFromString(listSerializer, text)
-        } catch (ex: Exception) {
+        val text = try {
+            file.readText()
+        } catch (ex: IOException) {
             logger.error(
-                "Failed to read pending delivery store ${file.name}; treating as empty",
+                "Could not read pending delivery store ${file.name}; leaving it untouched",
                 tag = TAG,
                 throwable = ex
             )
-            emptyList()
+            return null
         }
+        if (text.isBlank()) return emptyList()
+
+        val rows = try {
+            Json.parseToJsonElement(text).jsonArray
+        } catch (ex: Exception) {
+            // Readable bytes that are not a JSON array at all. Nothing here is recoverable, and
+            // reporting it unreadable would refuse every future write, so give up the contents.
+            logger.error(
+                "Pending delivery store ${file.name} is not a readable queue; dropping its contents",
+                tag = TAG,
+                throwable = ex
+            )
+            return emptyList()
+        }
+
+        var dropped = 0
+        val entries = rows.mapNotNull { row ->
+            try {
+                Json.decodeFromJsonElement(elementSerializer, row)
+            } catch (_: Exception) {
+                dropped++
+                null
+            }
+        }
+        if (dropped > 0) {
+            logger.error(
+                "Dropped $dropped undecodable row(s) from pending delivery store ${file.name}; kept ${entries.size}",
+                tag = TAG
+            )
+        }
+        return entries
     }
 
     private fun writeAll(entries: List<T>): Boolean {

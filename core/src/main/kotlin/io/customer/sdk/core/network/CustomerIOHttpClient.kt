@@ -17,7 +17,12 @@ data class HttpRequestParams(
     val method: HttpMethod = HttpMethod.POST,
     val queryParams: Map<String, String> = emptyMap(),
     val headers: Map<String, String> = emptyMap(),
-    val body: String? = null
+    val body: String? = null,
+    /**
+     * [path] already starts with its own API version, so the one configured on `apiHost` is dropped
+     * for this request. Lets a single endpoint move versions without moving `/track` with it.
+     */
+    val pathCarriesApiVersion: Boolean = false
 )
 
 @InternalCustomerIOApi
@@ -48,7 +53,7 @@ internal class CustomerIOHttpClientImpl : CustomerIOHttpClient {
 
     private fun doNetworkRequest(params: HttpRequestParams): Result<String> {
         val settings = globalPreferenceStore.getSettings() ?: return Result.failure(IllegalStateException("Setting not available"))
-        val apiHost = settings.apiHost
+        val apiHost = if (params.pathCarriesApiVersion) settings.apiHost.withoutApiVersion() else settings.apiHost
         val writeKey = settings.writeKey
 
         // `apiHost` already includes the API version prefix (e.g.,
@@ -121,3 +126,10 @@ internal class CustomerIOHttpClientImpl : CustomerIOHttpClient {
         }
     }
 }
+
+// `apiHost` conflates host and API version ("cdp.customer.io/v1"), and /track owns that version.
+// Anchored at the end on purpose: a host whose NAME carries a version keeps it, and a self-hosted
+// host with no version segment is left alone. Matches how iOS composes the same URL.
+private val API_VERSION_SEGMENT = Regex("/v\\d+$")
+
+internal fun String.withoutApiVersion(): String = trimEnd('/').replace(API_VERSION_SEGMENT, "")

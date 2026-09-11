@@ -28,7 +28,9 @@ class GeofenceApiServiceTest {
         service.fetchGeofences(GeofenceLocation(latitude = 1.0, longitude = 2.0))
 
         capturedParams.captured.method shouldBeEqualTo HttpMethod.POST
-        capturedParams.captured.path shouldBeEqualTo "/geofences/nearest"
+        capturedParams.captured.path shouldBeEqualTo "/v2/geofences/nearest"
+        // Without this the client would compose /v1/v2/geofences/nearest off the region host.
+        capturedParams.captured.pathCarriesApiVersion shouldBeEqualTo true
     }
 
     @Test

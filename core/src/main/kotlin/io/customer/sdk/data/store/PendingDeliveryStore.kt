@@ -90,8 +90,16 @@ class PendingDeliveryStore<T : PendingDeliveryStore.PendingDeliveryEntry>(
         }
     }
 
-    /** Returns all pending entries in insertion order. */
+    /** Returns all pending entries in insertion order, reading an unreadable queue as empty. */
     fun loadAll(): List<T> = lock.withLock { readAll().orEmpty() }
+
+    /**
+     * All pending entries in insertion order, or `null` when the queue could not be read.
+     *
+     * The distinction [contains] draws, for a caller that drains: reading unreadable as empty
+     * reports the work finished while the rows are still on disk.
+     */
+    fun loadAllOrNull(): List<T>? = lock.withLock { readAll() }
 
     /** Returns the entry whose [PendingDeliveryEntry.key] equals [key], or null if none is present. */
     fun get(key: String): T? = lock.withLock { readAll()?.firstOrNull { it.key == key } }

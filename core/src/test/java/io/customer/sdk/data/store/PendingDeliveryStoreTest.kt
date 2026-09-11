@@ -8,7 +8,9 @@ import java.io.File
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import kotlinx.serialization.Serializable
+import org.amshove.kluent.shouldBeEmpty
 import org.amshove.kluent.shouldBeEqualTo
+import org.amshove.kluent.shouldBeNull
 import org.amshove.kluent.shouldBeTrue
 import org.amshove.kluent.shouldContain
 import org.amshove.kluent.shouldNotBe
@@ -125,6 +127,34 @@ class PendingDeliveryStoreTest : RobolectricTest() {
         storeFile().mkdirs()
 
         store.appendAll(listOf(entry("a"))) shouldBeEqualTo false
+    }
+
+    @Test
+    fun loadAllOrNull_givenUnreadableFile_expectNullNotEmpty() {
+        val store = newStore()
+        store.append(entry("a"))
+        // A directory in the file's place is the only unreadable state a test can force here.
+        storeFile().delete()
+        storeFile().mkdirs()
+
+        // The distinction a draining caller acts on; loadAll cannot tell these apart.
+        store.loadAllOrNull().shouldBeNull()
+        store.loadAll().shouldBeEmpty()
+    }
+
+    @Test
+    fun loadAllOrNull_givenReadableQueue_expectEntriesInOrder() {
+        val store = newStore()
+        store.append(entry("a"))
+        store.append(entry("b"))
+
+        store.loadAllOrNull()?.map { it.id } shouldBeEqualTo listOf("a", "b")
+    }
+
+    @Test
+    fun loadAllOrNull_givenNoFile_expectEmptyNotNull() {
+        // Never written is readable and empty, and must not read as a failure.
+        newStore().loadAllOrNull() shouldBeEqualTo emptyList()
     }
 
     @Test

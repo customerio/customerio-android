@@ -3,6 +3,7 @@ package io.customer.geofence.di
 import com.google.android.gms.location.GeofencingClient
 import com.google.android.gms.location.LocationServices
 import io.customer.geofence.GeofenceCooldownFilter
+import io.customer.geofence.GeofenceCrossingPipeline
 import io.customer.geofence.GeofenceDistanceFilter
 import io.customer.geofence.GeofenceJsonSerializer
 import io.customer.geofence.GeofenceLogger
@@ -51,6 +52,20 @@ internal val AndroidSDKComponent.geofenceManager: GeofenceRegistrar
             client = geofencingClient,
             receiverToggle = geofenceReceiverToggle,
             permissionChecker = geofencePermissionChecker,
+            logger = SDKComponent.geofenceLogger
+        )
+    }
+
+// Singleton: the pipeline's transition mutex must outlive a single broadcast delivery.
+internal val AndroidSDKComponent.geofenceCrossingPipeline: GeofenceCrossingPipeline
+    get() = singleton {
+        GeofenceCrossingPipeline(
+            regionStore = geofenceRegionStore,
+            secureUserStore = secureUserStore,
+            transitionEmitter = geofenceTransitionEmitter,
+            services = geofenceServices,
+            registrar = geofenceManager,
+            clock = SDKComponent.clock,
             logger = SDKComponent.geofenceLogger
         )
     }

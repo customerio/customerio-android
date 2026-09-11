@@ -3,6 +3,7 @@ package io.customer.sdk.data.store
 import io.customer.commontest.core.RobolectricTest
 import io.customer.sdk.core.util.Logger
 import io.mockk.mockk
+import io.mockk.verify
 import java.io.File
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
@@ -11,6 +12,7 @@ import org.amshove.kluent.shouldBeEqualTo
 import org.amshove.kluent.shouldBeTrue
 import org.amshove.kluent.shouldContain
 import org.amshove.kluent.shouldNotBe
+import org.junit.After
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -42,6 +44,13 @@ class PendingDeliveryStoreTest : RobolectricTest() {
         ).also { it.removeAll() }
 
     private fun storeFile(): File = File(contextMock.applicationContext.filesDir, fileName)
+
+    // Several tests put a directory in the file's place. Without this the next test in the class
+    // fails too, since the store cannot rename over it.
+    @After
+    fun clearStoreFile() {
+        storeFile().deleteRecursively()
+    }
 
     @Test
     fun append_givenSingleEntry_expectLoadAllReturnsIt() {
@@ -386,6 +395,91 @@ class PendingDeliveryStoreTest : RobolectricTest() {
         store.removeAll(listOf("a", "b"))
 
         storeFile().readText() shouldBeEqualTo corrupted
+    }
+
+    @Test
+    fun loadAll_givenOneUndecodableRow_expectTheOthersSurvive() {
+        val store = newStore()
+        storeFile().writeText(
+            """[{"id":"a","payload":"p-a"},{"unexpected":true},{"id":"c","payload":"p-c"}]"""
+        )
+
+        store.loadAll().map { it.id } shouldBeEqualTo listOf("a", "c")
+    }
+
+    @Test
+    fun append_givenOneUndecodableRow_expectTheOthersKept() {
+        // The whole point: a single bad row used to make the next append rewrite the file
+        // without any of the rows that were still queued behind it.
+        val store = newStore()
+        storeFile().writeText(
+            """[{"id":"a","payload":"p-a"},{"unexpected":true},{"id":"c","payload":"p-c"}]"""
+        )
+
+        store.append(entry("d")).shouldBeTrue()
+
+        store.loadAll().map { it.id } shouldBeEqualTo listOf("a", "c", "d")
+    }
+
+    @Test
+    fun append_givenUnreadableFile_expectRefusedAndNothingWritten() {
+        val store = newStore()
+        store.append(entry("queued")).shouldBeTrue()
+        // A directory in the file's place fails the read the way an IO error would, without
+        // depending on filesystem permissions that vary by machine.
+        storeFile().delete()
+        storeFile().mkdirs()
+
+        store.append(entry("new")) shouldBeEqualTo false
+
+        storeFile().isDirectory.shouldBeTrue()
+        // The refusal has to happen before the write is attempted. Asserting only on the false
+        // return would pass without it too, since renaming over a directory fails anyway — so
+        // assert the write was never tried.
+        verify(exactly = 0) {
+            mockLogger.error(match { it.contains("Failed to write") }, any(), any())
+        }
+    }
+
+    @Test
+    fun remove_givenUnreadableFile_expectNotReportedAsRemoved() {
+        // Reporting true here tells a caller its delivery is done while the row is still on disk.
+        val store = newStore()
+        storeFile().delete()
+        storeFile().mkdirs()
+
+        store.remove("any-id") shouldBeEqualTo false
+    }
+
+    @Test
+    fun claim_givenUnreadableFile_expectNotClaimed() {
+        // A claim that succeeds without removing the row lets a second channel claim it too, and
+        // push metrics carry no dedup id, so that double-counts.
+        val store = newStore()
+        storeFile().delete()
+        storeFile().mkdirs()
+
+        store.claim("any-id") shouldBeEqualTo false
+    }
+
+    @Test
+    fun contains_givenUnreadableFile_expectUnknownRatherThanAbsent() {
+        // A claim helper reads absent as "another channel delivered it", so unknown must not
+        // collapse to absent — that reports a delivery that never happened.
+        val store = newStore()
+        storeFile().delete()
+        storeFile().mkdirs()
+
+        store.contains("any-id") shouldBeEqualTo null
+    }
+
+    @Test
+    fun contains_givenReadableFile_expectPresenceReported() {
+        val store = newStore()
+        store.append(entry("here"))
+
+        store.contains("here") shouldBeEqualTo true
+        store.contains("absent") shouldBeEqualTo false
     }
 
     @Test

@@ -46,7 +46,7 @@ class AsyncGeofenceEventTrackerTest : RobolectricTest() {
     @Test
     fun trackEvent_givenPendingEntryAndSuccess_expectSentThenRemoved() = runTest {
         val entry = PendingGeofenceDelivery("biz-1", Event.GeofenceTransition.ENTER, 42L, "user-42", transitionId = "tid-1")
-        every { mockStore.loadAll() } returns listOf(entry)
+        every { mockStore.contains("biz-1_ENTER_tid-1_none") } returns true
         coEvery { mockTracker.trackEvent(any()) } returns Result.success(Unit)
 
         asyncTracker.trackEvent(entry)
@@ -59,7 +59,7 @@ class AsyncGeofenceEventTrackerTest : RobolectricTest() {
     @Test
     fun trackEvent_givenEntryAlreadyDelivered_expectNoSend() = runTest {
         // Foreground flush already delivered + removed this entry: do not re-send.
-        every { mockStore.loadAll() } returns emptyList()
+        every { mockStore.contains(any()) } returns false
         val entry = PendingGeofenceDelivery("biz-3", Event.GeofenceTransition.ENTER, 7L, "user-42", transitionId = "tid-3")
 
         asyncTracker.trackEvent(entry)
@@ -69,11 +69,24 @@ class AsyncGeofenceEventTrackerTest : RobolectricTest() {
     }
 
     @Test
+    fun trackEvent_givenPresenceUnknown_expectSentRatherThanAssumedDelivered() = runTest {
+        // An unreadable queue is not proof the entry was delivered elsewhere. Delivery is
+        // at-least-once and deduped backend-side, so sending is the safe direction.
+        val entry = PendingGeofenceDelivery("biz-6", Event.GeofenceTransition.ENTER, 13L, "user-42", transitionId = "tid-6")
+        every { mockStore.contains(any()) } returns null
+        coEvery { mockTracker.trackEvent(any()) } returns Result.success(Unit)
+
+        asyncTracker.trackEvent(entry)
+
+        coVerify(exactly = 1) { mockTracker.trackEvent(entry) }
+    }
+
+    @Test
     fun trackEvent_givenStoreThrows_expectLoggedNotCrashed() = runTest {
         // The fire-and-forget scope has no exception handler — an escaping throw
         // would crash the host. The entry stays in store for the foreground flush.
         val entry = PendingGeofenceDelivery("biz-5", Event.GeofenceTransition.ENTER, 11L, "user-42", transitionId = "tid-5")
-        every { mockStore.loadAll() } throws IllegalStateException("corrupt store")
+        every { mockStore.contains(any()) } throws IllegalStateException("corrupt store")
 
         asyncTracker.trackEvent(entry)
 
@@ -84,7 +97,7 @@ class AsyncGeofenceEventTrackerTest : RobolectricTest() {
     @Test
     fun trackEvent_givenFailure_expectEntryKeptForFlush() = runTest {
         val entry = PendingGeofenceDelivery("biz-4", Event.GeofenceTransition.ENTER, 9L, "user-42", transitionId = "tid-4")
-        every { mockStore.loadAll() } returns listOf(entry)
+        every { mockStore.contains("biz-4_ENTER_tid-4_none") } returns true
         coEvery { mockTracker.trackEvent(any()) } returns
             Result.failure(IOException("network down"))
 
@@ -102,7 +115,7 @@ class AsyncGeofenceEventTrackerTest : RobolectricTest() {
 
         asyncTracker.trackEvent(entry)
 
-        verify(exactly = 0) { mockStore.loadAll() }
+        verify(exactly = 0) { mockStore.contains(any()) }
         coVerify(exactly = 0) { mockTracker.trackEvent(any()) }
         verify { mockLogger.logEventDeliveryDeferredAnonymous("biz-anon", "ENTER") }
     }

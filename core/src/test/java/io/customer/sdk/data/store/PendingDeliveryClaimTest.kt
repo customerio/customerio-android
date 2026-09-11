@@ -3,11 +3,13 @@ package io.customer.sdk.data.store
 import io.customer.commontest.core.RobolectricTest
 import io.customer.sdk.core.util.Logger
 import io.mockk.mockk
+import java.io.File
 import java.io.IOException
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.Serializable
 import org.amshove.kluent.shouldBeEqualTo
 import org.amshove.kluent.shouldBeInstanceOf
+import org.junit.After
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -16,18 +18,46 @@ import org.robolectric.RobolectricTestRunner
 class PendingDeliveryClaimTest : RobolectricTest() {
 
     private val mockLogger: Logger = mockk(relaxed = true)
+    private val fileName = "cio_test_claim_send_restore.json"
 
     @Serializable
     private data class TestEntry(val id: String) : PendingDeliveryStore.PendingDeliveryEntry {
         override val key: String get() = id
     }
 
+    private fun storeFile(): File = File(contextMock.applicationContext.filesDir, fileName)
+
+    // A test that leaves a directory in the file's place makes every later test in the class fail,
+    // since the store cannot rename over it. One failure should stay one failure.
+    @After
+    fun clearStoreFile() {
+        storeFile().deleteRecursively()
+    }
+
     private fun newStore() = PendingDeliveryStore(
         context = contextMock,
-        fileName = "cio_test_claim_send_restore.json",
+        fileName = fileName,
         elementSerializer = TestEntry.serializer(),
         logger = mockLogger
     ).also { it.removeAll() }
+
+    @Test
+    fun claimSendRestore_givenUnreadableStore_expectRetryableNotAlreadyClaimed() = runBlocking<Unit> {
+        // Exactly-once has no dedup id behind it, so reporting a delivery that never happened
+        // loses the entry outright. Unknown presence must defer, never claim success.
+        val store = newStore()
+        storeFile().delete()
+        storeFile().mkdirs()
+        var sendInvoked = false
+
+        val result = store.claimSendRestore(TestEntry("unknown")) {
+            sendInvoked = true
+            Result.success(Unit)
+        }
+
+        result.shouldBeInstanceOf<PendingDeliveryResult.Retryable>()
+        sendInvoked shouldBeEqualTo false
+    }
 
     @Test
     fun claimSendRestore_givenEntryNotPresent_expectAlreadyClaimedAndSendNotInvoked() = runBlocking<Unit> {

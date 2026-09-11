@@ -4,6 +4,7 @@ import io.customer.geofence.GeofenceConfig
 import io.customer.geofence.GeofenceConstants
 import io.customer.geofence.GeofenceRegion
 import io.customer.geofence.GeofenceTransitionType
+import io.customer.geofence.PolygonDropReason
 import io.customer.geofence.di.geofenceLogger
 import io.customer.geofence.polygon.PolygonCoordinate
 import io.customer.geofence.polygon.PolygonGeometry
@@ -208,7 +209,7 @@ internal fun GeofenceApiRegion.toDomain(
     return when (shape?.trim()?.lowercase()?.takeIf(String::isNotEmpty)) {
         null, CIRCLE_SHAPE -> {
             if (geometry != null || enclosingCircle != null) {
-                SDKComponent.geofenceLogger.logPolygonDropped(id, "shape discriminator is missing or inconsistent")
+                SDKComponent.geofenceLogger.logPolygonDropped(id, PolygonDropReason.UNDESCRIBED_SHAPE)
                 null
             } else {
                 toCircleRegionOrNull()
@@ -218,7 +219,7 @@ internal fun GeofenceApiRegion.toDomain(
             val polygonGeometry = geometry
             val polygonWakeCircle = enclosingCircle
             if (polygonGeometry == null || polygonWakeCircle == null) {
-                SDKComponent.geofenceLogger.logPolygonDropped(id, "polygon geometry or enclosing circle is missing")
+                SDKComponent.geofenceLogger.logPolygonDropped(id, PolygonDropReason.UNUSABLE_POLYGON)
                 null
             } else {
                 toPolygonRegionOrNull(polygonGeometry, polygonWakeCircle, polygonSupport)
@@ -274,7 +275,7 @@ private fun GeofenceApiRegion.toPolygonRegionOrNull(
     }
     val polygon = geometry.toPolygonGeometryOrNull()
     if (polygon == null) {
-        logger.logPolygonDropped(id, "ring is malformed, unsupported or fails validation")
+        logger.logPolygonDropped(id, PolygonDropReason.RING_UNBUILDABLE)
         return null
     }
     val baseRadiusMeters = enclosingCircle.baseRadiusMeters
@@ -295,7 +296,7 @@ private fun GeofenceApiRegion.toPolygonRegionOrNull(
         )
     }
     if (trigger == null) {
-        logger.logPolygonDropped(id, "enclosing circle is missing, its centre is out of range, or its radius is unusable")
+        logger.logPolygonDropped(id, PolygonDropReason.UNUSABLE_CIRCLE)
         return null
     }
     return GeofenceRegion(

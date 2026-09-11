@@ -9,6 +9,7 @@ import io.customer.geofence.GeofenceJsonSerializer
 import io.customer.geofence.GeofenceLogger
 import io.customer.geofence.GeofenceRegion
 import io.customer.geofence.GeofenceTransitionType
+import io.customer.geofence.PolygonDropReason
 import io.customer.geofence.distanceTo
 import io.customer.geofence.polygon.EnabledPolygonSupport
 import io.customer.geofence.polygon.PolygonCoordinate
@@ -157,7 +158,7 @@ class GeofenceApiResponseTest : RobolectricTest() {
         )
 
         regions.map(GeofenceRegion::id) shouldBeEqualTo listOf("circle")
-        verify { mockLogger.logPolygonDropped("missing-shape", "shape discriminator is missing or inconsistent") }
+        verify { mockLogger.logPolygonDropped("missing-shape", PolygonDropReason.UNDESCRIBED_SHAPE) }
     }
 
     @Test
@@ -263,7 +264,7 @@ class GeofenceApiResponseTest : RobolectricTest() {
 
         regions.map(GeofenceRegion::id) shouldBeEqualTo listOf("circle")
         verify {
-            mockLogger.logPolygonDropped("blank-with-geometry", "shape discriminator is missing or inconsistent")
+            mockLogger.logPolygonDropped("blank-with-geometry", PolygonDropReason.UNDESCRIBED_SHAPE)
         }
     }
 
@@ -293,7 +294,7 @@ class GeofenceApiResponseTest : RobolectricTest() {
         )
 
         regions.map(GeofenceRegion::id) shouldBeEqualTo listOf("circle")
-        verify { mockLogger.logPolygonDropped("not-a-number", "ring is malformed, unsupported or fails validation") }
+        verify { mockLogger.logPolygonDropped("not-a-number", PolygonDropReason.RING_UNBUILDABLE) }
     }
 
     @Test
@@ -322,10 +323,7 @@ class GeofenceApiResponseTest : RobolectricTest() {
 
         regions.map(GeofenceRegion::id) shouldBeEqualTo listOf("circle")
         verify {
-            mockLogger.logPolygonDropped(
-                "bad-center",
-                "enclosing circle is missing, its centre is out of range, or its radius is unusable"
-            )
+            mockLogger.logPolygonDropped("bad-center", PolygonDropReason.UNUSABLE_CIRCLE)
         }
     }
 
@@ -351,7 +349,7 @@ class GeofenceApiResponseTest : RobolectricTest() {
         )
 
         regions.map(GeofenceRegion::id) shouldBeEqualTo listOf("circle")
-        verify { mockLogger.logPolygonDropped("missing-circle", "polygon geometry or enclosing circle is missing") }
+        verify { mockLogger.logPolygonDropped("missing-circle", PolygonDropReason.UNUSABLE_POLYGON) }
     }
 
     @Test

@@ -115,72 +115,83 @@ class GeofenceLogTailTest : RobolectricTest() {
         val name: String,
         val ev: String,
         val requiredKeys: List<String>,
+        /** The method this row exercises, by reference so a rename cannot leave it behind. */
+        val method: String,
+        /** Pinned per row: `io` decides what replay feeds back and what it compares. */
+        val io: String = "out",
         val run: (GeofenceLogger) -> Unit
     )
 
     private fun invocations(): List<Row> {
         val fix = location()
         return listOf(
-            Row("geofencesRegistered", "registration.added", listOf("nadd")) { it.logGeofencesRegistered(19) },
-            Row("regionsRegisteredIds", "registration.applied", listOf("n", "ids", "mvmt")) { it.logRegionsRegisteredIds(listOf("a", "b"), "cio_movement_trigger") },
-            Row("businessKept", "registration.kept", listOf("nkeep", "why")) { it.logBusinessGeofencesKept(4) },
-            Row("geofencesRemoved", "registration.removed", listOf("nrem")) { it.logGeofencesRemoved(2) },
-            Row("geofencesCleared", "registration.cleared", listOf("why")) { it.logGeofencesCleared() },
-            Row("registrationFailed", "registration.failed", listOf("ok", "why")) { it.logRegistrationFailed("GMS unavailable") },
-            Row("removalFailed", "registration.failed", listOf("ok", "op", "why")) { it.logRemovalFailed("GMS unavailable") },
-            Row("invalidRegionDropped", "registration.rejected", listOf("id", "why")) { it.logInvalidRegionDropped("notl core") },
-            Row("regionMappingFailed", "registration.rejected", listOf("id", "why")) { it.logRegionMappingFailed("notl_core", "bad radius") },
-            Row("rankEvaluated", "rank.evaluated", listOf("ncand", "n", "ranked", "evicted")) { it.logRankEvaluated(30, 2, { listOf("a", "b") }, { listOf("c") }, { mapOf("a" to 120.0, "b" to 340.0) }) },
-            Row("movementTriggerRegistered", "movement.registered", listOf("rad")) { it.logMovementTriggerRegistered(43.2, -79.0, 500.0) },
-            Row("missingPermission", "permission.changed", listOf("perm", "why")) { it.logMissingPermission("ACCESS_FINE_LOCATION") },
-            Row("backgroundUnavailable", "permission.changed", listOf("perm", "ctx")) { it.logBackgroundDeliveryUnavailable("app-launch") },
-            Row("moduleInitialized", "module.init", listOf("launch")) { it.logModuleInitialized(GeofenceLaunchReason.APP_START) },
-            Row("moduleWoke", "module.wake", listOf("launch")) { it.logModuleWoke(GeofenceLaunchReason.BOOT_RESTORE) },
-            Row("missingLocationModule", "module.init", listOf("ok", "why")) { it.logMissingLocationModule() },
-            Row("stateResetOnSignOut", "module.reset", listOf("why")) { it.logGeofenceStateResetOnSignOut() },
-            Row("callbackReceived", "os.callback.received", listOf("ids", "n", "t", "fixsrc", "acc", "age", "sim")) { it.logCallbackReceived(listOf("notl_core"), "ENTER", fix, GeofenceLogTail.FixSource.OS_TRIGGER) },
-            Row("callbackReceivedNoFix", "os.callback.received", listOf("fixsrc")) { it.logCallbackReceived(listOf("notl_core"), "EXIT", null, GeofenceLogTail.FixSource.NONE) },
-            Row("transitionWithoutLocation", "os.callback.no_location", listOf("fixsrc", "why")) { it.logTransitionWithoutLocation() },
-            Row("unknownTransition", "os.callback.dropped", listOf("id", "gms", "why")) { it.logUnknownTransition("notl_core", 4) },
-            Row("info", "info", listOf("why")) { it.logInfo("broadcast_no_triggering_geofences") },
-            Row("movementIgnoredNonExit", "os.callback.dropped", listOf("t", "why")) { it.logMovementTriggerIgnoredNonExit("ENTER") },
-            Row("receiverSkipped", "os.callback.dropped", listOf("why")) { it.logReceiverSkipped("no identified user") },
-            Row("geofencingError", "os.error", listOf("ok", "code")) { it.logGeofencingError(1000) },
-            Row("transitionAccepted", "transition.accepted", listOf("id", "t", "n")) { it.logTransitionAccepted("notl_core", "ENTER", 2) },
-            Row("transitionSuppressed", "transition.suppressed", listOf("id", "t", "why", "cd")) { it.logTransitionSuppressed("notl_core", "ENTER", 42.0) },
-            Row("initialEnterInside", "transition.synthesized", listOf("id", "t", "why")) { it.logInitialEnterInside("notl_core") },
-            Row("droppedUnknownId", "transition.dropped", listOf("id", "why")) { it.logTransitionDroppedUnknownId("notl_core") },
-            Row("enterDroppedAlreadyReported", "transition.dropped", listOf("id", "t", "why")) { it.logEnterDroppedAlreadyReported("notl_core") },
-            Row("exitDroppedNeverEntered", "transition.dropped", listOf("id", "t", "why")) { it.logExitDroppedNeverEntered("notl_core") },
-            Row("droppedAnonymous", "transition.dropped", listOf("id", "t", "why")) { it.logTransitionDroppedAnonymous("notl_core", "EXIT") },
-            Row("syncTriggered", "sync.triggered", listOf("why")) { it.logSyncTriggered("app-launch") },
-            Row("syncSkipped", "sync.skipped", listOf("why")) { it.logSyncSkipped("no identified user") },
-            Row("syncSkippedNoLocation", "sync.skipped", listOf("why", "ctx")) { it.logSyncSkippedNoLocation("app-launch") },
-            Row("syncSkippedInvalidLocation", "sync.skipped", listOf("why", "ctx")) { it.logSyncSkippedInvalidLocation("app-launch", 0.0, 0.0) },
-            Row("syncSkippedNoPermission", "sync.skipped", listOf("why", "ctx")) { it.logSyncSkippedNoPermission("boot-restore") },
-            Row("syncSkippedFresh", "sync.skipped", listOf("why")) { it.logSyncSkippedFresh() },
-            Row("syncFailed", "sync.failed", listOf("ok", "why")) { it.logSyncFailed("timeout") },
-            Row("syncSucceeded", "sync.completed", listOf("n", "mvmt")) { it.logSyncSucceeded(19, true) },
-            Row("apiFetchResult", "api.fetch.result", listOf("ok", "n", "ms")) { it.logApiFetchResult(30, 420L) },
+            Row("geofencesRegistered", "registration.added", listOf("nadd"), GeofenceLogger::logGeofencesRegistered.name) { it.logGeofencesRegistered(19) },
+            Row("regionsRegisteredIds", "registration.applied", listOf("n", "ids", "mvmt"), GeofenceLogger::logRegionsRegisteredIds.name) { it.logRegionsRegisteredIds(listOf("a", "b"), "cio_movement_trigger") },
+            Row("businessKept", "registration.kept", listOf("nkeep", "why"), GeofenceLogger::logBusinessGeofencesKept.name) { it.logBusinessGeofencesKept(4) },
+            Row("geofencesRemoved", "registration.removed", listOf("nrem"), GeofenceLogger::logGeofencesRemoved.name) { it.logGeofencesRemoved(2) },
+            Row("geofencesCleared", "registration.cleared", listOf("why"), GeofenceLogger::logGeofencesCleared.name) { it.logGeofencesCleared() },
+            Row("registrationFailed", "registration.failed", listOf("ok", "why"), GeofenceLogger::logRegistrationFailed.name) { it.logRegistrationFailed("GMS unavailable") },
+            Row("removalFailed", "registration.failed", listOf("ok", "op", "why"), GeofenceLogger::logRemovalFailed.name) { it.logRemovalFailed("GMS unavailable") },
+            Row("invalidRegionDropped", "registration.rejected", listOf("id", "why"), GeofenceLogger::logInvalidRegionDropped.name) { it.logInvalidRegionDropped("notl core") },
+            Row("regionMappingFailed", "registration.rejected", listOf("id", "why"), GeofenceLogger::logRegionMappingFailed.name) { it.logRegionMappingFailed("notl_core", "bad radius") },
+            Row("rankEvaluated", "rank.evaluated", listOf("ncand", "n", "ranked", "evicted"), GeofenceLogger::logRankEvaluated.name) { it.logRankEvaluated(30, 2, { listOf("a", "b") }, { listOf("c") }, { mapOf("a" to 120.0, "b" to 340.0) }) },
+            Row("movementTriggerRegistered", "movement.registered", listOf("rad"), GeofenceLogger::logMovementTriggerRegistered.name) { it.logMovementTriggerRegistered(43.2, -79.0, 500.0) },
+            Row("missingPermission", "permission.changed", listOf("perm", "why"), GeofenceLogger::logMissingPermission.name, io = "obs") { it.logMissingPermission("ACCESS_FINE_LOCATION") },
+            Row("backgroundUnavailable", "permission.changed", listOf("perm", "ctx"), GeofenceLogger::logBackgroundDeliveryUnavailable.name, io = "obs") { it.logBackgroundDeliveryUnavailable("app-launch") },
+            Row("moduleInitialized", "module.init", listOf("launch"), GeofenceLogger::logModuleInitialized.name, io = "obs") { it.logModuleInitialized(GeofenceLaunchReason.APP_START) },
+            Row("moduleWoke", "module.wake", listOf("launch"), GeofenceLogger::logModuleWoke.name, io = "obs") { it.logModuleWoke(GeofenceLaunchReason.BOOT_RESTORE) },
+            Row("missingLocationModule", "module.init", listOf("ok", "why"), GeofenceLogger::logMissingLocationModule.name, io = "obs") { it.logMissingLocationModule() },
+            Row("stateResetOnSignOut", "module.reset", listOf("why"), GeofenceLogger::logGeofenceStateResetOnSignOut.name) { it.logGeofenceStateResetOnSignOut() },
+            Row("callbackReceived", "os.callback.received", listOf("ids", "n", "t", "fixsrc", "acc", "age", "sim"), GeofenceLogger::logCallbackReceived.name, io = "in") { it.logCallbackReceived(listOf("notl_core"), "ENTER", fix, GeofenceLogTail.FixSource.OS_TRIGGER) },
+            Row("callbackReceivedNoFix", "os.callback.received", listOf("fixsrc"), GeofenceLogger::logCallbackReceived.name, io = "in") { it.logCallbackReceived(listOf("notl_core"), "EXIT", null, GeofenceLogTail.FixSource.NONE) },
+            Row("transitionWithoutLocation", "os.callback.no_location", listOf("fixsrc", "why"), GeofenceLogger::logTransitionWithoutLocation.name, io = "obs") { it.logTransitionWithoutLocation() },
+            Row("unknownTransition", "os.callback.dropped", listOf("id", "gms", "why"), GeofenceLogger::logUnknownTransition.name, io = "in") { it.logUnknownTransition("notl_core", 4) },
+            Row("info", "info", listOf("why"), GeofenceLogger::logInfo.name, io = "obs") { it.logInfo("broadcast_no_triggering_geofences") },
+            Row("movementIgnoredNonExit", "os.callback.dropped", listOf("t", "why"), GeofenceLogger::logMovementTriggerIgnoredNonExit.name, io = "in") { it.logMovementTriggerIgnoredNonExit("ENTER") },
+            Row("receiverSkipped", "os.callback.dropped", listOf("why"), GeofenceLogger::logReceiverSkipped.name, io = "in") { it.logReceiverSkipped("no identified user") },
+            Row("geofencingError", "os.error", listOf("ok", "code"), GeofenceLogger::logGeofencingError.name, io = "in") { it.logGeofencingError(1000) },
+            Row("transitionAccepted", "transition.accepted", listOf("id", "t", "n"), GeofenceLogger::logTransitionAccepted.name) { it.logTransitionAccepted("notl_core", "ENTER", 2) },
+            Row("transitionSuppressed", "transition.suppressed", listOf("id", "t", "why", "cd"), GeofenceLogger::logTransitionSuppressed.name) { it.logTransitionSuppressed("notl_core", "ENTER", 42.0) },
+            Row("initialEnterInside", "transition.synthesized", listOf("id", "t", "why"), GeofenceLogger::logInitialEnterInside.name) { it.logInitialEnterInside("notl_core") },
+            Row("droppedUnknownId", "transition.dropped", listOf("id", "why"), GeofenceLogger::logTransitionDroppedUnknownId.name) { it.logTransitionDroppedUnknownId("notl_core") },
+            Row("enterDroppedAlreadyReported", "transition.dropped", listOf("id", "t", "why"), GeofenceLogger::logEnterDroppedAlreadyReported.name) { it.logEnterDroppedAlreadyReported("notl_core") },
+            Row("exitDroppedNeverEntered", "transition.dropped", listOf("id", "t", "why"), GeofenceLogger::logExitDroppedNeverEntered.name) { it.logExitDroppedNeverEntered("notl_core") },
+            Row("droppedAnonymous", "transition.dropped", listOf("id", "t", "why"), GeofenceLogger::logTransitionDroppedAnonymous.name) { it.logTransitionDroppedAnonymous("notl_core", "EXIT") },
+            Row("syncTriggered", "sync.triggered", listOf("why"), GeofenceLogger::logSyncTriggered.name) { it.logSyncTriggered("app-launch") },
+            Row("syncSkipped", "sync.skipped", listOf("why"), GeofenceLogger::logSyncSkipped.name) { it.logSyncSkipped("no identified user") },
+            Row("syncSkippedNoLocation", "sync.skipped", listOf("why", "ctx"), GeofenceLogger::logSyncSkippedNoLocation.name) { it.logSyncSkippedNoLocation("app-launch") },
+            Row("syncSkippedInvalidLocation", "sync.skipped", listOf("why", "ctx"), GeofenceLogger::logSyncSkippedInvalidLocation.name) { it.logSyncSkippedInvalidLocation("app-launch", 0.0, 0.0) },
+            Row("syncSkippedNoPermission", "sync.skipped", listOf("why", "ctx"), GeofenceLogger::logSyncSkippedNoPermission.name) { it.logSyncSkippedNoPermission("boot-restore") },
+            Row("syncSkippedFresh", "sync.skipped", listOf("why"), GeofenceLogger::logSyncSkippedFresh.name) { it.logSyncSkippedFresh() },
+            Row("syncFailed", "sync.failed", listOf("ok", "why"), GeofenceLogger::logSyncFailed.name) { it.logSyncFailed("timeout") },
+            Row("syncSucceeded", "sync.completed", listOf("n", "mvmt"), GeofenceLogger::logSyncSucceeded.name) { it.logSyncSucceeded(19, true) },
+            Row("apiFetchResult", "api.fetch.result", listOf("ok", "n", "ms"), GeofenceLogger::logApiFetchResult.name, io = "in") { it.logApiFetchResult(30, 420L) },
+            Row("apiFetchFailed", "api.fetch.result", listOf("ok", "why"), GeofenceLogger::logApiFetchFailed.name, io = "in") { it.logApiFetchFailed("timeout") },
 
-            Row("unknownApiTransitionType", "api.transition.unknown", listOf("ok", "why", "value")) { it.logUnknownApiTransitionType("dwell") },
-            Row("movementRearmed", "movement.rearmed", listOf("why")) { it.logMovementRearmedAfterFailedRefresh() },
-            Row("storageLoaded", "storage.loaded", listOf("n", "anchor")) { it.logStorageLoaded({ 30 }, true) },
-            Row("persistFailed", "storage.write.failed", listOf("id", "t", "ok")) { it.logPersistFailed("notl_core", "ENTER") },
-            Row("deliveryRetryable", "delivery.failed", listOf("id", "t", "ok", "retry", "why")) { it.logEventDeliveryRetryable("notl_core", "ENTER", "socket timeout") },
-            Row("deliveryFailed", "delivery.failed", listOf("id", "t", "ok", "retry", "why")) { it.logEventDeliveryFailed("notl_core", "ENTER", "400 bad request", willRetry = false) },
-            Row("eventInvalidInput", "delivery.failed", listOf("ok", "why")) { it.logEventInvalidInput(null, null) },
-            Row("deliveryDeferredAnonymous", "delivery.queued", listOf("id", "t", "why")) { it.logEventDeliveryDeferredAnonymous("notl_core", "ENTER") },
-            Row("eventDelivered", "delivery.sent", listOf("id", "t", "via")) { it.logEventDelivered("notl_core", "ENTER") },
-            Row("deliverySkippedAlreadyDelivered", "delivery.sent", listOf("id", "t", "why")) { it.logEventDeliverySkippedAlreadyDelivered("notl_core", "ENTER") },
-            Row("workerEntryMissing", "delivery.sent", listOf("why")) { it.logEventWorkerEntryMissing() },
-            Row("flushSnapshot", "delivery.flush", listOf("n", "phase")) { it.logForegroundFlushSnapshot(3) },
-            Row("flushCancelled", "delivery.flush", listOf("id", "t", "why")) { it.logForegroundFlushCancelledWorkManager("notl_core", "ENTER") },
-            Row("flushPublished", "delivery.sent", listOf("id", "t", "via")) { it.logForegroundFlushPublished("notl_core", "ENTER") },
-            Row("flushEntryFailed", "delivery.failed", listOf("id", "t", "ok", "via", "why")) { it.logForegroundFlushEntryFailed("notl_core", "ENTER", "boom") },
-            Row("flushComplete", "delivery.flush", listOf("n", "phase", "ok")) { it.logForegroundFlushComplete(3) },
-            Row("asyncDeliveryFailed", "delivery.failed", listOf("id", "t", "ok", "why")) { it.logAsyncDeliveryFailed("notl_core", "ENTER", "boom") },
-            Row("schedulerFailed", "delivery.failed", listOf("id", "t", "ok", "why", "detail")) { it.logSchedulerFailed("notl_core", "ENTER", "boom") }
+            Row("unknownApiTransitionType", "api.transition.unknown", listOf("ok", "why", "value"), GeofenceLogger::logUnknownApiTransitionType.name, io = "in") { it.logUnknownApiTransitionType("dwell") },
+            Row("movementRearmed", "movement.rearmed", listOf("why"), GeofenceLogger::logMovementRearmedAfterFailedRefresh.name) { it.logMovementRearmedAfterFailedRefresh() },
+            Row("storageLoaded", "storage.loaded", listOf("n", "anchor"), GeofenceLogger::logStorageLoaded.name, io = "in") { it.logStorageLoaded({ 30 }, true) },
+            Row("persistFailed", "storage.write.failed", listOf("id", "t", "ok"), GeofenceLogger::logPersistFailed.name) { it.logPersistFailed("notl_core", "ENTER") },
+            Row("deliveryRetryable", "delivery.failed", listOf("id", "t", "ok", "retry", "why"), GeofenceLogger::logEventDeliveryRetryable.name) { it.logEventDeliveryRetryable("notl_core", "ENTER", "socket timeout") },
+            Row("deliveryFailed", "delivery.failed", listOf("id", "t", "ok", "retry", "why"), GeofenceLogger::logEventDeliveryFailed.name) { it.logEventDeliveryFailed("notl_core", "ENTER", "400 bad request", willRetry = false) },
+            Row("eventInvalidInput", "delivery.failed", listOf("ok", "why"), GeofenceLogger::logEventInvalidInput.name) { it.logEventInvalidInput(null, null) },
+            Row("deliveryDeferredAnonymous", "delivery.queued", listOf("id", "t", "why"), GeofenceLogger::logEventDeliveryDeferredAnonymous.name) { it.logEventDeliveryDeferredAnonymous("notl_core", "ENTER") },
+            Row("eventDelivered", "delivery.sent", listOf("id", "t", "via"), GeofenceLogger::logEventDelivered.name) { it.logEventDelivered("notl_core", "ENTER") },
+            Row("deliverySkippedAlreadyDelivered", "delivery.sent", listOf("id", "t", "why"), GeofenceLogger::logEventDeliverySkippedAlreadyDelivered.name) { it.logEventDeliverySkippedAlreadyDelivered("notl_core", "ENTER") },
+            Row("workerEntryMissing", "delivery.sent", listOf("why"), GeofenceLogger::logEventWorkerEntryMissing.name) { it.logEventWorkerEntryMissing() },
+            Row("flushSnapshot", "delivery.flush", listOf("n", "phase"), GeofenceLogger::logForegroundFlushSnapshot.name) { it.logForegroundFlushSnapshot(3) },
+            Row("flushCancelled", "delivery.flush", listOf("id", "t", "why"), GeofenceLogger::logForegroundFlushCancelledWorkManager.name) { it.logForegroundFlushCancelledWorkManager("notl_core", "ENTER") },
+            Row("flushPublished", "delivery.sent", listOf("id", "t", "via"), GeofenceLogger::logForegroundFlushPublished.name) { it.logForegroundFlushPublished("notl_core", "ENTER") },
+            Row("flushEntryFailed", "delivery.failed", listOf("id", "t", "ok", "via", "why"), GeofenceLogger::logForegroundFlushEntryFailed.name) { it.logForegroundFlushEntryFailed("notl_core", "ENTER", "boom") },
+            Row("flushComplete", "delivery.flush", listOf("n", "phase", "ok"), GeofenceLogger::logForegroundFlushComplete.name) { it.logForegroundFlushComplete(3) },
+            Row("asyncDeliveryFailed", "delivery.failed", listOf("id", "t", "ok", "why"), GeofenceLogger::logAsyncDeliveryFailed.name) { it.logAsyncDeliveryFailed("notl_core", "ENTER", "boom") },
+            Row("schedulerFailed", "delivery.failed", listOf("id", "t", "ok", "why", "detail"), GeofenceLogger::logSchedulerFailed.name) { it.logSchedulerFailed("notl_core", "ENTER", "boom") },
+
+            Row("polygonDropped", "registration.rejected", listOf("id", "sh", "why"), GeofenceLogger::logPolygonDropped.name) { it.logPolygonDropped("notl_core", PolygonDropReason.RING_UNBUILDABLE) },
+            Row("polygonDroppedUnsupportedRuntime", "registration.rejected", listOf("id", "sh", "why"), GeofenceLogger::logPolygonDroppedUnsupportedRuntime.name) { it.logPolygonDroppedUnsupportedRuntime("notl_core") },
+            Row("unsupportedGeometryDropped", "registration.rejected", listOf("id", "sh", "why"), GeofenceLogger::logUnsupportedGeometryDropped.name) { it.logUnsupportedGeometryDropped("notl_core", "LineString") },
+            Row("polygonRegionNotRanked", "rank.excluded", listOf("id", "sh", "why"), GeofenceLogger::logPolygonRegionNotRanked.name) { it.logPolygonRegionNotRanked("notl_core", PolygonNotRankedReason.RING_UNBUILDABLE) },
+            Row("polygonFixNotUsable", "polygon.undecided", listOf("why"), GeofenceLogger::logPolygonFixNotUsable.name) { it.logPolygonFixNotUsable(PolygonFixRejection.FIX_TOO_OLD) }
         )
     }
 
@@ -188,7 +199,9 @@ class GeofenceLogTailTest : RobolectricTest() {
 
     @Test
     fun everyRecord_givenAnyMethod_expectMachineKeyAndReplayClassification() {
-        for ((name, ev, requiredKeys, run) in invocations()) {
+        for (row in invocations()) {
+            val (name, ev, requiredKeys) = row
+            val run = row.run
             val logger = CapturingLogger()
             run(GeofenceLogger(logger))
 
@@ -201,7 +214,11 @@ class GeofenceLogTailTest : RobolectricTest() {
             if (fields["ev"] != ev) {
                 throw AssertionError("$name: expected ev=$ev, got '${fields["ev"]}'")
             }
-            (fields["io"] in listOf("in", "out", "obs")) shouldBeEqualTo true
+            // Pinned, not merely one of the three: `io` is what the off-device transform routes on,
+            // so a record flipped from out to in is replayed as something the SDK was told.
+            if (fields["io"] != row.io) {
+                throw AssertionError("$name: expected io=${row.io}, got '${fields["io"]}'")
+            }
             for (key in requiredKeys) {
                 if (fields[key] == null) {
                     throw AssertionError("$name: missing $key= in '$message'")
@@ -212,7 +229,9 @@ class GeofenceLogTailTest : RobolectricTest() {
 
     @Test
     fun everyRecord_givenAnyMethod_expectProseAndTailSeparated() {
-        for ((name, _, _, run) in invocations()) {
+        for (row in invocations()) {
+            val name = row.name
+            val run = row.run
             val logger = CapturingLogger()
             run(GeofenceLogger(logger))
             // Diagnostics-only entry points emit nothing at all with the gate off, which is a
@@ -230,7 +249,9 @@ class GeofenceLogTailTest : RobolectricTest() {
 
     @Test
     fun everyValue_givenAnyMethod_expectNoWhitespace() {
-        for ((name, _, _, run) in invocations()) {
+        for (row in invocations()) {
+            val name = row.name
+            val run = row.run
             val logger = CapturingLogger()
             run(GeofenceLogger(logger))
             // Diagnostics-only entry points emit nothing at all with the gate off, which is a
@@ -311,7 +332,9 @@ class GeofenceLogTailTest : RobolectricTest() {
             "os.callback.received",
             "os.error",
             "permission.changed",
+            "polygon.undecided",
             "rank.evaluated",
+            "rank.excluded",
             "registration.added",
             "registration.applied",
             "registration.cleared",
@@ -332,7 +355,8 @@ class GeofenceLogTailTest : RobolectricTest() {
         )
         GeofenceDiagnostics.setEnabledForTesting(true)
         val seen = mutableSetOf<String>()
-        for ((_, _, _, run) in invocations()) {
+        for (row in invocations()) {
+            val run = row.run
             val logger = CapturingLogger()
             run(GeofenceLogger(logger))
             parseTail(logger.messages.lastOrNull() ?: "")?.get("ev")?.let { seen.add(it) }
@@ -350,7 +374,9 @@ class GeofenceLogTailTest : RobolectricTest() {
     fun everyRecord_givenDiagnosticsOff_expectOutputUnchangedFromBeforeInstrumentation() {
         GeofenceDiagnostics.setEnabledForTesting(false)
 
-        for ((name, _, _, run) in invocations()) {
+        for (row in invocations()) {
+            val name = row.name
+            val run = row.run
             val logger = CapturingLogger()
             run(GeofenceLogger(logger))
             // Diagnostics-only entry points emit nothing at all with the gate off, which is a
@@ -372,7 +398,7 @@ class GeofenceLogTailTest : RobolectricTest() {
         GeofenceDiagnostics.setEnabledForTesting(false)
         val logger = CapturingLogger()
         val target = GeofenceLogger(logger)
-        for ((_, _, _, run) in invocations()) run(target)
+        for (row in invocations()) row.run(target)
 
         // Spot-checks the classes of value the harness cares about, including ones that are
         // harmless in isolation. The point is that "harmless in isolation" stopped being the test.
@@ -388,7 +414,7 @@ class GeofenceLogTailTest : RobolectricTest() {
         GeofenceDiagnostics.setEnabledForTesting(true)
         val logger = CapturingLogger()
         val target = GeofenceLogger(logger)
-        for ((_, _, _, run) in invocations()) run(target)
+        for (row in invocations()) row.run(target)
 
         val joined = logger.messages.joinToString("\n")
         joined.contains("lat=") shouldBeEqualTo true
@@ -420,7 +446,9 @@ class GeofenceLogTailTest : RobolectricTest() {
     fun proseHalf_expectIdenticalWhicheverWayTheGateIsSet() {
         // The prose is what a customer reads and what existing tests assert on. Enabling
         // diagnostics must append to it and never rewrite it.
-        for ((name, _, _, run) in invocations()) {
+        for (row in invocations()) {
+            val name = row.name
+            val run = row.run
             // Each pass is a fresh "launch" for the once-per-process module.init record.
             GeofenceDiagnostics.setEnabledForTesting(false)
             val off = CapturingLogger()
@@ -490,6 +518,119 @@ class GeofenceLogTailTest : RobolectricTest() {
             GeofenceLogger(logger).logSyncSkipped(prose)
             parseTail(logger.messages.last())!!["why"] shouldBeEqualTo token
         }
+    }
+
+    @Test
+    fun polygonReasons_expectPinnedTokensAndUnchangedProse() {
+        // These tokens are shared with iOS, so they are pinned rather than derived from the
+        // sentence: a reword here would move the bucket on Android only, and a joint query would
+        // read one platform's drops as two populations.
+        PolygonDropReason.entries.map { it.wire } shouldBeEqualTo listOf(
+            "undescribed_shape",
+            "unusable_polygon",
+            "ring_unbuildable",
+            "unusable_circle"
+        )
+        PolygonNotRankedReason.entries.map { it.wire } shouldBeEqualTo listOf("runtime_unsupported", "ring_unbuildable")
+        PolygonFixRejection.entries.map { it.wire } shouldBeEqualTo listOf("no_usable_fix", "fix_too_old")
+
+        // The prose half is the contract the other way round: these sentences shipped before the
+        // tail existed, and a customer reading debug logs must still see what they saw.
+        for (reason in PolygonDropReason.entries) {
+            val logger = CapturingLogger()
+            GeofenceLogger(logger).logPolygonDropped("notl_core", reason)
+            logger.messages.last().contains("Geofence 'notl_core' dropped — polygon rejected: ${reason.detail}") shouldBeEqualTo true
+            parseTail(logger.messages.last())!!["why"] shouldBeEqualTo reason.wire
+            // The value, not just its presence: `sh=circle` here would read as a circle drop.
+            parseTail(logger.messages.last())!!["sh"] shouldBeEqualTo "polygon"
+        }
+        for (reason in PolygonNotRankedReason.entries) {
+            val logger = CapturingLogger()
+            GeofenceLogger(logger).logPolygonRegionNotRanked("notl_core", reason)
+            logger.messages.last().contains("excluded from ranking — ${reason.detail}.") shouldBeEqualTo true
+            parseTail(logger.messages.last())!!["why"] shouldBeEqualTo reason.wire
+            parseTail(logger.messages.last())!!["sh"] shouldBeEqualTo "polygon"
+        }
+        for (reason in PolygonFixRejection.entries) {
+            val logger = CapturingLogger()
+            GeofenceLogger(logger).logPolygonFixNotUsable(reason)
+            logger.messages.last().contains("Polygon fix ignored — ${reason.detail}.") shouldBeEqualTo true
+            parseTail(logger.messages.last())!!["why"] shouldBeEqualTo reason.wire
+        }
+    }
+
+    @Test
+    fun polygonRejections_expectTheirOwnBucketNotTheCountsTheyWouldInflate() {
+        GeofenceDiagnostics.setEnabledForTesting(true)
+
+        // A decode-time drop happens once per sync; a ranking exclusion repeats on every movement
+        // trigger for the same fence. Filed under one `ev` they would inflate each other.
+        val dropped = CapturingLogger()
+        GeofenceLogger(dropped).logPolygonDropped("notl_core", PolygonDropReason.RING_UNBUILDABLE)
+        val notRanked = CapturingLogger()
+        GeofenceLogger(notRanked).logPolygonRegionNotRanked("notl_core", PolygonNotRankedReason.RING_UNBUILDABLE)
+
+        parseTail(dropped.messages.last())!!["ev"] shouldBeEqualTo "registration.rejected"
+        parseTail(notRanked.messages.last())!!["ev"] shouldBeEqualTo "rank.excluded"
+
+        // And a refused fix is not a refused callback: `os.callback.dropped` is what makes
+        // received-vs-dropped countable, and a location update has no receipt to net against.
+        val fix = CapturingLogger()
+        GeofenceLogger(fix).logPolygonFixNotUsable(PolygonFixRejection.NO_USABLE_FIX)
+        parseTail(fix.messages.last())!!["ev"] shouldBeEqualTo "polygon.undecided"
+    }
+
+    @Test
+    fun runtimeUnsupported_expectOneTokenWhicheverPhaseRefusedIt() {
+        GeofenceDiagnostics.setEnabledForTesting(true)
+
+        // A build without polygon monitoring refuses the record at decode and again at ranking,
+        // from two call sites that do not share a constant. One question, so one token.
+        val atDecode = CapturingLogger()
+        GeofenceLogger(atDecode).logPolygonDroppedUnsupportedRuntime("notl_core")
+        val atRank = CapturingLogger()
+        GeofenceLogger(atRank).logPolygonRegionNotRanked("notl_core", PolygonNotRankedReason.RUNTIME_UNSUPPORTED)
+
+        parseTail(atDecode.messages.last())!!["why"] shouldBeEqualTo "runtime_unsupported"
+        parseTail(atRank.messages.last())!!["why"] shouldBeEqualTo "runtime_unsupported"
+    }
+
+    @Test
+    fun unsupportedGeometry_givenTypeWithSeparators_expectSanitized() {
+        // `sh` carries whatever the backend claimed, so on this path it is untrusted wire input
+        // rather than the circle|polygon the catalog emits.
+        geofenceLogger.logUnsupportedGeometryDropped("notl_core", "Multi Polygon,v2")
+
+        val tail = parseTail(capturing.messages.last())!!
+        tail["sh"] shouldBeEqualTo "Multi_Polygon_v2"
+        tail["why"] shouldBeEqualTo "unknown_shape"
+    }
+
+    @Test
+    fun everyLogMethod_expectATableRowOrADeclaredReason() {
+        // The table cannot see a record that exists in the module but was never added to it, which
+        // is how five polygon records shipped with no tail at all. This closes that loop: a new
+        // `log*` method must either appear above or be named here.
+        val untailed = setOf(
+            "logContainmentJudged",
+            "logEventDeliveredButNotRemoved",
+            "logGmsCallTimedOut",
+            "logTransitionDroppedRetiredId",
+            "logTransitionDroppedUnarmedId"
+        )
+        // Emits one record per region, so the table's `apiFetchResult` row cannot reach it — it
+        // passes no regions. Covered by the `fenceCatalog_*` tests instead.
+        val coveredElsewhere = setOf("logFenceCatalog")
+
+        val declared = GeofenceLogger::class.java.declaredMethods
+            .map { it.name }
+            .filter { it.startsWith("log") && !it.contains('$') }
+            .toSet()
+        val tabled = invocations().map { it.method }.toSet()
+
+        (declared - tabled - untailed - coveredElsewhere).sorted() shouldBeEqualTo emptyList()
+        // The other direction: a row left pointing at a method that no longer exists.
+        (tabled - declared).sorted() shouldBeEqualTo emptyList()
     }
 
     @Test

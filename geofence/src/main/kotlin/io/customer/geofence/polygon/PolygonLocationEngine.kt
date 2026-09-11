@@ -4,6 +4,8 @@ import android.location.Location
 import android.os.SystemClock
 import io.customer.geofence.GeofenceBusinessTransitionProcessor
 import io.customer.geofence.GeofenceLogger
+import io.customer.geofence.PolygonFixRejection
+import io.customer.geofence.PolygonNotRankedReason
 import io.customer.geofence.store.GeofenceRegionStore
 import io.customer.geofence.transitionRevision
 import io.customer.sdk.communication.Event
@@ -146,13 +148,13 @@ internal class PolygonLocationEngine(
             if (store.userStateGeneration() != expectedUserStateGeneration) return@withLock false
             val fix = location.toPolygonLocationFix()
             if (fix == null) {
-                logger.logPolygonFixNotUsable("it carries no usable accuracy or monotonic timestamp")
+                logger.logPolygonFixNotUsable(PolygonFixRejection.NO_USABLE_FIX)
                 continue
             }
             val detections = synchronized(stateLock) {
                 if (store.userStateGeneration() != expectedUserStateGeneration) return@withLock false
                 if (!isCurrentSessionFixLocked(fix.elapsedRealtimeNanos)) {
-                    logger.logPolygonFixNotUsable("it predates the current evaluation session or is too old")
+                    logger.logPolygonFixNotUsable(PolygonFixRejection.FIX_TOO_OLD)
                     null
                 } else {
                     val fences = activePolygonFencesLocked()
@@ -254,7 +256,7 @@ internal class PolygonLocationEngine(
             if (geometry == null) {
                 // A ring that no longer validates must not fall back to its enclosing circle: that
                 // circle is a coarse trigger, kilometres wider than the fence.
-                logger.logPolygonRegionNotRanked(region.id, "the cached ring no longer validates")
+                logger.logPolygonRegionNotRanked(region.id, PolygonNotRankedReason.RING_UNBUILDABLE)
                 null
             } else {
                 PolygonFence(region.id, geometry, region.transitionRevision())

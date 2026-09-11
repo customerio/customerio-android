@@ -302,7 +302,6 @@ internal class GeofenceLogger(private val logger: Logger) {
         )
     }
 
-    /** A reset that deliberately did not clear because another user is signed in. */
     /** A reset whose OS clear failed; state is kept so the next refresh retries. */
     fun logResetFailed(reason: String) {
         logger.debug(
@@ -316,6 +315,7 @@ internal class GeofenceLogger(private val logger: Logger) {
         )
     }
 
+    /** A reset that deliberately did not clear because another user is signed in. */
     fun logResetSuperseded() {
         logger.debug(
             "Reset skipped: another user is signed in" +

@@ -10,6 +10,7 @@ import io.customer.geofence.GeofenceManager
 import io.customer.geofence.GeofencePackageInfo
 import io.customer.geofence.GeofencePermissionChecker
 import io.customer.geofence.GeofenceReceiverToggle
+import io.customer.geofence.GeofenceRegistrar
 import io.customer.geofence.GeofenceRepository
 import io.customer.geofence.GeofenceRepositoryImpl
 import io.customer.geofence.GeofenceServices
@@ -43,8 +44,8 @@ internal val AndroidSDKComponent.geofencingClient: GeofencingClient
 internal val AndroidSDKComponent.geofenceReceiverToggle: GeofenceReceiverToggle
     get() = newInstance { GeofenceReceiverToggle(applicationContext) }
 
-internal val AndroidSDKComponent.geofenceManager: GeofenceManager
-    get() = singleton {
+internal val AndroidSDKComponent.geofenceManager: GeofenceRegistrar
+    get() = singleton<GeofenceRegistrar> {
         GeofenceManager(
             context = applicationContext,
             client = geofencingClient,

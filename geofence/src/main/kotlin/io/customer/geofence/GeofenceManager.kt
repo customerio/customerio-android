@@ -19,7 +19,7 @@ internal class GeofenceManager(
     private val receiverToggle: GeofenceReceiverToggle,
     private val permissionChecker: GeofencePermissionChecker,
     private val logger: GeofenceLogger
-) {
+) : GeofenceRegistrar {
 
     private val pendingIntent: PendingIntent by lazy {
         val intent = Intent(context, GeofenceBroadcastReceiver::class.java)
@@ -43,12 +43,12 @@ internal class GeofenceManager(
      *
      * Re-upserting a same-ID geofence triggers GMS state reconciliation that
      * can fire spurious EXIT events; skipping the overlap avoids that.
-     * Default `emptySet()` means "OS state unknown, register everything".
+     * An empty set means "OS state unknown, register everything".
      */
     @RequiresPermission(Manifest.permission.ACCESS_FINE_LOCATION)
-    suspend fun replaceGeofences(
+    override suspend fun replaceGeofences(
         regions: List<GeofenceRegion>,
-        existingBusinessIds: Set<String> = emptySet()
+        existingBusinessIds: Set<String>
     ): Result<Unit> = replaceGeofencesInternal(
         regions = regions,
         // The movement trigger evaluates the device's position at register time, so a stale center
@@ -61,7 +61,7 @@ internal class GeofenceManager(
 
     /** Boot-restore entry point; registration is identical to [replaceGeofences]. */
     @RequiresPermission(Manifest.permission.ACCESS_FINE_LOCATION)
-    suspend fun replaceGeofencesForBootRestore(regions: List<GeofenceRegion>): Result<Unit> =
+    override suspend fun replaceGeofencesForBootRestore(regions: List<GeofenceRegion>): Result<Unit> =
         replaceGeofences(regions)
 
     @RequiresPermission(Manifest.permission.ACCESS_FINE_LOCATION)
@@ -156,7 +156,7 @@ internal class GeofenceManager(
         }
     }
 
-    suspend fun removeGeofencesByIds(ids: List<String>): Result<Unit> {
+    override suspend fun removeGeofencesByIds(ids: List<String>): Result<Unit> {
         if (ids.isEmpty()) return Result.success(Unit)
 
         return suspendCancellableCoroutine { cont ->
@@ -179,7 +179,7 @@ internal class GeofenceManager(
         }
     }
 
-    suspend fun clearAll(): Result<Unit> {
+    override suspend fun clearAll(): Result<Unit> {
         return suspendCancellableCoroutine { cont ->
             client.removeGeofences(pendingIntent)
                 .addOnSuccessListener {

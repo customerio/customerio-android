@@ -444,6 +444,17 @@ class PendingDeliveryStoreTest : RobolectricTest() {
     }
 
     @Test
+    fun claim_givenUnreadableFile_expectNotClaimed() {
+        // A claim that succeeds without removing the row lets a second channel claim it too, and
+        // push metrics carry no dedup id, so that double-counts.
+        val store = newStore()
+        storeFile().delete()
+        storeFile().mkdirs()
+
+        store.claim("any-id") shouldBeEqualTo false
+    }
+
+    @Test
     fun contains_givenUnreadableFile_expectUnknownRatherThanAbsent() {
         // A claim helper reads absent as "another channel delivered it", so unknown must not
         // collapse to absent — that reports a delivery that never happened.

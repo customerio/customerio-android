@@ -180,7 +180,9 @@ class PendingDeliveryStore<T : PendingDeliveryStore.PendingDeliveryEntry>(
         if (!file.exists()) return emptyList()
         val text = try {
             file.readText()
-        } catch (ex: IOException) {
+        } catch (ex: Exception) {
+            // Anything that stops us reading means unreadable, not empty. Kept broad because this
+            // never threw before, and a throw here reaches a WorkManager node with no catch.
             logger.error(
                 "Could not read pending delivery store ${file.name}; leaving it untouched",
                 tag = TAG,

@@ -30,6 +30,26 @@ class PendingDeliveryClaimTest : RobolectricTest() {
     ).also { it.removeAll() }
 
     @Test
+    fun claimSendRestore_givenUnreadableStore_expectRetryableNotAlreadyClaimed() = runBlocking<Unit> {
+        // Exactly-once has no dedup id behind it, so reporting a delivery that never happened
+        // loses the entry outright. Unknown presence must defer, never claim success.
+        val store = newStore()
+        val file = java.io.File(contextMock.applicationContext.filesDir, "cio_test_claim_send_restore.json")
+        file.delete()
+        file.mkdirs()
+        var sendInvoked = false
+
+        val result = store.claimSendRestore(TestEntry("unknown")) {
+            sendInvoked = true
+            Result.success(Unit)
+        }
+
+        result.shouldBeInstanceOf<PendingDeliveryResult.Retryable>()
+        sendInvoked shouldBeEqualTo false
+        file.deleteRecursively()
+    }
+
+    @Test
     fun claimSendRestore_givenEntryNotPresent_expectAlreadyClaimedAndSendNotInvoked() = runBlocking<Unit> {
         val store = newStore()
         val entry = TestEntry("absent")

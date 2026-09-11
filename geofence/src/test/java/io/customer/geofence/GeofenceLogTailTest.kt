@@ -117,6 +117,36 @@ class GeofenceLogTailTest : RobolectricTest() {
         val run: (GeofenceLogger) -> Unit
     )
 
+    /**
+     * The frozen replay contract: `in` is what replay injects, `out` is the entire assertion
+     * surface, everything else is `obs`. Pinned per `ev`, which is what a parser dispatches on.
+     */
+    private val declaredIo: Map<String, String> = mapOf(
+        "api.fetch.result" to "in",
+        "fence.cataloged" to "in",
+        "identity.changed" to "in",
+        "location.fix" to "in",
+        "module.init" to "in",
+        "module.wake" to "in",
+        "os.callback.received" to "in",
+        "os.error" to "in",
+        "permission.changed" to "in",
+        "module.reset" to "out",
+        "os.callback.dropped" to "obs",
+        "registration.applied" to "out",
+        "transition.accepted" to "out",
+        "transition.dropped" to "obs",
+        "transition.suppressed" to "obs",
+        "transition.synthesized" to "obs"
+    )
+
+    /** Named separately from [declaredIo] so the count is visible at a glance. */
+    private val frozenOutputs = setOf(
+        "module.reset",
+        "registration.applied",
+        "transition.accepted"
+    )
+
     private fun invocations(): List<Row> {
         val fix = location()
         return listOf(
@@ -136,7 +166,14 @@ class GeofenceLogTailTest : RobolectricTest() {
             Row("moduleInitialized", "module.init", listOf("launch")) { it.logModuleInitialized(GeofenceLaunchReason.APP_START) },
             Row("moduleWoke", "module.wake", listOf("launch")) { it.logModuleWoke(GeofenceLaunchReason.BOOT_RESTORE) },
             Row("missingLocationModule", "module.init", listOf("ok", "why")) { it.logMissingLocationModule() },
-            Row("stateResetOnSignOut", "module.reset", listOf("why")) { it.logGeofenceStateResetOnSignOut() },
+            Row("stateResetOnSignOut", "info", listOf("why")) { it.logGeofenceStateResetOnSignOut() },
+            Row("resetCompleted", "module.reset", listOf("ok")) { it.logResetCompleted() },
+            Row("resetSuperseded", "module.reset", listOf("ok", "why")) { it.logResetSuperseded() },
+            Row("resetFailed", "module.reset", listOf("ok", "why")) { it.logResetFailed("ApiException") },
+            Row("permissionTier", "permission.changed", listOf("perm", "ok")) { it.logPermissionTier(GeofenceLogger.PERMISSION_ALWAYS) },
+            Row("identitySignedIn", "identity.changed", listOf("ok")) { it.logIdentityChanged(identified = true) },
+            Row("identitySignedOut", "identity.changed", listOf("ok")) { it.logIdentityChanged(identified = false) },
+            Row("locationFix", "location.fix", listOf("lat", "lon", "prov")) { it.logLocationFix(43.2, -79.0) },
             Row("callbackReceived", "os.callback.received", listOf("ids", "n", "t", "fixsrc", "acc", "age", "sim")) { it.logCallbackReceived(listOf("notl_core"), "ENTER", fix, GeofenceLogTail.FixSource.OS_TRIGGER) },
             Row("callbackReceivedNoFix", "os.callback.received", listOf("fixsrc")) { it.logCallbackReceived(listOf("notl_core"), "EXIT", null, GeofenceLogTail.FixSource.NONE) },
             Row("transitionWithoutLocation", "os.callback.no_location", listOf("fixsrc", "why")) { it.logTransitionWithoutLocation() },
@@ -200,13 +237,29 @@ class GeofenceLogTailTest : RobolectricTest() {
             if (fields["ev"] != ev) {
                 throw AssertionError("$name: expected ev=$ev, got '${fields["ev"]}'")
             }
-            (fields["io"] in listOf("in", "out", "obs")) shouldBeEqualTo true
+            val expectedIo = declaredIo[ev] ?: "obs"
+            if (fields["io"] != expectedIo) {
+                throw AssertionError("$name: ev=$ev is declared io=$expectedIo, emitted io=${fields["io"]}")
+            }
             for (key in requiredKeys) {
                 if (fields[key] == null) {
                     throw AssertionError("$name: missing $key= in '$message'")
                 }
             }
         }
+    }
+
+    /** Reads what the logger emitted, not [declaredIo], so a mistake in the map cannot validate itself. */
+    @Test
+    fun assertionSurface_expectExactlyTheFrozenOutputs() {
+        val emitted = sortedSetOf<String>()
+        for ((_, ev, _, run) in invocations()) {
+            val logger = CapturingLogger()
+            run(GeofenceLogger(logger))
+            val fields = logger.messages.lastOrNull()?.let { parseTail(it) } ?: continue
+            if (fields["io"] == "out") emitted.add(fields["ev"] ?: ev)
+        }
+        emitted shouldBeEqualTo frozenOutputs.toSortedSet()
     }
 
     @Test
@@ -304,6 +357,8 @@ class GeofenceLogTailTest : RobolectricTest() {
             "module.reset",
             "module.wake",
             "movement.rearmed",
+            "identity.changed",
+            "location.fix",
             "movement.registered",
             "os.callback.dropped",
             "os.callback.no_location",

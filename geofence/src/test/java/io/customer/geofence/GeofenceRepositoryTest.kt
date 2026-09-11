@@ -1261,7 +1261,7 @@ class GeofenceRepositoryTest : RobolectricTest() {
         // Registrations survive, so their suppression windows must too — wiping the
         // cooldown here would let still-registered fences re-emit inside the window.
         verify(exactly = 0) { cooldownFilter.clearAll() }
-        verify { logger.logSyncSkipped(match { it.contains("reset superseded") }) }
+        verify { logger.logResetSuperseded() }
     }
 
     @Test
@@ -1296,6 +1296,7 @@ class GeofenceRepositoryTest : RobolectricTest() {
         result.exceptionOrNull() shouldBeEqualTo error
         verify(exactly = 0) { store.clearUserScopedState() }
         verify(exactly = 0) { store.clearAll() }
+        verify { logger.logResetFailed("RuntimeException") }
         // Cooldown is user-scoped suppression, not registration state: it's wiped on a genuine
         // sign-out even when the OS clear fails, so the next user can't inherit stale windows.
         verify(exactly = 1) { cooldownFilter.clearAll() }

@@ -5,6 +5,7 @@ import androidx.lifecycle.ProcessLifecycleOwner
 import io.customer.base.internal.InternalCustomerIOApi
 import io.customer.geofence.di.geofenceDeliveryFlusher
 import io.customer.geofence.di.geofenceLogger
+import io.customer.geofence.di.geofencePermissionChecker
 import io.customer.geofence.di.geofenceRegionStore
 import io.customer.geofence.di.geofenceServices
 import io.customer.location.LocationCoordinates
@@ -124,6 +125,8 @@ class ModuleGeofence @JvmOverloads constructor(
         // GPS fix: GeofenceServices holds a "last skipped for no-location" flag
         // and re-triggers a refresh when a fresh fix arrives.
         eventBus.subscribe<Event.LocationAcquired> {
+            // Logged before the handler: a discarded fix is still a fix that arrived.
+            SDKComponent.geofenceLogger.logLocationFix(it.latitude, it.longitude)
             sdkAndroid.geofenceServices.onLocationAcquired(it.latitude, it.longitude)
         }
 
@@ -131,6 +134,7 @@ class ModuleGeofence @JvmOverloads constructor(
         // nearby set fetched, anchored at the current registration center.
         eventBus.subscribe<Event.UserChangedEvent> {
             if (!it.userId.isNullOrEmpty()) {
+                SDKComponent.geofenceLogger.logIdentityChanged(identified = true)
                 val anchor = refreshAnchor(sdkAndroid, locationModule)
                 sdkAndroid.geofenceServices.onUserIdentified(
                     latitude = anchor?.latitude,
@@ -146,6 +150,8 @@ class ModuleGeofence @JvmOverloads constructor(
         // before `UserChangedEvent(null)`, so it's the explicit "wipe user state"
         // signal — analogous to analytics.reset().
         eventBus.subscribe<Event.ResetEvent> {
+            // Not on the UserChangedEvent(null) that follows: one sign-out, one record.
+            SDKComponent.geofenceLogger.logIdentityChanged(identified = false)
             sdkAndroid.geofenceServices.onUserSignedOut()
         }
     }
@@ -175,6 +181,7 @@ class ModuleGeofence @JvmOverloads constructor(
                     deliveryFlusher = sdkAndroid.geofenceDeliveryFlusher,
                     eventBus = eventBus,
                     regionStore = sdkAndroid.geofenceRegionStore,
+                    permissionChecker = sdkAndroid.geofencePermissionChecker,
                     logger = logger,
                     onForeground = {
                         // Off the main thread: deciding whether to take a fix needs the identity read,

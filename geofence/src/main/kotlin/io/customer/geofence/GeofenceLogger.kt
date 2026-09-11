@@ -22,6 +22,47 @@ internal enum class GeofenceLaunchReason(val wire: String) {
 }
 
 /**
+ * Why a polygon record never became a monitored fence.
+ *
+ * [wire] is the machine token and is fixed; [detail] is the sentence. Kept apart deliberately —
+ * deriving the token from the sentence, as the older records do, means a reword silently moves the
+ * bucket analysis groups on. Every token here is emitted by iOS too, so a reword would move it on
+ * one platform only.
+ */
+internal enum class PolygonDropReason(val wire: String, val detail: String) {
+    UNDESCRIBED_SHAPE("undescribed_shape", "shape discriminator is missing or inconsistent"),
+    UNUSABLE_POLYGON("unusable_polygon", "polygon geometry or enclosing circle is missing"),
+    RING_UNBUILDABLE("ring_unbuildable", "ring is malformed, unsupported or fails validation"),
+    UNUSABLE_CIRCLE(
+        "unusable_circle",
+        "enclosing circle is missing, its centre is out of range, or its radius is unusable"
+    )
+}
+
+/**
+ * Why a cached polygon was left out of a ranking pass, and so out of the registration batch.
+ *
+ * Android-only: iOS ranks too but records the whole pass in one `rank.evaluated`, and neither token
+ * here exists there. `ring_unbuildable` is shared with [PolygonDropReason] on purpose — same
+ * condition, and the `ev` says which phase refused the region.
+ */
+internal enum class PolygonNotRankedReason(val wire: String, val detail: String) {
+    RUNTIME_UNSUPPORTED("runtime_unsupported", "polygon monitoring is not enabled in this build"),
+    RING_UNBUILDABLE("ring_unbuildable", "the cached ring no longer validates")
+}
+
+/**
+ * Why a location update could not settle a polygon containment question on its own.
+ *
+ * `no_usable_fix` is iOS's token on the same `ev`; `fix_too_old` is ours, reserved but not yet
+ * emitted there.
+ */
+internal enum class PolygonFixRejection(val wire: String, val detail: String) {
+    NO_USABLE_FIX("no_usable_fix", "it carries no usable accuracy or monotonic timestamp"),
+    FIX_TOO_OLD("fix_too_old", "it predates the current evaluation session or is too old")
+}
+
+/**
  * Structured logger for geofence operations, tagged for logcat filtering.
  *
  * Every record carries a ` || key=value` tail after its human-readable prose: `ev=` is a stable
@@ -37,6 +78,11 @@ internal enum class GeofenceLaunchReason(val wire: String) {
  * test references — while still yielding a stable `why=` for tooling. The specific tokens are
  * pinned by `GeofenceLogTailTest` so a reworded sentence fails loudly instead of silently changing
  * what analysis groups on.
+ *
+ * The polygon records are the exception: [PolygonDropReason], [PolygonNotRankedReason] and
+ * [PolygonFixRejection] carry their tokens instead of deriving them, because a reword would
+ * otherwise split a bucket in two with nothing failing. Which of them iOS also emits is recorded
+ * on each enum — not all do, and an Android-only token must not be defended as a parity constraint.
  */
 internal class GeofenceLogger(private val logger: Logger) {
 
@@ -980,27 +1026,50 @@ internal class GeofenceLogger(private val logger: Logger) {
         logger.error("GMS $description gave no callback before the deadline — treating as failed; Play Services may be updating or unresponsive", tag = TAG)
     }
 
-    fun logPolygonDropped(geofenceId: String, reason: String) {
-        logger.error("Geofence '$geofenceId' dropped — polygon rejected: $reason", tag = TAG)
+    fun logPolygonDropped(geofenceId: String, reason: PolygonDropReason) {
+        logger.error(
+            "Geofence '$geofenceId' dropped — polygon rejected: ${reason.detail}" +
+                tail(
+                    "registration.rejected",
+                    GeofenceLogIo.OUTPUT,
+                    listOf("id" to geofenceId, "sh" to "polygon", "why" to reason.wire)
+                ),
+            tag = TAG
+        )
     }
 
     fun logPolygonDroppedUnsupportedRuntime(geofenceId: String) {
         logger.info(
-            "Geofence '$geofenceId' dropped — it is a polygon, and this SDK build monitors circles only. The record was decoded and validated but never registered; its enclosing circle is a proximity trigger, not the fence, so registering it would report transitions for the wrong area.",
+            "Geofence '$geofenceId' dropped — it is a polygon, and this SDK build monitors circles only. The record was decoded and validated but never registered; its enclosing circle is a proximity trigger, not the fence, so registering it would report transitions for the wrong area." +
+                tail(
+                    "registration.rejected",
+                    GeofenceLogIo.OUTPUT,
+                    listOf("id" to geofenceId, "sh" to "polygon", "why" to "runtime_unsupported")
+                ),
             tag = TAG
         )
     }
 
-    fun logPolygonFixNotUsable(reason: String) {
+    fun logPolygonFixNotUsable(reason: PolygonFixRejection) {
         logger.debug(
-            "Polygon fix ignored — $reason. Responsive monitoring is best-effort: it decides only from fixes that are decisive on their own.",
+            "Polygon fix ignored — ${reason.detail}. Responsive monitoring is best-effort: it decides only from fixes that are decisive on their own." +
+                tail(
+                    "polygon.undecided",
+                    GeofenceLogIo.OUTPUT,
+                    listOf("why" to reason.wire)
+                ),
             tag = TAG
         )
     }
 
-    fun logPolygonRegionNotRanked(geofenceId: String, reason: String) {
+    fun logPolygonRegionNotRanked(geofenceId: String, reason: PolygonNotRankedReason) {
         logger.debug(
-            "Geofence '$geofenceId' excluded from ranking — $reason. It stays cached and is never registered as its enclosing circle.",
+            "Geofence '$geofenceId' excluded from ranking — ${reason.detail}. It stays cached and is never registered as its enclosing circle." +
+                tail(
+                    "rank.excluded",
+                    GeofenceLogIo.OUTPUT,
+                    listOf("id" to geofenceId, "sh" to "polygon", "why" to reason.wire)
+                ),
             tag = TAG
         )
     }
@@ -1015,7 +1084,12 @@ internal class GeofenceLogger(private val logger: Logger) {
 
     fun logUnsupportedGeometryDropped(geofenceId: String, type: String) {
         logger.error(
-            "Geofence '$geofenceId' dropped — unsupported geometry type='$type' (only Polygon is understood). Not degraded to a circle; check SDK / backend version alignment.",
+            "Geofence '$geofenceId' dropped — unsupported geometry type='$type' (only Polygon is understood). Not degraded to a circle; check SDK / backend version alignment." +
+                tail(
+                    "registration.rejected",
+                    GeofenceLogIo.OUTPUT,
+                    listOf("id" to geofenceId, "sh" to type, "why" to "unknown_shape")
+                ),
             tag = TAG
         )
     }

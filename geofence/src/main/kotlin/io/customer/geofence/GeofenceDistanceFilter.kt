@@ -66,12 +66,12 @@ internal class GeofenceDistanceFilter(
         longitude: Double
     ): Float? {
         if (region.isPolygon && !polygonSupport.isPolygonMonitoringEnabled) {
-            logger.logPolygonRegionNotRanked(region.id, "polygon monitoring is not enabled in this build")
+            logger.logPolygonRegionNotRanked(region.id, PolygonNotRankedReason.RUNTIME_UNSUPPORTED)
             return null
         }
         val distance = region.edgeDistanceToOrNull(latitude, longitude, cachedGeometry(region))
         if (distance == null) {
-            logger.logPolygonRegionNotRanked(region.id, "the cached ring no longer validates")
+            logger.logPolygonRegionNotRanked(region.id, PolygonNotRankedReason.RING_UNBUILDABLE)
             return null
         }
         return round(distance)

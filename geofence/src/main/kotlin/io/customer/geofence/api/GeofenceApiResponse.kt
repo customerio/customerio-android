@@ -1,5 +1,6 @@
 package io.customer.geofence.api
 
+import io.customer.geofence.GeofenceCatalogEntry
 import io.customer.geofence.GeofenceConfig
 import io.customer.geofence.GeofenceConstants
 import io.customer.geofence.GeofenceRegion
@@ -317,6 +318,36 @@ private fun GeofenceApiRegion.toPolygonRegionOrNull(
     )
 }
 
+/**
+ * Every fetched record, described as the server sent it and before any of them are dropped.
+ *
+ * Deliberately validation-free: the only thing resolved here is the ring, because a ring that does
+ * not build cannot be reported as vertices. Everything else is passed through, so a record the
+ * mapper rejects still produces a catalog row naming the shape it claimed.
+ */
+internal fun GeofenceApiResponse.toCatalogEntries(): List<GeofenceCatalogEntry> =
+    geofences.map { region -> region.toCatalogEntry() }
+
+private fun GeofenceApiRegion.toCatalogEntry(): GeofenceCatalogEntry {
+    val claimedShape = shape?.trim()?.lowercase()?.takeIf(String::isNotEmpty)
+    val isPolygonRecord = claimedShape == POLYGON_SHAPE
+    return GeofenceCatalogEntry(
+        id = id,
+        name = name,
+        geosetIds = geosetIds,
+        // An absent discriminator reads as a circle here for the same reason the mapper reads it
+        // that way, so a legacy response still catalogs as the circle it is.
+        shape = claimedShape ?: CIRCLE_SHAPE,
+        // A polygon's placeable centre is its enclosing circle, never the flat fields: a record
+        // carrying both means them for different shapes.
+        latitude = if (isPolygonRecord) enclosingCircle?.latitude else latitude,
+        longitude = if (isPolygonRecord) enclosingCircle?.longitude else longitude,
+        radiusMeters = if (isPolygonRecord) enclosingCircle?.baseRadiusMeters else radius,
+        vertices = geometry?.toPolygonGeometryOrNull()?.vertices,
+        transitionTypes = transitionTypesOrDefaults(transitionTypes).map { it.name.lowercase() }
+    )
+}
+
 private val GeofenceApiGeometry.isPolygonType: Boolean
     get() = type.equals(POLYGON_GEOMETRY_TYPE, ignoreCase = true)
 
@@ -384,15 +415,20 @@ private fun sanitizeMetadata(raw: JsonElement?): Map<String, JsonElement> {
  * valid + unknown keeps just the valid subset. Each unknown value is logged.
  */
 private fun resolveTransitionTypes(raw: List<String>?): List<GeofenceTransitionType> {
+    raw?.forEach { value ->
+        if (parseTransitionType(value) == null) SDKComponent.geofenceLogger.logUnknownApiTransitionType(value)
+    }
+    return transitionTypesOrDefaults(raw)
+}
+
+/**
+ * The resolution without the reporting, so the catalog can name the same transition types the
+ * mapper will without emitting a second `api.transition.unknown` for every unknown value.
+ */
+private fun transitionTypesOrDefaults(raw: List<String>?): List<GeofenceTransitionType> {
     val defaults = listOf(GeofenceTransitionType.ENTER, GeofenceTransitionType.EXIT)
     if (raw.isNullOrEmpty()) return defaults
-    val parsed = raw.mapNotNull { value ->
-        parseTransitionType(value) ?: run {
-            SDKComponent.geofenceLogger.logUnknownApiTransitionType(value)
-            null
-        }
-    }
-    return parsed.takeIf { it.isNotEmpty() } ?: defaults
+    return raw.mapNotNull(::parseTransitionType).takeIf { it.isNotEmpty() } ?: defaults
 }
 
 private fun parseTransitionType(value: String): GeofenceTransitionType? =

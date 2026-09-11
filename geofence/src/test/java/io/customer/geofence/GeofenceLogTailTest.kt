@@ -694,6 +694,7 @@ class GeofenceLogTailTest : RobolectricTest() {
         var evictedCalls = 0
         var distanceCalls = 0
         var regionCountCalls = 0
+        var catalogCalls = 0
 
         subject.logRankEvaluated(
             candidates = 50,
@@ -703,11 +704,15 @@ class GeofenceLogTailTest : RobolectricTest() {
             edgeDistances = { distanceCalls++; mapOf("alpha" to 120.0) }
         )
         subject.logStorageLoaded(regionCount = { regionCountCalls++; 100 }, hasAnchor = true)
+        subject.logApiFetchResult(1, 10L) { catalogCalls++; listOf(catalogRegion()) }
 
         selectedCalls shouldBeEqualTo 0
         evictedCalls shouldBeEqualTo 0
         distanceCalls shouldBeEqualTo 0
         regionCountCalls shouldBeEqualTo 0
+        // The catalog re-decodes and re-validates every polygon ring the mapper is about to build
+        // anyway; with the gate off that is a background fetch paying twice for rows nobody writes.
+        catalogCalls shouldBeEqualTo 0
 
         // Proves the counts above are zero because of the gate, not because the lambdas are
         // unreachable. logStorageLoaded is diagnostics-only, so it also gains its prose here.
@@ -720,40 +725,47 @@ class GeofenceLogTailTest : RobolectricTest() {
             edgeDistances = { distanceCalls++; mapOf("alpha" to 120.0) }
         )
         subject.logStorageLoaded(regionCount = { regionCountCalls++; 100 }, hasAnchor = true)
+        subject.logApiFetchResult(1, 10L) { catalogCalls++; listOf(catalogRegion()) }
 
         selectedCalls shouldBeEqualTo 1
         evictedCalls shouldBeEqualTo 1
         distanceCalls shouldBeEqualTo 1
         regionCountCalls shouldBeEqualTo 1
+        catalogCalls shouldBeEqualTo 1
     }
 
     private fun polygonCatalogRegion(
         vertexCount: Int = 4,
-        baseRadiusMeters: Double = 900.0
-    ) = GeofenceRegion(
+        baseRadiusMeters: Double? = 900.0
+    ) = GeofenceCatalogEntry(
         id = "poly-1",
-        latitude = 25.109908,
-        longitude = 55.184004,
-        // What GMS registers: the backend circle plus our platform margin.
-        radius = (baseRadiusMeters + 1_000.0).toFloat(),
         name = "Polygon Fence",
         geosetIds = listOf("4471"),
-        polygonVertices = List(vertexCount) { index ->
+        shape = "polygon",
+        latitude = 25.109908,
+        longitude = 55.184004,
+        // The backend's own circle. What GMS registers is this plus our platform margin, and the
+        // catalog must never report that one.
+        radiusMeters = baseRadiusMeters,
+        vertices = List(vertexCount) { index ->
             PolygonCoordinate(25.10 + index / 10_000.0, 55.18 + index / 10_000.0)
         },
-        baseRadiusMeters = baseRadiusMeters
+        transitionTypes = listOf("enter", "exit")
     )
 
     private fun catalogRegion(
         id: String = "11125",
         name: String? = "Momo Dubai Test"
-    ) = GeofenceRegion(
+    ) = GeofenceCatalogEntry(
         id = id,
+        name = name,
+        geosetIds = listOf("4471", "9002"),
+        shape = "circle",
         latitude = 25.109908,
         longitude = 55.184004,
-        radius = 150f,
-        name = name,
-        geosetIds = listOf("4471", "9002")
+        radiusMeters = 150.0,
+        vertices = null,
+        transitionTypes = listOf("enter", "exit")
     )
 
     @Test
@@ -762,7 +774,7 @@ class GeofenceLogTailTest : RobolectricTest() {
         // and `=`. Left raw, `Momo Dubai Test` would split into three bogus fields.
         GeofenceDiagnostics.setEnabledForTesting(true)
         val logger = CapturingLogger()
-        GeofenceLogger(logger).logApiFetchResult(1, 10L, listOf(catalogRegion(name = "Momo Dubai, Test=1")))
+        GeofenceLogger(logger).logApiFetchResult(1, 10L) { listOf(catalogRegion(name = "Momo Dubai, Test=1")) }
 
         val fields = parseTail(logger.messages.last())
         fields.shouldNotBeNull()
@@ -785,7 +797,7 @@ class GeofenceLogTailTest : RobolectricTest() {
     fun fenceCatalog_expectMachineKeyAndReplayClassification() {
         GeofenceDiagnostics.setEnabledForTesting(true)
         val logger = CapturingLogger()
-        GeofenceLogger(logger).logApiFetchResult(1, 10L, listOf(catalogRegion()))
+        GeofenceLogger(logger).logApiFetchResult(1, 10L) { listOf(catalogRegion()) }
 
         val message = logger.messages.last()
         message.startsWith("[Geofence] ") shouldBeEqualTo true
@@ -802,7 +814,7 @@ class GeofenceLogTailTest : RobolectricTest() {
     fun fenceCatalog_givenPolygon_expectShapeVertexCountAndRing() {
         GeofenceDiagnostics.setEnabledForTesting(true)
         val logger = CapturingLogger()
-        GeofenceLogger(logger).logApiFetchResult(1, 10L, listOf(polygonCatalogRegion(vertexCount = 4)))
+        GeofenceLogger(logger).logApiFetchResult(1, 10L) { listOf(polygonCatalogRegion(vertexCount = 4)) }
 
         val fields = parseTail(logger.messages.last())
         fields.shouldNotBeNull()
@@ -819,19 +831,19 @@ class GeofenceLogTailTest : RobolectricTest() {
         // cross-platform discrepancy that is only padding, and overstates the fence by a kilometre.
         GeofenceDiagnostics.setEnabledForTesting(true)
         val logger = CapturingLogger()
-        GeofenceLogger(logger).logApiFetchResult(1, 10L, listOf(polygonCatalogRegion(baseRadiusMeters = 900.0)))
+        GeofenceLogger(logger).logApiFetchResult(1, 10L) { listOf(polygonCatalogRegion(baseRadiusMeters = 900.0)) }
 
         parseTail(logger.messages.last())?.get("rad") shouldBeEqualTo "900"
     }
 
     @Test
     fun fenceCatalog_givenPolygonWithoutBackendRadius_expectRadOmittedNotPadded() {
-        // The mapper drops such a polygon today, so this pins the direction of the failure if that
-        // ever changes: absent is recoverable, the padded radius is the bug this record had.
+        // The mapper drops such a polygon, and the catalog now runs before it, so this row is what
+        // a capture actually gets: absent is recoverable, the padded radius is the bug this had.
         GeofenceDiagnostics.setEnabledForTesting(true)
         val logger = CapturingLogger()
-        val region = polygonCatalogRegion().copy(baseRadiusMeters = null)
-        GeofenceLogger(logger).logApiFetchResult(1, 10L, listOf(region))
+        val region = polygonCatalogRegion().copy(radiusMeters = null)
+        GeofenceLogger(logger).logApiFetchResult(1, 10L) { listOf(region) }
 
         val fields = parseTail(logger.messages.last())
         fields.shouldNotBeNull()
@@ -843,7 +855,7 @@ class GeofenceLogTailTest : RobolectricTest() {
     fun fenceCatalog_givenCircle_expectShapeCircleAndNoRing() {
         GeofenceDiagnostics.setEnabledForTesting(true)
         val logger = CapturingLogger()
-        GeofenceLogger(logger).logApiFetchResult(1, 10L, listOf(catalogRegion()))
+        GeofenceLogger(logger).logApiFetchResult(1, 10L) { listOf(catalogRegion()) }
 
         val fields = parseTail(logger.messages.last())
         fields.shouldNotBeNull()
@@ -859,7 +871,7 @@ class GeofenceLogTailTest : RobolectricTest() {
         // notice and refuse instead of computing membership against part of the shape.
         GeofenceDiagnostics.setEnabledForTesting(true)
         val logger = CapturingLogger()
-        GeofenceLogger(logger).logApiFetchResult(1, 10L, listOf(polygonCatalogRegion(vertexCount = 30)))
+        GeofenceLogger(logger).logApiFetchResult(1, 10L) { listOf(polygonCatalogRegion(vertexCount = 30)) }
 
         val fields = parseTail(logger.messages.last())
         fields.shouldNotBeNull()
@@ -871,11 +883,9 @@ class GeofenceLogTailTest : RobolectricTest() {
     fun fenceCatalog_expectOneRecordPerFence() {
         GeofenceDiagnostics.setEnabledForTesting(true)
         val logger = CapturingLogger()
-        GeofenceLogger(logger).logApiFetchResult(
-            3,
-            10L,
+        GeofenceLogger(logger).logApiFetchResult(3, 10L) {
             listOf(catalogRegion(id = "1"), catalogRegion(id = "2"), catalogRegion(id = "3"))
-        )
+        }
         logger.messages.count { it.contains("ev=fence.cataloged") } shouldBeEqualTo 3
     }
 
@@ -885,7 +895,7 @@ class GeofenceLogTailTest : RobolectricTest() {
         // sanitising or the list collapses into one token.
         GeofenceDiagnostics.setEnabledForTesting(true)
         val logger = CapturingLogger()
-        GeofenceLogger(logger).logApiFetchResult(1, 10L, listOf(catalogRegion()))
+        GeofenceLogger(logger).logApiFetchResult(1, 10L) { listOf(catalogRegion()) }
 
         val fields = parseTail(logger.messages.last())
         fields.shouldNotBeNull()
@@ -901,7 +911,7 @@ class GeofenceLogTailTest : RobolectricTest() {
         // exist at all, not merely lose its tail.
         GeofenceDiagnostics.setEnabledForTesting(false)
         val logger = CapturingLogger()
-        GeofenceLogger(logger).logApiFetchResult(1, 10L, listOf(catalogRegion()))
+        GeofenceLogger(logger).logApiFetchResult(1, 10L) { listOf(catalogRegion()) }
 
         logger.messages.none { it.contains("catalogued") } shouldBeEqualTo true
     }

@@ -39,6 +39,7 @@ internal class GeofenceLifecycleObserver(
         deliveryFlusher.flush(
             callbacks = object : PendingDeliveryFlusher.Callbacks<PendingGeofenceDelivery>() {
                 override fun onSnapshot(count: Int) = logger.logForegroundFlushSnapshot(count)
+                override fun onUnreadable() = logger.logForegroundFlushQueueUnreadable()
                 override fun onWorkCancelled(entry: PendingGeofenceDelivery) =
                     logger.logForegroundFlushCancelledWorkManager(entry.geofenceId, entry.transition.name)
                 override fun onPublished(entry: PendingGeofenceDelivery) =

@@ -70,6 +70,13 @@ class PendingDeliveryFlusher<T : PendingDeliveryStore.PendingDeliveryEntry>(
         /** Number of entries snapshotted at the start of the flush (may be 0). */
         open fun onSnapshot(count: Int) {}
 
+        /**
+         * The store could not be read, so this flush did nothing. Distinct from [onSnapshot] with
+         * a count of 0: the rows are still on disk, and without this the failure leaves no trace on
+         * a device where no new entry arrives to wake the worker that would otherwise report it.
+         */
+        open fun onUnreadable() {}
+
         /** The entry's WorkManager unique work was cancelled. */
         open fun onWorkCancelled(entry: T) {}
 
@@ -95,7 +102,12 @@ class PendingDeliveryFlusher<T : PendingDeliveryStore.PendingDeliveryEntry>(
     ) {
         CoroutineScope(dispatchersProvider.background).launch {
             runCatching {
-                val pending = store.loadAll()
+                // Skipped rather than reported as a snapshot of zero: the rows are still on disk,
+                // and the next foreground transition flushes again.
+                val pending = store.loadAllOrNull() ?: run {
+                    callbacks.onUnreadable()
+                    return@runCatching
+                }
                 callbacks.onSnapshot(pending.size)
                 if (pending.isEmpty()) return@runCatching
 

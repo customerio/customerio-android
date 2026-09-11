@@ -179,6 +179,8 @@ class GeofenceLogTailTest : RobolectricTest() {
             Row("eventDelivered", "delivery.sent", listOf("id", "t", "via"), GeofenceLogger::logEventDelivered.name) { it.logEventDelivered("notl_core", "ENTER") },
             Row("deliverySkippedAlreadyDelivered", "delivery.sent", listOf("id", "t", "why"), GeofenceLogger::logEventDeliverySkippedAlreadyDelivered.name) { it.logEventDeliverySkippedAlreadyDelivered("notl_core", "ENTER") },
             Row("workerEntryMissing", "delivery.sent", listOf("why"), GeofenceLogger::logEventWorkerEntryMissing.name) { it.logEventWorkerEntryMissing() },
+            Row("workerQueueUnreadable", "queue.unreadable", listOf("why", "via", "n", "retry"), GeofenceLogger::logEventWorkerQueueUnreadable.name, io = "in") { it.logEventWorkerQueueUnreadable(2, willRetry = true) },
+            Row("flushQueueUnreadable", "queue.unreadable", listOf("why", "via"), GeofenceLogger::logForegroundFlushQueueUnreadable.name, io = "in") { it.logForegroundFlushQueueUnreadable() },
             Row("flushSnapshot", "delivery.flush", listOf("n", "phase"), GeofenceLogger::logForegroundFlushSnapshot.name) { it.logForegroundFlushSnapshot(3) },
             Row("flushCancelled", "delivery.flush", listOf("id", "t", "why"), GeofenceLogger::logForegroundFlushCancelledWorkManager.name) { it.logForegroundFlushCancelledWorkManager("notl_core", "ENTER") },
             Row("flushPublished", "delivery.sent", listOf("id", "t", "via"), GeofenceLogger::logForegroundFlushPublished.name) { it.logForegroundFlushPublished("notl_core", "ENTER") },
@@ -333,6 +335,7 @@ class GeofenceLogTailTest : RobolectricTest() {
             "os.error",
             "permission.changed",
             "polygon.undecided",
+            "queue.unreadable",
             "rank.evaluated",
             "rank.excluded",
             "registration.added",
@@ -593,6 +596,25 @@ class GeofenceLogTailTest : RobolectricTest() {
 
         parseTail(atDecode.messages.last())!!["why"] shouldBeEqualTo "runtime_unsupported"
         parseTail(atRank.messages.last())!!["why"] shouldBeEqualTo "runtime_unsupported"
+    }
+
+    @Test
+    fun queueUnreadable_expectViaSeparatesTheTwoPathsSharingTheEv() {
+        GeofenceDiagnostics.setEnabledForTesting(true)
+
+        // Both paths file the same failure under one ev, so `via` is the only thing telling a wake
+        // apart from a foreground flush. Collapsed, the flush trace reads as a worker wake and the
+        // path that runs without a new transition becomes invisible again.
+        val worker = CapturingLogger()
+        GeofenceLogger(worker).logEventWorkerQueueUnreadable(2, willRetry = true)
+        val flush = CapturingLogger()
+        GeofenceLogger(flush).logForegroundFlushQueueUnreadable()
+
+        parseTail(worker.messages.last())!!["via"] shouldBeEqualTo "work_manager"
+        parseTail(flush.messages.last())!!["via"] shouldBeEqualTo "foreground_flush"
+        // Shared, so a query for the failure itself catches both.
+        parseTail(worker.messages.last())!!["why"] shouldBeEqualTo "read_failed"
+        parseTail(flush.messages.last())!!["why"] shouldBeEqualTo "read_failed"
     }
 
     @Test

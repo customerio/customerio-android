@@ -8,6 +8,7 @@ import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkerParameters
 import androidx.work.await
+import io.customer.geofence.GeofenceConstants
 import io.customer.geofence.di.geofenceEventTracker
 import io.customer.geofence.di.geofenceLogger
 import io.customer.geofence.di.pendingGeofenceDeliveryStore
@@ -79,7 +80,20 @@ internal class GeofenceEventWorker(
         val store = SDKComponent.android().pendingGeofenceDeliveryStore
         var sawEntry = false
         while (true) {
-            val entry = store.loadAll().firstOrNull() ?: run {
+            val queued = store.loadAllOrNull() ?: run {
+                // Unreadable, which is not empty: the rows are still on disk and nothing has been
+                // sent. Reporting success here would say the queue drained.
+                //
+                // Result.failure() is safe here where the delivery paths below avoid it: a terminal
+                // node cancels the chain's dependents, but every one of them would fail this same
+                // read, and the rows they would have sent are untouched on disk for the next
+                // transition or the foreground flush. Retrying past the cap only spins on a file
+                // that no number of attempts recovers.
+                val willRetry = runAttemptCount < GeofenceConstants.MAX_UNREADABLE_QUEUE_ATTEMPTS
+                logger.logEventWorkerQueueUnreadable(runAttemptCount, willRetry)
+                return if (willRetry) Result.retry() else Result.failure()
+            }
+            val entry = queued.firstOrNull() ?: run {
                 // Only when the wake found nothing at all. Draining the queue empty is the normal
                 // success path, and recording that as an already-delivered skip would report a
                 // flush overtaking us on every successful delivery.

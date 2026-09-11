@@ -7,6 +7,7 @@ import io.customer.commontest.config.ApplicationArgument
 import io.customer.commontest.config.TestConfig
 import io.customer.commontest.config.testConfigurationDefault
 import io.customer.commontest.core.RobolectricTest
+import io.customer.geofence.GeofenceConstants
 import io.customer.geofence.GeofenceDiagnostics
 import io.customer.geofence.GeofenceLogger
 import io.customer.geofence.di.pendingGeofenceDeliveryStore
@@ -175,6 +176,50 @@ class GeofenceEventWorkerTest : RobolectricTest() {
 
         result shouldBeEqualTo ListenableWorker.Result.success()
         coVerify(exactly = 0) { tracker.trackEvent(any()) }
+    }
+
+    private fun unreadableRecords(): List<String> =
+        capturing.messages.filter { "ev=queue.unreadable" in it }
+
+    @Test
+    fun doWork_givenUnreadableQueue_expectRetryAndNotAnEmptyQueueRecord() = runTest {
+        seed("biz-1", Event.GeofenceTransition.ENTER, 99L)
+        val unreadable = spyk(store) { every { loadAllOrNull() } returns null }
+        SDKComponent.android()
+            .overrideDependency<PendingDeliveryStore<PendingGeofenceDelivery>>(unreadable)
+
+        val result = createWorker(Data.EMPTY).doWork()
+
+        // Retried, not reported drained: the row is still on disk and nothing was sent.
+        result shouldBeEqualTo ListenableWorker.Result.retry()
+        coVerify(exactly = 0) { tracker.trackEvent(any()) }
+        // The distinction this whole change exists for. queue_empty names a cause that was never
+        // established for a file we could not read.
+        emptyQueueRecords().shouldBeEmpty()
+        unreadableRecords().size shouldBeEqualTo 1
+        unreadableRecords().single() shouldContain "why=read_failed"
+        unreadableRecords().single() shouldContain "retry=true"
+        // The wake path, not the foreground flush, which files the same ev.
+        unreadableRecords().single() shouldContain "via=work_manager"
+    }
+
+    @Test
+    fun doWork_givenUnreadableQueueAtAttemptCap_expectGiveUpRatherThanBackoffLoop() = runTest {
+        seed("biz-1", Event.GeofenceTransition.ENTER, 99L)
+        val unreadable = spyk(store) { every { loadAllOrNull() } returns null }
+        SDKComponent.android()
+            .overrideDependency<PendingDeliveryStore<PendingGeofenceDelivery>>(unreadable)
+
+        val worker = TestListenableWorkerBuilder<GeofenceEventWorker>(applicationMock)
+            .setInputData(Data.EMPTY)
+            .setRunAttemptCount(GeofenceConstants.MAX_UNREADABLE_QUEUE_ATTEMPTS)
+            .build()
+
+        // A permanently unreadable file is not recovered by retrying it forever; the rows survive
+        // because nothing is ever written over them.
+        worker.doWork() shouldBeEqualTo ListenableWorker.Result.failure()
+        unreadableRecords().single() shouldContain "retry=false"
+        store.loadAll().map { it.geofenceId } shouldBeEqualTo listOf("biz-1")
     }
 
     private fun emptyQueueRecords(): List<String> =

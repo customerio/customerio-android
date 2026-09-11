@@ -8,6 +8,9 @@ import java.util.Locale
 /**
  * Whether a record is something the SDK was told, decided, or neither.
  *
+ * An environment fault the SDK reacts to counts as [INPUT], not [OBSERVATION]: replay has to be fed
+ * the fault to reproduce the decision taken because of it.
+ *
  * Stated explicitly rather than inferred from the event name: replay feeds the `in` records back
  * and compares the `out` records, so a naming convention getting this wrong invalidates a run.
  */

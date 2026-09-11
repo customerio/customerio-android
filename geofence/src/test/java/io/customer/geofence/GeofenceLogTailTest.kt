@@ -684,6 +684,21 @@ class GeofenceLogTailTest : RobolectricTest() {
     }
 
     @Test
+    fun fenceCatalog_givenPolygonWithoutBackendRadius_expectRadOmittedNotPadded() {
+        // The mapper drops such a polygon today, so this pins the direction of the failure if that
+        // ever changes: absent is recoverable, the padded radius is the bug this record had.
+        GeofenceDiagnostics.setEnabledForTesting(true)
+        val logger = CapturingLogger()
+        val region = polygonCatalogRegion().copy(baseRadiusMeters = null)
+        GeofenceLogger(logger).logApiFetchResult(1, 10L, listOf(region))
+
+        val fields = parseTail(logger.messages.last())
+        fields.shouldNotBeNull()
+        fields["sh"] shouldBeEqualTo "polygon"
+        fields["rad"].shouldBeNull()
+    }
+
+    @Test
     fun fenceCatalog_givenCircle_expectShapeCircleAndNoRing() {
         GeofenceDiagnostics.setEnabledForTesting(true)
         val logger = CapturingLogger()

@@ -1,5 +1,8 @@
 package io.customer.geofence
 
+import android.Manifest
+import androidx.annotation.RequiresPermission
+
 /**
  * What the SDK can ask the OS to monitor. The humble half of geofence registration.
  *
@@ -18,15 +21,19 @@ internal interface GeofenceRegistrar {
      * the OS, because re-upserting a same-ID geofence triggers GMS state reconciliation that can
      * fire spurious EXIT events.
      */
+    @RequiresPermission(Manifest.permission.ACCESS_FINE_LOCATION)
     suspend fun replaceGeofences(
         regions: List<GeofenceRegion>,
         existingBusinessIds: Set<String> = emptySet()
     ): Result<Unit>
 
     /** Boot-restore entry point; registration is identical to [replaceGeofences]. */
+    @RequiresPermission(Manifest.permission.ACCESS_FINE_LOCATION)
     suspend fun replaceGeofencesForBootRestore(regions: List<GeofenceRegion>): Result<Unit>
 
+    @RequiresPermission(Manifest.permission.ACCESS_FINE_LOCATION)
     suspend fun removeGeofencesByIds(ids: List<String>): Result<Unit>
 
+    @RequiresPermission(Manifest.permission.ACCESS_FINE_LOCATION)
     suspend fun clearAll(): Result<Unit>
 }

@@ -255,7 +255,7 @@ internal class GeofenceLogger(private val logger: Logger) {
                 tail(
                     "permission.changed",
                     GeofenceLogIo.INPUT,
-                    listOf("perm" to "foreground_only", "ctx" to token(reason))
+                    listOf("perm" to "when_in_use", "why" to "foreground_only", "ctx" to token(reason))
                 ),
             tag = TAG
         )
@@ -335,6 +335,23 @@ internal class GeofenceLogger(private val logger: Logger) {
      * direction, and until now this branch emitted only `sync.skipped` — an observation no
      * scenario could grade.
      */
+    /**
+     * The third outcome: the reset tried to clear and the OS call failed. The store is kept so the
+     * next refresh retries the removal, and that is a decision worth grading — a scenario recorded
+     * on a phone whose GMS clear failed must still say what the SDK did about it.
+     */
+    fun logResetFailed(reason: String) {
+        logger.debug(
+            "Reset failed: OS clear did not complete, keeping state for the next refresh to retry ($reason)" +
+                tail(
+                    "module.reset",
+                    GeofenceLogIo.OUTPUT,
+                    listOf("ok" to bool(false), "why" to "os_clear_failed")
+                ),
+            tag = TAG
+        )
+    }
+
     fun logResetSuperseded() {
         logger.debug(
             "Reset skipped: another user is signed in" +
@@ -350,9 +367,10 @@ internal class GeofenceLogger(private val logger: Logger) {
     /**
      * A user signed in or out — an input, because the host app decides it and the SDK reacts.
      *
-     * One record per identity transition: `ok=true` from the identify that names a user, `ok=false`
-     * from the reset that clears one. Sign-out publishes both `ResetEvent` and
-     * `UserChangedEvent(null)`; logging only the first keeps the count honest.
+     * `ok=true` from every identify that names a user — a repeat identify of the same user logs
+     * again, and replay treats it as the idempotent input it is — and `ok=false` from the reset
+     * that clears one. Sign-out publishes both `ResetEvent` and `UserChangedEvent(null)`; logging
+     * only the first keeps a sign-out to one record.
      *
      * No identifier is written. A capture leaves the device, and the whole point of the tail is
      * that it carries no personal data.
@@ -519,8 +537,8 @@ internal class GeofenceLogger(private val logger: Logger) {
      * `os.callback.received` record the receiver writes for the whole broadcast, which carries the
      * OS's triggering fix and the ids it applied to — find this crossing's `id` in that record's
      * `ids` list (a comma-separated list, not an `id` field; iOS is the one that emits `id` here).
-     * Threading the `Location` down to this call site instead would mean widening
-     * `dispatchTransition`, which has 78 test references, for information already recorded.
+     * Threading the `Location` down to this call site instead would mean widening the pipeline's
+     * whole handling path for information already recorded.
      *
      * [rows] is the per-geoset fan-out size and rides in the tail as `n`, so one crossing reads as
      * one acceptance. It is deliberately **not** added to the prose: this message predates the

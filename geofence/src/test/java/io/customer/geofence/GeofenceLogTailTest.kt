@@ -120,7 +120,7 @@ class GeofenceLogTailTest : RobolectricTest() {
     /**
      * The frozen replay contract: what a scenario may inject, and what it may assert.
      *
-     * `out` is the entire assertion surface. Six records — adding a seventh changes what every
+     * `out` is the entire assertion surface. Three records — adding a fourth changes what every
      * scenario in the corpus grades against, so it is a deliberate act, not a side effect of
      * writing a new log line. `in` is what replay feeds back. Everything absent here is `obs`:
      * worth reading in a capture, never graded.
@@ -183,6 +183,7 @@ class GeofenceLogTailTest : RobolectricTest() {
             Row("stateResetOnSignOut", "info", listOf("why")) { it.logGeofenceStateResetOnSignOut() },
             Row("resetCompleted", "module.reset", listOf("ok")) { it.logResetCompleted() },
             Row("resetSuperseded", "module.reset", listOf("ok", "why")) { it.logResetSuperseded() },
+            Row("resetFailed", "module.reset", listOf("ok", "why")) { it.logResetFailed("ApiException") },
             Row("permissionTier", "permission.changed", listOf("perm", "ok")) { it.logPermissionTier(GeofenceLogger.PERMISSION_ALWAYS) },
             Row("identitySignedIn", "identity.changed", listOf("ok")) { it.logIdentityChanged(identified = true) },
             Row("identitySignedOut", "identity.changed", listOf("ok")) { it.logIdentityChanged(identified = false) },
@@ -268,8 +269,8 @@ class GeofenceLogTailTest : RobolectricTest() {
      * Reads what the logger *emitted*, not what [declaredIo] says it should — otherwise the check
      * is circular and a mistake in the map validates itself.
      *
-     * The number is the point. A scenario asserts exactly this set, so a seventh output silently
-     * widens every recorded drive's expectations; a sixth going missing silently narrows them.
+     * The number is the point. A scenario asserts exactly this set, so a fourth output silently
+     * widens every recorded drive's expectations; one going missing silently narrows them.
      */
     @Test
     fun assertionSurface_expectExactlyTheFrozenOutputs() {

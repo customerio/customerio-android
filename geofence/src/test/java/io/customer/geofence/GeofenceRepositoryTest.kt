@@ -1298,6 +1298,8 @@ class GeofenceRepositoryTest : RobolectricTest() {
         result.exceptionOrNull() shouldBeEqualTo error
         verify(exactly = 0) { store.clearUserScopedState() }
         verify(exactly = 0) { store.clearAll() }
+        // The failure is an outcome of the reset decision, recorded under the same key as success.
+        verify { logger.logResetFailed("RuntimeException") }
         // Cooldown is user-scoped suppression, not registration state: it's wiped on a genuine
         // sign-out even when the OS clear fails, so the next user can't inherit stale windows.
         verify(exactly = 1) { cooldownFilter.clearAll() }

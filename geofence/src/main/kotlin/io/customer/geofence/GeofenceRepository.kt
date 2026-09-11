@@ -648,6 +648,8 @@ internal class GeofenceRepositoryImpl(
             if (result.isSuccess) {
                 store.clearUserScopedState()
                 logger.logResetCompleted()
+            } else {
+                logger.logResetFailed(result.exceptionOrNull()?.javaClass?.simpleName ?: "unknown")
             }
             // Wipe the departing user's cooldown history on any genuine sign-out, even if the
             // OS clear failed — keys are user-scoped, so this is data hygiene, not correctness.

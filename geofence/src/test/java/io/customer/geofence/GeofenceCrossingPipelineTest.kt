@@ -171,8 +171,8 @@ class GeofenceCrossingPipelineTest : RobolectricTest() {
         // Default: an identified user is the common case; the snapshot lands on the entry.
         // Tests that need an anonymous-at-queue-time scenario override this to null.
         every { mockSecureUserStore.getUserId() } returns "user-42"
-        // Default: all geofence IDs the tests reference are "registered" so the
-        // dispatchTransition store filter is a no-op. Tests for the filter override.
+        // Default: all geofence IDs the tests reference are "registered" so the pipeline's
+        // registered-id filter is a no-op. Tests for the filter override.
         every { mockStore.getRegisteredIds() } returns setOf(
             GeofenceConstants.MOVEMENT_TRIGGER_ID,
             "biz-1",

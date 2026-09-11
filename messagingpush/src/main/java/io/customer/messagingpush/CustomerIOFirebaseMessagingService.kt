@@ -48,6 +48,20 @@ open class CustomerIOFirebaseMessagingService : FirebaseMessagingService() {
             handleNewToken(context = context, token = token)
         }
 
+        /**
+         * Handles the Firebase Installation ID (FID) delivered when the app instance is
+         * registered with FCM. Call this from [FirebaseMessagingService.onRegistered] to
+         * register the FID as the device token when your app has enabled FID based
+         * registration through the `firebase_messaging_installation_id_enabled` manifest flag.
+         *
+         * @param context reference to application context
+         * @param installationId Firebase Installation ID for the current app instance
+         */
+        @JvmStatic
+        fun onRegistered(context: Context, installationId: String) {
+            handleNewToken(context = context, token = installationId)
+        }
+
         private fun handleNewToken(context: Context, token: String) {
             SDKComponent.setupAndroidComponent(context = context)
             eventBus.publish(
@@ -70,8 +84,13 @@ open class CustomerIOFirebaseMessagingService : FirebaseMessagingService() {
         }
     }
 
+    @Deprecated("Deprecated by FCM in favor of onRegistered")
     override fun onNewToken(token: String) {
         handleNewToken(context = this, token = token)
+    }
+
+    override fun onRegistered(installationId: String) {
+        handleNewToken(context = this, token = installationId)
     }
 
     override fun onMessageReceived(remoteMessage: RemoteMessage) {

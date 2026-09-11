@@ -137,8 +137,7 @@ class PendingDeliveryStoreTest : RobolectricTest() {
         storeFile().delete()
         storeFile().mkdirs()
 
-        // The distinction the caller acts on: loadAll cannot tell these apart, so a drain reports
-        // itself finished while the rows are still on disk.
+        // The distinction a draining caller acts on; loadAll cannot tell these apart.
         store.loadAllOrNull().shouldBeNull()
         store.loadAll().shouldBeEmpty()
     }

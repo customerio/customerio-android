@@ -602,9 +602,8 @@ class GeofenceLogTailTest : RobolectricTest() {
     fun queueUnreadable_expectViaSeparatesTheTwoPathsSharingTheEv() {
         GeofenceDiagnostics.setEnabledForTesting(true)
 
-        // Both paths file the same failure under one ev, so `via` is the only thing telling a wake
-        // apart from a foreground flush. Collapsed, the flush trace reads as a worker wake and the
-        // path that runs without a new transition becomes invisible again.
+        // One ev for both paths, so `via` is the only thing separating them. Collapsed, the flush
+        // trace reads as a worker wake.
         val worker = CapturingLogger()
         GeofenceLogger(worker).logEventWorkerQueueUnreadable(2, willRetry = true)
         val flush = CapturingLogger()

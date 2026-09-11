@@ -91,8 +91,8 @@ class PendingDeliveryFlusherTest : RobolectricTest() {
 
     @Test
     fun flush_givenUnreadableStore_expectNoSnapshotRatherThanZero() {
-        // A snapshot of zero is what the empty store reports. Reporting it for a queue we could not
-        // read says the outbox was drained while the rows are still on disk.
+        // A snapshot of zero is what an empty store reports; reporting it here says the outbox
+        // drained while the rows are still on disk.
         val store = newStore()
         store.append(TestEntry("a"))
         val unreadable: PendingDeliveryStore<TestEntry> = spyk(store) {
@@ -106,10 +106,8 @@ class PendingDeliveryFlusherTest : RobolectricTest() {
         callbacks.snapshotCount shouldBeEqualTo null
         callbacks.completeCount shouldBeEqualTo null
         publishedKeys shouldBeEqualTo emptyList()
-        // Skipping is the right action, but silence is not the right trace: without this the
-        // failure leaves no record at all on a device where no new entry wakes the worker.
+        // Skipping is the right action; silence is not the right trace.
         callbacks.unreadableCount shouldBeEqualTo 1
-        // The pass is skipped, never destructive: the next foreground transition flushes again.
         store.loadAll().map { it.key } shouldBeEqualTo listOf("a")
     }
 

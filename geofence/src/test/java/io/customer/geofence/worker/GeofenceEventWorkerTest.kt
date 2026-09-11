@@ -193,8 +193,7 @@ class GeofenceEventWorkerTest : RobolectricTest() {
         // Retried, not reported drained: the row is still on disk and nothing was sent.
         result shouldBeEqualTo ListenableWorker.Result.retry()
         coVerify(exactly = 0) { tracker.trackEvent(any()) }
-        // The distinction this whole change exists for. queue_empty names a cause that was never
-        // established for a file we could not read.
+        // queue_empty names a cause never established for a file we could not read.
         emptyQueueRecords().shouldBeEmpty()
         unreadableRecords().size shouldBeEqualTo 1
         unreadableRecords().single() shouldContain "why=read_failed"
@@ -215,8 +214,7 @@ class GeofenceEventWorkerTest : RobolectricTest() {
             .setRunAttemptCount(GeofenceConstants.MAX_UNREADABLE_QUEUE_ATTEMPTS)
             .build()
 
-        // A permanently unreadable file is not recovered by retrying it forever; the rows survive
-        // because nothing is ever written over them.
+        // Retrying forever recovers nothing; the rows survive because nothing overwrites them.
         worker.doWork() shouldBeEqualTo ListenableWorker.Result.failure()
         unreadableRecords().single() shouldContain "retry=false"
         store.loadAll().map { it.geofenceId } shouldBeEqualTo listOf("biz-1")

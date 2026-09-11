@@ -914,11 +914,8 @@ internal class GeofenceLogger(private val logger: Logger) {
     }
 
     /**
-     * The queue could not be read, so nothing was sent and nothing was written over.
-     *
-     * Distinct from [logEventWorkerEntryMissing], which names a queue that really was empty. Sharing
-     * one record would report a drained queue for a file we never read. `why=read_failed` matches
-     * iOS, which emits the same token from its own queue.
+     * Distinct from [logEventWorkerEntryMissing], which names a queue that really was empty: one
+     * shared record would report a drain for a file we never read. Token matches iOS.
      */
     fun logEventWorkerQueueUnreadable(attempt: Int, willRetry: Boolean) {
         logger.error(
@@ -933,10 +930,7 @@ internal class GeofenceLogger(private val logger: Logger) {
         )
     }
 
-    /**
-     * Same failure as [logEventWorkerQueueUnreadable], reached from the foreground flush, which has
-     * no attempt count and no retry decision to report — it simply runs again next foreground.
-     */
+    /** Same failure as [logEventWorkerQueueUnreadable], with no attempt or retry to report. */
     fun logForegroundFlushQueueUnreadable() {
         logger.error(
             "Foreground flush could not read the pending queue; leaving it untouched and retrying on the next foreground" +

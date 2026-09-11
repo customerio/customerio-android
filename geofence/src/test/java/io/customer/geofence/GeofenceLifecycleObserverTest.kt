@@ -45,8 +45,7 @@ class GeofenceLifecycleObserverTest {
 
     @Test
     fun onStart_givenUnreadableQueue_expectTheFailureRecorded() {
-        // The flush is the only path that runs without a new transition, so if it stays silent a
-        // queue that went unreadable leaves no record until something else happens to wake a worker.
+        // The only path that runs without a new transition, so silence here means no record at all.
         val callbacksSlot = slot<PendingDeliveryFlusher.Callbacks<PendingGeofenceDelivery>>()
         every { mockDeliveryFlusher.flush(capture(callbacksSlot), any(), any()) } returns Unit
 

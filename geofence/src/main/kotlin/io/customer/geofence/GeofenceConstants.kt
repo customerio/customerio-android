@@ -55,11 +55,8 @@ internal object GeofenceConstants {
     const val MAX_METADATA_COUNT = 100
     const val MAX_METADATA_PAYLOAD_BYTES = 100 * 1024 // 100 KB
 
-    // Attempts the event worker spends on a queue it cannot read before giving the wake up. The
-    // rows are never written over, so giving up costs nothing but this wake — the next transition
-    // enqueues a fresh worker and the foreground flush retries independently. Sized to span a
-    // transient I/O fault across WorkManager's exponential backoff rather than to outlast a
-    // permanently broken file, which no number of retries recovers.
+    // Attempts on an unreadable queue before the worker gives up the wake. Sized to cover a
+    // transient I/O fault across WorkManager's backoff; no number of retries fixes a broken file.
     const val MAX_UNREADABLE_QUEUE_ATTEMPTS = 5
 
     // GMS `Geofence.Builder().setExpirationDuration()` flag for "never expires".

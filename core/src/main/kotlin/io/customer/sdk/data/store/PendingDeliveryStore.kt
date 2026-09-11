@@ -96,9 +96,8 @@ class PendingDeliveryStore<T : PendingDeliveryStore.PendingDeliveryEntry>(
     /**
      * All pending entries in insertion order, or `null` when the queue could not be read.
      *
-     * Same distinction [contains] draws, for a caller that drains rather than asks about one key:
-     * an unreadable queue is not an empty one, and treating it as empty reports the work finished
-     * while the rows are still on disk.
+     * The distinction [contains] draws, for a caller that drains: reading unreadable as empty
+     * reports the work finished while the rows are still on disk.
      */
     fun loadAllOrNull(): List<T>? = lock.withLock { readAll() }
 

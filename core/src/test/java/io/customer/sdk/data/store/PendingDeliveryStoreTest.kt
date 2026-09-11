@@ -12,6 +12,7 @@ import org.amshove.kluent.shouldBeEqualTo
 import org.amshove.kluent.shouldBeTrue
 import org.amshove.kluent.shouldContain
 import org.amshove.kluent.shouldNotBe
+import org.junit.After
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -43,6 +44,13 @@ class PendingDeliveryStoreTest : RobolectricTest() {
         ).also { it.removeAll() }
 
     private fun storeFile(): File = File(contextMock.applicationContext.filesDir, fileName)
+
+    // Several tests put a directory in the file's place. Without this the next test in the class
+    // fails too, since the store cannot rename over it.
+    @After
+    fun clearStoreFile() {
+        storeFile().deleteRecursively()
+    }
 
     @Test
     fun append_givenSingleEntry_expectLoadAllReturnsIt() {

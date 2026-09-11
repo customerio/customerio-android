@@ -3,11 +3,13 @@ package io.customer.sdk.data.store
 import io.customer.commontest.core.RobolectricTest
 import io.customer.sdk.core.util.Logger
 import io.mockk.mockk
+import java.io.File
 import java.io.IOException
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.Serializable
 import org.amshove.kluent.shouldBeEqualTo
 import org.amshove.kluent.shouldBeInstanceOf
+import org.junit.After
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -16,15 +18,25 @@ import org.robolectric.RobolectricTestRunner
 class PendingDeliveryClaimTest : RobolectricTest() {
 
     private val mockLogger: Logger = mockk(relaxed = true)
+    private val fileName = "cio_test_claim_send_restore.json"
 
     @Serializable
     private data class TestEntry(val id: String) : PendingDeliveryStore.PendingDeliveryEntry {
         override val key: String get() = id
     }
 
+    private fun storeFile(): File = File(contextMock.applicationContext.filesDir, fileName)
+
+    // A test that leaves a directory in the file's place makes every later test in the class fail,
+    // since the store cannot rename over it. One failure should stay one failure.
+    @After
+    fun clearStoreFile() {
+        storeFile().deleteRecursively()
+    }
+
     private fun newStore() = PendingDeliveryStore(
         context = contextMock,
-        fileName = "cio_test_claim_send_restore.json",
+        fileName = fileName,
         elementSerializer = TestEntry.serializer(),
         logger = mockLogger
     ).also { it.removeAll() }
@@ -34,9 +46,8 @@ class PendingDeliveryClaimTest : RobolectricTest() {
         // Exactly-once has no dedup id behind it, so reporting a delivery that never happened
         // loses the entry outright. Unknown presence must defer, never claim success.
         val store = newStore()
-        val file = java.io.File(contextMock.applicationContext.filesDir, "cio_test_claim_send_restore.json")
-        file.delete()
-        file.mkdirs()
+        storeFile().delete()
+        storeFile().mkdirs()
         var sendInvoked = false
 
         val result = store.claimSendRestore(TestEntry("unknown")) {
@@ -46,7 +57,6 @@ class PendingDeliveryClaimTest : RobolectricTest() {
 
         result.shouldBeInstanceOf<PendingDeliveryResult.Retryable>()
         sendInvoked shouldBeEqualTo false
-        file.deleteRecursively()
     }
 
     @Test

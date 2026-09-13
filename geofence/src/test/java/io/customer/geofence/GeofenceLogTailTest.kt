@@ -65,6 +65,49 @@ class GeofenceLogTailTest : RobolectricTest() {
     }
 
     /**
+     * `ok` on `permission.changed` means background delivery is available — the reading iOS uses,
+     * where the flag is written only when Always is granted and WhenInUse carries
+     * `why=foreground_only` instead.
+     *
+     * The row-level check below only asserts that `perm` and `ok` are present, and only for Always,
+     * so the values were free to drift. They had: `ok` used to mean "some permission was granted",
+     * which made WhenInUse — the one tier where geofences fire in the foreground and nowhere else —
+     * report `ok=true` here and no `ok` at all on iOS.
+     */
+    @Test
+    fun logPermissionTier_givenEachTier_expectOkToMeanBackgroundDelivery() {
+        val cases = mapOf(
+            GeofenceLogger.PERMISSION_ALWAYS to "true",
+            GeofenceLogger.PERMISSION_WHEN_IN_USE to "false",
+            GeofenceLogger.PERMISSION_DENIED to "false"
+        )
+        for ((tier, expectedOk) in cases) {
+            val logger = CapturingLogger()
+            GeofenceLogger(logger).logPermissionTier(tier)
+            val fields = parseTail(logger.messages.last())
+            fields.shouldNotBeNull()
+            fields["perm"] shouldBeEqualTo tier
+            fields["ok"] shouldBeEqualTo expectedOk
+        }
+    }
+
+    /**
+     * `perm` carries the tier vocabulary on every writer of this record, including the refusal
+     * path, which used to put an Android permission constant there instead.
+     */
+    @Test
+    fun logMissingPermission_expectTheTierInPermAndTheConstantInCtx() {
+        val logger = CapturingLogger()
+        GeofenceLogger(logger).logMissingPermission("ACCESS_FINE_LOCATION")
+
+        val fields = parseTail(logger.messages.last())
+        fields.shouldNotBeNull()
+        fields["perm"] shouldBeEqualTo GeofenceLogger.PERMISSION_DENIED
+        // Normalised by `token()`, as every other `ctx` on this record is.
+        fields["ctx"] shouldBeEqualTo "access_fine_location"
+    }
+
+    /**
      * Mirrors what the off-device parser does: split on the **last** delimiter, then accept the
      * remainder only if every token is a `key=value` pair.
      */
@@ -161,7 +204,7 @@ class GeofenceLogTailTest : RobolectricTest() {
             Row("regionMappingFailed", "registration.rejected", listOf("id", "why")) { it.logRegionMappingFailed("notl_core", "bad radius") },
             Row("rankEvaluated", "rank.evaluated", listOf("ncand", "n", "ranked", "evicted")) { it.logRankEvaluated(30, 2, { listOf("a", "b") }, { listOf("c") }, { mapOf("a" to 120.0, "b" to 340.0) }) },
             Row("movementTriggerRegistered", "movement.registered", listOf("rad")) { it.logMovementTriggerRegistered(43.2, -79.0, 500.0) },
-            Row("missingPermission", "permission.changed", listOf("perm", "why")) { it.logMissingPermission("ACCESS_FINE_LOCATION") },
+            Row("missingPermission", "permission.changed", listOf("perm", "why", "ctx")) { it.logMissingPermission("ACCESS_FINE_LOCATION") },
             Row("backgroundUnavailable", "permission.changed", listOf("perm", "ctx")) { it.logBackgroundDeliveryUnavailable("app-launch") },
             Row("moduleInitialized", "module.init", listOf("launch")) { it.logModuleInitialized(GeofenceLaunchReason.APP_START) },
             Row("moduleWoke", "module.wake", listOf("launch")) { it.logModuleWoke(GeofenceLaunchReason.BOOT_RESTORE) },

@@ -210,21 +210,35 @@ internal class GeofenceLogger(private val logger: Logger) {
 
     // MARK: - Permissions and lifecycle
 
+    /**
+     * A registration refused because the tier is not granted.
+     *
+     * `perm` carries the tier, not the Android permission constant it used to. Every other writer
+     * of this record puts a tier there — `denied`, `when_in_use`, `always` — and a reader mapping
+     * the key could make nothing of `ACCESS_FINE_LOCATION`. The constant is still worth having, so
+     * it moves to `ctx`, which `logBackgroundDeliveryUnavailable` already uses for the same job.
+     */
     fun logMissingPermission(permission: String) {
         logger.error(
             "Cannot register geofences: $permission not granted. Host app must request this permission." +
                 tail(
                     "permission.changed",
                     GeofenceLogIo.INPUT,
-                    listOf("perm" to token(permission), "why" to "not_granted")
+                    listOf("perm" to PERMISSION_DENIED, "why" to "not_granted", "ctx" to token(permission))
                 ),
             tag = TAG
         )
     }
 
     /**
-     * The granted location tier, reported on foreground entry when it changes. `perm` uses iOS's
-     * vocabulary so one parser reads both platforms.
+     * The granted location tier, reported at process start and on foreground entry when it changes.
+     * `perm` uses iOS's vocabulary so one parser reads both platforms.
+     *
+     * `ok` means **background delivery is available**, which is the only reading that matches iOS:
+     * there the flag is written solely when Always is granted, and WhenInUse carries
+     * `why=foreground_only` instead. It used to mean "some permission was granted" here, so the one
+     * tier where the platforms disagree — WhenInUse, where geofences fire in the foreground and
+     * nowhere else — reported `ok=true` on Android and no `ok` at all on iOS.
      */
     fun logPermissionTier(tier: String) {
         logger.info(
@@ -232,7 +246,7 @@ internal class GeofenceLogger(private val logger: Logger) {
                 tail(
                     "permission.changed",
                     GeofenceLogIo.INPUT,
-                    listOf("perm" to token(tier), "ok" to bool(tier != PERMISSION_DENIED))
+                    listOf("perm" to token(tier), "ok" to bool(tier == PERMISSION_ALWAYS))
                 ),
             tag = TAG
         )

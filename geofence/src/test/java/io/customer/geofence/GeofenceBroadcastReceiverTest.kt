@@ -20,6 +20,7 @@ import io.customer.sdk.data.store.SecureUserStore
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.verify
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -276,6 +277,47 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
         currentTime shouldBeEqualTo 0L
         refreshJob.isActive shouldBeEqualTo true
         refreshJob.cancel()
+    }
+
+    /**
+     * Pins the one DTO field with no other coverage: the crossing's coordinates come from
+     * `GeofencingEvent.triggeringLocation`, in that order.
+     *
+     * Asymmetric values on purpose. Every other test in this file uses a location whose latitude
+     * and longitude are distinguishable but small, and none of them reads them back — a transposed
+     * mapping would sail through all of them, then re-rank and re-register roughly twenty fences
+     * around a point on the wrong side of the planet.
+     */
+    @Test
+    fun handleGeofencingEvent_givenATriggeringLocation_expectTheCrossingCarriesItUntransposed() = runTest {
+        val refreshJob = launch { }
+        every { mockServices.onMovementTriggerExit(any(), any()) } returns refreshJob
+
+        receiver.handleGeofencingEvent(
+            buildGeofencingEvent(
+                transition = Geofence.GEOFENCE_TRANSITION_EXIT,
+                geofenceIds = listOf(GeofenceConstants.MOVEMENT_TRIGGER_ID),
+                location = realLocation(lat = 12.25, lng = -71.75)
+            )
+        )
+
+        verify { mockServices.onMovementTriggerExit(latitude = 12.25, longitude = -71.75) }
+    }
+
+    @Test
+    fun handleGeofencingEvent_givenNoTriggeringLocation_expectTheCrossingCarriesNoCoordinates() = runTest {
+        val refreshJob = launch { }
+        every { mockServices.onMovementTriggerExit(any(), any()) } returns refreshJob
+
+        receiver.handleGeofencingEvent(
+            buildGeofencingEvent(
+                transition = Geofence.GEOFENCE_TRANSITION_EXIT,
+                geofenceIds = listOf(GeofenceConstants.MOVEMENT_TRIGGER_ID),
+                location = null
+            )
+        )
+
+        verify { mockServices.onMovementTriggerExit(latitude = null, longitude = null) }
     }
 
     /** Pins the GMS-code → [GeofenceCrossingTransition] translation, the receiver's one remaining decision. */

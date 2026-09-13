@@ -106,7 +106,11 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
      */
     private suspend fun dispatchCrossing(crossing: GeofenceCrossing) {
         val startedAtUptimeMs = SDKComponent.clock.elapsedRealtime()
-        val refreshJob = SDKComponent.android().geofenceCrossingPipeline.handle(crossing)
+        // Resolved on its own line so the graph construction can be timed apart from the handling.
+        // On a cold process this is where the DI singleton — and the GMS client inside it — is built.
+        val pipeline = SDKComponent.android().geofenceCrossingPipeline
+        SDKComponent.geofenceLogger.logDispatchReady(SDKComponent.clock.elapsedRealtime() - startedAtUptimeMs)
+        val refreshJob = pipeline.handle(crossing)
         refreshJob?.let { job ->
             val remainingBudgetMs = DISPATCH_WAIT_BUDGET_MS - (SDKComponent.clock.elapsedRealtime() - startedAtUptimeMs)
             if (remainingBudgetMs > 0) {

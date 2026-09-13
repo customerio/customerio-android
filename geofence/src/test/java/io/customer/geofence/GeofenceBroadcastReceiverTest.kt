@@ -27,6 +27,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.currentTime
 import kotlinx.coroutines.test.runTest
 import org.amshove.kluent.shouldBeEqualTo
+import org.amshove.kluent.shouldContain
+import org.amshove.kluent.shouldNotBeNull
 import org.junit.After
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -277,6 +279,30 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
         currentTime shouldBeEqualTo 0L
         refreshJob.isActive shouldBeEqualTo true
         refreshJob.cancel()
+    }
+
+    /**
+     * The dispatch path had no timing record at all, so no capture could say what resolving the
+     * crossing pipeline costs — and that is the open question about making it an eagerly-injected
+     * DI singleton, which builds the geofence object graph, GMS client included, inside the
+     * broadcast's own budget on a cold process.
+     *
+     * This asserts only that the measurement is taken and emitted. What the number means needs a
+     * device; the point of the record is that the next drive can answer it without a second trip.
+     */
+    @Test
+    fun handleGeofencingEvent_givenACrossing_expectTheDispatchReadyMeasurementRecorded() = runTest {
+        receiver.handleGeofencingEvent(
+            buildGeofencingEvent(
+                transition = Geofence.GEOFENCE_TRANSITION_ENTER,
+                geofenceIds = listOf("biz-geofence-1"),
+                location = realLocation(1.0, 2.0)
+            )
+        )
+
+        val record = capturingLogger.messages.singleOrNull { it.contains("ev=dispatch.ready") }
+        record.shouldNotBeNull()
+        record shouldContain "ms="
     }
 
     /**

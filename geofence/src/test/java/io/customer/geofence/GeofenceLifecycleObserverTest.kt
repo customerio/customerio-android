@@ -31,14 +31,42 @@ class GeofenceLifecycleObserverTest {
 
     private var foregroundHookRuns = 0
 
+    /**
+     * The real reporter, not a double: the dedup these tests are about lives in it, and it is now
+     * shared with module init rather than owned by the observer.
+     */
+    private val permissionReporter = GeofencePermissionReporter(
+        permissionChecker = mockPermissionChecker,
+        logger = mockLogger
+    )
+
     private val observer = GeofenceLifecycleObserver(
         deliveryFlusher = mockDeliveryFlusher,
         eventBus = mockEventBus,
         regionStore = mockRegionStore,
-        permissionChecker = mockPermissionChecker,
+        permissionReporter = permissionReporter,
         logger = mockLogger,
         onForeground = { foregroundHookRuns++ }
     )
+
+    @Test
+    fun reportIfChanged_givenAProcessThatNeverForegrounds_expectTheTierStillReported() {
+        // The cold background wake: a geofence broadcast starts the process, module init runs, and
+        // `onStart` never fires. Every capture of that session used to say nothing about the
+        // permission the SDK was operating under — and that is the session a drive records.
+        permissionReporter.reportIfChanged()
+
+        verify(exactly = 1) { mockLogger.logPermissionTier(GeofenceLogger.PERMISSION_ALWAYS) }
+    }
+
+    @Test
+    fun reportIfChanged_givenInitReportedThenTheAppForegrounds_expectNoSecondReport() {
+        permissionReporter.reportIfChanged()
+
+        observer.onStart(owner)
+
+        verify(exactly = 1) { mockLogger.logPermissionTier(GeofenceLogger.PERMISSION_ALWAYS) }
+    }
 
     @Test
     fun onStart_givenPermissionUnchanged_expectTierReportedOnceNotPerForeground() {

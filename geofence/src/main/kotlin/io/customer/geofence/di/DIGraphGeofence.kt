@@ -8,6 +8,7 @@ import io.customer.geofence.GeofenceJsonSerializer
 import io.customer.geofence.GeofenceLogger
 import io.customer.geofence.GeofenceManager
 import io.customer.geofence.GeofencePackageInfo
+import io.customer.geofence.GeofencePermissionReporter
 import io.customer.geofence.GeofencePermissionChecker
 import io.customer.geofence.GeofenceReceiverToggle
 import io.customer.geofence.GeofenceRepository
@@ -146,6 +147,16 @@ internal val AndroidSDKComponent.geofenceRepository: GeofenceRepository
             transitionEmitter = geofenceTransitionEmitter,
             clock = SDKComponent.clock,
             packageInfo = geofencePackageInfo,
+            logger = SDKComponent.geofenceLogger
+        )
+    }
+
+// Singleton: the "already reported this tier" memory has to outlive one caller, and the whole
+// point is that module init and foreground entry share it.
+internal val AndroidSDKComponent.geofencePermissionReporter: GeofencePermissionReporter
+    get() = singleton {
+        GeofencePermissionReporter(
+            permissionChecker = geofencePermissionChecker,
             logger = SDKComponent.geofenceLogger
         )
     }

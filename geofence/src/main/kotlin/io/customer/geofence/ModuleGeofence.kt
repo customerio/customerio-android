@@ -6,6 +6,7 @@ import io.customer.base.internal.InternalCustomerIOApi
 import io.customer.geofence.di.geofenceDeliveryFlusher
 import io.customer.geofence.di.geofenceLogger
 import io.customer.geofence.di.geofencePermissionChecker
+import io.customer.geofence.di.geofencePermissionReporter
 import io.customer.geofence.di.geofenceRegionStore
 import io.customer.geofence.di.geofenceServices
 import io.customer.location.LocationCoordinates
@@ -72,6 +73,11 @@ class ModuleGeofence @JvmOverloads constructor(
 
         val eventBus = SDKComponent.eventBus
         val sdkAndroid = SDKComponent.android()
+
+        // Here rather than only on foreground entry: a cold background wake never foregrounds, and
+        // that is the session a drive records. Deduped against the foreground report by the shared
+        // reporter, so opening the app does not log the same tier twice.
+        sdkAndroid.geofencePermissionReporter.reportIfChanged()
 
         subscribeToEvents(eventBus, sdkAndroid, locationModule)
         scheduleForegroundWork(eventBus, sdkAndroid, logger, locationModule)
@@ -181,7 +187,7 @@ class ModuleGeofence @JvmOverloads constructor(
                     deliveryFlusher = sdkAndroid.geofenceDeliveryFlusher,
                     eventBus = eventBus,
                     regionStore = sdkAndroid.geofenceRegionStore,
-                    permissionChecker = sdkAndroid.geofencePermissionChecker,
+                    permissionReporter = sdkAndroid.geofencePermissionReporter,
                     logger = logger,
                     onForeground = {
                         // Off the main thread: deciding whether to take a fix needs the identity read,

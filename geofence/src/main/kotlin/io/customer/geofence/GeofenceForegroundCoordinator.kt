@@ -3,8 +3,10 @@ package io.customer.geofence
 import io.customer.geofence.store.GeofenceRegionStore
 import io.customer.location.LocationCoordinates
 import io.customer.location.LocationServices
+import io.customer.sdk.core.util.DispatchersProvider
 import io.customer.sdk.data.store.SecureUserStore
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.withContext
 
 /** What the SDK does when the app comes to the foreground, with no Android in it. */
 internal class GeofenceForegroundCoordinator(
@@ -15,15 +17,31 @@ internal class GeofenceForegroundCoordinator(
     /** The location module's cache, as a lambda so tests need not build the module registry. */
     private val lastKnownLocation: () -> LocationCoordinates?,
     private val locationMode: GeofenceLocationMode,
-    private val logger: GeofenceLogger
+    private val logger: GeofenceLogger,
+    private val dispatchers: DispatchersProvider
 ) {
 
     /**
      * Suspending, and the caller owns the scope: the identity read is a Keystore decrypt that can
      * block for hundreds of milliseconds, and lifecycle callbacks arrive on the main thread.
+     *
+     * The hop is enforced here rather than left to the caller. Without it this function had no
+     * suspension point at all, so it ran wherever it was called from and the guarantee above was
+     * documentation only — and a main-thread Keystore decrypt is an ANR that no CI job can catch.
      */
-    suspend fun onForeground() {
-        if (!takeFixForRefresh()) {
+    suspend fun onForeground() = withContext(dispatchers.background) {
+        // Guarded separately from the retry below, which is the point: the self-heal needs no
+        // identity, and it used to be skipped entirely when the identity read threw on its way to
+        // deciding whether to take a fix.
+        val tookFix = try {
+            takeFixForRefresh()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Throwable) {
+            logger.logSyncFailed("foreground fix request failed: ${e.message}")
+            false
+        }
+        if (!tookFix) {
             retrySyncAwaitingLocation()
         }
     }
@@ -53,8 +71,13 @@ internal class GeofenceForegroundCoordinator(
                 return
             }
             val anchor = anchor()
-            // Re-check after the anchor read: a fix that landed meanwhile has already synced.
+            // Re-check BOTH after the anchor read: a fix that landed meanwhile has already synced,
+            // and a host request arriving meanwhile still cannot be satisfied by an anchor.
             if (!services.isAwaitingLocation()) return
+            if (services.isHostRefreshPending()) {
+                locationServices.requestLocationUpdateSilently()
+                return
+            }
             services.onForegroundRetry(latitude = anchor?.latitude, longitude = anchor?.longitude)
             autoAcquireIfNeeded(anchor)
         } catch (e: CancellationException) {

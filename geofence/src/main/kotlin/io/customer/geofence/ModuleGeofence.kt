@@ -113,7 +113,8 @@ class ModuleGeofence @JvmOverloads constructor(
         regionStore = sdkAndroid.geofenceRegionStore,
         lastKnownLocation = { locationModule.lastKnownLocationOrNull() },
         locationMode = moduleConfig.locationMode,
-        logger = SDKComponent.geofenceLogger
+        logger = SDKComponent.geofenceLogger,
+        dispatchers = SDKComponent.dispatchersProvider
     )
 
     /**
@@ -138,14 +139,24 @@ class ModuleGeofence @JvmOverloads constructor(
         // nearby set fetched, anchored at the current registration center.
         eventBus.subscribe<Event.UserChangedEvent> {
             if (!it.userId.isNullOrEmpty()) {
-                SDKComponent.geofenceLogger.logIdentityChanged(identified = true)
-                val coordinator = foregroundCoordinator(sdkAndroid, locationModule)
-                val anchor = coordinator.anchor()
-                sdkAndroid.geofenceServices.onUserIdentified(
-                    latitude = anchor?.latitude,
-                    longitude = anchor?.longitude
-                )
-                coordinator.autoAcquireIfNeeded(anchor)
+                // Guarded in the same shape as the two blocks doing this same work below. A handler
+                // that throws does not just lose one identify: `EventBusImpl.subscribe` collects
+                // inside a bare `launch`, so the throw cancels the collection and this subscription
+                // is gone for the rest of the process, silently.
+                try {
+                    SDKComponent.geofenceLogger.logIdentityChanged(identified = true)
+                    val coordinator = foregroundCoordinator(sdkAndroid, locationModule)
+                    val anchor = coordinator.anchor()
+                    sdkAndroid.geofenceServices.onUserIdentified(
+                        latitude = anchor?.latitude,
+                        longitude = anchor?.longitude
+                    )
+                    coordinator.autoAcquireIfNeeded(anchor)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Throwable) {
+                    SDKComponent.geofenceLogger.logSyncFailed("identify refresh failed: ${e.message}")
+                }
             }
         }
 

@@ -22,9 +22,13 @@ internal interface GeofenceRegistrar {
     @RequiresPermission(Manifest.permission.ACCESS_FINE_LOCATION)
     suspend fun replaceGeofencesForBootRestore(regions: List<GeofenceRegion>): Result<Unit>
 
-    @RequiresPermission(Manifest.permission.ACCESS_FINE_LOCATION)
+    /**
+     * No `@RequiresPermission`: `GeofencingClient.removeGeofences` needs no location permission,
+     * and declaring one made lint refuse the two callers that legitimately have none — an orphan
+     * cleanup on a broadcast and the sign-out clear.
+     */
     suspend fun removeGeofencesByIds(ids: List<String>): Result<Unit>
 
-    @RequiresPermission(Manifest.permission.ACCESS_FINE_LOCATION)
+    /** Needs no location permission, for the same reason as [removeGeofencesByIds]. */
     suspend fun clearAll(): Result<Unit>
 }

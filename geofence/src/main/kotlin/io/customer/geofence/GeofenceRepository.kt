@@ -619,7 +619,7 @@ internal class GeofenceRepositoryImpl(
         syncStartedAt: Long = clock.elapsedRealtime()
     ): Result<Unit> {
         // Pure mapping + filter — no shared state, kept outside the lock.
-        val pinnedPolygonIds = polygonIdsToPin(regions)
+        val pinnedPolygonIds = polygonIdsToPin(regions, latitude, longitude)
         // Both overloads land under GeofenceConstants.MAX_OS_BUSINESS_GEOFENCE_SLOTS, so the movement
         // trigger prepended below always has an OS slot left even when many polygons are pinned.
         val nearest = if (pinnedPolygonIds.isEmpty()) {
@@ -1016,9 +1016,32 @@ internal class GeofenceRepositoryImpl(
         }
     }
 
-    private fun polygonIdsToPin(regions: List<GeofenceRegion>): Set<String> {
-        val polygonIds = regions.filter(GeofenceRegion::isPolygon).mapTo(mutableSetOf(), GeofenceRegion::id)
-        return (store.getActivePolygonIds() + store.getEnteredIds()) intersect polygonIds
+    /**
+     * Polygons whose eviction would strand an outstanding business EXIT.
+     *
+     * Two sources. One is state we already hold: an active fine session or a committed INSIDE. The
+     * other is this fix sitting inside a REGISTERED wake circle — the ring a polygon ranks by can
+     * sit far inside that circle, so ranking distance alone would evict one the OS is monitoring
+     * right now, and the device can be inside it before any coarse ENTER is observed (an OS state
+     * wipe, a re-registration that cleared it).
+     *
+     * Registration is what makes the difference. A polygon the OS has never been given cannot owe
+     * an EXIT, so pinning it would only be a discovery preference — and because pins outrank the
+     * server cap, two of them would displace a region the device is standing in.
+     */
+    private fun polygonIdsToPin(
+        regions: List<GeofenceRegion>,
+        latitude: Double,
+        longitude: Double
+    ): Set<String> {
+        val polygons = regions.filter(GeofenceRegion::isPolygon)
+        val polygonIds = polygons.mapTo(mutableSetOf(), GeofenceRegion::id)
+        val statefulIds = (store.getActivePolygonIds() + store.getEnteredIds()) intersect polygonIds
+        val registeredIds = store.getRegisteredIds()
+        val containingRegisteredIds = polygons
+            .filter { it.id in registeredIds && it.distanceTo(latitude, longitude) <= it.radius }
+            .mapTo(mutableSetOf(), GeofenceRegion::id)
+        return statefulIds + containingRegisteredIds
     }
 
     private fun buildMovementTrigger(

@@ -276,7 +276,8 @@ class GeofenceDistanceFilterTest : RobolectricTest() {
     @Test
     fun nearest_givenDeviceInsideAPolygonsWakeCircleAndRingBeyondTheCap_expectKept() {
         // The OS monitors the wake circle, so an ENTER is outstanding for this polygon right now.
-        // Dropping it on ring distance would leave its EXIT permanently unobservable.
+        // Dropping it on ring distance would leave its EXIT permanently unobservable. The caller
+        // pins it, because only the caller knows the polygon is registered.
         val enabled = GeofenceDistanceFilter(polygonSupport = PolygonSupport.Enabled)
 
         val result = enabled.nearest(
@@ -284,7 +285,8 @@ class GeofenceDistanceFilterTest : RobolectricTest() {
             latitude = 2.0,
             longitude = 2.0,
             max = 5,
-            maxDistanceMeters = 50_000f
+            maxDistanceMeters = 50_000f,
+            pinnedIds = setOf("polygon")
         )
 
         result.map { it.id } shouldBeEqualTo listOf("polygon")
@@ -318,7 +320,8 @@ class GeofenceDistanceFilterTest : RobolectricTest() {
             latitude = 2.0,
             longitude = 2.0,
             max = 1,
-            maxDistanceMeters = noDistanceCap
+            maxDistanceMeters = noDistanceCap,
+            pinnedIds = setOf("polygon")
         )
 
         result.map { it.id } shouldBeEqualTo listOf("polygon")
@@ -450,6 +453,64 @@ class GeofenceDistanceFilterTest : RobolectricTest() {
         result.size shouldBeEqualTo GeofenceConstants.MAX_OS_GEOFENCES - 1
         (result.size + 1) shouldBeEqualTo GeofenceConstants.MAX_OS_GEOFENCES
     }
+
+    @Test
+    fun nearest_givenUnpinnedPolygonsContainingTheFix_expectTheCapStillBoundsDiscovery() {
+        // Pins exist to preserve an outstanding EXIT, which only a registered region can have. A
+        // polygon the OS has never been given cannot owe one, so it competes for the cap like any
+        // other candidate. Otherwise two of them displace a circle the device is standing in, and
+        // that circle's ENTER is lost outright: initial-ENTER synthesis only runs over what this
+        // returns.
+        val enabled = GeofenceDistanceFilter(polygonSupport = PolygonSupport.Enabled)
+
+        val result = enabled.nearest(
+            regions = listOf(
+                region("inside-me", 0.0, 0.0),
+                wakeCirclePolygon("poly-a", 0.003),
+                wakeCirclePolygon("poly-b", 0.004)
+            ),
+            latitude = 0.0,
+            longitude = 0.0,
+            max = 1,
+            maxDistanceMeters = noDistanceCap
+        )
+
+        result.map(GeofenceRegion::id) shouldBeEqualTo listOf("inside-me")
+    }
+
+    @Test
+    fun nearest_givenAPinnedPolygonContainingTheFix_expectStillRetainedPastTheCap() {
+        // Positive control: once the caller pins it, the exemption works exactly as before.
+        val enabled = GeofenceDistanceFilter(polygonSupport = PolygonSupport.Enabled)
+
+        val result = enabled.nearest(
+            regions = listOf(
+                region("inside-me", 0.0, 0.0),
+                wakeCirclePolygon("poly-a", 0.003)
+            ),
+            latitude = 0.0,
+            longitude = 0.0,
+            max = 1,
+            maxDistanceMeters = noDistanceCap,
+            pinnedIds = setOf("poly-a")
+        )
+
+        result.map(GeofenceRegion::id) shouldBeEqualTo listOf("poly-a")
+    }
+
+    // A polygon whose wake circle contains (0, 0) while its ring sits a few hundred metres away.
+    private fun wakeCirclePolygon(id: String, latitude: Double) = GeofenceRegion(
+        id = id,
+        latitude = latitude,
+        longitude = 0.0,
+        radius = 1_000f,
+        polygonVertices = listOf(
+            PolygonCoordinate(latitude - 0.0005, -0.0005),
+            PolygonCoordinate(latitude - 0.0005, 0.0005),
+            PolygonCoordinate(latitude + 0.0005, 0.0005),
+            PolygonCoordinate(latitude + 0.0005, -0.0005)
+        )
+    )
 
     // Convex square whose backend wake circle covers a larger area than the business boundary.
     private fun polygonRegion() = GeofenceRegion(

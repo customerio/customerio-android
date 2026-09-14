@@ -203,6 +203,40 @@ class GeofencePolygonLivePathTest : RobolectricTest() {
         PolygonCoordinate(37.7755, -122.4200)
     )
 
+    @Test
+    fun refresh_givenRegisteredPolygonContainingTheFix_expectPinnedPastTheCap() = runTest {
+        // The OS is monitoring this polygon's wake circle and the device is inside it, so an EXIT
+        // is outstanding. The cap leaves room for one business fence and the circle ranks nearer,
+        // but evicting the polygon would make that EXIT permanently unobservable.
+        val enabledRepository = buildRepository(PolygonSupport.Enabled)
+        every { store.getRegisteredIds() } returns setOf("campus")
+        coEvery { apiService.fetchGeofences(any()) } returns Result.success(response(POLYGON_AND_CIRCLE_CAP_ONE))
+        val registered = slot<List<GeofenceRegion>>()
+
+        enabledRepository.refresh(latitude = 37.7750, longitude = -122.4185)
+
+        coVerify { manager.replaceGeofences(capture(registered), any()) }
+        registered.captured.map { it.id } shouldBeEqualTo
+            listOf(GeofenceConstants.MOVEMENT_TRIGGER_ID, "campus")
+    }
+
+    @Test
+    fun refresh_givenUnregisteredPolygonContainingTheFix_expectTheCapStillApplies() = runTest {
+        // Same fix, same catalog, same cap — the polygon has simply never been registered, so it
+        // owes no EXIT and competes for the cap like any other candidate. Pinning it here would
+        // evict the circle the device is standing in, whose ENTER is then never synthesized.
+        val enabledRepository = buildRepository(PolygonSupport.Enabled)
+        every { store.getRegisteredIds() } returns emptySet()
+        coEvery { apiService.fetchGeofences(any()) } returns Result.success(response(POLYGON_AND_CIRCLE_CAP_ONE))
+        val registered = slot<List<GeofenceRegion>>()
+
+        enabledRepository.refresh(latitude = 37.7750, longitude = -122.4185)
+
+        coVerify { manager.replaceGeofences(capture(registered), any()) }
+        registered.captured.map { it.id } shouldBeEqualTo
+            listOf(GeofenceConstants.MOVEMENT_TRIGGER_ID, "circle")
+    }
+
     private fun response(raw: String): GeofenceApiResponse =
         jsonSerializer.decode(GeofenceApiResponse.serializer(), raw, lenient = true)
 
@@ -231,6 +265,21 @@ class GeofencePolygonLivePathTest : RobolectricTest() {
         val POLYGON_AND_CIRCLE = """
             {
               "config": { "android": { "max_business_geofence": 19 } },
+              "geofences": [
+                {
+                  "id": "campus",
+                  "shape": "polygon",
+                  "geometry": $CAMPUS_GEOMETRY,
+                  "enclosing_circle": $CAMPUS_WAKE_CIRCLE
+                },
+                { "id": "circle", "latitude": 37.775, "longitude": -122.419, "radius": 100 }
+              ]
+            }
+        """.trimIndent()
+
+        val POLYGON_AND_CIRCLE_CAP_ONE = """
+            {
+              "config": { "android": { "max_business_geofence": 1 } },
               "geofences": [
                 {
                   "id": "campus",

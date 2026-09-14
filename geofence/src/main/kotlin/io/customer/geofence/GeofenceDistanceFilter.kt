@@ -62,10 +62,10 @@ internal class GeofenceDistanceFilter(
      * @param max server-configured discovery cap. Bounds how many *new* regions this pass may pick
      * up; `0` is the explicit kill switch. Pinned regions are exempt (see below).
      * @param pinnedIds regions that must survive discovery caps because a business EXIT is still
-     * outstanding for them — a polygon with an active fine session or a committed INSIDE state.
-     * Evicting one guarantees its EXIT is never observed, so pinning outranks [max]. Any polygon
-     * whose registered wake circle contains this fix is pinned too, whether or not the caller
-     * listed it.
+     * outstanding for them — a polygon with an active fine session, a committed INSIDE state, or a
+     * registered wake circle containing this fix. Evicting one guarantees its EXIT is never
+     * observed, so pinning outranks [max]. Deciding that needs registration state, which this class
+     * does not have, so every pin comes from the caller.
      *
      * Pinning cannot outrank the platform, though: [maxOsBusinessSlots] still bounds the result,
      * because over-pinning would make Play services reject the whole batch and lose *every* fence
@@ -85,14 +85,7 @@ internal class GeofenceDistanceFilter(
         if (max <= 0 || availableSlots == 0 || regions.isEmpty()) return emptyList()
         // Same body for both overloads, so a caller that passes no pins is bounded identically.
         pruneGeometryCache(regions)
-        // A polygon is registered as its wake circle, and the ring it ranks by can sit far inside
-        // that circle. Ranking distance alone would therefore evict a polygon the OS is monitoring
-        // right now, and its outstanding EXIT would never arrive. Derived from this fix rather than
-        // read from the activation set: the device can be inside the circle before any coarse ENTER
-        // is observed — a first registration, an OS state wipe, a re-registration that cleared it.
-        val allPinnedIds = pinnedIds + regions
-            .filter { it.isPolygon && it.distanceTo(latitude, longitude) <= it.radius }
-            .mapTo(mutableSetOf(), GeofenceRegion::id)
+        val allPinnedIds = pinnedIds
         val sorted = regions
             .mapNotNull { region ->
                 rankingDistanceOrNull(region, latitude, longitude)?.let { distance -> region to distance }

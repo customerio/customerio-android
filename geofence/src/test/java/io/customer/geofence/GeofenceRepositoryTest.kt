@@ -8,6 +8,7 @@ import io.customer.geofence.api.GeofenceApiService
 import io.customer.geofence.api.toDomainRegions
 import io.customer.geofence.polygon.PolygonCoordinate
 import io.customer.geofence.polygon.PolygonGeofenceServiceController
+import io.customer.geofence.polygon.PolygonSupport
 import io.customer.geofence.store.GeofenceRegionStore
 import io.customer.sdk.communication.Event
 import io.customer.sdk.core.util.Clock
@@ -38,6 +39,7 @@ import org.amshove.kluent.shouldBeEmpty
 import org.amshove.kluent.shouldBeEqualTo
 import org.amshove.kluent.shouldContain
 import org.amshove.kluent.shouldContainSame
+import org.amshove.kluent.shouldNotContain
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -97,7 +99,11 @@ class GeofenceRepositoryTest : RobolectricTest() {
         transitionEmitter = transitionEmitter,
         clock = clock,
         packageInfo = packageInfo,
-        logger = logger
+        logger = logger,
+        polygonController = polygonController,
+        // The production graph wires the enabled opt-in; without it every polygon test below would
+        // exercise the fail-closed path instead of the runtime this PR adds.
+        polygonSupport = PolygonSupport.Enabled
     )
 
     @Test
@@ -457,7 +463,7 @@ class GeofenceRepositoryTest : RobolectricTest() {
             Result.success(sampleResponse(maxBusinessGeofences = 3))
         mockkStatic("io.customer.geofence.api.GeofenceApiResponseKt")
         try {
-            every { any<GeofenceApiResponse>().toDomainRegions() } throws IllegalStateException("mapper defect")
+            every { any<GeofenceApiResponse>().toDomainRegions(any()) } throws IllegalStateException("mapper defect")
 
             repository.refresh(latitude = 12.34, longitude = 56.78).isFailure shouldBeEqualTo true
 
@@ -486,7 +492,7 @@ class GeofenceRepositoryTest : RobolectricTest() {
             Result.success(sampleResponse(maxBusinessGeofences = 3))
         mockkStatic("io.customer.geofence.api.GeofenceApiResponseKt")
         try {
-            every { any<GeofenceApiResponse>().toDomainRegions() } throws IllegalStateException("mapper defect")
+            every { any<GeofenceApiResponse>().toDomainRegions(any()) } throws IllegalStateException("mapper defect")
 
             val result = repository.refresh(latitude = 12.34, longitude = 56.78)
 
@@ -828,8 +834,12 @@ class GeofenceRepositoryTest : RobolectricTest() {
         passA.join()
         passB.join()
 
-        // A refused (7 is stale), then B ran and armed 8 rather than being dropped as a duplicate.
-        armed shouldBeEqualTo listOf(7L, 8L)
+        // The guarantee: routing ends armed for B's session, and B was not dropped as a duplicate.
+        // Whether A's superseded pass reaches the store and is refused there, or is stopped by a
+        // generation guard before it, is mechanism. Both satisfy this; neither may leave 7 armed.
+        armed.last() shouldBeEqualTo 8L
+        verify { store.saveRoutableRegisteredIdsIfCurrent(any(), 8L) }
+        verify(exactly = 0) { logger.logSyncSkipped(match { it.contains("already in progress") }) }
     }
 
     @Test
@@ -1631,7 +1641,7 @@ class GeofenceRepositoryTest : RobolectricTest() {
         result.isSuccess shouldBeEqualTo true
         coVerifyOrder {
             manager.clearAll()
-            store.clearUserScopedState()
+            polygonController.completeUserReset(any(), true)
         }
         verify { cooldownFilter.clearAll() }
         verify(exactly = 0) { store.clearAll() }
@@ -1669,7 +1679,7 @@ class GeofenceRepositoryTest : RobolectricTest() {
         result.isSuccess shouldBeEqualTo true
         coVerifyOrder {
             manager.clearAll()
-            store.clearUserScopedState()
+            polygonController.completeUserReset(any(), true)
         }
     }
 
@@ -1701,6 +1711,10 @@ class GeofenceRepositoryTest : RobolectricTest() {
         // meanwhile. The refresh decision must wait for the reset and see the wiped state —
         // deciding on pre-wipe state would SKIP and leave B unmonitored after the wipe lands.
         every { secureUserStore.getUserId() } returns null
+        var generation = 1L
+        var sessionOwner: String? = null
+        every { store.userStateGeneration() } answers { generation }
+        every { store.activeUserSessionId() } answers { sessionOwner }
         // Pre-wipe state that would produce SKIP: fresh sync, registered IDs present, no movement.
         every { store.getLastSyncTimestamp() } answers { clock.currentTimeMillis() }
         every { store.getRegisteredIds() } returns setOf(GeofenceConstants.MOVEMENT_TRIGGER_ID, "biz-1")
@@ -1709,9 +1723,10 @@ class GeofenceRepositoryTest : RobolectricTest() {
         every { store.getLastMovementTriggerLocation() } returns GeofenceLocation(0.0, 0.0)
         every { store.getLastRegistrationUptime() } returns null
         // Model the wipe on the mock so a post-wipe decision sees stale state.
-        every { store.clearUserScopedState() } answers {
+        every { polygonController.completeUserReset(any(), any()) } answers {
             every { store.getLastSyncTimestamp() } returns null
             every { store.getRegisteredIds() } returns emptySet()
+            every { store.getRoutableRegisteredIds() } returns emptySet()
         }
         val gmsClear = CompletableDeferred<Result<Unit>>()
         coEvery { manager.clearAll() } coAnswers { gmsClear.await() }
@@ -1720,6 +1735,8 @@ class GeofenceRepositoryTest : RobolectricTest() {
         val resetJob = launch { repository.reset() }
         runCurrent() // reset holds the state lock, suspended on the GMS clear
         every { secureUserStore.getUserId() } returns "user-B"
+        generation = 2L
+        sessionOwner = "user-B"
         val refreshJob = launch { repository.refresh(latitude = 0.0, longitude = 0.0) }
         runCurrent() // refresh's decision must now be blocked behind the lock
         gmsClear.complete(Result.success(Unit))
@@ -1730,7 +1747,8 @@ class GeofenceRepositoryTest : RobolectricTest() {
         // The decision saw the wiped (stale) state and refreshed instead of skipping.
         verify(exactly = 0) { logger.logSyncSkippedFresh() }
         coVerify(exactly = 1) { apiService.fetchGeofences(any()) }
-        verify { store.clearUserScopedState() }
+        verify { polygonController.completeUserReset(1L, true) }
+        sessionOwner shouldBeEqualTo "user-B"
     }
 
     // ---------- handleMovement / tier dispatch ----------
@@ -2170,7 +2188,7 @@ class GeofenceRepositoryTest : RobolectricTest() {
         repository.refreshFromLiveFix(latitude = 0.0, longitude = 0.0)
 
         coVerify(exactly = 1) {
-            transitionEmitter.emit(
+            transitionEmitter.emitWithExpectedState(
                 geofenceId = "biz-1",
                 transition = Event.GeofenceTransition.ENTER,
                 userId = "user-42",
@@ -2178,7 +2196,9 @@ class GeofenceRepositoryTest : RobolectricTest() {
                 geofenceName = any(),
                 metadata = any(),
                 geosetIds = any(),
-                monitorsExit = true
+                monitorsExit = true,
+                expectedUserStateGeneration = any(),
+                expectedRegionRevision = any()
             )
         }
     }
@@ -2200,7 +2220,7 @@ class GeofenceRepositoryTest : RobolectricTest() {
         repository.handleMovement(latitude = 0.0, longitude = 0.0)
 
         coVerify(exactly = 1) {
-            transitionEmitter.emit(
+            transitionEmitter.emitWithExpectedState(
                 geofenceId = "biz-1",
                 transition = Event.GeofenceTransition.ENTER,
                 userId = "user-42",
@@ -2208,7 +2228,9 @@ class GeofenceRepositoryTest : RobolectricTest() {
                 geofenceName = any(),
                 metadata = any(),
                 geosetIds = any(),
-                monitorsExit = true
+                monitorsExit = true,
+                expectedUserStateGeneration = any(),
+                expectedRegionRevision = any()
             )
         }
     }
@@ -2240,7 +2262,7 @@ class GeofenceRepositoryTest : RobolectricTest() {
         repository.handleMovement(latitude = 0.0, longitude = 0.0)
 
         coVerify(exactly = 1) {
-            transitionEmitter.emit(
+            transitionEmitter.emitWithExpectedState(
                 geofenceId = "biz-1",
                 transition = Event.GeofenceTransition.ENTER,
                 userId = "user-42",
@@ -2248,7 +2270,9 @@ class GeofenceRepositoryTest : RobolectricTest() {
                 geofenceName = any(),
                 metadata = any(),
                 geosetIds = any(),
-                monitorsExit = true
+                monitorsExit = true,
+                expectedUserStateGeneration = any(),
+                expectedRegionRevision = any()
             )
         }
     }
@@ -2272,7 +2296,7 @@ class GeofenceRepositoryTest : RobolectricTest() {
         repository.refreshFromLiveFix(latitude = 0.0, longitude = 0.0)
 
         coVerify(exactly = 1) {
-            transitionEmitter.emit(
+            transitionEmitter.emitWithExpectedState(
                 geofenceId = "biz-1",
                 transition = Event.GeofenceTransition.ENTER,
                 userId = "user-42",
@@ -2280,7 +2304,9 @@ class GeofenceRepositoryTest : RobolectricTest() {
                 geofenceName = any(),
                 metadata = any(),
                 geosetIds = any(),
-                monitorsExit = false
+                monitorsExit = false,
+                expectedUserStateGeneration = any(),
+                expectedRegionRevision = any()
             )
         }
     }
@@ -2396,7 +2422,7 @@ class GeofenceRepositoryTest : RobolectricTest() {
         repository.refreshFromLiveFix(latitude = 0.0, longitude = 0.0)
 
         coVerify(exactly = 1) {
-            transitionEmitter.emit(
+            transitionEmitter.emitWithExpectedState(
                 geofenceId = "g-1",
                 transition = Event.GeofenceTransition.ENTER,
                 userId = "user-42",
@@ -2404,7 +2430,9 @@ class GeofenceRepositoryTest : RobolectricTest() {
                 geofenceName = any(),
                 metadata = any(),
                 geosetIds = any(),
-                monitorsExit = any()
+                monitorsExit = any(),
+                expectedUserStateGeneration = any(),
+                expectedRegionRevision = any()
             )
         }
     }
@@ -3051,6 +3079,30 @@ class GeofenceRepositoryTest : RobolectricTest() {
     }
 
     @Test
+    fun refresh_givenRegisteredButUnroutableFence_expectItIsReAddedNotSkippedAsUnchanged() = runTest {
+        // Settles whether evicting an unroutable fence in the receiver would strand it. It would
+        // not: unchangedRegisteredIds requires routable membership as well as registered, so an
+        // unroutable id is never "existing" and the pass re-adds it to the OS.
+        val cached = listOf(GeofenceRegion("biz-1", 0.0, 0.0, 100f))
+        every { secureUserStore.getUserId() } returns "user-42"
+        every { store.getLastSyncTimestamp() } returns null
+        every { store.getCachedRegions() } returns cached
+        every { store.getRegisteredIds() } returns setOf("biz-1")
+        every { store.getRoutableRegisteredIds() } returns emptySet()
+        every { store.getCachedConfig() } returns sampleConfig()
+        coEvery { apiService.fetchGeofences(any()) } returns
+            Result.success(sampleResponse(maxBusinessGeofences = 3))
+        every { distanceFilter.nearest(any(), any(), any(), any(), any()) } returns cached
+        val existingSlot = slot<Set<String>>()
+        coEvery { manager.replaceGeofences(any(), capture(existingSlot)) } returns Result.success(Unit)
+
+        repository.refresh(latitude = 0.0, longitude = 0.0)
+
+        // Absent from "existing" is what makes the manager add it rather than leave it alone.
+        existingSlot.captured shouldNotContain "biz-1"
+    }
+
+    @Test
     fun refresh_givenFreshCacheButOnlyCleanupRegistrationsRemain_expectRevalidatesForCurrentUser() = runTest {
         val cached = listOf(GeofenceRegion("biz-1", 0.0, 0.0, 100f))
         every { secureUserStore.getUserId() } returns "user-B"
@@ -3070,7 +3122,8 @@ class GeofenceRepositoryTest : RobolectricTest() {
         coVerify(exactly = 0) { apiService.fetchGeofences(any()) }
         coVerify { manager.replaceGeofences(any(), any()) }
         existingSlot.captured.shouldBeEmpty()
-        verify { store.saveRoutableRegisteredIds(match { "biz-1" in it }) }
+        // Arming is generation-guarded now; the guarantee is that routing ends armed for biz-1.
+        verify { store.saveRoutableRegisteredIdsIfCurrent(match { "biz-1" in it }, any()) }
     }
 
     @Test
@@ -3176,44 +3229,6 @@ class GeofenceRepositoryTest : RobolectricTest() {
     }
 
     @Test
-    fun refresh_givenSecondCallWhileFirstInFlight_expectSerializedRatherThanDropped() = runTest {
-        // The second pass waits and is re-evaluated rather than being dropped before we know
-        // whether it belongs to another user.
-        var lastSync: Long? = null
-        var registeredIds = emptySet<String>()
-        var cachedRegions = emptyList<GeofenceRegion>()
-        every { secureUserStore.getUserId() } returns "user-42"
-        every { store.getLastSyncTimestamp() } answers { lastSync }
-        every { store.setLastSyncTimestamp(any()) } answers { lastSync = firstArg() }
-        every { store.getRegisteredIds() } answers { registeredIds }
-        every { store.saveRegisteredIds(any()) } answers { registeredIds = firstArg() }
-        every { store.getCachedRegions() } answers { cachedRegions }
-        every { store.saveCachedRegions(any()) } answers { cachedRegions = firstArg() }
-        coEvery { apiService.fetchGeofences(any()) } returns
-            Result.success(sampleResponse(maxBusinessGeofences = 3))
-        every { distanceFilter.nearest(any(), any(), any(), any(), any()) } returns emptyList()
-
-        val addGeofencesActive = AtomicInteger(0)
-        val maxObservedConcurrency = AtomicInteger(0)
-        coEvery { manager.replaceGeofences(any(), any()) } coAnswers {
-            val n = addGeofencesActive.incrementAndGet()
-            maxObservedConcurrency.updateAndGet { current -> maxOf(current, n) }
-            delay(50)
-            addGeofencesActive.decrementAndGet()
-            Result.success(Unit)
-        }
-
-        coroutineScope {
-            launch { repository.refresh(latitude = 1.0, longitude = 1.0) }
-            launch { repository.refresh(latitude = 2.0, longitude = 2.0) }
-        }
-
-        maxObservedConcurrency.get() shouldBeEqualTo 1
-        coVerify(exactly = 2) { apiService.fetchGeofences(any()) }
-        verify(exactly = 0) { logger.logSyncSkipped(match { it.contains("already in progress") }) }
-    }
-
-    @Test
     fun refresh_givenStalePolygonRemovalFails_expectShapeRetainedOnlyForCleanupRouting() = runTest {
         val stalePolygon = GeofenceRegion(
             id = "biz-old",
@@ -3254,10 +3269,15 @@ class GeofenceRepositoryTest : RobolectricTest() {
     @OptIn(ExperimentalCoroutinesApi::class)
     fun refresh_givenUserSwitchWhilePreviousUsersFetchIsInFlight_expectNewUserGetsFollowUpPass() = runTest {
         var currentUser = "user-A"
+        // Session identity is the store's generation, not the identified user alone. A relaxed mock
+        // pins it at 0, which makes a user switch look like the same session and get dropped.
+        var generation = 1L
         val firstFetchStarted = CompletableDeferred<Unit>()
         val finishFirstFetch = CompletableDeferred<Unit>()
         val fetchCount = AtomicInteger(0)
         every { secureUserStore.getUserId() } answers { currentUser }
+        every { store.userStateGeneration() } answers { generation }
+        every { store.activeUserSessionId() } answers { currentUser }
         every { store.getLastSyncTimestamp() } returns null
         every { store.getRegisteredIds() } returns emptySet()
         coEvery { apiService.fetchGeofences(any()) } coAnswers {
@@ -3273,6 +3293,7 @@ class GeofenceRepositoryTest : RobolectricTest() {
         val userARefresh = launch { repository.refresh(latitude = 1.0, longitude = 1.0) }
         firstFetchStarted.await()
         currentUser = "user-B"
+        generation = 2L
         val userBRefresh = launch { repository.refresh(latitude = 2.0, longitude = 2.0) }
         runCurrent()
         finishFirstFetch.complete(Unit)

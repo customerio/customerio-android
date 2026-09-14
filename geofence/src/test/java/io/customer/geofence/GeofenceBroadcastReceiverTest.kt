@@ -1094,7 +1094,10 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
     }
 
     @Test
-    fun dispatchTransition_givenCleanupOnlyPolygonAfterUserHandoff_expectNoEventOrFineMonitoring() = runTest {
+    fun dispatchTransition_givenCleanupOnlyPolygonAfterUserHandoff_expectNoEventAndRegistrationKept() = runTest {
+        // A cleanup-only registration and a live fence mid-identify are the same state here: owner,
+        // generation, empty routing and registered set all match. They need not be told apart,
+        // because the session's refresh re-adds or removes each fence on its own merits.
         every { mockStore.getRegisteredIds() } returns setOf("polygon")
         every { mockStore.getRoutableRegisteredIds() } returns emptySet()
         every { mockStore.getCachedRegion("polygon") } returns polygonRegion()
@@ -1111,7 +1114,11 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
             mockPolygonController.activate(any<String>(), any<Location>(), any<Long>(), any<Int>())
         }
         coVerify(exactly = 0) { mockScheduler.schedule(any()) }
-        coVerify { mockManager.removeGeofencesByIds(listOf("polygon")) }
+        // Registration kept. Business fences register with INITIAL_TRIGGER_ENTER and routing arms
+        // only after the add, so an initial ENTER for a fence the refresh just added can arrive
+        // while routing still reads empty. Evicting here would remove it, and the refresh would
+        // then publish it registered AND routable, which every later refresh reads as unchanged.
+        coVerify(exactly = 0) { mockManager.removeGeofencesByIds(any()) }
     }
 
     @Test
@@ -1155,9 +1162,11 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
 
     @Test
     fun dispatchTransition_givenRegisteredIdWhileRoutingUnarmed_expectDroppedButOsRegistrationKept() = runTest {
-        // The window between an identify clearing routing and the refresh that re-arms it. The fence
-        // is live and still claimed by registeredIds, so removing it here would strand it: the
-        // completing refresh sees matching params, skips it as unchanged, and never re-adds it.
+        // The window between an identify clearing routing and the refresh that re-arms it. Removing
+        // it here strands it, but not by the skip-as-unchanged path: unchangedRegisteredIds also
+        // requires routable membership, so an unroutable id is re-added. The strand is the race —
+        // an initial ENTER arriving between the add and the arming would evict a fence the refresh
+        // then publishes as routable, and that one IS skipped as unchanged from then on.
         every { mockStore.getRegisteredIds() } returns setOf("biz-known")
         every { mockStore.getRoutableRegisteredIds() } returns emptySet()
 

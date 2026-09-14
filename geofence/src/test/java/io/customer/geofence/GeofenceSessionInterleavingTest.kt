@@ -54,6 +54,8 @@ class GeofenceSessionInterleavingTest : RobolectricTest() {
         repository = repository,
         secureUserStore = secureUserStore,
         regionStore = store,
+        cooldownFilter = mockk(relaxed = true),
+        polygonController = mockk(relaxed = true),
         scope = scope,
         logger = mockk(relaxed = true),
         permissionChecker = permissionChecker,

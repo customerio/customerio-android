@@ -136,9 +136,12 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
         val (routableTriggeringIds, unroutableIds) = triggeringGeofenceIds.partition { it in routableIds }
         // An identify clears routing and only the completing refresh re-arms it, so between the two
         // a live registration is unroutable without being an orphan. Removing it there strands it:
-        // the refresh that follows still sees the id in registeredIds with matching params, skips it
-        // as unchanged, and never re-adds it to the OS. Only evict what the bookkeeping no longer
-        // claims, and drop the rest — routing is what authorizes a business event.
+        // business fences register with INITIAL_TRIGGER_ENTER and routing arms only after the add,
+        // so a fence the refresh just added can report ENTER while routing still reads empty.
+        // Evicting on that would remove a fence the same pass then publishes registered AND
+        // routable, and every later refresh reads that as unchanged and never re-adds it. Only
+        // evict what the bookkeeping no longer claims, and drop the rest — routing is what
+        // authorizes a business event.
         val unarmedTriggerIds = if (unroutableIds.isEmpty()) {
             emptyList()
         } else {

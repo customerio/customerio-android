@@ -602,6 +602,32 @@ internal class GeofenceLogger(private val logger: Logger) {
 
     // MARK: - Sync
 
+    /**
+     * How long the SDK took to be ready to handle one broadcast, in ms.
+     *
+     * The crossing pipeline is a DI singleton with eager constructor injection, so resolving it
+     * builds the geofence object graph — the GMS client included — and on a cold process that
+     * happens inside the broadcast's own budget, where each branch used to resolve only what it
+     * needed. Whether that is material is a question about a real device, and the dispatch path had
+     * no timing record at all, so no capture could answer it. This is that record.
+     *
+     * Expect a large first value per process and roughly zero afterwards: the singleton is built
+     * once. Which broadcast is the first is readable from the surrounding `module.init`.
+     *
+     * Gated whole, not just in its tail. This fires on every broadcast — 72 times in nine hours on
+     * the 2026-09-14 drive — and with diagnostics off `tail` returns nothing, so the line that
+     * survived would carry a duration and no way to tell what it timed. Volume with nothing in it,
+     * in every customer's Logcat, on a record that exists purely to answer a diagnostic question.
+     */
+    fun logDispatchReady(elapsedMs: Long) {
+        if (!GeofenceDiagnostics.isEnabled) return
+        logger.debug(
+            "Crossing pipeline ready after ${elapsedMs}ms" +
+                tail("dispatch.ready", GeofenceLogIo.OBSERVATION, listOf("ms" to int(elapsedMs.toInt()))),
+            tag = TAG
+        )
+    }
+
     fun logSyncTriggered(reason: String) {
         logger.debug(
             "Geofence sync triggered: $reason" +

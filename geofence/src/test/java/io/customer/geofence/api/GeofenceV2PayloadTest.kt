@@ -15,7 +15,14 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 
-/** Rehan's real `POST /v2/geofences/nearest` capture, 2026-09-11, decoded by the shipping path. */
+/**
+ * A `POST /v2/geofences/nearest` payload decoded by the shipping path.
+ *
+ * Synthetic coordinates, names and addresses. The wire SHAPE is what these tests are for and is
+ * copied from a real 2026-09-11 v2 response: numeric `id` and `geoset_ids`, `enclosing_circle` on
+ * polygons only, a repeated closing vertex, absent `transition_types` and `last_updated`, and the
+ * `metadata` keys the backend actually sends. Do not restore a real capture here.
+ */
 @RunWith(RobolectricTestRunner::class)
 class GeofenceV2PayloadTest : RobolectricTest() {
 
@@ -37,39 +44,39 @@ class GeofenceV2PayloadTest : RobolectricTest() {
         json.decode(GeofenceApiResponse.serializer(), PAYLOAD, lenient = true)
 
     @Test
-    fun realV2Payload_decodesEveryRegion() {
+    fun v2Payload_decodesEveryRegion() {
         val response = decode()
         assertEquals(9, response.geofences.size)
     }
 
     @Test
-    fun realV2Payload_coercesNumericIdsAndGeosetIds() {
-        val rainbow = decode().geofences.first { it.name == "Northgate Market" }
-        assertEquals("18", rainbow.id)
-        assertEquals(listOf("1"), rainbow.geosetIds)
+    fun v2Payload_coercesNumericIdsAndGeosetIds() {
+        val market = decode().geofences.first { it.name == "Northgate Market" }
+        assertEquals("18", market.id)
+        assertEquals(listOf("1"), market.geosetIds)
     }
 
     @Test
-    fun realV2Payload_readsPolygonGeometryAndEnclosingCircle() {
+    fun v2Payload_readsPolygonGeometryAndEnclosingCircle() {
         val response = decode()
         val polygons = response.geofences.filter { it.shape == "polygon" }
         assertEquals(4, polygons.size)
 
-        val rainbow = polygons.first { it.id == "18" }
-        rainbow.enclosingCircle?.baseRadiusMeters shouldBeEqualTo 101.0
+        val market = polygons.first { it.id == "18" }
+        market.enclosingCircle?.baseRadiusMeters shouldBeEqualTo 101.0
         // 5 wire positions in, 4 out: the canonicaliser drops the repeated closing vertex.
-        rainbow.geometry?.toPolygonGeometryOrNull()?.vertices?.size shouldBeEqualTo 4
+        market.geometry?.toPolygonGeometryOrNull()?.vertices?.size shouldBeEqualTo 4
     }
 
     @Test
-    fun realV2Payload_everyPolygonRingBuilds() {
+    fun v2Payload_everyPolygonRingBuilds() {
         decode().geofences.filter { it.shape == "polygon" }.forEach { region ->
             assertNotNull("ring did not build for ${region.name}", region.geometry?.toPolygonGeometryOrNull())
         }
     }
 
     @Test
-    fun realV2Payload_configParsesAndroidBlock() {
+    fun v2Payload_configParsesAndroidBlock() {
         val config = decode().toDomainConfig().shouldNotBeNull()
         assertEquals(19, config.maxBusinessGeofences)
         assertEquals(1000f, config.localRefreshTriggerRadius, 0.01f)
@@ -79,7 +86,7 @@ class GeofenceV2PayloadTest : RobolectricTest() {
     }
 
     @Test
-    fun realV2Payload_absentTransitionTypesFallBackToEnterAndExit() {
+    fun v2Payload_absentTransitionTypesFallBackToEnterAndExit() {
         val catalog = decode().toCatalogEntries()
         catalog.forEach { entry ->
             assertEquals(listOf("enter", "exit"), entry.transitionTypes)
@@ -87,13 +94,13 @@ class GeofenceV2PayloadTest : RobolectricTest() {
     }
 
     @Test
-    fun realV2Payload_absentLastUpdatedIsAbsentOnTheWire() {
+    fun v2Payload_absentLastUpdatedIsAbsentOnTheWire() {
         decode().geofences.forEach { assertNull(it.lastUpdated) }
     }
 
     /** This build has no polygon runtime, so every polygon must drop and every circle survive. */
     @Test
-    fun realV2Payload_mapsCirclesAndDropsPolygonsWithoutPolygonRuntime() {
+    fun v2Payload_mapsCirclesAndDropsPolygonsWithoutPolygonRuntime() {
         val regions = decode().toDomainRegions()
         assertEquals(5, regions.size)
         assertEquals(
@@ -104,7 +111,7 @@ class GeofenceV2PayloadTest : RobolectricTest() {
 
     /** The catalog is the record of what the server sent, so it must keep the polygons. */
     @Test
-    fun realV2Payload_catalogKeepsEveryRecordIncludingPolygons() {
+    fun v2Payload_catalogKeepsEveryRecordIncludingPolygons() {
         val catalog = decode().toCatalogEntries()
         assertEquals(9, catalog.size)
         assertEquals(4, catalog.count { it.shape == "polygon" })

@@ -53,21 +53,8 @@ internal class CustomerIOHttpClientImpl : CustomerIOHttpClient {
 
     private fun doNetworkRequest(params: HttpRequestParams): Result<String> {
         val settings = globalPreferenceStore.getSettings() ?: return Result.failure(IllegalStateException("Setting not available"))
-        val apiHost = if (params.pathCarriesApiVersion) settings.apiHost.withoutApiVersion() else settings.apiHost
         val writeKey = settings.writeKey
-
-        // `apiHost` already includes the API version prefix (e.g.,
-        // "cdp.customer.io/v1"), so `Uri.Builder().authority()` can't be used
-        // here — it would percent-encode the embedded `/`. Compose the base URL
-        // first, then layer query params on top via `buildUpon`.
-        val cleanedPath = if (params.path.startsWith("/")) params.path else "/${params.path}"
-        val urlString = "https://$apiHost$cleanedPath".toUri()
-            .buildUpon()
-            .apply {
-                params.queryParams.forEach { (k, v) -> appendQueryParameter(k, v) }
-            }
-            .build()
-            .toString()
+        val urlString = composeUrl(settings.apiHost, params)
 
         val connection = try {
             val urlObj = URL(urlString)
@@ -133,3 +120,20 @@ internal class CustomerIOHttpClientImpl : CustomerIOHttpClient {
 private val API_VERSION_SEGMENT = Regex("/v\\d+$")
 
 internal fun String.withoutApiVersion(): String = trimEnd('/').replace(API_VERSION_SEGMENT, "")
+
+/**
+ * Full request URL for [params] against [apiHost].
+ *
+ * Extracted so the version swap can be asserted on the URL that is actually sent. `apiHost` embeds
+ * the version ("cdp.customer.io/v1"), so `Uri.Builder().authority()` cannot be used here: it would
+ * percent-encode the embedded `/`. Compose the base string first, then layer query params on top.
+ */
+internal fun composeUrl(apiHost: String, params: HttpRequestParams): String {
+    val host = if (params.pathCarriesApiVersion) apiHost.withoutApiVersion() else apiHost
+    val cleanedPath = if (params.path.startsWith("/")) params.path else "/${params.path}"
+    return "https://$host$cleanedPath".toUri()
+        .buildUpon()
+        .apply { params.queryParams.forEach { (k, v) -> appendQueryParameter(k, v) } }
+        .build()
+        .toString()
+}

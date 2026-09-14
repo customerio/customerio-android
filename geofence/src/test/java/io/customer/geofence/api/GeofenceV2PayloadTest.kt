@@ -6,6 +6,8 @@ import io.customer.commontest.core.RobolectricTest
 import io.customer.geofence.GeofenceJsonSerializer
 import io.customer.geofence.GeofenceLogger
 import io.mockk.mockk
+import org.amshove.kluent.shouldBeEqualTo
+import org.amshove.kluent.shouldNotBeNull
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
@@ -54,9 +56,9 @@ class GeofenceV2PayloadTest : RobolectricTest() {
         assertEquals(4, polygons.size)
 
         val rainbow = polygons.first { it.id == "18" }
-        assertEquals(101.0, rainbow.enclosingCircle?.baseRadiusMeters!!, 0.0001)
-        // 5 wire positions, closing vertex collapsed by the canonicaliser.
-        assertEquals(5, (rainbow.geometry?.toPolygonGeometryOrNull()?.vertices?.size ?: 0) + 1)
+        rainbow.enclosingCircle?.baseRadiusMeters shouldBeEqualTo 101.0
+        // 5 wire positions in, 4 out: the canonicaliser drops the repeated closing vertex.
+        rainbow.geometry?.toPolygonGeometryOrNull()?.vertices?.size shouldBeEqualTo 4
     }
 
     @Test
@@ -68,7 +70,7 @@ class GeofenceV2PayloadTest : RobolectricTest() {
 
     @Test
     fun realV2Payload_configParsesAndroidBlock() {
-        val config = decode().toDomainConfig()!!
+        val config = decode().toDomainConfig().shouldNotBeNull()
         assertEquals(19, config.maxBusinessGeofences)
         assertEquals(1000f, config.localRefreshTriggerRadius, 0.01f)
         assertEquals(5000f, config.remoteFetchRefreshTriggerRadius, 0.01f)
@@ -108,12 +110,13 @@ class GeofenceV2PayloadTest : RobolectricTest() {
         assertEquals(4, catalog.count { it.shape == "polygon" })
         assertEquals(5, catalog.count { it.shape == "circle" })
         // A polygon's catalog radius is the backend's enclosing circle, never a padded one.
-        assertEquals(101.0, catalog.first { it.id == "18" }.radiusMeters!!, 0.0001)
+        catalog.first { it.id == "18" }.radiusMeters shouldBeEqualTo 101.0
     }
 
     private companion object {
-        val PAYLOAD = GeofenceV2PayloadTest::class.java
-            .getResourceAsStream("/v2_nearest_response.json")!!
+        val PAYLOAD: String = GeofenceV2PayloadTest::class.java
+            .getResourceAsStream("/v2_nearest_response.json")
+            .shouldNotBeNull()
             .bufferedReader().use { it.readText() }
     }
 }

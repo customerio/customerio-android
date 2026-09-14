@@ -222,7 +222,9 @@ class ModuleGeofence @JvmOverloads constructor(
                     sdkAndroid.geofenceTransitionEmitter.recoverPendingTransitions()
                     val existingUserId = sdkAndroid.secureUserStore.getUserId()
                     if (!existingUserId.isNullOrEmpty()) {
-                        sdkAndroid.polygonGeofenceServiceController.beginUserSession(existingUserId)
+                        // Re-read rather than reuse the id above: an identify can land in between,
+                        // and reopening the older owner would clear the routing it just armed.
+                        sdkAndroid.polygonGeofenceServiceController.beginUserSessionForCurrentUser()
                         val anchor = refreshAnchor(sdkAndroid, locationModule)
                         sdkAndroid.geofenceServices.onAppLaunch(
                             latitude = anchor?.latitude,

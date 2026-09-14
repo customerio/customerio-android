@@ -103,7 +103,7 @@ internal class PolygonApproachWorker(
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            SDKComponent.geofenceLogger.logPolygonApproachMonitoringFailed(e.message, operation = "deliver")
+            SDKComponent.geofenceLogger.logPolygonApproachProcessingFailed(e.message, operation = "deliver")
             if (runAttemptCount + 1 < MAXIMUM_ATTEMPTS) {
                 Result.retry()
             } else {

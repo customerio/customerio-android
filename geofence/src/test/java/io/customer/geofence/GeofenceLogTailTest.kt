@@ -207,7 +207,8 @@ class GeofenceLogTailTest : RobolectricTest() {
             Row("polygonFixNotUsable", "polygon.undecided", listOf("why"), GeofenceLogger::logPolygonFixNotUsable.name) { it.logPolygonFixNotUsable(PolygonFixRejection.FIX_TOO_OLD) },
             Row("polygonApproachStarted", "polygon.approach.started", emptyList(), GeofenceLogger::logPolygonApproachMonitoringStarted.name) { it.logPolygonApproachMonitoringStarted() },
             Row("polygonApproachStopped", "polygon.approach.stopped", emptyList(), GeofenceLogger::logPolygonApproachMonitoringStopped.name) { it.logPolygonApproachMonitoringStopped() },
-            Row("polygonApproachFailed", "polygon.approach.failed", listOf("ok", "op", "why"), GeofenceLogger::logPolygonApproachMonitoringFailed.name) { it.logPolygonApproachMonitoringFailed("no permission", operation = "request_updates") }
+            Row("polygonApproachRequestFailed", "polygon.approach.failed", listOf("ok", "op", "why"), GeofenceLogger::logPolygonApproachRequestFailed.name, io = "in") { it.logPolygonApproachRequestFailed("no permission", operation = "request_updates") },
+            Row("polygonApproachProcessingFailed", "polygon.approach.dropped", listOf("ok", "op", "why"), GeofenceLogger::logPolygonApproachProcessingFailed.name) { it.logPolygonApproachProcessingFailed("boom", operation = "deliver") }
         )
     }
 
@@ -354,6 +355,7 @@ class GeofenceLogTailTest : RobolectricTest() {
             "os.callback.received",
             "os.error",
             "permission.changed",
+            "polygon.approach.dropped",
             "polygon.approach.failed",
             "polygon.approach.started",
             "polygon.approach.stopped",
@@ -640,19 +642,21 @@ class GeofenceLogTailTest : RobolectricTest() {
     }
 
     @Test
-    fun polygonApproachFailed_givenEachCallPath_expectTheOperationDistinguishesThem() {
-        // Four call sites share this record. Without `op` a replay reads a failed registration, a
-        // failed removal, a broken callback and a failed delivery as one recurring fault.
-        geofenceLogger.logPolygonApproachMonitoringFailed("boom", operation = "request_updates")
+    fun polygonApproachFailures_givenEachCallPath_expectTheyStayDistinguishable() {
+        // An OS refusal is the environment's and replays as input; our own handler throwing is an
+        // output. Within each, `op` separates the two call sites that share the record.
+        geofenceLogger.logPolygonApproachRequestFailed("boom", operation = "request_updates")
         parseTail(capturing.messages.last())!!["op"] shouldBeEqualTo "request_updates"
+        parseTail(capturing.messages.last())!!["io"] shouldBeEqualTo "in"
 
-        geofenceLogger.logPolygonApproachMonitoringFailed("boom", operation = "remove_updates")
+        geofenceLogger.logPolygonApproachRequestFailed("boom", operation = "remove_updates")
         parseTail(capturing.messages.last())!!["op"] shouldBeEqualTo "remove_updates"
 
-        geofenceLogger.logPolygonApproachMonitoringFailed("boom", operation = "receive")
+        geofenceLogger.logPolygonApproachProcessingFailed("boom", operation = "receive")
         parseTail(capturing.messages.last())!!["op"] shouldBeEqualTo "receive"
+        parseTail(capturing.messages.last())!!["io"] shouldBeEqualTo "out"
 
-        geofenceLogger.logPolygonApproachMonitoringFailed("boom", operation = "deliver")
+        geofenceLogger.logPolygonApproachProcessingFailed("boom", operation = "deliver")
         parseTail(capturing.messages.last())!!["op"] shouldBeEqualTo "deliver"
     }
 

@@ -106,13 +106,21 @@ internal class PolygonApproachMonitor(
         expectedSessionDeadlineElapsedRealtimeMs: Long? = null
     ) {
         val pendingIntent = synchronized(lock) {
+            // A caller naming a generation means "stop the session I started", so a live session
+            // from a later one is not theirs to tear down: an identify can land between reading the
+            // generation and getting here, and this runs with no lock held across that gap. A bare
+            // stop() names nothing and still stops whatever is live.
+            if (
+                desired &&
+                expectedUserStateGeneration != null &&
+                userStateGeneration != expectedUserStateGeneration
+            ) {
+                return
+            }
             if (
                 expectedSessionDeadlineElapsedRealtimeMs != null &&
                 desired &&
-                (
-                    userStateGeneration != expectedUserStateGeneration ||
-                        sessionDeadlineElapsedRealtimeMs != expectedSessionDeadlineElapsedRealtimeMs
-                    )
+                sessionDeadlineElapsedRealtimeMs != expectedSessionDeadlineElapsedRealtimeMs
             ) {
                 return
             }
@@ -187,13 +195,17 @@ internal class PolygonApproachMonitor(
         requestGeneration: Long,
         cause: Throwable
     ) {
-        logger.logPolygonApproachMonitoringFailed(cause.message, operation = "request_updates")
+        logger.logPolygonApproachRequestFailed(cause.message, operation = "request_updates")
         if (cause is SecurityException) {
             synchronized(lock) {
                 if (userStateGeneration == requestGeneration && activePendingIntent == pendingIntent) {
                     desired = false
                     userStateGeneration = null
                     activePendingIntent = null
+                    // Nothing is registered now, so leaving this armed would later "stop" a request
+                    // that never existed and log a removal that did not happen.
+                    sessionTimeoutJob?.cancel()
+                    sessionTimeoutJob = null
                 }
             }
             return
@@ -243,7 +255,7 @@ internal class PolygonApproachMonitor(
     }
 
     private fun retryRemoval(pendingIntent: PendingIntent, cause: Throwable) {
-        logger.logPolygonApproachMonitoringFailed(cause.message, operation = "remove_updates")
+        logger.logPolygonApproachRequestFailed(cause.message, operation = "remove_updates")
         synchronized(lock) {
             if (desired && activePendingIntent == pendingIntent) return
             val attempt = (removalRetryAttempts[pendingIntent] ?: 0) + 1
@@ -285,6 +297,16 @@ internal class PolygonApproachMonitor(
         internal fun newSessionDeadlineElapsedRealtimeMs(): Long =
             SystemClock.elapsedRealtime() + MAXIMUM_SESSION_DURATION_MS
 
+        /**
+         * Identity is the generation in the data URI, and nothing else: `PendingIntent` equality
+         * ignores extras, so the same generation with a different deadline is the SAME intent and
+         * `FLAG_UPDATE_CURRENT` rewrites the live request's extras in place.
+         *
+         * Three things depend on that and would break silently if the deadline moved into the URI.
+         * A cold process can stop a session it never started, by rebuilding the intent for that
+         * generation with any deadline. The maps keyed by `PendingIntent` stay correct across a
+         * deadline change. And a removal that succeeds late re-requests the right session.
+         */
         internal fun pendingIntent(
             context: Context,
             userStateGeneration: Long,

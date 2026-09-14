@@ -5,6 +5,7 @@ import android.os.Looper
 import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.LocationRequest
 import com.google.android.gms.location.Priority
+import com.google.android.gms.tasks.TaskCompletionSource
 import com.google.android.gms.tasks.Tasks
 import io.customer.commontest.core.RobolectricTest
 import io.customer.geofence.GeofenceLogger
@@ -200,6 +201,106 @@ class PolygonApproachMonitorTest : RobolectricTest() {
         shadowOf(Looper.getMainLooper()).idle()
 
         verify { client.removeLocationUpdates(any<PendingIntent>()) }
+    }
+
+    @Test
+    fun stop_givenGenerationOfAnAlreadySupersededSession_expectLiveSessionUntouched() {
+        // Callers read the generation, then reach stop with no lock held. An identify landing in
+        // that gap must not let the older caller tear down the session it does not own.
+        every {
+            client.requestLocationUpdates(any<LocationRequest>(), any<PendingIntent>())
+        } returns Tasks.forResult(null)
+        every { client.removeLocationUpdates(any<PendingIntent>()) } returns Tasks.forResult(null)
+        val monitor = monitor()
+
+        monitor.start(8L)
+        monitor.stop(expectedUserStateGeneration = 7L)
+        shadowOf(Looper.getMainLooper()).idle()
+
+        verify(exactly = 0) { client.removeLocationUpdates(any<PendingIntent>()) }
+    }
+
+    @Test
+    fun start_givenSecurityException_expectSessionAbandonedAndItsTimerCancelled() {
+        // Nothing is registered after a permission refusal, so a surviving timer would later remove
+        // a request that never existed and report a stop that did not happen.
+        every {
+            client.requestLocationUpdates(any<LocationRequest>(), any<PendingIntent>())
+        } returns Tasks.forException(SecurityException("location permission revoked"))
+        every { client.removeLocationUpdates(any<PendingIntent>()) } returns Tasks.forResult(null)
+        val scheduler = TestCoroutineScheduler()
+        val monitor = PolygonApproachMonitor(
+            context = applicationMock,
+            client = client,
+            logger = logger,
+            backgroundContext = StandardTestDispatcher(scheduler)
+        )
+
+        monitor.start(7L)
+        shadowOf(Looper.getMainLooper()).idle()
+        scheduler.advanceTimeBy(180_000L)
+        scheduler.runCurrent()
+        shadowOf(Looper.getMainLooper()).idle()
+
+        verify(exactly = 0) { client.removeLocationUpdates(any<PendingIntent>()) }
+        verify(exactly = 0) { logger.logPolygonApproachMonitoringStopped() }
+        // Never retried either: a refusal is not transient.
+        verify(exactly = 1) {
+            client.requestLocationUpdates(any<LocationRequest>(), any<PendingIntent>())
+        }
+    }
+
+    @Test
+    fun start_givenRequestSucceedsAfterStop_expectTheStaleRegistrationRemoved() {
+        // The OS answers late. By then the session is over, so leaving it registered would stream
+        // locations for a user who is gone.
+        val pending = TaskCompletionSource<Void>()
+        every {
+            client.requestLocationUpdates(any<LocationRequest>(), any<PendingIntent>())
+        } returns pending.task
+        every { client.removeLocationUpdates(any<PendingIntent>()) } returns Tasks.forResult(null)
+        val monitor = monitor()
+
+        monitor.start(7L)
+        monitor.stop()
+        shadowOf(Looper.getMainLooper()).idle()
+        pending.setResult(null)
+        shadowOf(Looper.getMainLooper()).idle()
+
+        verify(atLeast = 1) { client.removeLocationUpdates(any<PendingIntent>()) }
+        verify(exactly = 0) { logger.logPolygonApproachMonitoringStarted() }
+    }
+
+    @Test
+    fun start_givenTransientRegistrationFailure_expectTheOperationNamedOnTheRecord() {
+        // `op` is what separates this from a failed removal; both share the record.
+        every {
+            client.requestLocationUpdates(any<LocationRequest>(), any<PendingIntent>())
+        } returns Tasks.forException(IllegalStateException("temporarily unavailable"))
+        val monitor = monitor()
+
+        monitor.start(7L)
+        shadowOf(Looper.getMainLooper()).idle()
+
+        verify { logger.logPolygonApproachRequestFailed(any(), "request_updates") }
+    }
+
+    @Test
+    fun stop_givenRemovalFailure_expectTheRemovalOperationNamedOnTheRecord() {
+        every {
+            client.requestLocationUpdates(any<LocationRequest>(), any<PendingIntent>())
+        } returns Tasks.forResult(null)
+        every {
+            client.removeLocationUpdates(any<PendingIntent>())
+        } returns Tasks.forException(IllegalStateException("remove boom"))
+        val monitor = monitor()
+
+        monitor.start(7L)
+        monitor.stop()
+        shadowOf(Looper.getMainLooper()).idle()
+
+        verify { logger.logPolygonApproachRequestFailed(any(), "remove_updates") }
+        verify(exactly = 0) { logger.logPolygonApproachMonitoringStopped() }
     }
 
     private fun monitor() = PolygonApproachMonitor(

@@ -1194,14 +1194,34 @@ internal class GeofenceLogger(private val logger: Logger) {
     }
 
     /**
-     * [operation] is what was being attempted. Four call sites share this record, and a replay that
-     * cannot tell a failed registration from a failed delivery reads them as one recurring fault.
+     * The OS refused to start or stop the location stream, so this is the environment's fault and a
+     * replay feeds it back rather than comparing it. [operation] separates the two call sites.
      */
-    fun logPolygonApproachMonitoringFailed(message: String?, operation: String) {
+    fun logPolygonApproachRequestFailed(message: String?, operation: String) {
         logger.error(
             "Polygon responsive approach monitoring unavailable: $message" +
                 tail(
                     "polygon.approach.failed",
+                    GeofenceLogIo.INPUT,
+                    listOf(
+                        "ok" to bool(false),
+                        "op" to operation,
+                        "why" to token(message ?: "unknown")
+                    )
+                ),
+            tag = TAG
+        )
+    }
+
+    /**
+     * Our own handling of a delivered batch threw, so the locations in it are lost. An output: the
+     * OS did its part. [operation] separates the broadcast from the worker.
+     */
+    fun logPolygonApproachProcessingFailed(message: String?, operation: String) {
+        logger.error(
+            "Polygon responsive approach locations dropped: $message" +
+                tail(
+                    "polygon.approach.dropped",
                     GeofenceLogIo.OUTPUT,
                     listOf(
                         "ok" to bool(false),

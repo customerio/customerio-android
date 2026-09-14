@@ -44,7 +44,6 @@ class PolygonGeofenceServiceControllerTest {
     @Before
     fun setUp() {
         every { store.userStateGeneration() } returns 0L
-        every { store.hasActiveUserSession() } returns true
         every { store.activeUserSessionId() } returns "user-1"
         every { secureUserStore.getUserId() } returns "user-1"
         every { store.getRegisteredIds() } returns setOf("campus")

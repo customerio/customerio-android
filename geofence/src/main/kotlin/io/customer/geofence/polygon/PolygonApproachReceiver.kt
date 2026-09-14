@@ -58,14 +58,14 @@ class PolygonApproachReceiver : BroadcastReceiver() {
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {
-                    SDKComponent.geofenceLogger.logPolygonApproachMonitoringFailed(e.message)
+                    SDKComponent.geofenceLogger.logPolygonApproachMonitoringFailed(e.message, operation = "receive")
                 } finally {
                     pendingResult.finish()
                     workScope.cancel()
                 }
             }
         } catch (e: Throwable) {
-            SDKComponent.geofenceLogger.logPolygonApproachMonitoringFailed(e.message)
+            SDKComponent.geofenceLogger.logPolygonApproachMonitoringFailed(e.message, operation = "receive")
             pendingResult.finish()
         }
     }

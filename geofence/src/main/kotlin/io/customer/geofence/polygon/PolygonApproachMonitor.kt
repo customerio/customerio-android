@@ -187,7 +187,7 @@ internal class PolygonApproachMonitor(
         requestGeneration: Long,
         cause: Throwable
     ) {
-        logger.logPolygonApproachMonitoringFailed(cause.message)
+        logger.logPolygonApproachMonitoringFailed(cause.message, operation = "request_updates")
         if (cause is SecurityException) {
             synchronized(lock) {
                 if (userStateGeneration == requestGeneration && activePendingIntent == pendingIntent) {
@@ -243,7 +243,7 @@ internal class PolygonApproachMonitor(
     }
 
     private fun retryRemoval(pendingIntent: PendingIntent, cause: Throwable) {
-        logger.logPolygonApproachMonitoringFailed(cause.message)
+        logger.logPolygonApproachMonitoringFailed(cause.message, operation = "remove_updates")
         synchronized(lock) {
             if (desired && activePendingIntent == pendingIntent) return
             val attempt = (removalRetryAttempts[pendingIntent] ?: 0) + 1

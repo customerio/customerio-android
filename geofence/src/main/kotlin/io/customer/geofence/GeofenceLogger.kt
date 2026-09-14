@@ -1178,15 +1178,39 @@ internal class GeofenceLogger(private val logger: Logger) {
     }
 
     fun logPolygonApproachMonitoringStarted() {
-        logger.debug("Polygon responsive approach monitoring registered", tag = TAG)
+        logger.debug(
+            "Polygon responsive approach monitoring registered" +
+                tail("polygon.approach.started", GeofenceLogIo.OUTPUT),
+            tag = TAG
+        )
     }
 
     fun logPolygonApproachMonitoringStopped() {
-        logger.debug("Polygon responsive approach monitoring removed", tag = TAG)
+        logger.debug(
+            "Polygon responsive approach monitoring removed" +
+                tail("polygon.approach.stopped", GeofenceLogIo.OUTPUT),
+            tag = TAG
+        )
     }
 
-    fun logPolygonApproachMonitoringFailed(message: String?) {
-        logger.error("Polygon responsive approach monitoring unavailable: $message", tag = TAG)
+    /**
+     * [operation] is what was being attempted. Four call sites share this record, and a replay that
+     * cannot tell a failed registration from a failed delivery reads them as one recurring fault.
+     */
+    fun logPolygonApproachMonitoringFailed(message: String?, operation: String) {
+        logger.error(
+            "Polygon responsive approach monitoring unavailable: $message" +
+                tail(
+                    "polygon.approach.failed",
+                    GeofenceLogIo.OUTPUT,
+                    listOf(
+                        "ok" to bool(false),
+                        "op" to operation,
+                        "why" to token(message ?: "unknown")
+                    )
+                ),
+            tag = TAG
+        )
     }
 
     companion object {

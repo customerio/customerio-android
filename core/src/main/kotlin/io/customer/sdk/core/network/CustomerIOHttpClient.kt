@@ -114,18 +114,23 @@ internal class CustomerIOHttpClientImpl : CustomerIOHttpClient {
     }
 }
 
-// Anchored at the end on purpose: a host whose NAME carries a version ("v1.example.com") has no
-// segment to split, and neither does a self-hosted host that never carried one.
-private val TRAILING_API_VERSION = Regex("/(v\\d+)$")
+private fun String.isApiVersionSegment(): Boolean =
+    length >= 2 && this[0] == 'v' && drop(1).all(Char::isDigit)
 
 /**
  * Splits the version segment `apiHost` conflates with the host: `cdp.customer.io/v1` becomes
  * `cdp.customer.io` and `v1`. A host carrying no version answers null, never a guessed default.
+ *
+ * Segments rather than a match on the tail, because `apiHost` is customer-supplied: a stray or
+ * doubled slash arrives verbatim, and `cdp.customer.io//v1` would otherwise leave a trailing slash
+ * on the host and compose `//v2`. Only a segment AFTER a separator counts, so a host whose NAME
+ * carries a version (`v1.example.com`) keeps it.
  */
 internal fun String.splitApiVersion(): Pair<String, String?> {
-    val trimmed = trimEnd('/')
-    val match = TRAILING_API_VERSION.find(trimmed) ?: return trimmed to null
-    return trimmed.removeRange(match.range) to match.groupValues[1]
+    val segments = split('/').filter(String::isNotEmpty)
+    val version = segments.takeIf { it.size > 1 }?.last()?.takeIf(String::isApiVersionSegment)
+    val host = if (version == null) segments else segments.dropLast(1)
+    return host.joinToString("/") to version
 }
 
 /**

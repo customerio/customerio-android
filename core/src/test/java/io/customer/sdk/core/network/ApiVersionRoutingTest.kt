@@ -97,6 +97,30 @@ class ApiVersionRoutingTest : RobolectricTest() {
     }
 
     @Test
+    fun toleratesEmptySegmentsInACustomerSuppliedHost() {
+        // `apiHost` is customer-supplied, so a stray or doubled slash reaches here verbatim.
+        "cdp.customer.io/v1//".splitApiVersion() shouldBeEqualTo ("cdp.customer.io" to "v1")
+        "cdp.customer.io//v1".splitApiVersion() shouldBeEqualTo ("cdp.customer.io" to "v1")
+
+        val url = composeUrl(
+            apiHost = "cdp.customer.io//v1",
+            params = HttpRequestParams(path = "/geofences/nearest", apiVersion = "v2")
+        )
+
+        url shouldBeEqualTo "https://cdp.customer.io/v2/geofences/nearest"
+    }
+
+    @Test
+    fun addsTheSeparatorForAPathThatOmitsIt() {
+        val url = composeUrl(
+            apiHost = "cdp.customer.io/v1",
+            params = HttpRequestParams(path = "geofences/nearest", apiVersion = "v2")
+        )
+
+        url shouldBeEqualTo "https://cdp.customer.io/v2/geofences/nearest"
+    }
+
+    @Test
     fun keepsQueryParamsAcrossTheSwap() {
         val url = composeUrl(
             apiHost = "cdp.customer.io/v1",

@@ -5,7 +5,6 @@ import androidx.lifecycle.ProcessLifecycleOwner
 import io.customer.base.internal.InternalCustomerIOApi
 import io.customer.geofence.di.geofenceDeliveryFlusher
 import io.customer.geofence.di.geofenceLogger
-import io.customer.geofence.di.geofencePermissionChecker
 import io.customer.geofence.di.geofencePermissionReporter
 import io.customer.geofence.di.geofenceRegionStore
 import io.customer.geofence.di.geofenceServices

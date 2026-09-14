@@ -8,8 +8,8 @@ import io.customer.geofence.GeofenceJsonSerializer
 import io.customer.geofence.GeofenceLogger
 import io.customer.geofence.GeofenceManager
 import io.customer.geofence.GeofencePackageInfo
-import io.customer.geofence.GeofencePermissionReporter
 import io.customer.geofence.GeofencePermissionChecker
+import io.customer.geofence.GeofencePermissionReporter
 import io.customer.geofence.GeofenceReceiverToggle
 import io.customer.geofence.GeofenceRepository
 import io.customer.geofence.GeofenceRepositoryImpl

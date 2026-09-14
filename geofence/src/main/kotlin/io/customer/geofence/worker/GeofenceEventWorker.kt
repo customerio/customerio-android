@@ -84,7 +84,7 @@ internal class GeofenceEventWorker(
                 // Unreadable is not empty: nothing was sent, so success would claim a drain.
                 // failure() is safe here where the paths below avoid it — every dependent would
                 // fail this same read, and the rows behind are untouched on disk.
-                val willRetry = runAttemptCount < GeofenceConstants.MAX_UNREADABLE_QUEUE_ATTEMPTS
+                val willRetry = runAttemptCount < GeofenceConstants.MAX_WORKER_RUN_ATTEMPTS
                 logger.logEventWorkerQueueUnreadable(runAttemptCount, willRetry)
                 return if (willRetry) Result.retry() else Result.failure()
             }

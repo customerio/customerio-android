@@ -211,12 +211,37 @@ class GeofenceEventWorkerTest : RobolectricTest() {
 
         val worker = TestListenableWorkerBuilder<GeofenceEventWorker>(applicationMock)
             .setInputData(Data.EMPTY)
-            .setRunAttemptCount(GeofenceConstants.MAX_UNREADABLE_QUEUE_ATTEMPTS)
+            .setRunAttemptCount(GeofenceConstants.MAX_WORKER_RUN_ATTEMPTS)
             .build()
 
         // Retrying forever recovers nothing; the rows survive because nothing overwrites them.
         worker.doWork() shouldBeEqualTo ListenableWorker.Result.failure()
         unreadableRecords().single() shouldContain "retry=false"
+        store.loadAll().map { it.geofenceId } shouldBeEqualTo listOf("biz-1")
+    }
+
+    @Test
+    fun doWork_givenAttemptsAlreadySpentOnDeliveryRetries_expectFirstUnreadableReadToGiveUp() = runTest {
+        // The cap is WorkManager's run count for the whole request, not a per-cause counter, so
+        // delivery retries spend the same budget. This is the first read that failed, and it still
+        // gives up. Pinned because the constant reads like it counts unreadable reads alone, and a
+        // per-cause counter would be a behaviour change rather than a rename.
+        seed("biz-1", Event.GeofenceTransition.ENTER, 99L)
+        val unreadable = spyk(store) { every { loadAllOrNull() } returns null }
+        SDKComponent.android()
+            .overrideDependency<PendingDeliveryStore<PendingGeofenceDelivery>>(unreadable)
+
+        val worker = TestListenableWorkerBuilder<GeofenceEventWorker>(applicationMock)
+            .setInputData(Data.EMPTY)
+            .setRunAttemptCount(GeofenceConstants.MAX_WORKER_RUN_ATTEMPTS + 3)
+            .build()
+
+        worker.doWork() shouldBeEqualTo ListenableWorker.Result.failure()
+        // n= is the run count, so a reader can tell an exhausted budget from a fifth read failure.
+        unreadableRecords().single() shouldContain "n=${GeofenceConstants.MAX_WORKER_RUN_ATTEMPTS + 3}"
+        unreadableRecords().single() shouldContain "retry=false"
+        // Nothing was sent and nothing was dropped: a later enqueue or flush still recovers the row.
+        coVerify(exactly = 0) { tracker.trackEvent(any()) }
         store.loadAll().map { it.geofenceId } shouldBeEqualTo listOf("biz-1")
     }
 

@@ -62,6 +62,20 @@ class PendingGeofenceDeliveryTest {
     }
 
     @Test
+    fun serialization_givenRowWrittenByAnEarlierVersion_expectItStillDecodes() {
+        // Event.GeofenceTransition carries no @SerialName, so the constant name IS the on-disk
+        // value. A round trip cannot see a change to it, because it re-encodes with the new
+        // spelling; only a literal row can. Anything that moves this spelling orphans every
+        // delivery an older version already queued, and the event-property tests stay green
+        // because those read name.lowercase() rather than the serializer.
+        val legacyRow = """{"geofenceId":"biz-w","transition":"ENTER","timestamp":1,"userId":"user-A","transitionId":"tid-w"}"""
+
+        val restored = Json.decodeFromString(PendingGeofenceDelivery.serializer(), legacyRow)
+
+        restored.transition shouldBeEqualTo Event.GeofenceTransition.ENTER
+    }
+
+    @Test
     fun serialization_givenUserIdSnapshot_expectRoundTripPreservesIt() {
         val entry = PendingGeofenceDelivery("biz-u", Event.GeofenceTransition.ENTER, 3L, "user-A", transitionId = "tid-u")
 

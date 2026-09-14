@@ -303,6 +303,71 @@ class PolygonApproachMonitorTest : RobolectricTest() {
         verify(exactly = 0) { logger.logPolygonApproachMonitoringStopped() }
     }
 
+    @Test
+    fun stop_givenRemovalFailsThenSucceeds_expectRetriedAndNotReRequested() {
+        // A stale registration that fails to be removed keeps streaming locations for a session
+        // that is over, so the removal has to be retried. It must not turn into a new request.
+        var removals = 0
+        every {
+            client.requestLocationUpdates(any<LocationRequest>(), any<PendingIntent>())
+        } returns Tasks.forResult(null)
+        every { client.removeLocationUpdates(any<PendingIntent>()) } answers {
+            removals += 1
+            if (removals == 1) {
+                Tasks.forException(IllegalStateException("remove boom"))
+            } else {
+                Tasks.forResult(null)
+            }
+        }
+        val scheduler = TestCoroutineScheduler()
+        val monitor = PolygonApproachMonitor(
+            context = applicationMock,
+            client = client,
+            logger = logger,
+            backgroundContext = StandardTestDispatcher(scheduler)
+        )
+
+        monitor.start(7L)
+        shadowOf(Looper.getMainLooper()).idle()
+        monitor.stop()
+        shadowOf(Looper.getMainLooper()).idle()
+        scheduler.advanceTimeBy(5_001L)
+        scheduler.runCurrent()
+        shadowOf(Looper.getMainLooper()).idle()
+
+        removals shouldBeEqualTo 2
+        verify(exactly = 1) {
+            client.requestLocationUpdates(any<LocationRequest>(), any<PendingIntent>())
+        }
+    }
+
+    @Test
+    fun startAfterStop_givenTheRemovalSucceedsLate_expectTheSessionReRequested() {
+        // stop() then start() on the same generation is one PendingIntent, so the in-flight removal
+        // lands after the restart. Ignoring that leaves the session wanted but unregistered.
+        val removal = TaskCompletionSource<Void>()
+        every {
+            client.requestLocationUpdates(any<LocationRequest>(), any<PendingIntent>())
+        } returns Tasks.forResult(null)
+        every { client.removeLocationUpdates(any<PendingIntent>()) } returns removal.task
+        val monitor = monitor()
+
+        monitor.start(7L)
+        shadowOf(Looper.getMainLooper()).idle()
+        monitor.stop()
+        monitor.start(7L)
+        shadowOf(Looper.getMainLooper()).idle()
+        removal.setResult(null)
+        shadowOf(Looper.getMainLooper()).idle()
+
+        // Three: the first start, the restart, and the one the late removal success issues because
+        // the session is wanted again under the same PendingIntent. Without that third the session
+        // stays wanted but unregistered.
+        verify(exactly = 3) {
+            client.requestLocationUpdates(any<LocationRequest>(), any<PendingIntent>())
+        }
+    }
+
     private fun monitor() = PolygonApproachMonitor(
         context = applicationMock,
         client = client,

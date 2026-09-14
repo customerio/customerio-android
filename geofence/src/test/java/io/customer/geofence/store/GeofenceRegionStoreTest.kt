@@ -14,6 +14,8 @@ import io.customer.geofence.polygon.PolygonCoordinate
 import io.customer.geofence.transitionRevision
 import io.customer.sdk.communication.Event
 import io.mockk.mockk
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 import org.amshove.kluent.shouldBeEmpty
 import org.amshove.kluent.shouldBeEqualTo
 import org.amshove.kluent.shouldBeFalse
@@ -1068,6 +1070,48 @@ class GeofenceRegionStoreTest : RobolectricTest() {
         )
 
         newInstance.getLastApiFetchLocation() shouldBeEqualTo location
+    }
+
+    @Test
+    fun beginUserSessionForCurrentUser_givenAnIdentifyRacesTheRead_expectTheIdentifiedUserOwnsIt() {
+        // The launch, boot and callback paths do not own the identity they act on. Reading it
+        // outside the session lock lets an identify land in the gap and be reopened as the older
+        // user, which clears the routing that identify's refresh armed.
+        store.beginUserSession("user-A")
+        val readStarted = CountDownLatch(1)
+        val identifyDone = CountDownLatch(1)
+
+        val lateCaller = Thread {
+            store.beginUserSessionForCurrentUser {
+                readStarted.countDown()
+                // The identify is trying to run right now. Under the lock it cannot interleave.
+                identifyDone.await(2, TimeUnit.SECONDS)
+                "user-A"
+            }
+        }
+        val identify = Thread {
+            readStarted.await(2, TimeUnit.SECONDS)
+            store.beginUserSession("user-B")
+            identifyDone.countDown()
+        }
+
+        lateCaller.start()
+        identify.start()
+        lateCaller.join(5_000L)
+        identify.join(5_000L)
+
+        store.activeUserSessionId() shouldBeEqualTo "user-B"
+    }
+
+    @Test
+    fun beginUserSessionForCurrentUser_givenNoIdentifiedUser_expectNoSessionOpened() {
+        val generationBefore = store.userStateGeneration()
+
+        store.beginUserSessionForCurrentUser { null }
+        store.beginUserSessionForCurrentUser { "" }
+
+        store.activeUserSessionId().shouldBeNull()
+        store.userStateGeneration() shouldBeEqualTo generationBefore
     }
 
     // --- Movement-trigger location ---

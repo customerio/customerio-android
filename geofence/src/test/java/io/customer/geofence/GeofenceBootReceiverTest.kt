@@ -60,7 +60,7 @@ class GeofenceBootReceiverTest : RobolectricTest() {
 
         receiver.restore()
 
-        io.mockk.verify { mockPolygonController.beginUserSession("user-1") }
+        io.mockk.verify { mockPolygonController.beginUserSessionForCurrentUser() }
         coVerify { mockRepository.restoreFromCache() }
     }
 

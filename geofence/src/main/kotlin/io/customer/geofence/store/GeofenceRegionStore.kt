@@ -105,6 +105,18 @@ internal interface GeofenceRegionStore {
     fun beginUserSession(userId: String)
 
     /**
+     * Opens or keeps a session for whoever [currentUserId] reports, reading it under the same lock
+     * that opens the session.
+     *
+     * For callers that do not own the identity they are acting on — app launch, boot restore, an OS
+     * callback — and would otherwise read it, then race an identify to the write. Reading inside
+     * the lock means a concurrent identify is either already visible here, so this is a no-op, or
+     * lands after this returns and switches on top. Either order leaves the identified user owning
+     * the session. No user reported means no session opens.
+     */
+    fun beginUserSessionForCurrentUser(currentUserId: () -> String?)
+
+    /**
      * Opens a session for [userId] only while none is recorded, checked and written under one lock.
      *
      * For callers that read the identified user before calling: a concurrent identify can land in
@@ -494,8 +506,18 @@ internal class GeofenceRegionStoreImpl(
     }
 
     override fun beginUserSession(userId: String) = synchronized(enteredLock) {
+        beginUserSessionLocked(userId)
+    }
+
+    override fun beginUserSessionForCurrentUser(currentUserId: () -> String?) =
+        synchronized(enteredLock) {
+            val userId = currentUserId()?.takeIf { it.isNotEmpty() } ?: return@synchronized
+            beginUserSessionLocked(userId)
+        }
+
+    private fun beginUserSessionLocked(userId: String) {
         val currentOwner = prefs.read { getString(KEY_USER_STATE_OWNER, null) }
-        if (currentOwner == userId) return@synchronized
+        if (currentOwner == userId) return
         // An absent owner means an install upgraded from a version without these keys, and nothing
         // records who the persisted state belongs to. Adopting whoever is identified now was a guess
         // that a late read or a replayed identify can get wrong, so an unowned session still opens

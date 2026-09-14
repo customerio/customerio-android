@@ -359,8 +359,8 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
     fun dispatchTransition_givenLegacyColdStartWithoutSessionOwner_expectAdoptsUserAndProcessesCallback() = runTest {
         var sessionOwner: String? = null
         every { mockStore.activeUserSessionId() } answers { sessionOwner }
-        every { mockPolygonController.beginUserSession(any()) } answers {
-            sessionOwner = firstArg()
+        every { mockPolygonController.beginUserSessionForCurrentUser() } answers {
+            sessionOwner = mockSecureUserStore.getUserId()
         }
 
         receiver.dispatchTransition(
@@ -370,7 +370,9 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
             longitude = 2.0
         )
 
-        verify { mockPolygonController.beginUserSession("user-42") }
+        // The controller reads the identified user itself, under the store's session lock.
+        verify { mockPolygonController.beginUserSessionForCurrentUser() }
+        sessionOwner shouldBeEqualTo "user-42"
         coVerify(exactly = 1) { mockScheduler.schedule(any()) }
     }
 

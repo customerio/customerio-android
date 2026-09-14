@@ -365,10 +365,24 @@ internal class PolygonGeofenceServiceController(
     }
 
     fun beginUserSession(userId: String) = synchronized(controllerLock) {
-        val changed = store.activeUserSessionId() != userId
+        openSessionLocked { store.beginUserSession(userId) }
+    }
+
+    /**
+     * For callers acting on an identity they did not establish: app launch, boot restore, an OS
+     * callback. The read is handed to the store so it happens under the lock that opens the
+     * session, instead of racing an identify to the write.
+     */
+    fun beginUserSessionForCurrentUser() = synchronized(controllerLock) {
+        openSessionLocked { store.beginUserSessionForCurrentUser(secureUserStore::getUserId) }
+    }
+
+    private fun openSessionLocked(open: () -> Unit) {
         val previousGeneration = store.userStateGeneration()
-        store.beginUserSession(userId)
-        if (changed) {
+        open()
+        // The generation moves only when the session actually changed, so it says whether the
+        // previous session's sampling and approach request are now orphaned.
+        if (store.userStateGeneration() != previousGeneration) {
             engine.stop()
             approachMonitor.stop(previousGeneration)
             lastCoarseTransitionElapsedNanos.clear()

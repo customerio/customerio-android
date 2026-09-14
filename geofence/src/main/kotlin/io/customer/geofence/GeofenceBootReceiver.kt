@@ -60,9 +60,7 @@ class GeofenceBootReceiver : BroadcastReceiver() {
             SDKComponent.geofenceLogger.logSyncSkippedNoPermission(REASON_BOOT_RESTORE)
             return
         }
-        android.secureUserStore.getUserId()?.takeIf { it.isNotEmpty() }?.let {
-            android.polygonGeofenceServiceController.beginUserSession(it)
-        }
+        android.polygonGeofenceServiceController.beginUserSessionForCurrentUser()
         @SuppressLint("MissingPermission")
         android.geofenceRepository.restoreFromCache()
     }

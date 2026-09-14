@@ -114,9 +114,7 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
         // Cold-start callbacks can beat the posted launch initialization. Establish the persisted
         // secure user's session synchronously; legacy installs without an owner are migrated by the
         // store without discarding their already-live OS registrations.
-        androidComponent.secureUserStore.getUserId()?.takeIf { it.isNotEmpty() }?.let {
-            androidComponent.polygonGeofenceServiceController.beginUserSession(it)
-        }
+        androidComponent.polygonGeofenceServiceController.beginUserSessionForCurrentUser()
         // A previous callback can have staged a transition before the file outbox was writable.
         // Recover it before interpreting this edge so an ENTER followed by EXIT stays ordered.
         androidComponent.geofenceBusinessTransitionProcessor.recoverPendingTransitions()

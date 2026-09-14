@@ -336,7 +336,12 @@ class PolygonGeofenceServiceControllerTest {
 
     @Test
     fun beginUserSession_givenDifferentUser_expectStopsOldFineSessionBeforeRefresh() {
+        // The real store bumps the generation whenever it opens a session, and that bump is what
+        // tells the controller the previous session's sampling is now orphaned.
         every { store.activeUserSessionId() } returns "user-A"
+        every { store.beginUserSession("user-B") } answers {
+            every { store.userStateGeneration() } returns 1L
+        }
 
         controller.beginUserSession("user-B")
 
@@ -344,6 +349,26 @@ class PolygonGeofenceServiceControllerTest {
             store.beginUserSession("user-B")
             engine.stop()
         }
+        verify { approachMonitor.stop(0L) }
+    }
+
+    @Test
+    fun beginUserSession_givenTheSameUser_expectNothingTornDown() {
+        // The store no-ops and leaves the generation alone, so a repeated open must not stop a
+        // live session. Every callback path calls this, so a teardown here would be constant.
+        every { store.activeUserSessionId() } returns "user-1"
+
+        controller.beginUserSession("user-1")
+
+        verify(exactly = 0) { engine.stop() }
+    }
+
+    @Test
+    fun beginUserSessionForCurrentUser_expectTheStoreReadsTheIdentityItself() {
+        // Handed to the store so the read happens under the lock that opens the session.
+        controller.beginUserSessionForCurrentUser()
+
+        verify { store.beginUserSessionForCurrentUser(any()) }
     }
 
     @Test

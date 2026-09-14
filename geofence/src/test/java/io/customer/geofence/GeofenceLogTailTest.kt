@@ -775,4 +775,38 @@ class GeofenceLogTailTest : RobolectricTest() {
 
         logger.messages.none { it.contains("catalogued") } shouldBeEqualTo true
     }
+
+    /**
+     * Deliberately absent from [invocations], for the same reason as the catalog above: that table
+     * asserts the gated-*tail* contract, where the gate strips detail and leaves the prose
+     * identical. This record is gated whole — a bare "ready after 12ms" with no `ev` says nothing
+     * a reader could act on, and it fires once per broadcast (72 times in nine hours on the
+     * 2026-09-14 drive), so leaving the prose behind would be volume with nothing in it. These
+     * tests pin the same contract the table would have.
+     */
+    @Test
+    fun dispatchReady_expectMachineKeyAndObservationClassification() {
+        GeofenceDiagnostics.setEnabledForTesting(true)
+        val logger = CapturingLogger()
+        GeofenceLogger(logger).logDispatchReady(12L)
+
+        val message = logger.messages.last()
+        message.startsWith("[Geofence] ") shouldBeEqualTo true
+        val fields = parseTail(message)
+        fields.shouldNotBeNull()
+        fields["ev"] shouldBeEqualTo "dispatch.ready"
+        // `obs`, never `out`: how long the SDK took to be ready is not something a user could
+        // notice, so replay must never assert on it.
+        fields["io"] shouldBeEqualTo "obs"
+        fields["ms"] shouldBeEqualTo "12"
+    }
+
+    @Test
+    fun dispatchReady_givenDiagnosticsOff_expectNoRecord() {
+        GeofenceDiagnostics.setEnabledForTesting(false)
+        val logger = CapturingLogger()
+        GeofenceLogger(logger).logDispatchReady(12L)
+
+        logger.messages.none { it.contains("Crossing pipeline ready") } shouldBeEqualTo true
+    }
 }

@@ -30,40 +30,14 @@ internal enum class PolygonEvidence {
     AMBIGUOUS
 }
 
-internal data class PolygonEvaluatorConfig(
-    val perimeterSampleCount: Int = 16,
-    val enterConfidenceThreshold: Double = 0.4,
-    val exitAccuracyInflationMeters: Double = 2.0,
-    val maximumExitAccuracyMeters: Double = 50.0,
-    val maximumAcceptedAccuracyMeters: Double = 200.0,
-    val decisiveMaximumAccuracyMeters: Double = 50.0,
-    val decisiveBoundaryMarginMeters: Double = 10.0
-) {
-    init {
-        require(perimeterSampleCount in 8..64) { "perimeter sample count is outside safe bounds" }
-        require(enterConfidenceThreshold in 0.25..0.75) { "enter confidence is outside safe bounds" }
-        require(exitAccuracyInflationMeters in 0.0..10.0) { "exit accuracy inflation is outside safe bounds" }
-        require(maximumExitAccuracyMeters in 10.0..100.0) { "maximum exit accuracy is outside safe bounds" }
-        require(maximumAcceptedAccuracyMeters in 50.0..500.0) { "accepted accuracy is outside safe bounds" }
-        require(decisiveMaximumAccuracyMeters in 10.0..100.0) {
-            "decisive accuracy is outside safe bounds"
-        }
-        require(decisiveBoundaryMarginMeters in 0.0..50.0) {
-            "decisive boundary margin is outside safe bounds"
-        }
-    }
-}
-
 /** Classifies a location fix without mutating committed polygon state. */
-internal class PolygonAccuracyEvaluator(
-    private val config: PolygonEvaluatorConfig = PolygonEvaluatorConfig()
-) {
+internal class PolygonAccuracyEvaluator {
     fun evidenceFor(
         geometry: PolygonGeometry,
         sample: PolygonLocationSample,
         committedState: PolygonCommittedState
     ): PolygonEvidence {
-        if (sample.horizontalAccuracyMeters > config.maximumAcceptedAccuracyMeters) {
+        if (sample.horizontalAccuracyMeters > MAX_EVALUATED_FIX_ACCURACY_METERS) {
             return PolygonEvidence.AMBIGUOUS
         }
         val centerRelation = geometry.relationTo(sample.coordinate)
@@ -74,19 +48,19 @@ internal class PolygonAccuracyEvaluator(
             PolygonCommittedState.INSIDE -> max(
                 sample.horizontalAccuracyMeters,
                 min(
-                    sample.horizontalAccuracyMeters + config.exitAccuracyInflationMeters,
-                    config.maximumExitAccuracyMeters
+                    sample.horizontalAccuracyMeters + EXIT_ACCURACY_INFLATION_METERS,
+                    MAX_EXIT_ACCURACY_METERS
                 )
             )
         }
         val perimeterRelations = perimeterSamples(sample.coordinate, accuracy)
             .map(geometry::relationTo)
         val insideCount = perimeterRelations.count { it == PolygonPointRelation.INSIDE }
-        val confidence = insideCount.toDouble() / config.perimeterSampleCount
+        val confidence = insideCount.toDouble() / PERIMETER_SAMPLE_COUNT
 
         return when {
             centerRelation == PolygonPointRelation.INSIDE &&
-                confidence >= config.enterConfidenceThreshold -> PolygonEvidence.ENTER
+                confidence >= ENTER_CONFIDENCE_THRESHOLD -> PolygonEvidence.ENTER
             centerRelation == PolygonPointRelation.OUTSIDE &&
                 geometry.boundaryDistanceMeters(sample.coordinate) > accuracy ->
                 PolygonEvidence.EXIT
@@ -103,12 +77,12 @@ internal class PolygonAccuracyEvaluator(
         sample: PolygonLocationSample,
         committedState: PolygonCommittedState
     ): PolygonEvidence {
-        if (sample.horizontalAccuracyMeters > config.decisiveMaximumAccuracyMeters) {
+        if (sample.horizontalAccuracyMeters > MAX_DECISIVE_FIX_ACCURACY_METERS) {
             return PolygonEvidence.AMBIGUOUS
         }
         val relation = geometry.relationTo(sample.coordinate)
         if (relation == PolygonPointRelation.BOUNDARY) return PolygonEvidence.AMBIGUOUS
-        val requiredDistance = sample.horizontalAccuracyMeters + config.decisiveBoundaryMarginMeters
+        val requiredDistance = sample.horizontalAccuracyMeters + DECISIVE_BOUNDARY_MARGIN_METERS
         if (geometry.boundaryDistanceMeters(sample.coordinate) <= requiredDistance) {
             return PolygonEvidence.AMBIGUOUS
         }
@@ -124,8 +98,8 @@ internal class PolygonAccuracyEvaluator(
     private fun perimeterSamples(
         center: PolygonCoordinate,
         radiusMeters: Double
-    ): List<PolygonCoordinate> = List(config.perimeterSampleCount) { index ->
-        val bearing = 2.0 * PI * index / config.perimeterSampleCount
+    ): List<PolygonCoordinate> = List(PERIMETER_SAMPLE_COUNT) { index ->
+        val bearing = 2.0 * PI * index / PERIMETER_SAMPLE_COUNT
         destination(center, bearing, radiusMeters)
     }
 
@@ -158,6 +132,23 @@ internal class PolygonAccuracyEvaluator(
         ((longitude + 540.0) % 360.0) - 180.0
 
     private companion object {
-        const val EARTH_RADIUS_METERS = 6_371_000.0
+        /**
+         * Fixed, not configurable. These were constructor defaults on a config object that nothing
+         * ever built with other values, production or test, so the bounds it checked only ever
+         * validated the defaults against themselves. Calibration changes them here.
+         */
+        const val PERIMETER_SAMPLE_COUNT = 16
+        const val ENTER_CONFIDENCE_THRESHOLD = 0.4
+        const val EXIT_ACCURACY_INFLATION_METERS = 2.0
+        const val MAX_EXIT_ACCURACY_METERS = 50.0
+
+        /** Coarser than this and a fix cannot judge containment at all, so it reads AMBIGUOUS. */
+        const val MAX_EVALUATED_FIX_ACCURACY_METERS = 200.0
+
+        /** The stricter ceiling a lone background fix must meet to decide without corroboration. */
+        const val MAX_DECISIVE_FIX_ACCURACY_METERS = 50.0
+        const val DECISIVE_BOUNDARY_MARGIN_METERS = 10.0
+
+        const val EARTH_RADIUS_METERS = PolygonGeometry.EARTH_RADIUS_METERS
     }
 }

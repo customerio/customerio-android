@@ -1045,18 +1045,48 @@ internal class GeofenceLogger(private val logger: Logger) {
     }
 
     fun logContainmentJudged(insideCount: Int) {
-        logger.debug("Judged containment from the live fix: inside $insideCount region(s)", tag = TAG)
+        logger.debug(
+            "Judged containment from the live fix: inside $insideCount region(s)" +
+                tail(
+                    "containment.judged",
+                    GeofenceLogIo.OUTPUT,
+                    listOf("n" to int(insideCount))
+                ),
+            tag = TAG
+        )
     }
 
     fun logEventDeliveredButNotRemoved(geofenceId: String, transitionName: String) {
         logger.error(
-            "Geofence '$geofenceId' $transitionName: delivered, but removing it from the pending store failed, so it is still queued. Retrying on a backoff; the backend deduplicates the repeat send on transitionId.",
+            "Geofence '$geofenceId' $transitionName: delivered, but removing it from the pending store failed, so it is still queued. Retrying on a backoff; the backend deduplicates the repeat send on transitionId." +
+                // ok=true: the send reached the backend. It is the cleanup that failed, so a
+                // consumer counting deliveries must not read this as a loss.
+                tail(
+                    "delivery.sent",
+                    GeofenceLogIo.OUTPUT,
+                    listOf(
+                        "id" to geofenceId,
+                        "t" to token(transitionName),
+                        "ok" to bool(true),
+                        "retry" to bool(true),
+                        "why" to "not_removed"
+                    )
+                ),
             tag = TAG
         )
     }
 
     fun logGmsCallTimedOut(description: String) {
-        logger.error("GMS $description gave no callback before the deadline — treating as failed; Play Services may be updating or unresponsive", tag = TAG)
+        logger.error(
+            "GMS $description gave no callback before the deadline — treating as failed; Play Services may be updating or unresponsive" +
+                // INPUT, not OUTPUT: the silence is the environment's, and the SDK only reacts to it.
+                tail(
+                    "os.error",
+                    GeofenceLogIo.INPUT,
+                    listOf("ok" to bool(false), "op" to token(description), "why" to "timeout")
+                ),
+            tag = TAG
+        )
     }
 
     fun logPolygonDropped(geofenceId: String, reason: PolygonDropReason) {
@@ -1108,11 +1138,29 @@ internal class GeofenceLogger(private val logger: Logger) {
     }
 
     fun logTransitionDroppedRetiredId(geofenceId: String) {
-        logger.debug("Geofence '$geofenceId' transition dropped — backend removed it and OS cleanup is pending", tag = TAG)
+        logger.debug(
+            "Geofence '$geofenceId' transition dropped — backend removed it and OS cleanup is pending" +
+                // Distinct from `unknown_id`: we still hold this fence's last known definition, so
+                // the drop is deliberate retirement rather than a fence we cannot account for.
+                tail(
+                    "transition.dropped",
+                    GeofenceLogIo.OUTPUT,
+                    listOf("id" to geofenceId, "why" to "retired_id")
+                ),
+            tag = TAG
+        )
     }
 
     fun logTransitionDroppedUnarmedId(geofenceId: String) {
-        logger.debug("Geofence '$geofenceId' transition dropped — registered but routing is not armed for this session; OS registration kept", tag = TAG)
+        logger.debug(
+            "Geofence '$geofenceId' transition dropped — registered but routing is not armed for this session; OS registration kept" +
+                tail(
+                    "transition.dropped",
+                    GeofenceLogIo.OUTPUT,
+                    listOf("id" to geofenceId, "why" to "routing_unarmed")
+                ),
+            tag = TAG
+        )
     }
 
     fun logUnsupportedGeometryDropped(geofenceId: String, type: String) {

@@ -186,9 +186,9 @@ class PolygonApproachWorkerTest : RobolectricTest() {
     }
 
     /**
-     * Boot id read from the graph the worker resolves, not from the test's own provider: a batch
-     * built with an assumed id silently takes the previous-boot branch and the test passes for the
-     * wrong reason.
+     * Boot id read from the graph the worker resolves. Asserting against the test's own provider
+     * would pass even if the override never reached the worker, which is how the previous-boot
+     * test below used to pass for the wrong reason.
      */
     private fun batch(id: String) = PendingPolygonApproachBatch(
         id = id,

@@ -61,7 +61,10 @@ internal val AndroidSDKComponent.polygonApproachWorkScheduler: PolygonApproachWo
     }
 
 internal val AndroidSDKComponent.polygonBootSessionProvider: PolygonBootSessionProvider
-    get() = singleton { AndroidPolygonBootSessionProvider(applicationContext) }
+    // Keyed by the interface, like every other seam here: without the explicit type the singleton
+    // is registered under AndroidPolygonBootSessionProvider, and a test overriding the interface
+    // silently gets the real one instead.
+    get() = singleton<PolygonBootSessionProvider> { AndroidPolygonBootSessionProvider(applicationContext) }
 
 internal val AndroidSDKComponent.geofenceReceiverToggle: GeofenceReceiverToggle
     get() = newInstance { GeofenceReceiverToggle(applicationContext) }

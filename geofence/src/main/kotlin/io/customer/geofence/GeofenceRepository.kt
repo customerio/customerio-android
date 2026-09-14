@@ -68,7 +68,7 @@ internal class GeofenceRepositoryImpl(
     private val apiService: GeofenceApiService,
     private val store: GeofenceRegionStore,
     private val distanceFilter: GeofenceDistanceFilter,
-    private val manager: GeofenceManager,
+    private val manager: GeofenceRegistrar,
     private val secureUserStore: SecureUserStore,
     private val cooldownFilter: GeofenceCooldownFilter,
     private val transitionEmitter: GeofenceTransitionEmitter,

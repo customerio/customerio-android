@@ -103,7 +103,8 @@ class GeofenceCrossingPipelineTest : RobolectricTest() {
         geofenceIds: List<String>,
         latitude: Double? = null,
         longitude: Double? = null,
-        rawTransitionCode: Int = Geofence.GEOFENCE_TRANSITION_ENTER
+        rawTransitionCode: Int = Geofence.GEOFENCE_TRANSITION_ENTER,
+        receivedAtSeconds: Long = System.currentTimeMillis() / 1000
     ): Job? = pipeline.handle(
         GeofenceCrossing(
             geofenceIds = geofenceIds,
@@ -111,7 +112,8 @@ class GeofenceCrossingPipelineTest : RobolectricTest() {
             transitionName = transition.name,
             rawTransitionCode = rawTransitionCode,
             latitude = latitude,
-            longitude = longitude
+            longitude = longitude,
+            receivedAtSeconds = receivedAtSeconds
         )
     )
 

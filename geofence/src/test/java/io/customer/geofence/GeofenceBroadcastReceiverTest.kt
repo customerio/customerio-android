@@ -282,6 +282,33 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
     }
 
     /**
+     * The delivered event is dated when the broadcast arrived, not when the SDK got round to it.
+     *
+     * This inverted once already: before the crossing pipeline became a DI singleton the receiver
+     * read `currentTimeSeconds()` first and resolved the object graph after, and the refactor
+     * swapped them — so on a cold process the whole geofence graph, GMS client included, was built
+     * between the OS reporting the crossing and the stamp that ships with it.
+     */
+    @Test
+    fun handleGeofencingEvent_expectTheCrossingStampedBeforeAnyDispatchWork() = runTest {
+        val stamps = mutableListOf<Long>()
+        every { mockClock.currentTimeSeconds() } answers {
+            (1_000L + stamps.size).also { stamps.add(it) }
+        }
+
+        receiver.handleGeofencingEvent(
+            buildGeofencingEvent(
+                transition = Geofence.GEOFENCE_TRANSITION_ENTER,
+                geofenceIds = listOf("biz-geofence-1"),
+                location = realLocation(1.0, 2.0)
+            )
+        )
+
+        // The first clock read of the dispatch is the crossing's, and the persisted row carries it.
+        pendingStore.loadAll().single().timestamp shouldBeEqualTo 1_000L
+    }
+
+    /**
      * The dispatch path had no timing record at all, so no capture could say what resolving the
      * crossing pipeline costs — and that is the open question about making it an eagerly-injected
      * DI singleton, which builds the geofence object graph, GMS client included, inside the

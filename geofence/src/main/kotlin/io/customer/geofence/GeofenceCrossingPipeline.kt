@@ -29,7 +29,10 @@ internal class GeofenceCrossingPipeline(
 
     /** @return the movement-refresh [Job] this crossing started, so an OS execution window can wait for it. */
     suspend fun handle(crossing: GeofenceCrossing): Job? {
-        val timestamp = clock.currentTimeSeconds()
+        // The receiver's stamp, not a fresh read: this runs after `dispatchCrossing` has resolved
+        // this singleton, which on a cold process builds the geofence graph including the GMS
+        // client. Reading the clock here dated the crossing to the end of that work.
+        val timestamp = crossing.receivedAtSeconds
 
         // Unregistered ids are orphans: drop them and remove the OS registration so they stop firing.
         val registeredIds = regionStore.getRegisteredIds()

@@ -13,7 +13,15 @@ internal data class GeofenceCrossing(
     val rawTransitionCode: Int,
     /** The fix the OS attached to this crossing. Null when the OS supplied none. */
     val latitude: Double?,
-    val longitude: Double?
+    val longitude: Double?,
+    /**
+     * When the SDK received the broadcast, in unix seconds — the value that ships on the delivered
+     * event. Stamped where the crossing is built, before any dispatch work, because everything
+     * after that point is the SDK's own latency: resolving the pipeline on a cold process builds
+     * the whole geofence graph, and a stamp taken past it dates the crossing to when we got
+     * around to it rather than when the OS said it happened.
+     */
+    val receivedAtSeconds: Long
 )
 
 /** GMS also reports DWELL, which is never registered for and must not read as an arrival. */

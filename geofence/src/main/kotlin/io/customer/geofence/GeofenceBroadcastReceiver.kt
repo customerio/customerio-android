@@ -95,7 +95,8 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
                 transitionName = transitionName(gmsTransition),
                 rawTransitionCode = gmsTransition,
                 latitude = location?.latitude,
-                longitude = location?.longitude
+                longitude = location?.longitude,
+                receivedAtSeconds = SDKComponent.clock.currentTimeSeconds()
             )
         )
     }

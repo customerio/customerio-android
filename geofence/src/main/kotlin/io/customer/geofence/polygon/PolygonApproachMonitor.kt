@@ -4,9 +4,9 @@ import android.annotation.SuppressLint
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
-import android.net.Uri
 import android.os.Build
 import android.os.SystemClock
+import androidx.core.net.toUri
 import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.LocationRequest
 import com.google.android.gms.location.Priority
@@ -296,7 +296,7 @@ internal class PolygonApproachMonitor(
                 PendingIntent.FLAG_UPDATE_CURRENT
             }
             val intent = Intent(context, PolygonApproachReceiver::class.java)
-                .setData(Uri.parse("$PENDING_INTENT_SCHEME://$userStateGeneration"))
+                .setData("$PENDING_INTENT_SCHEME://$userStateGeneration".toUri())
                 .putExtra(EXTRA_USER_STATE_GENERATION, userStateGeneration)
                 .putExtra(
                     EXTRA_SESSION_DEADLINE_ELAPSED_REALTIME_MS,

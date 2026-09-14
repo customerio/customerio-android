@@ -187,8 +187,14 @@ internal class PolygonApproachMonitor(
      * genuine unchecked permission use somewhere else in the file.
      */
     @SuppressLint("MissingPermission")
-    private fun requestApproachUpdates(pendingIntent: PendingIntent): Task<Void> =
-        client.requestLocationUpdates(LOCATION_REQUEST, pendingIntent)
+    private fun requestApproachUpdates(pendingIntent: PendingIntent): Task<Void> {
+        // Read at request time, not at start: a retry or a post-removal restart is the same session
+        // continuing, so it asks the OS for what is left rather than renewing the bound.
+        val deadline = synchronized(lock) { sessionDeadlineElapsedRealtimeMs }
+        val remaining = deadline?.minus(SystemClock.elapsedRealtime())?.coerceAtLeast(0L)
+            ?: MAXIMUM_SESSION_DURATION_MS
+        return client.requestLocationUpdates(locationRequest(remaining), pendingIntent)
+    }
 
     private fun retryRegistration(
         pendingIntent: PendingIntent,
@@ -285,13 +291,21 @@ internal class PolygonApproachMonitor(
         private const val INITIAL_RETRY_MS = 5_000L
         private const val MAXIMUM_RETRY_MS = 300_000L
 
-        val LOCATION_REQUEST: LocationRequest = LocationRequest.Builder(
+        /**
+         * The session budget goes on the request itself, not only on our timer.
+         *
+         * [sessionTimeoutJob] and the deadline extra both die with the process, while a
+         * `PendingIntent` registration outlives it. A stationary device produces no callback to
+         * notice the deadline has passed, so without this the request stays live indefinitely.
+         */
+        internal fun locationRequest(durationMs: Long): LocationRequest = LocationRequest.Builder(
             Priority.PRIORITY_BALANCED_POWER_ACCURACY,
             UPDATE_INTERVAL_MS
         )
             .setMinUpdateIntervalMillis(FASTEST_UPDATE_INTERVAL_MS)
             .setMinUpdateDistanceMeters(MINIMUM_DISPLACEMENT_METERS)
             .setWaitForAccurateLocation(false)
+            .setDurationMillis(durationMs)
             .build()
 
         internal fun newSessionDeadlineElapsedRealtimeMs(): Long =

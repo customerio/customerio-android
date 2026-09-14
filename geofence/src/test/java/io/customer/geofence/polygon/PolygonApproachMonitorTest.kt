@@ -2,6 +2,7 @@ package io.customer.geofence.polygon
 
 import android.app.PendingIntent
 import android.os.Looper
+import android.os.SystemClock
 import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.LocationRequest
 import com.google.android.gms.location.Priority
@@ -18,6 +19,8 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestCoroutineScheduler
 import org.amshove.kluent.shouldBeEqualTo
+import org.amshove.kluent.shouldBeGreaterThan
+import org.amshove.kluent.shouldBeLessOrEqualTo
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -45,6 +48,9 @@ class PolygonApproachMonitorTest : RobolectricTest() {
         request.captured.intervalMillis shouldBeEqualTo 15_000L
         request.captured.minUpdateIntervalMillis shouldBeEqualTo 5_000L
         request.captured.minUpdateDistanceMeters shouldBeEqualTo 25f
+        // The OS has to hold the bound too. Our timer and the deadline extra both die with the
+        // process, while this PendingIntent registration survives it.
+        request.captured.durationMillis shouldBeEqualTo 2 * 60_000L
         shadowOf(pendingIntent.captured).savedIntent.getLongExtra(
             PolygonApproachMonitor.EXTRA_USER_STATE_GENERATION,
             -1L
@@ -366,6 +372,26 @@ class PolygonApproachMonitorTest : RobolectricTest() {
         verify(exactly = 3) {
             client.requestLocationUpdates(any<LocationRequest>(), any<PendingIntent>())
         }
+    }
+
+    @Test
+    fun start_givenAPartlySpentSession_expectOnlyTheRemainingBudgetOnTheRequest() {
+        // A retry or a restart mid-session must not hand the OS a fresh two minutes, or a session
+        // that keeps failing to register renews its own bound every attempt.
+        val request = slot<LocationRequest>()
+        every {
+            client.requestLocationUpdates(capture(request), any<PendingIntent>())
+        } returns Tasks.forResult(null)
+        val monitor = monitor()
+
+        monitor.start(
+            expectedUserStateGeneration = 7L,
+            sessionDeadlineElapsedRealtimeMs = SystemClock.elapsedRealtime() + 30_000L
+        )
+        shadowOf(Looper.getMainLooper()).idle()
+
+        request.captured.durationMillis shouldBeLessOrEqualTo 30_000L
+        request.captured.durationMillis shouldBeGreaterThan 25_000L
     }
 
     private fun monitor() = PolygonApproachMonitor(

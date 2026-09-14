@@ -1073,6 +1073,30 @@ class GeofenceRegionStoreTest : RobolectricTest() {
     // --- Movement-trigger location ---
 
     @Test
+    fun saveLastMovementTriggerLocationIfCurrent_givenCurrentGeneration_expectWritten() {
+        val location = GeofenceLocation(latitude = 37.7749, longitude = -122.4194)
+
+        val written = store.saveLastMovementTriggerLocationIfCurrent(location, store.userStateGeneration())
+
+        written shouldBeEqualTo true
+        store.getLastMovementTriggerLocation() shouldBeEqualTo location
+    }
+
+    @Test
+    fun saveLastMovementTriggerLocationIfCurrent_givenTheSessionMovedOn_expectRefused() {
+        val stale = store.userStateGeneration()
+        store.beginUserSession("someone-else")
+
+        val written = store.saveLastMovementTriggerLocationIfCurrent(
+            GeofenceLocation(latitude = 37.7749, longitude = -122.4194),
+            stale
+        )
+
+        written shouldBeEqualTo false
+        store.getLastMovementTriggerLocation().shouldBeNull()
+    }
+
+    @Test
     fun getLastMovementTriggerLocation_givenNothingStored_expectNull() {
         store.getLastMovementTriggerLocation().shouldBeNull()
     }

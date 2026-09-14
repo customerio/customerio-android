@@ -2,6 +2,9 @@ package io.customer.geofence.polygon
 
 import android.content.Context
 import android.location.Location
+import io.customer.geofence.GeofenceConfig
+import io.customer.geofence.GeofenceConstants
+import io.customer.geofence.GeofenceLocation
 import io.customer.geofence.GeofenceManager
 import io.customer.geofence.GeofenceRegion
 import io.customer.geofence.store.GeofenceRegionStore
@@ -52,6 +55,58 @@ class PolygonGeofenceServiceControllerTest {
         every { store.getCachedRegions() } returns listOf(polygonRegion())
         every { store.getActivePolygonIds() } returns emptySet()
         every { store.getEnteredIds() } returns emptySet()
+    }
+
+    @Test
+    fun onCoarseExit_givenResetWhileRegisteringTheTrigger_expectNoStaleLocationWrite() = runTest {
+        // The registration awaits GMS with no lock held. A sign-out that completes during that
+        // await has already cleared this user's state, so writing their location back afterwards
+        // hands the next session an anchor that belongs to the departing user.
+        val registrationStarted = CompletableDeferred<Unit>()
+        val finishRegistration = CompletableDeferred<Unit>()
+        // Well outside the polygon, with a real fix age and accuracy: the trigger is only
+        // registered for a fix the policy accepts, so anything less never reaches the await.
+        val exitLocation = location(elapsedRealtimeNanos = 100L).apply { latitude = 37.7900 }
+        every { store.getRoutableRegisteredIds() } returns setOf("campus")
+        every { store.getEnteredIds() } returns emptySet()
+        every { store.getCachedConfig() } returns geofenceConfig()
+        coEvery { engine.processResponsiveLocation(exitLocation, any()) } returns true
+        coEvery { manager.replaceMovementTrigger(any()) } coAnswers {
+            registrationStarted.complete(Unit)
+            finishRegistration.await()
+            Result.success(Unit)
+        }
+
+        val exit = async { controller.onCoarseExit("campus", exitLocation) }
+        registrationStarted.await()
+        // Sign-out lands: the generation this pass carries is no longer current.
+        every { store.userStateGeneration() } returns 1L
+        finishRegistration.complete(Unit)
+        exit.await()
+
+        verify(exactly = 0) { store.saveLastMovementTriggerLocation(any()) }
+        // The real store refuses the write under its own lock; assert the refusal reached it with
+        // the departing generation rather than being skipped by an earlier guard.
+        verify(exactly = 1) { store.saveLastMovementTriggerLocationIfCurrent(any(), 0L) }
+    }
+
+    @Test
+    fun onCoarseExit_givenTheSessionSurvivesRegistration_expectTheLocationRecorded() = runTest {
+        // Positive control for the test above: same path, no reset. Without it a guard that always
+        // refused the write would pass just as well.
+        val exitLocation = location(elapsedRealtimeNanos = 100L).apply { latitude = 37.7900 }
+        every { store.getRoutableRegisteredIds() } returns setOf("campus")
+        every { store.getEnteredIds() } returns emptySet()
+        every { store.getCachedConfig() } returns geofenceConfig()
+        every { store.saveLastMovementTriggerLocationIfCurrent(any(), any()) } returns true
+        coEvery { engine.processResponsiveLocation(exitLocation, any()) } returns true
+        coEvery { manager.replaceMovementTrigger(any()) } returns Result.success(Unit)
+
+        controller.onCoarseExit("campus", exitLocation)
+
+        verify(exactly = 1) {
+            store.saveLastMovementTriggerLocationIfCurrent(GeofenceLocation(37.7900, -122.4194), 0L)
+        }
     }
 
     @Test
@@ -446,6 +501,15 @@ class PolygonGeofenceServiceControllerTest {
         accuracy = 5f
         this.elapsedRealtimeNanos = elapsedRealtimeNanos
     }
+
+    private fun geofenceConfig() = GeofenceConfig(
+        localRefreshTriggerRadius = 1_000f,
+        remoteFetchRefreshTriggerRadius = 5_000f,
+        remoteFetchRefreshExpiry = 86_400_000L,
+        duplicateEventsExpiry = 3_600_000L,
+        maxBusinessGeofences = 19,
+        maxMonitoringDistance = GeofenceConstants.NO_MONITORING_DISTANCE_CAP_METERS
+    )
 
     private fun polygonRegion() = GeofenceRegion(
         id = "campus",

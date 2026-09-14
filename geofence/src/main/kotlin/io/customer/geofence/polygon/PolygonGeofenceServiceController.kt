@@ -448,7 +448,13 @@ internal class PolygonGeofenceServiceController(
         )
         val result = manager.replaceMovementTrigger(trigger)
         if (result.isFailure) return null
-        store.saveLastMovementTriggerLocation(GeofenceLocation(location.latitude, location.longitude))
+        // Generation-checked like the stop below it: the registration above awaited GMS with no
+        // lock held, so a sign-out can have completed inside that gap and cleared this state.
+        val recorded = store.saveLastMovementTriggerLocationIfCurrent(
+            GeofenceLocation(location.latitude, location.longitude),
+            expectedUserStateGeneration
+        )
+        if (!recorded) return null
         approachMonitor.stop(expectedUserStateGeneration)
         return safeRadius
     }

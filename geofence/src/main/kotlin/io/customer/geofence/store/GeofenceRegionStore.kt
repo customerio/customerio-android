@@ -237,6 +237,19 @@ internal interface GeofenceRegionStore {
     fun getLastApiFetchLocation(): GeofenceLocation?
 
     fun saveLastMovementTriggerLocation(location: GeofenceLocation)
+
+    /**
+     * Records [location] as the movement-trigger center, but only while [expectedUserStateGeneration]
+     * is still current. Returns whether the write happened.
+     *
+     * For callers that register the trigger with the OS first: that await holds no lock, so a
+     * sign-out can complete inside it and this must not write the departing user's position back
+     * over state the reset just cleared.
+     */
+    fun saveLastMovementTriggerLocationIfCurrent(
+        location: GeofenceLocation,
+        expectedUserStateGeneration: Long
+    ): Boolean
     fun getLastMovementTriggerLocation(): GeofenceLocation?
     fun clearLastMovementTriggerLocation()
 
@@ -803,6 +816,15 @@ internal class GeofenceRegionStoreImpl(
 
     override fun saveLastMovementTriggerLocation(location: GeofenceLocation) =
         writeEncryptedJson(KEY_LAST_MOVEMENT_TRIGGER_LOCATION, GeofenceLocation.serializer(), location)
+
+    override fun saveLastMovementTriggerLocationIfCurrent(
+        location: GeofenceLocation,
+        expectedUserStateGeneration: Long
+    ): Boolean = synchronized(enteredLock) {
+        if (expectedUserStateGeneration != currentUserStateGenerationLocked()) return@synchronized false
+        saveLastMovementTriggerLocation(location)
+        true
+    }
 
     override fun getLastMovementTriggerLocation(): GeofenceLocation? =
         readEncryptedJson(KEY_LAST_MOVEMENT_TRIGGER_LOCATION, GeofenceLocation.serializer())

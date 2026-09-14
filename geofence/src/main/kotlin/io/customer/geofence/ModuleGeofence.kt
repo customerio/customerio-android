@@ -5,6 +5,7 @@ import androidx.lifecycle.ProcessLifecycleOwner
 import io.customer.base.internal.InternalCustomerIOApi
 import io.customer.geofence.di.geofenceDeliveryFlusher
 import io.customer.geofence.di.geofenceLogger
+import io.customer.geofence.di.geofencePermissionReporter
 import io.customer.geofence.di.geofenceRegionStore
 import io.customer.geofence.di.geofenceServices
 import io.customer.location.LocationCoordinates
@@ -72,6 +73,11 @@ class ModuleGeofence @JvmOverloads constructor(
         val eventBus = SDKComponent.eventBus
         val sdkAndroid = SDKComponent.android()
 
+        // Here rather than only on foreground entry: a cold background wake never foregrounds, and
+        // that is the session a drive records. Deduped against the foreground report by the shared
+        // reporter, so opening the app does not log the same tier twice.
+        sdkAndroid.geofencePermissionReporter.reportIfChanged()
+
         subscribeToEvents(eventBus, sdkAndroid, locationModule)
         scheduleForegroundWork(eventBus, sdkAndroid, logger, locationModule)
     }
@@ -124,6 +130,8 @@ class ModuleGeofence @JvmOverloads constructor(
         // GPS fix: GeofenceServices holds a "last skipped for no-location" flag
         // and re-triggers a refresh when a fresh fix arrives.
         eventBus.subscribe<Event.LocationAcquired> {
+            // Logged before the handler: a discarded fix is still a fix that arrived.
+            SDKComponent.geofenceLogger.logLocationFix(it.latitude, it.longitude)
             sdkAndroid.geofenceServices.onLocationAcquired(it.latitude, it.longitude)
         }
 
@@ -131,6 +139,7 @@ class ModuleGeofence @JvmOverloads constructor(
         // nearby set fetched, anchored at the current registration center.
         eventBus.subscribe<Event.UserChangedEvent> {
             if (!it.userId.isNullOrEmpty()) {
+                SDKComponent.geofenceLogger.logIdentityChanged(identified = true)
                 val anchor = refreshAnchor(sdkAndroid, locationModule)
                 sdkAndroid.geofenceServices.onUserIdentified(
                     latitude = anchor?.latitude,
@@ -146,6 +155,8 @@ class ModuleGeofence @JvmOverloads constructor(
         // before `UserChangedEvent(null)`, so it's the explicit "wipe user state"
         // signal — analogous to analytics.reset().
         eventBus.subscribe<Event.ResetEvent> {
+            // Not on the UserChangedEvent(null) that follows: one sign-out, one record.
+            SDKComponent.geofenceLogger.logIdentityChanged(identified = false)
             sdkAndroid.geofenceServices.onUserSignedOut()
         }
     }
@@ -175,6 +186,7 @@ class ModuleGeofence @JvmOverloads constructor(
                     deliveryFlusher = sdkAndroid.geofenceDeliveryFlusher,
                     eventBus = eventBus,
                     regionStore = sdkAndroid.geofenceRegionStore,
+                    permissionReporter = sdkAndroid.geofencePermissionReporter,
                     logger = logger,
                     onForeground = {
                         // Off the main thread: deciding whether to take a fix needs the identity read,

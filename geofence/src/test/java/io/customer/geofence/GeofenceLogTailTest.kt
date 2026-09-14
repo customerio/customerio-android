@@ -65,6 +65,49 @@ class GeofenceLogTailTest : RobolectricTest() {
     }
 
     /**
+     * `ok` on `permission.changed` means background delivery is available — the reading iOS uses,
+     * where the flag is written only when Always is granted and WhenInUse carries
+     * `why=foreground_only` instead.
+     *
+     * The row-level check below only asserts that `perm` and `ok` are present, and only for Always,
+     * so the values were free to drift. They had: `ok` used to mean "some permission was granted",
+     * which made WhenInUse — the one tier where geofences fire in the foreground and nowhere else —
+     * report `ok=true` here and no `ok` at all on iOS.
+     */
+    @Test
+    fun logPermissionTier_givenEachTier_expectOkToMeanBackgroundDelivery() {
+        val cases = mapOf(
+            GeofenceLogger.PERMISSION_ALWAYS to "true",
+            GeofenceLogger.PERMISSION_WHEN_IN_USE to "false",
+            GeofenceLogger.PERMISSION_DENIED to "false"
+        )
+        for ((tier, expectedOk) in cases) {
+            val logger = CapturingLogger()
+            GeofenceLogger(logger).logPermissionTier(tier)
+            val fields = parseTail(logger.messages.last())
+            fields.shouldNotBeNull()
+            fields["perm"] shouldBeEqualTo tier
+            fields["ok"] shouldBeEqualTo expectedOk
+        }
+    }
+
+    /**
+     * `perm` carries the tier vocabulary on every writer of this record, including the refusal
+     * path, which used to put an Android permission constant there instead.
+     */
+    @Test
+    fun logMissingPermission_expectTheTierInPermAndTheConstantInCtx() {
+        val logger = CapturingLogger()
+        GeofenceLogger(logger).logMissingPermission("ACCESS_FINE_LOCATION")
+
+        val fields = parseTail(logger.messages.last())
+        fields.shouldNotBeNull()
+        fields["perm"] shouldBeEqualTo GeofenceLogger.PERMISSION_DENIED
+        // Normalised by `token()`, as every other `ctx` on this record is.
+        fields["ctx"] shouldBeEqualTo "access_fine_location"
+    }
+
+    /**
      * Mirrors what the off-device parser does: split on the **last** delimiter, then accept the
      * remainder only if every token is a `key=value` pair.
      */
@@ -117,6 +160,36 @@ class GeofenceLogTailTest : RobolectricTest() {
         val run: (GeofenceLogger) -> Unit
     )
 
+    /**
+     * The frozen replay contract: `in` is what replay injects, `out` is the entire assertion
+     * surface, everything else is `obs`. Pinned per `ev`, which is what a parser dispatches on.
+     */
+    private val declaredIo: Map<String, String> = mapOf(
+        "api.fetch.result" to "in",
+        "fence.cataloged" to "in",
+        "identity.changed" to "in",
+        "location.fix" to "in",
+        "module.init" to "in",
+        "module.wake" to "in",
+        "os.callback.received" to "in",
+        "os.error" to "in",
+        "permission.changed" to "in",
+        "module.reset" to "out",
+        "os.callback.dropped" to "obs",
+        "registration.applied" to "out",
+        "transition.accepted" to "out",
+        "transition.dropped" to "obs",
+        "transition.suppressed" to "obs",
+        "transition.synthesized" to "obs"
+    )
+
+    /** Named separately from [declaredIo] so the count is visible at a glance. */
+    private val frozenOutputs = setOf(
+        "module.reset",
+        "registration.applied",
+        "transition.accepted"
+    )
+
     private fun invocations(): List<Row> {
         val fix = location()
         return listOf(
@@ -131,12 +204,19 @@ class GeofenceLogTailTest : RobolectricTest() {
             Row("regionMappingFailed", "registration.rejected", listOf("id", "why")) { it.logRegionMappingFailed("notl_core", "bad radius") },
             Row("rankEvaluated", "rank.evaluated", listOf("ncand", "n", "ranked", "evicted")) { it.logRankEvaluated(30, 2, { listOf("a", "b") }, { listOf("c") }, { mapOf("a" to 120.0, "b" to 340.0) }) },
             Row("movementTriggerRegistered", "movement.registered", listOf("rad")) { it.logMovementTriggerRegistered(43.2, -79.0, 500.0) },
-            Row("missingPermission", "permission.changed", listOf("perm", "why")) { it.logMissingPermission("ACCESS_FINE_LOCATION") },
+            Row("missingPermission", "permission.changed", listOf("perm", "why", "ctx")) { it.logMissingPermission("ACCESS_FINE_LOCATION") },
             Row("backgroundUnavailable", "permission.changed", listOf("perm", "ctx")) { it.logBackgroundDeliveryUnavailable("app-launch") },
             Row("moduleInitialized", "module.init", listOf("launch")) { it.logModuleInitialized(GeofenceLaunchReason.APP_START) },
             Row("moduleWoke", "module.wake", listOf("launch")) { it.logModuleWoke(GeofenceLaunchReason.BOOT_RESTORE) },
             Row("missingLocationModule", "module.init", listOf("ok", "why")) { it.logMissingLocationModule() },
-            Row("stateResetOnSignOut", "module.reset", listOf("why")) { it.logGeofenceStateResetOnSignOut() },
+            Row("stateResetOnSignOut", "info", listOf("why")) { it.logGeofenceStateResetOnSignOut() },
+            Row("resetCompleted", "module.reset", listOf("ok")) { it.logResetCompleted() },
+            Row("resetSuperseded", "module.reset", listOf("ok", "why")) { it.logResetSuperseded() },
+            Row("resetFailed", "module.reset", listOf("ok", "why")) { it.logResetFailed("ApiException") },
+            Row("permissionTier", "permission.changed", listOf("perm", "ok")) { it.logPermissionTier(GeofenceLogger.PERMISSION_ALWAYS) },
+            Row("identitySignedIn", "identity.changed", listOf("ok")) { it.logIdentityChanged(identified = true) },
+            Row("identitySignedOut", "identity.changed", listOf("ok")) { it.logIdentityChanged(identified = false) },
+            Row("locationFix", "location.fix", listOf("lat", "lon", "prov")) { it.logLocationFix(43.2, -79.0) },
             Row("callbackReceived", "os.callback.received", listOf("ids", "n", "t", "fixsrc", "acc", "age", "sim")) { it.logCallbackReceived(listOf("notl_core"), "ENTER", fix, GeofenceLogTail.FixSource.OS_TRIGGER) },
             Row("callbackReceivedNoFix", "os.callback.received", listOf("fixsrc")) { it.logCallbackReceived(listOf("notl_core"), "EXIT", null, GeofenceLogTail.FixSource.NONE) },
             Row("transitionWithoutLocation", "os.callback.no_location", listOf("fixsrc", "why")) { it.logTransitionWithoutLocation() },
@@ -200,13 +280,29 @@ class GeofenceLogTailTest : RobolectricTest() {
             if (fields["ev"] != ev) {
                 throw AssertionError("$name: expected ev=$ev, got '${fields["ev"]}'")
             }
-            (fields["io"] in listOf("in", "out", "obs")) shouldBeEqualTo true
+            val expectedIo = declaredIo[ev] ?: "obs"
+            if (fields["io"] != expectedIo) {
+                throw AssertionError("$name: ev=$ev is declared io=$expectedIo, emitted io=${fields["io"]}")
+            }
             for (key in requiredKeys) {
                 if (fields[key] == null) {
                     throw AssertionError("$name: missing $key= in '$message'")
                 }
             }
         }
+    }
+
+    /** Reads what the logger emitted, not [declaredIo], so a mistake in the map cannot validate itself. */
+    @Test
+    fun assertionSurface_expectExactlyTheFrozenOutputs() {
+        val emitted = sortedSetOf<String>()
+        for ((_, ev, _, run) in invocations()) {
+            val logger = CapturingLogger()
+            run(GeofenceLogger(logger))
+            val fields = logger.messages.lastOrNull()?.let { parseTail(it) } ?: continue
+            if (fields["io"] == "out") emitted.add(fields["ev"] ?: ev)
+        }
+        emitted shouldBeEqualTo frozenOutputs.toSortedSet()
     }
 
     @Test
@@ -304,6 +400,8 @@ class GeofenceLogTailTest : RobolectricTest() {
             "module.reset",
             "module.wake",
             "movement.rearmed",
+            "identity.changed",
+            "location.fix",
             "movement.registered",
             "os.callback.dropped",
             "os.callback.no_location",

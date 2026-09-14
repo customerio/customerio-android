@@ -913,6 +913,36 @@ internal class GeofenceLogger(private val logger: Logger) {
         )
     }
 
+    /**
+     * Distinct from [logEventWorkerEntryMissing], which names a queue that really was empty: one
+     * shared record would report a drain for a file we never read. Token matches iOS.
+     */
+    fun logEventWorkerQueueUnreadable(attempt: Int, willRetry: Boolean) {
+        logger.error(
+            "Geofence event worker could not read the pending queue; leaving it untouched and " +
+                (if (willRetry) "retrying on a backoff" else "giving up this wake — the next transition or foreground flush retries") +
+                tail(
+                    "queue.unreadable",
+                    GeofenceLogIo.INPUT,
+                    listOf("why" to "read_failed", "via" to "work_manager", "n" to int(attempt), "retry" to bool(willRetry))
+                ),
+            tag = TAG
+        )
+    }
+
+    /** Same failure as [logEventWorkerQueueUnreadable], with no attempt or retry to report. */
+    fun logForegroundFlushQueueUnreadable() {
+        logger.error(
+            "Foreground flush could not read the pending queue; leaving it untouched and retrying on the next foreground" +
+                tail(
+                    "queue.unreadable",
+                    GeofenceLogIo.INPUT,
+                    listOf("why" to "read_failed", "via" to "foreground_flush")
+                ),
+            tag = TAG
+        )
+    }
+
     fun logForegroundFlushSnapshot(count: Int) {
         logger.debug(
             "Geofence foreground flush: $count pending transition(s) to hand off to the analytics pipeline" +

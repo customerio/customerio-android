@@ -55,6 +55,13 @@ internal object GeofenceConstants {
     const val MAX_METADATA_COUNT = 100
     const val MAX_METADATA_PAYLOAD_BYTES = 100 * 1024 // 100 KB
 
+    // Total attempts this work request gets before an unreadable queue gives up the wake. It is
+    // WorkManager's own count, so delivery retries spend from the same budget: a read failure
+    // arriving after five network retries gives up at once. Acceptable because the rows are
+    // untouched on disk and a later enqueue or foreground flush recovers them, and because no
+    // number of retries fixes a broken file.
+    const val MAX_WORKER_RUN_ATTEMPTS = 5
+
     // GMS `Geofence.Builder().setExpirationDuration()` flag for "never expires".
     // Our geofences are managed at the application level (we remove explicitly)
     // so OS-side expiration is disabled.

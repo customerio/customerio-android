@@ -445,7 +445,9 @@ class PushDeliveryMetricsWorkerTest : IntegrationTest() {
 
         // Foreground handoff already claimed (delivered + removed) this entry, so it's gone.
         every { mockPendingStore.claim(deliveryId) } returns false
-        every { mockPendingStore.get(deliveryId) } returns null
+        // claimSendRestore asks contains(). Explicit because a relaxed mock answers Boolean? with
+        // false, satisfying the guard for the wrong reason.
+        every { mockPendingStore.contains(deliveryId) } returns false
 
         val worker = createWorker(inputData)
         val result = worker.doWork()

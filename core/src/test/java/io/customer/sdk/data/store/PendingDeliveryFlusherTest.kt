@@ -9,6 +9,7 @@ import io.customer.sdk.core.util.CustomerIOWorkManagerProvider
 import io.customer.sdk.core.util.Logger
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.spyk
 import io.mockk.verify
 import io.mockk.verifyOrder
 import kotlinx.serialization.Serializable
@@ -60,7 +61,9 @@ class PendingDeliveryFlusherTest : RobolectricTest() {
         val published = mutableListOf<String>()
         val failed = mutableListOf<String>()
 
+        var unreadableCount = 0
         override fun onSnapshot(count: Int) { snapshotCount = count }
+        override fun onUnreadable() { unreadableCount++ }
         override fun onWorkCancelled(entry: TestEntry) { cancelled += entry.key }
         override fun onPublished(entry: TestEntry) { published += entry.key }
         override fun onEntryFailed(entry: TestEntry, cause: Throwable) { failed += entry.key }
@@ -80,9 +83,32 @@ class PendingDeliveryFlusherTest : RobolectricTest() {
         newFlusher(store).flush(callbacks) { publishedKeys += it.key }
 
         callbacks.snapshotCount shouldBeEqualTo 0
+        callbacks.unreadableCount shouldBeEqualTo 0
         publishedKeys shouldBeEqualTo emptyList()
         // Mirrors push: an empty store returns before onComplete.
         callbacks.completeCount shouldBeEqualTo null
+    }
+
+    @Test
+    fun flush_givenUnreadableStore_expectNoSnapshotRatherThanZero() {
+        // A snapshot of zero is what an empty store reports; reporting it here says the outbox
+        // drained while the rows are still on disk.
+        val store = newStore()
+        store.append(TestEntry("a"))
+        val unreadable: PendingDeliveryStore<TestEntry> = spyk(store) {
+            every { loadAllOrNull() } returns null
+        }
+        val callbacks = RecordingCallbacks()
+        val publishedKeys = mutableListOf<String>()
+
+        newFlusher(unreadable).flush(callbacks) { publishedKeys += it.key }
+
+        callbacks.snapshotCount shouldBeEqualTo null
+        callbacks.completeCount shouldBeEqualTo null
+        publishedKeys shouldBeEqualTo emptyList()
+        // Skipping is the right action; silence is not the right trace.
+        callbacks.unreadableCount shouldBeEqualTo 1
+        store.loadAll().map { it.key } shouldBeEqualTo listOf("a")
     }
 
     @Test

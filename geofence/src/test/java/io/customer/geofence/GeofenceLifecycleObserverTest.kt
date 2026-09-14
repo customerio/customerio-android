@@ -44,6 +44,18 @@ class GeofenceLifecycleObserverTest {
     }
 
     @Test
+    fun onStart_givenUnreadableQueue_expectTheFailureRecorded() {
+        // The only path that runs without a new transition, so silence here means no record at all.
+        val callbacksSlot = slot<PendingDeliveryFlusher.Callbacks<PendingGeofenceDelivery>>()
+        every { mockDeliveryFlusher.flush(capture(callbacksSlot), any(), any()) } returns Unit
+
+        observer.onStart(owner)
+        callbacksSlot.captured.onUnreadable()
+
+        verify(exactly = 1) { mockLogger.logForegroundFlushQueueUnreadable() }
+    }
+
+    @Test
     fun onStart_expectForegroundHookRunOncePerEntry() {
         observer.onStart(owner)
         observer.onStart(owner)

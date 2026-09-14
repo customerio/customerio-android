@@ -19,10 +19,10 @@ data class HttpRequestParams(
     val headers: Map<String, String> = emptyMap(),
     val body: String? = null,
     /**
-     * [path] already starts with its own API version, so the one configured on `apiHost` is dropped
-     * for this request. Lets a single endpoint move versions without moving `/track` with it.
+     * API version for this request, replacing whatever `apiHost` carries. Null keeps the configured
+     * one, so a single endpoint can move version without moving `/track` with it.
      */
-    val pathCarriesApiVersion: Boolean = false
+    val apiVersion: String? = null
 )
 
 @InternalCustomerIOApi
@@ -114,24 +114,37 @@ internal class CustomerIOHttpClientImpl : CustomerIOHttpClient {
     }
 }
 
-// `apiHost` conflates host and API version ("cdp.customer.io/v1"), and /track owns that version.
-// Anchored at the end on purpose: a host whose NAME carries a version keeps it, and a self-hosted
-// host with no version segment is left alone. Matches how iOS composes the same URL.
-private val API_VERSION_SEGMENT = Regex("/v\\d+$")
+// Anchored at the end on purpose: a host whose NAME carries a version ("v1.example.com") has no
+// segment to split, and neither does a self-hosted host that never carried one.
+private val TRAILING_API_VERSION = Regex("/(v\\d+)$")
 
-internal fun String.withoutApiVersion(): String = trimEnd('/').replace(API_VERSION_SEGMENT, "")
+/**
+ * Splits the version segment `apiHost` conflates with the host: `cdp.customer.io/v1` becomes
+ * `cdp.customer.io` and `v1`. A host carrying no version answers null, never a guessed default.
+ */
+internal fun String.splitApiVersion(): Pair<String, String?> {
+    val trimmed = trimEnd('/')
+    val match = TRAILING_API_VERSION.find(trimmed) ?: return trimmed to null
+    return trimmed.removeRange(match.range) to match.groupValues[1]
+}
 
 /**
  * Full request URL for [params] against [apiHost].
  *
- * Extracted so the version swap can be asserted on the URL that is actually sent. `apiHost` embeds
- * the version ("cdp.customer.io/v1"), so `Uri.Builder().authority()` cannot be used here: it would
- * percent-encode the embedded `/`. Compose the base string first, then layer query params on top.
+ * The version defaults to whatever `apiHost` carried and is replaced only when the request names
+ * its own, so one endpoint can move to v2 while `/track` stays on the configured version. Replaced
+ * rather than appended: a host already on v3 must not compose `/v3/v2`.
+ *
+ * Extracted so that swap can be asserted on the URL actually sent. `apiHost` embeds the version, so
+ * `Uri.Builder().authority()` cannot be used here: it would percent-encode the embedded `/`.
+ * Compose the base string first, then layer query params on top.
  */
 internal fun composeUrl(apiHost: String, params: HttpRequestParams): String {
-    val host = if (params.pathCarriesApiVersion) apiHost.withoutApiVersion() else apiHost
+    val (host, hostVersion) = apiHost.splitApiVersion()
+    val version = params.apiVersion ?: hostVersion
+    val base = if (version == null) host else "$host/$version"
     val cleanedPath = if (params.path.startsWith("/")) params.path else "/${params.path}"
-    return "https://$host$cleanedPath".toUri()
+    return "https://$base$cleanedPath".toUri()
         .buildUpon()
         .apply { params.queryParams.forEach { (k, v) -> appendQueryParameter(k, v) } }
         .build()

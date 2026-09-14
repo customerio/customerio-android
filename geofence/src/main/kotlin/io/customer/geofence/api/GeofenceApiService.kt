@@ -32,7 +32,7 @@ internal class GeofenceApiServiceImpl(
             method = HttpMethod.POST,
             headers = mapOf("Content-Type" to "application/json"),
             body = body,
-            pathCarriesApiVersion = true
+            apiVersion = ENDPOINT_API_VERSION
         )
         return httpClient.request(params).mapCatching { responseBody ->
             // Lenient at the wire boundary so the SDK doesn't pin a specific
@@ -42,8 +42,10 @@ internal class GeofenceApiServiceImpl(
     }
 
     private companion object {
-        // Carries its own version: this endpoint is on v2 while /track is still on v1.
-        private const val ENDPOINT_PATH = "/v2/geofences/nearest"
+        private const val ENDPOINT_PATH = "/geofences/nearest"
+
+        // This endpoint is on v2 while /track is still on the configured version.
+        private const val ENDPOINT_API_VERSION = "v2"
     }
 }
 

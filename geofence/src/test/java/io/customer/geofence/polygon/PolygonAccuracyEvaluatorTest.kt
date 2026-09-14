@@ -156,4 +156,42 @@ class PolygonAccuracyEvaluatorTest {
 
     private fun point(latitude: Double, longitude: Double) =
         PolygonCoordinate(latitude = latitude, longitude = longitude)
+
+    /**
+     * Exiting inflates the fix's accuracy a little and clamps the result, and neither the inflation
+     * nor the clamp was reachable from the existing test, which inflates an accuracy of zero.
+     *
+     * Effective accuracy is `max(acc, min(acc + inflation, clamp))`, so the clamp can only ever
+     * shave the inflation and never drop below the fix's own accuracy. Its entire influence is
+     * therefore two metres wide, which is why these fixtures sit a metre either side of it.
+     */
+    @Test
+    fun evidenceFor_givenBoundaryJustBeyondTheClampedAccuracy_expectExit() {
+        // 50.5 m outside, 49 m fix. Clamped the effective accuracy is 50, so the boundary clears it.
+        // Unclamped it would be 51 and this exit would be withheld.
+        val sample = sample(latitude = 0.0, longitude = 0.010454157, accuracyMeters = 49.0)
+
+        evaluator.evidenceFor(wideGeometry, sample, PolygonCommittedState.INSIDE) shouldBeEqualTo
+            PolygonEvidence.EXIT
+    }
+
+    @Test
+    fun evidenceFor_givenBoundaryJustInsideTheClampedAccuracy_expectNoExit() {
+        // 49.5 m outside, 49 m fix. Effective accuracy is 50, so the boundary does not clear it. A
+        // clamp low enough to erase the inflation would drop it to 49 and let this exit through.
+        val sample = sample(latitude = 0.0, longitude = 0.010445164, accuracyMeters = 49.0)
+
+        evaluator.evidenceFor(wideGeometry, sample, PolygonCommittedState.INSIDE) shouldBeEqualTo
+            PolygonEvidence.AMBIGUOUS
+    }
+
+    @Test
+    fun evidenceFor_givenGoodFixJustBeyondTheInflatedAccuracy_expectExit() {
+        // 16 m outside, 10 m fix, well under the clamp so the inflation alone decides: 12 clears
+        // 16 and the exit stands, where a larger inflation would withhold it.
+        val sample = sample(latitude = 0.0, longitude = 0.010143891, accuracyMeters = 10.0)
+
+        evaluator.evidenceFor(wideGeometry, sample, PolygonCommittedState.INSIDE) shouldBeEqualTo
+            PolygonEvidence.EXIT
+    }
 }

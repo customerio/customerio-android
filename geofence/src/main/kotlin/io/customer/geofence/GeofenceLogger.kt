@@ -1059,8 +1059,10 @@ internal class GeofenceLogger(private val logger: Logger) {
     fun logEventDeliveredButNotRemoved(geofenceId: String, transitionName: String) {
         logger.error(
             "Geofence '$geofenceId' $transitionName: delivered, but removing it from the pending store failed, so it is still queued. Retrying on a backoff; the backend deduplicates the repeat send on transitionId." +
-                // ok=true: the send reached the backend. It is the cleanup that failed, so a
-                // consumer counting deliveries must not read this as a loss.
+                // ok=true: the send reached the backend, only the cleanup failed, so a consumer
+                // counting deliveries must not read this as a loss. It must also skip
+                // why=not_removed when counting, because the retry files its own delivery.sent and
+                // one delivery would otherwise be counted twice.
                 tail(
                     "delivery.sent",
                     GeofenceLogIo.OUTPUT,

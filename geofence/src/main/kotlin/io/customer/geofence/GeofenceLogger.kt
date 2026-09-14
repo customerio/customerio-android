@@ -613,8 +613,14 @@ internal class GeofenceLogger(private val logger: Logger) {
      *
      * Expect a large first value per process and roughly zero afterwards: the singleton is built
      * once. Which broadcast is the first is readable from the surrounding `module.init`.
+     *
+     * Gated whole, not just in its tail. This fires on every broadcast — 72 times in nine hours on
+     * the 2026-09-14 drive — and with diagnostics off `tail` returns nothing, so the line that
+     * survived would carry a duration and no way to tell what it timed. Volume with nothing in it,
+     * in every customer's Logcat, on a record that exists purely to answer a diagnostic question.
      */
     fun logDispatchReady(elapsedMs: Long) {
+        if (!GeofenceDiagnostics.isEnabled) return
         logger.debug(
             "Crossing pipeline ready after ${elapsedMs}ms" +
                 tail("dispatch.ready", GeofenceLogIo.OBSERVATION, listOf("ms" to int(elapsedMs.toInt()))),

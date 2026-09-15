@@ -1,11 +1,10 @@
 package io.customer.messaginginapp.gist.presentation.engine
 
 import android.content.Context
-import android.webkit.WebView
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.LifecycleRegistry
-import androidx.lifecycle.ViewTreeLifecycleOwner
+import androidx.lifecycle.R as LifecycleR
 import androidx.test.core.app.ApplicationProvider
 import io.customer.commontest.config.TestConfig
 import io.customer.commontest.config.testConfigurationDefault
@@ -149,7 +148,7 @@ class EngineWebViewLifecycleResubscribeTest : IntegrationTest() {
 
         // -- First lifecycle owner: RESUMED before setup() is called --
         val (firstOwner, firstLifecycle) = makeResumedLifecycleOwner()
-        ViewTreeLifecycleOwner.set(engineWebView, firstOwner)
+        engineWebView.setTag(LifecycleR.id.view_tree_lifecycle_owner, firstOwner)
 
         // setup() registers the observer; LifecycleRegistry replays RESUMED -> onLifecycleResumed()
         // -> engineWebViewInterface.attach() -> isAttachedToWebView = true
@@ -163,7 +162,7 @@ class EngineWebViewLifecycleResubscribeTest : IntegrationTest() {
         listener.taps.clear()
 
         // Simulate Fragment view recreation: first owner goes through pause/stop/destroy
-        firstLifecycle.handleLifecycleEvent(Lifecycle.Event.ON_PAUSE)   // -> onLifecyclePaused() -> detach
+        firstLifecycle.handleLifecycleEvent(Lifecycle.Event.ON_PAUSE) // -> onLifecyclePaused() -> detach
         firstLifecycle.handleLifecycleEvent(Lifecycle.Event.ON_STOP)
         firstLifecycle.handleLifecycleEvent(Lifecycle.Event.ON_DESTROY)
 
@@ -177,7 +176,7 @@ class EngineWebViewLifecycleResubscribeTest : IntegrationTest() {
 
         // -- Second lifecycle owner: re-parented under a new RESUMED owner (the "pop" case) --
         val (secondOwner, _) = makeResumedLifecycleOwner()
-        ViewTreeLifecycleOwner.set(engineWebView, secondOwner)
+        engineWebView.setTag(LifecycleR.id.view_tree_lifecycle_owner, secondOwner)
 
         // onAttachedToWindow is the fix point.
         // Before fix: falls through to View.onAttachedToWindow() — no observer re-registration.
@@ -203,7 +202,7 @@ class EngineWebViewLifecycleResubscribeTest : IntegrationTest() {
         engineWebView.listener = listener
 
         val (owner, _) = makeResumedLifecycleOwner()
-        ViewTreeLifecycleOwner.set(engineWebView, owner)
+        engineWebView.setTag(LifecycleR.id.view_tree_lifecycle_owner, owner)
 
         // setup() is called; LifecycleRegistry replays RESUMED -> interface armed.
         engineWebView.setup(buildConfig())
@@ -220,16 +219,13 @@ class EngineWebViewLifecycleResubscribeTest : IntegrationTest() {
     @Test
     fun onAttachedToWindow_givenSameOwnerReattach_expectNoDoubleResume() {
         val context = ApplicationProvider.getApplicationContext<Context>()
-        val resumeCount = mutableListOf<Unit>()
-        val listener = object : TapRecordingListener() {
-            // Count via tap delivery; if onLifecycleResumed fires twice, two attach() calls
-            // would both work but the LifecycleRegistry idempotency means onResume fires once.
-        }
+        // LifecycleRegistry idempotency guarantees onResume fires once even if we re-attach twice.
+        val listener = TapRecordingListener()
         val engineWebView = EngineWebView(context)
         engineWebView.listener = listener
 
         val (owner, _) = makeResumedLifecycleOwner()
-        ViewTreeLifecycleOwner.set(engineWebView, owner)
+        engineWebView.setTag(LifecycleR.id.view_tree_lifecycle_owner, owner)
 
         engineWebView.setup(buildConfig())
 

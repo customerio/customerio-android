@@ -93,6 +93,49 @@ class PolygonApproachMonitorTest : RobolectricTest() {
     }
 
     @Test
+    fun start_givenAnOlderGeneration_expectTheNewerRequestKept() {
+        // A receiver preempted after deciding CONTINUE resumes holding the generation it captured
+        // before suspending. By then an identify and a fresh polygon wake can have armed a newer
+        // session, and arming the older one would replace that request. Its own timeout removes the
+        // replacement later but does not restore what it displaced.
+        every {
+            client.requestLocationUpdates(any<LocationRequest>(), any<PendingIntent>())
+        } returns Tasks.forResult(null)
+        every { client.removeLocationUpdates(any<PendingIntent>()) } returns Tasks.forResult(null)
+        val monitor = monitor()
+
+        monitor.start(8L)
+        monitor.start(7L)
+
+        // Only the newer session registered, and nothing was torn down to make room for the older.
+        verify(exactly = 1) {
+            client.requestLocationUpdates(any<LocationRequest>(), any<PendingIntent>())
+        }
+        verify(exactly = 0) { client.removeLocationUpdates(any<PendingIntent>()) }
+    }
+
+    @Test
+    fun start_givenAnOlderGenerationAfterTheNewerWasStopped_expectStillRefused() {
+        // `stop` clears the live generation, so the live field alone cannot tell a stale caller
+        // from a first one. An ended generation must stay ended even with nothing armed.
+        every {
+            client.requestLocationUpdates(any<LocationRequest>(), any<PendingIntent>())
+        } returns Tasks.forResult(null)
+        every { client.removeLocationUpdates(any<PendingIntent>()) } returns Tasks.forResult(null)
+        val monitor = monitor()
+
+        monitor.start(8L)
+        monitor.stop()
+        shadowOf(Looper.getMainLooper()).idle()
+        monitor.start(7L)
+
+        // The 8L registration and its teardown only; 7L never armed.
+        verify(exactly = 1) {
+            client.requestLocationUpdates(any<LocationRequest>(), any<PendingIntent>())
+        }
+    }
+
+    @Test
     fun stop_expectRemovesPendingIntentRegistration() {
         every {
             client.requestLocationUpdates(any<LocationRequest>(), any<PendingIntent>())

@@ -68,7 +68,14 @@ internal class GeofenceManager(
     suspend fun replaceGeofencesForBootRestore(regions: List<GeofenceRegion>): Result<Unit> =
         replaceGeofences(regions)
 
-    /** Re-centres the SDK's single shared movement trigger without touching business regions. */
+    /**
+     * Re-centres the SDK's single shared movement trigger without touching business regions.
+     *
+     * A same-id add replaces the registration in place, which is how every other path here
+     * re-registers it, so there is no prior removal: removing first would mean a failed or
+     * timed-out add leaves the device with no trigger at all and nothing to re-arm it. It also
+     * keeps the worst case to one GMS call, which matters on the broadcast path.
+     */
     @RequiresPermission(Manifest.permission.ACCESS_FINE_LOCATION)
     suspend fun replaceMovementTrigger(region: GeofenceRegion): Result<Unit> {
         require(region.id == GeofenceConstants.MOVEMENT_TRIGGER_ID) {
@@ -78,8 +85,6 @@ internal class GeofenceManager(
             logger.logMissingPermission("ACCESS_FINE_LOCATION")
             return Result.failure(SecurityException("Required location permissions not granted"))
         }
-        val removal = removeGeofencesByIds(listOf(GeofenceConstants.MOVEMENT_TRIGGER_ID))
-        if (removal.isFailure) return removal
         return registerBatch(
             regions = listOf(region),
             initialTrigger = GeofencingRequest.INITIAL_TRIGGER_EXIT

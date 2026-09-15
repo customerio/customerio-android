@@ -171,10 +171,27 @@ class GeofenceManagerTest : RobolectricTest() {
         )
 
         result.isSuccess.shouldBeTrue()
-        verify { client.removeGeofences(listOf(GeofenceConstants.MOVEMENT_TRIGGER_ID)) }
         requestSlot.captured.geofences.single().requestId shouldBeEqualTo
             GeofenceConstants.MOVEMENT_TRIGGER_ID
         requestSlot.captured.initialTrigger shouldBeEqualTo GeofencingRequest.INITIAL_TRIGGER_EXIT
+    }
+
+    @Test
+    fun replaceMovementTrigger_givenTheRegistrationFails_expectTheLiveTriggerLeftAlone() = runTest {
+        // Re-centring must never be able to end with no trigger at all. A same-id add replaces the
+        // registration in place, so removing first only opens a window where a failed or timed-out
+        // add leaves the device with nothing to wake it: updateMovementTriggerFromAcceptedFix
+        // returns null, and no other path re-arms until a foreground or an unrelated EXIT.
+        grantAllPermissions()
+        stubClientAddFailure(IllegalStateException("GMS unavailable"))
+        stubClientRemoveByIdsSuccess()
+
+        val result = manager.replaceMovementTrigger(
+            buildRegion(id = GeofenceConstants.MOVEMENT_TRIGGER_ID, radius = 725f)
+        )
+
+        result.isFailure.shouldBeTrue()
+        verify(exactly = 0) { client.removeGeofences(any<List<String>>()) }
     }
 
     @Test

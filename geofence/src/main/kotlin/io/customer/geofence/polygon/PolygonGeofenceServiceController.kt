@@ -294,10 +294,15 @@ internal class PolygonGeofenceServiceController(
         val safelyPassive = lastAcceptedLocation?.let {
             updateMovementTriggerFromAcceptedFix(it, expectedUserStateGeneration)
         } != null
-        return if (safelyPassive || store.getActivePolygonIds().isEmpty()) {
-            PolygonSamplingDecision.STOP
-        } else {
-            PolygonSamplingDecision.CONTINUE
+        // Guarded like every other read of the active set. Unlocked, a reconcile or a deactivate
+        // landing here flips the answer: CONTINUE with nothing active spends battery on nothing,
+        // and STOP with a polygon still active loses its EXIT.
+        return synchronized(controllerLock) {
+            if (safelyPassive || store.getActivePolygonIds().isEmpty()) {
+                PolygonSamplingDecision.STOP
+            } else {
+                PolygonSamplingDecision.CONTINUE
+            }
         }
     }
 

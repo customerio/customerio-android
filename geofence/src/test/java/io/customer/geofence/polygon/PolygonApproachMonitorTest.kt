@@ -14,6 +14,7 @@ import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
 import io.mockk.verify
+import java.time.Duration
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -25,6 +26,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
+import org.robolectric.shadows.ShadowSystemClock
 
 @RunWith(RobolectricTestRunner::class)
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -107,12 +109,18 @@ class PolygonApproachMonitorTest : RobolectricTest() {
     }
 
     @Test
-    fun stop_givenColdProcessGeneration_expectReconstructsAndRemovesPendingIntent() {
+    fun stop_givenColdProcessGeneration_expectRemovesWhatTheEarlierProcessRegistered() {
+        // The registration outlives the process that made it, so a monitor holding none of that
+        // state can still tear it down by naming the generation.
+        every {
+            client.requestLocationUpdates(any<LocationRequest>(), any<PendingIntent>())
+        } returns Tasks.forResult(null)
         val pendingIntent = slot<PendingIntent>()
         every { client.removeLocationUpdates(capture(pendingIntent)) } returns Tasks.forResult(null)
-        val monitor = monitor()
 
-        monitor.stop(expectedUserStateGeneration = 7L)
+        monitor().start(7L)
+        shadowOf(Looper.getMainLooper()).idle()
+        monitor().stop(expectedUserStateGeneration = 7L)
         shadowOf(Looper.getMainLooper()).idle()
 
         shadowOf(pendingIntent.captured).savedIntent.getLongExtra(
@@ -120,6 +128,19 @@ class PolygonApproachMonitorTest : RobolectricTest() {
             -1L
         ) shouldBeEqualTo 7L
         verify { logger.logPolygonApproachMonitoringStopped() }
+    }
+
+    @Test
+    fun stop_givenAGenerationNeverRegistered_expectNothingRemovedAndNoStopReported() {
+        // Asking the OS to remove a request that was never made used to MINT the PendingIntent,
+        // because FLAG_UPDATE_CURRENT creates when none exists, and then report a teardown for it.
+        every { client.removeLocationUpdates(any<PendingIntent>()) } returns Tasks.forResult(null)
+
+        monitor().stop(expectedUserStateGeneration = 4_242L)
+        shadowOf(Looper.getMainLooper()).idle()
+
+        verify(exactly = 0) { client.removeLocationUpdates(any<PendingIntent>()) }
+        verify(exactly = 0) { logger.logPolygonApproachMonitoringStopped() }
     }
 
     @Test
@@ -392,6 +413,38 @@ class PolygonApproachMonitorTest : RobolectricTest() {
 
         request.captured.durationMillis shouldBeLessOrEqualTo 30_000L
         request.captured.durationMillis shouldBeGreaterThan 25_000L
+    }
+
+    @Test
+    fun start_givenTheSameGenerationAfterItsDeadlinePassed_expectOneRegistrationAndNoFalseStop() {
+        // Identity is the generation alone, so a re-arm for the same generation builds an EQUAL
+        // PendingIntent. Removing "the previous one" therefore cancels the request this very call
+        // is about to make, and the removal's success listener re-requests it and logs a teardown
+        // that never happened — a tail a replay grading on polygon.approach.* reads as real.
+        every {
+            client.requestLocationUpdates(any<LocationRequest>(), any<PendingIntent>())
+        } returns Tasks.forResult(null)
+        every { client.removeLocationUpdates(any<PendingIntent>()) } returns Tasks.forResult(null)
+        // Never advanced, so the session timeout never fires and the expired session stays armed.
+        val scheduler = TestCoroutineScheduler()
+        val monitor = PolygonApproachMonitor(
+            context = applicationMock,
+            client = client,
+            logger = logger,
+            backgroundContext = StandardTestDispatcher(scheduler)
+        )
+
+        monitor.start(7L, SystemClock.elapsedRealtime() + 30_000L)
+        shadowOf(Looper.getMainLooper()).idle()
+        ShadowSystemClock.advanceBy(Duration.ofMillis(31_000L))
+        monitor.start(7L, SystemClock.elapsedRealtime() + 30_000L)
+        shadowOf(Looper.getMainLooper()).idle()
+
+        verify(exactly = 2) {
+            client.requestLocationUpdates(any<LocationRequest>(), any<PendingIntent>())
+        }
+        verify(exactly = 0) { client.removeLocationUpdates(any<PendingIntent>()) }
+        verify(exactly = 0) { logger.logPolygonApproachMonitoringStopped() }
     }
 
     private fun monitor() = PolygonApproachMonitor(

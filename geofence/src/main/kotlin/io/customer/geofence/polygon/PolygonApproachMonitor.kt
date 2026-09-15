@@ -97,7 +97,11 @@ internal class PolygonApproachMonitor(
             removalRetryAttempts.remove(current)
             previous to current
         }
-        registration.first?.let(::removeUpdates)
+        // Only when it is a DIFFERENT request. A re-arm for the same generation builds an equal
+        // PendingIntent, so removing "the previous one" would cancel the request made just below,
+        // and the removal's success listener would re-request it and log a teardown that never
+        // happened.
+        registration.first?.takeIf { it != registration.second }?.let(::removeUpdates)
         requestUpdates(registration.second, expectedUserStateGeneration)
     }
 
@@ -134,9 +138,7 @@ internal class PolygonApproachMonitor(
             sessionTimeoutJob?.cancel()
             sessionTimeoutJob = null
             activePendingIntent.also { activePendingIntent = null }
-                ?: generationToRemove?.let {
-                    pendingIntent(applicationContext, it, sessionDeadlineElapsedRealtimeMs = 0L)
-                }
+                ?: generationToRemove?.let { existingPendingIntentOrNull(applicationContext, it) }
         }
         pendingIntent?.let(::removeUpdates)
     }
@@ -148,7 +150,10 @@ internal class PolygonApproachMonitor(
         val isCurrent = synchronized(lock) {
             desired && userStateGeneration == staleUserStateGeneration
         }
-        if (!isCurrent) removeUpdates(pendingIntent(applicationContext, staleUserStateGeneration))
+        if (!isCurrent) {
+            existingPendingIntentOrNull(applicationContext, staleUserStateGeneration)
+                ?.let(::removeUpdates)
+        }
     }
 
     private fun requestUpdates(pendingIntent: PendingIntent, requestGeneration: Long) {
@@ -210,6 +215,7 @@ internal class PolygonApproachMonitor(
                     activePendingIntent = null
                     // Nothing is registered now, so leaving this armed would later "stop" a request
                     // that never existed and log a removal that did not happen.
+                    sessionDeadlineElapsedRealtimeMs = null
                     sessionTimeoutJob?.cancel()
                     sessionTimeoutJob = null
                 }
@@ -263,7 +269,13 @@ internal class PolygonApproachMonitor(
     private fun retryRemoval(pendingIntent: PendingIntent, cause: Throwable) {
         logger.logPolygonApproachRequestFailed(cause.message, operation = "remove_updates")
         synchronized(lock) {
-            if (desired && activePendingIntent == pendingIntent) return
+            if (desired && activePendingIntent == pendingIntent) {
+                // This request is wanted after all, so nothing is owed for it. These maps are keyed
+                // by a per-generation PendingIntent and are the only unbounded state in this class.
+                removalRetryAttempts.remove(pendingIntent)
+                removalRetryJobs.remove(pendingIntent)?.cancel()
+                return
+            }
             val attempt = (removalRetryAttempts[pendingIntent] ?: 0) + 1
             removalRetryAttempts[pendingIntent] = attempt
             removalRetryJobs.remove(pendingIntent)?.cancel()
@@ -321,6 +333,32 @@ internal class PolygonApproachMonitor(
          * generation with any deadline. The maps keyed by `PendingIntent` stay correct across a
          * deadline change. And a removal that succeeds late re-requests the right session.
          */
+        /**
+         * The registration for [userStateGeneration] if one exists, and null otherwise.
+         *
+         * Removal paths ask for this rather than [pendingIntent]: `FLAG_UPDATE_CURRENT` CREATES a
+         * `PendingIntent` when none is present, so removing a generation that was never registered
+         * would mint one and leave it behind. A registration made before this process started is
+         * still found, which is what the cold-process teardown depends on.
+         */
+        internal fun existingPendingIntentOrNull(
+            context: Context,
+            userStateGeneration: Long
+        ): PendingIntent? {
+            val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                PendingIntent.FLAG_NO_CREATE or PendingIntent.FLAG_MUTABLE
+            } else {
+                PendingIntent.FLAG_NO_CREATE
+            }
+            return PendingIntent.getBroadcast(
+                context,
+                PENDING_INTENT_REQUEST_CODE,
+                Intent(context, PolygonApproachReceiver::class.java)
+                    .setData("$PENDING_INTENT_SCHEME://$userStateGeneration".toUri()),
+                flags
+            )
+        }
+
         internal fun pendingIntent(
             context: Context,
             userStateGeneration: Long,

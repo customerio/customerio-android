@@ -160,11 +160,24 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
             businessIds.forEach { logger.logTransitionDroppedUnarmedId(it) }
             triggerIds
         }
-        // Movement trigger first, whatever order GMS delivered. The polygon handlers below await
-        // GMS, so a mixed batch with polygons ahead of the trigger spends the dispatch budget
-        // before the refresh job exists, and the receiver then finishes without waiting for it.
-        val knownIds = (routableTriggeringIds + unarmedTriggerIds)
-            .sortedByDescending { it == GeofenceConstants.MOVEMENT_TRIGGER_ID }
+        // Circles, then the movement trigger, then polygons, whatever order GMS delivered.
+        //
+        // Circles first because the refresh this batch starts can evict one under the monitoring
+        // cap, and its `requireRegistered` check would then drop an EXIT the OS had already
+        // delivered. The trigger next because the polygon handlers await GMS, so leaving it behind
+        // them spends the dispatch budget before the refresh job exists and the receiver finishes
+        // without holding the window open for it. Sorting is stable, so GMS order survives within
+        // each group.
+        val polygonIds = androidComponent.geofenceRegionStore.getCachedRegions()
+            .filter(GeofenceRegion::isPolygon)
+            .mapTo(mutableSetOf(), GeofenceRegion::id)
+        val knownIds = (routableTriggeringIds + unarmedTriggerIds).sortedBy { id ->
+            when {
+                id == GeofenceConstants.MOVEMENT_TRIGGER_ID -> 1
+                id in polygonIds -> 2
+                else -> 0
+            }
+        }
 
         var movementRefreshJob: Job? = null
         knownIds.forEach { geofenceId ->

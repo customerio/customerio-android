@@ -160,6 +160,9 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
             "polygon"
         )
         every { mockStore.getRoutableRegisteredIds() } answers { mockStore.getRegisteredIds() }
+        // The dispatch order groups by shape, so the cached catalogue has to say which ids are
+        // polygons. Relaxed would answer empty and classify every id as a circle.
+        every { mockStore.getCachedRegions() } returns listOf(polygonRegion())
         every { mockStore.userStateGeneration() } returns 0L
         every { mockStore.activeUserSessionId() } returns "user-42"
         coEvery { mockPolygonController.onMovementTriggerExit(any(), any()) } returns null
@@ -554,6 +557,41 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
         )
 
         verify { mockServices.onMovementTriggerExit(eq(37.7749), eq(-122.4194), any()) }
+    }
+
+    @Test
+    fun dispatchTransition_givenPolygonCircleAndMovementExit_expectCircleBeforeRefreshBeforePolygon() = runTest {
+        // Three guarantees in one batch, and the order is the only thing that holds all of them.
+        // The circle goes first because the refresh this batch starts can evict it under the
+        // monitoring cap, and its requireRegistered check would then drop an EXIT the OS already
+        // delivered. The trigger goes before the polygon because the polygon handler awaits GMS,
+        // and the refresh job has to exist before the budget is spent on that wait.
+        val order = mutableListOf<String>()
+        val circle = GeofenceRegion("biz-1", 37.7749, -122.4194, 100f)
+        every { mockStore.getCachedRegion("polygon") } returns polygonRegion()
+        // The loop's own catalogue read is the circle's turn; the processor reads it again, so
+        // record the first only.
+        every { mockStore.getCachedRegion("biz-1") } answers {
+            if ("circle" !in order) order += "circle"
+            circle
+        }
+        every { mockServices.onMovementTriggerExit(any(), any(), any()) } answers {
+            order += "refresh"
+            null
+        }
+        coEvery { mockPolygonController.onCoarseExit(any(), any(), any(), any()) } coAnswers {
+            order += "polygon"
+            delay(4_500)
+        }
+
+        receiver.dispatchTransition(
+            gmsTransitionType = Geofence.GEOFENCE_TRANSITION_EXIT,
+            triggeringGeofenceIds = listOf("polygon", "biz-1", GeofenceConstants.MOVEMENT_TRIGGER_ID),
+            latitude = 37.7749,
+            longitude = -122.4194
+        )
+
+        order shouldBeEqualTo listOf("circle", "refresh", "polygon")
     }
 
     @Test

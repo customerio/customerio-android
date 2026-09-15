@@ -3,29 +3,22 @@ package io.customer.geofence.di
 import io.customer.commontest.config.TestConfig
 import io.customer.commontest.config.testConfigurationDefault
 import io.customer.commontest.core.RobolectricTest
-import io.customer.geofence.GeofenceLocation
 import io.customer.geofence.GeofenceRegion
 import io.customer.geofence.polygon.PolygonCoordinate
 import io.customer.geofence.polygon.PolygonSupport
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.network.CustomerIOHttpClient
-import io.customer.sdk.core.network.HttpRequestParams
-import io.mockk.coEvery
 import io.mockk.mockk
-import io.mockk.slot
-import kotlinx.coroutines.test.runTest
 import org.amshove.kluent.shouldBeEqualTo
-import org.amshove.kluent.shouldContain
-import org.amshove.kluent.shouldNotBeNull
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 
 /**
  * The seams default to [PolygonSupport.Disabled], which is only safe if the production graph actually
- * supplies the opt-in — and supplies it *everywhere*. A build that asked the backend for polygons and
- * then dropped them at the ranker, or ranked polygons it never asked for, would pass every per-class
- * test in this module while being broken in production. These assertions read the real graph.
+ * supplies the opt-in, and supplies it *everywhere*. A build that mapped polygons but then dropped
+ * them at the ranker would pass every per-class test in this module while being broken in
+ * production. These assertions read the real graph.
  */
 @RunWith(RobolectricTestRunner::class)
 class GeofencePolygonSupportWiringTest : RobolectricTest() {
@@ -43,18 +36,6 @@ class GeofencePolygonSupportWiringTest : RobolectricTest() {
     @Test
     fun polygonSupport_givenProductionGraph_expectEnabledOptIn() {
         SDKComponent.polygonSupport.isPolygonMonitoringEnabled shouldBeEqualTo true
-        SDKComponent.polygonSupport.requestedCapabilities shouldBeEqualTo
-            listOf(PolygonSupport.POLYGON_V1_CAPABILITY)
-    }
-
-    @Test
-    fun geofenceApiService_givenProductionGraph_expectPolygonCapabilityRequested() = runTest {
-        val params = slot<HttpRequestParams>()
-        coEvery { httpClient.request(capture(params)) } returns Result.success("{}")
-
-        SDKComponent.geofenceApiService.fetchGeofences(GeofenceLocation(1.0, 2.0))
-
-        params.captured.body.shouldNotBeNull() shouldContain PolygonSupport.POLYGON_V1_CAPABILITY
     }
 
     @Test

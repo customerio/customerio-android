@@ -13,27 +13,12 @@ package io.customer.geofence.polygon
  * about it — gets the safe behaviour. [Enabled] is the single production opt-in, and the graph
  * ([io.customer.geofence.di.polygonSupport]) hands the same instance to every seam.
  *
- * The backend capability request derives from the same value ([requestedCapabilities]) so the two
- * halves cannot drift apart. Asking for `polygon-v1` while the mapper drops every polygon would make
- * the backend spend response slots on records this build then discards — a partial path that a
- * separate capability constant would allow and this one does not.
  */
 internal interface PolygonSupport {
     /** True only when a runtime able to evaluate polygon containment is installed. */
     val isPolygonMonitoringEnabled: Boolean
 
-    /**
-     * Geometry capabilities advertised on `POST /geofences/nearest`.
-     *
-     * Derived, never overridden: a build only asks for a shape it will actually monitor.
-     */
-    val requestedCapabilities: List<String>
-        get() = if (isPolygonMonitoringEnabled) listOf(POLYGON_V1_CAPABILITY) else emptyList()
-
     companion object {
-        /** Wire name of the responsive polygon runtime this SDK implements. */
-        const val POLYGON_V1_CAPABILITY = "polygon-v1"
-
         /** The default at every seam: polygon records are decoded, never monitored. */
         val Disabled: PolygonSupport = object : PolygonSupport {
             override val isPolygonMonitoringEnabled: Boolean = false

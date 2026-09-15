@@ -202,7 +202,7 @@ internal val SDKComponent.geofenceJsonSerializer: GeofenceJsonSerializer
 
 internal val SDKComponent.geofenceApiService: GeofenceApiService
     get() = newInstance<GeofenceApiService> {
-        GeofenceApiServiceImpl(httpClient, geofenceJsonSerializer, polygonSupport)
+        GeofenceApiServiceImpl(httpClient, geofenceJsonSerializer)
     }
 
 internal val AndroidSDKComponent.geofenceCooldownStore: GeofenceCooldownStore

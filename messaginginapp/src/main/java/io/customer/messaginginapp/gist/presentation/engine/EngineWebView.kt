@@ -75,6 +75,17 @@ internal class EngineWebView @JvmOverloads constructor(
     private val viewLifecycleOwner: Lifecycle?
         get() = findViewTreeLifecycleOwner()?.lifecycle
 
+    /**
+     * The lifecycle we are currently registered with as an observer.
+     *
+     * Stored separately because [findViewTreeLifecycleOwner] walks the view's parent chain, and
+     * [android.view.View.getParent] is already null when [onDetachedFromWindow] fires -- the
+     * platform sets mParent = null before dispatching the detach callback. Using [viewLifecycleOwner]
+     * inside [onDetachedFromWindow] would silently return null and leave the observer dangling.
+     * This field is the authoritative reference for removal.
+     */
+    private var observedLifecycle: Lifecycle? = null
+
     init {
         // exception handling is required for webview in-case webview is not supported in the device
         try {
@@ -84,6 +95,66 @@ internal class EngineWebView @JvmOverloads constructor(
         } catch (e: Exception) {
             logger.error("Error while creating EngineWebView: ${e.message}")
         }
+    }
+
+    /**
+     * Re-subscribes to the CURRENT view-tree lifecycle owner whenever the view is re-attached
+     * to a window. This is the fix for MBL-2431.
+     *
+     * react-native-screens (and native back-stack navigation) destroys the host Fragment's view
+     * lifecycle owner on push, then re-parents the SAME [EngineWebView] instance under a NEW
+     * lifecycle owner on pop. Without this override the observer registered in [setup] stays
+     * on the old (destroyed) owner and [onResume] / [onLifecycleResumed] never fires again,
+     * leaving [EngineWebViewInterface.isAttachedToWebView] = false and dropping every tap.
+     *
+     * Mirrors the identical fix applied to [BaseInlineInAppMessageView] in PR #611 / MBL-1329.
+     *
+     * [androidx.lifecycle.LifecycleRegistry.addObserver] replays the owner's current state
+     * immediately on registration, so a RESUMED owner drives onResume -> [onLifecycleResumed]
+     * -> [EngineWebViewInterface.attach] before this method returns.
+     */
+    override fun onAttachedToWindow() {
+        super.onAttachedToWindow()
+        val lifecycle = viewLifecycleOwner
+        if (lifecycle != null) {
+            // Guard: do not register with an already-destroyed owner. This can happen in a race
+            // between the host removing and re-adding the view before advancing the new owner to
+            // a live state. LifecycleRegistry silently ignores addObserver post-DESTROYED, but
+            // storing it in observedLifecycle would prevent cleanup on the next detach.
+            if (lifecycle.currentState == Lifecycle.State.DESTROYED) return
+
+            // If we are already registered with a DIFFERENT owner (owner changed across a
+            // re-parent), remove from the old one first to avoid observer leaks.
+            val old = observedLifecycle
+            if (old !== lifecycle) {
+                old?.removeObserver(this)
+            }
+            observedLifecycle = lifecycle
+            // addObserver is idempotent for the same (observer, registry) pair; if setup() already
+            // called it on this owner, this is a safe no-op. If the owner's current state is
+            // RESUMED, LifecycleRegistry immediately dispatches onResume -> onLifecycleResumed()
+            // -> attach(), re-arming isAttachedToWebView.
+            lifecycle.addObserver(this)
+        }
+        // If null: no lifecycle owner in view tree (non-lifecycle host context).
+        // setup() already handles this via its '?: run { onLifecycleResumed() }' fallback.
+    }
+
+    /**
+     * Unregisters from the tracked lifecycle owner when the view is removed from the window.
+     *
+     * Must use [observedLifecycle] rather than [viewLifecycleOwner] because [getParent] is
+     * already null at the time this callback fires (the platform sets mParent = null before
+     * dispatching [onDetachedFromWindow]), so [findViewTreeLifecycleOwner] would return null.
+     *
+     * If the owner is already DESTROYED at this point (normal path: the owner fires onDestroy,
+     * which removes all its observers automatically via LifecycleRegistry, and the view is
+     * then detached), [removeObserver] is a safe no-op.
+     */
+    override fun onDetachedFromWindow() {
+        super.onDetachedFromWindow()
+        observedLifecycle?.removeObserver(this)
+        observedLifecycle = null
     }
 
     override fun getView(): EngineWebView {
@@ -163,7 +234,17 @@ internal class EngineWebView @JvmOverloads constructor(
         colorSchemeJob = null
         // remove lifecycle observer to stop receiving further lifecycle events
         onLifecyclePaused()
-        viewLifecycleOwner?.removeObserver(this)
+        // Use observedLifecycle (tracked field) rather than viewLifecycleOwner: if stopLoading()
+        // is called after the view has been detached, mParent is null and findViewTreeLifecycleOwner()
+        // returns null, which would silently skip the removal and leave a dangling observer.
+        val observed = observedLifecycle
+        if (observed != null) {
+            observed.removeObserver(this)
+            observedLifecycle = null
+        } else {
+            // Fallback: called before onAttachedToWindow ever ran (setup-before-attach scenario).
+            viewLifecycleOwner?.removeObserver(this)
+        }
         // stop the timer and clean up
         bootstrapped()
     }
@@ -225,7 +306,13 @@ internal class EngineWebView @JvmOverloads constructor(
             it.settings.textZoom = 100
             it.setBackgroundColor(Color.TRANSPARENT)
 
-            viewLifecycleOwner?.addObserver(this) ?: run {
+            // Track whichever owner we register with so onDetachedFromWindow can remove it
+            // safely even after the parent chain is severed (mParent == null at detach time).
+            val lc = viewLifecycleOwner
+            if (lc != null) {
+                observedLifecycle = lc
+                lc.addObserver(this)
+            } else {
                 logger.error("Lifecycle owner not found, attaching interface to WebView manually")
                 onLifecycleResumed()
             }

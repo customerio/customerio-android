@@ -2967,6 +2967,11 @@ class GeofenceRepositoryTest : RobolectricTest() {
         registered.captured.single {
             it.id == GeofenceConstants.MOVEMENT_TRIGGER_ID
         }.radius shouldBeEqualTo 725f
+        // The record is what field diagnosis reads to tell a shrunk trigger from a normal one, so
+        // it has to report the radius that was registered, not the one the config carries.
+        val loggedRadius = slot<Double>()
+        verify { logger.logMovementTriggerRegistered(any(), any(), capture(loggedRadius)) }
+        loggedRadius.captured shouldBeEqualTo 725.0
     }
 
     @Test

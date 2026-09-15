@@ -861,7 +861,9 @@ internal class GeofenceRepositoryImpl(
                         logger.logMovementTriggerRegistered(
                             latitude = latitude,
                             longitude = longitude,
-                            radiusMeters = config.localRefreshTriggerRadius.toDouble()
+                            radiusMeters = (
+                                movementTriggerRadiusMeters ?: config.localRefreshTriggerRadius
+                                ).toDouble()
                         )
                     }
                 }

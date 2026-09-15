@@ -76,7 +76,7 @@ class GeofenceContainmentRealStoreTest : RobolectricTest() {
         // Routing too: a pass that registered without arming this leaves the cache reading as
         // unregistered, so the refresh below would re-register rather than judge containment.
         store.saveRoutableRegisteredIds(setOf(GeofenceConstants.MOVEMENT_TRIGGER_ID, fence.id))
-        store.saveLastMovementTriggerLocation(GeofenceLocation(0.0, 0.0))
+        store.saveLastMovementTriggerLocation(GeofenceLocation(0.0, 0.0), 1_000f)
         store.setLastRegistrationUptime(clock.elapsedRealtime())
     }
 

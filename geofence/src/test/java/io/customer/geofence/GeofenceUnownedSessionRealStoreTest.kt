@@ -78,7 +78,7 @@ class GeofenceUnownedSessionRealStoreTest : RobolectricTest() {
             syncTimestamp = System.currentTimeMillis(),
             expectedUserStateGeneration = store.userStateGeneration()
         )
-        store.saveLastMovementTriggerLocation(GeofenceLocation(0.0, 0.0))
+        store.saveLastMovementTriggerLocation(GeofenceLocation(0.0, 0.0), 1_000f)
         store.setLastRegistrationUptime(clock.elapsedRealtime())
     }
 
@@ -179,7 +179,7 @@ class GeofenceUnownedSessionRealStoreTest : RobolectricTest() {
             syncTimestamp = System.currentTimeMillis(),
             expectedUserStateGeneration = store.userStateGeneration()
         )
-        store.saveLastMovementTriggerLocation(GeofenceLocation(10.0, 20.0))
+        store.saveLastMovementTriggerLocation(GeofenceLocation(10.0, 20.0), 1_000f)
 
         store.beginUserSession("someone-else")
 

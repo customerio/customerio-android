@@ -248,7 +248,7 @@ internal interface GeofenceRegionStore {
 
     fun getLastApiFetchLocation(): GeofenceLocation?
 
-    fun saveLastMovementTriggerLocation(location: GeofenceLocation)
+    fun saveLastMovementTriggerLocation(location: GeofenceLocation, radiusMeters: Float)
 
     /**
      * Records [location] as the movement-trigger center, but only while [expectedUserStateGeneration]
@@ -260,9 +260,18 @@ internal interface GeofenceRegionStore {
      */
     fun saveLastMovementTriggerLocationIfCurrent(
         location: GeofenceLocation,
+        radiusMeters: Float,
         expectedUserStateGeneration: Long
     ): Boolean
+
     fun getLastMovementTriggerLocation(): GeofenceLocation?
+
+    /**
+     * Radius of the circle actually registered at [getLastMovementTriggerLocation], which a polygon
+     * can shrink below the configured one. Null before the first registration writes it, including
+     * the first pass after an upgrade.
+     */
+    fun getLastMovementTriggerRadius(): Float?
     fun clearLastMovementTriggerLocation()
 
     fun getLastSyncTimestamp(): Long?
@@ -836,23 +845,44 @@ internal class GeofenceRegionStoreImpl(
     override fun getLastApiFetchLocation(): GeofenceLocation? =
         readEncryptedJson(KEY_LAST_API_FETCH_LOCATION, GeofenceLocation.serializer())
 
-    override fun saveLastMovementTriggerLocation(location: GeofenceLocation) =
-        writeEncryptedJson(KEY_LAST_MOVEMENT_TRIGGER_LOCATION, GeofenceLocation.serializer(), location)
+    override fun saveLastMovementTriggerLocation(location: GeofenceLocation, radiusMeters: Float) {
+        // One edit: a centre without its radius would be read as the configured one and undo the
+        // shrink, which is the defect this pair exists to close.
+        val encrypted = locationCrypto.encrypt(
+            jsonSerializer.encode(GeofenceLocation.serializer(), location)
+        )
+        prefs.edit {
+            putString(KEY_LAST_MOVEMENT_TRIGGER_LOCATION, encrypted)
+            putFloat(KEY_LAST_MOVEMENT_TRIGGER_RADIUS, radiusMeters)
+        }
+    }
 
     override fun saveLastMovementTriggerLocationIfCurrent(
         location: GeofenceLocation,
+        radiusMeters: Float,
         expectedUserStateGeneration: Long
     ): Boolean = synchronized(enteredLock) {
         if (expectedUserStateGeneration != currentUserStateGenerationLocked()) return@synchronized false
-        saveLastMovementTriggerLocation(location)
+        saveLastMovementTriggerLocation(location, radiusMeters)
         true
     }
 
     override fun getLastMovementTriggerLocation(): GeofenceLocation? =
         readEncryptedJson(KEY_LAST_MOVEMENT_TRIGGER_LOCATION, GeofenceLocation.serializer())
 
+    override fun getLastMovementTriggerRadius(): Float? = prefs.read {
+        if (contains(KEY_LAST_MOVEMENT_TRIGGER_RADIUS)) {
+            getFloat(KEY_LAST_MOVEMENT_TRIGGER_RADIUS, 0f)
+        } else {
+            null
+        }
+    }
+
     override fun clearLastMovementTriggerLocation() {
-        prefs.edit { remove(KEY_LAST_MOVEMENT_TRIGGER_LOCATION) }
+        prefs.edit {
+            remove(KEY_LAST_MOVEMENT_TRIGGER_LOCATION)
+            remove(KEY_LAST_MOVEMENT_TRIGGER_RADIUS)
+        }
     }
 
     override fun getLastSyncTimestamp(): Long? = prefs.read {
@@ -891,6 +921,7 @@ internal class GeofenceRegionStoreImpl(
         prefs.edit(commit = true) {
             remove(KEY_LAST_API_FETCH_LOCATION)
             remove(KEY_LAST_MOVEMENT_TRIGGER_LOCATION)
+            remove(KEY_LAST_MOVEMENT_TRIGGER_RADIUS)
             remove(KEY_PENDING_TRANSITION_ENTRIES)
             remove(KEY_PENDING_POLYGON_APPROACH_BATCHES)
             remove(KEY_ACTIVE_POLYGON_IDS)
@@ -1004,6 +1035,7 @@ internal class GeofenceRegionStoreImpl(
         const val KEY_CACHED_CONFIG = "cached_config"
         const val KEY_LAST_API_FETCH_LOCATION = "last_api_fetch_location"
         const val KEY_LAST_MOVEMENT_TRIGGER_LOCATION = "last_movement_trigger_location"
+        const val KEY_LAST_MOVEMENT_TRIGGER_RADIUS = "last_movement_trigger_radius"
         const val KEY_LAST_SYNC = "last_sync_timestamp"
         const val KEY_LAST_REGISTRATION_UPTIME = "last_registration_uptime"
         const val KEY_LAST_REGISTRATION_PACKAGE_UPDATE_TIME = "last_registration_package_update_time"
@@ -1026,7 +1058,8 @@ internal class GeofenceRegionStoreImpl(
         // outlived the upgrade and boot restore has nothing else to anchor on.
         val REGISTRATION_ANCHOR_KEYS = listOf(
             KEY_LAST_API_FETCH_LOCATION,
-            KEY_LAST_MOVEMENT_TRIGGER_LOCATION
+            KEY_LAST_MOVEMENT_TRIGGER_LOCATION,
+            KEY_LAST_MOVEMENT_TRIGGER_RADIUS
         )
 
         const val MAXIMUM_PENDING_APPROACH_BATCHES = 128

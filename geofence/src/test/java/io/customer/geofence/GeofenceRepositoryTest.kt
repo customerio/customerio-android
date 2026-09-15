@@ -72,6 +72,10 @@ class GeofenceRepositoryTest : RobolectricTest() {
         // The relaxed mock would answer false, which is the "an identify landed mid-pass" branch.
         // Default to the ordinary outcome so only the tests that mean to exercise a refusal do.
         every { store.saveRoutableRegisteredIdsIfCurrent(any(), any()) } returns true
+        // The relaxed mock answers 0f, which would read as "device is outside a zero-radius
+        // circle" and make every pass re-rank. Null is the honest default: no radius recorded yet,
+        // so the configured one governs.
+        every { store.getLastMovementTriggerRadius() } returns null
         every { store.getRoutableRegisteredIds() } answers { store.getRegisteredIds() }
         every { polygonController.clearUserScopedState() } answers {
             store.clearUserScopedState()
@@ -276,7 +280,7 @@ class GeofenceRepositoryTest : RobolectricTest() {
         result.isFailure shouldBeEqualTo true
         result.exceptionOrNull() shouldBeEqualTo error
         coVerify { manager.replaceGeofences(any(), any()) }
-        verify { store.saveLastMovementTriggerLocation(GeofenceLocation(1.0, 0.0)) }
+        verify { store.saveLastMovementTriggerLocation(GeofenceLocation(1.0, 0.0), any()) }
         verify { logger.logMovementRearmedAfterFailedRefresh() }
         // Anchor and freshness stay untouched, so the next EXIT still fetches remotely rather than
         // treating the re-rank as a successful sync.
@@ -336,6 +340,52 @@ class GeofenceRepositoryTest : RobolectricTest() {
         repository.refresh(latitude = 0.02, longitude = 0.0)
 
         coVerify(exactly = 0) { apiService.fetchGeofences(any()) }
+        coVerify(exactly = 0) { manager.replaceGeofences(any(), any()) }
+        verify { logger.logSyncSkippedFresh() }
+    }
+
+    @Test
+    fun refreshFromLiveFix_givenDeviceOutsideTheShrunkTrigger_expectLocalRerankNotSkip() = runTest {
+        // A polygon shrank the trigger to 150 m. The device is 300 m out, so it has left the circle
+        // the OS is actually holding even though it is well inside the configured 1 km. Comparing
+        // against the configured radius reads this as fresh and skips, which leaves the trigger
+        // fired-and-outside with nothing re-centring it, so discovery stops.
+        every { secureUserStore.getUserId() } returns "user-42"
+        every { store.getLastSyncTimestamp() } returns System.currentTimeMillis() - 60_000L
+        every { store.getCachedConfig() } returns sampleConfig()
+        every { store.getLastApiFetchLocation() } returns GeofenceLocation(0.0, 0.0)
+        every { store.getLastMovementTriggerLocation() } returns GeofenceLocation(0.0, 0.0)
+        every { store.getLastMovementTriggerRadius() } returns 150f
+        every { store.getCachedRegions() } returns listOf(GeofenceRegion("biz-1", 0.0, 0.0, 100f))
+        every { store.getRegisteredIds() } returns setOf("biz-1")
+        every { store.getRoutableRegisteredIds() } returns setOf("biz-1")
+        every { distanceFilter.nearest(any(), any(), any(), any(), any()) } returns
+            listOf(GeofenceRegion("biz-1", 0.0, 0.0, 100f))
+        coEvery { manager.replaceGeofences(any(), any()) } returns Result.success(Unit)
+
+        repository.refreshFromLiveFix(latitude = metersOfLatitude(300), longitude = 0.0)
+
+        coVerify(exactly = 0) { apiService.fetchGeofences(any()) }
+        coVerify { manager.replaceGeofences(any(), any()) }
+        verify(exactly = 0) { logger.logSyncSkippedFresh() }
+    }
+
+    @Test
+    fun refreshFromLiveFix_givenNoRecordedRadius_expectConfiguredRadiusStillGoverns() = runTest {
+        // An install upgrading into the new key has a centre and no radius. It must behave exactly
+        // as before rather than treat a missing value as zero and re-rank on every fix.
+        every { secureUserStore.getUserId() } returns "user-42"
+        every { store.getLastSyncTimestamp() } returns System.currentTimeMillis() - 60_000L
+        every { store.getCachedConfig() } returns sampleConfig()
+        every { store.getLastApiFetchLocation() } returns GeofenceLocation(0.0, 0.0)
+        every { store.getLastMovementTriggerLocation() } returns GeofenceLocation(0.0, 0.0)
+        every { store.getLastMovementTriggerRadius() } returns null
+        every { store.getCachedRegions() } returns listOf(GeofenceRegion("biz-1", 0.0, 0.0, 100f))
+        every { store.getRegisteredIds() } returns setOf("biz-1")
+        every { store.getRoutableRegisteredIds() } returns setOf("biz-1")
+
+        repository.refreshFromLiveFix(latitude = metersOfLatitude(300), longitude = 0.0)
+
         coVerify(exactly = 0) { manager.replaceGeofences(any(), any()) }
         verify { logger.logSyncSkippedFresh() }
     }
@@ -519,7 +569,7 @@ class GeofenceRepositoryTest : RobolectricTest() {
             listOf(GeofenceRegion("biz-1", 0.0, 0.0, 100f))
         coEvery { manager.replaceGeofences(any(), any()) } returns Result.success(Unit)
         val capturedLoc = slot<GeofenceLocation>()
-        every { store.saveLastMovementTriggerLocation(capture(capturedLoc)) } returns Unit
+        every { store.saveLastMovementTriggerLocation(capture(capturedLoc), any()) } returns Unit
 
         repository.refresh(latitude = 12.34, longitude = 56.78)
 
@@ -541,7 +591,7 @@ class GeofenceRepositoryTest : RobolectricTest() {
         repository.refresh(latitude = 12.34, longitude = 56.78)
 
         captured.captured.shouldBeEmpty()
-        verify(exactly = 0) { store.saveLastMovementTriggerLocation(any()) }
+        verify(exactly = 0) { store.saveLastMovementTriggerLocation(any(), any()) }
         verify { store.clearLastMovementTriggerLocation() }
         // Region count alone can't distinguish this from an empty-but-still-monitoring sync.
         verify { logger.logSyncSucceeded(0, movementTriggerRegistered = false, elapsedMillis = any()) }
@@ -566,7 +616,7 @@ class GeofenceRepositoryTest : RobolectricTest() {
         repository.refresh(latitude = 12.34, longitude = 56.78)
 
         captured.captured.map { it.id } shouldBeEqualTo listOf(GeofenceConstants.MOVEMENT_TRIGGER_ID)
-        verify { store.saveLastMovementTriggerLocation(GeofenceLocation(12.34, 56.78)) }
+        verify { store.saveLastMovementTriggerLocation(GeofenceLocation(12.34, 56.78), any()) }
         verify(exactly = 0) { store.clearLastMovementTriggerLocation() }
     }
 
@@ -587,7 +637,7 @@ class GeofenceRepositoryTest : RobolectricTest() {
 
         // Only the movement trigger is registered; no business geofences qualified.
         captured.captured.map { it.id } shouldBeEqualTo listOf(GeofenceConstants.MOVEMENT_TRIGGER_ID)
-        verify { store.saveLastMovementTriggerLocation(GeofenceLocation(12.34, 56.78)) }
+        verify { store.saveLastMovementTriggerLocation(GeofenceLocation(12.34, 56.78), any()) }
         verify(exactly = 0) { store.clearLastMovementTriggerLocation() }
         verify { logger.logSyncSucceeded(0, movementTriggerRegistered = true, elapsedMillis = any()) }
     }
@@ -606,7 +656,7 @@ class GeofenceRepositoryTest : RobolectricTest() {
 
         repository.refresh(latitude = 12.34, longitude = 56.78)
 
-        verify(exactly = 0) { store.saveLastMovementTriggerLocation(any()) }
+        verify(exactly = 0) { store.saveLastMovementTriggerLocation(any(), any()) }
     }
 
     @Test
@@ -1899,7 +1949,7 @@ class GeofenceRepositoryTest : RobolectricTest() {
         initPass.join()
 
         // Re-centred on the movement fix, not the anchor the init pass was using.
-        verify { store.saveLastMovementTriggerLocation(GeofenceLocation(0.001, 0.0)) }
+        verify { store.saveLastMovementTriggerLocation(GeofenceLocation(0.001, 0.0), any()) }
         verify(exactly = 0) { logger.logSyncSkipped(match { it.contains("already in progress") }) }
     }
 
@@ -1929,7 +1979,7 @@ class GeofenceRepositoryTest : RobolectricTest() {
         repository.handleMovement(latitude = 0.001, longitude = 0.0)
         holder.join()
 
-        verify { store.saveLastMovementTriggerLocation(GeofenceLocation(0.001, 0.0)) }
+        verify { store.saveLastMovementTriggerLocation(GeofenceLocation(0.001, 0.0), any()) }
         verify(exactly = 0) { logger.logSyncSkipped(match { it.contains("already in progress") }) }
     }
 
@@ -1964,7 +2014,7 @@ class GeofenceRepositoryTest : RobolectricTest() {
 
         // Still one: the second pass took the slot rather than finding it latched.
         verify(exactly = 1) { logger.logSyncSkipped(match { it.contains("already in progress") }) }
-        verify { store.saveLastMovementTriggerLocation(GeofenceLocation(0.002, 0.0)) }
+        verify { store.saveLastMovementTriggerLocation(GeofenceLocation(0.002, 0.0), any()) }
     }
 
     @Test
@@ -1995,7 +2045,7 @@ class GeofenceRepositoryTest : RobolectricTest() {
         repository.refreshFromLiveFix(latitude = 0.02, longitude = 0.0)
         identifyPass.join()
 
-        verify { store.saveLastMovementTriggerLocation(GeofenceLocation(0.02, 0.0)) }
+        verify { store.saveLastMovementTriggerLocation(GeofenceLocation(0.02, 0.0), any()) }
         verify(exactly = 0) { logger.logSyncSkipped(match { it.contains("already in progress") }) }
     }
 
@@ -2765,7 +2815,7 @@ class GeofenceRepositoryTest : RobolectricTest() {
         every { store.getLastRegistrationUptime() } answers { registrationUptime }
         every { store.setLastRegistrationUptime(any()) } answers { registrationUptime = firstArg() }
         every { store.getLastMovementTriggerLocation() } answers { movementLocation }
-        every { store.saveLastMovementTriggerLocation(any()) } answers { movementLocation = firstArg() }
+        every { store.saveLastMovementTriggerLocation(any(), any()) } answers { movementLocation = firstArg() }
         every { store.getEnteredIds() } answers { enteredIds.orEmpty() }
         every { store.claimExit(any()) } answers {
             val id = firstArg<String>()
@@ -2972,6 +3022,9 @@ class GeofenceRepositoryTest : RobolectricTest() {
         val loggedRadius = slot<Double>()
         verify { logger.logMovementTriggerRegistered(any(), any(), capture(loggedRadius)) }
         loggedRadius.captured shouldBeEqualTo 725.0
+        // Pinned, not any(): the staleness check reads this back, so persisting the configured
+        // radius here would silently restore the bug this PR fixes.
+        verify { store.saveLastMovementTriggerLocation(any(), 725f) }
     }
 
     @Test

@@ -227,11 +227,20 @@ internal class GeofenceRepositoryImpl(
         return clock.currentTimeMillis() - lastSync >= config.remoteFetchRefreshExpiry
     }
 
-    // The device has left the trigger radius since the nearest-N was last ranked, so the registered
-    // set no longer reflects the closest geofences — re-rank locally (no network). This is exactly the
-    // condition the live movement trigger fires on; refresh() catches an EXIT missed while app was dead.
+    // The device has left the trigger circle since the nearest-N was last ranked, so the registered
+    // set no longer reflects the closest geofences — re-rank locally (no network).
+    //
+    // Against the radius that was registered, not the configured one: a polygon can shrink the
+    // trigger to a fifth of it, and comparing against the config value would read a device well
+    // outside the real circle as still fresh.
+    //
+    // Only reachable from a live fix. Identify, launch and foreground retry all anchor the pass at
+    // the stored registration centre, so their distance is 0 by construction. The foreground silent
+    // fix is what carries a real position here, which is how a movement EXIT lost while the process
+    // was dead gets caught.
     private fun isRankingStale(distanceFromLastRegistration: Float, config: GeofenceConfig): Boolean =
-        distanceFromLastRegistration >= config.localRefreshTriggerRadius
+        distanceFromLastRegistration >=
+            (store.getLastMovementTriggerRadius() ?: config.localRefreshTriggerRadius)
 
     // The cached set only covers the area around the last fetch; once the device moves past the fetch
     // radius the set is no longer "nearby", so re-fetch from the server.
@@ -829,7 +838,10 @@ internal class GeofenceRepositoryImpl(
                     // re-center close to their real position. Clear only when nothing is registered
                     // (kill switch) — the trigger, and thus its location, is gone.
                     if (monitoringEnabled) {
-                        store.saveLastMovementTriggerLocation(GeofenceLocation(latitude, longitude))
+                        store.saveLastMovementTriggerLocation(
+                            GeofenceLocation(latitude, longitude),
+                            movementTriggerRadiusMeters ?: config.localRefreshTriggerRadius
+                        )
                     } else {
                         store.clearLastMovementTriggerLocation()
                     }

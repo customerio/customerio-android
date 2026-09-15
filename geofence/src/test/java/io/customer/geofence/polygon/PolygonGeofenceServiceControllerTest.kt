@@ -84,10 +84,10 @@ class PolygonGeofenceServiceControllerTest {
         finishRegistration.complete(Unit)
         exit.await()
 
-        verify(exactly = 0) { store.saveLastMovementTriggerLocation(any()) }
+        verify(exactly = 0) { store.saveLastMovementTriggerLocation(any(), any()) }
         // The real store refuses the write under its own lock; assert the refusal reached it with
         // the departing generation rather than being skipped by an earlier guard.
-        verify(exactly = 1) { store.saveLastMovementTriggerLocationIfCurrent(any(), 0L) }
+        verify(exactly = 1) { store.saveLastMovementTriggerLocationIfCurrent(any(), any(), 0L) }
     }
 
     @Test
@@ -98,14 +98,14 @@ class PolygonGeofenceServiceControllerTest {
         every { store.getRoutableRegisteredIds() } returns setOf("campus")
         every { store.getEnteredIds() } returns emptySet()
         every { store.getCachedConfig() } returns geofenceConfig()
-        every { store.saveLastMovementTriggerLocationIfCurrent(any(), any()) } returns true
+        every { store.saveLastMovementTriggerLocationIfCurrent(any(), any(), any()) } returns true
         coEvery { engine.processResponsiveLocation(exitLocation, any()) } returns true
         coEvery { manager.replaceMovementTrigger(any()) } returns Result.success(Unit)
 
         controller.onCoarseExit("campus", exitLocation)
 
         verify(exactly = 1) {
-            store.saveLastMovementTriggerLocationIfCurrent(GeofenceLocation(37.7900, -122.4194), 0L)
+            store.saveLastMovementTriggerLocationIfCurrent(GeofenceLocation(37.7900, -122.4194), any(), 0L)
         }
     }
 

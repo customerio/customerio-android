@@ -567,6 +567,10 @@ internal class GeofenceRepositoryImpl(
             if (preRemove.isNotEmpty()) {
                 val removal = manager.removeGeofencesByIds(preRemove)
                 if (removal.isFailure) return removal
+                // Persisted now rather than on add success, unlike the stale cleanup below: GMS has
+                // already dropped these, and the store mirrors what the OS holds whatever the add
+                // does next. Deferring would leave it claiming fences that are gone, which the next
+                // pass would count toward the peak and try to remove again.
                 val remainingIds = store.getRegisteredIds() - preRemove.toSet()
                 store.saveRegisteredIds(remainingIds)
                 store.saveRoutableRegisteredIds(

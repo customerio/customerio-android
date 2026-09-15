@@ -175,6 +175,7 @@ internal val AndroidSDKComponent.polygonApproachMonitor: PolygonApproachMonitor
         PolygonApproachMonitor(
             context = applicationContext,
             client = polygonFusedLocationClient,
+            store = geofenceRegionStore,
             logger = SDKComponent.geofenceLogger,
             backgroundContext = SDKComponent.dispatchersProvider.background
         )

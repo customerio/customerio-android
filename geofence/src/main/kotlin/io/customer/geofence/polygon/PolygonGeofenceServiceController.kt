@@ -494,6 +494,7 @@ internal class PolygonGeofenceServiceController(
         // lock held, so a sign-out can have completed inside that gap and cleared this state.
         val recorded = store.saveLastMovementTriggerLocationIfCurrent(
             GeofenceLocation(location.latitude, location.longitude),
+            safeRadius,
             expectedUserStateGeneration
         )
         if (!recorded) return null

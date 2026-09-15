@@ -1120,7 +1120,7 @@ class GeofenceRegionStoreTest : RobolectricTest() {
     fun saveLastMovementTriggerLocationIfCurrent_givenCurrentGeneration_expectWritten() {
         val location = GeofenceLocation(latitude = 37.7749, longitude = -122.4194)
 
-        val written = store.saveLastMovementTriggerLocationIfCurrent(location, store.userStateGeneration())
+        val written = store.saveLastMovementTriggerLocationIfCurrent(location, 1_000f, store.userStateGeneration())
 
         written shouldBeEqualTo true
         store.getLastMovementTriggerLocation() shouldBeEqualTo location
@@ -1131,10 +1131,7 @@ class GeofenceRegionStoreTest : RobolectricTest() {
         val stale = store.userStateGeneration()
         store.beginUserSession("someone-else")
 
-        val written = store.saveLastMovementTriggerLocationIfCurrent(
-            GeofenceLocation(latitude = 37.7749, longitude = -122.4194),
-            stale
-        )
+        val written = store.saveLastMovementTriggerLocationIfCurrent(GeofenceLocation(latitude = 37.7749, longitude = -122.4194), 1_000f, stale)
 
         written shouldBeEqualTo false
         store.getLastMovementTriggerLocation().shouldBeNull()
@@ -1149,7 +1146,7 @@ class GeofenceRegionStoreTest : RobolectricTest() {
     fun saveLastMovementTriggerLocation_thenGet_expectRoundTrip() {
         val location = GeofenceLocation(latitude = 40.7128, longitude = -74.0060)
 
-        store.saveLastMovementTriggerLocation(location)
+        store.saveLastMovementTriggerLocation(location, 1_000f)
 
         store.getLastMovementTriggerLocation() shouldBeEqualTo location
     }
@@ -1157,17 +1154,43 @@ class GeofenceRegionStoreTest : RobolectricTest() {
     @Test
     fun saveLastMovementTriggerLocation_givenSubsequentSave_expectOverwrite() {
         // Each successful registration overwrites — we only ever need the latest.
-        store.saveLastMovementTriggerLocation(GeofenceLocation(1.0, 2.0))
-        store.saveLastMovementTriggerLocation(GeofenceLocation(3.0, 4.0))
+        store.saveLastMovementTriggerLocation(GeofenceLocation(1.0, 2.0), 1_000f)
+        store.saveLastMovementTriggerLocation(GeofenceLocation(3.0, 4.0), 1_000f)
 
         store.getLastMovementTriggerLocation() shouldBeEqualTo GeofenceLocation(3.0, 4.0)
+    }
+
+    @Test
+    fun saveLastMovementTriggerLocation_thenGetRadius_expectTheRegisteredRadiusNotTheConfigured() {
+        // A polygon can shrink the trigger well below the configured radius, and the staleness
+        // check reads this back to decide whether the device has left the circle that exists.
+        store.saveLastMovementTriggerLocation(GeofenceLocation(1.0, 2.0), 150f)
+
+        store.getLastMovementTriggerRadius() shouldBeEqualTo 150f
+    }
+
+    @Test
+    fun getLastMovementTriggerRadius_givenNothingWritten_expectNull() {
+        // An install upgrading into this key has a centre and no radius. Null is what makes the
+        // caller fall back to the configured radius rather than read 0 and re-rank on every pass.
+        store.getLastMovementTriggerRadius().shouldBeNull()
+    }
+
+    @Test
+    fun clearLastMovementTriggerLocation_givenPriorSave_expectRadiusClearedWithIt() {
+        // A stale radius outliving its centre would be applied to the next registration.
+        store.saveLastMovementTriggerLocation(GeofenceLocation(1.0, 2.0), 150f)
+
+        store.clearLastMovementTriggerLocation()
+
+        store.getLastMovementTriggerRadius().shouldBeNull()
     }
 
     @Test
     fun clearLastMovementTriggerLocation_givenPriorSave_expectNull() {
         // Called when a refresh succeeds with an empty business set (no movement
         // trigger registered → the cached location is now stale).
-        store.saveLastMovementTriggerLocation(GeofenceLocation(1.0, 2.0))
+        store.saveLastMovementTriggerLocation(GeofenceLocation(1.0, 2.0), 1_000f)
 
         store.clearLastMovementTriggerLocation()
 
@@ -1250,7 +1273,7 @@ class GeofenceRegionStoreTest : RobolectricTest() {
             )
         )
         store.saveApiFetchStateIfCurrent(GeofenceLocation(1.0, 2.0), 12_345L, store.userStateGeneration())
-        store.saveLastMovementTriggerLocation(GeofenceLocation(3.0, 4.0))
+        store.saveLastMovementTriggerLocation(GeofenceLocation(3.0, 4.0), 1_000f)
         store.recordEntered("biz-1")
 
         store.clearAll()
@@ -1287,7 +1310,7 @@ class GeofenceRegionStoreTest : RobolectricTest() {
         store.recordEntered("biz-1")
         store.markEnterEmitted(USER, "biz-1")
         store.saveApiFetchStateIfCurrent(GeofenceLocation(1.0, 2.0), 12_345L, store.userStateGeneration())
-        store.saveLastMovementTriggerLocation(GeofenceLocation(3.0, 4.0))
+        store.saveLastMovementTriggerLocation(GeofenceLocation(3.0, 4.0), 1_000f)
         store.setLastRegistrationUptime(99_999L)
         store.setLastRegistrationPackageUpdateTime(88_888L)
 

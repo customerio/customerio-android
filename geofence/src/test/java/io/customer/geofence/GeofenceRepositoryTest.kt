@@ -3022,6 +3022,9 @@ class GeofenceRepositoryTest : RobolectricTest() {
         val loggedRadius = slot<Double>()
         verify { logger.logMovementTriggerRegistered(any(), any(), capture(loggedRadius)) }
         loggedRadius.captured shouldBeEqualTo 725.0
+        // Pinned, not any(): the staleness check reads this back, so persisting the configured
+        // radius here would silently restore the bug this PR fixes.
+        verify { store.saveLastMovementTriggerLocation(any(), 725f) }
     }
 
     @Test

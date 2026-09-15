@@ -18,7 +18,14 @@
             android:enabled="false"
             android:exported="false" />
 
-        <!-- Receives the displacement-gated polygon approach fixes registered with GMS. -->
+        <!--
+            Receives the displacement-gated polygon approach fixes registered with GMS.
+
+            Deliberately always enabled, unlike the two receivers around it. Its registration is a
+            PendingIntent held by GMS that outlives both the process and the kill switch, so
+            disabling this would strand a live request with nothing able to receive the delivery
+            that tears it down.
+        -->
         <receiver
             android:name="io.customer.geofence.polygon.PolygonApproachReceiver"
             android:exported="false" />

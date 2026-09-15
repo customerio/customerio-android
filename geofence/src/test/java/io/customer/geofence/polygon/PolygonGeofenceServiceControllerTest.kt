@@ -237,6 +237,12 @@ class PolygonGeofenceServiceControllerTest {
 
     @Test
     fun recover_givenPersistedPolygonState_expectDoesNotCreateSamplingSession() {
+        // The active set is "polygons whose circle contains the device", which persists for as long
+        // as they stand there — far longer than the two-minute session. Re-arming here would
+        // therefore open a fresh session on EVERY foreground for someone sitting inside a polygon.
+        // Recovery is not needed for the fixes themselves: the OS request is a PendingIntent that
+        // outlives the process, so delivery resumes on its own and handleLocations re-adopts the
+        // bounded session from the deadline in the intent extras.
         every { store.getActivePolygonIds() } returns setOf("campus")
         every { store.getLastRegistrationUptime() } returns 0L
 

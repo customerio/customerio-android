@@ -12,6 +12,7 @@ import com.google.android.gms.location.LocationRequest
 import com.google.android.gms.location.Priority
 import com.google.android.gms.tasks.Task
 import io.customer.geofence.GeofenceLogger
+import io.customer.geofence.store.GeofenceRegionStore
 import kotlin.coroutines.CoroutineContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -27,16 +28,13 @@ import kotlinx.coroutines.launch
 internal class PolygonApproachMonitor(
     context: Context,
     private val client: FusedLocationProviderClient,
+    private val store: GeofenceRegionStore,
     private val logger: GeofenceLogger,
     backgroundContext: CoroutineContext
 ) {
     private val lock = Any()
     private var desired = false
     private var userStateGeneration: Long? = null
-
-    // Highest generation this monitor has ever armed. `userStateGeneration` is cleared by `stop`,
-    // so it cannot answer "is this caller stale?" once a session has ended; this survives it.
-    private var highestArmedUserStateGeneration: Long? = null
     private var sessionDeadlineElapsedRealtimeMs: Long? = null
     private var activePendingIntent: PendingIntent? = null
     private val applicationContext = context.applicationContext
@@ -68,13 +66,18 @@ internal class PolygonApproachMonitor(
             return
         }
         val registration = synchronized(lock) {
-            // Generations only move forward, and `stop` already refuses to tear down a session it
-            // does not name. Without the same rule here, a caller resuming after preemption arms
-            // the generation it captured before suspending and replaces the request the newer
-            // session armed while it was away. Its own timeout removes that request later but does
-            // not put the newer one back.
-            val highestArmed = highestArmedUserStateGeneration
-            if (highestArmed != null && expectedUserStateGeneration < highestArmed) {
+            // The store owns which generation is live, and `start` is reached with no lock held
+            // across the decision that led here: a caller preempted after deciding to sample
+            // resumes holding the generation it captured before suspending. By then an identify
+            // can have armed a newer session, which arming the older one would replace, or a
+            // sign-out can have ended that generation outright, which would open a fine-location
+            // session for a user who is no longer signed in. Neither is visible from this
+            // monitor's own state, because `stop` clears the live generation and sign-out arms
+            // nothing newer to compare against.
+            //
+            // Read under this lock so the teardown that follows sign-out either bumps the
+            // generation before this check, or names the request armed here and removes it.
+            if (expectedUserStateGeneration != store.userStateGeneration()) {
                 return
             }
             if (
@@ -87,7 +90,6 @@ internal class PolygonApproachMonitor(
             val previous = activePendingIntent
             desired = true
             userStateGeneration = expectedUserStateGeneration
-            highestArmedUserStateGeneration = expectedUserStateGeneration
             this.sessionDeadlineElapsedRealtimeMs = sessionDeadlineElapsedRealtimeMs
             registrationRetryAttempt = 0
             registrationRetryJob?.cancel()

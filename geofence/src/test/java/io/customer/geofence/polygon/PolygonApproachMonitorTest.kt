@@ -10,6 +10,7 @@ import com.google.android.gms.tasks.TaskCompletionSource
 import com.google.android.gms.tasks.Tasks
 import io.customer.commontest.core.RobolectricTest
 import io.customer.geofence.GeofenceLogger
+import io.customer.geofence.store.GeofenceRegionStore
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
@@ -33,6 +34,13 @@ import org.robolectric.shadows.ShadowSystemClock
 class PolygonApproachMonitorTest : RobolectricTest() {
     private val client: FusedLocationProviderClient = mockk(relaxed = true)
     private val logger: GeofenceLogger = mockk(relaxed = true)
+
+    // The live generation as the store reports it. A generation only exists once the store has
+    // moved to it, so a test arming a newer one moves this first.
+    private var storeUserStateGeneration = 7L
+    private val mockStore: GeofenceRegionStore = mockk(relaxed = true) {
+        every { userStateGeneration() } answers { storeUserStateGeneration }
+    }
 
     @Test
     fun start_expectBoundedResponsiveRequestBoundToUserGeneration() {
@@ -84,6 +92,7 @@ class PolygonApproachMonitorTest : RobolectricTest() {
         val monitor = monitor()
 
         monitor.start(7L)
+        storeUserStateGeneration = 8L
         monitor.start(8L)
 
         verify(exactly = 2) {
@@ -103,6 +112,7 @@ class PolygonApproachMonitorTest : RobolectricTest() {
         } returns Tasks.forResult(null)
         every { client.removeLocationUpdates(any<PendingIntent>()) } returns Tasks.forResult(null)
         val monitor = monitor()
+        storeUserStateGeneration = 8L
 
         monitor.start(8L)
         monitor.start(7L)
@@ -116,13 +126,15 @@ class PolygonApproachMonitorTest : RobolectricTest() {
 
     @Test
     fun start_givenAnOlderGenerationAfterTheNewerWasStopped_expectStillRefused() {
-        // `stop` clears the live generation, so the live field alone cannot tell a stale caller
-        // from a first one. An ended generation must stay ended even with nothing armed.
+        // `stop` clears the live generation, so the monitor's own state cannot tell a stale
+        // caller from a first one. The store still names the live generation, so an ended one
+        // stays ended even with nothing armed.
         every {
             client.requestLocationUpdates(any<LocationRequest>(), any<PendingIntent>())
         } returns Tasks.forResult(null)
         every { client.removeLocationUpdates(any<PendingIntent>()) } returns Tasks.forResult(null)
         val monitor = monitor()
+        storeUserStateGeneration = 8L
 
         monitor.start(8L)
         monitor.stop()
@@ -131,6 +143,58 @@ class PolygonApproachMonitorTest : RobolectricTest() {
 
         // The 8L registration and its teardown only; 7L never armed.
         verify(exactly = 1) {
+            client.requestLocationUpdates(any<LocationRequest>(), any<PendingIntent>())
+        }
+    }
+
+    @Test
+    fun start_givenSignOutEndedTheGeneration_expectNoSessionForTheSignedOutUser() {
+        // Sign-out ends a generation without arming a newer one, so nothing this monitor holds
+        // says it is over: `stop` clears the live generation, and the generation that replaced it
+        // exists only in the store. A receiver preempted between deciding to sample and arriving
+        // here resumes with the old one still in hand, and an equal-generation restart would open
+        // a fine-location session for a user who has signed out.
+        every {
+            client.requestLocationUpdates(any<LocationRequest>(), any<PendingIntent>())
+        } returns Tasks.forResult(null)
+        every { client.removeLocationUpdates(any<PendingIntent>()) } returns Tasks.forResult(null)
+        val monitor = monitor()
+        storeUserStateGeneration = 8L
+        monitor.start(8L)
+
+        // Sign-out: the store moves past 8, and the session it armed is torn down by name.
+        storeUserStateGeneration = 9L
+        monitor.stop(8L)
+        shadowOf(Looper.getMainLooper()).idle()
+
+        monitor.start(8L)
+
+        // The first session and nothing more. Removals are not counted here: the request made
+        // before sign-out completes after it, and its own success listener tears down the
+        // registration it finds stale, so more than one removal is correct on this path.
+        verify(exactly = 1) {
+            client.requestLocationUpdates(any<LocationRequest>(), any<PendingIntent>())
+        }
+    }
+
+    @Test
+    fun start_givenTheNextUserAfterSignOut_expectTheirSessionStillArms() {
+        // Control for the refusal above: the guard must reject the generation the store has left
+        // behind, not every caller that follows a sign-out.
+        every {
+            client.requestLocationUpdates(any<LocationRequest>(), any<PendingIntent>())
+        } returns Tasks.forResult(null)
+        every { client.removeLocationUpdates(any<PendingIntent>()) } returns Tasks.forResult(null)
+        val monitor = monitor()
+        storeUserStateGeneration = 8L
+        monitor.start(8L)
+        storeUserStateGeneration = 9L
+        monitor.stop(8L)
+        shadowOf(Looper.getMainLooper()).idle()
+
+        monitor.start(9L)
+
+        verify(exactly = 2) {
             client.requestLocationUpdates(any<LocationRequest>(), any<PendingIntent>())
         }
     }
@@ -235,6 +299,7 @@ class PolygonApproachMonitorTest : RobolectricTest() {
         val monitor = PolygonApproachMonitor(
             context = applicationMock,
             client = client,
+            store = mockStore,
             logger = logger,
             backgroundContext = StandardTestDispatcher(scheduler)
         )
@@ -261,6 +326,7 @@ class PolygonApproachMonitorTest : RobolectricTest() {
         val monitor = PolygonApproachMonitor(
             context = applicationMock,
             client = client,
+            store = mockStore,
             logger = logger,
             backgroundContext = StandardTestDispatcher(scheduler)
         )
@@ -283,6 +349,7 @@ class PolygonApproachMonitorTest : RobolectricTest() {
         every { client.removeLocationUpdates(any<PendingIntent>()) } returns Tasks.forResult(null)
         val monitor = monitor()
 
+        storeUserStateGeneration = 8L
         monitor.start(8L)
         monitor.stop(expectedUserStateGeneration = 7L)
         shadowOf(Looper.getMainLooper()).idle()
@@ -302,6 +369,7 @@ class PolygonApproachMonitorTest : RobolectricTest() {
         val monitor = PolygonApproachMonitor(
             context = applicationMock,
             client = client,
+            store = mockStore,
             logger = logger,
             backgroundContext = StandardTestDispatcher(scheduler)
         )
@@ -393,6 +461,7 @@ class PolygonApproachMonitorTest : RobolectricTest() {
         val monitor = PolygonApproachMonitor(
             context = applicationMock,
             client = client,
+            store = mockStore,
             logger = logger,
             backgroundContext = StandardTestDispatcher(scheduler)
         )
@@ -473,6 +542,7 @@ class PolygonApproachMonitorTest : RobolectricTest() {
         val monitor = PolygonApproachMonitor(
             context = applicationMock,
             client = client,
+            store = mockStore,
             logger = logger,
             backgroundContext = StandardTestDispatcher(scheduler)
         )
@@ -493,6 +563,7 @@ class PolygonApproachMonitorTest : RobolectricTest() {
     private fun monitor() = PolygonApproachMonitor(
         context = applicationMock,
         client = client,
+        store = mockStore,
         logger = logger,
         backgroundContext = Dispatchers.Unconfined
     )

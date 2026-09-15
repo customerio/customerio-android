@@ -31,6 +31,20 @@ internal class PolygonGeofenceServiceController(
     private val coarseTransitionMutex = Mutex()
     private val lastCoarseTransitionElapsedNanos = mutableMapOf<String, Long>()
 
+    /**
+     * Reached on every coarse ENTER, including the ones an identify manufactures.
+     *
+     * Opening a session re-arms routing from empty, so nothing counts as unchanged afterwards and
+     * GMS re-reports ENTER for every fence the device is already inside. The attached fix is
+     * evaluated first and a decisive one ends the session immediately, so the two-minute cost lands
+     * only when that fix is ambiguous — but for an app that identifies often, that is a recurring
+     * cost with no movement behind it.
+     *
+     * It is not suppressible without weakening the guarantee: the identify cleared containment,
+     * circles recover theirs from synthesis at registration, and a polygon cannot, because the sync
+     * fix carries no accuracy evidence. Suppressing here would mean a newly identified user
+     * standing inside a ring never gets its ENTER until they move.
+     */
     suspend fun activate(
         polygonId: String,
         triggeringLocation: Location?,

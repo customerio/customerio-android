@@ -1,5 +1,8 @@
 package io.customer.geofence.polygon
 
+import io.customer.geofence.GeofenceLogger
+import io.customer.sdk.core.util.CioLogLevel
+import io.customer.sdk.core.util.Logger
 import org.amshove.kluent.shouldBeEqualTo
 import org.junit.Test
 
@@ -15,6 +18,58 @@ class PolygonRouteIntegrationTest {
             )
         )
     )
+
+    @Test
+    fun process_givenAFixThatCannotSeparateInsideFromOutside_expectAnUndecidedRecord() {
+        // Roughly 52 m from the nearest edge, with an accuracy circle plus anti-jitter margin that
+        // reaches past it. Evaluated, usable, and still undecidable.
+        val capturing = CapturingLogger()
+        val processor = PolygonRouteProcessor(logger = GeofenceLogger(capturing))
+
+        processor.process(
+            fences = listOf(campus),
+            sample = PolygonLocationSample(point(37.7750, -122.4194), 45.0),
+            elapsedRealtimeNanos = 1L,
+            committedStates = emptyMap(),
+            evidencePolicy = PolygonEvidencePolicy.DECISIVE_SINGLE_FIX
+        )
+
+        capturing.messages.count { it.contains("undecided") } shouldBeEqualTo 1
+    }
+
+    @Test
+    fun process_givenAFixTooInaccurateToEvaluate_expectAnUndecidedRecord() {
+        val capturing = CapturingLogger()
+        val processor = PolygonRouteProcessor(logger = GeofenceLogger(capturing))
+
+        processor.process(
+            fences = listOf(campus),
+            sample = PolygonLocationSample(point(37.7750, -122.4194), 80.0),
+            elapsedRealtimeNanos = 1L,
+            committedStates = emptyMap(),
+            evidencePolicy = PolygonEvidencePolicy.DECISIVE_SINGLE_FIX
+        )
+
+        capturing.messages.count { it.contains("undecided") } shouldBeEqualTo 1
+    }
+
+    @Test
+    fun process_givenADecisiveFixThatAgreesWithTheCommittedState_expectNoUndecidedRecord() {
+        // A device sitting still inside a polygon produces one of these per fix. They are not
+        // undecidable, and recording them would bury the fixes that genuinely could not be judged.
+        val capturing = CapturingLogger()
+        val processor = PolygonRouteProcessor(logger = GeofenceLogger(capturing))
+
+        processor.process(
+            fences = listOf(campus),
+            sample = PolygonLocationSample(point(37.7750, -122.4194), 30.0),
+            elapsedRealtimeNanos = 1L,
+            committedStates = mapOf("campus" to PolygonCommittedState.INSIDE),
+            evidencePolicy = PolygonEvidencePolicy.DECISIVE_SINGLE_FIX
+        )
+
+        capturing.messages.count { it.contains("undecided") } shouldBeEqualTo 0
+    }
 
     @Test
     fun route_whenUserWalksThroughCampus_thenEmitsOneEnterAndOneExit() {
@@ -76,7 +131,7 @@ class PolygonRouteIntegrationTest {
     @Test
     fun route_whenOlderBatchActivatesAnotherPolygon_thenUsesThatPolygonsOwnTimeline() {
         val eastCampus = campus.copy(id = "east-campus")
-        val processor = PolygonRouteProcessor()
+        val processor = PolygonRouteProcessor(logger = GeofenceLogger(CapturingLogger()))
         val inside = PolygonLocationSample(point(37.7750, -122.4194), 5.0)
 
         processor.process(
@@ -170,7 +225,7 @@ class PolygonRouteIntegrationTest {
     @Test
     fun route_whenActiveSessionIsRearmed_thenDoesNotReusePendingEvidence() {
         val states = mutableMapOf("campus" to PolygonCommittedState.OUTSIDE)
-        val processor = PolygonRouteProcessor()
+        val processor = PolygonRouteProcessor(logger = GeofenceLogger(CapturingLogger()))
 
         processor.process(
             fences = listOf(campus),
@@ -223,7 +278,7 @@ class PolygonRouteIntegrationTest {
         private val fences: List<PolygonFence>,
         initialStates: Map<String, PolygonCommittedState> = emptyMap()
     ) {
-        private val processor = PolygonRouteProcessor()
+        private val processor = PolygonRouteProcessor(logger = GeofenceLogger(CapturingLogger()))
         private val committedStates = if (initialStates is MutableMap) {
             initialStates
         } else {
@@ -257,5 +312,20 @@ class PolygonRouteIntegrationTest {
     private companion object {
         fun point(latitude: Double, longitude: Double) =
             PolygonCoordinate(latitude = latitude, longitude = longitude)
+    }
+
+    private class CapturingLogger : Logger {
+        val messages = mutableListOf<String>()
+        override var logLevel: CioLogLevel = CioLogLevel.DEBUG
+
+        override fun setLogDispatcher(dispatcher: ((CioLogLevel, String) -> Unit)?) = Unit
+
+        override fun info(message: String, tag: String?) = record(message)
+        override fun debug(message: String, tag: String?) = record(message)
+        override fun error(message: String, tag: String?, throwable: Throwable?) = record(message)
+
+        private fun record(message: String) {
+            messages.add(message)
+        }
     }
 }

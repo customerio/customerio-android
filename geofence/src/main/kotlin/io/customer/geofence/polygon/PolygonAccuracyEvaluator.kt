@@ -30,18 +30,43 @@ internal enum class PolygonEvidence {
     AMBIGUOUS
 }
 
+/**
+ * Why a fix could not be classified. Only set when the fix was genuinely undecidable: a decisive
+ * fix that agrees with the committed state is not undecided, and reporting it would emit a record
+ * per fix for a device sitting still inside a polygon.
+ */
+internal enum class PolygonUndecidedReason(val wire: String) {
+    ACCURACY_TOO_LOW("accuracy_too_low"),
+    ON_BOUNDARY("on_boundary"),
+    WITHIN_ACCURACY("within_accuracy")
+}
+
+internal data class PolygonEvidenceResult(
+    val evidence: PolygonEvidence,
+    val undecidedReason: PolygonUndecidedReason? = null,
+    val boundaryDistanceMeters: Double? = null
+)
+
 /** Classifies a location fix without mutating committed polygon state. */
 internal class PolygonAccuracyEvaluator {
     fun evidenceFor(
         geometry: PolygonGeometry,
         sample: PolygonLocationSample,
         committedState: PolygonCommittedState
-    ): PolygonEvidence {
+    ): PolygonEvidenceResult {
         if (sample.horizontalAccuracyMeters > MAX_EVALUATED_FIX_ACCURACY_METERS) {
-            return PolygonEvidence.AMBIGUOUS
+            return undecided(
+                PolygonUndecidedReason.ACCURACY_TOO_LOW,
+                geometry.boundaryDistanceMeters(sample.coordinate)
+            )
         }
         val centerRelation = geometry.relationTo(sample.coordinate)
-        if (centerRelation == PolygonPointRelation.BOUNDARY) return PolygonEvidence.AMBIGUOUS
+        if (centerRelation == PolygonPointRelation.BOUNDARY) {
+            return undecided(
+                PolygonUndecidedReason.ON_BOUNDARY,
+                geometry.boundaryDistanceMeters(sample.coordinate)
+            )
+        }
 
         val accuracy = when (committedState) {
             PolygonCommittedState.OUTSIDE -> sample.horizontalAccuracyMeters
@@ -58,13 +83,14 @@ internal class PolygonAccuracyEvaluator {
         val insideCount = perimeterRelations.count { it == PolygonPointRelation.INSIDE }
         val confidence = insideCount.toDouble() / PERIMETER_SAMPLE_COUNT
 
+        val boundaryDistanceMeters = geometry.boundaryDistanceMeters(sample.coordinate)
         return when {
             centerRelation == PolygonPointRelation.INSIDE &&
-                confidence >= ENTER_CONFIDENCE_THRESHOLD -> PolygonEvidence.ENTER
-            centerRelation == PolygonPointRelation.OUTSIDE &&
-                geometry.boundaryDistanceMeters(sample.coordinate) > accuracy ->
-                PolygonEvidence.EXIT
-            else -> PolygonEvidence.AMBIGUOUS
+                confidence >= ENTER_CONFIDENCE_THRESHOLD ->
+                PolygonEvidenceResult(PolygonEvidence.ENTER)
+            centerRelation == PolygonPointRelation.OUTSIDE && boundaryDistanceMeters > accuracy ->
+                PolygonEvidenceResult(PolygonEvidence.EXIT)
+            else -> undecided(PolygonUndecidedReason.WITHIN_ACCURACY, boundaryDistanceMeters)
         }
     }
 
@@ -76,24 +102,44 @@ internal class PolygonAccuracyEvaluator {
         geometry: PolygonGeometry,
         sample: PolygonLocationSample,
         committedState: PolygonCommittedState
-    ): PolygonEvidence {
+    ): PolygonEvidenceResult {
         if (sample.horizontalAccuracyMeters > MAX_DECISIVE_FIX_ACCURACY_METERS) {
-            return PolygonEvidence.AMBIGUOUS
+            return undecided(
+                PolygonUndecidedReason.ACCURACY_TOO_LOW,
+                geometry.boundaryDistanceMeters(sample.coordinate)
+            )
         }
         val relation = geometry.relationTo(sample.coordinate)
-        if (relation == PolygonPointRelation.BOUNDARY) return PolygonEvidence.AMBIGUOUS
+        if (relation == PolygonPointRelation.BOUNDARY) {
+            return undecided(
+                PolygonUndecidedReason.ON_BOUNDARY,
+                geometry.boundaryDistanceMeters(sample.coordinate)
+            )
+        }
+        val boundaryDistanceMeters = geometry.boundaryDistanceMeters(sample.coordinate)
         val requiredDistance = sample.horizontalAccuracyMeters + DECISIVE_BOUNDARY_MARGIN_METERS
-        if (geometry.boundaryDistanceMeters(sample.coordinate) <= requiredDistance) {
-            return PolygonEvidence.AMBIGUOUS
+        if (boundaryDistanceMeters <= requiredDistance) {
+            return undecided(PolygonUndecidedReason.WITHIN_ACCURACY, boundaryDistanceMeters)
         }
         return when {
             committedState == PolygonCommittedState.OUTSIDE && relation == PolygonPointRelation.INSIDE ->
-                PolygonEvidence.ENTER
+                PolygonEvidenceResult(PolygonEvidence.ENTER)
             committedState == PolygonCommittedState.INSIDE && relation == PolygonPointRelation.OUTSIDE ->
-                PolygonEvidence.EXIT
-            else -> PolygonEvidence.AMBIGUOUS
+                PolygonEvidenceResult(PolygonEvidence.EXIT)
+            // Decisive, and it agrees with the committed state. Nothing to decide, so no reason and
+            // no record: this is what a device sitting inside a polygon reports on every fix.
+            else -> PolygonEvidenceResult(PolygonEvidence.AMBIGUOUS)
         }
     }
+
+    private fun undecided(
+        reason: PolygonUndecidedReason,
+        boundaryDistanceMeters: Double
+    ) = PolygonEvidenceResult(
+        evidence = PolygonEvidence.AMBIGUOUS,
+        undecidedReason = reason,
+        boundaryDistanceMeters = boundaryDistanceMeters
+    )
 
     private fun perimeterSamples(
         center: PolygonCoordinate,

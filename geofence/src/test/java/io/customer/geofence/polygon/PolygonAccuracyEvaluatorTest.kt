@@ -18,7 +18,7 @@ class PolygonAccuracyEvaluatorTest {
     fun evidenceFor_whenAccuracyDiskIsInside_thenReturnsEnterEvidence() {
         val sample = sample(latitude = 0.0, longitude = 0.0, accuracyMeters = 10.0)
 
-        evaluator.evidenceFor(geometry, sample, PolygonCommittedState.OUTSIDE) shouldBeEqualTo
+        evaluator.evidenceFor(geometry, sample, PolygonCommittedState.OUTSIDE).evidence shouldBeEqualTo
             PolygonEvidence.ENTER
     }
 
@@ -26,7 +26,7 @@ class PolygonAccuracyEvaluatorTest {
     fun evidenceFor_whenAccuracyDiskStraddlesBoundary_thenReturnsAmbiguousEvidence() {
         val sample = sample(latitude = 0.00099, longitude = 0.00099, accuracyMeters = 20.0)
 
-        evaluator.evidenceFor(geometry, sample, PolygonCommittedState.OUTSIDE) shouldBeEqualTo
+        evaluator.evidenceFor(geometry, sample, PolygonCommittedState.OUTSIDE).evidence shouldBeEqualTo
             PolygonEvidence.AMBIGUOUS
     }
 
@@ -34,7 +34,7 @@ class PolygonAccuracyEvaluatorTest {
     fun evidenceFor_whenAccuracyDiskIsOutside_thenReturnsExitEvidence() {
         val sample = sample(latitude = 0.0, longitude = 0.002, accuracyMeters = 10.0)
 
-        evaluator.evidenceFor(geometry, sample, PolygonCommittedState.INSIDE) shouldBeEqualTo
+        evaluator.evidenceFor(geometry, sample, PolygonCommittedState.INSIDE).evidence shouldBeEqualTo
             PolygonEvidence.EXIT
     }
 
@@ -42,7 +42,7 @@ class PolygonAccuracyEvaluatorTest {
     fun evidenceFor_whenCenterIsOnBoundary_thenReturnsAmbiguousEvidence() {
         val sample = sample(latitude = 0.0, longitude = 0.001, accuracyMeters = 0.0)
 
-        evaluator.evidenceFor(geometry, sample, PolygonCommittedState.OUTSIDE) shouldBeEqualTo
+        evaluator.evidenceFor(geometry, sample, PolygonCommittedState.OUTSIDE).evidence shouldBeEqualTo
             PolygonEvidence.AMBIGUOUS
     }
 
@@ -50,7 +50,7 @@ class PolygonAccuracyEvaluatorTest {
     fun evidenceFor_whenExitAccuracyInflationTouchesPolygon_thenDefersExit() {
         val sample = sample(latitude = 0.0, longitude = 0.00101, accuracyMeters = 0.0)
 
-        evaluator.evidenceFor(geometry, sample, PolygonCommittedState.INSIDE) shouldBeEqualTo
+        evaluator.evidenceFor(geometry, sample, PolygonCommittedState.INSIDE).evidence shouldBeEqualTo
             PolygonEvidence.AMBIGUOUS
     }
 
@@ -58,7 +58,7 @@ class PolygonAccuracyEvaluatorTest {
     fun evidenceFor_whenAccuracyIsGrosslyInaccurate_thenReturnsAmbiguousEvidence() {
         val sample = sample(latitude = 0.0, longitude = 0.002, accuracyMeters = 250.0)
 
-        evaluator.evidenceFor(geometry, sample, PolygonCommittedState.INSIDE) shouldBeEqualTo
+        evaluator.evidenceFor(geometry, sample, PolygonCommittedState.INSIDE).evidence shouldBeEqualTo
             PolygonEvidence.AMBIGUOUS
     }
 
@@ -74,7 +74,7 @@ class PolygonAccuracyEvaluatorTest {
         )
         val sample = sample(latitude = 0.0, longitude = 0.0009, accuracyMeters = 150.0)
 
-        evaluator.evidenceFor(smallGeometry, sample, PolygonCommittedState.INSIDE) shouldBeEqualTo
+        evaluator.evidenceFor(smallGeometry, sample, PolygonCommittedState.INSIDE).evidence shouldBeEqualTo
             PolygonEvidence.AMBIGUOUS
     }
 
@@ -82,7 +82,7 @@ class PolygonAccuracyEvaluatorTest {
     fun decisiveEvidenceFor_whenAccuracyCircleAndMarginAreInside_thenReturnsEnter() {
         val sample = sample(latitude = 0.0, longitude = 0.0, accuracyMeters = 10.0)
 
-        evaluator.decisiveEvidenceFor(geometry, sample, PolygonCommittedState.OUTSIDE) shouldBeEqualTo
+        evaluator.decisiveEvidenceFor(geometry, sample, PolygonCommittedState.OUTSIDE).evidence shouldBeEqualTo
             PolygonEvidence.ENTER
     }
 
@@ -90,7 +90,7 @@ class PolygonAccuracyEvaluatorTest {
     fun decisiveEvidenceFor_whenFixIsNearBoundary_thenRemainsAmbiguous() {
         val sample = sample(latitude = 0.0, longitude = 0.0009, accuracyMeters = 5.0)
 
-        evaluator.decisiveEvidenceFor(geometry, sample, PolygonCommittedState.OUTSIDE) shouldBeEqualTo
+        evaluator.decisiveEvidenceFor(geometry, sample, PolygonCommittedState.OUTSIDE).evidence shouldBeEqualTo
             PolygonEvidence.AMBIGUOUS
     }
 
@@ -98,7 +98,7 @@ class PolygonAccuracyEvaluatorTest {
     fun decisiveEvidenceFor_whenAccuracyIsTooLow_thenRemainsAmbiguous() {
         val sample = sample(latitude = 0.0, longitude = 0.0, accuracyMeters = 60.0)
 
-        evaluator.decisiveEvidenceFor(geometry, sample, PolygonCommittedState.OUTSIDE) shouldBeEqualTo
+        evaluator.decisiveEvidenceFor(geometry, sample, PolygonCommittedState.OUTSIDE).evidence shouldBeEqualTo
             PolygonEvidence.AMBIGUOUS
     }
 
@@ -121,7 +121,7 @@ class PolygonAccuracyEvaluatorTest {
     fun evidenceFor_whenAccuracyIsJustInsideTheCeiling_thenStillDecides() {
         val sample = sample(latitude = 0.0, longitude = 0.0, accuracyMeters = 199.0)
 
-        evaluator.evidenceFor(wideGeometry, sample, PolygonCommittedState.OUTSIDE) shouldBeEqualTo
+        evaluator.evidenceFor(wideGeometry, sample, PolygonCommittedState.OUTSIDE).evidence shouldBeEqualTo
             PolygonEvidence.ENTER
     }
 
@@ -131,7 +131,7 @@ class PolygonAccuracyEvaluatorTest {
         // pair fails if the ceiling moves rather than passing on the geometry either way.
         val sample = sample(latitude = 0.0, longitude = 0.0, accuracyMeters = 201.0)
 
-        evaluator.evidenceFor(wideGeometry, sample, PolygonCommittedState.OUTSIDE) shouldBeEqualTo
+        evaluator.evidenceFor(wideGeometry, sample, PolygonCommittedState.OUTSIDE).evidence shouldBeEqualTo
             PolygonEvidence.AMBIGUOUS
     }
 
@@ -141,7 +141,7 @@ class PolygonAccuracyEvaluatorTest {
         // perimeter samples fall inside. Pins that entering does NOT require the whole disk.
         val sample = sample(latitude = 0.0, longitude = 0.0095, accuracyMeters = 100.0)
 
-        evaluator.evidenceFor(wideGeometry, sample, PolygonCommittedState.OUTSIDE) shouldBeEqualTo
+        evaluator.evidenceFor(wideGeometry, sample, PolygonCommittedState.OUTSIDE).evidence shouldBeEqualTo
             PolygonEvidence.ENTER
     }
 
@@ -171,7 +171,7 @@ class PolygonAccuracyEvaluatorTest {
         // Unclamped it would be 51 and this exit would be withheld.
         val sample = sample(latitude = 0.0, longitude = 0.010454157, accuracyMeters = 49.0)
 
-        evaluator.evidenceFor(wideGeometry, sample, PolygonCommittedState.INSIDE) shouldBeEqualTo
+        evaluator.evidenceFor(wideGeometry, sample, PolygonCommittedState.INSIDE).evidence shouldBeEqualTo
             PolygonEvidence.EXIT
     }
 
@@ -181,7 +181,7 @@ class PolygonAccuracyEvaluatorTest {
         // clamp low enough to erase the inflation would drop it to 49 and let this exit through.
         val sample = sample(latitude = 0.0, longitude = 0.010445164, accuracyMeters = 49.0)
 
-        evaluator.evidenceFor(wideGeometry, sample, PolygonCommittedState.INSIDE) shouldBeEqualTo
+        evaluator.evidenceFor(wideGeometry, sample, PolygonCommittedState.INSIDE).evidence shouldBeEqualTo
             PolygonEvidence.AMBIGUOUS
     }
 
@@ -191,7 +191,7 @@ class PolygonAccuracyEvaluatorTest {
         // 16 and the exit stands, where a larger inflation would withhold it.
         val sample = sample(latitude = 0.0, longitude = 0.010143891, accuracyMeters = 10.0)
 
-        evaluator.evidenceFor(wideGeometry, sample, PolygonCommittedState.INSIDE) shouldBeEqualTo
+        evaluator.evidenceFor(wideGeometry, sample, PolygonCommittedState.INSIDE).evidence shouldBeEqualTo
             PolygonEvidence.EXIT
     }
 }

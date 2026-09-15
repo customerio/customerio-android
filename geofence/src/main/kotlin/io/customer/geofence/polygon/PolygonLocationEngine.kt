@@ -47,7 +47,7 @@ internal class PolygonLocationEngine(
     private val clock: Clock,
     private val logger: GeofenceLogger
 ) {
-    private val routeProcessor = PolygonRouteProcessor()
+    private val routeProcessor = PolygonRouteProcessor(logger = logger)
     private var sessionStartElapsedRealtimeNanos: Long? = null
     private val processingMutex = Mutex()
     private val stateLock = Any()

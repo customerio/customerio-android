@@ -5,6 +5,7 @@ import io.customer.commontest.config.TestConfig
 import io.customer.commontest.config.testConfigurationDefault
 import io.customer.commontest.core.RobolectricTest
 import io.customer.geofence.polygon.PolygonCoordinate
+import io.customer.geofence.polygon.PolygonUndecidedReason
 import io.customer.sdk.core.util.CioLogLevel
 import io.customer.sdk.core.util.Logger
 import org.amshove.kluent.shouldBeEqualTo
@@ -204,7 +205,8 @@ class GeofenceLogTailTest : RobolectricTest() {
             Row("polygonDroppedUnsupportedRuntime", "registration.rejected", listOf("id", "sh", "why"), GeofenceLogger::logPolygonDroppedUnsupportedRuntime.name) { it.logPolygonDroppedUnsupportedRuntime("notl_core") },
             Row("unsupportedGeometryDropped", "registration.rejected", listOf("id", "sh", "why"), GeofenceLogger::logUnsupportedGeometryDropped.name) { it.logUnsupportedGeometryDropped("notl_core", "LineString") },
             Row("polygonRegionNotRanked", "rank.excluded", listOf("id", "sh", "why"), GeofenceLogger::logPolygonRegionNotRanked.name) { it.logPolygonRegionNotRanked("notl_core", PolygonNotRankedReason.RING_UNBUILDABLE) },
-            Row("polygonFixNotUsable", "polygon.undecided", listOf("why"), GeofenceLogger::logPolygonFixNotUsable.name) { it.logPolygonFixNotUsable(PolygonFixRejection.FIX_TOO_OLD) },
+            Row("polygonFixNotUsable", "polygon.undecided", listOf("why"), GeofenceLogger::logPolygonFixNotUsable.name, pinned = mapOf("why" to "fix_too_old")) { it.logPolygonFixNotUsable(PolygonFixRejection.FIX_TOO_OLD) },
+            Row("polygonUndecided", "polygon.undecided", listOf("id", "sh", "why", "edge", "acc"), GeofenceLogger::logPolygonUndecided.name, pinned = mapOf("why" to "within_accuracy")) { it.logPolygonUndecided("notl_core", PolygonUndecidedReason.WITHIN_ACCURACY, 12.5, 30.0) },
             Row("pinnedRegionDroppedAtOsLimit", "registration.rejected", listOf("id", "n", "why"), GeofenceLogger::logPinnedRegionDroppedAtOsLimit.name) { it.logPinnedRegionDroppedAtOsLimit("notl_core", 19) },
             Row("polygonApproachStarted", "polygon.approach.started", emptyList(), GeofenceLogger::logPolygonApproachMonitoringStarted.name) { it.logPolygonApproachMonitoringStarted() },
             Row("polygonApproachStopped", "polygon.approach.stopped", emptyList(), GeofenceLogger::logPolygonApproachMonitoringStopped.name) { it.logPolygonApproachMonitoringStopped() },
@@ -562,6 +564,8 @@ class GeofenceLogTailTest : RobolectricTest() {
         )
         PolygonNotRankedReason.entries.map { it.wire } shouldBeEqualTo listOf("runtime_unsupported", "ring_unbuildable")
         PolygonFixRejection.entries.map { it.wire } shouldBeEqualTo listOf("no_usable_fix", "fix_too_old")
+        PolygonUndecidedReason.entries.map { it.wire } shouldBeEqualTo
+            listOf("accuracy_too_low", "on_boundary", "within_accuracy")
 
         // The prose half is the contract the other way round: these sentences shipped before the
         // tail existed, and a customer reading debug logs must still see what they saw.

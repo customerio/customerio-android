@@ -1,6 +1,5 @@
 package io.customer.geofence.polygon
 
-import io.customer.geofence.GeofenceConstants
 import io.customer.geofence.GeofenceRegion
 import org.amshove.kluent.shouldBeEqualTo
 import org.amshove.kluent.shouldBeInRange
@@ -30,7 +29,7 @@ class PolygonMovementTriggerPolicyTest {
             normalRadiusMeters = 1_000f
         )
 
-        radius.shouldNotBeNull().shouldBeInRange(895f, 905f)
+        radius.shouldNotBeNull().shouldBeInRange(785f, 795f)
     }
 
     @Test
@@ -45,7 +44,7 @@ class PolygonMovementTriggerPolicyTest {
             normalRadiusMeters = 1_000f
         )
 
-        radius.shouldNotBeNull().shouldBeInRange(495f, 505f)
+        radius.shouldNotBeNull().shouldBeInRange(385f, 395f)
     }
 
     @Test
@@ -59,30 +58,51 @@ class PolygonMovementTriggerPolicyTest {
     }
 
     @Test
-    fun safeRadiusMeters_givenBoundaryCloserThanTheFloor_expectTheFloorRatherThanNoShrink() {
-        // Previously this returned null, and every caller reads null as "leave the trigger at its
-        // 1000 m default". A device 30 m from a ring therefore kept a kilometre-wide trigger and
-        // could not reach the safely-passive state at all.
+    fun safeRadiusMeters_givenApproachWithBoundaryTooClose_expectNoSafeBubble() {
+        // Approaching, a floored trigger would extend past the ring the device is walking towards,
+        // so stopping here would lose the arrival with no backstop. Refusing keeps it sampling.
         policy.safeRadiusMeters(
-            regions = listOf(rectangle(id = "east", westMeters = 30.0, eastMeters = 230.0)),
+            regions = listOf(rectangle(id = "east", westMeters = 150.0, eastMeters = 350.0)),
             committedInsideIds = emptySet(),
             sample = sampleAtOrigin(accuracyMeters = 10.0),
             normalRadiusMeters = 1_000f
-        ) shouldBeEqualTo GeofenceConstants.MIN_LOCAL_REFRESH_RADIUS_METERS
+        ).shouldBeNull()
     }
 
     @Test
-    fun safeRadiusMeters_givenRetailSizedFence_expectATightTriggerNotTheCatalogDefault() {
-        // The three real retail polygons are 24-42 m inradius. Standing in one of them, the old
-        // rule needed `edge >= accuracy + 200` to shrink, which no such fence can satisfy.
+    fun safeRadiusMeters_givenApproachToARetailSizedFence_expectStillNoSafeBubble() {
+        // The same holds however close the fence is. This is the case that must not be floored:
+        // 30 m out, a 250 m trigger reaches 220 m past the boundary and the walk-in wakes nothing.
+        policy.safeRadiusMeters(
+            regions = listOf(rectangle(id = "shop", westMeters = 30.0, eastMeters = 110.0)),
+            committedInsideIds = emptySet(),
+            sample = sampleAtOrigin(accuracyMeters = 10.0),
+            normalRadiusMeters = 1_000f
+        ).shouldBeNull()
+    }
+
+    @Test
+    fun safeRadiusMeters_givenDepartureFromARetailSizedFence_expectTheFloorNotTheCatalogDefault() {
+        // The three real retail polygons are 24-42 m inradius. Standing committed inside one, the
+        // clearance is negative, and a refusal falls the caller back to a 1000 m trigger — so the
+        // departure is only seen once the device has moved a kilometre.
         val radius = policy.safeRadiusMeters(
-            regions = listOf(rectangle(id = "shop", westMeters = -40.0, eastMeters = 40.0, southMeters = -40.0, northMeters = 40.0)),
+            regions = listOf(
+                rectangle(
+                    id = "shop",
+                    westMeters = -40.0,
+                    eastMeters = 40.0,
+                    southMeters = -40.0,
+                    northMeters = 40.0
+                )
+            ),
             committedInsideIds = setOf("shop"),
             sample = sampleAtOrigin(accuracyMeters = 19.5),
             normalRadiusMeters = 1_000f
         )
 
-        radius.shouldNotBeNull() shouldBeEqualTo GeofenceConstants.MIN_LOCAL_REFRESH_RADIUS_METERS
+        radius.shouldNotBeNull() shouldBeEqualTo
+            PolygonMovementTriggerPolicy.MIN_DEPARTURE_TRIGGER_RADIUS_METERS.toFloat()
     }
 
     private fun sampleAtOrigin(accuracyMeters: Double = 5.0) = PolygonLocationSample(

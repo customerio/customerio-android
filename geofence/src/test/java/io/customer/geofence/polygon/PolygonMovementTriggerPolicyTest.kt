@@ -1,5 +1,6 @@
 package io.customer.geofence.polygon
 
+import io.customer.geofence.GeofenceConstants
 import io.customer.geofence.GeofenceRegion
 import org.amshove.kluent.shouldBeEqualTo
 import org.amshove.kluent.shouldBeInRange
@@ -29,7 +30,7 @@ class PolygonMovementTriggerPolicyTest {
             normalRadiusMeters = 1_000f
         )
 
-        radius.shouldNotBeNull().shouldBeInRange(785f, 795f)
+        radius.shouldNotBeNull().shouldBeInRange(895f, 905f)
     }
 
     @Test
@@ -44,7 +45,7 @@ class PolygonMovementTriggerPolicyTest {
             normalRadiusMeters = 1_000f
         )
 
-        radius.shouldNotBeNull().shouldBeInRange(385f, 395f)
+        radius.shouldNotBeNull().shouldBeInRange(495f, 505f)
     }
 
     @Test
@@ -58,13 +59,30 @@ class PolygonMovementTriggerPolicyTest {
     }
 
     @Test
-    fun safeRadiusMeters_givenBoundaryTooClose_expectNoSafeBubble() {
+    fun safeRadiusMeters_givenBoundaryCloserThanTheFloor_expectTheFloorRatherThanNoShrink() {
+        // Previously this returned null, and every caller reads null as "leave the trigger at its
+        // 1000 m default". A device 30 m from a ring therefore kept a kilometre-wide trigger and
+        // could not reach the safely-passive state at all.
         policy.safeRadiusMeters(
-            regions = listOf(rectangle(id = "east", westMeters = 150.0, eastMeters = 350.0)),
+            regions = listOf(rectangle(id = "east", westMeters = 30.0, eastMeters = 230.0)),
             committedInsideIds = emptySet(),
             sample = sampleAtOrigin(accuracyMeters = 10.0),
             normalRadiusMeters = 1_000f
-        ).shouldBeNull()
+        ) shouldBeEqualTo GeofenceConstants.MIN_LOCAL_REFRESH_RADIUS_METERS
+    }
+
+    @Test
+    fun safeRadiusMeters_givenRetailSizedFence_expectATightTriggerNotTheCatalogDefault() {
+        // The three real retail polygons are 24-42 m inradius. Standing in one of them, the old
+        // rule needed `edge >= accuracy + 200` to shrink, which no such fence can satisfy.
+        val radius = policy.safeRadiusMeters(
+            regions = listOf(rectangle(id = "shop", westMeters = -40.0, eastMeters = 40.0, southMeters = -40.0, northMeters = 40.0)),
+            committedInsideIds = setOf("shop"),
+            sample = sampleAtOrigin(accuracyMeters = 19.5),
+            normalRadiusMeters = 1_000f
+        )
+
+        radius.shouldNotBeNull() shouldBeEqualTo GeofenceConstants.MIN_LOCAL_REFRESH_RADIUS_METERS
     }
 
     private fun sampleAtOrigin(accuracyMeters: Double = 5.0) = PolygonLocationSample(

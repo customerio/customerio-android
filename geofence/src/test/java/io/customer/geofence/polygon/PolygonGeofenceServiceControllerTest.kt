@@ -513,6 +513,37 @@ class PolygonGeofenceServiceControllerTest {
     }
 
     @Test
+    fun processApproachLocations_givenIdentifyLandsDuringTheTriggerAwait_expectStaleNotContinue() = runTest {
+        // The trigger update awaits GMS with no lock held. An identify landing in that gap leaves
+        // this continuation reading the new user's active set, and answering CONTINUE would make
+        // the receiver start a session for a generation that has already ended, replacing the
+        // approach request the new user just armed.
+        //
+        // 278 m north of the ring: far enough out that the movement policy accepts the fix and the
+        // await is reached, close enough that the pass does not deactivate the polygon first.
+        val fix = location(elapsedRealtimeNanos = 100L).apply { latitude = 37.7775 }
+        var generation = 0L
+        var activeIds = setOf("campus")
+        every { store.userStateGeneration() } answers { generation }
+        every { store.getActivePolygonIds() } answers { activeIds }
+        every { store.deactivatePolygon(any()) } answers { activeIds = activeIds - firstArg<String>() }
+        every { store.getCachedConfig() } returns geofenceConfig()
+        coEvery { engine.processResponsiveLocation(fix, any()) } returns true
+        coEvery { manager.replaceMovementTrigger(any()) } coAnswers {
+            // Identify completes while the registration is in flight.
+            generation = 1L
+            Result.success(Unit)
+        }
+
+        val accepted = controller.processApproachLocations(
+            locations = listOf(fix),
+            expectedUserStateGeneration = 0L
+        )
+
+        accepted shouldBeEqualTo PolygonSamplingDecision.STALE
+    }
+
+    @Test
     fun processApproachLocations_givenPreviousUserGeneration_expectRejectsWithoutLocationWork() = runTest {
         every { store.userStateGeneration() } returns 1L
 

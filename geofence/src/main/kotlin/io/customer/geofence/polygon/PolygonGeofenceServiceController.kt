@@ -297,8 +297,17 @@ internal class PolygonGeofenceServiceController(
         // Guarded like every other read of the active set. Unlocked, a reconcile or a deactivate
         // landing here flips the answer: CONTINUE with nothing active spends battery on nothing,
         // and STOP with a polygon still active loses its EXIT.
+        //
+        // Generation too, not just the lock. The trigger update above awaits GMS, and an identify
+        // landing in that gap leaves this continuation reading the NEW user's active set. It would
+        // answer CONTINUE, and the receiver would then start a session for the generation that has
+        // already ended, replacing the approach request the new user just armed.
         return synchronized(controllerLock) {
-            if (safelyPassive || store.getActivePolygonIds().isEmpty()) {
+            if (!hasMatchingIdentifiedUserLocked() ||
+                store.userStateGeneration() != expectedUserStateGeneration
+            ) {
+                PolygonSamplingDecision.STALE
+            } else if (safelyPassive || store.getActivePolygonIds().isEmpty()) {
                 PolygonSamplingDecision.STOP
             } else {
                 PolygonSamplingDecision.CONTINUE

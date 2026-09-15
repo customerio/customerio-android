@@ -177,9 +177,14 @@ internal object GeofenceLogTail {
         return fields
     }
 
+    private const val NANOS_PER_SECOND = 1_000_000_000.0
+
     /** Monotonic, not wall clock: `getTime()` steps with NTP, `elapsedRealtimeNanos` cannot. */
+    fun fixAgeSeconds(elapsedRealtimeNanos: Long): Double =
+        (SystemClock.elapsedRealtimeNanos() - elapsedRealtimeNanos) / NANOS_PER_SECOND
+
     private fun fixAgeSeconds(location: Location): Double =
-        (SystemClock.elapsedRealtimeNanos() - location.elapsedRealtimeNanos) / 1_000_000_000.0
+        fixAgeSeconds(location.elapsedRealtimeNanos)
 
     @Suppress("DEPRECATION")
     private fun isMock(location: Location): Boolean =

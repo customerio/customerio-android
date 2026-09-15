@@ -12,7 +12,7 @@ internal class PolygonMovementTriggerPolicy {
         sample: PolygonLocationSample,
         normalRadiusMeters: Float
     ): Float? {
-        if (sample.horizontalAccuracyMeters > MAXIMUM_ACCEPTED_ACCURACY_METERS) return null
+        if (sample.horizontalAccuracyMeters > MAX_TRIGGER_FIX_ACCURACY_METERS) return null
         val polygons = regions.filter(GeofenceRegion::isPolygon)
         if (polygons.isEmpty()) return normalRadiusMeters
 
@@ -41,7 +41,12 @@ internal class PolygonMovementTriggerPolicy {
 
     internal companion object {
         // Draft policy values only. Field calibration freezes these before polygon rollout.
-        const val MAXIMUM_ACCEPTED_ACCURACY_METERS = 50.0
+        //
+        // Distinct from the evaluator's own accuracy ceilings despite the shared units: this one
+        // decides whether a fix is good enough to shrink the movement trigger around a polygon,
+        // which is a worse failure than misjudging one fence. It equals the evaluator's decisive
+        // ceiling today by coincidence, not by derivation, so calibration may move either alone.
+        const val MAX_TRIGGER_FIX_ACCURACY_METERS = 50.0
         const val PROTOTYPE_WAKE_POLICY_MARGIN_METERS = 100.0
     }
 }

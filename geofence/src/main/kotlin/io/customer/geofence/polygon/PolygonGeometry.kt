@@ -158,7 +158,15 @@ internal class PolygonGeometry private constructor(
 
         // Half the globe. The flat projection the evaluator uses cannot describe more.
         private const val MAXIMUM_LONGITUDE_SPAN = 180.0
-        private const val EARTH_RADIUS_METERS = 6_371_000.0
+
+        /**
+         * The one earth radius in this module, owned here because this is where the projection is
+         * defined. Shared with [PolygonAccuracyEvaluator] rather than copied: the value decides
+         * whether a tight-fitting polygon validates, so two copies free to drift would silently
+         * change which fences are monitored. iOS uses this same value, so changing it breaks
+         * cross-platform agreement on tight fits, not just our own results.
+         */
+        internal const val EARTH_RADIUS_METERS = 6_371_000.0
 
         fun from(vertices: List<PolygonCoordinate>): PolygonGeometry {
             require(vertices.isNotEmpty()) { "polygon requires at least one position" }

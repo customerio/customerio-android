@@ -230,4 +230,29 @@ class PolygonGeometryTest {
 
     private fun point(latitude: Double, longitude: Double) =
         PolygonCoordinate(latitude = latitude, longitude = longitude)
+
+    /**
+     * Pins the projection's scale, which is the earth radius the module chose. One degree of
+     * latitude measures 111,195 m at R=6,371,000 and 111,320 m at the WGS84 equatorial radius, so
+     * swapping the constant moves every distance by ~0.11%. That is the difference that decides
+     * whether a polygon fitting tightly inside its enclosing circle validates or is dropped, and
+     * iOS projects with the same radius, so a change here is a cross-platform divergence.
+     */
+    @Test
+    fun boundaryDistanceMeters_givenOneDegreeOfLatitude_expectTheSphericalRadiusScale() {
+        val square = PolygonGeometry.from(
+            listOf(
+                PolygonCoordinate(-0.0001, -0.0001),
+                PolygonCoordinate(-0.0001, 0.0001),
+                PolygonCoordinate(0.0001, 0.0001),
+                PolygonCoordinate(0.0001, -0.0001)
+            )
+        )
+
+        val oneDegreeNorth = square.boundaryDistanceMeters(PolygonCoordinate(1.0, 0.0))
+
+        // Tolerance is far tighter than the 124 m the WGS84 radius would add, and far looser than
+        // the 11 m the tiny square's own half-width contributes.
+        oneDegreeNorth shouldBeInRange 111_150.0..111_240.0
+    }
 }

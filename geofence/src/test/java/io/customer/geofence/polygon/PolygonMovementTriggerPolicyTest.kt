@@ -99,4 +99,26 @@ class PolygonMovementTriggerPolicyTest {
     private companion object {
         const val METERS_PER_DEGREE = 111_320.0
     }
+    // The reject path had no test at all: a fix too coarse to place the device must not be allowed
+    // to shrink the movement trigger, because a trigger shrunk on a bad fix stops firing.
+
+    @Test
+    fun safeRadiusMeters_givenFixCoarserThanTheCeiling_expectNoShrinkAtAll() {
+        policy.safeRadiusMeters(
+            regions = listOf(rectangle(id = "east", westMeters = 900.0, eastMeters = 1_100.0)),
+            committedInsideIds = emptySet(),
+            sample = sampleAtOrigin(accuracyMeters = 51.0),
+            normalRadiusMeters = 1_000f
+        ).shouldBeNull()
+    }
+
+    @Test
+    fun safeRadiusMeters_givenFixJustInsideTheCeiling_expectItStillShrinks() {
+        policy.safeRadiusMeters(
+            regions = listOf(rectangle(id = "east", westMeters = 900.0, eastMeters = 1_100.0)),
+            committedInsideIds = emptySet(),
+            sample = sampleAtOrigin(accuracyMeters = 49.0),
+            normalRadiusMeters = 1_000f
+        ).shouldNotBeNull()
+    }
 }

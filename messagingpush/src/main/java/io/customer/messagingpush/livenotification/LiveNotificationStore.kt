@@ -7,11 +7,53 @@ import java.util.concurrent.TimeUnit
 /**
  * Persistent live-notification state (dedicated SharedPreferences file):
  * per-`activity_type` registration signatures, per-`activity_id` last-seen
- * timestamps for the out-of-order guard, and per-`activity_id` activity types.
+ * timestamps for the out-of-order guard, per-`activity_id` activity types, and the
+ * app-wide opt-in (enabled activity types + branding) that a cold process needs to
+ * render at all.
  */
 internal class LiveNotificationStore(context: Context) {
 
     private val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+
+    // --- App-wide config (survives process death) ---
+
+    /**
+     * The activity types this app last enabled, or an empty set if it never enabled any.
+     *
+     * Read in a cold process — one Android started solely to deliver an FCM message, where no app
+     * code ran and so `CustomerIO.initialize` never registered the push module. Without this, the
+     * module config falls back to its defaults and an empty enabled-types set is ambiguous: it
+     * means both "this app never opted in" (ignore the push) and "this app opted in, but this
+     * process hasn't loaded that yet" (render the push). Persisting the opt-in separates the two.
+     */
+    fun enabledActivityTypes(): Set<String> =
+        // SharedPreferences owns the instance it returns, so copy instead of retaining it.
+        prefs.getStringSet(ENABLED_TYPES_KEY, null)?.toSet().orEmpty()
+
+    /** Replaces (never merges) the persisted opt-in. An empty set removes the entry. */
+    fun setEnabledActivityTypes(types: Set<String>) {
+        prefs.edit {
+            if (types.isEmpty()) {
+                remove(ENABLED_TYPES_KEY)
+            } else {
+                putStringSet(ENABLED_TYPES_KEY, types)
+            }
+        }
+    }
+
+    /** The serialized branding last configured, or null when the app configured none. */
+    fun brandingJson(): String? = prefs.getString(BRANDING_KEY, null)
+
+    /** Replaces the persisted branding. Null or blank removes the entry. */
+    fun setBrandingJson(json: String?) {
+        prefs.edit {
+            if (json.isNullOrBlank()) {
+                remove(BRANDING_KEY)
+            } else {
+                putString(BRANDING_KEY, json)
+            }
+        }
+    }
 
     /**
      * One-time cleanup for the namespace rename: drops registration signatures
@@ -177,6 +219,14 @@ internal class LiveNotificationStore(context: Context) {
 
     companion object {
         private const val PREFS_NAME = "io.customer.messagingpush.live_notifications"
+
+        // App-wide entries, deliberately unprefixed. Every sweep in this class
+        // ([trimStaleTimestamps], [clearAllActivities], [clearRegistrations]) filters on one of the
+        // per-activity prefixes below, so neither TTL reclamation nor logout can clear these — which
+        // is intended: an app-wide opt-in is not user-scoped.
+        private const val ENABLED_TYPES_KEY = "enabled_types"
+        private const val BRANDING_KEY = "branding"
+
         private const val REG_PREFIX = "reg:"
         private const val TS_PREFIX = "ts:"
         private const val TYPE_PREFIX = "type:"

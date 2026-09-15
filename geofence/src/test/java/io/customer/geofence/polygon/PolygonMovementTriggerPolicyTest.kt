@@ -58,13 +58,51 @@ class PolygonMovementTriggerPolicyTest {
     }
 
     @Test
-    fun safeRadiusMeters_givenBoundaryTooClose_expectNoSafeBubble() {
+    fun safeRadiusMeters_givenApproachWithBoundaryTooClose_expectNoSafeBubble() {
+        // Approaching, a floored trigger would extend past the ring the device is walking towards,
+        // so stopping here would lose the arrival with no backstop. Refusing keeps it sampling.
         policy.safeRadiusMeters(
             regions = listOf(rectangle(id = "east", westMeters = 150.0, eastMeters = 350.0)),
             committedInsideIds = emptySet(),
             sample = sampleAtOrigin(accuracyMeters = 10.0),
             normalRadiusMeters = 1_000f
         ).shouldBeNull()
+    }
+
+    @Test
+    fun safeRadiusMeters_givenApproachToARetailSizedFence_expectStillNoSafeBubble() {
+        // The same holds however close the fence is. This is the case that must not be floored:
+        // 30 m out, a 250 m trigger reaches 220 m past the boundary and the walk-in wakes nothing.
+        policy.safeRadiusMeters(
+            regions = listOf(rectangle(id = "shop", westMeters = 30.0, eastMeters = 110.0)),
+            committedInsideIds = emptySet(),
+            sample = sampleAtOrigin(accuracyMeters = 10.0),
+            normalRadiusMeters = 1_000f
+        ).shouldBeNull()
+    }
+
+    @Test
+    fun safeRadiusMeters_givenDepartureFromARetailSizedFence_expectTheFloorNotTheCatalogDefault() {
+        // The three real retail polygons are 24-42 m inradius. Standing committed inside one, the
+        // clearance is negative, and a refusal falls the caller back to a 1000 m trigger — so the
+        // departure is only seen once the device has moved a kilometre.
+        val radius = policy.safeRadiusMeters(
+            regions = listOf(
+                rectangle(
+                    id = "shop",
+                    westMeters = -40.0,
+                    eastMeters = 40.0,
+                    southMeters = -40.0,
+                    northMeters = 40.0
+                )
+            ),
+            committedInsideIds = setOf("shop"),
+            sample = sampleAtOrigin(accuracyMeters = 19.5),
+            normalRadiusMeters = 1_000f
+        )
+
+        radius.shouldNotBeNull() shouldBeEqualTo
+            PolygonMovementTriggerPolicy.MIN_DEPARTURE_TRIGGER_RADIUS_METERS.toFloat()
     }
 
     private fun sampleAtOrigin(accuracyMeters: Double = 5.0) = PolygonLocationSample(

@@ -17,10 +17,12 @@ internal class PolygonMovementTriggerPolicy {
         if (polygons.isEmpty()) return normalRadiusMeters
 
         var safeRadius = normalRadiusMeters.toDouble()
+        var departing = false
         for (region in polygons) {
             val geometry = region.polygonGeometryOrNull() ?: return null
             val relation = geometry.relationTo(sample.coordinate)
             val expectedInside = region.id in committedInsideIds
+            if (expectedInside) departing = true
             val stateMatches = when (relation) {
                 PolygonPointRelation.INSIDE -> expectedInside
                 PolygonPointRelation.OUTSIDE -> !expectedInside
@@ -30,13 +32,24 @@ internal class PolygonMovementTriggerPolicy {
 
             val clearance = geometry.boundaryDistanceMeters(sample.coordinate) -
                 sample.horizontalAccuracyMeters -
-                PROTOTYPE_WAKE_POLICY_MARGIN_METERS
+                APPROACH_LEAD_MARGIN_METERS
             safeRadius = min(safeRadius, clearance)
         }
 
-        return safeRadius
-            .takeIf { it >= GeofenceConstants.MIN_LOCAL_REFRESH_RADIUS_METERS }
-            ?.toFloat()
+        // Approaching, the trigger has to be crossed before the ring is, or the arrival is never
+        // seen: stopping here leaves a trigger that extends past the boundary the device is about
+        // to cross, and nothing wakes it. Too little clearance is therefore a refusal, and the
+        // caller keeps sampling.
+        if (!departing) {
+            return safeRadius
+                .takeIf { it >= GeofenceConstants.MIN_LOCAL_REFRESH_RADIUS_METERS }
+                ?.toFloat()
+        }
+        // Departing, that invariant cannot be met at all: no radius GMS can resolve fits inside a
+        // 24-42 m ring, so the trigger necessarily extends past it. The choice is between a bounded
+        // overshoot and the 1000 m default that a refusal falls back to, and the overshoot is what
+        // lets sampling stop and the OS carry the departure.
+        return safeRadius.coerceAtLeast(MIN_DEPARTURE_TRIGGER_RADIUS_METERS).toFloat()
     }
 
     internal companion object {
@@ -47,6 +60,18 @@ internal class PolygonMovementTriggerPolicy {
         // which is a worse failure than misjudging one fence. It equals the evaluator's decisive
         // ceiling today by coincidence, not by derivation, so calibration may move either alone.
         const val MAX_TRIGGER_FIX_ACCURACY_METERS = 50.0
-        const val PROTOTYPE_WAKE_POLICY_MARGIN_METERS = 100.0
+
+        /** Lead distance kept between the trigger and the ring on approach. */
+        const val APPROACH_LEAD_MARGIN_METERS = 100.0
+
+        /**
+         * Smallest trigger armed for a departure, and deliberately not
+         * [GeofenceConstants.MIN_LOCAL_REFRESH_RADIUS_METERS] — that clamps server config and says
+         * nothing about what GMS can resolve. Coarse containment is wrong by hundreds of metres, and
+         * a trigger that fires on that error costs a sync and a re-registration each time. 250 m is
+         * the smallest radius anything here has field-validated. v1 value; the drive can measure the
+         * wake rate at it.
+         */
+        const val MIN_DEPARTURE_TRIGGER_RADIUS_METERS = 250.0
     }
 }

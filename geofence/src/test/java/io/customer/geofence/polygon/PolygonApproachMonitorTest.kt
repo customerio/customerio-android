@@ -57,7 +57,9 @@ class PolygonApproachMonitorTest : RobolectricTest() {
         request.captured.priority shouldBeEqualTo Priority.PRIORITY_BALANCED_POWER_ACCURACY
         request.captured.intervalMillis shouldBeEqualTo 15_000L
         request.captured.minUpdateIntervalMillis shouldBeEqualTo 5_000L
-        request.captured.minUpdateDistanceMeters shouldBeEqualTo 25f
+        // No displacement gate. The case this session exists to judge is an arrival that has
+        // already stopped moving, and a 25 m gate let such a device be sampled once per session.
+        request.captured.minUpdateDistanceMeters shouldBeEqualTo 0f
         // The OS has to hold the bound too. Our timer and the deadline extra both die with the
         // process, while this PendingIntent registration survives it.
         request.captured.durationMillis shouldBeEqualTo 2 * 60_000L

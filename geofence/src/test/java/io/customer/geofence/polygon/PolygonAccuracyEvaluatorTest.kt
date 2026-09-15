@@ -87,11 +87,31 @@ class PolygonAccuracyEvaluatorTest {
     }
 
     @Test
-    fun decisiveEvidenceFor_whenFixIsNearBoundary_thenRemainsAmbiguous() {
+    fun decisiveEvidenceFor_whenArrivingNearTheBoundary_thenReturnsEnter() {
+        // ~11 m inside the ring at 5 m accuracy. The old symmetric rule refused this, which on a
+        // 24-42 m retail fence refused every point in it.
         val sample = sample(latitude = 0.0, longitude = 0.0009, accuracyMeters = 5.0)
 
         evaluator.decisiveEvidenceFor(geometry, sample, PolygonCommittedState.OUTSIDE).evidence shouldBeEqualTo
+            PolygonEvidence.ENTER
+    }
+
+    @Test
+    fun decisiveEvidenceFor_whenDepartingNearTheBoundary_thenRemainsAmbiguous() {
+        // The mirror image, and the whole of the asymmetry: same distance from the ring, same
+        // accuracy, opposite direction. A visit in progress is not ended by a marginal fix.
+        val sample = sample(latitude = 0.0, longitude = 0.0011, accuracyMeters = 5.0)
+
+        evaluator.decisiveEvidenceFor(geometry, sample, PolygonCommittedState.INSIDE).evidence shouldBeEqualTo
             PolygonEvidence.AMBIGUOUS
+    }
+
+    @Test
+    fun decisiveEvidenceFor_whenDepartingWellClearOfTheBoundary_thenReturnsExit() {
+        val sample = sample(latitude = 0.0, longitude = 0.0015, accuracyMeters = 5.0)
+
+        evaluator.decisiveEvidenceFor(geometry, sample, PolygonCommittedState.INSIDE).evidence shouldBeEqualTo
+            PolygonEvidence.EXIT
     }
 
     @Test

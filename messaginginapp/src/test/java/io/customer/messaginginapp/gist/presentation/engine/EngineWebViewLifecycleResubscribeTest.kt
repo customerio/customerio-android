@@ -4,7 +4,7 @@ import android.content.Context
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.LifecycleRegistry
-import androidx.lifecycle.R as LifecycleR
+import androidx.lifecycle.setViewTreeLifecycleOwner
 import androidx.test.core.app.ApplicationProvider
 import io.customer.commontest.config.TestConfig
 import io.customer.commontest.config.testConfigurationDefault
@@ -148,7 +148,7 @@ class EngineWebViewLifecycleResubscribeTest : IntegrationTest() {
 
         // -- First lifecycle owner: RESUMED before setup() is called --
         val (firstOwner, firstLifecycle) = makeResumedLifecycleOwner()
-        engineWebView.setTag(LifecycleR.id.view_tree_lifecycle_owner, firstOwner)
+        engineWebView.setViewTreeLifecycleOwner(firstOwner)
 
         // setup() registers the observer; LifecycleRegistry replays RESUMED -> onLifecycleResumed()
         // -> engineWebViewInterface.attach() -> isAttachedToWebView = true
@@ -176,7 +176,7 @@ class EngineWebViewLifecycleResubscribeTest : IntegrationTest() {
 
         // -- Second lifecycle owner: re-parented under a new RESUMED owner (the "pop" case) --
         val (secondOwner, _) = makeResumedLifecycleOwner()
-        engineWebView.setTag(LifecycleR.id.view_tree_lifecycle_owner, secondOwner)
+        engineWebView.setViewTreeLifecycleOwner(secondOwner)
 
         // onAttachedToWindow is the fix point.
         // Before fix: falls through to View.onAttachedToWindow() — no observer re-registration.
@@ -202,7 +202,7 @@ class EngineWebViewLifecycleResubscribeTest : IntegrationTest() {
         engineWebView.listener = listener
 
         val (owner, _) = makeResumedLifecycleOwner()
-        engineWebView.setTag(LifecycleR.id.view_tree_lifecycle_owner, owner)
+        engineWebView.setViewTreeLifecycleOwner(owner)
 
         // setup() is called; LifecycleRegistry replays RESUMED -> interface armed.
         engineWebView.setup(buildConfig())
@@ -225,7 +225,7 @@ class EngineWebViewLifecycleResubscribeTest : IntegrationTest() {
         engineWebView.listener = listener
 
         val (owner, _) = makeResumedLifecycleOwner()
-        engineWebView.setTag(LifecycleR.id.view_tree_lifecycle_owner, owner)
+        engineWebView.setViewTreeLifecycleOwner(owner)
 
         engineWebView.setup(buildConfig())
 

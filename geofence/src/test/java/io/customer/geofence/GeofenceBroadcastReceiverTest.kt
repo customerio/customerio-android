@@ -31,6 +31,7 @@ import io.mockk.verify
 import java.io.File
 import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.currentTime
@@ -529,9 +530,30 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
             longitude = -122.4194
         )
 
-        verify { mockServices.onMovementTriggerExit(37.7749, -122.4194) }
+        verify { mockServices.onMovementTriggerExit(eq(37.7749), eq(-122.4194), any()) }
         coVerify(exactly = 0) { mockScheduler.schedule(any()) }
         pendingStore.loadAll() shouldBeEqualTo emptyList()
+    }
+
+    @Test
+    fun dispatchTransition_givenSlowPolygonEvaluation_expectTheRefreshJobCreatedFirst() = runTest {
+        // The polygon evaluation awaits GMS, twice at up to five seconds each, against a broadcast
+        // budget of roughly ten. Doing that BEFORE the refresh job exists means a process killed in
+        // that window loses the refresh entirely: the movement EXIT has already fired and nothing
+        // re-centres the trigger, so the device goes deaf until a foreground or an unrelated EXIT.
+        // The job has to be created first; the evaluation's GMS time is then charged to the job.
+        coEvery { mockPolygonController.onMovementTriggerExit(any(), any()) } coAnswers {
+            awaitCancellation()
+        }
+
+        receiver.dispatchTransition(
+            gmsTransitionType = Geofence.GEOFENCE_TRANSITION_EXIT,
+            triggeringGeofenceIds = listOf(GeofenceConstants.MOVEMENT_TRIGGER_ID),
+            latitude = 37.7749,
+            longitude = -122.4194
+        )
+
+        verify { mockServices.onMovementTriggerExit(eq(37.7749), eq(-122.4194), any()) }
     }
 
     @Test
@@ -540,7 +562,7 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
         // the goAsync window closes and the OS may kill the process mid-refresh, so
         // dispatch must hold the window open until the refresh job lands.
         val refreshJob = launch { delay(3_000) }
-        every { mockServices.onMovementTriggerExit(any(), any()) } returns refreshJob
+        every { mockServices.onMovementTriggerExit(any(), any(), any()) } returns refreshJob
 
         receiver.dispatchTransition(
             gmsTransitionType = Geofence.GEOFENCE_TRANSITION_EXIT,
@@ -558,7 +580,7 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
         // its timeout, but only the wait — the refresh itself keeps running on the
         // services scope and self-completes if the process survives.
         val refreshJob = launch { delay(60_000) }
-        every { mockServices.onMovementTriggerExit(any(), any()) } returns refreshJob
+        every { mockServices.onMovementTriggerExit(any(), any(), any()) } returns refreshJob
 
         receiver.dispatchTransition(
             gmsTransitionType = Geofence.GEOFENCE_TRANSITION_EXIT,
@@ -578,7 +600,7 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
         // join: once spent, dispatch must finish instead of stacking the full timeout on top.
         every { mockClock.elapsedRealtime() } returnsMany listOf(0L, 9_000L)
         val refreshJob = launch { delay(60_000) }
-        every { mockServices.onMovementTriggerExit(any(), any()) } returns refreshJob
+        every { mockServices.onMovementTriggerExit(any(), any(), any()) } returns refreshJob
 
         receiver.dispatchTransition(
             gmsTransitionType = Geofence.GEOFENCE_TRANSITION_EXIT,
@@ -605,7 +627,7 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
             longitude = 0.0
         )
 
-        verify(exactly = 0) { mockServices.onMovementTriggerExit(any(), any()) }
+        verify(exactly = 0) { mockServices.onMovementTriggerExit(any(), any(), any()) }
         coVerify(exactly = 0) { mockScheduler.schedule(any()) }
         pendingStore.loadAll() shouldBeEqualTo emptyList()
     }
@@ -1071,7 +1093,7 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
         )
 
         verify(exactly = 0) { mockStore.claimExit(any()) }
-        verify { mockServices.onMovementTriggerExit(any(), any()) }
+        verify { mockServices.onMovementTriggerExit(any(), any(), any()) }
     }
 
     @Test
@@ -1134,7 +1156,7 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
             longitude = 0.0
         )
 
-        verify(exactly = 0) { mockServices.onMovementTriggerExit(any(), any()) }
+        verify(exactly = 0) { mockServices.onMovementTriggerExit(any(), any(), any()) }
         coVerify { mockManager.removeGeofencesByIds(listOf(GeofenceConstants.MOVEMENT_TRIGGER_ID)) }
     }
 
@@ -1213,7 +1235,7 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
             longitude = 2.0
         )
 
-        verify { mockServices.onMovementTriggerExit(1.0, 2.0) }
+        verify { mockServices.onMovementTriggerExit(eq(1.0), eq(2.0), any()) }
         coVerify(exactly = 0) { mockManager.removeGeofencesByIds(any()) }
     }
 

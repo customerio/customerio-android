@@ -2961,7 +2961,7 @@ class GeofenceRepositoryTest : RobolectricTest() {
         repository.handleMovement(
             latitude = 0.01,
             longitude = 0.0,
-            movementTriggerRadiusMeters = 725f
+            movementTriggerRadius = { 725f }
         )
 
         registered.captured.single {
@@ -3151,6 +3151,37 @@ class GeofenceRepositoryTest : RobolectricTest() {
         coVerifyOrder {
             manager.removeGeofencesByIds(listOf("old-001"))
             manager.replaceGeofences(any(), any())
+        }
+    }
+
+    @Test
+    fun refresh_givenAChangedFenceAndNoNetGrowth_expectNothingPreRemovedBeforeTheAdd() = runTest {
+        // Pre-removal exists for a pass that would push GMS past its limit mid-add. A fence that is
+        // already registered and merely changed does not: re-adding it replaces its slot. Counting
+        // it as growth pre-removes a stale fence the ordinary cleanup would have removed anyway,
+        // after the add, and a failure in that removal fails the whole refresh.
+        val oldRegions = (1..99).map { index ->
+            GeofenceRegion("old-${index.toString().padStart(3, '0')}", 0.0, 0.0, 100f)
+        }
+        // Drops old-001 and re-sends old-002 with new geometry: 98 requested, nothing new.
+        val incoming = listOf(GeofenceRegion("old-002", 0.0, 0.0, 200f)) + oldRegions.drop(2)
+        var registeredIds = oldRegions.mapTo(mutableSetOf(), GeofenceRegion::id) +
+            GeofenceConstants.MOVEMENT_TRIGGER_ID
+        every { secureUserStore.getUserId() } returns "user-42"
+        every { store.getCachedRegions() } returns oldRegions
+        every { store.getRegisteredIds() } answers { registeredIds }
+        every { store.saveRegisteredIds(any()) } answers { registeredIds = firstArg() }
+        coEvery { apiService.fetchGeofences(any()) } returns
+            Result.success(sampleResponse(maxBusinessGeofences = 99))
+        every { distanceFilter.nearest(any(), any(), any(), any(), any()) } returns incoming
+        coEvery { manager.removeGeofencesByIds(any()) } returns Result.success(Unit)
+        coEvery { manager.replaceGeofences(any(), any()) } returns Result.success(Unit)
+
+        repository.refresh(latitude = 0.0, longitude = 0.0)
+
+        coVerifyOrder {
+            manager.replaceGeofences(any(), any())
+            manager.removeGeofencesByIds(listOf("old-001"))
         }
     }
 

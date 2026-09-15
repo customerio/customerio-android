@@ -50,7 +50,7 @@ internal interface GeofenceRepository {
     suspend fun handleMovement(
         latitude: Double,
         longitude: Double,
-        movementTriggerRadiusMeters: Float? = null
+        movementTriggerRadius: suspend () -> Float? = { null }
     ): Result<Unit>
 
     /**
@@ -316,7 +316,7 @@ internal class GeofenceRepositoryImpl(
     override suspend fun handleMovement(
         latitude: Double,
         longitude: Double,
-        movementTriggerRadiusMeters: Float?
+        movementTriggerRadius: suspend () -> Float?
     ): Result<Unit> {
         // Before the slot wait, as in [refreshFromLiveFix].
         val containmentEpoch = store.containmentEpoch()
@@ -334,6 +334,11 @@ internal class GeofenceRepositoryImpl(
                 return Result.success(Unit)
             }
 
+            // Resolved here rather than by the caller: this awaits GMS, and the caller is a
+            // broadcast receiver whose window closes when it returns. Evaluating it before the job
+            // existed meant a process killed in that gap lost the refresh, with the EXIT already
+            // spent and the trigger still sitting where the device left it.
+            val movementTriggerRadiusMeters = movementTriggerRadius()
             val anchor = store.getLastApiFetchLocation()
             val config = store.getCachedConfigOrFallback()
             val distanceFromAnchor = anchor?.distanceTo(latitude, longitude) ?: 0f
@@ -552,7 +557,11 @@ internal class GeofenceRepositoryImpl(
                 .toSet()
             val additions = requestedBusinessIds - existingBusinessIds
             val stale = (registeredBusinessIds - requestedBusinessIds).sorted()
-            val projectedPeak = registeredBusinessIds.size + 1 + additions.size
+            // What the add actually grows the OS set by. `additions` is measured against the
+            // UNCHANGED set, so a fence that is registered but whose geometry changed appears in
+            // both terms; re-adding it replaces its slot rather than taking a new one.
+            val netNewIds = additions - registeredBusinessIds
+            val projectedPeak = registeredBusinessIds.size + 1 + netNewIds.size
             val preRemovalCount = (projectedPeak - MAX_GMS_GEOFENCES).coerceAtLeast(0)
             val preRemove = stale.take(preRemovalCount)
             if (preRemove.isNotEmpty()) {

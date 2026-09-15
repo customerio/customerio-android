@@ -31,7 +31,7 @@ internal interface GeofenceServices {
     fun onMovementTriggerExit(
         latitude: Double?,
         longitude: Double?,
-        movementTriggerRadiusMeters: Float? = null
+        movementTriggerRadius: suspend () -> Float? = { null }
     ): Job?
 
     /** Honours the freshness threshold — repeated identify within the window is a no-op. */
@@ -118,7 +118,7 @@ internal class GeofenceServicesImpl(
     override fun onMovementTriggerExit(
         latitude: Double?,
         longitude: Double?,
-        movementTriggerRadiusMeters: Float?
+        movementTriggerRadius: suspend () -> Float?
     ): Job? {
         // Same guard as the launch in triggerSync: permission is checked there before this runs.
         @SuppressLint("MissingPermission")
@@ -126,7 +126,7 @@ internal class GeofenceServicesImpl(
             repository.handleMovement(
                 latitude = lat,
                 longitude = lng,
-                movementTriggerRadiusMeters = movementTriggerRadiusMeters
+                movementTriggerRadius = movementTriggerRadius
             )
         }
         return triggerSync(

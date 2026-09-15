@@ -168,14 +168,17 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
                 // ENTER fires on every re-registration and boot-restore can fire
                 // EXIT. Only EXIT drives a refresh.
                 if (gmsTransitionType == Geofence.GEOFENCE_TRANSITION_EXIT) {
-                    val polygonMovementRadius = androidComponent.polygonGeofenceServiceController.onMovementTriggerExit(
-                        triggeringLocation = triggeringLocation,
-                        expectedUserStateGeneration = userStateGeneration
-                    )
+                    // Handed over unevaluated. It awaits GMS, and doing that here would spend the
+                    // broadcast budget before the refresh job exists.
                     movementRefreshJob = androidComponent.geofenceServices.onMovementTriggerExit(
                         latitude = latitude,
                         longitude = longitude,
-                        movementTriggerRadiusMeters = polygonMovementRadius
+                        movementTriggerRadius = {
+                            androidComponent.polygonGeofenceServiceController.onMovementTriggerExit(
+                                triggeringLocation = triggeringLocation,
+                                expectedUserStateGeneration = userStateGeneration
+                            )
+                        }
                     )
                 } else {
                     logger.logMovementTriggerIgnoredNonExit(transitionName(gmsTransitionType))

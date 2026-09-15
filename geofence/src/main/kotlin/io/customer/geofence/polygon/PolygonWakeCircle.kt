@@ -17,16 +17,23 @@ internal data class PolygonTriggerCircle(
  * admission and the canonical base circle. What remains here is what the platform needs to register
  * the trigger — a usable radius, inside the OS limit.
  *
- * The registered radius is floored, not padded. A coarse GMS containment decision is wrong by
- * hundreds of metres in the field — a 500 m fence was marked INSIDE at 889 m from its centre on the
- * 2026-07-31 drive — so a ring must stay large enough that this error cannot drive it. Polygons are
- * excluded from initial-ENTER synthesis, which makes a missed coarse ENTER unrecoverable, while a
- * spurious one only costs a sampling session. The floor keeps that asymmetry on the safe side.
+ * The registered radius is floored, not padded.
  *
- * Flooring rather than adding is the original two-part policy: the spike carried both a pad and a
- * `MINIMUM_TRIGGER_RADIUS_METERS`, and only the pad survived the re-splits. Adding a kilometre to a
- * circle that is already kilometres wide buys nothing, so a large polygon is now registered as the
- * backend describes it.
+ * Two measured constraints set the floor, both from this repository's own field data:
+ *  - GMS coarse containment is wrong by hundreds of metres. On 2026-07-31 a 500 m fence was marked
+ *    INSIDE while the device was 889 m from its centre, with a closest approach of 537 m. A ring
+ *    smaller than that error is driven by the error rather than by the device.
+ *  - Activation reads this radius: a polygon is only admitted when `distance + accuracy <= radius`.
+ *    Indoor fixes measure around 100 m, so a ring near the backend's 101 m retail circle cannot
+ *    admit the polygon at all, from any position.
+ *
+ * Getting it wrong is asymmetric. Polygons are excluded from initial-ENTER synthesis, so a missed
+ * coarse ENTER is unrecoverable, while a spurious one costs a sampling session.
+ *
+ * 1000 m is one observed worst-case containment error, rounded. It is the weakest part of this and
+ * a drive that records ENTER reliability against a smaller registration would replace it. Adding a
+ * kilometre on top of a circle already kilometres wide answers neither constraint, so a large
+ * polygon is registered as the backend describes it.
  */
 internal class PolygonWakeCircleValidator {
     fun prepare(wakeCircle: PolygonWakeCircle): PolygonTriggerCircle {

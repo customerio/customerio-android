@@ -1,9 +1,12 @@
 package io.customer.geofence.polygon
 
+import io.customer.geofence.GeofenceDiagnostics
 import io.customer.geofence.GeofenceLogger
 import io.customer.sdk.core.util.CioLogLevel
 import io.customer.sdk.core.util.Logger
 import org.amshove.kluent.shouldBeEqualTo
+import org.amshove.kluent.shouldBeInRange
+import org.junit.After
 import org.junit.Test
 
 class PolygonRouteIntegrationTest {
@@ -30,6 +33,7 @@ class PolygonRouteIntegrationTest {
             fences = listOf(campus),
             sample = PolygonLocationSample(point(37.7750, -122.4194), 45.0),
             elapsedRealtimeNanos = 1L,
+            fixAgeSeconds = 0.0,
             committedStates = emptyMap(),
             evidencePolicy = PolygonEvidencePolicy.DECISIVE_SINGLE_FIX
         )
@@ -46,6 +50,7 @@ class PolygonRouteIntegrationTest {
             fences = listOf(campus),
             sample = PolygonLocationSample(point(37.7750, -122.4194), 80.0),
             elapsedRealtimeNanos = 1L,
+            fixAgeSeconds = 0.0,
             committedStates = emptyMap(),
             evidencePolicy = PolygonEvidencePolicy.DECISIVE_SINGLE_FIX
         )
@@ -64,11 +69,66 @@ class PolygonRouteIntegrationTest {
             fences = listOf(campus),
             sample = PolygonLocationSample(point(37.7750, -122.4194), 30.0),
             elapsedRealtimeNanos = 1L,
+            fixAgeSeconds = 0.0,
             committedStates = mapOf("campus" to PolygonCommittedState.INSIDE),
             evidencePolicy = PolygonEvidencePolicy.DECISIVE_SINGLE_FIX
         )
 
         capturing.messages.count { it.contains("undecided") } shouldBeEqualTo 0
+    }
+
+    @Test
+    fun process_givenAnUndecidedFixInsideThePolygon_expectAPositiveEdge() {
+        // Roughly 53 m inside the nearest edge, refused because the accuracy circle plus margin
+        // still reaches past it.
+        val capturing = undecidedRecordsFor(point(37.7750, -122.4194))
+
+        capturing.undecidedEdgeMeters() shouldBeInRange 45.0..60.0
+    }
+
+    @Test
+    fun process_givenAnUndecidedFixOutsideThePolygon_expectANegativeEdge() {
+        // Roughly 18 m outside the same edge, refused for the same reason. Unsigned, this row and
+        // the one above are indistinguishable, and the margins cannot be calibrated from either.
+        val capturing = undecidedRecordsFor(point(37.7750, -122.4202))
+
+        capturing.undecidedEdgeMeters() shouldBeInRange -25.0..-10.0
+    }
+
+    @Test
+    fun process_givenAnUndecidedFix_expectTheAgeOfTheFixThatWasJudged() {
+        val capturing = undecidedRecordsFor(point(37.7750, -122.4194), fixAgeSeconds = 7.5)
+
+        capturing.undecidedField("age") shouldBeEqualTo "7.5"
+    }
+
+    private fun undecidedRecordsFor(
+        coordinate: PolygonCoordinate,
+        fixAgeSeconds: Double = 0.0
+    ): CapturingLogger {
+        GeofenceDiagnostics.setEnabledForTesting(true)
+        val capturing = CapturingLogger()
+        PolygonRouteProcessor(logger = GeofenceLogger(capturing)).process(
+            fences = listOf(campus),
+            sample = PolygonLocationSample(coordinate, 45.0),
+            elapsedRealtimeNanos = 1L,
+            fixAgeSeconds = fixAgeSeconds,
+            committedStates = emptyMap(),
+            evidencePolicy = PolygonEvidencePolicy.DECISIVE_SINGLE_FIX
+        )
+        return capturing
+    }
+
+    private fun CapturingLogger.undecidedEdgeMeters(): Double = undecidedField("edge").toDouble()
+
+    private fun CapturingLogger.undecidedField(key: String): String = messages
+        .single { it.contains("ev=polygon.undecided") }
+        .substringAfter(" $key=")
+        .substringBefore(' ')
+
+    @After
+    fun resetDiagnostics() {
+        GeofenceDiagnostics.setEnabledForTesting(null)
     }
 
     @Test
@@ -138,6 +198,7 @@ class PolygonRouteIntegrationTest {
             fences = listOf(campus),
             sample = inside,
             elapsedRealtimeNanos = 100L,
+            fixAgeSeconds = 0.0,
             committedStates = emptyMap()
         )
         val detections = listOf(10L, 20L, 30L).flatMap { timestamp ->
@@ -145,6 +206,7 @@ class PolygonRouteIntegrationTest {
                 fences = listOf(campus, eastCampus),
                 sample = inside,
                 elapsedRealtimeNanos = timestamp,
+                fixAgeSeconds = 0.0,
                 committedStates = emptyMap()
             )
         }
@@ -231,6 +293,7 @@ class PolygonRouteIntegrationTest {
             fences = listOf(campus),
             sample = PolygonLocationSample(point(37.7750, -122.4194), 5.0),
             elapsedRealtimeNanos = 1L,
+            fixAgeSeconds = 0.0,
             committedStates = states
         )
         processor.clear()
@@ -239,6 +302,7 @@ class PolygonRouteIntegrationTest {
                 fences = listOf(campus),
                 sample = PolygonLocationSample(point(37.7750, -122.4194), 5.0),
                 elapsedRealtimeNanos = sequence,
+                fixAgeSeconds = 0.0,
                 committedStates = states
             )
         }
@@ -297,6 +361,7 @@ class PolygonRouteIntegrationTest {
                 fences = fences,
                 sample = PolygonLocationSample(point(latitude, longitude), accuracy),
                 elapsedRealtimeNanos = elapsedRealtimeNanos,
+                fixAgeSeconds = 0.0,
                 committedStates = committedStates
             )
             detections.forEach { detection ->

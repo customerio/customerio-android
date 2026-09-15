@@ -36,6 +36,7 @@ internal class PolygonRouteProcessor(
         fences: List<PolygonFence>,
         sample: PolygonLocationSample,
         elapsedRealtimeNanos: Long,
+        fixAgeSeconds: Double,
         committedStates: Map<String, PolygonCommittedState>,
         evidencePolicy: PolygonEvidencePolicy = PolygonEvidencePolicy.CONFIRMED
     ): List<PolygonTransitionDetection> {
@@ -67,8 +68,9 @@ internal class PolygonRouteProcessor(
                 logger.logPolygonUndecided(
                     geofenceId = fence.id,
                     reason = reason,
-                    boundaryDistanceMeters = result.boundaryDistanceMeters,
-                    horizontalAccuracyMeters = sample.horizontalAccuracyMeters
+                    signedBoundaryDistanceMeters = result.signedBoundaryDistanceMeters,
+                    horizontalAccuracyMeters = sample.horizontalAccuracyMeters,
+                    fixAgeSeconds = fixAgeSeconds
                 )
             }
             val isTransitionEvidence =

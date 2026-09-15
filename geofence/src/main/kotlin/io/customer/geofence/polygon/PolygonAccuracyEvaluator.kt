@@ -44,7 +44,8 @@ internal enum class PolygonUndecidedReason(val wire: String) {
 internal data class PolygonEvidenceResult(
     val evidence: PolygonEvidence,
     val undecidedReason: PolygonUndecidedReason? = null,
-    val boundaryDistanceMeters: Double? = null
+    /** Positive inside, negative outside, as iOS reports it. Null unless [undecidedReason] is set. */
+    val signedBoundaryDistanceMeters: Double? = null
 )
 
 /** Classifies a location fix without mutating committed polygon state. */
@@ -57,14 +58,14 @@ internal class PolygonAccuracyEvaluator {
         if (sample.horizontalAccuracyMeters > MAX_EVALUATED_FIX_ACCURACY_METERS) {
             return undecided(
                 PolygonUndecidedReason.ACCURACY_TOO_LOW,
-                geometry.boundaryDistanceMeters(sample.coordinate)
+                geometry.signedBoundaryDistanceMeters(sample.coordinate)
             )
         }
         val centerRelation = geometry.relationTo(sample.coordinate)
         if (centerRelation == PolygonPointRelation.BOUNDARY) {
             return undecided(
                 PolygonUndecidedReason.ON_BOUNDARY,
-                geometry.boundaryDistanceMeters(sample.coordinate)
+                geometry.signedBoundaryDistanceMeters(sample.coordinate)
             )
         }
 
@@ -90,7 +91,10 @@ internal class PolygonAccuracyEvaluator {
                 PolygonEvidenceResult(PolygonEvidence.ENTER)
             centerRelation == PolygonPointRelation.OUTSIDE && boundaryDistanceMeters > accuracy ->
                 PolygonEvidenceResult(PolygonEvidence.EXIT)
-            else -> undecided(PolygonUndecidedReason.WITHIN_ACCURACY, boundaryDistanceMeters)
+            else -> undecided(
+                PolygonUndecidedReason.WITHIN_ACCURACY,
+                signedBoundaryDistance(boundaryDistanceMeters, centerRelation)
+            )
         }
     }
 
@@ -106,20 +110,23 @@ internal class PolygonAccuracyEvaluator {
         if (sample.horizontalAccuracyMeters > MAX_DECISIVE_FIX_ACCURACY_METERS) {
             return undecided(
                 PolygonUndecidedReason.ACCURACY_TOO_LOW,
-                geometry.boundaryDistanceMeters(sample.coordinate)
+                geometry.signedBoundaryDistanceMeters(sample.coordinate)
             )
         }
         val relation = geometry.relationTo(sample.coordinate)
         if (relation == PolygonPointRelation.BOUNDARY) {
             return undecided(
                 PolygonUndecidedReason.ON_BOUNDARY,
-                geometry.boundaryDistanceMeters(sample.coordinate)
+                geometry.signedBoundaryDistanceMeters(sample.coordinate)
             )
         }
         val boundaryDistanceMeters = geometry.boundaryDistanceMeters(sample.coordinate)
         val requiredDistance = sample.horizontalAccuracyMeters + DECISIVE_BOUNDARY_MARGIN_METERS
         if (boundaryDistanceMeters <= requiredDistance) {
-            return undecided(PolygonUndecidedReason.WITHIN_ACCURACY, boundaryDistanceMeters)
+            return undecided(
+                PolygonUndecidedReason.WITHIN_ACCURACY,
+                signedBoundaryDistance(boundaryDistanceMeters, relation)
+            )
         }
         return when {
             committedState == PolygonCommittedState.OUTSIDE && relation == PolygonPointRelation.INSIDE ->
@@ -134,12 +141,26 @@ internal class PolygonAccuracyEvaluator {
 
     private fun undecided(
         reason: PolygonUndecidedReason,
-        boundaryDistanceMeters: Double
+        signedBoundaryDistanceMeters: Double
     ) = PolygonEvidenceResult(
         evidence = PolygonEvidence.AMBIGUOUS,
         undecidedReason = reason,
-        boundaryDistanceMeters = boundaryDistanceMeters
+        signedBoundaryDistanceMeters = signedBoundaryDistanceMeters
     )
+
+    /**
+     * The decisions above all compare an unsigned distance, so the sign is only ever attached on
+     * the way out to the record. Unsigned, a row cannot tell a fix refused 26 m inside the polygon
+     * from one refused 26 m outside it, which is the question the margins are calibrated against.
+     */
+    private fun PolygonGeometry.signedBoundaryDistanceMeters(point: PolygonCoordinate): Double =
+        signedBoundaryDistance(boundaryDistanceMeters(point), relationTo(point))
+
+    private fun signedBoundaryDistance(
+        boundaryDistanceMeters: Double,
+        relation: PolygonPointRelation
+    ): Double =
+        if (relation == PolygonPointRelation.OUTSIDE) -boundaryDistanceMeters else boundaryDistanceMeters
 
     private fun perimeterSamples(
         center: PolygonCoordinate,

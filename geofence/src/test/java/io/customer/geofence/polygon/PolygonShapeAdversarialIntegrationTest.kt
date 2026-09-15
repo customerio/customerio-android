@@ -211,6 +211,7 @@ class PolygonShapeAdversarialIntegrationTest {
                 fences = fences,
                 sample = PolygonLocationSample(point(latitude, longitude), accuracy),
                 elapsedRealtimeNanos = elapsedRealtimeNanos,
+                fixAgeSeconds = 0.0,
                 committedStates = committedStates
             ).also { detections ->
                 detections.forEach { detection ->

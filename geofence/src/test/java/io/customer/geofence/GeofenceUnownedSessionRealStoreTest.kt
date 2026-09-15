@@ -13,6 +13,7 @@ import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.slot
 import java.io.IOException
 import kotlinx.coroutines.test.runTest
 import org.amshove.kluent.shouldBeEmpty
@@ -149,6 +150,55 @@ class GeofenceUnownedSessionRealStoreTest : RobolectricTest() {
         repository.handleMovement(latitude = 0.0, longitude = 0.0)
 
         store.getRoutableRegisteredIds() shouldContain fence.id
+    }
+
+    @Test
+    fun unownedSessionThenBootRestore_expectTheCachedFencesRegisteredAgain() = runTest {
+        // A reboot restores from the persisted anchor alone: no live fix, no network. Opening an
+        // unowned session must not take that anchor with it, or the first reboot after an upgrade
+        // leaves the device with no fences and reports success for it.
+        val restored = slot<List<GeofenceRegion>>()
+        coEvery { manager.replaceGeofencesForBootRestore(capture(restored)) } returns Result.success(Unit)
+
+        store.beginUserSession(USER)
+        val result = repository.restoreFromCache()
+
+        result.isSuccess.shouldBeTrue()
+        coVerify(exactly = 1) { manager.replaceGeofencesForBootRestore(any()) }
+        restored.captured.map { it.id } shouldContain fence.id
+    }
+
+    @Test
+    fun switchBetweenTwoKnownUsers_expectTheAnchorsDroppedWithTheRestOfTheSession() = runTest {
+        // The other side of the adoption exception. Anchors survive an adoption because the
+        // registrations they describe are this same user's; a real switch must not hand the next
+        // user the previous one's last known position to anchor fetches and boot restore on.
+        store.beginUserSession(USER)
+        store.saveApiFetchStateIfCurrent(
+            location = GeofenceLocation(10.0, 20.0),
+            syncTimestamp = System.currentTimeMillis(),
+            expectedUserStateGeneration = store.userStateGeneration()
+        )
+        store.saveLastMovementTriggerLocation(GeofenceLocation(10.0, 20.0))
+
+        store.beginUserSession("someone-else")
+
+        store.getLastApiFetchLocation().shouldBeNull()
+        store.getLastMovementTriggerLocation().shouldBeNull()
+    }
+
+    @Test
+    fun unownedSessionOpenedByAppLaunchThenBootRestore_expectTheCachedFencesRegisteredAgain() = runTest {
+        // onAppLaunch opens the same unowned session through the absent-only entry point, which is
+        // reached only when no owner is recorded. It must keep the anchors for the same reason.
+        val restored = slot<List<GeofenceRegion>>()
+        coEvery { manager.replaceGeofencesForBootRestore(capture(restored)) } returns Result.success(Unit)
+
+        store.beginUserSessionIfAbsent(USER)
+        repository.restoreFromCache()
+
+        coVerify(exactly = 1) { manager.replaceGeofencesForBootRestore(any()) }
+        restored.captured.map { it.id } shouldContain fence.id
     }
 
     private fun sampleResponse(): GeofenceApiResponse {

@@ -131,6 +131,9 @@ internal fun GeofenceRegion.contains(latitude: Double, longitude: Double): Boole
  * E.g., [ENTER, EXIT] → GEOFENCE_TRANSITION_ENTER | GEOFENCE_TRANSITION_EXIT.
  */
 internal fun GeofenceRegion.toGmsTransitionTypes(): Int {
+    if (isPolygon) {
+        return Geofence.GEOFENCE_TRANSITION_ENTER or Geofence.GEOFENCE_TRANSITION_EXIT
+    }
     var mask = 0
     transitionTypes.forEach { mask = mask or it.gmsValue }
     return mask
@@ -146,7 +149,8 @@ internal fun GeofenceRegion.equalsForRegistration(other: GeofenceRegion): Boolea
         latitude == other.latitude &&
         longitude == other.longitude &&
         radius == other.radius &&
-        transitionTypes == other.transitionTypes
+        isPolygon == other.isPolygon &&
+        (isPolygon || transitionTypes == other.transitionTypes)
 
 /** Stable, process-independent revision for invalidating detections produced by replaced geometry. */
 internal fun GeofenceRegion.transitionRevision(): Int {

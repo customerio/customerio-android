@@ -6,6 +6,7 @@
         - android.permission.ACCESS_FINE_LOCATION
         - android.permission.ACCESS_BACKGROUND_LOCATION
         - android.permission.RECEIVE_BOOT_COMPLETED
+
         The SDK does not declare them to avoid adding permissions for customers
         not using geofencing.
     -->
@@ -15,6 +16,18 @@
         <receiver
             android:name="io.customer.geofence.GeofenceBroadcastReceiver"
             android:enabled="false"
+            android:exported="false" />
+
+        <!--
+            Receives the displacement-gated polygon approach fixes registered with GMS.
+
+            Deliberately always enabled, unlike the two receivers around it. Its registration is a
+            PendingIntent held by GMS that outlives both the process and the kill switch, so
+            disabling this would strand a live request with nothing able to receive the delivery
+            that tears it down.
+        -->
+        <receiver
+            android:name="io.customer.geofence.polygon.PolygonApproachReceiver"
             android:exported="false" />
 
         <!-- Disabled by default; enabled alongside GeofenceBroadcastReceiver -->

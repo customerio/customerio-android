@@ -105,6 +105,18 @@ internal interface GeofenceRegionStore {
     fun beginUserSession(userId: String)
 
     /**
+     * Opens or keeps a session for whoever [currentUserId] reports, reading it under the same lock
+     * that opens the session.
+     *
+     * For callers that do not own the identity they are acting on — app launch, boot restore, an OS
+     * callback — and would otherwise read it, then race an identify to the write. Reading inside
+     * the lock means a concurrent identify is either already visible here, so this is a no-op, or
+     * lands after this returns and switches on top. Either order leaves the identified user owning
+     * the session. No user reported means no session opens.
+     */
+    fun beginUserSessionForCurrentUser(currentUserId: () -> String?)
+
+    /**
      * Opens a session for [userId] only while none is recorded, checked and written under one lock.
      *
      * For callers that read the identified user before calling: a concurrent identify can land in
@@ -237,6 +249,19 @@ internal interface GeofenceRegionStore {
     fun getLastApiFetchLocation(): GeofenceLocation?
 
     fun saveLastMovementTriggerLocation(location: GeofenceLocation)
+
+    /**
+     * Records [location] as the movement-trigger center, but only while [expectedUserStateGeneration]
+     * is still current. Returns whether the write happened.
+     *
+     * For callers that register the trigger with the OS first: that await holds no lock, so a
+     * sign-out can complete inside it and this must not write the departing user's position back
+     * over state the reset just cleared.
+     */
+    fun saveLastMovementTriggerLocationIfCurrent(
+        location: GeofenceLocation,
+        expectedUserStateGeneration: Long
+    ): Boolean
     fun getLastMovementTriggerLocation(): GeofenceLocation?
     fun clearLastMovementTriggerLocation()
 
@@ -481,36 +506,61 @@ internal class GeofenceRegionStoreImpl(
     }
 
     override fun beginUserSession(userId: String) = synchronized(enteredLock) {
+        beginUserSessionLocked(userId)
+    }
+
+    override fun beginUserSessionForCurrentUser(currentUserId: () -> String?) =
+        synchronized(enteredLock) {
+            val userId = currentUserId()?.takeIf { it.isNotEmpty() } ?: return@synchronized
+            beginUserSessionLocked(userId)
+        }
+
+    private fun beginUserSessionLocked(userId: String) {
         val currentOwner = prefs.read { getString(KEY_USER_STATE_OWNER, null) }
-        if (currentOwner == userId) return@synchronized
+        if (currentOwner == userId) return
         // An absent owner means an install upgraded from a version without these keys, and nothing
         // records who the persisted state belongs to. Adopting whoever is identified now was a guess
-        // that a late read or a replayed identify can get wrong, so an unowned session opens as a
-        // switch. OS registrations survive it, so live fences keep firing once a refresh re-arms them.
-        openUserSessionLocked(userId)
+        // that a late read or a replayed identify can get wrong, so an unowned session still opens
+        // as a switch: user-scoped state is dropped rather than attributed to a user we inferred.
+        if (currentOwner.isNullOrEmpty()) {
+            adoptUnownedSessionLocked(userId)
+        } else {
+            openUserSessionLocked(userId)
+        }
     }
 
     override fun beginUserSessionIfAbsent(userId: String) = synchronized(enteredLock) {
         if (hasActiveUserSessionLocked()) return@synchronized
-        openUserSessionLocked(userId)
+        // Reached only with no owner recorded, which is the adoption case by definition.
+        adoptUnownedSessionLocked(userId)
     }
 
-    private fun openUserSessionLocked(userId: String) {
+    /**
+     * Adopts persisted state that records no owner, keeping only the two location anchors.
+     *
+     * Those anchors are where the existing OS registrations were placed, and boot restore has
+     * nothing else to work from: no live fix and no network. Dropping them with the session-scoped
+     * state made the first reboot after an upgrade report a successful restore that registered
+     * nothing, leaving the device unmonitored until some later pass took a live fix.
+     *
+     * The sync stamp is not kept. Retaining it throttles the next pass as fresh, and that pass is
+     * what arms routing after the generation bump, so the adopted session would register nothing
+     * it could attribute.
+     */
+    private fun adoptUnownedSessionLocked(userId: String) {
+        openUserSessionLocked(userId, clearedKeys = SESSION_SCOPED_KEYS)
+    }
+
+    private fun openUserSessionLocked(
+        userId: String,
+        clearedKeys: List<String> = SESSION_SCOPED_KEYS + REGISTRATION_ANCHOR_KEYS
+    ) {
         val nextGeneration = currentUserStateGenerationLocked() + 1L
         prefs.edit(commit = true) {
             putString(KEY_USER_STATE_OWNER, userId)
             putLong(KEY_USER_STATE_GENERATION, nextGeneration)
             putString(KEY_ROUTABLE_REGISTERED_IDS, jsonSerializer.encode(ID_SET_SERIALIZER, emptySet()))
-            remove(KEY_LAST_API_FETCH_LOCATION)
-            remove(KEY_LAST_MOVEMENT_TRIGGER_LOCATION)
-            remove(KEY_PENDING_TRANSITION_ENTRIES)
-            remove(KEY_PENDING_POLYGON_APPROACH_BATCHES)
-            remove(KEY_ACTIVE_POLYGON_IDS)
-            remove(KEY_COARSE_INSIDE_POLYGON_IDS)
-            remove(KEY_ENTERED_IDS)
-            remove(KEY_EMITTED_ENTER_IDS)
-            remove(KEY_EMITTED_ENTER_OWNER)
-            remove(KEY_LAST_SYNC)
+            clearedKeys.forEach(::remove)
         }
     }
 
@@ -789,6 +839,15 @@ internal class GeofenceRegionStoreImpl(
     override fun saveLastMovementTriggerLocation(location: GeofenceLocation) =
         writeEncryptedJson(KEY_LAST_MOVEMENT_TRIGGER_LOCATION, GeofenceLocation.serializer(), location)
 
+    override fun saveLastMovementTriggerLocationIfCurrent(
+        location: GeofenceLocation,
+        expectedUserStateGeneration: Long
+    ): Boolean = synchronized(enteredLock) {
+        if (expectedUserStateGeneration != currentUserStateGenerationLocked()) return@synchronized false
+        saveLastMovementTriggerLocation(location)
+        true
+    }
+
     override fun getLastMovementTriggerLocation(): GeofenceLocation? =
         readEncryptedJson(KEY_LAST_MOVEMENT_TRIGGER_LOCATION, GeofenceLocation.serializer())
 
@@ -948,6 +1007,28 @@ internal class GeofenceRegionStoreImpl(
         const val KEY_LAST_SYNC = "last_sync_timestamp"
         const val KEY_LAST_REGISTRATION_UPTIME = "last_registration_uptime"
         const val KEY_LAST_REGISTRATION_PACKAGE_UPDATE_TIME = "last_registration_package_update_time"
+
+        // Cleared whenever a session opens. Everything here is attributed to the user that owned
+        // it, plus the freshness throttle, so the session that opens next re-fetches.
+        val SESSION_SCOPED_KEYS = listOf(
+            KEY_PENDING_TRANSITION_ENTRIES,
+            KEY_PENDING_POLYGON_APPROACH_BATCHES,
+            KEY_ACTIVE_POLYGON_IDS,
+            KEY_COARSE_INSIDE_POLYGON_IDS,
+            KEY_ENTERED_IDS,
+            KEY_EMITTED_ENTER_IDS,
+            KEY_EMITTED_ENTER_OWNER,
+            KEY_LAST_SYNC
+        )
+
+        // Where the OS registrations were placed. A switch between two known users drops these with
+        // the rest; adopting unowned state keeps them, because they describe registrations that
+        // outlived the upgrade and boot restore has nothing else to anchor on.
+        val REGISTRATION_ANCHOR_KEYS = listOf(
+            KEY_LAST_API_FETCH_LOCATION,
+            KEY_LAST_MOVEMENT_TRIGGER_LOCATION
+        )
+
         const val MAXIMUM_PENDING_APPROACH_BATCHES = 128
         val REGIONS_SERIALIZER = ListSerializer(GeofenceRegion.serializer())
         val PENDING_TRANSITIONS_SERIALIZER = ListSerializer(PendingGeofenceDelivery.serializer())

@@ -1177,6 +1177,62 @@ internal class GeofenceLogger(private val logger: Logger) {
         )
     }
 
+    fun logPolygonApproachMonitoringStarted() {
+        logger.debug(
+            "Polygon responsive approach monitoring registered" +
+                tail("polygon.approach.started", GeofenceLogIo.OUTPUT),
+            tag = TAG
+        )
+    }
+
+    fun logPolygonApproachMonitoringStopped() {
+        logger.debug(
+            "Polygon responsive approach monitoring removed" +
+                tail("polygon.approach.stopped", GeofenceLogIo.OUTPUT),
+            tag = TAG
+        )
+    }
+
+    /**
+     * The OS refused to start or stop the location stream, so this is the environment's fault and a
+     * replay feeds it back rather than comparing it. [operation] separates the two call sites.
+     */
+    fun logPolygonApproachRequestFailed(message: String?, operation: String) {
+        logger.error(
+            "Polygon responsive approach monitoring unavailable: $message" +
+                tail(
+                    "polygon.approach.failed",
+                    GeofenceLogIo.INPUT,
+                    listOf(
+                        "ok" to bool(false),
+                        "op" to operation,
+                        "why" to token(message ?: "unknown")
+                    )
+                ),
+            tag = TAG
+        )
+    }
+
+    /**
+     * Our own handling of a delivered batch threw, so the locations in it are lost. An output: the
+     * OS did its part. [operation] separates the broadcast from the worker.
+     */
+    fun logPolygonApproachProcessingFailed(message: String?, operation: String) {
+        logger.error(
+            "Polygon responsive approach locations dropped: $message" +
+                tail(
+                    "polygon.approach.dropped",
+                    GeofenceLogIo.OUTPUT,
+                    listOf(
+                        "ok" to bool(false),
+                        "op" to operation,
+                        "why" to token(message ?: "unknown")
+                    )
+                ),
+            tag = TAG
+        )
+    }
+
     companion object {
         private const val TAG = "Geofence"
     }

@@ -8,6 +8,7 @@ import io.customer.commontest.config.TestConfig
 import io.customer.commontest.config.testConfigurationDefault
 import io.customer.commontest.core.RobolectricTest
 import io.customer.geofence.di.pendingGeofenceDeliveryStore
+import io.customer.geofence.polygon.PolygonGeofenceServiceController
 import io.customer.geofence.store.GeofenceRegionStore
 import io.customer.geofence.store.PendingGeofenceDelivery
 import io.customer.geofence.worker.GeofenceEventScheduler
@@ -57,6 +58,7 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
     private val mockStore: GeofenceRegionStore = mockk(relaxed = true)
     private val mockManager: GeofenceManager = mockk(relaxed = true)
     private val mockSecureUserStore: SecureUserStore = mockk(relaxed = true)
+    private val mockPolygonController: PolygonGeofenceServiceController = mockk(relaxed = true)
 
     // Real-time behavior by default so entry timestamps stay realistic; the dispatch-budget
     // test re-stubs elapsedRealtime to simulate time already spent inside a dispatch.
@@ -128,6 +130,7 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
                         overrideDependency<GeofenceRegionStore>(mockStore)
                         overrideDependency<GeofenceManager>(mockManager)
                         overrideDependency<SecureUserStore>(mockSecureUserStore)
+                        overrideDependency<PolygonGeofenceServiceController>(mockPolygonController)
                     }
                 }
             }
@@ -356,8 +359,8 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
     fun dispatchTransition_givenLegacyColdStartWithoutSessionOwner_expectAdoptsUserAndProcessesCallback() = runTest {
         var sessionOwner: String? = null
         every { mockStore.activeUserSessionId() } answers { sessionOwner }
-        every { mockStore.beginUserSession(any()) } answers {
-            sessionOwner = firstArg()
+        every { mockPolygonController.beginUserSessionForCurrentUser() } answers {
+            sessionOwner = mockSecureUserStore.getUserId()
         }
 
         receiver.dispatchTransition(
@@ -367,7 +370,9 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
             longitude = 2.0
         )
 
-        verify { mockStore.beginUserSession("user-42") }
+        // The controller reads the identified user itself, under the store's session lock.
+        verify { mockPolygonController.beginUserSessionForCurrentUser() }
+        sessionOwner shouldBeEqualTo "user-42"
         coVerify(exactly = 1) { mockScheduler.schedule(any()) }
     }
 

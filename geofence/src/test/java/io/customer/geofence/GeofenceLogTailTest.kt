@@ -204,7 +204,11 @@ class GeofenceLogTailTest : RobolectricTest() {
             Row("polygonDroppedUnsupportedRuntime", "registration.rejected", listOf("id", "sh", "why"), GeofenceLogger::logPolygonDroppedUnsupportedRuntime.name) { it.logPolygonDroppedUnsupportedRuntime("notl_core") },
             Row("unsupportedGeometryDropped", "registration.rejected", listOf("id", "sh", "why"), GeofenceLogger::logUnsupportedGeometryDropped.name) { it.logUnsupportedGeometryDropped("notl_core", "LineString") },
             Row("polygonRegionNotRanked", "rank.excluded", listOf("id", "sh", "why"), GeofenceLogger::logPolygonRegionNotRanked.name) { it.logPolygonRegionNotRanked("notl_core", PolygonNotRankedReason.RING_UNBUILDABLE) },
-            Row("polygonFixNotUsable", "polygon.undecided", listOf("why"), GeofenceLogger::logPolygonFixNotUsable.name) { it.logPolygonFixNotUsable(PolygonFixRejection.FIX_TOO_OLD) }
+            Row("polygonFixNotUsable", "polygon.undecided", listOf("why"), GeofenceLogger::logPolygonFixNotUsable.name) { it.logPolygonFixNotUsable(PolygonFixRejection.FIX_TOO_OLD) },
+            Row("polygonApproachStarted", "polygon.approach.started", emptyList(), GeofenceLogger::logPolygonApproachMonitoringStarted.name) { it.logPolygonApproachMonitoringStarted() },
+            Row("polygonApproachStopped", "polygon.approach.stopped", emptyList(), GeofenceLogger::logPolygonApproachMonitoringStopped.name) { it.logPolygonApproachMonitoringStopped() },
+            Row("polygonApproachRequestFailed", "polygon.approach.failed", listOf("ok", "op", "why"), GeofenceLogger::logPolygonApproachRequestFailed.name, io = "in") { it.logPolygonApproachRequestFailed("no permission", operation = "request_updates") },
+            Row("polygonApproachProcessingFailed", "polygon.approach.dropped", listOf("ok", "op", "why"), GeofenceLogger::logPolygonApproachProcessingFailed.name) { it.logPolygonApproachProcessingFailed("boom", operation = "deliver") }
         )
     }
 
@@ -351,6 +355,10 @@ class GeofenceLogTailTest : RobolectricTest() {
             "os.callback.received",
             "os.error",
             "permission.changed",
+            "polygon.approach.dropped",
+            "polygon.approach.failed",
+            "polygon.approach.started",
+            "polygon.approach.stopped",
             "polygon.undecided",
             "queue.unreadable",
             "rank.evaluated",
@@ -631,6 +639,25 @@ class GeofenceLogTailTest : RobolectricTest() {
         // Shared, so a query for the failure itself catches both.
         parseTail(worker.messages.last())!!["why"] shouldBeEqualTo "read_failed"
         parseTail(flush.messages.last())!!["why"] shouldBeEqualTo "read_failed"
+    }
+
+    @Test
+    fun polygonApproachFailures_givenEachCallPath_expectTheyStayDistinguishable() {
+        // An OS refusal is the environment's and replays as input; our own handler throwing is an
+        // output. Within each, `op` separates the two call sites that share the record.
+        geofenceLogger.logPolygonApproachRequestFailed("boom", operation = "request_updates")
+        parseTail(capturing.messages.last())!!["op"] shouldBeEqualTo "request_updates"
+        parseTail(capturing.messages.last())!!["io"] shouldBeEqualTo "in"
+
+        geofenceLogger.logPolygonApproachRequestFailed("boom", operation = "remove_updates")
+        parseTail(capturing.messages.last())!!["op"] shouldBeEqualTo "remove_updates"
+
+        geofenceLogger.logPolygonApproachProcessingFailed("boom", operation = "receive")
+        parseTail(capturing.messages.last())!!["op"] shouldBeEqualTo "receive"
+        parseTail(capturing.messages.last())!!["io"] shouldBeEqualTo "out"
+
+        geofenceLogger.logPolygonApproachProcessingFailed("boom", operation = "deliver")
+        parseTail(capturing.messages.last())!!["op"] shouldBeEqualTo "deliver"
     }
 
     @Test

@@ -11,7 +11,6 @@ import io.customer.geofence.GeofenceRegion
 import io.customer.geofence.GeofenceTransitionType
 import io.customer.geofence.PolygonDropReason
 import io.customer.geofence.distanceTo
-import io.customer.geofence.polygon.EnabledPolygonSupport
 import io.customer.geofence.polygon.PolygonCoordinate
 import io.customer.geofence.polygon.PolygonSupport
 import io.mockk.every
@@ -114,7 +113,7 @@ class GeofenceApiResponseTest : RobolectricTest() {
     fun parseAndMap_givenPolygonAndOptIn_expectValidatedPolygonAndEnclosingCircle() {
         // The same record with the runtime's opt-in supplied: proves the drop above is the opt-in,
         // not a gap in the wire contract or the geometry.
-        val region = parseRegions(polygonAndCircleJson(), EnabledPolygonSupport)
+        val region = parseRegions(polygonAndCircleJson(), PolygonSupport.Enabled)
             .single { it.id == "campus" }
 
         region.isPolygon.shouldBeTrue()
@@ -154,7 +153,7 @@ class GeofenceApiResponseTest : RobolectricTest() {
               ]
             }
             """.trimIndent(),
-            EnabledPolygonSupport
+            PolygonSupport.Enabled
         )
 
         regions.map(GeofenceRegion::id) shouldBeEqualTo listOf("circle")
@@ -172,7 +171,7 @@ class GeofenceApiResponseTest : RobolectricTest() {
               ]
             }
             """.trimIndent(),
-            EnabledPolygonSupport
+            PolygonSupport.Enabled
         )
 
         regions.map(GeofenceRegion::id) shouldBeEqualTo listOf("padded", "circle")
@@ -192,7 +191,7 @@ class GeofenceApiResponseTest : RobolectricTest() {
               ]
             }
             """.trimIndent(),
-            EnabledPolygonSupport
+            PolygonSupport.Enabled
         )
 
         regions.map(GeofenceRegion::id) shouldBeEqualTo listOf("blank", "circle")
@@ -204,7 +203,7 @@ class GeofenceApiResponseTest : RobolectricTest() {
         // The trim has to apply to every discriminator, not just the circle one.
         val region = parseRegions(
             polygonAndCircleJson().replace("\"shape\": \"polygon\"", "\"shape\": \" Polygon \""),
-            EnabledPolygonSupport
+            PolygonSupport.Enabled
         ).single { it.id == "campus" }
 
         region.isPolygon.shouldBeTrue()
@@ -223,7 +222,7 @@ class GeofenceApiResponseTest : RobolectricTest() {
               ]
             }
             """.trimIndent(),
-            EnabledPolygonSupport
+            PolygonSupport.Enabled
         )
 
         verify { mockLogger.logUnsupportedGeometryDropped("odd", " Hexagon ") }
@@ -259,7 +258,7 @@ class GeofenceApiResponseTest : RobolectricTest() {
               ]
             }
             """.trimIndent(),
-            EnabledPolygonSupport
+            PolygonSupport.Enabled
         )
 
         regions.map(GeofenceRegion::id) shouldBeEqualTo listOf("circle")
@@ -290,7 +289,7 @@ class GeofenceApiResponseTest : RobolectricTest() {
               ]
             }
             """.trimIndent(),
-            EnabledPolygonSupport
+            PolygonSupport.Enabled
         )
 
         regions.map(GeofenceRegion::id) shouldBeEqualTo listOf("circle")
@@ -318,7 +317,7 @@ class GeofenceApiResponseTest : RobolectricTest() {
               ]
             }
             """.trimIndent(),
-            EnabledPolygonSupport
+            PolygonSupport.Enabled
         )
 
         regions.map(GeofenceRegion::id) shouldBeEqualTo listOf("circle")
@@ -345,7 +344,7 @@ class GeofenceApiResponseTest : RobolectricTest() {
               ]
             }
             """.trimIndent(),
-            EnabledPolygonSupport
+            PolygonSupport.Enabled
         )
 
         regions.map(GeofenceRegion::id) shouldBeEqualTo listOf("circle")
@@ -371,7 +370,7 @@ class GeofenceApiResponseTest : RobolectricTest() {
               ]
             }
             """.trimIndent(),
-            EnabledPolygonSupport
+            PolygonSupport.Enabled
         )
 
         // The backend admits concave rings and the ray cast handles them, so re-checking convexity
@@ -399,7 +398,7 @@ class GeofenceApiResponseTest : RobolectricTest() {
     fun parseAndMap_givenUnknownGeometryTypeWithCircleFields_expectDroppedNotDegradedToCircle() {
         // A shape the SDK doesn't understand is dropped and logged, with or without the opt-in —
         // silently monitoring its bounding circle would report transitions for the wrong area.
-        listOf(PolygonSupport.Disabled, EnabledPolygonSupport).forEach { support ->
+        listOf(PolygonSupport.Disabled, PolygonSupport.Enabled).forEach { support ->
             val regions = parseRegions(
                 """
                 {
@@ -456,7 +455,7 @@ class GeofenceApiResponseTest : RobolectricTest() {
               ]
             }
             """.trimIndent(),
-            EnabledPolygonSupport
+            PolygonSupport.Enabled
         )
 
         regions.map(GeofenceRegion::id) shouldBeEqualTo listOf("circle")
@@ -484,7 +483,7 @@ class GeofenceApiResponseTest : RobolectricTest() {
               ]
             }
             """.trimIndent(),
-            EnabledPolygonSupport
+            PolygonSupport.Enabled
         )
 
         regions.map(GeofenceRegion::id) shouldBeEqualTo listOf("circle")
@@ -512,7 +511,7 @@ class GeofenceApiResponseTest : RobolectricTest() {
               ]
             }
             """.trimIndent(),
-            EnabledPolygonSupport
+            PolygonSupport.Enabled
         )
 
         regions.map(GeofenceRegion::id) shouldBeEqualTo listOf("circle")
@@ -539,7 +538,7 @@ class GeofenceApiResponseTest : RobolectricTest() {
               ]
             }
             """.trimIndent(),
-            EnabledPolygonSupport
+            PolygonSupport.Enabled
         )
 
         // Vertex count is the backend's admission policy, not something the ring needs to be usable.
@@ -1140,7 +1139,7 @@ class GeofenceApiResponseTest : RobolectricTest() {
     fun toDomainRegions_givenPolygonMissingCoordinates_expectOnlyThatRecordDropped() {
         // These nested objects decode before the per-record try/catch, so a required field here
         // would reject the whole response — valid circles included.
-        val regions = parseRegions(partialPolygonJson(geometry = """{ "type": "Polygon" }"""), EnabledPolygonSupport)
+        val regions = parseRegions(partialPolygonJson(geometry = """{ "type": "Polygon" }"""), PolygonSupport.Enabled)
 
         regions.map { it.id } shouldContainSame listOf("plain-circle")
     }
@@ -1151,14 +1150,14 @@ class GeofenceApiResponseTest : RobolectricTest() {
             enclosingCircle = """{ "latitude": 37.775, "longitude": -122.4194 }"""
         )
 
-        val regions = parseRegions(json, EnabledPolygonSupport)
+        val regions = parseRegions(json, PolygonSupport.Enabled)
 
         regions.map { it.id } shouldContainSame listOf("plain-circle")
     }
 
     @Test
     fun toDomainRegions_givenPolygonWithEmptyGeometryObject_expectOnlyThatRecordDropped() {
-        val regions = parseRegions(partialPolygonJson(geometry = "{}"), EnabledPolygonSupport)
+        val regions = parseRegions(partialPolygonJson(geometry = "{}"), PolygonSupport.Enabled)
 
         regions.map { it.id } shouldContainSame listOf("plain-circle")
     }
@@ -1166,7 +1165,7 @@ class GeofenceApiResponseTest : RobolectricTest() {
     @Test
     fun toDomainRegions_givenValidPolygon_expectBackendBaseRadiusKeptAlongsideThePaddedOne() {
         // Ranking in the monitoring PR needs the backend circle; GMS needs the padded one.
-        val regions = parseRegions(polygonAndCircleJson(), EnabledPolygonSupport)
+        val regions = parseRegions(polygonAndCircleJson(), PolygonSupport.Enabled)
         val polygon = regions.first { it.id == "campus" }
 
         polygon.baseRadiusMeters shouldBeEqualTo 100.0
@@ -1255,7 +1254,7 @@ class GeofenceApiResponseTest : RobolectricTest() {
         // Absent, never a ring we could not build: a half-decoded ring answers membership wrongly.
         entry.vertices.shouldBeNull()
         entry.radiusMeters shouldBeEqualTo 100.0
-        invoking { response.toDomainRegions(EnabledPolygonSupport) } shouldThrow Exception::class
+        invoking { response.toDomainRegions(PolygonSupport.Enabled) } shouldThrow Exception::class
     }
 
     @Test

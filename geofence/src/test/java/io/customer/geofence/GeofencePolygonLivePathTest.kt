@@ -6,6 +6,7 @@ import io.customer.commontest.core.RobolectricTest
 import io.customer.geofence.api.GeofenceApiResponse
 import io.customer.geofence.api.GeofenceApiService
 import io.customer.geofence.polygon.PolygonCoordinate
+import io.customer.geofence.polygon.PolygonSupport
 import io.customer.geofence.store.GeofenceRegionStore
 import io.customer.sdk.core.util.Clock
 import io.customer.sdk.data.store.SecureUserStore
@@ -17,14 +18,19 @@ import io.mockk.slot
 import io.mockk.verify
 import kotlinx.coroutines.test.runTest
 import org.amshove.kluent.shouldBeEqualTo
+import org.amshove.kluent.shouldNotBeNull
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 
 /**
- * The live path end to end, with the real mapper and the real distance filter: a polygon the backend
- * sends must not reach OS registration or produce a business transition on this build, which ships
- * the geometry and the wire contract but nothing that can evaluate a polygon at runtime.
+ * The live path end to end, with the real mapper and the real distance filter, run twice: once with
+ * the opt-in absent and once with the production opt-in the graph actually wires.
+ *
+ * Without it, a polygon the backend sends must not reach OS registration or produce a business
+ * transition — every seam defaults to [io.customer.geofence.polygon.PolygonSupport.Disabled], so a
+ * path that forgets the wiring fails closed. With it, the *same* response registers the polygon,
+ * which is what proves the drops below are the opt-in and not a missing capability.
  *
  * The repository's other behaviour is covered by [GeofenceRepositoryTest], which mocks the distance
  * filter. This class deliberately uses the real one, because mapping and ranking are the two gates a
@@ -63,20 +69,23 @@ class GeofencePolygonLivePathTest : RobolectricTest() {
         every { store.getRegisteredIds() } returns emptySet()
         every { store.getCachedRegions() } returns emptyList()
         coEvery { manager.replaceGeofences(any(), any()) } returns Result.success(Unit)
-        repository = GeofenceRepositoryImpl(
-            apiService = apiService,
-            store = store,
-            // Production wiring: no polygon opt-in supplied anywhere in this module.
-            distanceFilter = GeofenceDistanceFilter(),
-            manager = manager,
-            secureUserStore = secureUserStore,
-            cooldownFilter = cooldownFilter,
-            transitionEmitter = transitionEmitter,
-            clock = clock,
-            packageInfo = packageInfo,
-            logger = mockLogger
-        )
+        // No opt-in supplied at any seam: every default is Disabled.
+        repository = buildRepository(PolygonSupport.Disabled)
     }
+
+    private fun buildRepository(polygonSupport: PolygonSupport) = GeofenceRepositoryImpl(
+        apiService = apiService,
+        store = store,
+        distanceFilter = GeofenceDistanceFilter(polygonSupport = polygonSupport),
+        manager = manager,
+        secureUserStore = secureUserStore,
+        cooldownFilter = cooldownFilter,
+        transitionEmitter = transitionEmitter,
+        clock = clock,
+        packageInfo = packageInfo,
+        logger = mockLogger,
+        polygonSupport = polygonSupport
+    )
 
     @Test
     fun refresh_givenPolygonAndCircleResponse_expectOnlyCircleAndTriggerRegistered() = runTest {
@@ -153,12 +162,80 @@ class GeofencePolygonLivePathTest : RobolectricTest() {
         }
     }
 
+    // ---------- the same live path with the production opt-in the graph wires ----------
+
+    @Test
+    fun refresh_givenProductionOptInAndPolygonResponse_expectPolygonRegisteredAlongsideCircle() = runTest {
+        // Identical response and identical mapper/ranker; only the opt-in differs. The polygon reaches
+        // the OS as a registered fence, carrying its ring rather than being flattened to a circle.
+        coEvery { apiService.fetchGeofences(any()) } returns Result.success(response(POLYGON_AND_CIRCLE))
+        val registered = slot<List<GeofenceRegion>>()
+
+        val result = buildRepository(PolygonSupport.Enabled)
+            .refresh(latitude = 37.775, longitude = -122.419)
+
+        result.isSuccess shouldBeEqualTo true
+        coVerify { manager.replaceGeofences(capture(registered), any()) }
+        registered.captured.map { it.id } shouldBeEqualTo
+            listOf(GeofenceConstants.MOVEMENT_TRIGGER_ID, "campus", "circle")
+        registered.captured.single { it.id == "campus" }.polygonVertices.shouldNotBeNull()
+        verify(exactly = 0) { mockLogger.logPolygonDroppedUnsupportedRuntime(any()) }
+        verify(exactly = 0) { mockLogger.logPolygonRegionNotRanked(any(), any()) }
+    }
+
+    @Test
+    fun refresh_givenProductionOptInAndPolygonOnlyResponse_expectRefreshSucceeds() = runTest {
+        // The "all regions dropped" failure in the disabled case is the opt-in talking, not a
+        // malformed response: with the runtime present the same payload is perfectly usable.
+        coEvery { apiService.fetchGeofences(any()) } returns Result.success(response(POLYGON_ONLY))
+
+        val result = buildRepository(PolygonSupport.Enabled)
+            .refresh(latitude = 37.775, longitude = -122.419)
+
+        result.isSuccess shouldBeEqualTo true
+        coVerify { manager.replaceGeofences(any(), any()) }
+    }
+
     private fun campusRing() = listOf(
         PolygonCoordinate(37.7745, -122.4200),
         PolygonCoordinate(37.7745, -122.4188),
         PolygonCoordinate(37.7755, -122.4188),
         PolygonCoordinate(37.7755, -122.4200)
     )
+
+    @Test
+    fun refresh_givenRegisteredPolygonContainingTheFix_expectPinnedPastTheCap() = runTest {
+        // The OS is monitoring this polygon's wake circle and the device is inside it, so an EXIT
+        // is outstanding. The cap leaves room for one business fence and the circle ranks nearer,
+        // but evicting the polygon would make that EXIT permanently unobservable.
+        val enabledRepository = buildRepository(PolygonSupport.Enabled)
+        every { store.getRegisteredIds() } returns setOf("campus")
+        coEvery { apiService.fetchGeofences(any()) } returns Result.success(response(POLYGON_AND_CIRCLE_CAP_ONE))
+        val registered = slot<List<GeofenceRegion>>()
+
+        enabledRepository.refresh(latitude = 37.7750, longitude = -122.4185)
+
+        coVerify { manager.replaceGeofences(capture(registered), any()) }
+        registered.captured.map { it.id } shouldBeEqualTo
+            listOf(GeofenceConstants.MOVEMENT_TRIGGER_ID, "campus")
+    }
+
+    @Test
+    fun refresh_givenUnregisteredPolygonContainingTheFix_expectTheCapStillApplies() = runTest {
+        // Same fix, same catalog, same cap — the polygon has simply never been registered, so it
+        // owes no EXIT and competes for the cap like any other candidate. Pinning it here would
+        // evict the circle the device is standing in, whose ENTER is then never synthesized.
+        val enabledRepository = buildRepository(PolygonSupport.Enabled)
+        every { store.getRegisteredIds() } returns emptySet()
+        coEvery { apiService.fetchGeofences(any()) } returns Result.success(response(POLYGON_AND_CIRCLE_CAP_ONE))
+        val registered = slot<List<GeofenceRegion>>()
+
+        enabledRepository.refresh(latitude = 37.7750, longitude = -122.4185)
+
+        coVerify { manager.replaceGeofences(capture(registered), any()) }
+        registered.captured.map { it.id } shouldBeEqualTo
+            listOf(GeofenceConstants.MOVEMENT_TRIGGER_ID, "circle")
+    }
 
     private fun response(raw: String): GeofenceApiResponse =
         jsonSerializer.decode(GeofenceApiResponse.serializer(), raw, lenient = true)
@@ -188,6 +265,21 @@ class GeofencePolygonLivePathTest : RobolectricTest() {
         val POLYGON_AND_CIRCLE = """
             {
               "config": { "android": { "max_business_geofence": 19 } },
+              "geofences": [
+                {
+                  "id": "campus",
+                  "shape": "polygon",
+                  "geometry": $CAMPUS_GEOMETRY,
+                  "enclosing_circle": $CAMPUS_WAKE_CIRCLE
+                },
+                { "id": "circle", "latitude": 37.775, "longitude": -122.419, "radius": 100 }
+              ]
+            }
+        """.trimIndent()
+
+        val POLYGON_AND_CIRCLE_CAP_ONE = """
+            {
+              "config": { "android": { "max_business_geofence": 1 } },
               "geofences": [
                 {
                   "id": "campus",

@@ -2,12 +2,14 @@ package io.customer.geofence
 
 import android.location.Location
 import com.google.android.gms.location.Geofence
+import com.google.android.gms.location.GeofenceStatusCodes
 import com.google.android.gms.location.GeofencingEvent
 import io.customer.commontest.config.ApplicationArgument
 import io.customer.commontest.config.TestConfig
 import io.customer.commontest.config.testConfigurationDefault
 import io.customer.commontest.core.RobolectricTest
 import io.customer.geofence.di.pendingGeofenceDeliveryStore
+import io.customer.geofence.polygon.PolygonCoordinate
 import io.customer.geofence.polygon.PolygonGeofenceServiceController
 import io.customer.geofence.store.GeofenceRegionStore
 import io.customer.geofence.store.PendingGeofenceDelivery
@@ -29,6 +31,7 @@ import io.mockk.verify
 import java.io.File
 import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.currentTime
@@ -157,8 +160,12 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
             "polygon"
         )
         every { mockStore.getRoutableRegisteredIds() } answers { mockStore.getRegisteredIds() }
+        // The dispatch order groups by shape, so the cached catalogue has to say which ids are
+        // polygons. Relaxed would answer empty and classify every id as a circle.
+        every { mockStore.getCachedRegions() } returns listOf(polygonRegion())
         every { mockStore.userStateGeneration() } returns 0L
         every { mockStore.activeUserSessionId() } returns "user-42"
+        coEvery { mockPolygonController.onMovementTriggerExit(any(), any()) } returns null
         // Default: the device counts as inside every fence, so the EXIT guard is a no-op.
         // Tests for the guard override.
         every { mockStore.claimExit(any()) } returns true
@@ -202,6 +209,19 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
 
         coVerify(exactly = 0) { mockScheduler.schedule(any()) }
         pendingStore.loadAll() shouldBeEqualTo emptyList()
+    }
+
+    @Test
+    fun handleGeofencingEvent_givenGeofencingUnavailable_expectInvalidatesOsRegistrationTruth() = runTest {
+        val event = mockk<GeofencingEvent>(relaxed = true) {
+            every { hasError() } returns true
+            every { errorCode } returns GeofenceStatusCodes.GEOFENCE_NOT_AVAILABLE
+        }
+
+        receiver.handleGeofencingEvent(event)
+
+        verify { mockPolygonController.invalidateOsRegistrationState() }
+        coVerify(exactly = 0) { mockScheduler.schedule(any()) }
     }
 
     @Test
@@ -270,6 +290,81 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
     }
 
     @Test
+    fun handleGeofencingEvent_givenPolygonOuterEnter_expectStartsFineEvaluationWithoutBusinessEvent() = runTest {
+        val location = realLocation(37.7750, -122.4194)
+        every { mockStore.getCachedRegion("polygon") } returns polygonRegion()
+        val event = buildGeofencingEvent(
+            transition = Geofence.GEOFENCE_TRANSITION_ENTER,
+            geofenceIds = listOf("polygon"),
+            location = location
+        )
+
+        receiver.handleGeofencingEvent(event)
+
+        coVerify {
+            mockPolygonController.activate(
+                "polygon",
+                location,
+                0L,
+                polygonRegion().transitionRevision()
+            )
+        }
+        coVerify(exactly = 0) { mockScheduler.schedule(any()) }
+        pendingStore.loadAll().shouldBeEmpty()
+    }
+
+    @Test
+    fun handleGeofencingEvent_givenPolygonOuterExit_expectContinuesFineEvaluationWithoutBusinessEvent() = runTest {
+        val location = realLocation(37.7760, -122.4180)
+        every { mockStore.getCachedRegion("polygon") } returns polygonRegion()
+        val event = buildGeofencingEvent(
+            transition = Geofence.GEOFENCE_TRANSITION_EXIT,
+            geofenceIds = listOf("polygon"),
+            location = location
+        )
+
+        receiver.handleGeofencingEvent(event)
+
+        coVerify {
+            mockPolygonController.onCoarseExit(
+                "polygon",
+                location,
+                0L,
+                polygonRegion().transitionRevision()
+            )
+        }
+        coVerify(exactly = 0) { mockScheduler.schedule(any()) }
+        pendingStore.loadAll().shouldBeEmpty()
+    }
+
+    @Test
+    fun dispatchTransition_givenCircleWasReplacedByPolygonDuringCallback_expectNoCoarseBusinessEvent() = runTest {
+        val oldCircle = GeofenceRegion(
+            id = "polygon",
+            latitude = 37.7750,
+            longitude = -122.4194,
+            radius = 200f
+        )
+        every { mockStore.getCachedRegion("polygon") } returnsMany listOf(
+            oldCircle,
+            polygonRegion()
+        )
+
+        receiver.dispatchTransition(
+            gmsTransitionType = Geofence.GEOFENCE_TRANSITION_ENTER,
+            triggeringGeofenceIds = listOf("polygon"),
+            latitude = 37.7750,
+            longitude = -122.4194
+        )
+
+        coVerify(exactly = 0) { mockScheduler.schedule(any()) }
+        pendingStore.loadAll().shouldBeEmpty()
+        coVerify(exactly = 0) {
+            mockPolygonController.activate(any<String>(), any<Location>(), any<Long>(), any<Int>())
+        }
+    }
+
+    @Test
     fun dispatchTransition_givenCircleEnterWasDisabledDuringCallback_expectNoStaleEnterEvent() = runTest {
         val oldCircle = GeofenceRegion(
             id = "biz-1",
@@ -293,19 +388,22 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
     }
 
     @Test
-    fun dispatchTransition_givenRetiredRegionCallback_expectCleanupRetryWithoutBusinessEvent() = runTest {
-        every { mockStore.getCachedRegion("biz-1") } returns null
-        every { mockStore.getRegisteredRegion("biz-1") } returns GeofenceRegion("biz-1", 37.7750, -122.4194, 200f)
-        coEvery { mockManager.removeGeofencesByIds(listOf("biz-1")) } returns Result.success(Unit)
+    fun dispatchTransition_givenRetiredPolygonCallback_expectCleanupRetryWithoutBusinessEvent() = runTest {
+        every { mockStore.getCachedRegion("polygon") } returns null
+        every { mockStore.getRegisteredRegion("polygon") } returns polygonRegion()
+        coEvery { mockManager.removeGeofencesByIds(listOf("polygon")) } returns Result.success(Unit)
 
         receiver.dispatchTransition(
             gmsTransitionType = Geofence.GEOFENCE_TRANSITION_ENTER,
-            triggeringGeofenceIds = listOf("biz-1"),
+            triggeringGeofenceIds = listOf("polygon"),
             latitude = 37.7750,
             longitude = -122.4194
         )
 
-        coVerify { mockManager.removeGeofencesByIds(listOf("biz-1")) }
+        coVerify { mockManager.removeGeofencesByIds(listOf("polygon")) }
+        coVerify(exactly = 0) {
+            mockPolygonController.activate(any<String>(), any<Location>(), any<Long>(), any<Int>())
+        }
         coVerify(exactly = 0) { mockScheduler.schedule(any()) }
     }
 
@@ -435,9 +533,92 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
             longitude = -122.4194
         )
 
-        verify { mockServices.onMovementTriggerExit(37.7749, -122.4194) }
+        verify { mockServices.onMovementTriggerExit(eq(37.7749), eq(-122.4194), any()) }
         coVerify(exactly = 0) { mockScheduler.schedule(any()) }
         pendingStore.loadAll() shouldBeEqualTo emptyList()
+    }
+
+    @Test
+    fun dispatchTransition_givenSlowPolygonEvaluation_expectTheRefreshJobCreatedFirst() = runTest {
+        // The polygon evaluation awaits GMS, twice at up to five seconds each, against a broadcast
+        // budget of roughly ten. Doing that BEFORE the refresh job exists means a process killed in
+        // that window loses the refresh entirely: the movement EXIT has already fired and nothing
+        // re-centres the trigger, so the device goes deaf until a foreground or an unrelated EXIT.
+        // The job has to be created first; the evaluation's GMS time is then charged to the job.
+        coEvery { mockPolygonController.onMovementTriggerExit(any(), any()) } coAnswers {
+            awaitCancellation()
+        }
+
+        receiver.dispatchTransition(
+            gmsTransitionType = Geofence.GEOFENCE_TRANSITION_EXIT,
+            triggeringGeofenceIds = listOf(GeofenceConstants.MOVEMENT_TRIGGER_ID),
+            latitude = 37.7749,
+            longitude = -122.4194
+        )
+
+        verify { mockServices.onMovementTriggerExit(eq(37.7749), eq(-122.4194), any()) }
+    }
+
+    @Test
+    fun dispatchTransition_givenPolygonCircleAndMovementExit_expectCircleBeforeRefreshBeforePolygon() = runTest {
+        // Three guarantees in one batch, and the order is the only thing that holds all of them.
+        // The circle goes first because the refresh this batch starts can evict it under the
+        // monitoring cap, and its requireRegistered check would then drop an EXIT the OS already
+        // delivered. The trigger goes before the polygon because the polygon handler awaits GMS,
+        // and the refresh job has to exist before the budget is spent on that wait.
+        val order = mutableListOf<String>()
+        val circle = GeofenceRegion("biz-1", 37.7749, -122.4194, 100f)
+        every { mockStore.getCachedRegion("polygon") } returns polygonRegion()
+        // The loop's own catalogue read is the circle's turn; the processor reads it again, so
+        // record the first only.
+        every { mockStore.getCachedRegion("biz-1") } answers {
+            if ("circle" !in order) order += "circle"
+            circle
+        }
+        every { mockServices.onMovementTriggerExit(any(), any(), any()) } answers {
+            order += "refresh"
+            null
+        }
+        coEvery { mockPolygonController.onCoarseExit(any(), any(), any(), any()) } coAnswers {
+            order += "polygon"
+            delay(4_500)
+        }
+
+        receiver.dispatchTransition(
+            gmsTransitionType = Geofence.GEOFENCE_TRANSITION_EXIT,
+            triggeringGeofenceIds = listOf("polygon", "biz-1", GeofenceConstants.MOVEMENT_TRIGGER_ID),
+            latitude = 37.7749,
+            longitude = -122.4194
+        )
+
+        order shouldBeEqualTo listOf("circle", "refresh", "polygon")
+    }
+
+    @Test
+    fun dispatchTransition_givenMixedExitBatchWithPolygonsFirst_expectRefreshCreatedBeforeTheAwaits() = runTest {
+        // GMS delivers one batch and picks its own order. The polygon handlers await, so with a
+        // polygon ahead of the trigger the refresh job was created only after those waits, by which
+        // point the dispatch budget is spent and the receiver finishes without holding the window
+        // open for it. The trigger has already fired, so nothing re-centres it.
+        val order = mutableListOf<String>()
+        every { mockStore.getCachedRegion("polygon") } returns polygonRegion()
+        coEvery { mockPolygonController.onCoarseExit(any(), any(), any(), any()) } coAnswers {
+            order += "polygon"
+            delay(4_500)
+        }
+        every { mockServices.onMovementTriggerExit(any(), any(), any()) } answers {
+            order += "refresh"
+            null
+        }
+
+        receiver.dispatchTransition(
+            gmsTransitionType = Geofence.GEOFENCE_TRANSITION_EXIT,
+            triggeringGeofenceIds = listOf("polygon", GeofenceConstants.MOVEMENT_TRIGGER_ID),
+            latitude = 37.7749,
+            longitude = -122.4194
+        )
+
+        order.first() shouldBeEqualTo "refresh"
     }
 
     @Test
@@ -446,7 +627,7 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
         // the goAsync window closes and the OS may kill the process mid-refresh, so
         // dispatch must hold the window open until the refresh job lands.
         val refreshJob = launch { delay(3_000) }
-        every { mockServices.onMovementTriggerExit(any(), any()) } returns refreshJob
+        every { mockServices.onMovementTriggerExit(any(), any(), any()) } returns refreshJob
 
         receiver.dispatchTransition(
             gmsTransitionType = Geofence.GEOFENCE_TRANSITION_EXIT,
@@ -464,7 +645,7 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
         // its timeout, but only the wait — the refresh itself keeps running on the
         // services scope and self-completes if the process survives.
         val refreshJob = launch { delay(60_000) }
-        every { mockServices.onMovementTriggerExit(any(), any()) } returns refreshJob
+        every { mockServices.onMovementTriggerExit(any(), any(), any()) } returns refreshJob
 
         receiver.dispatchTransition(
             gmsTransitionType = Geofence.GEOFENCE_TRANSITION_EXIT,
@@ -484,7 +665,7 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
         // join: once spent, dispatch must finish instead of stacking the full timeout on top.
         every { mockClock.elapsedRealtime() } returnsMany listOf(0L, 9_000L)
         val refreshJob = launch { delay(60_000) }
-        every { mockServices.onMovementTriggerExit(any(), any()) } returns refreshJob
+        every { mockServices.onMovementTriggerExit(any(), any(), any()) } returns refreshJob
 
         receiver.dispatchTransition(
             gmsTransitionType = Geofence.GEOFENCE_TRANSITION_EXIT,
@@ -511,7 +692,7 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
             longitude = 0.0
         )
 
-        verify(exactly = 0) { mockServices.onMovementTriggerExit(any(), any()) }
+        verify(exactly = 0) { mockServices.onMovementTriggerExit(any(), any(), any()) }
         coVerify(exactly = 0) { mockScheduler.schedule(any()) }
         pendingStore.loadAll() shouldBeEqualTo emptyList()
     }
@@ -977,7 +1158,7 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
         )
 
         verify(exactly = 0) { mockStore.claimExit(any()) }
-        verify { mockServices.onMovementTriggerExit(any(), any()) }
+        verify { mockServices.onMovementTriggerExit(any(), any(), any()) }
     }
 
     @Test
@@ -1000,6 +1181,34 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
     }
 
     @Test
+    fun dispatchTransition_givenCleanupOnlyPolygonAfterUserHandoff_expectNoEventAndRegistrationKept() = runTest {
+        // A cleanup-only registration and a live fence mid-identify are the same state here: owner,
+        // generation, empty routing and registered set all match. They need not be told apart,
+        // because the session's refresh re-adds or removes each fence on its own merits.
+        every { mockStore.getRegisteredIds() } returns setOf("polygon")
+        every { mockStore.getRoutableRegisteredIds() } returns emptySet()
+        every { mockStore.getCachedRegion("polygon") } returns polygonRegion()
+
+        receiver.dispatchTransition(
+            gmsTransitionType = Geofence.GEOFENCE_TRANSITION_ENTER,
+            triggeringGeofenceIds = listOf("polygon"),
+            latitude = 37.7750,
+            longitude = -122.4194,
+            triggeringLocation = realLocation(37.7750, -122.4194)
+        )
+
+        coVerify(exactly = 0) {
+            mockPolygonController.activate(any<String>(), any<Location>(), any<Long>(), any<Int>())
+        }
+        coVerify(exactly = 0) { mockScheduler.schedule(any()) }
+        // Registration kept. Business fences register with INITIAL_TRIGGER_ENTER and routing arms
+        // only after the add, so an initial ENTER for a fence the refresh just added can arrive
+        // while routing still reads empty. Evicting here would remove it, and the refresh would
+        // then publish it registered AND routable, which every later refresh reads as unchanged.
+        coVerify(exactly = 0) { mockManager.removeGeofencesByIds(any()) }
+    }
+
+    @Test
     fun dispatchTransition_givenMovementTriggerNotInStore_expectMovementHandlerNotCalledAndRemoved() = runTest {
         // Movement trigger is only registered when business set is non-empty. If it
         // fires while not in the store, treat it as an orphan: drop + remove.
@@ -1012,7 +1221,7 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
             longitude = 0.0
         )
 
-        verify(exactly = 0) { mockServices.onMovementTriggerExit(any(), any()) }
+        verify(exactly = 0) { mockServices.onMovementTriggerExit(any(), any(), any()) }
         coVerify { mockManager.removeGeofencesByIds(listOf(GeofenceConstants.MOVEMENT_TRIGGER_ID)) }
     }
 
@@ -1040,9 +1249,11 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
 
     @Test
     fun dispatchTransition_givenRegisteredIdWhileRoutingUnarmed_expectDroppedButOsRegistrationKept() = runTest {
-        // The window between an identify clearing routing and the refresh that re-arms it. The fence
-        // is live and still claimed by registeredIds, so removing it here would strand it: the
-        // completing refresh sees matching params, skips it as unchanged, and never re-adds it.
+        // The window between an identify clearing routing and the refresh that re-arms it. Removing
+        // it here strands it, but not by the skip-as-unchanged path: unchangedRegisteredIds also
+        // requires routable membership, so an unroutable id is re-added. The strand is the race —
+        // an initial ENTER arriving between the add and the arming would evict a fence the refresh
+        // then publishes as routable, and that one IS skipped as unchanged from then on.
         every { mockStore.getRegisteredIds() } returns setOf("biz-known")
         every { mockStore.getRoutableRegisteredIds() } returns emptySet()
 
@@ -1089,7 +1300,7 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
             longitude = 2.0
         )
 
-        verify { mockServices.onMovementTriggerExit(1.0, 2.0) }
+        verify { mockServices.onMovementTriggerExit(eq(1.0), eq(2.0), any()) }
         coVerify(exactly = 0) { mockManager.removeGeofencesByIds(any()) }
     }
 
@@ -1129,4 +1340,17 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
             longitude = lng
             time = System.currentTimeMillis()
         }
+
+    private fun polygonRegion() = GeofenceRegion(
+        id = "polygon",
+        latitude = 37.7750,
+        longitude = -122.4194,
+        radius = 200f,
+        polygonVertices = listOf(
+            PolygonCoordinate(37.7745, -122.4200),
+            PolygonCoordinate(37.7745, -122.4188),
+            PolygonCoordinate(37.7755, -122.4188),
+            PolygonCoordinate(37.7755, -122.4200)
+        )
+    )
 }

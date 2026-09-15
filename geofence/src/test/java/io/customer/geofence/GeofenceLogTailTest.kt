@@ -205,6 +205,7 @@ class GeofenceLogTailTest : RobolectricTest() {
             Row("unsupportedGeometryDropped", "registration.rejected", listOf("id", "sh", "why"), GeofenceLogger::logUnsupportedGeometryDropped.name) { it.logUnsupportedGeometryDropped("notl_core", "LineString") },
             Row("polygonRegionNotRanked", "rank.excluded", listOf("id", "sh", "why"), GeofenceLogger::logPolygonRegionNotRanked.name) { it.logPolygonRegionNotRanked("notl_core", PolygonNotRankedReason.RING_UNBUILDABLE) },
             Row("polygonFixNotUsable", "polygon.undecided", listOf("why"), GeofenceLogger::logPolygonFixNotUsable.name) { it.logPolygonFixNotUsable(PolygonFixRejection.FIX_TOO_OLD) },
+            Row("pinnedRegionDroppedAtOsLimit", "registration.rejected", listOf("id", "n", "why"), GeofenceLogger::logPinnedRegionDroppedAtOsLimit.name) { it.logPinnedRegionDroppedAtOsLimit("notl_core", 19) },
             Row("polygonApproachStarted", "polygon.approach.started", emptyList(), GeofenceLogger::logPolygonApproachMonitoringStarted.name) { it.logPolygonApproachMonitoringStarted() },
             Row("polygonApproachStopped", "polygon.approach.stopped", emptyList(), GeofenceLogger::logPolygonApproachMonitoringStopped.name) { it.logPolygonApproachMonitoringStopped() },
             Row("polygonApproachRequestFailed", "polygon.approach.failed", listOf("ok", "op", "why"), GeofenceLogger::logPolygonApproachRequestFailed.name, io = "in") { it.logPolygonApproachRequestFailed("no permission", operation = "request_updates") },

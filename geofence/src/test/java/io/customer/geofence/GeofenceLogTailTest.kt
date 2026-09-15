@@ -119,6 +119,12 @@ class GeofenceLogTailTest : RobolectricTest() {
         val method: String,
         /** Pinned per row: `io` decides what replay feeds back and what it compares. */
         val io: String = "out",
+        /**
+         * Exact values a consumer discriminates on, where presence alone is not enough. Two records
+         * sharing an `ev` and differing only by `why` pass every other check if their reasons are
+         * swapped, so the reason has to be pinned or the pair is untested.
+         */
+        val pinned: Map<String, String> = emptyMap(),
         val run: (GeofenceLogger) -> Unit
     )
 
@@ -154,6 +160,11 @@ class GeofenceLogTailTest : RobolectricTest() {
             Row("transitionSuppressed", "transition.suppressed", listOf("id", "t", "why", "cd"), GeofenceLogger::logTransitionSuppressed.name) { it.logTransitionSuppressed("notl_core", "ENTER", 42.0) },
             Row("initialEnterInside", "transition.synthesized", listOf("id", "t", "why"), GeofenceLogger::logInitialEnterInside.name) { it.logInitialEnterInside("notl_core") },
             Row("droppedUnknownId", "transition.dropped", listOf("id", "why"), GeofenceLogger::logTransitionDroppedUnknownId.name) { it.logTransitionDroppedUnknownId("notl_core") },
+            Row("droppedRetiredId", "transition.dropped", listOf("id", "why"), GeofenceLogger::logTransitionDroppedRetiredId.name, pinned = mapOf("why" to "retired_id")) { it.logTransitionDroppedRetiredId("notl_core") },
+            Row("droppedUnarmedId", "transition.dropped", listOf("id", "why"), GeofenceLogger::logTransitionDroppedUnarmedId.name, pinned = mapOf("why" to "routing_unarmed")) { it.logTransitionDroppedUnarmedId("notl_core") },
+            Row("containmentJudged", "containment.judged", listOf("n"), GeofenceLogger::logContainmentJudged.name) { it.logContainmentJudged(3) },
+            Row("gmsCallTimedOut", "os.error", listOf("ok", "op", "why"), GeofenceLogger::logGmsCallTimedOut.name, io = "in", pinned = mapOf("why" to "timeout", "ok" to "false")) { it.logGmsCallTimedOut("addGeofences") },
+            Row("eventDeliveredNotRemoved", "delivery.sent", listOf("id", "t", "ok", "retry", "why"), GeofenceLogger::logEventDeliveredButNotRemoved.name, pinned = mapOf("why" to "not_removed", "ok" to "true", "retry" to "true")) { it.logEventDeliveredButNotRemoved("notl_core", "ENTER") },
             Row("enterDroppedAlreadyReported", "transition.dropped", listOf("id", "t", "why"), GeofenceLogger::logEnterDroppedAlreadyReported.name) { it.logEnterDroppedAlreadyReported("notl_core") },
             Row("exitDroppedNeverEntered", "transition.dropped", listOf("id", "t", "why"), GeofenceLogger::logExitDroppedNeverEntered.name) { it.logExitDroppedNeverEntered("notl_core") },
             Row("droppedAnonymous", "transition.dropped", listOf("id", "t", "why"), GeofenceLogger::logTransitionDroppedAnonymous.name) { it.logTransitionDroppedAnonymous("notl_core", "EXIT") },
@@ -220,6 +231,11 @@ class GeofenceLogTailTest : RobolectricTest() {
             // so a record flipped from out to in is replayed as something the SDK was told.
             if (fields["io"] != row.io) {
                 throw AssertionError("$name: expected io=${row.io}, got '${fields["io"]}'")
+            }
+            for ((key, value) in row.pinned) {
+                if (fields[key] != value) {
+                    throw AssertionError("$name: expected $key=$value, got '${fields[key]}'")
+                }
             }
             for (key in requiredKeys) {
                 if (fields[key] == null) {
@@ -319,6 +335,7 @@ class GeofenceLogTailTest : RobolectricTest() {
         val expected = setOf(
             "api.fetch.result",
             "api.transition.unknown",
+            "containment.judged",
             "delivery.failed",
             "delivery.flush",
             "delivery.queued",
@@ -631,14 +648,9 @@ class GeofenceLogTailTest : RobolectricTest() {
     fun everyLogMethod_expectATableRowOrADeclaredReason() {
         // The table cannot see a record that exists in the module but was never added to it, which
         // is how five polygon records shipped with no tail at all. This closes that loop: a new
-        // `log*` method must either appear above or be named here.
-        val untailed = setOf(
-            "logContainmentJudged",
-            "logEventDeliveredButNotRemoved",
-            "logGmsCallTimedOut",
-            "logTransitionDroppedRetiredId",
-            "logTransitionDroppedUnarmedId"
-        )
+        // `log*` method must either appear above or be named here. Empty is the goal state, so a
+        // record added without a tail now fails rather than being declared away.
+        val untailed = emptySet<String>()
         // Emits one record per region, so the table's `apiFetchResult` row cannot reach it — it
         // passes no regions. Covered by the `fenceCatalog_*` tests instead.
         val coveredElsewhere = setOf("logFenceCatalog")

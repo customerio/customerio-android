@@ -85,7 +85,9 @@ class PolygonApproachReceiver : BroadcastReceiver() {
         val expired = effectiveDeadline <= SystemClock.elapsedRealtime()
         val identifiedUserId = userId?.takeIf { it.isNotEmpty() }
         if (identifiedUserId != null) {
-            controller.beginUserSession(identifiedUserId)
+            // Gate only. The session opens against the identity read under the store's own lock, so
+            // an identify landing after the gate cannot be reverted to the user read here.
+            controller.beginUserSessionForCurrentUser()
             when (
                 controller.processApproachLocations(
                     locations,

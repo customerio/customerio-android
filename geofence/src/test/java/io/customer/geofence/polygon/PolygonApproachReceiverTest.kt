@@ -33,10 +33,33 @@ class PolygonApproachReceiverTest : RobolectricTest() {
             monitor = monitor
         )
 
-        verify { controller.beginUserSession("user-1") }
+        verify { controller.beginUserSessionForCurrentUser() }
         coVerify { controller.processApproachLocations(locations, 7L) }
         verify { monitor.start(7L, Long.MAX_VALUE) }
         verify(exactly = 0) { monitor.removeStaleGeneration(any()) }
+    }
+
+    @Test
+    fun handleLocations_givenIdentifiedUser_expectSessionOpenedAgainstStoreNotTheReadValue() = runTest {
+        // This receiver is an OS callback acting on an identity it did not establish, so the read
+        // and the session open must not be two steps: an identify landing between them would
+        // reopen the prior user, bumping the generation and wiping the routing the new profile
+        // just armed. Opening by value is what makes that reachable.
+        val locations = listOf(location())
+        coEvery {
+            controller.processApproachLocations(locations, 7L)
+        } returns PolygonSamplingDecision.CONTINUE
+
+        PolygonApproachReceiver().handleLocations(
+            locations,
+            7L,
+            sessionDeadlineElapsedRealtimeMs = Long.MAX_VALUE,
+            userId = "user-read-before-the-open",
+            controller = controller,
+            monitor = monitor
+        )
+
+        verify(exactly = 0) { controller.beginUserSession(any()) }
     }
 
     @Test

@@ -165,7 +165,7 @@ class PolygonApproachWorkerTest : RobolectricTest() {
             pending = pending.filterNot { it.id == firstArg<String>() }
             true
         }
-        every { mockController.beginUserSession(any()) } throws
+        every { mockController.beginUserSessionForCurrentUser() } throws
             IllegalStateException("evaluator boom")
 
         val beforeCap = TestListenableWorkerBuilder<PolygonApproachWorker>(applicationMock)

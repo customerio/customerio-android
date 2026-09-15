@@ -1,5 +1,7 @@
 package io.customer.geofence.polygon
 
+import io.customer.geofence.GeofenceLogger
+
 internal data class PolygonFence(
     val id: String,
     val geometry: PolygonGeometry,
@@ -25,7 +27,8 @@ internal enum class PolygonEvidencePolicy {
 internal class PolygonRouteProcessor(
     private val accuracyEvaluator: PolygonAccuracyEvaluator = PolygonAccuracyEvaluator(),
     private val stateMachine: PolygonTransitionStateMachine = PolygonTransitionStateMachine(),
-    private val minimumEvidenceIntervalNanos: Long = 0L
+    private val minimumEvidenceIntervalNanos: Long = 0L,
+    private val logger: GeofenceLogger
 ) {
     private val latestElapsedRealtimeNanos = mutableMapOf<String, Long>()
 
@@ -53,11 +56,20 @@ internal class PolygonRouteProcessor(
             if (latest != null && elapsedRealtimeNanos <= latest) return@mapNotNull null
             latestElapsedRealtimeNanos[fence.id] = elapsedRealtimeNanos
             val committedState = committedStates[fence.id] ?: PolygonCommittedState.OUTSIDE
-            val evidence = when (evidencePolicy) {
+            val result = when (evidencePolicy) {
                 PolygonEvidencePolicy.CONFIRMED ->
                     accuracyEvaluator.evidenceFor(fence.geometry, sample, committedState)
                 PolygonEvidencePolicy.DECISIVE_SINGLE_FIX ->
                     accuracyEvaluator.decisiveEvidenceFor(fence.geometry, sample, committedState)
+            }
+            val evidence = result.evidence
+            result.undecidedReason?.let { reason ->
+                logger.logPolygonUndecided(
+                    geofenceId = fence.id,
+                    reason = reason,
+                    boundaryDistanceMeters = result.boundaryDistanceMeters,
+                    horizontalAccuracyMeters = sample.horizontalAccuracyMeters
+                )
             }
             val isTransitionEvidence =
                 committedState == PolygonCommittedState.OUTSIDE && evidence == PolygonEvidence.ENTER ||

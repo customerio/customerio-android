@@ -8,6 +8,7 @@ import io.customer.geofence.GeofenceLogTail.list
 import io.customer.geofence.GeofenceLogTail.num
 import io.customer.geofence.GeofenceLogTail.token
 import io.customer.geofence.polygon.PolygonCoordinate
+import io.customer.geofence.polygon.PolygonUndecidedReason
 import io.customer.sdk.core.util.Logger
 
 /**
@@ -1134,6 +1135,34 @@ internal class GeofenceLogger(private val logger: Logger) {
                     "polygon.undecided",
                     GeofenceLogIo.OUTPUT,
                     listOf("why" to reason.wire)
+                ),
+            tag = TAG
+        )
+    }
+
+    /**
+     * A fix that arrived, was usable, and was evaluated, but could not separate inside from
+     * outside. Without it a capture cannot tell an undecidable fix from one that never arrived.
+     */
+    fun logPolygonUndecided(
+        geofenceId: String,
+        reason: PolygonUndecidedReason,
+        boundaryDistanceMeters: Double?,
+        horizontalAccuracyMeters: Double
+    ) {
+        logger.debug(
+            "Polygon '$geofenceId' undecided for this fix. The fix was evaluated but does not " +
+                "separate inside from outside, so no transition is claimed." +
+                tail(
+                    "polygon.undecided",
+                    GeofenceLogIo.OUTPUT,
+                    listOf(
+                        "id" to geofenceId,
+                        "sh" to "polygon",
+                        "why" to reason.wire,
+                        "edge" to num(boundaryDistanceMeters),
+                        "acc" to num(horizontalAccuracyMeters)
+                    )
                 ),
             tag = TAG
         )

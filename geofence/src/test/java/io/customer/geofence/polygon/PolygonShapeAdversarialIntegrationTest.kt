@@ -1,5 +1,8 @@
 package io.customer.geofence.polygon
 
+import io.customer.geofence.GeofenceLogger
+import io.customer.sdk.core.util.CioLogLevel
+import io.customer.sdk.core.util.Logger
 import kotlin.math.PI
 import kotlin.math.atan2
 import kotlin.math.cos
@@ -191,7 +194,8 @@ class PolygonShapeAdversarialIntegrationTest {
         minimumEvidenceIntervalNanos: Long = 0L
     ) {
         private val processor = PolygonRouteProcessor(
-            minimumEvidenceIntervalNanos = minimumEvidenceIntervalNanos
+            minimumEvidenceIntervalNanos = minimumEvidenceIntervalNanos,
+            logger = GeofenceLogger(DiscardingLogger())
         )
         private val committedStates = mutableMapOf<String, PolygonCommittedState>()
         private var elapsedRealtimeNanos = 0L
@@ -240,4 +244,14 @@ class PolygonShapeAdversarialIntegrationTest {
             return EARTH_RADIUS_METERS * centralAngle
         }
     }
+}
+
+private class DiscardingLogger : Logger {
+    override var logLevel: CioLogLevel = CioLogLevel.NONE
+
+    override fun setLogDispatcher(dispatcher: ((CioLogLevel, String) -> Unit)?) = Unit
+
+    override fun info(message: String, tag: String?) = Unit
+    override fun debug(message: String, tag: String?) = Unit
+    override fun error(message: String, tag: String?, throwable: Throwable?) = Unit
 }

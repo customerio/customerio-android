@@ -75,6 +75,19 @@ internal class EngineWebView @JvmOverloads constructor(
     private val viewLifecycleOwner: Lifecycle?
         get() = findViewTreeLifecycleOwner()?.lifecycle
 
+    /**
+     * The lifecycle this engine observes, or null while it has no message to keep the JavaScript
+     * interface attached for (before [setup], and after [stopLoading] / [releaseResources]).
+     *
+     * Held explicitly because the owner found through the view tree can change while this view
+     * lives on: a Fragment's *view* lifecycle is replaced whenever the Fragment's view is destroyed
+     * and recreated, and hosts such as React Native keep the same engine across that (react-native-
+     * screens removes the Fragment below a pushed screen and re-adds it on pop, re-parenting the
+     * same native views). Unsubscribing must target the lifecycle actually subscribed to, not
+     * whichever one happens to be current.
+     */
+    private var observedLifecycle: Lifecycle? = null
+
     init {
         // exception handling is required for webview in-case webview is not supported in the device
         try {
@@ -88,6 +101,56 @@ internal class EngineWebView @JvmOverloads constructor(
 
     override fun getView(): EngineWebView {
         return this
+    }
+
+    /**
+     * Follows the lifecycle owner that is current when this view (re-)enters the window.
+     *
+     * When the owner found through the view tree is not the one in [observedLifecycle] — the host
+     * Fragment's view was destroyed and recreated while this engine stayed alive — the old owner
+     * has already paused us, which detached the JavaScript interface, and it will never resume us.
+     * Without moving the subscription, [EngineWebViewInterface] drops every renderer event — taps
+     * included — until the message is re-embedded. Subscribing to the new owner replays its current
+     * state, so a resumed owner re-attaches the interface immediately.
+     *
+     * Temporary detaches under a live owner (a RecyclerView item scrolled off-screen, say) drop the
+     * subscription in [onDetachedFromWindow] and get it back here: the replayed `ON_RESUME` calls
+     * [onLifecycleResumed], whose `addJavascriptInterface` is idempotent and cheap, and while
+     * off-screen the engine receives no renderer events for the missed `ON_PAUSE` to matter. This
+     * mirrors what [io.customer.messaginginapp.ui.core.BaseInlineInAppMessageView] already does
+     * with its own observer.
+     */
+    override fun onAttachedToWindow() {
+        super.onAttachedToWindow()
+        if (observedLifecycle != null) {
+            observeCurrentLifecycle()
+        }
+    }
+
+    override fun onDetachedFromWindow() {
+        // Keep observedLifecycle: it records that there is a message to re-subscribe for.
+        observedLifecycle?.removeObserver(this)
+        super.onDetachedFromWindow()
+    }
+
+    /**
+     * Subscribes to the lifecycle owner currently reachable through the view tree, moving the
+     * subscription if it differs from [observedLifecycle]. Returns false when there is no owner.
+     */
+    private fun observeCurrentLifecycle(): Boolean {
+        val lifecycle = viewLifecycleOwner ?: return false
+        if (lifecycle !== observedLifecycle) {
+            observedLifecycle?.removeObserver(this)
+            observedLifecycle = lifecycle
+        }
+        // No-op when already observing this lifecycle.
+        lifecycle.addObserver(this)
+        return true
+    }
+
+    private fun stopObservingLifecycle() {
+        observedLifecycle?.removeObserver(this)
+        observedLifecycle = null
     }
 
     override fun onResume(owner: LifecycleOwner) {
@@ -135,6 +198,7 @@ internal class EngineWebView @JvmOverloads constructor(
             }
 
             webView = null
+            stopObservingLifecycle()
             if (view.parent != null) {
                 logger.debug("Removing WebView from parent before cleanup")
                 this.removeView(view)
@@ -161,9 +225,10 @@ internal class EngineWebView @JvmOverloads constructor(
         webView?.stopLoading()
         colorSchemeJob?.cancel()
         colorSchemeJob = null
-        // remove lifecycle observer to stop receiving further lifecycle events
+        // stop receiving lifecycle events, and make sure a later window re-attach does not
+        // subscribe again
         onLifecyclePaused()
-        viewLifecycleOwner?.removeObserver(this)
+        stopObservingLifecycle()
         // stop the timer and clean up
         bootstrapped()
     }
@@ -225,7 +290,7 @@ internal class EngineWebView @JvmOverloads constructor(
             it.settings.textZoom = 100
             it.setBackgroundColor(Color.TRANSPARENT)
 
-            viewLifecycleOwner?.addObserver(this) ?: run {
+            if (!observeCurrentLifecycle()) {
                 logger.error("Lifecycle owner not found, attaching interface to WebView manually")
                 onLifecycleResumed()
             }

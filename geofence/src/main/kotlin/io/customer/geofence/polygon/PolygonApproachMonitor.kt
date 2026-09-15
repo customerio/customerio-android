@@ -33,6 +33,10 @@ internal class PolygonApproachMonitor(
     private val lock = Any()
     private var desired = false
     private var userStateGeneration: Long? = null
+
+    // Highest generation this monitor has ever armed. `userStateGeneration` is cleared by `stop`,
+    // so it cannot answer "is this caller stale?" once a session has ended; this survives it.
+    private var highestArmedUserStateGeneration: Long? = null
     private var sessionDeadlineElapsedRealtimeMs: Long? = null
     private var activePendingIntent: PendingIntent? = null
     private val applicationContext = context.applicationContext
@@ -64,6 +68,15 @@ internal class PolygonApproachMonitor(
             return
         }
         val registration = synchronized(lock) {
+            // Generations only move forward, and `stop` already refuses to tear down a session it
+            // does not name. Without the same rule here, a caller resuming after preemption arms
+            // the generation it captured before suspending and replaces the request the newer
+            // session armed while it was away. Its own timeout removes that request later but does
+            // not put the newer one back.
+            val highestArmed = highestArmedUserStateGeneration
+            if (highestArmed != null && expectedUserStateGeneration < highestArmed) {
+                return
+            }
             if (
                 desired &&
                 userStateGeneration == expectedUserStateGeneration &&
@@ -74,6 +87,7 @@ internal class PolygonApproachMonitor(
             val previous = activePendingIntent
             desired = true
             userStateGeneration = expectedUserStateGeneration
+            highestArmedUserStateGeneration = expectedUserStateGeneration
             this.sessionDeadlineElapsedRealtimeMs = sessionDeadlineElapsedRealtimeMs
             registrationRetryAttempt = 0
             registrationRetryJob?.cancel()

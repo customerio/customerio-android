@@ -160,7 +160,11 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
             businessIds.forEach { logger.logTransitionDroppedUnarmedId(it) }
             triggerIds
         }
-        val knownIds = routableTriggeringIds + unarmedTriggerIds
+        // Movement trigger first, whatever order GMS delivered. The polygon handlers below await
+        // GMS, so a mixed batch with polygons ahead of the trigger spends the dispatch budget
+        // before the refresh job exists, and the receiver then finishes without waiting for it.
+        val knownIds = (routableTriggeringIds + unarmedTriggerIds)
+            .sortedByDescending { it == GeofenceConstants.MOVEMENT_TRIGGER_ID }
 
         var movementRefreshJob: Job? = null
         knownIds.forEach { geofenceId ->

@@ -557,6 +557,33 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
     }
 
     @Test
+    fun dispatchTransition_givenMixedExitBatchWithPolygonsFirst_expectRefreshCreatedBeforeTheAwaits() = runTest {
+        // GMS delivers one batch and picks its own order. The polygon handlers await, so with a
+        // polygon ahead of the trigger the refresh job was created only after those waits, by which
+        // point the dispatch budget is spent and the receiver finishes without holding the window
+        // open for it. The trigger has already fired, so nothing re-centres it.
+        val order = mutableListOf<String>()
+        every { mockStore.getCachedRegion("polygon") } returns polygonRegion()
+        coEvery { mockPolygonController.onCoarseExit(any(), any(), any(), any()) } coAnswers {
+            order += "polygon"
+            delay(4_500)
+        }
+        every { mockServices.onMovementTriggerExit(any(), any(), any()) } answers {
+            order += "refresh"
+            null
+        }
+
+        receiver.dispatchTransition(
+            gmsTransitionType = Geofence.GEOFENCE_TRANSITION_EXIT,
+            triggeringGeofenceIds = listOf("polygon", GeofenceConstants.MOVEMENT_TRIGGER_ID),
+            latitude = 37.7749,
+            longitude = -122.4194
+        )
+
+        order.first() shouldBeEqualTo "refresh"
+    }
+
+    @Test
     fun dispatchTransition_givenMovementTriggerExit_expectDispatchWaitsForRefreshJob() = runTest {
         // Movement usually fires with the app backgrounded: the moment dispatch returns
         // the goAsync window closes and the OS may kill the process mid-refresh, so

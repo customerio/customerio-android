@@ -28,15 +28,18 @@ internal class PolygonMovementTriggerPolicy {
             }
             if (!stateMatches) return null
 
-            val clearance = geometry.boundaryDistanceMeters(sample.coordinate) -
-                sample.horizontalAccuracyMeters -
-                PROTOTYPE_WAKE_POLICY_MARGIN_METERS
-            safeRadius = min(safeRadius, clearance)
+            safeRadius = min(safeRadius, geometry.boundaryDistanceMeters(sample.coordinate))
         }
 
+        // Floor, not a refusal. Returning null here meant "leave the trigger at its 1000 m
+        // default", and the old accuracy-scaled clearance could not clear the floor for any fence
+        // smaller than `accuracy + 200` — which is every retail polygon we have, 24-42 m. Those
+        // fences could therefore never reach the safely-passive state that lets sampling stop and
+        // the OS take over, so they sampled until the budget died and then saw nothing again until
+        // the device had moved a kilometre. A floored radius hands departure back to the OS.
         return safeRadius
-            .takeIf { it >= GeofenceConstants.MIN_LOCAL_REFRESH_RADIUS_METERS }
-            ?.toFloat()
+            .coerceAtLeast(GeofenceConstants.MIN_LOCAL_REFRESH_RADIUS_METERS.toDouble())
+            .toFloat()
     }
 
     internal companion object {
@@ -47,6 +50,5 @@ internal class PolygonMovementTriggerPolicy {
         // which is a worse failure than misjudging one fence. It equals the evaluator's decisive
         // ceiling today by coincidence, not by derivation, so calibration may move either alone.
         const val MAX_TRIGGER_FIX_ACCURACY_METERS = 50.0
-        const val PROTOTYPE_WAKE_POLICY_MARGIN_METERS = 100.0
     }
 }

@@ -7,36 +7,39 @@ import org.junit.Test
 
 class PolygonWakeCircleValidatorTest {
     @Test
-    fun prepare_givenBackendCircleContainingPolygon_expectPlatformMarginAppliedWithoutRecentering() {
+    fun prepare_givenARetailSizedCircle_expectTheFloorWithoutRecentering() {
+        // A real workspace polygon catalogues a 101 m base circle. GMS coarse containment is wrong
+        // by hundreds of metres, so a ring this small would be driven by that error rather than by
+        // the device's position.
         val wakeCircle = PolygonWakeCircle(
             center = point(37.0005, -121.9995),
-            baseRadiusMeters = 100.0
+            baseRadiusMeters = 101.0
         )
 
         val trigger = PolygonWakeCircleValidator().prepare(wakeCircle)
 
         trigger.center shouldBeEqualTo wakeCircle.center
-        trigger.radiusMeters shouldBeEqualTo 1_100f
+        trigger.radiusMeters shouldBeEqualTo
+            PolygonWakeCircleValidator.MINIMUM_TRIGGER_RADIUS_METERS.toFloat()
     }
 
     @Test
-    fun prepare_givenBackendCircleSmallerThanTheRing_expectAcceptedAtTheStatedRadius() {
+    fun prepare_givenCircleAlreadyAboveTheFloor_expectItRegisteredVerbatim() {
+        // The floor never pads. Adding a kilometre to a circle that is already kilometres wide is
+        // what the old rule did, and it bought nothing.
         val wakeCircle = PolygonWakeCircle(
             center = point(37.0005, -121.9995),
-            baseRadiusMeters = 10.0
+            baseRadiusMeters = 5_000.0
         )
 
-        val trigger = PolygonWakeCircleValidator().prepare(wakeCircle)
-
-        trigger.radiusMeters shouldBeEqualTo
-            (10.0 + PolygonWakeCircleValidator.PLATFORM_WAKE_MARGIN_METERS).toFloat()
+        PolygonWakeCircleValidator().prepare(wakeCircle).radiusMeters shouldBeEqualTo 5_000f
     }
 
     @Test
-    fun prepare_givenPaddedCircleBeyondSupportedLimit_expectRejected() {
+    fun prepare_givenCircleBeyondSupportedLimit_expectRejected() {
         val wakeCircle = PolygonWakeCircle(
             center = point(37.0005, -121.9995),
-            baseRadiusMeters = 99_500.0
+            baseRadiusMeters = PolygonWakeCircleValidator.MAXIMUM_TRIGGER_RADIUS_METERS + 1.0
         )
 
         invoking {

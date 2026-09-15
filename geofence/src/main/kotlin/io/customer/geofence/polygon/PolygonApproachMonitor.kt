@@ -314,7 +314,6 @@ internal class PolygonApproachMonitor(
             "io.customer.geofence.extra.POLYGON_APPROACH_SESSION_DEADLINE_ELAPSED_REALTIME_MS"
         private const val UPDATE_INTERVAL_MS = 15_000L
         private const val FASTEST_UPDATE_INTERVAL_MS = 5_000L
-        private const val MINIMUM_DISPLACEMENT_METERS = 25f
         private const val MAXIMUM_SESSION_DURATION_MS = 2 * 60_000L
         private const val INITIAL_RETRY_MS = 5_000L
         private const val MAXIMUM_RETRY_MS = 300_000L
@@ -331,7 +330,9 @@ internal class PolygonApproachMonitor(
             UPDATE_INTERVAL_MS
         )
             .setMinUpdateIntervalMillis(FASTEST_UPDATE_INTERVAL_MS)
-            .setMinUpdateDistanceMeters(MINIMUM_DISPLACEMENT_METERS)
+            // No displacement filter. The case this session exists to judge is someone who has
+            // arrived and stopped, and a filtered stream reports nothing at all for a device that
+            // is not moving — the session would run its full budget and evaluate zero fixes.
             .setWaitForAccurateLocation(false)
             .setDurationMillis(durationMs)
             .build()

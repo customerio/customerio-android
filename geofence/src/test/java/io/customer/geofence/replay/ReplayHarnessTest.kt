@@ -222,8 +222,16 @@ class ReplayHarnessTest : RobolectricTest() {
         emitted.none { it.ev == "transition.accepted" }.shouldBeTrue()
         // Sign-out clears the registered set, so the crossing is refused as an orphan before it can
         // reach the identity check. Either refusal is a `transition.dropped`; both are the SDK
-        // declining to attribute a crossing to nobody.
-        emitted.any { it.ev == "transition.dropped" }.shouldBeTrue()
+        // declining to attribute a crossing to nobody. Pinned to the fence this drive registered,
+        // so a drop for some *other* reason — a starved fixture leaving nothing registered at all —
+        // cannot stand in for the refusal this case is named for.
+        emitted.any { it.ev == "transition.dropped" && it.fields["id"] == "B" }.shouldBeTrue()
+
+        // `module.reset` is the third asserted record, and until now it was graded only by the
+        // private corpus — so on CI the matcher's newest key had no coverage at all. Sign-out is
+        // what emits it, and this is the one CI-visible test that signs out.
+        emitted.count { it.ev == "module.reset" } shouldBeEqualTo 1
+        registrar.calls.any { it == "clearAll" }.shouldBeTrue()
     }
 
     @Test

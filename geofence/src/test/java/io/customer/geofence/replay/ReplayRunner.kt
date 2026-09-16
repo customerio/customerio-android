@@ -73,7 +73,12 @@ internal class ReplayRunner(
         // `ReplayRegistrar.loadAnswerTimes` for why a constant cannot stand in for these.
         registrar.loadAnswerTimes(
             added = scenario.records.filter { it.ev == "registration.added" }.map { it.at },
-            removed = scenario.records.filter { it.ev == "registration.removed" }.map { it.at }
+            removed = scenario.records.filter { it.ev == "registration.removed" }.map { it.at },
+            // `clearAll` logs `registration.cleared`, not `registration.removed`. Supplying these
+            // is what stops a sign-out clear from drawing a moment out of the remove pool — and
+            // from falling back to the modelled latency, which on one recorded drive is 89 ms
+            // earlier than the clear actually answered.
+            cleared = scenario.records.filter { it.ev == "registration.cleared" }.map { it.at }
         )
 
         for (record in scenario.stimuli) {

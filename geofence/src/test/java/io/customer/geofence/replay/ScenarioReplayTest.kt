@@ -161,7 +161,15 @@ class ScenarioReplayTest : RobolectricTest() {
 
         val failures = mutableListOf<String>()
         for (file in files) {
-            val outcome = replayOne(file)
+            // A drive that *throws* — the boundary gate's release-round guard, or anything the SDK
+            // lets escape synchronously — used to abort the whole loop, so drives after it were
+            // never replayed and the report named only the thrower. Each drive is contained: the
+            // failure is recorded against its own file and the rest of the corpus still runs.
+            val outcome = try {
+                replayOne(file)
+            } catch (error: Throwable) {
+                "${file.name}:\n  threw while replaying: $error"
+            }
             if (outcome != null) failures.add(outcome)
         }
         if (failures.isNotEmpty()) {
@@ -171,9 +179,18 @@ class ScenarioReplayTest : RobolectricTest() {
 
     /** @return a description of what went wrong, or null when the drive replayed faithfully. */
     private suspend fun replayOne(file: File): String? {
-        // Each drive is its own world. `setup` rebuilds the graph and wipes the stores, but the
-        // doubles are fields of this test class and would otherwise carry the previous drive's
-        // fetch queue, registered set, identity and clock into the next one.
+        // Each drive is its own world — as far as this can make it one.
+        //
+        // `setup` re-runs the override lambdas and wipes the persisted stores; it does NOT rebuild
+        // the graph. `SDKComponent.reset()` lives in `teardown()`, which a loop over drives never
+        // calls, so every `singleton{}` in the geofence graph outlives all of them. The doubles
+        // below are fields of this class and are reset explicitly for the same reason.
+        //
+        // What that leaves unreset is in-memory SDK state with no test seam:
+        // `GeofenceServices.explicitRefreshRequested` / `lastSkippedForNoLocation` and
+        // `GeofenceRepository.refreshInProgress`. A drive ending with a refresh armed could arm the
+        // next one's first sync. Dormant on the current corpus — verified by replaying it in order,
+        // reversed, and one drive per JVM — but it is a real gap, not a guarantee.
         setup(testConfigurationDefault { })
         // A boundary the previous drive left parked would resume inside this one, mid-scenario.
         boundaryGate.reset()
@@ -213,5 +230,26 @@ class ScenarioReplayTest : RobolectricTest() {
             }
         }
         return if (problems.isEmpty()) null else "${file.name}:\n${problems.joinToString("\n")}"
+    }
+
+    /**
+     * Every scenario file on disk was readable.
+     *
+     * Discovery drops what it cannot parse, and without this that drop is invisible: the suite
+     * reports a clean pass over the drives it *could* read and says nothing about the ones it
+     * could not. Asserted on `isAvailable` alone, so a corpus that is present but entirely
+     * unreadable fails here rather than skipping.
+     */
+    @Test
+    fun discover_givenScenarioFilesOnDisk_expectEveryOneReadable() {
+        assumeTrue("geofence-scenarios checkout not present", Scenarios.isAvailable)
+        // Populated as a side effect of discovery, so run discovery first.
+        Scenarios.replayable()
+        if (Scenarios.unreadable.isNotEmpty()) {
+            throw AssertionError(
+                "${Scenarios.unreadable.size} scenario file(s) could not be read and were dropped " +
+                    "from the run:\n" + Scenarios.unreadable.joinToString("\n") { "  - $it" }
+            )
+        }
     }
 }

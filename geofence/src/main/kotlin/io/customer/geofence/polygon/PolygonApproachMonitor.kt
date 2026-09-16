@@ -314,7 +314,6 @@ internal class PolygonApproachMonitor(
             "io.customer.geofence.extra.POLYGON_APPROACH_SESSION_DEADLINE_ELAPSED_REALTIME_MS"
         private const val UPDATE_INTERVAL_MS = 15_000L
         private const val FASTEST_UPDATE_INTERVAL_MS = 5_000L
-        private const val MINIMUM_DISPLACEMENT_METERS = 25f
         private const val MAXIMUM_SESSION_DURATION_MS = 2 * 60_000L
         private const val INITIAL_RETRY_MS = 5_000L
         private const val MAXIMUM_RETRY_MS = 300_000L
@@ -323,15 +322,18 @@ internal class PolygonApproachMonitor(
          * The session budget goes on the request itself, not only on our timer.
          *
          * [sessionTimeoutJob] and the deadline extra both die with the process, while a
-         * `PendingIntent` registration outlives it. A stationary device produces no callback to
-         * notice the deadline has passed, so without this the request stays live indefinitely.
+         * `PendingIntent` registration outlives it. Deliveries to a stationary device are too
+         * sparse to rely on for noticing the deadline has passed, so without this the request can
+         * stay live indefinitely.
          */
         internal fun locationRequest(durationMs: Long): LocationRequest = LocationRequest.Builder(
             Priority.PRIORITY_BALANCED_POWER_ACCURACY,
             UPDATE_INTERVAL_MS
         )
             .setMinUpdateIntervalMillis(FASTEST_UPDATE_INTERVAL_MS)
-            .setMinUpdateDistanceMeters(MINIMUM_DISPLACEMENT_METERS)
+            // No displacement filter. The case this session exists to judge is someone who has
+            // arrived and stopped, and the filter drops consecutive fixes within the gate: such a
+            // device is sampled once and then not again for the rest of the session.
             .setWaitForAccurateLocation(false)
             .setDurationMillis(durationMs)
             .build()

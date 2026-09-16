@@ -953,8 +953,14 @@ internal class GeofenceRepositoryImpl(
             }
             val registeredIds = store.getRegisteredIds()
             val monitored = store.getCachedRegions().filter { it.id in registeredIds }
+            // Circles only, as in registerNearestAndPersist. A polygon's `radius` is the wake
+            // circle it is registered with, not its ring — a kilometre against a 40 m shop — so a
+            // point-in-circle test marks the device contained anywhere in the surrounding square
+            // kilometre. Leaving then manufactures an EXIT for a visit that never happened and
+            // spends that fence's hour-long duplicate-event cooldown, hiding the next real one.
+            // The fail-open argument above holds for a circle, where `radius` is the fence itself.
             val insideNow = monitored
-                .filter { it.distanceTo(latitude, longitude) <= it.radius }
+                .filter { !it.isPolygon && it.distanceTo(latitude, longitude) <= it.radius }
                 .map { it.id }
                 .toSet()
             store.reconcileEnteredIds(

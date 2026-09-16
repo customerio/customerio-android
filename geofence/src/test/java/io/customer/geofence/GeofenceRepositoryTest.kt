@@ -2794,6 +2794,39 @@ class GeofenceRepositoryTest : RobolectricTest() {
      * Wires the keys an anchor pass writes and the pass behind it reads back, so a live fix that
      * follows one takes SKIP for the real reason rather than a stubbed one.
      */
+    @Test
+    fun refreshFromLiveFix_givenDeviceInsideAPolygonsWakeCircleButOutsideItsRing_expectItNotSeeded() = runTest {
+        // A polygon's `radius` is the wake circle it is registered with, not its ring — a kilometre
+        // against a 40 m shop. A point-in-circle seed therefore marks the device contained anywhere
+        // in the surrounding square kilometre, and leaving then emits an EXIT for a visit that never
+        // happened, spending that fence's duplicate-event cooldown and hiding the next real one.
+        // Reproduced on the emulator before this fix: three polygons emitted EXIT from 2.5 km away,
+        // before any of them had ever been entered.
+        val circle = GeofenceRegion("biz-1", 0.0, 0.0, 1_000f)
+        val ringCentre = metersOfLatitude(500)
+        val polygon = GeofenceRegion(
+            id = "poly-1",
+            latitude = 0.0,
+            longitude = 0.0,
+            radius = 1_000f,
+            polygonVertices = listOf(
+                PolygonCoordinate(ringCentre - metersOfLatitude(20), -metersOfLatitude(20)),
+                PolygonCoordinate(ringCentre - metersOfLatitude(20), metersOfLatitude(20)),
+                PolygonCoordinate(ringCentre + metersOfLatitude(20), metersOfLatitude(20)),
+                PolygonCoordinate(ringCentre + metersOfLatitude(20), -metersOfLatitude(20))
+            )
+        )
+        val cached = listOf(circle, polygon)
+        val reconciledInside = statefulStore(cached)
+
+        repository.refresh(latitude = 0.0, longitude = 0.0)
+        repository.refreshFromLiveFix(latitude = 0.0, longitude = 0.0)
+
+        // The device is at the wake circle's centre, so the old point-in-circle test seeded both.
+        reconciledInside.last() shouldBeEqualTo setOf("biz-1")
+        store.getEnteredIds() shouldContainSame setOf("biz-1")
+    }
+
     private fun statefulStore(
         cached: List<GeofenceRegion>,
         preRegistered: Set<String> = emptySet()

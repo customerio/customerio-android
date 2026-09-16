@@ -1147,8 +1147,9 @@ internal class GeofenceLogger(private val logger: Logger) {
     fun logPolygonUndecided(
         geofenceId: String,
         reason: PolygonUndecidedReason,
-        boundaryDistanceMeters: Double?,
-        horizontalAccuracyMeters: Double
+        signedBoundaryDistanceMeters: Double?,
+        horizontalAccuracyMeters: Double,
+        fixAgeSeconds: Double
     ) {
         logger.debug(
             "Polygon '$geofenceId' undecided for this fix. The fix was evaluated but does not " +
@@ -1160,8 +1161,9 @@ internal class GeofenceLogger(private val logger: Logger) {
                         "id" to geofenceId,
                         "sh" to "polygon",
                         "why" to reason.wire,
-                        "edge" to num(boundaryDistanceMeters),
-                        "acc" to num(horizontalAccuracyMeters)
+                        "edge" to num(signedBoundaryDistanceMeters),
+                        "acc" to num(horizontalAccuracyMeters),
+                        "age" to num(fixAgeSeconds)
                     )
                 ),
             tag = TAG

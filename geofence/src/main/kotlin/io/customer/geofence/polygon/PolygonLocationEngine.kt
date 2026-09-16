@@ -3,6 +3,7 @@ package io.customer.geofence.polygon
 import android.location.Location
 import android.os.SystemClock
 import io.customer.geofence.GeofenceBusinessTransitionProcessor
+import io.customer.geofence.GeofenceLogTail
 import io.customer.geofence.GeofenceLogger
 import io.customer.geofence.PolygonFixRejection
 import io.customer.geofence.PolygonNotRankedReason
@@ -168,6 +169,7 @@ internal class PolygonLocationEngine(
                             fences = fences,
                             sample = fix.sample,
                             elapsedRealtimeNanos = fix.elapsedRealtimeNanos,
+                            fixAgeSeconds = GeofenceLogTail.fixAgeSeconds(fix.elapsedRealtimeNanos),
                             committedStates = committedStates,
                             evidencePolicy = evidencePolicy
                         )

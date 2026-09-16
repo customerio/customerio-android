@@ -79,7 +79,7 @@ internal class ReplayBoundaryGate(val clock: VirtualClock) {
      * Suspends the caller until virtual time reaches [releaseAt].
      *
      * A boundary whose answer is already due does not park at all, which is what keeps
-     * [releaseDue] from looping: a coroutine resumed inside it can only re-park in the future.
+     * [advanceTo] from looping: a coroutine resumed inside it can only re-park in the future.
      */
     suspend fun awaitVirtual(releaseAt: Double, what: String) {
         if (releaseAt <= clock.elapsedSeconds) return

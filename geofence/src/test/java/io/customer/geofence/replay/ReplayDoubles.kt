@@ -189,9 +189,23 @@ internal class ReplayRegistrar(private val gate: ReplayBoundaryGate) : GeofenceR
     private val addAnswers = ArrayDeque<Double>()
     private val removeAnswers = ArrayDeque<Double>()
 
-    fun loadAnswerTimes(added: List<Double>, removed: List<Double>) {
+    /**
+     * `clearAll`'s own moments, kept apart from [removeAnswers] deliberately.
+     *
+     * The SDK logs `registration.cleared` for a clear and `registration.removed` for a remove —
+     * and it also emits `registration.removed` *inside* a replace, which the replay's own
+     * `replaceGeofences` does not reproduce. So the remove pool holds timestamps belonging to
+     * calls this double never makes, and letting a clear draw from it hands sign-out a moment that
+     * belonged to some earlier replace. Empty until a caller supplies the recorded moments, and
+     * the modelled latency is used until then — a fallback is honest where a stolen timestamp is
+     * not, because it mis-dates exactly the window that decides `unknown_id` from `already_reported`.
+     */
+    private val clearAnswers = ArrayDeque<Double>()
+
+    fun loadAnswerTimes(added: List<Double>, removed: List<Double>, cleared: List<Double> = emptyList()) {
         addAnswers.clear(); addAnswers.addAll(added.sorted())
         removeAnswers.clear(); removeAnswers.addAll(removed.sorted())
+        clearAnswers.clear(); clearAnswers.addAll(cleared.sorted())
     }
 
     /** Between scenarios: regions the previous drive registered are not monitored in the next. */
@@ -200,6 +214,7 @@ internal class ReplayRegistrar(private val gate: ReplayBoundaryGate) : GeofenceR
         calls.clear()
         addAnswers.clear()
         removeAnswers.clear()
+        clearAnswers.clear()
     }
 
     /**
@@ -247,7 +262,7 @@ internal class ReplayRegistrar(private val gate: ReplayBoundaryGate) : GeofenceR
     }
 
     override suspend fun clearAll(): Result<Unit> {
-        roundTrip("clearAll", removeAnswers)
+        roundTrip("clearAll", clearAnswers)
         registeredIds.clear()
         return Result.success(Unit)
     }

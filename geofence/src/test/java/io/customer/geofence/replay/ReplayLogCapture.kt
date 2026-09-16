@@ -31,8 +31,6 @@ internal class ReplayLogger : Logger {
     fun clear() = messages.clear()
 }
 
-/** One `ev=... io=... k=v` tail, parsed back out of a log line. */
-
 /**
  * Fails loudly when the composed graph is not actually wired to the doubles.
  *
@@ -65,7 +63,6 @@ internal fun crossingTransitionOf(token: String?): GeofenceCrossingTransition = 
 }
 
 /** Builds the crossing an `os.callback` stimulus describes. */
-
 internal fun ScenarioRecord.toCrossing(receivedAtSeconds: Long): GeofenceCrossing {
     val token = string("t")
     return GeofenceCrossing(

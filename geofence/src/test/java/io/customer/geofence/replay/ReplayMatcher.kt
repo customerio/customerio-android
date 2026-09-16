@@ -14,11 +14,12 @@ internal object ReplayMatcher {
      * The only records a scenario asserts. Frozen deliberately: it is what the SDK classifies
      * `io=out`, and widening it here would let replay grade something the SDK never promised.
      *
-     * Two, since 2026-09-11. An output is a decision that crosses back out of the SDK — a region
-     * set handed to the OS, a transition handed to delivery. A callback deduplicated, a transition
-     * refused or an enter synthesised are decisions about *inputs*; their only visible consequence
-     * is a transition that is or is not accepted, which the counts here already grade. Asserting
-     * them pinned every drive to one implementation's internals.
+     * Three of them. An output is a decision that crosses back out of the SDK — a region set
+     * handed to the OS, a transition handed to delivery, a registration cleared on sign-out. A
+     * callback deduplicated, a transition refused or an enter synthesised are decisions about
+     * *inputs*; their only visible consequence is a transition that is or is not accepted, which
+     * the counts here already grade. Asserting them pinned every drive to one implementation's
+     * internals.
      */
     val assertedEvents = setOf(
         "registration.applied",

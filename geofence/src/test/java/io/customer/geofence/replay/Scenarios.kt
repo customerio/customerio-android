@@ -90,7 +90,18 @@ internal object Scenarios {
         val dir = root ?: return emptyList()
         return dir.listFiles { f: File -> f.name.endsWith(SUFFIX) }
             ?.sortedBy { it.name }
-            ?.filter { file -> readable(file) { it.platform == "android" } }
+            ?.filter { file ->
+                readable(file) { scenario ->
+                    if (scenario.platform !in setOf("android", "ios")) {
+                        // Reported, not filtered. Only a *load* failure was recorded before, so a
+                        // misspelled `platfrom` key — or a stray `Android` — parsed cleanly,
+                        // defaulted to `unknown`, and vanished from the run with nothing said.
+                        unreadable.add("${file.name}: header platform is \"${scenario.platform}\", expected \"android\" or \"ios\"")
+                        return@readable false
+                    }
+                    scenario.platform == "android"
+                }
+            }
             .orEmpty() + conformance()
     }
 }

@@ -11,10 +11,13 @@ import io.customer.geofence.GeofenceLocationMode
 import io.customer.geofence.GeofencePermissionChecker
 import io.customer.geofence.GeofenceRegistrar
 import io.customer.geofence.api.GeofenceApiService
+import io.customer.geofence.di.geofenceApiService
 import io.customer.geofence.di.geofenceCooldownStore
 import io.customer.geofence.di.geofenceCrossingPipeline
+import io.customer.geofence.di.geofenceEventScheduler
 import io.customer.geofence.di.geofenceLogger
 import io.customer.geofence.di.geofenceManager
+import io.customer.geofence.di.geofencePermissionChecker
 import io.customer.geofence.di.geofenceRegionStore
 import io.customer.geofence.di.geofenceServices
 import io.customer.geofence.di.pendingGeofenceDeliveryStore
@@ -105,7 +108,13 @@ class ScenarioReplayTest : RobolectricTest() {
             "ScopeProvider" to (SDKComponent.scopeProvider to fakeScopeProvider),
             "Clock" to (SDKComponent.clock to virtualClock),
             "Logger" to (SDKComponent.logger to replayLogger),
-            "GeofenceRegistrar" to (SDKComponent.android().geofenceManager to registrar)
+            "GeofenceRegistrar" to (SDKComponent.android().geofenceManager to registrar),
+            // The other three. This is the suite that grades the real SDK against the corpus, so a
+            // double that failed to bind here would surface as every drive mismatching at once
+            // with no hint why — `api` above all, since it feeds the entire fence catalogue.
+            "GeofenceApiService" to (SDKComponent.geofenceApiService to api),
+            "GeofenceEventScheduler" to (SDKComponent.android().geofenceEventScheduler to scheduler),
+            "GeofencePermissionChecker" to (SDKComponent.android().geofencePermissionChecker to permissionChecker)
         )
         // A real, disk-backed store carried over from an earlier test in this JVM would hand the
         // replay a catalogue and a containment set the drive never established.
@@ -244,7 +253,17 @@ class ScenarioReplayTest : RobolectricTest() {
     fun discover_givenScenarioFilesOnDisk_expectEveryOneReadable() {
         assumeTrue("geofence-scenarios checkout not present", Scenarios.isAvailable)
         // Populated as a side effect of discovery, so run discovery first.
-        Scenarios.replayable()
+        val found = Scenarios.replayable()
+        // A root that exists but holds no drives is the failure this test is for, and asserting
+        // only on `unreadable` misses it. Point the override one level too high — at
+        // `geofence-scenarios` rather than `geofence-scenarios/recorded`, the exact mistake
+        // `Scenarios`' own KDoc warns about — and everything below passes over zero drives.
+        if (found.isEmpty()) {
+            throw AssertionError(
+                "the corpus at ${Scenarios.root} holds no replayable drive — check the path points " +
+                    "at the directory containing the .scenario.ndjson files"
+            )
+        }
         if (Scenarios.unreadable.isNotEmpty()) {
             throw AssertionError(
                 "${Scenarios.unreadable.size} scenario file(s) could not be read and were dropped " +

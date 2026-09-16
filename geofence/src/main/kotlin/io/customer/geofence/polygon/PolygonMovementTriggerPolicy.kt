@@ -16,13 +16,18 @@ internal class PolygonMovementTriggerPolicy {
         val polygons = regions.filter(GeofenceRegion::isPolygon)
         if (polygons.isEmpty()) return normalRadiusMeters
 
-        var safeRadius = normalRadiusMeters.toDouble()
+        // Each polygon we are outside imposes a ceiling: the trigger must be crossed before its
+        // ring is. Each polygon we are inside wants a small radius so departure is noticed. They
+        // are different constraints and must not be collapsed into one running minimum, which is
+        // what let a single already-entered polygon floor the trigger for every polygon still being
+        // approached.
+        var approachCeiling = normalRadiusMeters.toDouble()
+        var approaching = false
         var departing = false
         for (region in polygons) {
             val geometry = region.polygonGeometryOrNull() ?: return null
             val relation = geometry.relationTo(sample.coordinate)
             val expectedInside = region.id in committedInsideIds
-            if (expectedInside) departing = true
             val stateMatches = when (relation) {
                 PolygonPointRelation.INSIDE -> expectedInside
                 PolygonPointRelation.OUTSIDE -> !expectedInside
@@ -30,26 +35,32 @@ internal class PolygonMovementTriggerPolicy {
             }
             if (!stateMatches) return null
 
-            val clearance = geometry.boundaryDistanceMeters(sample.coordinate) -
-                sample.horizontalAccuracyMeters -
-                APPROACH_LEAD_MARGIN_METERS
-            safeRadius = min(safeRadius, clearance)
+            if (expectedInside) {
+                departing = true
+            } else {
+                approaching = true
+                approachCeiling = min(
+                    approachCeiling,
+                    geometry.boundaryDistanceMeters(sample.coordinate) -
+                        sample.horizontalAccuracyMeters -
+                        APPROACH_LEAD_MARGIN_METERS
+                )
+            }
         }
 
-        // Approaching, the trigger has to be crossed before the ring is, or the arrival is never
-        // seen: stopping here leaves a trigger that extends past the boundary the device is about
-        // to cross, and nothing wakes it. Too little clearance is therefore a refusal, and the
-        // caller keeps sampling.
-        if (!departing) {
-            return safeRadius
-                .takeIf { it >= GeofenceConstants.MIN_LOCAL_REFRESH_RADIUS_METERS }
-                ?.toFloat()
+        // A clearance too small to keep the trigger inside the nearest ring is a refusal, and it
+        // stays a refusal even when some other polygon is being departed. Stopping would lose that
+        // arrival, and being inside an unrelated fence does not make it recoverable.
+        if (approaching && approachCeiling < GeofenceConstants.MIN_LOCAL_REFRESH_RADIUS_METERS) {
+            return null
         }
-        // Departing, that invariant cannot be met at all: no radius GMS can resolve fits inside a
-        // 24-42 m ring, so the trigger necessarily extends past it. The choice is between a bounded
-        // overshoot and the 1000 m default that a refusal falls back to, and the overshoot is what
-        // lets sampling stop and the OS carry the departure.
-        return safeRadius.coerceAtLeast(MIN_DEPARTURE_TRIGGER_RADIUS_METERS).toFloat()
+        if (!departing) return approachCeiling.toFloat()
+
+        // Departing, the "cross the trigger before the ring" invariant cannot be met at all: no
+        // radius GMS can resolve fits inside a 24-42 m ring, so the trigger necessarily extends past
+        // it. Take the tightest departure radius that is still resolvable, but never wider than an
+        // approach in the same set allows.
+        return min(approachCeiling, MIN_DEPARTURE_TRIGGER_RADIUS_METERS).toFloat()
     }
 
     internal companion object {

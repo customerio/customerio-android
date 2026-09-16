@@ -105,6 +105,55 @@ class PolygonMovementTriggerPolicyTest {
             PolygonMovementTriggerPolicy.MIN_DEPARTURE_TRIGGER_RADIUS_METERS.toFloat()
     }
 
+    @Test
+    fun safeRadiusMeters_givenInsideOnePolygonAndApproachingAnother_expectNoSafeBubble() {
+        // Reported by Shahroz on #881. Standing inside an 80 m shop with another starting 60 m
+        // away, treating the set as "departing" floored the trigger to 250 m and let the controller
+        // stop sampling — but the second shop is entered without ever crossing that trigger, so its
+        // arrival is lost. Being inside one fence must not cancel the approach clearance of another.
+        policy.safeRadiusMeters(
+            regions = listOf(
+                rectangle(id = "inside", westMeters = -40.0, eastMeters = 40.0, southMeters = -40.0, northMeters = 40.0),
+                rectangle(id = "approaching", westMeters = 60.0, eastMeters = 260.0)
+            ),
+            committedInsideIds = setOf("inside"),
+            sample = sampleAtOrigin(accuracyMeters = 10.0),
+            normalRadiusMeters = 1_000f
+        ).shouldBeNull()
+    }
+
+    @Test
+    fun safeRadiusMeters_givenInsideOnePolygonAndTheOtherFarEnoughAway_expectTheDepartureFloor() {
+        // The same shape with room to satisfy both: the approaching ring is far enough that a
+        // departure-sized trigger is still crossed well before it.
+        policy.safeRadiusMeters(
+            regions = listOf(
+                rectangle(id = "inside", westMeters = -40.0, eastMeters = 40.0, southMeters = -40.0, northMeters = 40.0),
+                rectangle(id = "approaching", westMeters = 600.0, eastMeters = 900.0)
+            ),
+            committedInsideIds = setOf("inside"),
+            sample = sampleAtOrigin(accuracyMeters = 10.0),
+            normalRadiusMeters = 1_000f
+        ) shouldBeEqualTo PolygonMovementTriggerPolicy.MIN_DEPARTURE_TRIGGER_RADIUS_METERS.toFloat()
+    }
+
+    @Test
+    fun safeRadiusMeters_givenApproachClearanceTighterThanTheDepartureFloor_expectTheClearanceWins() {
+        // Between the two: the approach is satisfiable but only below the departure floor, so the
+        // trigger takes the clearance rather than widening past the ring being approached.
+        val radius = policy.safeRadiusMeters(
+            regions = listOf(
+                rectangle(id = "inside", westMeters = -40.0, eastMeters = 40.0, southMeters = -40.0, northMeters = 40.0),
+                rectangle(id = "approaching", westMeters = 290.0, eastMeters = 490.0)
+            ),
+            committedInsideIds = setOf("inside"),
+            sample = sampleAtOrigin(accuracyMeters = 10.0),
+            normalRadiusMeters = 1_000f
+        )
+
+        radius.shouldNotBeNull().shouldBeInRange(175f, 185f)
+    }
+
     private fun sampleAtOrigin(accuracyMeters: Double = 5.0) = PolygonLocationSample(
         coordinate = meters(),
         horizontalAccuracyMeters = accuracyMeters

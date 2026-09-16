@@ -1128,13 +1128,21 @@ internal class GeofenceLogger(private val logger: Logger) {
         )
     }
 
-    fun logPolygonFixNotUsable(reason: PolygonFixRejection) {
+    fun logPolygonFixNotUsable(
+        reason: PolygonFixRejection,
+        horizontalAccuracyMeters: Double? = null,
+        fixAgeSeconds: Double? = null
+    ) {
         logger.debug(
             "Polygon fix ignored — ${reason.detail}. Responsive monitoring is best-effort: it decides only from fixes that are decisive on their own." +
                 tail(
                     "polygon.undecided",
                     GeofenceLogIo.OUTPUT,
-                    listOf("why" to reason.wire)
+                    listOf(
+                        "why" to reason.wire,
+                        "acc" to num(horizontalAccuracyMeters),
+                        "age" to num(fixAgeSeconds)
+                    )
                 ),
             tag = TAG
         )
@@ -1164,6 +1172,38 @@ internal class GeofenceLogger(private val logger: Logger) {
                         "edge" to num(signedBoundaryDistanceMeters),
                         "acc" to num(horizontalAccuracyMeters),
                         "age" to num(fixAgeSeconds)
+                    )
+                ),
+            tag = TAG
+        )
+    }
+
+    /**
+     * The evidence behind a transition the SDK did claim. Its counterpart `polygon.undecided`
+     * records only refusals, and a capture of refusals alone cannot say where a margin should sit:
+     * it shows which fixes were turned away and none of the ones that were let through.
+     */
+    fun logPolygonDecided(
+        geofenceId: String,
+        transitionName: String,
+        signedBoundaryDistanceMeters: Double?,
+        horizontalAccuracyMeters: Double,
+        fixAgeSeconds: Double,
+        corroborated: Boolean
+    ) {
+        logger.debug(
+            "Polygon '$geofenceId' decided this fix is a $transitionName." +
+                tail(
+                    "polygon.decided",
+                    GeofenceLogIo.OUTPUT,
+                    listOf(
+                        "id" to geofenceId,
+                        "sh" to "polygon",
+                        "t" to token(transitionName),
+                        "edge" to num(signedBoundaryDistanceMeters),
+                        "acc" to num(horizontalAccuracyMeters),
+                        "age" to num(fixAgeSeconds),
+                        "cor" to bool(corroborated)
                     )
                 ),
             tag = TAG

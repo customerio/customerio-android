@@ -163,6 +163,36 @@ class PolygonRouteIntegrationTest {
         // The control for the test above: expiry must not quietly disable corroboration. Two fixes
         // one sampling interval apart are the same visit and must still complete the arrival.
         val processor = PolygonRouteProcessor(logger = GeofenceLogger(CapturingLogger()))
+    fun process_givenAnArrivalThatDecidesAlone_expectADecidedRecordWithItsEvidence() {
+        // The counterpart to the undecided records above. Without this a capture shows every fix a
+        // margin refused and none it accepted, which is half the distribution the margin sits in.
+        GeofenceDiagnostics.setEnabledForTesting(true)
+        val capturing = CapturingLogger()
+
+        PolygonRouteProcessor(logger = GeofenceLogger(capturing)).process(
+            fences = listOf(campus),
+            sample = PolygonLocationSample(point(37.7750, -122.4194), 5.0),
+            elapsedRealtimeNanos = 1L,
+            fixAgeSeconds = 2.5,
+            committedStates = emptyMap(),
+            evidencePolicy = PolygonEvidencePolicy.DECISIVE_SINGLE_FIX
+        )
+
+        capturing.decidedField("t") shouldBeEqualTo "enter"
+        capturing.decidedField("cor") shouldBeEqualTo "false"
+        capturing.decidedField("acc") shouldBeEqualTo "5.0"
+        capturing.decidedField("age") shouldBeEqualTo "2.5"
+        // Positive because the fix is inside, the same sign convention the undecided rows use.
+        capturing.decidedField("edge").toDouble() shouldBeInRange 30.0..60.0
+    }
+
+    @Test
+    fun process_givenAnArrivalThatNeededASecondFix_expectTheRecordOnlyWithTheTransition() {
+        // A marginal arrival: the first fix decides nothing and must not be recorded as a decision,
+        // the second commits it. `cor` is what separates the two populations on the drive.
+        GeofenceDiagnostics.setEnabledForTesting(true)
+        val capturing = CapturingLogger()
+        val processor = PolygonRouteProcessor(logger = GeofenceLogger(capturing))
         val marginal = PolygonLocationSample(point(37.77452, -122.4194), 30.0)
 
         processor.process(
@@ -178,6 +208,13 @@ class PolygonRouteIntegrationTest {
             fences = listOf(campus),
             sample = marginal,
             elapsedRealtimeNanos = 1L + FIFTEEN_SECONDS_NANOS,
+        )
+        capturing.messages.count { it.contains("ev=polygon.decided") } shouldBeEqualTo 0
+
+        processor.process(
+            fences = listOf(campus),
+            sample = marginal,
+            elapsedRealtimeNanos = 2L,
             fixAgeSeconds = 0.0,
             committedStates = emptyMap(),
             evidencePolicy = PolygonEvidencePolicy.DECISIVE_SINGLE_FIX
@@ -185,6 +222,26 @@ class PolygonRouteIntegrationTest {
 
         detections.map(PolygonTransitionDetection::transition) shouldBeEqualTo
             listOf(PolygonTransition.ENTER)
+        capturing.decidedField("t") shouldBeEqualTo "enter"
+        capturing.decidedField("cor") shouldBeEqualTo "true"
+    }
+
+    @Test
+    fun process_givenADepartureThatClearsTheMargin_expectANegativeEdgeOnTheRecord() {
+        GeofenceDiagnostics.setEnabledForTesting(true)
+        val capturing = CapturingLogger()
+
+        PolygonRouteProcessor(logger = GeofenceLogger(capturing)).process(
+            fences = listOf(campus),
+            sample = PolygonLocationSample(point(37.7750, -122.4230), 5.0),
+            elapsedRealtimeNanos = 1L,
+            fixAgeSeconds = 0.0,
+            committedStates = mapOf("campus" to PolygonCommittedState.INSIDE),
+            evidencePolicy = PolygonEvidencePolicy.DECISIVE_SINGLE_FIX
+        )
+
+        capturing.decidedField("t") shouldBeEqualTo "exit"
+        capturing.decidedField("edge").toDouble() shouldBeInRange -300.0..-1.0
     }
 
     private fun undecidedRecordsFor(
@@ -207,6 +264,11 @@ class PolygonRouteIntegrationTest {
     }
 
     private fun CapturingLogger.undecidedEdgeMeters(): Double = undecidedField("edge").toDouble()
+
+    private fun CapturingLogger.decidedField(key: String): String = messages
+        .single { it.contains("ev=polygon.decided") }
+        .substringAfter(" $key=")
+        .substringBefore(' ')
 
     private fun CapturingLogger.undecidedField(key: String): String = messages
         .single { it.contains("ev=polygon.undecided") }

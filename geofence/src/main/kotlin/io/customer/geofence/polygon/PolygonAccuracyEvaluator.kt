@@ -45,16 +45,22 @@ internal data class PolygonEvidenceResult(
     val evidence: PolygonEvidence,
     val undecidedReason: PolygonUndecidedReason? = null,
     /**
-     * Positive inside, negative outside, as iOS reports it. Set on every decided and undecided
-     * result, so a capture can compare the fixes a margin accepted against the ones it refused.
-     * Null only on a decisive fix that agrees with the committed state, which is not recorded.
+     * Positive inside, negative outside, as iOS reports it. Set on every evaluated result, decided,
+     * undecided and agreeing alike, so a capture can compare the fixes a margin accepted against the
+     * ones it refused. Null only where the geometry was never consulted.
      */
     val signedBoundaryDistanceMeters: Double? = null,
     /**
      * The fix decided, but its own uncertainty reaches the ring, so it cannot rule out having been
      * taken from the other side. A second agreeing fix settles it.
      */
-    val requiresCorroboration: Boolean = false
+    val requiresCorroboration: Boolean = false,
+    /**
+     * The fix was decisive and found the device on the side the committed state already claims, so
+     * there is nothing to report. Recorded anyway: these are the fixes the margins let through, and
+     * a capture of only the ones they refused cannot say where a margin should sit.
+     */
+    val agreedWithCommittedState: Boolean = false
 )
 
 /** Classifies a location fix without mutating committed polygon state. */
@@ -177,8 +183,13 @@ internal class PolygonAccuracyEvaluator {
                     )
                 }
             // Decisive, and it agrees with the committed state. Nothing to decide, so no reason and
-            // no record: this is what a device sitting inside a polygon reports on every fix.
-            else -> PolygonEvidenceResult(PolygonEvidence.AMBIGUOUS)
+            // no transition, but the fix quality is still worth recording.
+            else -> PolygonEvidenceResult(
+                PolygonEvidence.AMBIGUOUS,
+                signedBoundaryDistanceMeters =
+                signedBoundaryDistance(boundaryDistanceMeters, relation),
+                agreedWithCommittedState = true
+            )
         }
     }
 

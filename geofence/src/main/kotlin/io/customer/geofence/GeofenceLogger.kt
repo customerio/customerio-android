@@ -1218,6 +1218,38 @@ internal class GeofenceLogger(private val logger: Logger) {
         )
     }
 
+    /**
+     * A fix that was decisive and simply agreed with what we already believe. No transition, and
+     * nothing to fix, but it is the population a margin is calibrated against: `polygon.undecided`
+     * shows what was refused and `polygon.decided` what changed a belief, and neither shows the
+     * ordinary good fix in between. Bounded by the sampling session, so this is a handful of rows
+     * per wake rather than a stream.
+     */
+    fun logPolygonUnchanged(
+        geofenceId: String,
+        membership: String,
+        signedBoundaryDistanceMeters: Double?,
+        horizontalAccuracyMeters: Double,
+        fixAgeSeconds: Double
+    ) {
+        logger.debug(
+            "Polygon '$geofenceId' agrees with the committed state; no transition." +
+                tail(
+                    "polygon.unchanged",
+                    GeofenceLogIo.OUTPUT,
+                    listOf(
+                        "id" to geofenceId,
+                        "sh" to "polygon",
+                        "m" to token(membership),
+                        "edge" to num(signedBoundaryDistanceMeters),
+                        "acc" to num(horizontalAccuracyMeters),
+                        "age" to num(fixAgeSeconds)
+                    )
+                ),
+            tag = TAG
+        )
+    }
+
     fun logPolygonRegionNotRanked(geofenceId: String, reason: PolygonNotRankedReason) {
         logger.debug(
             "Geofence '$geofenceId' excluded from ranking — ${reason.detail}. It stays cached and is never registered as its enclosing circle." +

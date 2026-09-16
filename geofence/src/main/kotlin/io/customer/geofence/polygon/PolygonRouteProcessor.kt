@@ -85,6 +85,15 @@ internal class PolygonRouteProcessor(
                     fixAgeSeconds = fixAgeSeconds
                 )
             }
+            if (result.agreedWithCommittedState) {
+                logger.logPolygonUnchanged(
+                    geofenceId = fence.id,
+                    membership = committedState.name,
+                    signedBoundaryDistanceMeters = result.signedBoundaryDistanceMeters,
+                    horizontalAccuracyMeters = sample.horizontalAccuracyMeters,
+                    fixAgeSeconds = fixAgeSeconds
+                )
+            }
             val isTransitionEvidence =
                 committedState == PolygonCommittedState.OUTSIDE && evidence == PolygonEvidence.ENTER ||
                     committedState == PolygonCommittedState.INSIDE && evidence == PolygonEvidence.EXIT

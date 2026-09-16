@@ -27,6 +27,7 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.test.runTest
 import org.amshove.kluent.shouldBeEmpty
+import org.amshove.kluent.shouldBeEqualTo
 import org.amshove.kluent.shouldContainSame
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -226,16 +227,25 @@ class PolygonLocationEngineTest : RobolectricTest() {
     // ---------- best-effort boundary: fixes the engine refuses to decide from ----------
 
     @Test
-    fun processResponsiveLocation_givenAccuracyCircleStraddlingTheRing_expectNoTransition() = runTest {
-        // Realistic background accuracy inside a ~110 m polygon: the device is genuinely inside, but
-        // its uncertainty circle plus the anti-jitter margin reaches past the ring, so "inside" is not
-        // established. A guess here would report ENTER for a device that may be on the pavement.
+    fun processResponsiveLocation_givenAccuracyCircleStraddlingTheRing_expectEnter() = runTest {
+        // Realistic background accuracy inside a ~110 m polygon: the device is genuinely inside and
+        // its uncertainty circle reaches past the ring. Refusing this cost the visit outright, since
+        // nothing re-derives a missed polygon arrival. Reporting it costs a transition that the next
+        // decisive fix corrects, so the fix's own position decides.
         engine.processResponsiveLocation(insideFix(accuracyMeters = 45f))
 
-        store.getEnteredIds().shouldBeEmpty()
-        coVerify(exactly = 0) {
-            emitter.emitWithRetainedAttempt(any(), any(), any(), any(), any(), any(), any(), any(), any(), any())
-        }
+        store.getEnteredIds() shouldBeEqualTo setOf(POLYGON_ID)
+    }
+
+    @Test
+    fun processResponsiveLocation_givenAccuracyCircleStraddlingTheRingFromOutside_expectNoExit() = runTest {
+        // The mirror of the test above, and the reason the rule is asymmetric rather than simply
+        // looser. Leaving keeps the clearance margin: a noisy fix must not end a visit in progress.
+        store.recordEntered(POLYGON_ID)
+
+        engine.processResponsiveLocation(fix(37.7750, -122.41865, accuracyMeters = 45f))
+
+        store.getEnteredIds() shouldBeEqualTo setOf(POLYGON_ID)
     }
 
     @Test
@@ -249,25 +259,81 @@ class PolygonLocationEngineTest : RobolectricTest() {
     }
 
     @Test
-    fun processResponsiveLocation_givenPolygonSmallerThanTypicalAccuracy_expectNoEnterEverCommitted() = runTest {
-        // A ~40 m ring has no interior point more than ~20 m from its own boundary, so a fix with
-        // ordinary background accuracy can never be decisive anywhere inside it. The device sits dead
-        // centre and still produces nothing — and must not fall back to the enclosing trigger circle,
-        // which is hundreds of metres wide.
-        store.saveCachedRegions(listOf(smallPolygonRegion()))
-        store.saveRegisteredIds(setOf(SMALL_POLYGON_ID))
-        store.saveRoutableRegisteredIds(setOf(SMALL_POLYGON_ID))
-        store.activatePolygon(SMALL_POLYGON_ID)
-        store.recordPolygonCoarseInside(SMALL_POLYGON_ID)
+    fun processResponsiveLocation_givenPolygonSmallerThanTypicalAccuracy_expectEnterOnceCorroborated() = runTest {
+        // A ~40 m ring has no interior point more than ~20 m from its own boundary. Requiring the
+        // whole accuracy circle to clear the ring refused every point in it at every realistic
+        // accuracy, which made a retail unit permanently undetectable. Arrival now asks only that
+        // the fix is inside — but at 20 m accuracy on this ring the fix cannot rule out having been
+        // taken from the pavement, so it takes a second agreeing one.
+        armSmallPolygon()
+        val base = SystemClock.elapsedRealtimeNanos() - 10_000_000_000L
 
         engine.processResponsiveLocation(
-            fix(37.7750, -122.4194, accuracyMeters = 20f)
+            fix(37.7750, -122.4194, elapsedRealtimeNanos = base, accuracyMeters = 20f)
         )
+        store.getEnteredIds().shouldBeEmpty()
+
+        engine.processResponsiveLocation(
+            fix(37.7750, -122.4194, elapsedRealtimeNanos = base + 5_000_000_000L, accuracyMeters = 20f)
+        )
+
+        store.getEnteredIds() shouldBeEqualTo setOf(SMALL_POLYGON_ID)
+    }
+
+    @Test
+    fun processResponsiveLocation_givenOneMarginalFixThenACoarseOne_expectNoEnter() = runTest {
+        // The run has to be consecutive. A fix too coarse to judge is not agreement, so it breaks
+        // the run rather than counting toward it — otherwise a passer-by's single inside-reading
+        // fix could be corroborated minutes later by an unrelated one.
+        armSmallPolygon()
+        val base = SystemClock.elapsedRealtimeNanos() - 10_000_000_000L
+
+        engine.processResponsiveLocation(
+            fix(37.7750, -122.4194, elapsedRealtimeNanos = base, accuracyMeters = 20f)
+        )
+        engine.processResponsiveLocation(
+            fix(37.7750, -122.4194, elapsedRealtimeNanos = base + 2_000_000_000L, accuracyMeters = 120f)
+        )
+        engine.processResponsiveLocation(
+            fix(37.7750, -122.4194, elapsedRealtimeNanos = base + 4_000_000_000L, accuracyMeters = 20f)
+        )
+
+        store.getEnteredIds().shouldBeEmpty()
+    }
+
+    @Test
+    fun processResponsiveLocation_givenAFixWhoseUncertaintyClearsTheRing_expectEnterFromThatFixAlone() = runTest {
+        // The other half of the rule. 5 m accuracy well inside a ~40 m ring cannot have been taken
+        // from outside it, so there is nothing for a second fix to add and waiting would only
+        // delay a real arrival.
+        armSmallPolygon()
+
+        engine.processResponsiveLocation(fix(37.7750, -122.4194, accuracyMeters = 5f))
+
+        store.getEnteredIds() shouldBeEqualTo setOf(SMALL_POLYGON_ID)
+    }
+
+    @Test
+    fun processResponsiveLocation_givenFixInsideTheTriggerCircleButOutsideTheRing_expectNoEnter() = runTest {
+        // The guard that still has to hold. The enclosing trigger circle is hundreds of metres wide
+        // and the ring is 40 m; arrival is judged against the ring, never the circle it was
+        // registered with.
+        armSmallPolygon()
+
+        engine.processResponsiveLocation(fix(37.7750, -122.41890, accuracyMeters = 20f))
 
         store.getEnteredIds().shouldBeEmpty()
         coVerify(exactly = 0) {
             emitter.emitWithRetainedAttempt(any(), any(), any(), any(), any(), any(), any(), any(), any(), any())
         }
+    }
+
+    private fun armSmallPolygon() {
+        store.saveCachedRegions(listOf(smallPolygonRegion()))
+        store.saveRegisteredIds(setOf(SMALL_POLYGON_ID))
+        store.saveRoutableRegisteredIds(setOf(SMALL_POLYGON_ID))
+        store.activatePolygon(SMALL_POLYGON_ID)
+        store.recordPolygonCoarseInside(SMALL_POLYGON_ID)
     }
 
     @Test

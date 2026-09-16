@@ -45,7 +45,12 @@ internal data class PolygonEvidenceResult(
     val evidence: PolygonEvidence,
     val undecidedReason: PolygonUndecidedReason? = null,
     /** Positive inside, negative outside, as iOS reports it. Null unless [undecidedReason] is set. */
-    val signedBoundaryDistanceMeters: Double? = null
+    val signedBoundaryDistanceMeters: Double? = null,
+    /**
+     * The fix decided, but its own uncertainty reaches the ring, so it cannot rule out having been
+     * taken from the other side. A second agreeing fix settles it.
+     */
+    val requiresCorroboration: Boolean = false
 )
 
 /** Classifies a location fix without mutating committed polygon state. */
@@ -99,8 +104,17 @@ internal class PolygonAccuracyEvaluator {
     }
 
     /**
-     * Classifies a sparse background fix only when its complete accuracy circle, plus an
-     * additional anti-jitter margin, is on the candidate side of the polygon boundary.
+     * Classifies a sparse background fix, asymmetrically.
+     *
+     * Arrival and departure are not equally costly. A missed arrival loses the visit outright,
+     * because polygons are excluded from initial-ENTER synthesis and nothing re-derives it; a
+     * spurious one costs a transition that the next decisive fix corrects. Departure is the
+     * opposite: leaving early on a noisy fix ends a visit that is still happening.
+     *
+     * So arrival asks only that the fix itself lies inside the ring, and departure keeps the
+     * clearance margin. The symmetric rule this replaces required `edge > accuracy + margin` in
+     * both directions, which at median background accuracy leaves no decidable point anywhere
+     * inside a 24 m fence — and three of our four real polygons are 24-42 m across.
      */
     fun decisiveEvidenceFor(
         geometry: PolygonGeometry,
@@ -121,18 +135,29 @@ internal class PolygonAccuracyEvaluator {
             )
         }
         val boundaryDistanceMeters = geometry.boundaryDistanceMeters(sample.coordinate)
-        val requiredDistance = sample.horizontalAccuracyMeters + DECISIVE_BOUNDARY_MARGIN_METERS
-        if (boundaryDistanceMeters <= requiredDistance) {
-            return undecided(
-                PolygonUndecidedReason.WITHIN_ACCURACY,
-                signedBoundaryDistance(boundaryDistanceMeters, relation)
-            )
-        }
         return when {
             committedState == PolygonCommittedState.OUTSIDE && relation == PolygonPointRelation.INSIDE ->
-                PolygonEvidenceResult(PolygonEvidence.ENTER)
+                PolygonEvidenceResult(
+                    PolygonEvidence.ENTER,
+                    // Arrival carries no clearance margin, so nothing else bounds accuracy against
+                    // the boundary. Measured on our own rings, the exterior band a single
+                    // inside-reading fix can have come from is over twice the area of the polygon
+                    // itself — that band is exactly this condition, seen from the other side.
+                    requiresCorroboration =
+                    boundaryDistanceMeters <= sample.horizontalAccuracyMeters
+                )
             committedState == PolygonCommittedState.INSIDE && relation == PolygonPointRelation.OUTSIDE ->
-                PolygonEvidenceResult(PolygonEvidence.EXIT)
+                if (
+                    boundaryDistanceMeters >
+                    sample.horizontalAccuracyMeters + DEPARTURE_BOUNDARY_MARGIN_METERS
+                ) {
+                    PolygonEvidenceResult(PolygonEvidence.EXIT)
+                } else {
+                    undecided(
+                        PolygonUndecidedReason.WITHIN_ACCURACY,
+                        signedBoundaryDistance(boundaryDistanceMeters, relation)
+                    )
+                }
             // Decisive, and it agrees with the committed state. Nothing to decide, so no reason and
             // no record: this is what a device sitting inside a polygon reports on every fix.
             else -> PolygonEvidenceResult(PolygonEvidence.AMBIGUOUS)
@@ -212,9 +237,22 @@ internal class PolygonAccuracyEvaluator {
         /** Coarser than this and a fix cannot judge containment at all, so it reads AMBIGUOUS. */
         const val MAX_EVALUATED_FIX_ACCURACY_METERS = 200.0
 
-        /** The stricter ceiling a lone background fix must meet to decide without corroboration. */
+        /**
+         * Coarser than this and a lone background fix decides nothing in either direction.
+         *
+         * Unchanged at 50. Indoor fixes measure around 100 m, so this is what makes an indoor
+         * arrival undecidable, and raising it is the single highest-impact calibration choice
+         * open — but it is the one that needs the real accuracy distribution rather than an
+         * argument from geometry, because at 100 m against a 24 m fence the fix carries no
+         * information about containment at all.
+         */
         const val MAX_DECISIVE_FIX_ACCURACY_METERS = 50.0
-        const val DECISIVE_BOUNDARY_MARGIN_METERS = 10.0
+
+        /**
+         * Clearance a departure needs beyond the fix's own accuracy. Arrival has no equivalent by
+         * design. v1 value.
+         */
+        const val DEPARTURE_BOUNDARY_MARGIN_METERS = 20.0
 
         const val EARTH_RADIUS_METERS = PolygonGeometry.EARTH_RADIUS_METERS
     }

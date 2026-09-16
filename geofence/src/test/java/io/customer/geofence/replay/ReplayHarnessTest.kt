@@ -11,10 +11,13 @@ import io.customer.geofence.GeofenceLocationMode
 import io.customer.geofence.GeofencePermissionChecker
 import io.customer.geofence.GeofenceRegistrar
 import io.customer.geofence.api.GeofenceApiService
+import io.customer.geofence.di.geofenceApiService
 import io.customer.geofence.di.geofenceCooldownStore
 import io.customer.geofence.di.geofenceCrossingPipeline
+import io.customer.geofence.di.geofenceEventScheduler
 import io.customer.geofence.di.geofenceLogger
 import io.customer.geofence.di.geofenceManager
+import io.customer.geofence.di.geofencePermissionChecker
 import io.customer.geofence.di.geofenceRegionStore
 import io.customer.geofence.di.geofenceServices
 import io.customer.geofence.di.pendingGeofenceDeliveryStore
@@ -96,7 +99,12 @@ class ReplayHarnessTest : RobolectricTest() {
             "ScopeProvider" to (SDKComponent.scopeProvider to fakeScopeProvider),
             "Clock" to (SDKComponent.clock to virtualClock),
             "Logger" to (SDKComponent.logger to replayLogger),
-            "GeofenceRegistrar" to (SDKComponent.android().geofenceManager to registrar)
+            "GeofenceRegistrar" to (SDKComponent.android().geofenceManager to registrar),
+            // The remaining three overrides. `api` is the most consequential double in the whole
+            // composition — it feeds the entire fence catalogue — and it was the one not checked.
+            "GeofenceApiService" to (SDKComponent.geofenceApiService to api),
+            "GeofenceEventScheduler" to (SDKComponent.android().geofenceEventScheduler to scheduler),
+            "GeofencePermissionChecker" to (SDKComponent.android().geofencePermissionChecker to permissionChecker)
         )
         SDKComponent.android().geofenceRegionStore.clearAll()
         // A separate store, and the region store's clearAll does not touch it. Left over, a

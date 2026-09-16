@@ -45,7 +45,12 @@ internal data class PolygonEvidenceResult(
     val evidence: PolygonEvidence,
     val undecidedReason: PolygonUndecidedReason? = null,
     /** Positive inside, negative outside, as iOS reports it. Null unless [undecidedReason] is set. */
-    val signedBoundaryDistanceMeters: Double? = null
+    val signedBoundaryDistanceMeters: Double? = null,
+    /**
+     * The fix decided, but its own uncertainty reaches the ring, so it cannot rule out having been
+     * taken from the other side. A second agreeing fix settles it.
+     */
+    val requiresCorroboration: Boolean = false
 )
 
 /** Classifies a location fix without mutating committed polygon state. */
@@ -132,7 +137,15 @@ internal class PolygonAccuracyEvaluator {
         val boundaryDistanceMeters = geometry.boundaryDistanceMeters(sample.coordinate)
         return when {
             committedState == PolygonCommittedState.OUTSIDE && relation == PolygonPointRelation.INSIDE ->
-                PolygonEvidenceResult(PolygonEvidence.ENTER)
+                PolygonEvidenceResult(
+                    PolygonEvidence.ENTER,
+                    // Arrival carries no clearance margin, so nothing else bounds accuracy against
+                    // the boundary. Measured on our own rings, the exterior band a single
+                    // inside-reading fix can have come from is over twice the area of the polygon
+                    // itself — that band is exactly this condition, seen from the other side.
+                    requiresCorroboration =
+                    boundaryDistanceMeters <= sample.horizontalAccuracyMeters
+                )
             committedState == PolygonCommittedState.INSIDE && relation == PolygonPointRelation.OUTSIDE ->
                 if (
                     boundaryDistanceMeters >

@@ -27,6 +27,12 @@ internal enum class PolygonEvidencePolicy {
 internal class PolygonRouteProcessor(
     private val accuracyEvaluator: PolygonAccuracyEvaluator = PolygonAccuracyEvaluator(),
     private val stateMachine: PolygonTransitionStateMachine = PolygonTransitionStateMachine(),
+    /**
+     * Separate from [stateMachine] and deliberately shorter: this gates arrivals on the decisive
+     * path, where the evidence rule has no clearance margin at all.
+     */
+    private val arrivalConfirmations: PolygonTransitionStateMachine =
+        PolygonTransitionStateMachine(requiredConfirmations = 2),
     private val minimumEvidenceIntervalNanos: Long = 0L,
     private val logger: GeofenceLogger
 ) {
@@ -46,7 +52,10 @@ internal class PolygonRouteProcessor(
         }
 
         val activeIds = fences.mapTo(mutableSetOf(), PolygonFence::id)
-        trackedFenceIds.filterNot(activeIds::contains).forEach(stateMachine::clear)
+        trackedFenceIds.filterNot(activeIds::contains).forEach { retired ->
+            stateMachine.clear(retired)
+            arrivalConfirmations.clear(retired)
+        }
         latestElapsedRealtimeNanos.keys.retainAll(activeIds)
         lastEvidenceElapsedNanos.keys.retainAll(activeIds)
         trackedFenceIds.clear()
@@ -79,14 +88,33 @@ internal class PolygonRouteProcessor(
             if (!isTransitionEvidence) {
                 lastEvidenceElapsedNanos.remove(fence.id)
                 stateMachine.evaluate(fence.id, committedState, evidence)
+                // Breaks a run of agreeing arrival fixes: the requirement below is consecutive, and
+                // a fix too coarse to judge is not agreement.
+                arrivalConfirmations.evaluate(fence.id, committedState, evidence)
                 return@mapNotNull null
             }
             if (evidencePolicy == PolygonEvidencePolicy.DECISIVE_SINGLE_FIX) {
                 lastEvidenceElapsedNanos.remove(fence.id)
                 stateMachine.clear(fence.id)
                 val transition = when (evidence) {
-                    PolygonEvidence.ENTER -> PolygonTransition.ENTER
-                    PolygonEvidence.EXIT -> PolygonTransition.EXIT
+                    // A fix whose uncertainty does not reach the ring decides on its own: a
+                    // passer-by on the pavement cannot produce one. A marginal fix can, so it
+                    // needs a second agreeing fix — which a real visit supplies on the next
+                    // sample and someone walking past usually does not.
+                    PolygonEvidence.ENTER -> when {
+                        !result.requiresCorroboration -> {
+                            arrivalConfirmations.clear(fence.id)
+                            PolygonTransition.ENTER
+                        }
+                        else -> arrivalConfirmations.evaluate(fence.id, committedState, evidence)
+                            ?: return@mapNotNull null
+                    }
+                    // Departure keeps its clearance margin, so it needs no second opinion, and
+                    // delaying it would report a visit as still running after it ended.
+                    PolygonEvidence.EXIT -> {
+                        arrivalConfirmations.clear(fence.id)
+                        PolygonTransition.EXIT
+                    }
                     PolygonEvidence.AMBIGUOUS -> return@mapNotNull null
                 }
                 return@mapNotNull PolygonTransitionDetection(
@@ -114,6 +142,7 @@ internal class PolygonRouteProcessor(
         trackedFenceIds.clear()
         lastEvidenceElapsedNanos.clear()
         stateMachine.clearAll()
+        arrivalConfirmations.clearAll()
     }
 
     fun clear(polygonId: String) {
@@ -121,6 +150,7 @@ internal class PolygonRouteProcessor(
         latestElapsedRealtimeNanos.remove(polygonId)
         lastEvidenceElapsedNanos.remove(polygonId)
         stateMachine.clear(polygonId)
+        arrivalConfirmations.clear(polygonId)
     }
 
     private val trackedFenceIds = mutableSetOf<String>()

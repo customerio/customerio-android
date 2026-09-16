@@ -259,14 +259,56 @@ class PolygonLocationEngineTest : RobolectricTest() {
     }
 
     @Test
-    fun processResponsiveLocation_givenPolygonSmallerThanTypicalAccuracy_expectEnterFromTheFixInsideIt() = runTest {
+    fun processResponsiveLocation_givenPolygonSmallerThanTypicalAccuracy_expectEnterOnceCorroborated() = runTest {
         // A ~40 m ring has no interior point more than ~20 m from its own boundary. Requiring the
-        // whole accuracy circle to clear the ring therefore refused every point in it, at every
-        // realistic accuracy, which made a retail unit permanently undetectable. Arrival now asks
-        // only that the fix itself is inside.
+        // whole accuracy circle to clear the ring refused every point in it at every realistic
+        // accuracy, which made a retail unit permanently undetectable. Arrival now asks only that
+        // the fix is inside — but at 20 m accuracy on this ring the fix cannot rule out having been
+        // taken from the pavement, so it takes a second agreeing one.
+        armSmallPolygon()
+        val base = SystemClock.elapsedRealtimeNanos() - 10_000_000_000L
+
+        engine.processResponsiveLocation(
+            fix(37.7750, -122.4194, elapsedRealtimeNanos = base, accuracyMeters = 20f)
+        )
+        store.getEnteredIds().shouldBeEmpty()
+
+        engine.processResponsiveLocation(
+            fix(37.7750, -122.4194, elapsedRealtimeNanos = base + 5_000_000_000L, accuracyMeters = 20f)
+        )
+
+        store.getEnteredIds() shouldBeEqualTo setOf(SMALL_POLYGON_ID)
+    }
+
+    @Test
+    fun processResponsiveLocation_givenOneMarginalFixThenACoarseOne_expectNoEnter() = runTest {
+        // The run has to be consecutive. A fix too coarse to judge is not agreement, so it breaks
+        // the run rather than counting toward it — otherwise a passer-by's single inside-reading
+        // fix could be corroborated minutes later by an unrelated one.
+        armSmallPolygon()
+        val base = SystemClock.elapsedRealtimeNanos() - 10_000_000_000L
+
+        engine.processResponsiveLocation(
+            fix(37.7750, -122.4194, elapsedRealtimeNanos = base, accuracyMeters = 20f)
+        )
+        engine.processResponsiveLocation(
+            fix(37.7750, -122.4194, elapsedRealtimeNanos = base + 2_000_000_000L, accuracyMeters = 120f)
+        )
+        engine.processResponsiveLocation(
+            fix(37.7750, -122.4194, elapsedRealtimeNanos = base + 4_000_000_000L, accuracyMeters = 20f)
+        )
+
+        store.getEnteredIds().shouldBeEmpty()
+    }
+
+    @Test
+    fun processResponsiveLocation_givenAFixWhoseUncertaintyClearsTheRing_expectEnterFromThatFixAlone() = runTest {
+        // The other half of the rule. 5 m accuracy well inside a ~40 m ring cannot have been taken
+        // from outside it, so there is nothing for a second fix to add and waiting would only
+        // delay a real arrival.
         armSmallPolygon()
 
-        engine.processResponsiveLocation(fix(37.7750, -122.4194, accuracyMeters = 20f))
+        engine.processResponsiveLocation(fix(37.7750, -122.4194, accuracyMeters = 5f))
 
         store.getEnteredIds() shouldBeEqualTo setOf(SMALL_POLYGON_ID)
     }

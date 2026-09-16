@@ -58,8 +58,13 @@ internal class PolygonMovementTriggerPolicy {
 
         // Departing, the "cross the trigger before the ring" invariant cannot be met at all: no
         // radius GMS can resolve fits inside a 24-42 m ring, so the trigger necessarily extends past
-        // it. Take the tightest departure radius that is still resolvable, but never wider than an
-        // approach in the same set allows.
+        // it. Take the tightest departure radius that is still resolvable. A configured refresh
+        // radius below that floor says what the workspace wants, not what GMS delivers, so it does
+        // not lower it.
+        if (!approaching) return MIN_DEPARTURE_TRIGGER_RADIUS_METERS.toFloat()
+
+        // An approach in the same set still caps it: widening past a ring being walked towards
+        // loses that arrival, which is worse than noticing a departure late.
         return min(approachCeiling, MIN_DEPARTURE_TRIGGER_RADIUS_METERS).toFloat()
     }
 

@@ -106,6 +106,27 @@ class PolygonMovementTriggerPolicyTest {
     }
 
     @Test
+    fun safeRadiusMeters_givenDepartureAndARefreshRadiusBelowTheFloor_expectTheFloorNotTheConfig() {
+        // Found by Bugbot on #881. `localRefreshTriggerRadius` is only clamped to [100, 5000], so a
+        // workspace can configure 150 m. That says what the workspace wants, not what GMS resolves,
+        // and a departure trigger under the floor fires on coarse containment error instead.
+        policy.safeRadiusMeters(
+            regions = listOf(
+                rectangle(
+                    id = "shop",
+                    westMeters = -40.0,
+                    eastMeters = 40.0,
+                    southMeters = -40.0,
+                    northMeters = 40.0
+                )
+            ),
+            committedInsideIds = setOf("shop"),
+            sample = sampleAtOrigin(accuracyMeters = 10.0),
+            normalRadiusMeters = 150f
+        ) shouldBeEqualTo PolygonMovementTriggerPolicy.MIN_DEPARTURE_TRIGGER_RADIUS_METERS.toFloat()
+    }
+
+    @Test
     fun safeRadiusMeters_givenInsideOnePolygonAndApproachingAnother_expectNoSafeBubble() {
         // Reported by Shahroz on #881. Standing inside an 80 m shop with another starting 60 m
         // away, treating the set as "departing" floored the trigger to 250 m and let the controller

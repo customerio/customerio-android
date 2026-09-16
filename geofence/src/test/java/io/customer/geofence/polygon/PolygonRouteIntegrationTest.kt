@@ -4,6 +4,7 @@ import io.customer.geofence.GeofenceDiagnostics
 import io.customer.geofence.GeofenceLogger
 import io.customer.sdk.core.util.CioLogLevel
 import io.customer.sdk.core.util.Logger
+import org.amshove.kluent.shouldBeEmpty
 import org.amshove.kluent.shouldBeEqualTo
 import org.amshove.kluent.shouldBeInRange
 import org.junit.After
@@ -127,6 +128,63 @@ class PolygonRouteIntegrationTest {
         )
 
         capturing.undecidedField("age") shouldBeEqualTo "7.5"
+    }
+
+    @Test
+    fun process_givenTwoMarginalFixesMinutesApart_expectNoArrivalFromCombiningThem() {
+        // Reported by Shahroz on #882 with a reproduction. The confirmation counts agreeing fixes
+        // and stores no time, so a marginal fix on one pass and another on a wake five minutes
+        // later completed an arrival that neither pass observed. Walking past a shop twice is not
+        // a visit.
+        val processor = PolygonRouteProcessor(logger = GeofenceLogger(CapturingLogger()))
+        val marginal = PolygonLocationSample(point(37.77452, -122.4194), 30.0)
+
+        processor.process(
+            fences = listOf(campus),
+            sample = marginal,
+            elapsedRealtimeNanos = 1L,
+            fixAgeSeconds = 0.0,
+            committedStates = emptyMap(),
+            evidencePolicy = PolygonEvidencePolicy.DECISIVE_SINGLE_FIX
+        ).shouldBeEmpty()
+
+        processor.process(
+            fences = listOf(campus),
+            sample = marginal,
+            elapsedRealtimeNanos = 1L + FIVE_MINUTES_NANOS,
+            fixAgeSeconds = 0.0,
+            committedStates = emptyMap(),
+            evidencePolicy = PolygonEvidencePolicy.DECISIVE_SINGLE_FIX
+        ).shouldBeEmpty()
+    }
+
+    @Test
+    fun process_givenTwoMarginalFixesOneSampleApart_expectTheArrivalStillCommits() {
+        // The control for the test above: expiry must not quietly disable corroboration. Two fixes
+        // one sampling interval apart are the same visit and must still complete the arrival.
+        val processor = PolygonRouteProcessor(logger = GeofenceLogger(CapturingLogger()))
+        val marginal = PolygonLocationSample(point(37.77452, -122.4194), 30.0)
+
+        processor.process(
+            fences = listOf(campus),
+            sample = marginal,
+            elapsedRealtimeNanos = 1L,
+            fixAgeSeconds = 0.0,
+            committedStates = emptyMap(),
+            evidencePolicy = PolygonEvidencePolicy.DECISIVE_SINGLE_FIX
+        ).shouldBeEmpty()
+
+        val detections = processor.process(
+            fences = listOf(campus),
+            sample = marginal,
+            elapsedRealtimeNanos = 1L + FIFTEEN_SECONDS_NANOS,
+            fixAgeSeconds = 0.0,
+            committedStates = emptyMap(),
+            evidencePolicy = PolygonEvidencePolicy.DECISIVE_SINGLE_FIX
+        )
+
+        detections.map(PolygonTransitionDetection::transition) shouldBeEqualTo
+            listOf(PolygonTransition.ENTER)
     }
 
     private fun undecidedRecordsFor(
@@ -404,6 +462,9 @@ class PolygonRouteIntegrationTest {
     }
 
     private companion object {
+        const val FIVE_MINUTES_NANOS = 5L * 60 * 1_000_000_000
+        const val FIFTEEN_SECONDS_NANOS = 15L * 1_000_000_000
+
         fun point(latitude: Double, longitude: Double) =
             PolygonCoordinate(latitude = latitude, longitude = longitude)
     }

@@ -55,9 +55,11 @@ internal class PolygonRouteProcessor(
         trackedFenceIds.filterNot(activeIds::contains).forEach { retired ->
             stateMachine.clear(retired)
             arrivalConfirmations.clear(retired)
+            arrivalConfirmationNanos.remove(retired)
         }
         latestElapsedRealtimeNanos.keys.retainAll(activeIds)
         lastEvidenceElapsedNanos.keys.retainAll(activeIds)
+        arrivalConfirmationNanos.keys.retainAll(activeIds)
         trackedFenceIds.clear()
         trackedFenceIds.addAll(activeIds)
 
@@ -65,6 +67,7 @@ internal class PolygonRouteProcessor(
             val latest = latestElapsedRealtimeNanos[fence.id]
             if (latest != null && elapsedRealtimeNanos <= latest) return@mapNotNull null
             latestElapsedRealtimeNanos[fence.id] = elapsedRealtimeNanos
+            retireStaleArrivalConfirmation(fence.id, elapsedRealtimeNanos)
             val committedState = committedStates[fence.id] ?: PolygonCommittedState.OUTSIDE
             val result = when (evidencePolicy) {
                 PolygonEvidencePolicy.CONFIRMED ->
@@ -90,7 +93,7 @@ internal class PolygonRouteProcessor(
                 stateMachine.evaluate(fence.id, committedState, evidence)
                 // Breaks a run of agreeing arrival fixes: the requirement below is consecutive, and
                 // a fix too coarse to judge is not agreement.
-                arrivalConfirmations.evaluate(fence.id, committedState, evidence)
+                confirmArrival(fence.id, committedState, evidence, elapsedRealtimeNanos)
                 return@mapNotNull null
             }
             if (evidencePolicy == PolygonEvidencePolicy.DECISIVE_SINGLE_FIX) {
@@ -106,7 +109,7 @@ internal class PolygonRouteProcessor(
                             arrivalConfirmations.clear(fence.id)
                             PolygonTransition.ENTER
                         }
-                        else -> arrivalConfirmations.evaluate(fence.id, committedState, evidence)
+                        else -> confirmArrival(fence.id, committedState, evidence, elapsedRealtimeNanos)
                             ?: return@mapNotNull null
                     }
                     // Departure keeps its clearance margin, so it needs no second opinion, and
@@ -141,6 +144,7 @@ internal class PolygonRouteProcessor(
         latestElapsedRealtimeNanos.clear()
         trackedFenceIds.clear()
         lastEvidenceElapsedNanos.clear()
+        arrivalConfirmationNanos.clear()
         stateMachine.clearAll()
         arrivalConfirmations.clearAll()
     }
@@ -149,10 +153,45 @@ internal class PolygonRouteProcessor(
         trackedFenceIds.remove(polygonId)
         latestElapsedRealtimeNanos.remove(polygonId)
         lastEvidenceElapsedNanos.remove(polygonId)
+        arrivalConfirmationNanos.remove(polygonId)
         stateMachine.clear(polygonId)
         arrivalConfirmations.clear(polygonId)
     }
 
+    /**
+     * A pending arrival is evidence about the visit happening now. The confirmation counts agreeing
+     * fixes and knows nothing about when they arrived, so without this a marginal fix from one pass
+     * and a marginal fix from a pass minutes later combine into an arrival neither observed.
+     */
+    private fun retireStaleArrivalConfirmation(polygonId: String, elapsedRealtimeNanos: Long) {
+        val observedAt = arrivalConfirmationNanos[polygonId] ?: return
+        if (elapsedRealtimeNanos - observedAt > MAX_CORROBORATION_GAP_NANOS) {
+            arrivalConfirmations.clear(polygonId)
+            arrivalConfirmationNanos.remove(polygonId)
+        }
+    }
+
+    private fun confirmArrival(
+        polygonId: String,
+        committedState: PolygonCommittedState,
+        evidence: PolygonEvidence,
+        elapsedRealtimeNanos: Long
+    ): PolygonTransition? {
+        arrivalConfirmationNanos[polygonId] = elapsedRealtimeNanos
+        return arrivalConfirmations.evaluate(polygonId, committedState, evidence)
+    }
+
     private val trackedFenceIds = mutableSetOf<String>()
     private val lastEvidenceElapsedNanos = mutableMapOf<String, Long>()
+    private val arrivalConfirmationNanos = mutableMapOf<String, Long>()
+
+    private companion object {
+        /**
+         * How far apart two marginal fixes may be and still describe one visit. The approach session
+         * samples every 15 s, so a corroborating fix is normally the next one; this allows a few
+         * missed deliveries without letting a separate pass at the same shop complete an arrival.
+         * Bounds the age of the evidence, not how much of it is required.
+         */
+        const val MAX_CORROBORATION_GAP_NANOS = 60_000_000_000L
+    }
 }

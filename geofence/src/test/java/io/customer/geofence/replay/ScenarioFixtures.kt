@@ -10,7 +10,6 @@ import java.io.File
  * by hand has no reason to carry a real position. Latitude 10 / longitude 20 matches the convention
  * the authored scenarios use.
  */
-
 internal fun scenarioFile(vararg lines: String): File {
     val file = File.createTempFile("scenario", ".scenario.ndjson")
     file.deleteOnExit()

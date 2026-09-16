@@ -3,7 +3,7 @@ package io.customer.geofence.replay
 /**
  * Grades what the replayed SDK decided against what the device decided.
  *
- * Matching is by `(ev, fence id, transition)` and by count — not by timestamp. A replay runs in
+ * Matching is by `(ev, fence id, transition, why)` and by count — not by timestamp. A replay runs in
  * microseconds on a virtual clock, so pinning wall-clock offsets would fail on every run for no
  * behavioural reason. What must hold is that the same decisions were reached about the same
  * fences, the same number of times.
@@ -36,7 +36,11 @@ internal object ReplayMatcher {
      * A decision, stripped to the parts that identify it.
      *
      * `why` travels when an asserted record carries one, so that two decisions differing only in
-     * their stated reason are not the same claim. None of the asserted events carries it today.
+     * their stated reason are not the same claim. No *recorded* drive carries one today, but
+     * `module.reset` can: it is logged `ok=false why=os_clear_failed` and `ok=false
+     * why=other_user_signed_in` as well as plain `ok=true`. `ok` is deliberately not part of this
+     * key, so `why` is the only thing separating a failed sign-out reset from a successful one —
+     * dropping it as unused would grade those two as the same decision.
      */
     data class Key(val ev: String, val id: String?, val transition: String?, val why: String?) {
         override fun toString(): String = buildString {

@@ -1179,9 +1179,17 @@ internal class GeofenceLogger(private val logger: Logger) {
     }
 
     /**
-     * The evidence behind a transition the SDK did claim. Its counterpart `polygon.undecided`
+     * The evidence behind a transition the evaluator claimed. Its counterpart `polygon.undecided`
      * records only refusals, and a capture of refusals alone cannot say where a margin should sit:
      * it shows which fixes were turned away and none of the ones that were let through.
+     *
+     * Claimed, not delivered. This is written before the business processor's own guards, so a
+     * decision it drops still appears here, and the same transition is claimed again on each
+     * following fix until something commits it. Count these as evaluator verdicts, not as events.
+     *
+     * `cor` describes this fix, not the arrival. A marginal fix that waited for a second one is
+     * recorded on the fix that completed it, and if that fix is itself clear of the ring it decides
+     * alone and reports `cor=false`.
      */
     fun logPolygonDecided(
         geofenceId: String,

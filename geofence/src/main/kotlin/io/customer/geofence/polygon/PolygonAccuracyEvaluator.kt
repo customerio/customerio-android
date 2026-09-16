@@ -97,9 +97,17 @@ internal class PolygonAccuracyEvaluator {
         return when {
             centerRelation == PolygonPointRelation.INSIDE &&
                 confidence >= ENTER_CONFIDENCE_THRESHOLD ->
-                PolygonEvidenceResult(PolygonEvidence.ENTER)
+                PolygonEvidenceResult(
+                    PolygonEvidence.ENTER,
+                    signedBoundaryDistanceMeters =
+                    signedBoundaryDistance(boundaryDistanceMeters, centerRelation)
+                )
             centerRelation == PolygonPointRelation.OUTSIDE && boundaryDistanceMeters > accuracy ->
-                PolygonEvidenceResult(PolygonEvidence.EXIT)
+                PolygonEvidenceResult(
+                    PolygonEvidence.EXIT,
+                    signedBoundaryDistanceMeters =
+                    signedBoundaryDistance(boundaryDistanceMeters, centerRelation)
+                )
             else -> undecided(
                 PolygonUndecidedReason.WITHIN_ACCURACY,
                 signedBoundaryDistance(boundaryDistanceMeters, centerRelation)

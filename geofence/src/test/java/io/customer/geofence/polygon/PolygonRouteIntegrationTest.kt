@@ -244,6 +244,33 @@ class PolygonRouteIntegrationTest {
         capturing.decidedField("edge").toDouble() shouldBeInRange -300.0..-1.0
     }
 
+    @Test
+    fun process_givenTheConfirmedPolicyReachingATransition_expectTheRecordCarriesItsEvidenceToo() {
+        // The CONFIRMED policy is unreachable in production today, but it writes the same record.
+        // Its evidence path is separate from the decisive one and was returning no signed edge at
+        // all, so every row it produced would have carried an empty `edge`. Found in review.
+        GeofenceDiagnostics.setEnabledForTesting(true)
+        val capturing = CapturingLogger()
+        val processor = PolygonRouteProcessor(logger = GeofenceLogger(capturing))
+        val inside = PolygonLocationSample(point(37.7750, -122.4194), 5.0)
+
+        repeat(3) { attempt ->
+            processor.process(
+                fences = listOf(campus),
+                sample = inside,
+                elapsedRealtimeNanos = attempt + 1L,
+                fixAgeSeconds = 0.0,
+                committedStates = emptyMap(),
+                evidencePolicy = PolygonEvidencePolicy.CONFIRMED
+            )
+        }
+
+        capturing.decidedField("t") shouldBeEqualTo "enter"
+        // Reaching a transition at all means repeated agreeing evaluations, so it is never alone.
+        capturing.decidedField("cor") shouldBeEqualTo "true"
+        capturing.decidedField("edge").toDouble() shouldBeInRange 30.0..60.0
+    }
+
     private fun undecidedRecordsFor(
         coordinate: PolygonCoordinate,
         committedStates: Map<String, PolygonCommittedState> = emptyMap(),

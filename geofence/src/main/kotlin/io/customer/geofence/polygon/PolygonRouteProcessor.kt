@@ -203,7 +203,7 @@ internal class PolygonRouteProcessor(
     ): PolygonTransitionDetection {
         logger.logPolygonDecided(
             geofenceId = fence.id,
-            transitionName = transition.name.lowercase(),
+            transitionName = transition.name,
             signedBoundaryDistanceMeters = result.signedBoundaryDistanceMeters,
             horizontalAccuracyMeters = sample.horizontalAccuracyMeters,
             fixAgeSeconds = fixAgeSeconds,

@@ -106,6 +106,70 @@ class PolygonMovementTriggerPolicyTest {
     }
 
     @Test
+    fun safeRadiusMeters_givenDepartureFromALargePolygon_expectItsOwnClearanceNotTheFloor() {
+        // Found by `customerio-android-c3` on #881. 2 km inside a large ring the invariant the floor
+        // exists to work around is satisfiable: a trigger just under 2 km is crossed before the
+        // boundary. Flooring it to 250 m costs 4-7x the wakes, each a sync and a re-registration.
+        val radius = policy.safeRadiusMeters(
+            regions = listOf(
+                rectangle(
+                    id = "campus",
+                    westMeters = -2_000.0,
+                    eastMeters = 2_000.0,
+                    southMeters = -2_000.0,
+                    northMeters = 2_000.0
+                )
+            ),
+            committedInsideIds = setOf("campus"),
+            sample = sampleAtOrigin(accuracyMeters = 10.0),
+            normalRadiusMeters = 5_000f
+        )
+
+        radius.shouldNotBeNull().shouldBeInRange(1_885f, 1_895f)
+    }
+
+    @Test
+    fun safeRadiusMeters_givenDepartureClearanceWiderThanTheCatalogRadius_expectTheCatalogRadius() {
+        // The same ring under the default 1000 m catalog radius. The clearance is wider than the
+        // catalog allows, so the catalog wins: a departure never widens the trigger past it.
+        policy.safeRadiusMeters(
+            regions = listOf(
+                rectangle(
+                    id = "campus",
+                    westMeters = -2_000.0,
+                    eastMeters = 2_000.0,
+                    southMeters = -2_000.0,
+                    northMeters = 2_000.0
+                )
+            ),
+            committedInsideIds = setOf("campus"),
+            sample = sampleAtOrigin(accuracyMeters = 10.0),
+            normalRadiusMeters = 1_000f
+        ) shouldBeEqualTo 1_000f
+    }
+
+    @Test
+    fun safeRadiusMeters_givenDepartureOnlyAndASubClampRefreshRadius_expectNoRefusal() {
+        // Pins the `approaching &&` conjunct on the refusal. The config clamp forbids a radius below
+        // 100 m, so only a caller passing one reaches this: a pure departure must still be armed,
+        // because the refusal is about losing an arrival and there is no arrival here.
+        policy.safeRadiusMeters(
+            regions = listOf(
+                rectangle(
+                    id = "shop",
+                    westMeters = -40.0,
+                    eastMeters = 40.0,
+                    southMeters = -40.0,
+                    northMeters = 40.0
+                )
+            ),
+            committedInsideIds = setOf("shop"),
+            sample = sampleAtOrigin(accuracyMeters = 10.0),
+            normalRadiusMeters = 50f
+        ) shouldBeEqualTo PolygonMovementTriggerPolicy.MIN_DEPARTURE_TRIGGER_RADIUS_METERS.toFloat()
+    }
+
+    @Test
     fun safeRadiusMeters_givenDepartureAndARefreshRadiusBelowTheFloor_expectTheFloorNotTheConfig() {
         // Found by Bugbot on #881. `localRefreshTriggerRadius` is only clamped to [100, 5000], so a
         // workspace can configure 150 m. That says what the workspace wants, not what GMS resolves,

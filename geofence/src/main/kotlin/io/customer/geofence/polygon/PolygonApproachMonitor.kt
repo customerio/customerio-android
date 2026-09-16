@@ -322,8 +322,9 @@ internal class PolygonApproachMonitor(
          * The session budget goes on the request itself, not only on our timer.
          *
          * [sessionTimeoutJob] and the deadline extra both die with the process, while a
-         * `PendingIntent` registration outlives it. A stationary device produces no callback to
-         * notice the deadline has passed, so without this the request stays live indefinitely.
+         * `PendingIntent` registration outlives it. Deliveries to a stationary device are too
+         * sparse to rely on for noticing the deadline has passed, so without this the request can
+         * stay live indefinitely.
          */
         internal fun locationRequest(durationMs: Long): LocationRequest = LocationRequest.Builder(
             Priority.PRIORITY_BALANCED_POWER_ACCURACY,
@@ -331,8 +332,8 @@ internal class PolygonApproachMonitor(
         )
             .setMinUpdateIntervalMillis(FASTEST_UPDATE_INTERVAL_MS)
             // No displacement filter. The case this session exists to judge is someone who has
-            // arrived and stopped, and a filtered stream reports nothing at all for a device that
-            // is not moving — the session would run its full budget and evaluate zero fixes.
+            // arrived and stopped, and the filter drops consecutive fixes within the gate: such a
+            // device is sampled once and then not again for the rest of the session.
             .setWaitForAccurateLocation(false)
             .setDurationMillis(durationMs)
             .build()

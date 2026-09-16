@@ -22,6 +22,7 @@ internal class PolygonMovementTriggerPolicy {
         // what let a single already-entered polygon floor the trigger for every polygon still being
         // approached.
         var approachCeiling = normalRadiusMeters.toDouble()
+        var departureCeiling = Double.MAX_VALUE
         var approaching = false
         var departing = false
         for (region in polygons) {
@@ -35,16 +36,15 @@ internal class PolygonMovementTriggerPolicy {
             }
             if (!stateMatches) return null
 
+            val clearance = geometry.boundaryDistanceMeters(sample.coordinate) -
+                sample.horizontalAccuracyMeters -
+                APPROACH_LEAD_MARGIN_METERS
             if (expectedInside) {
                 departing = true
+                departureCeiling = min(departureCeiling, clearance)
             } else {
                 approaching = true
-                approachCeiling = min(
-                    approachCeiling,
-                    geometry.boundaryDistanceMeters(sample.coordinate) -
-                        sample.horizontalAccuracyMeters -
-                        APPROACH_LEAD_MARGIN_METERS
-                )
+                approachCeiling = min(approachCeiling, clearance)
             }
         }
 
@@ -56,16 +56,25 @@ internal class PolygonMovementTriggerPolicy {
         }
         if (!departing) return approachCeiling.toFloat()
 
-        // Departing, the "cross the trigger before the ring" invariant cannot be met at all: no
-        // radius GMS can resolve fits inside a 24-42 m ring, so the trigger necessarily extends past
-        // it. Take the tightest departure radius that is still resolvable. A configured refresh
-        // radius below that floor says what the workspace wants, not what GMS delivers, so it does
-        // not lower it.
-        if (!approaching) return MIN_DEPARTURE_TRIGGER_RADIUS_METERS.toFloat()
+        // Departing, the departed ring's own clearance still applies: 2 km inside a large polygon,
+        // a trigger just under 2 km is crossed before the boundary is, and the floor would replace
+        // it with 250 m and four to seven times the wakes. Only a ring too small to hold any
+        // resolvable trigger falls to the floor, which is every retail fence and not much else.
+        //
+        // The floor is applied last so it cannot be capped away: a configured refresh radius below
+        // it says what the workspace wants, not what GMS delivers, and a trigger under what GMS
+        // resolves produces more wakes than the config asked for, not fewer.
+        val departureRadius = departureCeiling
+            .coerceAtMost(normalRadiusMeters.toDouble())
+            .coerceAtLeast(MIN_DEPARTURE_TRIGGER_RADIUS_METERS)
 
         // An approach in the same set still caps it: widening past a ring being walked towards
         // loses that arrival, which is worse than noticing a departure late.
-        return min(approachCeiling, MIN_DEPARTURE_TRIGGER_RADIUS_METERS).toFloat()
+        return if (approaching) {
+            min(approachCeiling, departureRadius).toFloat()
+        } else {
+            departureRadius.toFloat()
+        }
     }
 
     internal companion object {

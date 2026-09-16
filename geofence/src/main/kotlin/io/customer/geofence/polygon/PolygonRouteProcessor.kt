@@ -85,6 +85,15 @@ internal class PolygonRouteProcessor(
                     fixAgeSeconds = fixAgeSeconds
                 )
             }
+            if (result.agreedWithCommittedState) {
+                logger.logPolygonUnchanged(
+                    geofenceId = fence.id,
+                    membership = committedState.name,
+                    signedBoundaryDistanceMeters = result.signedBoundaryDistanceMeters,
+                    horizontalAccuracyMeters = sample.horizontalAccuracyMeters,
+                    fixAgeSeconds = fixAgeSeconds
+                )
+            }
             val isTransitionEvidence =
                 committedState == PolygonCommittedState.OUTSIDE && evidence == PolygonEvidence.ENTER ||
                     committedState == PolygonCommittedState.INSIDE && evidence == PolygonEvidence.EXIT
@@ -120,10 +129,13 @@ internal class PolygonRouteProcessor(
                     }
                     PolygonEvidence.AMBIGUOUS -> return@mapNotNull null
                 }
-                return@mapNotNull PolygonTransitionDetection(
-                    fence.id,
-                    transition,
-                    fence.regionRevision
+                return@mapNotNull recorded(
+                    fence = fence,
+                    transition = transition,
+                    result = result,
+                    sample = sample,
+                    fixAgeSeconds = fixAgeSeconds,
+                    corroborated = result.requiresCorroboration
                 )
             }
             val previousEvidenceTime = lastEvidenceElapsedNanos[fence.id]
@@ -135,7 +147,16 @@ internal class PolygonRouteProcessor(
             }
             lastEvidenceElapsedNanos[fence.id] = elapsedRealtimeNanos
             stateMachine.evaluate(fence.id, committedState, evidence)?.let { transition ->
-                PolygonTransitionDetection(fence.id, transition, fence.regionRevision)
+                recorded(
+                    fence = fence,
+                    transition = transition,
+                    result = result,
+                    sample = sample,
+                    fixAgeSeconds = fixAgeSeconds,
+                    // This policy reaches a transition by repeated agreeing fixes, so every
+                    // transition it produces is corroborated by construction.
+                    corroborated = true
+                )
             }
         }
     }
@@ -179,6 +200,25 @@ internal class PolygonRouteProcessor(
     ): PolygonTransition? {
         arrivalConfirmationNanos[polygonId] = elapsedRealtimeNanos
         return arrivalConfirmations.evaluate(polygonId, committedState, evidence)
+    }
+
+    private fun recorded(
+        fence: PolygonFence,
+        transition: PolygonTransition,
+        result: PolygonEvidenceResult,
+        sample: PolygonLocationSample,
+        fixAgeSeconds: Double,
+        corroborated: Boolean
+    ): PolygonTransitionDetection {
+        logger.logPolygonDecided(
+            geofenceId = fence.id,
+            transitionName = transition.name,
+            signedBoundaryDistanceMeters = result.signedBoundaryDistanceMeters,
+            horizontalAccuracyMeters = sample.horizontalAccuracyMeters,
+            fixAgeSeconds = fixAgeSeconds,
+            corroborated = corroborated
+        )
+        return PolygonTransitionDetection(fence.id, transition, fence.regionRevision)
     }
 
     private val trackedFenceIds = mutableSetOf<String>()

@@ -1128,13 +1128,21 @@ internal class GeofenceLogger(private val logger: Logger) {
         )
     }
 
-    fun logPolygonFixNotUsable(reason: PolygonFixRejection) {
+    fun logPolygonFixNotUsable(
+        reason: PolygonFixRejection,
+        horizontalAccuracyMeters: Double? = null,
+        fixAgeSeconds: Double? = null
+    ) {
         logger.debug(
             "Polygon fix ignored — ${reason.detail}. Responsive monitoring is best-effort: it decides only from fixes that are decisive on their own." +
                 tail(
                     "polygon.undecided",
                     GeofenceLogIo.OUTPUT,
-                    listOf("why" to reason.wire)
+                    listOf(
+                        "why" to reason.wire,
+                        "acc" to num(horizontalAccuracyMeters),
+                        "age" to num(fixAgeSeconds)
+                    )
                 ),
             tag = TAG
         )
@@ -1161,6 +1169,78 @@ internal class GeofenceLogger(private val logger: Logger) {
                         "id" to geofenceId,
                         "sh" to "polygon",
                         "why" to reason.wire,
+                        "edge" to num(signedBoundaryDistanceMeters),
+                        "acc" to num(horizontalAccuracyMeters),
+                        "age" to num(fixAgeSeconds)
+                    )
+                ),
+            tag = TAG
+        )
+    }
+
+    /**
+     * The evidence behind a transition the evaluator claimed. Its counterpart `polygon.undecided`
+     * records only refusals, and a capture of refusals alone cannot say where a margin should sit:
+     * it shows which fixes were turned away and none of the ones that were let through.
+     *
+     * Claimed, not delivered. This is written before the business processor's own guards, so a
+     * decision it drops still appears here, and the same transition is claimed again on each
+     * following fix until something commits it. Count these as evaluator verdicts, not as events.
+     *
+     * `cor` describes this fix, not the arrival. A marginal fix that waited for a second one is
+     * recorded on the fix that completed it, and if that fix is itself clear of the ring it decides
+     * alone and reports `cor=false`.
+     */
+    fun logPolygonDecided(
+        geofenceId: String,
+        transitionName: String,
+        signedBoundaryDistanceMeters: Double?,
+        horizontalAccuracyMeters: Double,
+        fixAgeSeconds: Double,
+        corroborated: Boolean
+    ) {
+        logger.debug(
+            "Polygon '$geofenceId' decided this fix is a $transitionName." +
+                tail(
+                    "polygon.decided",
+                    GeofenceLogIo.OUTPUT,
+                    listOf(
+                        "id" to geofenceId,
+                        "sh" to "polygon",
+                        "t" to token(transitionName),
+                        "edge" to num(signedBoundaryDistanceMeters),
+                        "acc" to num(horizontalAccuracyMeters),
+                        "age" to num(fixAgeSeconds),
+                        "cor" to bool(corroborated)
+                    )
+                ),
+            tag = TAG
+        )
+    }
+
+    /**
+     * A fix that was decisive and simply agreed with what we already believe. No transition, and
+     * nothing to fix, but it is the population a margin is calibrated against: `polygon.undecided`
+     * shows what was refused and `polygon.decided` what changed a belief, and neither shows the
+     * ordinary good fix in between. Bounded by the sampling session, so this is a handful of rows
+     * per wake rather than a stream.
+     */
+    fun logPolygonUnchanged(
+        geofenceId: String,
+        membership: String,
+        signedBoundaryDistanceMeters: Double?,
+        horizontalAccuracyMeters: Double,
+        fixAgeSeconds: Double
+    ) {
+        logger.debug(
+            "Polygon '$geofenceId' agrees with the committed state; no transition." +
+                tail(
+                    "polygon.unchanged",
+                    GeofenceLogIo.OUTPUT,
+                    listOf(
+                        "id" to geofenceId,
+                        "sh" to "polygon",
+                        "m" to token(membership),
                         "edge" to num(signedBoundaryDistanceMeters),
                         "acc" to num(horizontalAccuracyMeters),
                         "age" to num(fixAgeSeconds)

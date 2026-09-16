@@ -187,6 +187,153 @@ class PolygonRouteIntegrationTest {
             listOf(PolygonTransition.ENTER)
     }
 
+    @Test
+    fun process_givenAnArrivalThatDecidesAlone_expectADecidedRecordWithItsEvidence() {
+        // The counterpart to the undecided records above. Without this a capture shows every fix a
+        // margin refused and none it accepted, which is half the distribution the margin sits in.
+        GeofenceDiagnostics.setEnabledForTesting(true)
+        val capturing = CapturingLogger()
+
+        PolygonRouteProcessor(logger = GeofenceLogger(capturing)).process(
+            fences = listOf(campus),
+            sample = PolygonLocationSample(point(37.7750, -122.4194), 5.0),
+            elapsedRealtimeNanos = 1L,
+            fixAgeSeconds = 2.5,
+            committedStates = emptyMap(),
+            evidencePolicy = PolygonEvidencePolicy.DECISIVE_SINGLE_FIX
+        )
+
+        capturing.decidedField("t") shouldBeEqualTo "enter"
+        capturing.decidedField("cor") shouldBeEqualTo "false"
+        capturing.decidedField("acc") shouldBeEqualTo "5.0"
+        capturing.decidedField("age") shouldBeEqualTo "2.5"
+        // Positive because the fix is inside, the same sign convention the undecided rows use.
+        capturing.decidedField("edge").toDouble() shouldBeInRange 30.0..60.0
+    }
+
+    @Test
+    fun process_givenAnArrivalThatNeededASecondFix_expectTheRecordOnlyWithTheTransition() {
+        // A marginal arrival: the first fix decides nothing and must not be recorded as a decision,
+        // the second commits it. `cor` is what separates the two populations on the drive.
+        GeofenceDiagnostics.setEnabledForTesting(true)
+        val capturing = CapturingLogger()
+        val processor = PolygonRouteProcessor(logger = GeofenceLogger(capturing))
+        val marginal = PolygonLocationSample(point(37.77452, -122.4194), 30.0)
+
+        processor.process(
+            fences = listOf(campus),
+            sample = marginal,
+            elapsedRealtimeNanos = 1L,
+            fixAgeSeconds = 0.0,
+            committedStates = emptyMap(),
+            evidencePolicy = PolygonEvidencePolicy.DECISIVE_SINGLE_FIX
+        )
+        capturing.messages.count { it.contains("ev=polygon.decided") } shouldBeEqualTo 0
+
+        processor.process(
+            fences = listOf(campus),
+            sample = marginal,
+            elapsedRealtimeNanos = 2L,
+            fixAgeSeconds = 0.0,
+            committedStates = emptyMap(),
+            evidencePolicy = PolygonEvidencePolicy.DECISIVE_SINGLE_FIX
+        )
+
+        capturing.decidedField("t") shouldBeEqualTo "enter"
+        capturing.decidedField("cor") shouldBeEqualTo "true"
+    }
+
+    @Test
+    fun process_givenADepartureThatClearsTheMargin_expectANegativeEdgeOnTheRecord() {
+        GeofenceDiagnostics.setEnabledForTesting(true)
+        val capturing = CapturingLogger()
+
+        PolygonRouteProcessor(logger = GeofenceLogger(capturing)).process(
+            fences = listOf(campus),
+            sample = PolygonLocationSample(point(37.7750, -122.4230), 5.0),
+            elapsedRealtimeNanos = 1L,
+            fixAgeSeconds = 0.0,
+            committedStates = mapOf("campus" to PolygonCommittedState.INSIDE),
+            evidencePolicy = PolygonEvidencePolicy.DECISIVE_SINGLE_FIX
+        )
+
+        capturing.decidedField("t") shouldBeEqualTo "exit"
+        capturing.decidedField("edge").toDouble() shouldBeInRange -300.0..-1.0
+    }
+
+    @Test
+    fun process_givenTheConfirmedPolicyReachingATransition_expectTheRecordCarriesItsEvidenceToo() {
+        // The CONFIRMED policy is unreachable in production today, but it writes the same record.
+        // Its evidence path is separate from the decisive one and was returning no signed edge at
+        // all, so every row it produced would have carried an empty `edge`. Found in review.
+        GeofenceDiagnostics.setEnabledForTesting(true)
+        val capturing = CapturingLogger()
+        val processor = PolygonRouteProcessor(logger = GeofenceLogger(capturing))
+        val inside = PolygonLocationSample(point(37.7750, -122.4194), 5.0)
+
+        repeat(3) { attempt ->
+            processor.process(
+                fences = listOf(campus),
+                sample = inside,
+                elapsedRealtimeNanos = attempt + 1L,
+                fixAgeSeconds = 0.0,
+                committedStates = emptyMap(),
+                evidencePolicy = PolygonEvidencePolicy.CONFIRMED
+            )
+        }
+
+        capturing.decidedField("t") shouldBeEqualTo "enter"
+        // Reaching a transition at all means repeated agreeing evaluations, so it is never alone.
+        capturing.decidedField("cor") shouldBeEqualTo "true"
+        capturing.decidedField("edge").toDouble() shouldBeInRange 30.0..60.0
+    }
+
+    @Test
+    fun process_givenADecisiveFixThatAgreesWithCommittedState_expectItRecordedNotSilent() {
+        // The fixes a margin let through. Refusals were already recorded and transitions now are,
+        // but the ordinary good fix in between produced nothing at all, which is most of them: in
+        // the 2026-09-16 emulator walk-in, ten fixes were evaluated and one left a record.
+        GeofenceDiagnostics.setEnabledForTesting(true)
+        val capturing = CapturingLogger()
+
+        PolygonRouteProcessor(logger = GeofenceLogger(capturing)).process(
+            fences = listOf(campus),
+            sample = PolygonLocationSample(point(37.7750, -122.4230), 5.0),
+            elapsedRealtimeNanos = 1L,
+            fixAgeSeconds = 3.5,
+            committedStates = emptyMap(),
+            evidencePolicy = PolygonEvidencePolicy.DECISIVE_SINGLE_FIX
+        )
+
+        capturing.unchangedField("m") shouldBeEqualTo "outside"
+        capturing.unchangedField("acc") shouldBeEqualTo "5.0"
+        capturing.unchangedField("age") shouldBeEqualTo "3.5"
+        // Signed negative: decisively outside, and committed outside, so nothing changes.
+        capturing.unchangedField("edge").toDouble() shouldBeInRange -400.0..-1.0
+        // It is not a decision and must not be counted as one.
+        capturing.messages.count { it.contains("ev=polygon.decided") } shouldBeEqualTo 0
+    }
+
+    @Test
+    fun process_givenAnArrivalThatCommits_expectNoUnchangedRecordForThatFix() {
+        // The control: a fix that changes a belief is a decision, not an agreement. Without this,
+        // logging both on every fix would pass the test above just as well.
+        GeofenceDiagnostics.setEnabledForTesting(true)
+        val capturing = CapturingLogger()
+
+        PolygonRouteProcessor(logger = GeofenceLogger(capturing)).process(
+            fences = listOf(campus),
+            sample = PolygonLocationSample(point(37.7750, -122.4194), 5.0),
+            elapsedRealtimeNanos = 1L,
+            fixAgeSeconds = 0.0,
+            committedStates = emptyMap(),
+            evidencePolicy = PolygonEvidencePolicy.DECISIVE_SINGLE_FIX
+        )
+
+        capturing.messages.count { it.contains("ev=polygon.unchanged") } shouldBeEqualTo 0
+        capturing.decidedField("t") shouldBeEqualTo "enter"
+    }
+
     private fun undecidedRecordsFor(
         coordinate: PolygonCoordinate,
         committedStates: Map<String, PolygonCommittedState> = emptyMap(),
@@ -205,6 +352,16 @@ class PolygonRouteIntegrationTest {
         )
         return capturing
     }
+
+    private fun CapturingLogger.unchangedField(key: String): String = messages
+        .single { it.contains("ev=polygon.unchanged") }
+        .substringAfter(" $key=")
+        .substringBefore(' ')
+
+    private fun CapturingLogger.decidedField(key: String): String = messages
+        .single { it.contains("ev=polygon.decided") }
+        .substringAfter(" $key=")
+        .substringBefore(' ')
 
     private fun CapturingLogger.undecidedEdgeMeters(): Double = undecidedField("edge").toDouble()
 

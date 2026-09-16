@@ -11,6 +11,7 @@ import io.customer.geofence.GeofenceJsonSerializer
 import io.customer.geofence.GeofenceLogger
 import io.customer.geofence.GeofenceRegion
 import io.customer.geofence.GeofenceTransitionEmitter
+import io.customer.geofence.PolygonFixRejection
 import io.customer.geofence.store.GeofenceRegionStoreImpl
 import io.customer.sdk.communication.Event
 import io.customer.sdk.core.util.Clock
@@ -491,6 +492,16 @@ class PolygonLocationEngineTest : RobolectricTest() {
         store.getEnteredIds().shouldBeEmpty()
         coVerify(exactly = 0) {
             emitter.emitWithRetainedAttempt(any(), any(), any(), any(), any(), any(), any(), any(), any(), any())
+        }
+        // The fix was received and thrown away, so its accuracy belongs in the capture: a gate is
+        // calibrated against the fixes it discarded, and this one never reaches the evaluator.
+        // `any()` would also match the nulls the defaults supply, which is how this went unpinned.
+        verify {
+            logger.logPolygonFixNotUsable(
+                PolygonFixRejection.FIX_TOO_OLD,
+                horizontalAccuracyMeters = 5.0,
+                fixAgeSeconds = match { it != null && it >= 60.0 }
+            )
         }
     }
 

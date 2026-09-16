@@ -155,7 +155,11 @@ internal class PolygonLocationEngine(
             val detections = synchronized(stateLock) {
                 if (store.userStateGeneration() != expectedUserStateGeneration) return@withLock false
                 if (!isCurrentSessionFixLocked(fix.elapsedRealtimeNanos)) {
-                    logger.logPolygonFixNotUsable(PolygonFixRejection.FIX_TOO_OLD)
+                    logger.logPolygonFixNotUsable(
+                        PolygonFixRejection.FIX_TOO_OLD,
+                        horizontalAccuracyMeters = fix.sample.horizontalAccuracyMeters,
+                        fixAgeSeconds = GeofenceLogTail.fixAgeSeconds(fix.elapsedRealtimeNanos)
+                    )
                     null
                 } else {
                     val fences = activePolygonFencesLocked()

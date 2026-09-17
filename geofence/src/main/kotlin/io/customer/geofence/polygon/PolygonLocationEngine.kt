@@ -124,8 +124,12 @@ internal class PolygonLocationEngine(
         return if (wasPending) setOf(polygonId) else emptySet()
     }
 
-    fun deactivate(polygonId: String) = synchronized(stateLock) {
-        resetEvidenceLocked(polygonId)
+    fun deactivate(polygonId: String) {
+        // Expression body here silently returned the discard set to callers that ignore it. This is
+        // the likeliest way a hold actually dies in the field: a coarse EXIT near a boundary, which
+        // is the same situation that creates the hold in the first place.
+        val discarded = synchronized(stateLock) { resetEvidenceLocked(polygonId) }
+        reportDiscardedArrivals(discarded)
     }
 
     /**

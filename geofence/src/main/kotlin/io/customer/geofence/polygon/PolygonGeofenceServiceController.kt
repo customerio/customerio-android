@@ -272,7 +272,8 @@ internal class PolygonGeofenceServiceController(
     /** Processes fixes from the bounded session opened by a polygon or movement-trigger wake. */
     suspend fun processApproachLocations(
         locations: List<Location>,
-        expectedUserStateGeneration: Long
+        expectedUserStateGeneration: Long,
+        sessionDeadlineElapsedRealtimeMs: Long
     ): PolygonSamplingDecision {
         if (locations.isEmpty()) {
             logger.logPolygonSamplingSkipped(PolygonSamplingSkip.EMPTY_BATCH)
@@ -287,7 +288,7 @@ internal class PolygonGeofenceServiceController(
             logger.logPolygonSamplingSkipped(PolygonSamplingSkip.NOT_CURRENT_SESSION)
             return PolygonSamplingDecision.STALE
         }
-        approachMonitor.recordSampleDelivered()
+        approachMonitor.recordSampleDelivered(sessionDeadlineElapsedRealtimeMs)
         var lastAcceptedLocation: Location? = null
         for (location in locations.sortedBy(Location::getElapsedRealtimeNanos)) {
             val fix = location.toPolygonLocationFix()

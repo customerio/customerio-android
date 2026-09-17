@@ -448,7 +448,8 @@ class PolygonGeofenceServiceControllerTest {
 
         val accepted = controller.processApproachLocations(
             locations = listOf(location(elapsedRealtimeNanos = 100L)),
-            expectedUserStateGeneration = 0L
+            expectedUserStateGeneration = 0L,
+            0L
         )
 
         accepted shouldBeEqualTo PolygonSamplingDecision.CONTINUE
@@ -470,7 +471,8 @@ class PolygonGeofenceServiceControllerTest {
 
         val accepted = controller.processApproachLocations(
             locations = listOf(outside),
-            expectedUserStateGeneration = 0L
+            expectedUserStateGeneration = 0L,
+            0L
         )
 
         accepted shouldBeEqualTo PolygonSamplingDecision.STOP
@@ -482,7 +484,7 @@ class PolygonGeofenceServiceControllerTest {
     fun processApproachLocations_givenUncertainFixAtTrigger_expectDoesNotStartFineSession() = runTest {
         val uncertain = location(elapsedRealtimeNanos = 100L).apply { accuracy = 500f }
 
-        controller.processApproachLocations(listOf(uncertain), 0L)
+        controller.processApproachLocations(listOf(uncertain), 0L, 0L)
 
         verify(exactly = 0) { store.activatePolygon(any()) }
         verify(exactly = 0) { engine.activate(any()) }
@@ -496,7 +498,7 @@ class PolygonGeofenceServiceControllerTest {
             longitude = -122.0
         }
 
-        controller.processApproachLocations(listOf(farAway), 0L)
+        controller.processApproachLocations(listOf(farAway), 0L, 0L)
 
         coVerify(exactly = 0) { engine.processResponsiveLocation(any(), any()) }
     }
@@ -510,7 +512,7 @@ class PolygonGeofenceServiceControllerTest {
             longitude = -122.0
         }
 
-        controller.processApproachLocations(listOf(outside), 0L)
+        controller.processApproachLocations(listOf(outside), 0L, 0L)
 
         verify(exactly = 0) { store.deactivatePolygon("campus") }
         verify(exactly = 0) { engine.deactivate("campus") }
@@ -541,7 +543,8 @@ class PolygonGeofenceServiceControllerTest {
 
         val accepted = controller.processApproachLocations(
             locations = listOf(fix),
-            expectedUserStateGeneration = 0L
+            expectedUserStateGeneration = 0L,
+            0L
         )
 
         accepted shouldBeEqualTo PolygonSamplingDecision.STALE
@@ -553,7 +556,8 @@ class PolygonGeofenceServiceControllerTest {
 
         val accepted = controller.processApproachLocations(
             locations = listOf(location(elapsedRealtimeNanos = 100L)),
-            expectedUserStateGeneration = 0L
+            expectedUserStateGeneration = 0L,
+            0L
         )
 
         accepted shouldBeEqualTo PolygonSamplingDecision.STALE

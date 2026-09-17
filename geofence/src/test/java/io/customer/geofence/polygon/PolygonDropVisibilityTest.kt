@@ -222,7 +222,7 @@ class PolygonDropVisibilityTest : RobolectricTest() {
 
     @Test
     fun sampling_givenAnEmptyBatch_expectTheSkipIsLogged() = runTest {
-        controller.processApproachLocations(emptyList(), store.userStateGeneration())
+        controller.processApproachLocations(emptyList(), store.userStateGeneration(), 0L)
 
         verify { mockLogger.logPolygonSamplingSkipped(PolygonSamplingSkip.EMPTY_BATCH) }
     }
@@ -234,7 +234,8 @@ class PolygonDropVisibilityTest : RobolectricTest() {
         // never ran at all, which is what the 2026-09-17 capture could not distinguish.
         val decision = controller.processApproachLocations(
             listOf(insideFix()),
-            store.userStateGeneration() - 1
+            store.userStateGeneration() - 1,
+            0L
         )
 
         decision shouldBeEqualTo PolygonSamplingDecision.STALE
@@ -245,7 +246,8 @@ class PolygonDropVisibilityTest : RobolectricTest() {
     fun sampling_givenAFixWithNoUsableAccuracy_expectTheSkipIsLogged() = runTest {
         controller.processApproachLocations(
             listOf(Location("test").apply { latitude = 37.7750; longitude = -122.4194 }),
-            store.userStateGeneration()
+            store.userStateGeneration(),
+            0L
         )
 
         verify { mockLogger.logPolygonSamplingSkipped(PolygonSamplingSkip.NO_USABLE_FIX) }
@@ -255,7 +257,8 @@ class PolygonDropVisibilityTest : RobolectricTest() {
     fun sampling_givenNoPolygonWithinReachOfTheSample_expectTheSkipIsLogged() = runTest {
         controller.processApproachLocations(
             listOf(farAwayFix()),
-            store.userStateGeneration()
+            store.userStateGeneration(),
+            0L
         )
 
         verify { mockLogger.logPolygonSamplingSkipped(PolygonSamplingSkip.NO_POLYGON_IN_RANGE) }

@@ -96,7 +96,8 @@ class PolygonApproachIntegrationTest : RobolectricTest() {
 
         controller.processApproachLocations(
             locations = locations,
-            expectedUserStateGeneration = store.userStateGeneration()
+            expectedUserStateGeneration = store.userStateGeneration(),
+            0L
         )
 
         store.getEnteredIds() shouldContainSame setOf(POLYGON_ID)

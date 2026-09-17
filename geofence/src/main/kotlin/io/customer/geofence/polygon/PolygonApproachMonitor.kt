@@ -126,22 +126,29 @@ internal class PolygonApproachMonitor(
     }
 
     /**
-     * Sample batches counted per [PendingIntent], not per monitor.
+     * Sample batches counted per session deadline, which is the only value that identifies a
+     * session.
      *
-     * A single shared counter cannot attribute correctly: generation 8 arms and resets it before
-     * generation 7's `removeUpdates` completes, so 7's teardown reports 8's count or zero. Since
-     * "ended with n=0" is the whole point of the field, an attribution slip turns the instrument
-     * into a false negative. Keyed on the intent, the count travels with the session it belongs to.
+     * Not per [PendingIntent]: `setData` carries the generation but the deadline is an extra, and
+     * `Intent.filterEquals` ignores extras under a fixed request code, so two sessions in one
+     * generation build an EQUAL PendingIntent. A generation changes only on identify or sign-out
+     * while the sampler arms and tears down on every callback, so same-generation overlap is the
+     * common case and keying on the intent would leave the false negative in place exactly there.
+     *
+     * Not per monitor either: a shared counter is reset by the next session arming before the
+     * previous one's removal completes.
+     *
+     * The batch itself knows which session it belongs to, because the receiver reads the deadline
+     * from the delivering intent. Nothing here infers the owner from what happens to be active.
      */
-    private val samplesByIntent =
-        java.util.concurrent.ConcurrentHashMap<PendingIntent, java.util.concurrent.atomic.AtomicInteger>()
+    private val samplesByDeadline =
+        java.util.concurrent.ConcurrentHashMap<Long, java.util.concurrent.atomic.AtomicInteger>()
 
-    /** Called by the controller on every delivered sample batch. */
-    fun recordSampleDelivered() {
-        val intent = synchronized(lock) { activePendingIntent } ?: return
+    /** Called by the controller for each delivered batch, naming the session that delivered it. */
+    fun recordSampleDelivered(sessionDeadlineElapsedRealtimeMs: Long) {
         // putIfAbsent rather than merge or compute: those are API 24 and minSdk here is 21.
-        samplesByIntent
-            .putIfAbsent(intent, java.util.concurrent.atomic.AtomicInteger(1))
+        samplesByDeadline
+            .putIfAbsent(sessionDeadlineElapsedRealtimeMs, java.util.concurrent.atomic.AtomicInteger(1))
             ?.incrementAndGet()
     }
 
@@ -150,6 +157,7 @@ internal class PolygonApproachMonitor(
         expectedSessionDeadlineElapsedRealtimeMs: Long? = null
     ) {
         var refusal: PolygonApproachStopRefusal? = null
+        var deadlineBeingTornDown: Long? = null
         val pendingIntent = synchronized(lock) {
             // A caller naming a generation means "stop the session I started", so a live session
             // from a later one is not theirs to tear down: an identify can land between reading the
@@ -172,6 +180,8 @@ internal class PolygonApproachMonitor(
                 return@synchronized null
             }
             val generationToRemove = userStateGeneration ?: expectedUserStateGeneration
+            deadlineBeingTornDown = sessionDeadlineElapsedRealtimeMs
+                ?: expectedSessionDeadlineElapsedRealtimeMs
             desired = false
             userStateGeneration = null
             sessionDeadlineElapsedRealtimeMs = null
@@ -193,7 +203,7 @@ internal class PolygonApproachMonitor(
             logger.logPolygonApproachStopRefused(it)
             return
         }
-        pendingIntent?.let(::removeUpdates)
+        pendingIntent?.let { removeUpdates(it, deadlineBeingTornDown) }
     }
 
     private fun Long?.orExpired(): Long = this ?: Long.MIN_VALUE
@@ -301,7 +311,10 @@ internal class PolygonApproachMonitor(
         }
     }
 
-    private fun removeUpdates(pendingIntent: PendingIntent) {
+    private fun removeUpdates(
+        pendingIntent: PendingIntent,
+        sessionDeadlineElapsedRealtimeMs: Long? = null
+    ) {
         try {
             client.removeLocationUpdates(pendingIntent)
                 .addOnSuccessListener {
@@ -312,8 +325,12 @@ internal class PolygonApproachMonitor(
                             desired && activePendingIntent == pendingIntent
                         }
                     }
+                    // Absent rather than zero when the session cannot be named: an unattributable
+                    // teardown reporting n=0 would read as "armed and delivered nothing", which is
+                    // the exact finding this field exists to make, so it must never be guessed.
                     logger.logPolygonApproachMonitoringStopped(
-                        samplesReceived = samplesByIntent.remove(pendingIntent)?.get() ?: 0
+                        samplesReceived = sessionDeadlineElapsedRealtimeMs
+                            ?.let { samplesByDeadline.remove(it)?.get() ?: 0 }
                     )
                     if (restartGeneration != null) {
                         requestUpdates(pendingIntent, restartGeneration)

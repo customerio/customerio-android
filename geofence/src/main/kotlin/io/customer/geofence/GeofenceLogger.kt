@@ -83,7 +83,8 @@ internal enum class PolygonCallbackDrop(val wire: String, val detail: String) {
 /** Why a held arrival was discarded without being reported. */
 internal enum class PolygonArrivalExpiry(val wire: String, val detail: String) {
     WINDOW_ELAPSED("window_elapsed", "no second agreeing fix arrived inside the corroboration window"),
-    SESSION_ENDED("session_ended", "the evaluation session ended while it was still waiting")
+    SESSION_ENDED("session_ended", "the evaluation session ended while it was still waiting"),
+    EVIDENCE_BROKEN("evidence_broken", "a later fix disagreed or could not judge, so the run of agreeing fixes ended")
 }
 
 internal enum class PolygonApproachStopRefusal(val wire: String, val detail: String) {

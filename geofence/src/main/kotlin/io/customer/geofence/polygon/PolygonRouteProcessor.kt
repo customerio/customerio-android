@@ -83,7 +83,17 @@ internal class PolygonRouteProcessor(
             if (!isTransitionEvidence) {
                 // Breaks a run of agreeing arrival fixes: the requirement below is consecutive, and
                 // a fix too coarse to judge is not agreement.
+                val hadPendingArrival = arrivalConfirmations.hasPending(fence.id)
                 confirmArrival(fence.id, committedState, evidence, elapsedRealtimeNanos)
+                // The third way a hold ends, and the commonest. Without its own record the capture
+                // shows an arrival.pending with no counterpart and cannot tell a hold that was
+                // broken from one still waiting.
+                if (hadPendingArrival && !arrivalConfirmations.hasPending(fence.id)) {
+                    logger.logPolygonArrivalExpired(
+                        geofenceId = fence.id,
+                        reason = PolygonArrivalExpiry.EVIDENCE_BROKEN
+                    )
+                }
                 return@mapNotNull null
             }
             val transition = when (evidence) {

@@ -15,10 +15,11 @@ import org.junit.Test
  * here to give a calibration decision real numbers from real rings, and it must be read that way.
  *
  * The two rings are the extremes of the test workspace at 24 m and 106 m maximum clearance, and the
- * fix is the one that lost the arrival. Every point is translated by a constant longitude offset
- * from the real capture: the latitude band is unchanged, so the metric scale factor and therefore
- * every clearance and assertion below are identical, while no real venue or device position is
- * published in this repository.
+ * fix is the one that lost the arrival. The coordinates are not real ones: they are moved to a
+ * different latitude band with the longitude deltas rescaled by the ratio of the two cosines, so
+ * every edge length, clearance and assertion below is metrically identical while the original
+ * positions cannot be recovered from a constant offset. Edge lengths were checked against the
+ * originals before and after.
  */
 class PolygonCorroborationOnRealFencesTest {
 
@@ -26,33 +27,33 @@ class PolygonCorroborationOnRealFencesTest {
     // no interior point does better, which is what bounds everything below.
     private val fenceA = PolygonGeometry.from(
         listOf(
-            PolygonCoordinate(31.37435938826417, 134.186382),
-            PolygonCoordinate(31.3734721218287, 134.186406),
-            PolygonCoordinate(31.37281945576276, 134.187541)
+            PolygonCoordinate(-8.911641, 22.430034),
+            PolygonCoordinate(-8.912528, 22.430055),
+            PolygonCoordinate(-8.913181, 22.431035)
         )
     )
 
     // Fence B: the fence that lost the arrival.
     private val fenceB = PolygonGeometry.from(
         listOf(
-            PolygonCoordinate(31.377207, 134.186845),
-            PolygonCoordinate(31.375012, 134.186886),
-            PolygonCoordinate(31.375031, 134.189125),
-            PolygonCoordinate(31.377197, 134.189064)
+            PolygonCoordinate(-8.908793, 22.430434),
+            PolygonCoordinate(-8.910988, 22.430469),
+            PolygonCoordinate(-8.910969, 22.432404),
+            PolygonCoordinate(-8.908803, 22.432352)
         )
     )
 
     /** Fence A's point of maximum clearance, 24.16 m from the nearest edge. */
-    private val fenceABestPoint = PolygonCoordinate(31.373592, 134.186657)
+    private val fenceABestPoint = PolygonCoordinate(-8.912408, 22.430271)
 
     /** Fence B's point of maximum clearance, 105.93 m from the nearest edge. */
-    private val fenceBBestPoint = PolygonCoordinate(31.376054, 134.187981)
+    private val fenceBBestPoint = PolygonCoordinate(-8.909946, 22.431416)
 
     /**
      * The device position that produced the lost arrival, translated with the rings. It sits 8.4 m
      * inside the ring; the iOS device recorded `edge=+10` for the same crossing at zero decimals.
      */
-    private val fenceBDriveFix = PolygonCoordinate(31.37581, 134.186960)
+    private val fenceBDriveFix = PolygonCoordinate(-8.910190, 22.430533)
 
     private val evaluator = PolygonAccuracyEvaluator()
 
@@ -85,7 +86,7 @@ class PolygonCorroborationOnRealFencesTest {
         val nearby = evaluator.decisiveEvidenceFor(
             geometry = fenceA,
             sample = PolygonLocationSample(
-                PolygonCoordinate(31.373772, 134.186657),
+                PolygonCoordinate(-8.912228, 22.430271),
                 horizontalAccuracyMeters = 23.7
             ),
             committedState = PolygonCommittedState.OUTSIDE

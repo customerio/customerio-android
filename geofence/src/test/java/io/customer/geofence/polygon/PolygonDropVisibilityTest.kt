@@ -352,6 +352,28 @@ class PolygonDropVisibilityTest : RobolectricTest() {
         time = 100_000L
     }
 
+    @Test
+    fun route_givenAHoldBrokenByACoarseFix_expectTheBreakIsLogged() {
+        // A marginal ENTER holds; the next fix is too coarse to judge, which breaks the run of
+        // agreeing fixes. That is the commonest way a hold ends and it had no record, so a capture
+        // saw an arrival.pending with no counterpart and could not tell it from one still waiting.
+        val processor = PolygonRouteProcessor(logger = mockLogger)
+        val fence = PolygonFence(VENUE_ID, PolygonGeometry.from(venueVertices()))
+        val marginal = PolygonLocationSample(PolygonCoordinate(37.77455, -122.4194), 18.0)
+        val tooCoarse = PolygonLocationSample(PolygonCoordinate(37.77455, -122.4194), 120.0)
+
+        processor.process(listOf(fence), marginal, 1_000_000_000L, 0.0, emptyMap())
+        processor.process(listOf(fence), tooCoarse, 6_000_000_000L, 0.0, emptyMap())
+
+        verify {
+            mockLogger.logPolygonArrivalExpired(
+                VENUE_ID,
+                PolygonArrivalExpiry.EVIDENCE_BROKEN,
+                any()
+            )
+        }
+    }
+
     private fun insideFix() = fix(37.7750, -122.4194)
 
     private fun farAwayFix() = fix(37.9000, -122.4194)

@@ -58,8 +58,6 @@ internal class PolygonApproachMonitor(
      * requirement onto callers that this class does not actually have, and the only honest way to
      * satisfy it there would be to suppress the warning at each site.
      */
-    private var previousDeadline: Long? = null
-
     fun start(
         expectedUserStateGeneration: Long,
         sessionDeadlineElapsedRealtimeMs: Long = newSessionDeadlineElapsedRealtimeMs()
@@ -90,10 +88,11 @@ internal class PolygonApproachMonitor(
             ) {
                 return
             }
-            // Captured before the field is overwritten, so the outgoing session's teardown can
-            // still name itself and report its own count.
+            // Returned from this block rather than stashed on the instance: a concurrent start()
+            // would overwrite instance state before the first caller reached removeUpdates, and
+            // the outgoing session would then consume another session's counter.
             val previous = activePendingIntent
-            previousDeadline = this.sessionDeadlineElapsedRealtimeMs
+            val outgoingDeadline = this.sessionDeadlineElapsedRealtimeMs
             desired = true
             userStateGeneration = expectedUserStateGeneration
             this.sessionDeadlineElapsedRealtimeMs = sessionDeadlineElapsedRealtimeMs
@@ -117,14 +116,20 @@ internal class PolygonApproachMonitor(
             }
             removalRetryJobs.remove(current)?.cancel()
             removalRetryAttempts.remove(current)
-            previous to current
+            // Zero, not absent: a session that armed has observed evidence of nothing delivered,
+            // and that is the finding. Absent means the count could not be attributed at all.
+            samplesByDeadline.putIfAbsent(
+                sessionDeadlineElapsedRealtimeMs,
+                java.util.concurrent.atomic.AtomicInteger(0)
+            )
+            Triple(previous, current, outgoingDeadline)
         }
         // Only when it is a DIFFERENT request. A re-arm for the same generation builds an equal
         // PendingIntent, so removing "the previous one" would cancel the request made just below,
         // and the removal's success listener would re-request it and log a teardown that never
         // happened.
         registration.first?.takeIf { it != registration.second }?.let {
-            removeUpdates(it, previousDeadline)
+            removeUpdates(it, registration.third)
         }
         requestUpdates(registration.second, expectedUserStateGeneration, sessionDeadlineElapsedRealtimeMs)
     }
@@ -148,19 +153,27 @@ internal class PolygonApproachMonitor(
     private val samplesByDeadline =
         java.util.concurrent.ConcurrentHashMap<Long, java.util.concurrent.atomic.AtomicInteger>()
 
+    /**
+     * Drops counts for sessions that can no longer be torn down.
+     *
+     * Evicting by size would delete a live session's entry while its removal callback is still in
+     * flight, and the teardown would then read absent and report nothing for a session that did
+     * deliver. A session deadline is at most [MAXIMUM_SESSION_DURATION_MS] ahead of its start, so
+     * anything this far in the past belongs to no session that can still report.
+     */
+    private fun pruneAbandonedSessionCounts() {
+        if (samplesByDeadline.size <= MAX_TRACKED_SESSIONS) return
+        val abandonedBefore = SystemClock.elapsedRealtime() - ABANDONED_SESSION_COUNT_AGE_MS
+        samplesByDeadline.keys.filter { it < abandonedBefore }.forEach(samplesByDeadline::remove)
+    }
+
     /** Called by the controller for each delivered batch, naming the session that delivered it. */
     fun recordSampleDelivered(sessionDeadlineElapsedRealtimeMs: Long) {
         // putIfAbsent rather than merge or compute: those are API 24 and minSdk here is 21.
         samplesByDeadline
             .putIfAbsent(sessionDeadlineElapsedRealtimeMs, java.util.concurrent.atomic.AtomicInteger(1))
             ?.incrementAndGet()
-        // A teardown that cannot name its session leaves its entry behind, so this is bounded
-        // rather than left to grow for the life of the process. Deadlines increase, so the
-        // smallest key is the oldest session and the one least likely to still be reported.
-        while (samplesByDeadline.size > MAX_TRACKED_SESSIONS) {
-            val oldest = samplesByDeadline.keys.minOrNull() ?: break
-            samplesByDeadline.remove(oldest)
-        }
+        pruneAbandonedSessionCounts()
     }
 
     fun stop(
@@ -346,12 +359,14 @@ internal class PolygonApproachMonitor(
                             desired && activePendingIntent == pendingIntent
                         }
                     }
-                    // Absent rather than zero when the session cannot be named: an unattributable
-                    // teardown reporting n=0 would read as "armed and delivered nothing", which is
-                    // the exact finding this field exists to make, so it must never be guessed.
+                    // Absent rather than zero whenever the count cannot be attributed. A session
+                    // that armed in this process always has an entry, seeded at zero, so n=0 is
+                    // observed evidence that nothing was delivered. Reaching for a default here
+                    // would manufacture that finding from a teardown we simply could not name.
                     logger.logPolygonApproachMonitoringStopped(
                         samplesReceived = sessionDeadlineElapsedRealtimeMs
-                            ?.let { samplesByDeadline.remove(it)?.get() ?: 0 }
+                            ?.let { samplesByDeadline.remove(it) }
+                            ?.get()
                     )
                     if (restartGeneration != null) {
                         requestUpdates(
@@ -397,8 +412,15 @@ internal class PolygonApproachMonitor(
     }
 
     internal companion object {
-        /** Sessions whose sample counts are retained. Far above the few that can overlap. */
+        /** Sessions whose sample counts are retained before pruning is considered. */
         private const val MAX_TRACKED_SESSIONS = 16
+
+        /**
+         * How far past its deadline a session's count is kept. Well beyond
+         * [MAXIMUM_SESSION_DURATION_MS] plus any removal retry, so pruning cannot reach a session
+         * whose teardown has not happened yet.
+         */
+        private const val ABANDONED_SESSION_COUNT_AGE_MS = 10 * 60_000L
 
         private const val PENDING_INTENT_REQUEST_CODE = 47302
         internal const val EXTRA_USER_STATE_GENERATION =

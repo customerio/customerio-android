@@ -47,17 +47,19 @@ class PolygonCoarseEnterRealStoreTest : RobolectricTest() {
     private val manager: GeofenceManager = mockk(relaxed = true)
     private val secureUserStore: SecureUserStore = mockk(relaxed = true)
 
-    // Fence 16 (Bundu Khan) at its real centre, registered at the 1 km floor as the device had it.
+    // The fence from the 2026-09-16 drive, registered at the 1 km floor as the device had it.
+    // Coordinates are moved to another latitude band with longitude rescaled by the cosine ratio,
+    // so the shape and every distance are preserved and the original position is not recoverable.
     private val fence16 = GeofenceRegion(
         id = "16",
-        latitude = 31.37143,
-        longitude = 74.18527,
+        latitude = -8.914570,
+        longitude = 22.429073,
         radius = 1000f,
         polygonVertices = listOf(
-            PolygonCoordinate(31.37023, 74.18407),
-            PolygonCoordinate(31.37023, 74.18647),
-            PolygonCoordinate(31.37263, 74.18647),
-            PolygonCoordinate(31.37263, 74.18407)
+            PolygonCoordinate(-8.915770, 22.428036),
+            PolygonCoordinate(-8.915770, 22.430110),
+            PolygonCoordinate(-8.913370, 22.430110),
+            PolygonCoordinate(-8.913370, 22.428036)
         ),
         baseRadiusMeters = 104.0
     )
@@ -86,10 +88,10 @@ class PolygonCoarseEnterRealStoreTest : RobolectricTest() {
         )
     }
 
-    /** The arrival fix iOS logged for this crossing: 31.37125/74.18610, acc 39.4. */
+    /** The arrival fix iOS logged for this crossing, moved with the ring. Accuracy 39.4 m. */
     private fun arrivalFix() = Location("gps").apply {
-        latitude = 31.37125
-        longitude = 74.18610
+        latitude = -8.914750
+        longitude = 22.429790
         accuracy = 39.4f
         elapsedRealtimeNanos = 1_000_000_000L
     }

@@ -7,6 +7,7 @@ import io.customer.sdk.core.util.Logger
 import org.amshove.kluent.shouldBeEmpty
 import org.amshove.kluent.shouldBeEqualTo
 import org.amshove.kluent.shouldBeInRange
+import org.amshove.kluent.shouldNotBeEmpty
 import org.junit.After
 import org.junit.Test
 
@@ -35,8 +36,7 @@ class PolygonRouteIntegrationTest {
             sample = PolygonLocationSample(point(37.7750, -122.4202), 45.0),
             elapsedRealtimeNanos = 1L,
             fixAgeSeconds = 0.0,
-            committedStates = mapOf("campus" to PolygonCommittedState.INSIDE),
-            evidencePolicy = PolygonEvidencePolicy.DECISIVE_SINGLE_FIX
+            committedStates = mapOf("campus" to PolygonCommittedState.INSIDE)
         )
 
         capturing.messages.count { it.contains("undecided") } shouldBeEqualTo 1
@@ -54,8 +54,7 @@ class PolygonRouteIntegrationTest {
             sample = PolygonLocationSample(point(37.7750, -122.4194), 45.0),
             elapsedRealtimeNanos = 1L,
             fixAgeSeconds = 0.0,
-            committedStates = emptyMap(),
-            evidencePolicy = PolygonEvidencePolicy.DECISIVE_SINGLE_FIX
+            committedStates = emptyMap()
         )
 
         detections.map { it.transition } shouldBeEqualTo listOf(PolygonTransition.ENTER)
@@ -72,8 +71,7 @@ class PolygonRouteIntegrationTest {
             sample = PolygonLocationSample(point(37.7750, -122.4194), 80.0),
             elapsedRealtimeNanos = 1L,
             fixAgeSeconds = 0.0,
-            committedStates = emptyMap(),
-            evidencePolicy = PolygonEvidencePolicy.DECISIVE_SINGLE_FIX
+            committedStates = emptyMap()
         )
 
         capturing.messages.count { it.contains("undecided") } shouldBeEqualTo 1
@@ -91,8 +89,7 @@ class PolygonRouteIntegrationTest {
             sample = PolygonLocationSample(point(37.7750, -122.4194), 30.0),
             elapsedRealtimeNanos = 1L,
             fixAgeSeconds = 0.0,
-            committedStates = mapOf("campus" to PolygonCommittedState.INSIDE),
-            evidencePolicy = PolygonEvidencePolicy.DECISIVE_SINGLE_FIX
+            committedStates = mapOf("campus" to PolygonCommittedState.INSIDE)
         )
 
         capturing.messages.count { it.contains("undecided") } shouldBeEqualTo 0
@@ -144,8 +141,7 @@ class PolygonRouteIntegrationTest {
             sample = marginal,
             elapsedRealtimeNanos = 1L,
             fixAgeSeconds = 0.0,
-            committedStates = emptyMap(),
-            evidencePolicy = PolygonEvidencePolicy.DECISIVE_SINGLE_FIX
+            committedStates = emptyMap()
         ).shouldBeEmpty()
 
         processor.process(
@@ -153,8 +149,7 @@ class PolygonRouteIntegrationTest {
             sample = marginal,
             elapsedRealtimeNanos = 1L + FIVE_MINUTES_NANOS,
             fixAgeSeconds = 0.0,
-            committedStates = emptyMap(),
-            evidencePolicy = PolygonEvidencePolicy.DECISIVE_SINGLE_FIX
+            committedStates = emptyMap()
         ).shouldBeEmpty()
     }
 
@@ -170,8 +165,7 @@ class PolygonRouteIntegrationTest {
             sample = marginal,
             elapsedRealtimeNanos = 1L,
             fixAgeSeconds = 0.0,
-            committedStates = emptyMap(),
-            evidencePolicy = PolygonEvidencePolicy.DECISIVE_SINGLE_FIX
+            committedStates = emptyMap()
         ).shouldBeEmpty()
 
         val detections = processor.process(
@@ -179,8 +173,7 @@ class PolygonRouteIntegrationTest {
             sample = marginal,
             elapsedRealtimeNanos = 1L + FIFTEEN_SECONDS_NANOS,
             fixAgeSeconds = 0.0,
-            committedStates = emptyMap(),
-            evidencePolicy = PolygonEvidencePolicy.DECISIVE_SINGLE_FIX
+            committedStates = emptyMap()
         )
 
         detections.map(PolygonTransitionDetection::transition) shouldBeEqualTo
@@ -205,8 +198,7 @@ class PolygonRouteIntegrationTest {
                 sample = marginal,
                 elapsedRealtimeNanos = 1L,
                 fixAgeSeconds = 0.0,
-                committedStates = emptyMap(),
-                evidencePolicy = PolygonEvidencePolicy.DECISIVE_SINGLE_FIX
+                committedStates = emptyMap()
             ).shouldBeEmpty()
         }
     }
@@ -223,8 +215,7 @@ class PolygonRouteIntegrationTest {
             sample = PolygonLocationSample(point(37.7750, -122.4194), 5.0),
             elapsedRealtimeNanos = 1L,
             fixAgeSeconds = 2.5,
-            committedStates = emptyMap(),
-            evidencePolicy = PolygonEvidencePolicy.DECISIVE_SINGLE_FIX
+            committedStates = emptyMap()
         )
 
         capturing.decidedField("t") shouldBeEqualTo "enter"
@@ -249,8 +240,7 @@ class PolygonRouteIntegrationTest {
             sample = marginal,
             elapsedRealtimeNanos = 1L,
             fixAgeSeconds = 0.0,
-            committedStates = emptyMap(),
-            evidencePolicy = PolygonEvidencePolicy.DECISIVE_SINGLE_FIX
+            committedStates = emptyMap()
         )
         capturing.messages.count { it.contains("ev=polygon.decided") } shouldBeEqualTo 0
 
@@ -259,8 +249,7 @@ class PolygonRouteIntegrationTest {
             sample = marginal,
             elapsedRealtimeNanos = 2L,
             fixAgeSeconds = 0.0,
-            committedStates = emptyMap(),
-            evidencePolicy = PolygonEvidencePolicy.DECISIVE_SINGLE_FIX
+            committedStates = emptyMap()
         )
 
         capturing.decidedField("t") shouldBeEqualTo "enter"
@@ -277,39 +266,11 @@ class PolygonRouteIntegrationTest {
             sample = PolygonLocationSample(point(37.7750, -122.4230), 5.0),
             elapsedRealtimeNanos = 1L,
             fixAgeSeconds = 0.0,
-            committedStates = mapOf("campus" to PolygonCommittedState.INSIDE),
-            evidencePolicy = PolygonEvidencePolicy.DECISIVE_SINGLE_FIX
+            committedStates = mapOf("campus" to PolygonCommittedState.INSIDE)
         )
 
         capturing.decidedField("t") shouldBeEqualTo "exit"
         capturing.decidedField("edge").toDouble() shouldBeInRange -300.0..-1.0
-    }
-
-    @Test
-    fun process_givenTheConfirmedPolicyReachingATransition_expectTheRecordCarriesItsEvidenceToo() {
-        // The CONFIRMED policy is unreachable in production today, but it writes the same record.
-        // Its evidence path is separate from the decisive one and was returning no signed edge at
-        // all, so every row it produced would have carried an empty `edge`. Found in review.
-        GeofenceDiagnostics.setEnabledForTesting(true)
-        val capturing = CapturingLogger()
-        val processor = PolygonRouteProcessor(logger = GeofenceLogger(capturing))
-        val inside = PolygonLocationSample(point(37.7750, -122.4194), 5.0)
-
-        repeat(3) { attempt ->
-            processor.process(
-                fences = listOf(campus),
-                sample = inside,
-                elapsedRealtimeNanos = attempt + 1L,
-                fixAgeSeconds = 0.0,
-                committedStates = emptyMap(),
-                evidencePolicy = PolygonEvidencePolicy.CONFIRMED
-            )
-        }
-
-        capturing.decidedField("t") shouldBeEqualTo "enter"
-        // Reaching a transition at all means repeated agreeing evaluations, so it is never alone.
-        capturing.decidedField("cor") shouldBeEqualTo "true"
-        capturing.decidedField("edge").toDouble() shouldBeInRange 30.0..60.0
     }
 
     @Test
@@ -325,8 +286,7 @@ class PolygonRouteIntegrationTest {
             sample = PolygonLocationSample(point(37.7750, -122.4230), 5.0),
             elapsedRealtimeNanos = 1L,
             fixAgeSeconds = 3.5,
-            committedStates = emptyMap(),
-            evidencePolicy = PolygonEvidencePolicy.DECISIVE_SINGLE_FIX
+            committedStates = emptyMap()
         )
 
         capturing.unchangedField("m") shouldBeEqualTo "outside"
@@ -350,8 +310,7 @@ class PolygonRouteIntegrationTest {
             sample = PolygonLocationSample(point(37.7750, -122.4194), 5.0),
             elapsedRealtimeNanos = 1L,
             fixAgeSeconds = 0.0,
-            committedStates = emptyMap(),
-            evidencePolicy = PolygonEvidencePolicy.DECISIVE_SINGLE_FIX
+            committedStates = emptyMap()
         )
 
         capturing.messages.count { it.contains("ev=polygon.unchanged") } shouldBeEqualTo 0
@@ -371,8 +330,7 @@ class PolygonRouteIntegrationTest {
             sample = PolygonLocationSample(coordinate, accuracyMeters),
             elapsedRealtimeNanos = 1L,
             fixAgeSeconds = fixAgeSeconds,
-            committedStates = committedStates,
-            evidencePolicy = PolygonEvidencePolicy.DECISIVE_SINGLE_FIX
+            committedStates = committedStates
         )
         return capturing
     }
@@ -443,16 +401,20 @@ class PolygonRouteIntegrationTest {
     fun route_whenLocationFixIsReplayedOrOutOfOrder_thenDoesNotCountItTwice() {
         val route = RouteHarness(listOf(campus))
 
-        route.process(37.7750, -122.4194, accuracy = 5.0, elapsedRealtimeNanos = 2L)
-        route.process(37.7750, -122.4194, accuracy = 5.0, elapsedRealtimeNanos = 2L)
-        route.process(37.7750, -122.4194, accuracy = 5.0, elapsedRealtimeNanos = 1L)
-        route.process(37.7750, -122.4194, accuracy = 5.0, elapsedRealtimeNanos = 3L)
+        // Marginal fixes, deliberately. A decisive fix commits on the first sample and the
+        // committed state then absorbs every replay, so the guard is invisible: this test passed
+        // with the guard deleted when it used accuracy 5.0. A marginal fix needs a second agreeing
+        // one, so a replay that slipped through would complete the arrival by itself.
+        val detections = listOf(2L, 2L, 1L).flatMap { elapsed ->
+            route.process(37.77452, -122.4194, accuracy = 30.0, elapsedRealtimeNanos = elapsed)
+        }
+        detections.shouldBeEmpty()
 
         route.process(
-            37.7750,
+            37.77452,
             -122.4194,
-            accuracy = 5.0,
-            elapsedRealtimeNanos = 4L
+            accuracy = 30.0,
+            elapsedRealtimeNanos = 3L
         ) shouldBeEqualTo listOf(PolygonTransitionDetection("campus", PolygonTransition.ENTER))
     }
 
@@ -479,9 +441,11 @@ class PolygonRouteIntegrationTest {
             )
         }
 
-        detections shouldBeEqualTo listOf(
-            PolygonTransitionDetection("east-campus", PolygonTransition.ENTER)
-        )
+        // The guarantee is per-fence: campus refuses these fixes as older than the one it already
+        // saw at 100, east-campus has never seen one and must not inherit campus's timeline.
+        detections.map(PolygonTransitionDetection::polygonId).distinct() shouldBeEqualTo
+            listOf("east-campus")
+        detections.shouldNotBeEmpty()
     }
 
     @Test
@@ -534,17 +498,16 @@ class PolygonRouteIntegrationTest {
 
     @Test
     fun route_whenProcessRestarts_thenPendingEvidenceIsDiscardedButCommittedStateSurvives() {
+        // Marginal fixes, because they are the only ones that leave anything pending: a decisive
+        // fix commits on its own and has no evidence to carry across a restart.
         val durableStates = mutableMapOf("campus" to PolygonCommittedState.OUTSIDE)
         var route = RouteHarness(listOf(campus), durableStates)
-        route.process(37.7750, -122.4194, accuracy = 5.0)
-        route.process(37.7750, -122.4194, accuracy = 5.0)
+        route.process(37.77452, -122.4194, accuracy = 30.0).shouldBeEmpty()
 
         route = RouteHarness(listOf(campus), durableStates)
-        val eventsAfterRestart = listOf(
-            route.process(37.7750, -122.4194, accuracy = 5.0),
-            route.process(37.7750, -122.4194, accuracy = 5.0),
-            route.process(37.7750, -122.4194, accuracy = 5.0)
-        ).flatten()
+        // If the pending arrival had survived, this single fix would complete it.
+        route.process(37.77452, -122.4194, accuracy = 30.0).shouldBeEmpty()
+        val eventsAfterRestart = route.process(37.77452, -122.4194, accuracy = 30.0)
 
         eventsAfterRestart shouldBeEqualTo listOf(
             PolygonTransitionDetection("campus", PolygonTransition.ENTER)
@@ -557,25 +520,30 @@ class PolygonRouteIntegrationTest {
         val states = mutableMapOf("campus" to PolygonCommittedState.OUTSIDE)
         val processor = PolygonRouteProcessor(logger = GeofenceLogger(CapturingLogger()))
 
+        // Marginal, so the first fix leaves a pending arrival rather than committing outright.
+        val marginal = PolygonLocationSample(point(37.77452, -122.4194), 30.0)
         processor.process(
             fences = listOf(campus),
-            sample = PolygonLocationSample(point(37.7750, -122.4194), 5.0),
+            sample = marginal,
             elapsedRealtimeNanos = 1L,
             fixAgeSeconds = 0.0,
             committedStates = states
         )
         processor.clear()
-        val detections = (1L..3L).flatMap { sequence ->
-            processor.process(
-                fences = listOf(campus),
-                sample = PolygonLocationSample(point(37.7750, -122.4194), 5.0),
-                elapsedRealtimeNanos = sequence,
-                fixAgeSeconds = 0.0,
-                committedStates = states
-            )
-        }
 
-        detections shouldBeEqualTo listOf(
+        fun sample(at: Long) = processor.process(
+            fences = listOf(campus),
+            sample = marginal,
+            elapsedRealtimeNanos = at,
+            fixAgeSeconds = 0.0,
+            committedStates = states
+        )
+
+        // Asserted per fix, not over the pair. Both the correct and the broken processor emit
+        // exactly one arrival across two fixes; they differ only in *which* fix produces it, so
+        // collecting them and counting proves nothing.
+        sample(1L).shouldBeEmpty()
+        sample(2L) shouldBeEqualTo listOf(
             PolygonTransitionDetection("campus", PolygonTransition.ENTER)
         )
     }
@@ -586,20 +554,6 @@ class PolygonRouteIntegrationTest {
 
         val events = listOf(
             route.process(37.7750, -122.4205, accuracy = 5.0),
-            route.process(37.7750, -122.4182, accuracy = 5.0)
-        ).flatten()
-
-        events shouldBeEqualTo emptyList()
-    }
-
-    @Test
-    fun route_whenNarrowPolygonHasOnlyTwoInsideFixes_thenDoesNotConfirmEntry() {
-        val route = RouteHarness(listOf(campus))
-
-        val events = listOf(
-            route.process(37.7750, -122.4205, accuracy = 5.0),
-            route.process(37.7750, -122.4197, accuracy = 5.0),
-            route.process(37.7750, -122.4191, accuracy = 5.0),
             route.process(37.7750, -122.4182, accuracy = 5.0)
         ).flatten()
 

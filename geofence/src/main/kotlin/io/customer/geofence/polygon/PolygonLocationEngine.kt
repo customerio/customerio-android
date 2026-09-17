@@ -21,7 +21,7 @@ import kotlinx.coroutines.sync.withLock
  *
  * It never asks the OS for location. Every fix it sees came from a GMS wake callback or the bounded
  * [PolygonApproachMonitor] session opened after that callback. The engine decides whether a fix is
- * decisive enough to move committed containment ([PolygonEvidencePolicy.DECISIVE_SINGLE_FIX]).
+ * decisive enough to move committed containment.
  *
  * ## Best-effort boundary — read before relying on it
  *
@@ -114,20 +114,17 @@ internal class PolygonLocationEngine(
         expectedUserStateGeneration: Long = store.userStateGeneration()
     ): Boolean = processLocations(
         locations = listOf(location),
-        expectedUserStateGeneration = expectedUserStateGeneration,
-        evidencePolicy = PolygonEvidencePolicy.DECISIVE_SINGLE_FIX
+        expectedUserStateGeneration = expectedUserStateGeneration
     )
 
     /**
-     * Ordered evaluation of a batch of fixes under [evidencePolicy].
+     * Ordered evaluation of a batch of fixes.
      *
-     * V1 calls this through [processResponsiveLocation], one fix at a time under
-     * [PolygonEvidencePolicy.DECISIVE_SINGLE_FIX].
+     * V1 calls this through [processResponsiveLocation], one fix at a time.
      */
     private suspend fun processLocations(
         locations: List<Location>,
-        expectedUserStateGeneration: Long,
-        evidencePolicy: PolygonEvidencePolicy
+        expectedUserStateGeneration: Long
     ): Boolean = processingMutex.withLock {
         if (locations.isEmpty()) return@withLock false
         if (store.userStateGeneration() != expectedUserStateGeneration) return@withLock false
@@ -174,8 +171,7 @@ internal class PolygonLocationEngine(
                             sample = fix.sample,
                             elapsedRealtimeNanos = fix.elapsedRealtimeNanos,
                             fixAgeSeconds = GeofenceLogTail.fixAgeSeconds(fix.elapsedRealtimeNanos),
-                            committedStates = committedStates,
-                            evidencePolicy = evidencePolicy
+                            committedStates = committedStates
                         )
                     }
                 }

@@ -18,22 +18,12 @@ internal data class PolygonTransitionDetection(
     val regionRevision: Int = 0
 )
 
-internal enum class PolygonEvidencePolicy {
-    CONFIRMED,
-    DECISIVE_SINGLE_FIX
-}
-
 /** Evaluates one ordered location stream against the currently active polygons. */
 internal class PolygonRouteProcessor(
     private val accuracyEvaluator: PolygonAccuracyEvaluator = PolygonAccuracyEvaluator(),
-    private val stateMachine: PolygonTransitionStateMachine = PolygonTransitionStateMachine(),
-    /**
-     * Separate from [stateMachine] and deliberately shorter: this gates arrivals on the decisive
-     * path, where the evidence rule has no clearance margin at all.
-     */
+    /** Gates arrivals: the evidence rule has no clearance margin, so a marginal fix needs a second. */
     private val arrivalConfirmations: PolygonTransitionStateMachine =
         PolygonTransitionStateMachine(requiredConfirmations = 2),
-    private val minimumEvidenceIntervalNanos: Long = 0L,
     private val logger: GeofenceLogger
 ) {
     private val latestElapsedRealtimeNanos = mutableMapOf<String, Long>()
@@ -43,8 +33,7 @@ internal class PolygonRouteProcessor(
         sample: PolygonLocationSample,
         elapsedRealtimeNanos: Long,
         fixAgeSeconds: Double,
-        committedStates: Map<String, PolygonCommittedState>,
-        evidencePolicy: PolygonEvidencePolicy = PolygonEvidencePolicy.CONFIRMED
+        committedStates: Map<String, PolygonCommittedState>
     ): List<PolygonTransitionDetection> {
         require(elapsedRealtimeNanos >= 0L) { "elapsed realtime must be non-negative" }
         require(fences.map(PolygonFence::id).distinct().size == fences.size) {
@@ -53,12 +42,10 @@ internal class PolygonRouteProcessor(
 
         val activeIds = fences.mapTo(mutableSetOf(), PolygonFence::id)
         trackedFenceIds.filterNot(activeIds::contains).forEach { retired ->
-            stateMachine.clear(retired)
             arrivalConfirmations.clear(retired)
             arrivalConfirmationNanos.remove(retired)
         }
         latestElapsedRealtimeNanos.keys.retainAll(activeIds)
-        lastEvidenceElapsedNanos.keys.retainAll(activeIds)
         arrivalConfirmationNanos.keys.retainAll(activeIds)
         trackedFenceIds.clear()
         trackedFenceIds.addAll(activeIds)
@@ -69,12 +56,7 @@ internal class PolygonRouteProcessor(
             latestElapsedRealtimeNanos[fence.id] = elapsedRealtimeNanos
             retireStaleArrivalConfirmation(fence.id, elapsedRealtimeNanos)
             val committedState = committedStates[fence.id] ?: PolygonCommittedState.OUTSIDE
-            val result = when (evidencePolicy) {
-                PolygonEvidencePolicy.CONFIRMED ->
-                    accuracyEvaluator.evidenceFor(fence.geometry, sample, committedState)
-                PolygonEvidencePolicy.DECISIVE_SINGLE_FIX ->
-                    accuracyEvaluator.decisiveEvidenceFor(fence.geometry, sample, committedState)
-            }
+            val result = accuracyEvaluator.decisiveEvidenceFor(fence.geometry, sample, committedState)
             val evidence = result.evidence
             result.undecidedReason?.let { reason ->
                 logger.logPolygonUndecided(
@@ -98,84 +80,54 @@ internal class PolygonRouteProcessor(
                 committedState == PolygonCommittedState.OUTSIDE && evidence == PolygonEvidence.ENTER ||
                     committedState == PolygonCommittedState.INSIDE && evidence == PolygonEvidence.EXIT
             if (!isTransitionEvidence) {
-                lastEvidenceElapsedNanos.remove(fence.id)
-                stateMachine.evaluate(fence.id, committedState, evidence)
                 // Breaks a run of agreeing arrival fixes: the requirement below is consecutive, and
                 // a fix too coarse to judge is not agreement.
                 confirmArrival(fence.id, committedState, evidence, elapsedRealtimeNanos)
                 return@mapNotNull null
             }
-            if (evidencePolicy == PolygonEvidencePolicy.DECISIVE_SINGLE_FIX) {
-                lastEvidenceElapsedNanos.remove(fence.id)
-                stateMachine.clear(fence.id)
-                val transition = when (evidence) {
-                    // A fix whose uncertainty does not reach the ring decides on its own: a
-                    // passer-by on the pavement cannot produce one. A marginal fix can, so it
-                    // needs a second agreeing fix — which a real visit supplies on the next
-                    // sample and someone walking past usually does not.
-                    PolygonEvidence.ENTER -> when {
-                        !result.requiresCorroboration -> {
-                            arrivalConfirmations.clear(fence.id)
-                            PolygonTransition.ENTER
-                        }
-                        else -> confirmArrival(fence.id, committedState, evidence, elapsedRealtimeNanos)
-                            ?: return@mapNotNull null
-                    }
-                    // Departure keeps its clearance margin, so it needs no second opinion, and
-                    // delaying it would report a visit as still running after it ended.
-                    PolygonEvidence.EXIT -> {
+            val transition = when (evidence) {
+                // A fix whose uncertainty does not reach the ring decides on its own: a passer-by
+                // on the pavement cannot produce one. A marginal fix can, so it needs a second
+                // agreeing fix, which a real visit supplies on the next sample and someone walking
+                // past usually does not.
+                PolygonEvidence.ENTER -> when {
+                    !result.requiresCorroboration -> {
                         arrivalConfirmations.clear(fence.id)
-                        PolygonTransition.EXIT
+                        PolygonTransition.ENTER
                     }
-                    PolygonEvidence.AMBIGUOUS -> return@mapNotNull null
+                    else -> confirmArrival(fence.id, committedState, evidence, elapsedRealtimeNanos)
+                        ?: return@mapNotNull null
                 }
-                return@mapNotNull recorded(
-                    fence = fence,
-                    transition = transition,
-                    result = result,
-                    sample = sample,
-                    fixAgeSeconds = fixAgeSeconds,
-                    corroborated = result.requiresCorroboration
-                )
+                // Departure keeps its clearance margin, so it needs no second opinion, and delaying
+                // it would report a visit as still running after it ended.
+                PolygonEvidence.EXIT -> {
+                    arrivalConfirmations.clear(fence.id)
+                    PolygonTransition.EXIT
+                }
+                PolygonEvidence.AMBIGUOUS -> return@mapNotNull null
             }
-            val previousEvidenceTime = lastEvidenceElapsedNanos[fence.id]
-            if (
-                previousEvidenceTime != null &&
-                elapsedRealtimeNanos - previousEvidenceTime < minimumEvidenceIntervalNanos
-            ) {
-                return@mapNotNull null
-            }
-            lastEvidenceElapsedNanos[fence.id] = elapsedRealtimeNanos
-            stateMachine.evaluate(fence.id, committedState, evidence)?.let { transition ->
-                recorded(
-                    fence = fence,
-                    transition = transition,
-                    result = result,
-                    sample = sample,
-                    fixAgeSeconds = fixAgeSeconds,
-                    // This policy reaches a transition by repeated agreeing fixes, so every
-                    // transition it produces is corroborated by construction.
-                    corroborated = true
-                )
-            }
+            recorded(
+                fence = fence,
+                transition = transition,
+                result = result,
+                sample = sample,
+                fixAgeSeconds = fixAgeSeconds,
+                corroborated = result.requiresCorroboration
+            )
         }
     }
 
     fun clear() {
         latestElapsedRealtimeNanos.clear()
         trackedFenceIds.clear()
-        lastEvidenceElapsedNanos.clear()
         arrivalConfirmationNanos.clear()
-        stateMachine.clearAll()
         arrivalConfirmations.clearAll()
     }
 
     fun clear(polygonId: String) {
         trackedFenceIds.remove(polygonId)
         latestElapsedRealtimeNanos.remove(polygonId)
-        lastEvidenceElapsedNanos.remove(polygonId)
         arrivalConfirmationNanos.remove(polygonId)
-        stateMachine.clear(polygonId)
         arrivalConfirmations.clear(polygonId)
     }
 
@@ -222,7 +174,6 @@ internal class PolygonRouteProcessor(
     }
 
     private val trackedFenceIds = mutableSetOf<String>()
-    private val lastEvidenceElapsedNanos = mutableMapOf<String, Long>()
     private val arrivalConfirmationNanos = mutableMapOf<String, Long>()
 
     private companion object {

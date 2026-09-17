@@ -1,6 +1,7 @@
 package io.customer.geofence.polygon
 
 import io.customer.geofence.GeofenceLogger
+import io.customer.geofence.PolygonArrivalExpiry
 
 internal data class PolygonFence(
     val id: String,
@@ -128,18 +129,28 @@ internal class PolygonRouteProcessor(
         }
     }
 
-    fun clear() {
+    /**
+     * Returns the ids that were still holding an arrival, so the caller can report them once it is
+     * outside its lock. The record cannot be emitted here: every caller holds one, and the host's
+     * log dispatcher is customer code.
+     */
+    fun clear(): Set<String> {
+        val discarded = arrivalConfirmations.pendingPolygonIds()
         latestElapsedRealtimeNanos.clear()
         trackedFenceIds.clear()
         arrivalConfirmationNanos.clear()
         arrivalConfirmations.clearAll()
+        return discarded
     }
 
-    fun clear(polygonId: String) {
+    /** True when the fence was still holding an arrival that this discarded. */
+    fun clear(polygonId: String): Boolean {
+        val wasPending = arrivalConfirmations.hasPending(polygonId)
         trackedFenceIds.remove(polygonId)
         latestElapsedRealtimeNanos.remove(polygonId)
         arrivalConfirmationNanos.remove(polygonId)
         arrivalConfirmations.clear(polygonId)
+        return wasPending
     }
 
     /**
@@ -164,6 +175,7 @@ internal class PolygonRouteProcessor(
             // answer about corroboration.
             logger.logPolygonArrivalExpired(
                 geofenceId = polygonId,
+                reason = PolygonArrivalExpiry.WINDOW_ELAPSED,
                 heldForSeconds = heldForNanos.toDouble() / NANOS_PER_SECOND
             )
             arrivalConfirmations.clear(polygonId)

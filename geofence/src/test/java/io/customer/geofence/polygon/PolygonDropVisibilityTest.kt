@@ -12,6 +12,7 @@ import io.customer.geofence.GeofenceLogger
 import io.customer.geofence.GeofenceManager
 import io.customer.geofence.GeofenceRegion
 import io.customer.geofence.GeofenceTransitionEmitter
+import io.customer.geofence.PolygonArrivalExpiry
 import io.customer.geofence.PolygonCallbackDrop
 import io.customer.geofence.PolygonEvaluationSkip
 import io.customer.geofence.PolygonSamplingSkip
@@ -273,7 +274,7 @@ class PolygonDropVisibilityTest : RobolectricTest() {
         processor.process(listOf(fence), marginal, 1_000_000_000L, 0.0, emptyMap())
         processor.process(listOf(fence), marginal, 301_000_000_000L, 0.0, emptyMap())
 
-        verify { mockLogger.logPolygonArrivalExpired(VENUE_ID, any()) }
+        verify { mockLogger.logPolygonArrivalExpired(VENUE_ID, PolygonArrivalExpiry.WINDOW_ELAPSED, any()) }
     }
 
     @Test
@@ -291,7 +292,7 @@ class PolygonDropVisibilityTest : RobolectricTest() {
         processor.process(listOf(fence), outside, 1_000_000_000L, 0.0, emptyMap())
         processor.process(listOf(fence), outside, 301_000_000_000L, 0.0, emptyMap())
 
-        verify(exactly = 0) { mockLogger.logPolygonArrivalExpired(any(), any()) }
+        verify(exactly = 0) { mockLogger.logPolygonArrivalExpired(any(), any(), any()) }
     }
 
     @Test
@@ -315,7 +316,37 @@ class PolygonDropVisibilityTest : RobolectricTest() {
         )
 
         committed.map { it.transition } shouldBeEqualTo listOf(PolygonTransition.ENTER)
-        verify(exactly = 0) { mockLogger.logPolygonArrivalExpired(any(), any()) }
+        verify(exactly = 0) { mockLogger.logPolygonArrivalExpired(any(), any(), any()) }
+    }
+
+    @Test
+    fun engine_givenTheSessionEndsWhileAnArrivalIsHeld_expectTheDiscardIsLogged() = runTest {
+        // The field case the pending record exists to explain: sampling goes quiet, the session is
+        // torn down, and the hold disappears. The window-elapsed record cannot cover it because
+        // that one only fires when another fix arrives, and here no further fix ever does.
+        store.activatePolygon(VENUE_ID)
+        store.recordPolygonCoarseInside(VENUE_ID)
+        engine.activate(VENUE_ID)
+        engine.processResponsiveLocation(marginalFix())
+
+        engine.stop()
+
+        verify {
+            mockLogger.logPolygonArrivalExpired(
+                VENUE_ID,
+                PolygonArrivalExpiry.SESSION_ENDED,
+                any()
+            )
+        }
+    }
+
+    // ~10 m inside the ring at the accuracy the drive reported, so the arrival is held not committed.
+    private fun marginalFix() = Location("test").apply {
+        latitude = 37.77459
+        longitude = -122.4194
+        accuracy = 18f
+        elapsedRealtimeNanos = SystemClock.elapsedRealtimeNanos() - 2_000_000_000L
+        time = 100_000L
     }
 
     private fun insideFix() = fix(37.7750, -122.4194)

@@ -80,6 +80,12 @@ internal enum class PolygonCallbackDrop(val wire: String, val detail: String) {
  * A stop that was declined. The session is still live afterwards, so these are deliberately NOT
  * endings: counting them as such would over-count sessions that ended in any capture.
  */
+/** Why a held arrival was discarded without being reported. */
+internal enum class PolygonArrivalExpiry(val wire: String, val detail: String) {
+    WINDOW_ELAPSED("window_elapsed", "no second agreeing fix arrived inside the corroboration window"),
+    SESSION_ENDED("session_ended", "the evaluation session ended while it was still waiting")
+}
+
 internal enum class PolygonApproachStopRefusal(val wire: String, val detail: String) {
     NOT_CURRENT_SESSION("not_current_session", "the live session belongs to a later generation"),
     DEADLINE_MISMATCH("deadline_mismatch", "it named a different session deadline")
@@ -1198,7 +1204,7 @@ internal class GeofenceLogger(private val logger: Logger) {
                     "polygon.arrival.pending",
                     GeofenceLogIo.OUTPUT,
                     listOf(
-                        "id" to token(geofenceId),
+                        "id" to geofenceId,
                         "sh" to "polygon",
                         "edge" to num(signedBoundaryDistanceMeters),
                         "acc" to num(horizontalAccuracyMeters),
@@ -1226,7 +1232,7 @@ internal class GeofenceLogger(private val logger: Logger) {
             "Polygon approach sample skipped — ${reason.detail}." +
                 tail(
                     "polygon.sampling.skipped",
-                    GeofenceLogIo.INPUT,
+                    GeofenceLogIo.OUTPUT,
                     listOf("why" to reason.wire)
                 ),
             tag = TAG
@@ -1252,15 +1258,20 @@ internal class GeofenceLogger(private val logger: Logger) {
      * without it a trace shows N holds and M decisions and cannot say which holds completed and
      * which died. That is the question the field has to answer.
      */
-    fun logPolygonArrivalExpired(geofenceId: String, heldForSeconds: Double?) {
+    fun logPolygonArrivalExpired(
+        geofenceId: String,
+        reason: PolygonArrivalExpiry,
+        heldForSeconds: Double? = null
+    ) {
         logger.debug(
-            "Polygon '$geofenceId' arrival expired — no second agreeing fix arrived in time. The visit was not reported." +
+            "Polygon '$geofenceId' arrival expired — ${reason.detail}. The visit was not reported." +
                 tail(
                     "polygon.arrival.expired",
                     GeofenceLogIo.OUTPUT,
                     listOf(
-                        "id" to token(geofenceId),
+                        "id" to geofenceId,
                         "sh" to "polygon",
+                        "why" to reason.wire,
                         "held" to num(heldForSeconds)
                     )
                 ),

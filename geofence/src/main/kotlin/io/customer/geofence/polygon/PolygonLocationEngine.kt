@@ -5,6 +5,7 @@ import android.os.SystemClock
 import io.customer.geofence.GeofenceBusinessTransitionProcessor
 import io.customer.geofence.GeofenceLogTail
 import io.customer.geofence.GeofenceLogger
+import io.customer.geofence.PolygonArrivalExpiry
 import io.customer.geofence.PolygonEvaluationSkip
 import io.customer.geofence.PolygonFixRejection
 import io.customer.geofence.PolygonNotRankedReason
@@ -65,16 +66,22 @@ internal class PolygonLocationEngine(
      * Discards the current evaluation session. Called when no polygon is active any more, or when
      * user-scoped state is invalidated, so a later fix cannot be judged against a stale session.
      */
-    fun stop() = synchronized(stateLock) {
-        routeProcessor.clear()
-        geometryCache.clear()
-        invalidateFenceCacheLocked()
-        sessionStartElapsedRealtimeNanos = null
+    fun stop() {
+        val discarded = synchronized(stateLock) {
+            routeProcessor.clear().also {
+                geometryCache.clear()
+                invalidateFenceCacheLocked()
+                sessionStartElapsedRealtimeNanos = null
+            }
+        }
+        reportDiscardedArrivals(discarded)
     }
 
-    fun activate(polygonId: String) = synchronized(stateLock) {
-        resetEvidenceLocked(polygonId)
-        armSessionLocked(restartSession = true)
+    fun activate(polygonId: String) {
+        val discarded = synchronized(stateLock) {
+            resetEvidenceLocked(polygonId).also { armSessionLocked(restartSession = true) }
+        }
+        reportDiscardedArrivals(discarded)
     }
 
     /**
@@ -82,23 +89,39 @@ internal class PolygonLocationEngine(
      * delivery can batch recent locations, so using only the normal trigger grace would discard an
      * observed crossing merely because Play services delivered the batch late.
      */
-    fun activateFromApproach(polygonId: String, firstFixElapsedRealtimeNanos: Long) =
-        synchronized(stateLock) {
-            resetEvidenceLocked(polygonId)
-            armSessionLocked(
-                restartSession = true,
-                observedSessionStartElapsedRealtimeNanos = firstFixElapsedRealtimeNanos
-            )
+    fun activateFromApproach(polygonId: String, firstFixElapsedRealtimeNanos: Long) {
+        val discarded = synchronized(stateLock) {
+            resetEvidenceLocked(polygonId).also {
+                armSessionLocked(
+                    restartSession = true,
+                    observedSessionStartElapsedRealtimeNanos = firstFixElapsedRealtimeNanos
+                )
+            }
         }
-
-    fun resetEvidence(polygonId: String) = synchronized(stateLock) {
-        resetEvidenceLocked(polygonId)
+        reportDiscardedArrivals(discarded)
     }
 
-    private fun resetEvidenceLocked(polygonId: String) {
-        routeProcessor.clear(polygonId)
+    fun resetEvidence(polygonId: String) {
+        val discarded = synchronized(stateLock) { resetEvidenceLocked(polygonId) }
+        reportDiscardedArrivals(discarded)
+    }
+
+    /**
+     * Emitted outside every lock. A hold that dies because the session ended was previously removed
+     * in silence, which is the exact field case the pending record exists to explain: sampling goes
+     * quiet, the session is torn down, and the capture cannot say whether the hold completed.
+     */
+    private fun reportDiscardedArrivals(polygonIds: Set<String>) {
+        polygonIds.forEach { id ->
+            logger.logPolygonArrivalExpired(id, PolygonArrivalExpiry.SESSION_ENDED)
+        }
+    }
+
+    private fun resetEvidenceLocked(polygonId: String): Set<String> {
+        val wasPending = routeProcessor.clear(polygonId)
         geometryCache.remove(polygonId)
         invalidateFenceCacheLocked()
+        return if (wasPending) setOf(polygonId) else emptySet()
     }
 
     fun deactivate(polygonId: String) = synchronized(stateLock) {

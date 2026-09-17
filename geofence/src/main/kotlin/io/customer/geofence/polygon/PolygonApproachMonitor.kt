@@ -98,7 +98,6 @@ internal class PolygonApproachMonitor(
             // Reset when the session arms, not when it ends: an ending that bypasses the normal
             // stop would otherwise carry its samples into the next session's count, and this
             // instrument exists to make "ended with n=0" decisive. It can only ever hide a zero.
-            samplesThisSession.set(0)
             sessionTimeoutJob?.cancel()
             sessionTimeoutJob = retryScope.launch {
                 delay(
@@ -126,12 +125,24 @@ internal class PolygonApproachMonitor(
         requestUpdates(registration.second, expectedUserStateGeneration)
     }
 
-    /** Counted so a session that armed and received nothing is distinguishable from one that never armed. */
-    private val samplesThisSession = java.util.concurrent.atomic.AtomicInteger(0)
+    /**
+     * Sample batches counted per [PendingIntent], not per monitor.
+     *
+     * A single shared counter cannot attribute correctly: generation 8 arms and resets it before
+     * generation 7's `removeUpdates` completes, so 7's teardown reports 8's count or zero. Since
+     * "ended with n=0" is the whole point of the field, an attribution slip turns the instrument
+     * into a false negative. Keyed on the intent, the count travels with the session it belongs to.
+     */
+    private val samplesByIntent =
+        java.util.concurrent.ConcurrentHashMap<PendingIntent, java.util.concurrent.atomic.AtomicInteger>()
 
     /** Called by the controller on every delivered sample batch. */
     fun recordSampleDelivered() {
-        samplesThisSession.incrementAndGet()
+        val intent = synchronized(lock) { activePendingIntent } ?: return
+        // putIfAbsent rather than merge or compute: those are API 24 and minSdk here is 21.
+        samplesByIntent
+            .putIfAbsent(intent, java.util.concurrent.atomic.AtomicInteger(1))
+            ?.incrementAndGet()
     }
 
     fun stop(
@@ -302,7 +313,7 @@ internal class PolygonApproachMonitor(
                         }
                     }
                     logger.logPolygonApproachMonitoringStopped(
-                        samplesReceived = samplesThisSession.get()
+                        samplesReceived = samplesByIntent.remove(pendingIntent)?.get() ?: 0
                     )
                     if (restartGeneration != null) {
                         requestUpdates(pendingIntent, restartGeneration)

@@ -22,14 +22,19 @@ import org.robolectric.RobolectricTestRunner
  * The coarse polygon ENTER path against the real [GeofenceRegionStoreImpl].
  *
  * Written after the 2026-09-16 drive, where the OS had a clean inbound crossing of fence 16's
- * wake circle and the region store recorded nothing at all. The logs that would say whether GMS
- * delivered were lost, so this pins the half we can test without a device: given a delivered
- * callback for a registered, routable polygon, the store must come out changed. A green run here
- * narrows that failure to delivery; a red one would have found it without another drive.
+ * wake circle and the region store recorded nothing at all.
  *
- * Real store rather than a stub of it: every precondition the controller checks reads through
- * [GeofenceRegionStoreImpl], and a relaxed mock answers all of them affirmatively by default,
- * which is exactly the shape that would hide this.
+ * Scope, deliberately narrow: this proves the controller persists once activation is reached. It
+ * calls [PolygonGeofenceServiceController.activate] directly, so it covers neither the receiver's
+ * routing and drop paths nor the region-revision check, which passes `null` here. A green run
+ * therefore does **not** isolate that drive failure to GMS delivery; routing and revision remain
+ * open and have to stay open in the diagnosis until a capture rules them out.
+ *
+ * Real store rather than a stub of it. Not because a relaxed mock would wave the preconditions
+ * through: `getRoutableRegisteredIds()` relaxes to an empty set, which rejects activation instead,
+ * so the test would fail for a reason that has nothing to do with the behaviour. The point is that
+ * every precondition reads through [GeofenceRegionStoreImpl] and the persistence being asserted is
+ * the store's own, so stubbing it would leave nothing real under test.
  */
 @RunWith(RobolectricTestRunner::class)
 class PolygonCoarseEnterRealStoreTest : RobolectricTest() {

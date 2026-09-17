@@ -245,6 +245,11 @@ internal class ReplayRegistrar(private val gate: ReplayBoundaryGate) : GeofenceR
         regions: List<GeofenceRegion>,
         existingBusinessIds: Set<String>
     ): Result<Unit> {
+        // Production returns here without touching Play Services: `replaceGeofencesInternal`
+        // disables the receiver and returns success for an empty region list. Round-tripping it
+        // anyway spent a recorded answer on a call the OS never saw, which shifts every later
+        // release, and cleared `registeredIds` where production leaves the registrations alone.
+        if (regions.isEmpty()) return Result.success(Unit)
         roundTrip("replace(${regions.size})", addAnswers)
         // Mirrors the OS: what is monitored afterwards is the requested set, kept ids included.
         registeredIds.clear()
@@ -256,6 +261,8 @@ internal class ReplayRegistrar(private val gate: ReplayBoundaryGate) : GeofenceR
         replaceGeofences(regions, emptySet())
 
     override suspend fun removeGeofencesByIds(ids: List<String>): Result<Unit> {
+        // Same early return as production, for the same reason.
+        if (ids.isEmpty()) return Result.success(Unit)
         roundTrip("remove(${ids.joinToString(",")})", removeAnswers)
         registeredIds.removeAll(ids.toSet())
         return Result.success(Unit)
@@ -276,9 +283,12 @@ internal class ReplayRegistrar(private val gate: ReplayBoundaryGate) : GeofenceR
  * answer is already on the timeline as the next `location.fix` stimulus, so this records the
  * request and returns.
  *
- * [getLastKnownLocation] is the SDK's own cache, not an OS read — on Android it is only ever
- * populated by a fix that already arrived. The harness feeds it from the stimuli it has replayed
- * so the anchor the SDK computes is the one the drive would have computed.
+ * [getLastKnownLocation] stays empty, and that is the faithful answer rather than a gap.
+ * `setLastKnownLocation` is a *host-app* API — "sets the last known location from the host app's
+ * existing location system" — and nothing inside the SDK calls it. No recorded drive called it
+ * either, so `resolveAnchor` fell through to its `registrationCenter` branch on the phone exactly
+ * as it does here. Feeding it from replayed fixes would hand the replay an anchor production never
+ * had, which is the bug the runner's `identity.changed` comment already describes.
  */
 internal class ReplayLocationServices : LocationServices {
     /** Fixes the SDK asked for. A drive's foreground entries should each produce one. */

@@ -19,21 +19,32 @@ internal data class PolygonTriggerCircle(
  *
  * The registered radius is floored, not padded.
  *
- * Two measured constraints set the floor, both from this repository's own field data:
- *  - GMS coarse containment is wrong by hundreds of metres. On 2026-07-31 a 500 m fence was marked
- *    INSIDE while the device was 889 m from its centre, with a closest approach of 537 m. A ring
- *    smaller than that error is driven by the error rather than by the device.
- *  - Activation reads this radius: a polygon is only admitted when `distance + accuracy <= radius`.
- *    Indoor fixes measure around 100 m, so a ring near the backend's 101 m retail circle cannot
- *    admit the polygon at all, from any position.
+ * One constraint sets the floor, from this repository's own field data: activation reads this
+ * radius, and a polygon is admitted only when `distance + accuracy <= radius`. Indoor fixes
+ * measure around 100 m, so a ring near the backend's 101 m retail circle cannot admit the polygon
+ * at all, from any position. At 400 m that admits from 300 m out on an indoor fix.
  *
  * Getting it wrong is asymmetric. Polygons are excluded from initial-ENTER synthesis, so a missed
  * coarse ENTER is unrecoverable, while a spurious one costs a sampling session.
  *
- * 1000 m is one observed worst-case containment error, rounded. It is the weakest part of this and
- * a drive that records ENTER reliability against a smaller registration would replace it. Adding a
- * kilometre on top of a circle already kilometres wide answers neither constraint, so a large
- * polygon is registered as the backend describes it.
+ * 400 m is a calibration hypothesis to be tested on the next drive, not a derived value and not a
+ * demonstration that 1000 m cannot work. Two observations motivate trying it.
+ *
+ * The old floor's headline justification was a measured GMS coarse-containment error of 889 m on a
+ * 500 m fence. That number reached the floor through SDK-side containment, and both containment
+ * paths filter `!isPolygon`, so it never justified the floor for a polygon by that route. It is
+ * still evidence about how far GMS's own position estimate can be wrong, and a wake circle depends
+ * entirely on GMS callbacks, so it argues *against* shrinking as much as the old comment argued
+ * for it. That tension is unresolved and the drive is what resolves it.
+ *
+ * The approach session is capped at two minutes and the wake fires when the circle is crossed, so
+ * at 1000 m and a measured 26 km/h the crossing is 139 s from arrival against a 120 s budget. That
+ * is one window, not the whole story: a movement-trigger handoff stops sampling and a later
+ * crossing can open a fresh session, so the arrival is not necessarily lost. 400 m puts the whole
+ * approach inside a single window at that speed, which makes the next capture far easier to read.
+ *
+ * A fixed radius against a fixed cap cannot serve walking and driving at once. That is a real
+ * defect, it is not fixed here, and it is not what this constant is trying to solve.
  */
 internal class PolygonWakeCircleValidator {
     fun prepare(wakeCircle: PolygonWakeCircle): PolygonTriggerCircle {
@@ -61,7 +72,7 @@ internal class PolygonWakeCircleValidator {
          * Smallest circle handed to GMS. Bounds the coarse containment error described above; it is
          * not a geometry rule, so it never shrinks a circle and never breaks ring containment.
          */
-        const val MINIMUM_TRIGGER_RADIUS_METERS = 1_000.0
+        const val MINIMUM_TRIGGER_RADIUS_METERS = 400.0
         const val MAXIMUM_TRIGGER_RADIUS_METERS = 100_000.0
     }
 }

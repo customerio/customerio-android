@@ -85,7 +85,28 @@ internal object Scenarios {
      * The platform filter reads each header rather than trusting the filename: this is the Android
      * composition, and an iOS capture reports one fence per callback where GMS batches several.
      */
-    fun replayable(): List<File> {
+    /** Everything a run grades: the recorded drives plus the authored scenarios. */
+    fun replayable(): List<File> = recorded() + conformance()
+
+    /**
+     * How many recorded drives the last [replayable] or [recorded] call discovered.
+     *
+     * Exists so a caller can ask "were there any drives?" without re-running discovery — calling
+     * [recorded] a second time clears [unreadable], which would drop the conformance failures the
+     * first pass had already collected.
+     */
+    var recordedCount: Int = 0
+        private set
+
+    /**
+     * The recorded drives alone, without the authored conformance scenarios.
+     *
+     * Separate from [replayable] because the two answer different questions. A guard asking "did
+     * discovery find anything" against the combined list is satisfied by the authored files, which
+     * resolve from `root.parent/conformance` — so an override pointing at any drive-less sibling of
+     * `recorded/` still looks healthy while grading zero drives.
+     */
+    fun recorded(): List<File> {
         unreadable.clear()
         val dir = root ?: return emptyList()
         return dir.listFiles { f: File -> f.name.endsWith(SUFFIX) }
@@ -102,6 +123,7 @@ internal object Scenarios {
                     scenario.platform == "android"
                 }
             }
-            .orEmpty() + conformance()
+            .orEmpty()
+            .also { recordedCount = it.size }
     }
 }

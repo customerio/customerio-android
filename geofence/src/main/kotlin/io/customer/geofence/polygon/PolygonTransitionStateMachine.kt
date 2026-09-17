@@ -7,7 +7,7 @@ internal enum class PolygonTransition {
 
 /** Holds only session-local confirmation evidence. The caller owns durable committed state. */
 internal class PolygonTransitionStateMachine(
-    private val requiredConfirmations: Int = 3
+    private val requiredConfirmations: Int
 ) {
     private data class PendingTransition(
         val transition: PolygonTransition,

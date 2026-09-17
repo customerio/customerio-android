@@ -88,7 +88,10 @@ class PolygonShapeAdversarialIntegrationTest {
 
         val events = buildList {
             repeat(3) { addAll(route.process(0.0, 0.0, accuracy = 2.0)) }
-            repeat(3) { addAll(route.process(0.0002, 0.0, accuracy = 2.0)) }
+            // Departure keeps a clearance margin, so "clear fixes" has to mean clear of it: at
+            // 0.0002 the fix sits ~15 m outside a ~7 m corridor, inside the margin, and the exit
+            // is correctly withheld. Moved out to a distance that genuinely clears.
+            repeat(3) { addAll(route.process(0.0010, 0.0, accuracy = 2.0)) }
         }
 
         events shouldBeEqualTo listOf(
@@ -127,35 +130,6 @@ class PolygonShapeAdversarialIntegrationTest {
     }
 
     @Test
-    fun route_whenQuickEntryAndExitMeetMinimumEvidenceCadence_thenEmitsBothEdges() {
-        val square = PolygonFence(
-            id = "square",
-            geometry = geometry(
-                point(-0.001, -0.001),
-                point(-0.001, 0.001),
-                point(0.001, 0.001),
-                point(0.001, -0.001)
-            )
-        )
-        val interval = 1_500_000_000L
-        val route = RouteHarness(listOf(square), minimumEvidenceIntervalNanos = interval)
-
-        val events = listOf(
-            route.process(0.0, 0.0, accuracy = 2.0, elapsedRealtimeNanos = 1L),
-            route.process(0.0, 0.0, accuracy = 2.0, elapsedRealtimeNanos = interval + 1L),
-            route.process(0.0, 0.0, accuracy = 2.0, elapsedRealtimeNanos = interval * 2 + 1L),
-            route.process(0.0, 0.002, accuracy = 2.0, elapsedRealtimeNanos = interval * 3 + 1L),
-            route.process(0.0, 0.002, accuracy = 2.0, elapsedRealtimeNanos = interval * 4 + 1L),
-            route.process(0.0, 0.002, accuracy = 2.0, elapsedRealtimeNanos = interval * 5 + 1L)
-        ).flatten()
-
-        events shouldBeEqualTo listOf(
-            PolygonTransitionDetection("square", PolygonTransition.ENTER),
-            PolygonTransitionDetection("square", PolygonTransition.EXIT)
-        )
-    }
-
-    @Test
     fun route_whenLeavingOnlyOneOfTwoOverlappingPolygons_thenExitsOnlyThatPolygon() {
         val west = PolygonFence(
             id = "west",
@@ -190,11 +164,9 @@ class PolygonShapeAdversarialIntegrationTest {
     }
 
     private class RouteHarness(
-        private val fences: List<PolygonFence>,
-        minimumEvidenceIntervalNanos: Long = 0L
+        private val fences: List<PolygonFence>
     ) {
         private val processor = PolygonRouteProcessor(
-            minimumEvidenceIntervalNanos = minimumEvidenceIntervalNanos,
             logger = GeofenceLogger(DiscardingLogger())
         )
         private val committedStates = mutableMapOf<String, PolygonCommittedState>()

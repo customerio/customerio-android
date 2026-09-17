@@ -188,6 +188,30 @@ class PolygonRouteIntegrationTest {
     }
 
     @Test
+    fun process_givenTheSameMarginalFixTwice_expectItCannotCorroborateItself() {
+        // Raised by iOS off a Bugbot finding on their side: their corroboration required the second
+        // fix to postdate the last fix their resolver had delivered, not the fix being
+        // corroborated. A pass answered from the location cache never records as delivered, so an
+        // echo of the same fix cleared the guard and a marginal arrival confirmed itself from one
+        // observation. Ours is held off by the per-fence monotonic check ahead of every path, but
+        // nothing pinned it on the corroboration path, and the defect is invisible in a capture:
+        // an echo and a real second opinion produce identical records.
+        val processor = PolygonRouteProcessor(logger = GeofenceLogger(CapturingLogger()))
+        val marginal = PolygonLocationSample(point(37.77452, -122.4194), 30.0)
+
+        repeat(2) {
+            processor.process(
+                fences = listOf(campus),
+                sample = marginal,
+                elapsedRealtimeNanos = 1L,
+                fixAgeSeconds = 0.0,
+                committedStates = emptyMap(),
+                evidencePolicy = PolygonEvidencePolicy.DECISIVE_SINGLE_FIX
+            ).shouldBeEmpty()
+        }
+    }
+
+    @Test
     fun process_givenAnArrivalThatDecidesAlone_expectADecidedRecordWithItsEvidence() {
         // The counterpart to the undecided records above. Without this a capture shows every fix a
         // margin refused and none it accepted, which is half the distribution the margin sits in.

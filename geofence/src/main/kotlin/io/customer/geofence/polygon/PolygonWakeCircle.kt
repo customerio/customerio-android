@@ -27,20 +27,24 @@ internal data class PolygonTriggerCircle(
  * Getting it wrong is asymmetric. Polygons are excluded from initial-ENTER synthesis, so a missed
  * coarse ENTER is unrecoverable, while a spurious one costs a sampling session.
  *
- * 400 m is a calibration step down from the 1000 m this carried until 2026-09-17, not a derived
- * value. Two things moved it.
+ * 400 m is a calibration hypothesis to be tested on the next drive, not a derived value and not a
+ * demonstration that 1000 m cannot work. Two observations motivate trying it.
  *
- * The old floor's headline justification was a measured GMS coarse-containment error of 889 m on
- * a 500 m fence. It does not apply to a polygon: both containment paths filter `!isPolygon`, so
- * that error never reaches a polygon's registered radius. It only ever justified the floor for
- * circles, which do not read this value.
+ * The old floor's headline justification was a measured GMS coarse-containment error of 889 m on a
+ * 500 m fence. That number reached the floor through SDK-side containment, and both containment
+ * paths filter `!isPolygon`, so it never justified the floor for a polygon by that route. It is
+ * still evidence about how far GMS's own position estimate can be wrong, and a wake circle depends
+ * entirely on GMS callbacks, so it argues *against* shrinking as much as the old comment argued
+ * for it. That tension is unresolved and the drive is what resolves it.
  *
- * The approach session is capped at two minutes. The wake fires when the circle is crossed, so a
- * radius over roughly `speed * cap` expires the session before arrival: at 1000 m and a measured
- * 26 km/h that is 139 s of approach against a 120 s budget, and the arrival is never evaluated
- * even when GMS delivers perfectly. 400 m leaves about four samples inside the budget at that
- * speed. A fixed radius and a fixed cap cannot serve walking and driving at once, which is the
- * real defect and is not fixed here.
+ * The approach session is capped at two minutes and the wake fires when the circle is crossed, so
+ * at 1000 m and a measured 26 km/h the crossing is 139 s from arrival against a 120 s budget. That
+ * is one window, not the whole story: a movement-trigger handoff stops sampling and a later
+ * crossing can open a fresh session, so the arrival is not necessarily lost. 400 m puts the whole
+ * approach inside a single window at that speed, which makes the next capture far easier to read.
+ *
+ * A fixed radius against a fixed cap cannot serve walking and driving at once. That is a real
+ * defect, it is not fixed here, and it is not what this constant is trying to solve.
  */
 internal class PolygonWakeCircleValidator {
     fun prepare(wakeCircle: PolygonWakeCircle): PolygonTriggerCircle {

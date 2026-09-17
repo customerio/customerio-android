@@ -104,7 +104,7 @@ internal object ScenarioLoader {
             "${file.name}: first line is not a scenario header"
         }
 
-        val records = lines.drop(1).mapIndexedNotNull { index, line ->
+        val records = lines.drop(1).mapIndexed { index, line ->
             val obj = runCatching { json.parseToJsonElement(line).jsonObject }.getOrElse {
                 throw IllegalArgumentException("${file.name}: line ${index + 2} is not valid JSON", it)
             }
@@ -121,13 +121,16 @@ internal object ScenarioLoader {
         )
     }
 
-    private fun parseRecord(obj: JsonObject, fileName: String, lineNumber: Int): ScenarioRecord? {
-        val kind = when (obj["k"]?.jsonPrimitive?.content) {
+    private fun parseRecord(obj: JsonObject, fileName: String, lineNumber: Int): ScenarioRecord {
+        val kind = when (val k = obj["k"]?.jsonPrimitive?.content) {
             "given" -> Scenario.Kind.GIVEN
             "when" -> Scenario.Kind.WHEN
             "then" -> Scenario.Kind.THEN
             "note" -> Scenario.Kind.NOTE
-            else -> return null
+            // Rejected, not dropped. Returning null here left the file readable while a record
+            // vanished from the replay — a misspelled `k` would take its input or its assertion
+            // with it and the drive would still report green. iOS throws on the same input.
+            else -> throw IllegalArgumentException("$fileName: line $lineNumber has unknown k '$k'")
         }
         val ev = obj["ev"]?.jsonPrimitive?.content
             ?: throw IllegalArgumentException("$fileName: line $lineNumber has no ev")

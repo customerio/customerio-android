@@ -45,6 +45,23 @@ class ScenarioLoaderTest {
     }
 
     @Test
+    fun load_givenUnknownKind_expectRejected() {
+        // Dropping the record instead left the file readable with an input or an assertion missing
+        // from it, and the drive still reported green. iOS throws on the same line.
+        val error = runCatching {
+            ScenarioLoader.load(
+                scenarioFile(
+                    header("unknown-kind"),
+                    """{"k":"when","at":0.0,"ev":"process.start"}""",
+                    """{"k":"wehn","at":1.0,"ev":"os.callback","ids":"A","t":"enter"}"""
+                )
+            )
+        }.exceptionOrNull()
+        (error is IllegalArgumentException).shouldBeTrue()
+        (error?.message?.contains("wehn") == true).shouldBeTrue()
+    }
+
+    @Test
     fun load_givenBatchedIds_expectAllFencesRead() {
         // GMS batches several fences onto one broadcast; iOS reports one. The loader reads both.
         val scenario = ScenarioLoader.load(

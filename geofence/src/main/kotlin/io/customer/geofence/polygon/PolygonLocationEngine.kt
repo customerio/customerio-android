@@ -151,7 +151,10 @@ internal class PolygonLocationEngine(
             }
         }
         if (!sessionArmed) {
-            logger.logPolygonEvaluationSkipped(PolygonEvaluationSkip.SESSION_NOT_ARMED)
+            // armSessionLocked cannot fail, so the only way to get here is the generation check
+            // above. Reporting this as "session not armed" would hide an identify or sign-out race
+            // behind a reason that cannot actually occur.
+            logger.logPolygonEvaluationSkipped(PolygonEvaluationSkip.USER_STATE_CHANGED)
             return@withLock false
         }
         var acceptedFix = false
@@ -165,22 +168,25 @@ internal class PolygonLocationEngine(
                 logger.logPolygonFixNotUsable(PolygonFixRejection.NO_USABLE_FIX)
                 continue
             }
+            // Every record below is emitted after the block closes. GeofenceLogger forwards to the
+            // host Logger, whose dispatcher is customer code, so logging under stateLock would let
+            // a slow customer lambda stall evaluation. The FIX_TOO_OLD record predates this change
+            // and had the same problem; it is hoisted with the rest rather than left behind in a
+            // block being restructured around it.
+            var userStateChanged = false
+            var fixTooOld = false
+            var noEvaluableFences = false
             val detections = synchronized(stateLock) {
                 if (store.userStateGeneration() != expectedUserStateGeneration) {
-                    logger.logPolygonEvaluationSkipped(PolygonEvaluationSkip.USER_STATE_CHANGED)
-                    return@withLock false
-                }
-                if (!isCurrentSessionFixLocked(fix.elapsedRealtimeNanos)) {
-                    logger.logPolygonFixNotUsable(
-                        PolygonFixRejection.FIX_TOO_OLD,
-                        horizontalAccuracyMeters = fix.sample.horizontalAccuracyMeters,
-                        fixAgeSeconds = GeofenceLogTail.fixAgeSeconds(fix.elapsedRealtimeNanos)
-                    )
+                    userStateChanged = true
+                    null
+                } else if (!isCurrentSessionFixLocked(fix.elapsedRealtimeNanos)) {
+                    fixTooOld = true
                     null
                 } else {
                     val fences = activePolygonFencesLocked()
                     if (fences.isEmpty()) {
-                        logger.logPolygonEvaluationSkipped(PolygonEvaluationSkip.NO_EVALUABLE_FENCES)
+                        noEvaluableFences = true
                         emptyList()
                     } else {
                         acceptedFix = true
@@ -195,9 +201,25 @@ internal class PolygonLocationEngine(
                         )
                     }
                 }
-            } ?: continue
+            }
+            if (userStateChanged) {
+                logger.logPolygonEvaluationSkipped(PolygonEvaluationSkip.USER_STATE_CHANGED)
+                return@withLock false
+            }
+            if (fixTooOld) {
+                logger.logPolygonFixNotUsable(
+                    PolygonFixRejection.FIX_TOO_OLD,
+                    horizontalAccuracyMeters = fix.sample.horizontalAccuracyMeters,
+                    fixAgeSeconds = GeofenceLogTail.fixAgeSeconds(fix.elapsedRealtimeNanos)
+                )
+            }
+            if (noEvaluableFences) {
+                logger.logPolygonEvaluationSkipped(PolygonEvaluationSkip.NO_EVALUABLE_FENCES)
+            }
+            detections ?: continue
             detections.forEach { detection ->
                 if (store.userStateGeneration() != expectedUserStateGeneration) {
+                    // Not under a lock here, so it logs in place and aborts the pass as before.
                     logger.logPolygonEvaluationSkipped(PolygonEvaluationSkip.USER_STATE_CHANGED)
                     return@withLock false
                 }

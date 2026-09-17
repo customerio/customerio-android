@@ -110,7 +110,6 @@ internal enum class PolygonSamplingSkip(val wire: String, val detail: String) {
 internal enum class PolygonEvaluationSkip(val wire: String, val detail: String) {
     USER_STATE_CHANGED("user_state_changed", "user state changed while the fix was in flight"),
     OUTBOX_BLOCKED("outbox_blocked", "an older transition still cannot reach the durable queue"),
-    SESSION_NOT_ARMED("session_not_armed", "no evaluation session could be armed for it"),
     NO_EVALUABLE_FENCES("no_evaluable_fences", "no active polygon had a usable ring to evaluate")
 }
 

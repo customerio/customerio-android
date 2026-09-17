@@ -79,21 +79,27 @@ internal class PolygonGeofenceServiceController(
         polygonId: String,
         expectedUserStateGeneration: Long = store.userStateGeneration(),
         expectedRegionRevision: Int? = null
-    ) = synchronized(controllerLock) {
-        if (!isCurrentRegisteredPolygonLocked(
-                polygonId,
-                expectedUserStateGeneration,
-                expectedRegionRevision
-            )
-        ) {
-            logger.logPolygonCallbackDropped(PolygonCallbackDrop.NOT_ROUTABLE, polygonId)
-            return@synchronized
+    ) {
+        val routable = synchronized(controllerLock) {
+            if (!isCurrentRegisteredPolygonLocked(
+                    polygonId,
+                    expectedUserStateGeneration,
+                    expectedRegionRevision
+                )
+            ) {
+                return@synchronized false
+            }
+            val alreadyActive = polygonId in store.getActivePolygonIds()
+            store.recordPolygonCoarseInside(polygonId)
+            store.activatePolygon(polygonId)
+            if (!alreadyActive) engine.activate(polygonId)
+            approachMonitor.start(expectedUserStateGeneration)
+            true
         }
-        val alreadyActive = polygonId in store.getActivePolygonIds()
-        store.recordPolygonCoarseInside(polygonId)
-        store.activatePolygon(polygonId)
-        if (!alreadyActive) engine.activate(polygonId)
-        approachMonitor.start(expectedUserStateGeneration)
+        // Outside the lock: the host's log dispatcher is customer code.
+        if (!routable) {
+            logger.logPolygonCallbackDropped(PolygonCallbackDrop.NOT_ROUTABLE, polygonId)
+        }
     }
 
     fun deactivate(
@@ -289,12 +295,13 @@ internal class PolygonGeofenceServiceController(
                 logger.logPolygonSamplingSkipped(PolygonSamplingSkip.NO_USABLE_FIX)
                 continue
             }
+            var staleBeforeProcessing = false
             val shouldProcess = synchronized(controllerLock) {
                 if (!hasMatchingIdentifiedUserLocked() ||
                     store.userStateGeneration() != expectedUserStateGeneration
                 ) {
-                    logger.logPolygonSamplingSkipped(PolygonSamplingSkip.NOT_CURRENT_SESSION)
-                    return PolygonSamplingDecision.STALE
+                    staleBeforeProcessing = true
+                    return@synchronized false
                 }
                 val routableIds = store.getRoutableRegisteredIds()
                 val polygons = store.getCachedRegions().filter {
@@ -312,6 +319,13 @@ internal class PolygonGeofenceServiceController(
                     }
                 store.getActivePolygonIds().isNotEmpty()
             }
+            // Logged outside the lock: GeofenceLogger forwards to the host Logger, whose
+            // dispatcher is customer code, and holding controllerLock across it would stall every
+            // activate, deactivate and approach path on a slow lambda.
+            if (staleBeforeProcessing) {
+                logger.logPolygonSamplingSkipped(PolygonSamplingSkip.NOT_CURRENT_SESSION)
+                return PolygonSamplingDecision.STALE
+            }
             if (!shouldProcess) {
                 logger.logPolygonSamplingSkipped(PolygonSamplingSkip.NO_POLYGON_IN_RANGE)
                 continue
@@ -319,12 +333,13 @@ internal class PolygonGeofenceServiceController(
             if (processTriggeredLocation(location, expectedUserStateGeneration)) {
                 lastAcceptedLocation = location
             }
+            var staleAfterProcessing = false
             synchronized(controllerLock) {
                 if (!hasMatchingIdentifiedUserLocked() ||
                     store.userStateGeneration() != expectedUserStateGeneration
                 ) {
-                    logger.logPolygonSamplingSkipped(PolygonSamplingSkip.NOT_CURRENT_SESSION)
-                    return PolygonSamplingDecision.STALE
+                    staleAfterProcessing = true
+                    return@synchronized
                 }
                 val coarseInside = store.getCoarseInsidePolygonIds()
                 val committedInside = store.getEnteredIds()
@@ -340,6 +355,10 @@ internal class PolygonGeofenceServiceController(
                         engine.deactivate(id)
                     }
                 }
+            }
+            if (staleAfterProcessing) {
+                logger.logPolygonSamplingSkipped(PolygonSamplingSkip.NOT_CURRENT_SESSION)
+                return PolygonSamplingDecision.STALE
             }
         }
         val sessionIsCurrent = synchronized(controllerLock) {

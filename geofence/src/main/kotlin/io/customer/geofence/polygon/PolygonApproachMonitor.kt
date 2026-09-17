@@ -58,6 +58,8 @@ internal class PolygonApproachMonitor(
      * requirement onto callers that this class does not actually have, and the only honest way to
      * satisfy it there would be to suppress the warning at each site.
      */
+    private var previousDeadline: Long? = null
+
     fun start(
         expectedUserStateGeneration: Long,
         sessionDeadlineElapsedRealtimeMs: Long = newSessionDeadlineElapsedRealtimeMs()
@@ -88,16 +90,16 @@ internal class PolygonApproachMonitor(
             ) {
                 return
             }
+            // Captured before the field is overwritten, so the outgoing session's teardown can
+            // still name itself and report its own count.
             val previous = activePendingIntent
+            previousDeadline = this.sessionDeadlineElapsedRealtimeMs
             desired = true
             userStateGeneration = expectedUserStateGeneration
             this.sessionDeadlineElapsedRealtimeMs = sessionDeadlineElapsedRealtimeMs
             registrationRetryAttempt = 0
             registrationRetryJob?.cancel()
             registrationRetryJob = null
-            // Reset when the session arms, not when it ends: an ending that bypasses the normal
-            // stop would otherwise carry its samples into the next session's count, and this
-            // instrument exists to make "ended with n=0" decisive. It can only ever hide a zero.
             sessionTimeoutJob?.cancel()
             sessionTimeoutJob = retryScope.launch {
                 delay(
@@ -121,8 +123,10 @@ internal class PolygonApproachMonitor(
         // PendingIntent, so removing "the previous one" would cancel the request made just below,
         // and the removal's success listener would re-request it and log a teardown that never
         // happened.
-        registration.first?.takeIf { it != registration.second }?.let(::removeUpdates)
-        requestUpdates(registration.second, expectedUserStateGeneration)
+        registration.first?.takeIf { it != registration.second }?.let {
+            removeUpdates(it, previousDeadline)
+        }
+        requestUpdates(registration.second, expectedUserStateGeneration, sessionDeadlineElapsedRealtimeMs)
     }
 
     /**
@@ -150,6 +154,13 @@ internal class PolygonApproachMonitor(
         samplesByDeadline
             .putIfAbsent(sessionDeadlineElapsedRealtimeMs, java.util.concurrent.atomic.AtomicInteger(1))
             ?.incrementAndGet()
+        // A teardown that cannot name its session leaves its entry behind, so this is bounded
+        // rather than left to grow for the life of the process. Deadlines increase, so the
+        // smallest key is the oldest session and the one least likely to still be reported.
+        while (samplesByDeadline.size > MAX_TRACKED_SESSIONS) {
+            val oldest = samplesByDeadline.keys.minOrNull() ?: break
+            samplesByDeadline.remove(oldest)
+        }
     }
 
     fun stop(
@@ -219,7 +230,11 @@ internal class PolygonApproachMonitor(
         }
     }
 
-    private fun requestUpdates(pendingIntent: PendingIntent, requestGeneration: Long) {
+    private fun requestUpdates(
+        pendingIntent: PendingIntent,
+        requestGeneration: Long,
+        sessionDeadlineElapsedRealtimeMs: Long?
+    ) {
         try {
             requestApproachUpdates(pendingIntent)
                 .addOnSuccessListener {
@@ -234,7 +249,7 @@ internal class PolygonApproachMonitor(
                         logger.logPolygonApproachRequestDiscarded(
                             synchronized(lock) { userStateGeneration }
                         )
-                        removeUpdates(pendingIntent)
+                        removeUpdates(pendingIntent, sessionDeadlineElapsedRealtimeMs)
                     } else {
                         synchronized(lock) {
                             registrationRetryAttempt = 0
@@ -306,7 +321,13 @@ internal class PolygonApproachMonitor(
                     desired && userStateGeneration == requestGeneration &&
                         activePendingIntent == pendingIntent
                 }
-                if (current) requestUpdates(pendingIntent, requestGeneration)
+                if (current) {
+                    requestUpdates(
+                        pendingIntent,
+                        requestGeneration,
+                        synchronized(lock) { sessionDeadlineElapsedRealtimeMs }
+                    )
+                }
             }
         }
     }
@@ -333,18 +354,26 @@ internal class PolygonApproachMonitor(
                             ?.let { samplesByDeadline.remove(it)?.get() ?: 0 }
                     )
                     if (restartGeneration != null) {
-                        requestUpdates(pendingIntent, restartGeneration)
+                        requestUpdates(
+                            pendingIntent,
+                            restartGeneration,
+                            synchronized(lock) { this.sessionDeadlineElapsedRealtimeMs }
+                        )
                     }
                 }
                 .addOnFailureListener { cause ->
-                    retryRemoval(pendingIntent, cause)
+                    retryRemoval(pendingIntent, cause, sessionDeadlineElapsedRealtimeMs)
                 }
         } catch (e: RuntimeException) {
-            retryRemoval(pendingIntent, e)
+            retryRemoval(pendingIntent, e, sessionDeadlineElapsedRealtimeMs)
         }
     }
 
-    private fun retryRemoval(pendingIntent: PendingIntent, cause: Throwable) {
+    private fun retryRemoval(
+        pendingIntent: PendingIntent,
+        cause: Throwable,
+        sessionDeadlineElapsedRealtimeMs: Long?
+    ) {
         logger.logPolygonApproachRequestFailed(cause.message, operation = "remove_updates")
         synchronized(lock) {
             if (desired && activePendingIntent == pendingIntent) {
@@ -362,12 +391,15 @@ internal class PolygonApproachMonitor(
                 val stillStale = synchronized(lock) {
                     !desired || activePendingIntent != pendingIntent
                 }
-                if (stillStale) removeUpdates(pendingIntent)
+                if (stillStale) removeUpdates(pendingIntent, sessionDeadlineElapsedRealtimeMs)
             }
         }
     }
 
     internal companion object {
+        /** Sessions whose sample counts are retained. Far above the few that can overlap. */
+        private const val MAX_TRACKED_SESSIONS = 16
+
         private const val PENDING_INTENT_REQUEST_CODE = 47302
         internal const val EXTRA_USER_STATE_GENERATION =
             "io.customer.geofence.extra.POLYGON_APPROACH_USER_STATE_GENERATION"

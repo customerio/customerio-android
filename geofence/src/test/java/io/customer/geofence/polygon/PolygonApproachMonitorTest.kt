@@ -214,7 +214,7 @@ class PolygonApproachMonitorTest : RobolectricTest() {
         shadowOf(Looper.getMainLooper()).idle()
 
         verify(atLeast = 1) { client.removeLocationUpdates(any<PendingIntent>()) }
-        verify { logger.logPolygonApproachMonitoringStopped() }
+        verify { logger.logPolygonApproachMonitoringStopped(any()) }
     }
 
     @Test
@@ -236,7 +236,7 @@ class PolygonApproachMonitorTest : RobolectricTest() {
             PolygonApproachMonitor.EXTRA_USER_STATE_GENERATION,
             -1L
         ) shouldBeEqualTo 7L
-        verify { logger.logPolygonApproachMonitoringStopped() }
+        verify { logger.logPolygonApproachMonitoringStopped(any()) }
     }
 
     @Test
@@ -249,7 +249,7 @@ class PolygonApproachMonitorTest : RobolectricTest() {
         shadowOf(Looper.getMainLooper()).idle()
 
         verify(exactly = 0) { client.removeLocationUpdates(any<PendingIntent>()) }
-        verify(exactly = 0) { logger.logPolygonApproachMonitoringStopped() }
+        verify(exactly = 0) { logger.logPolygonApproachMonitoringStopped(any()) }
     }
 
     @Test
@@ -383,7 +383,7 @@ class PolygonApproachMonitorTest : RobolectricTest() {
         shadowOf(Looper.getMainLooper()).idle()
 
         verify(exactly = 0) { client.removeLocationUpdates(any<PendingIntent>()) }
-        verify(exactly = 0) { logger.logPolygonApproachMonitoringStopped() }
+        verify(exactly = 0) { logger.logPolygonApproachMonitoringStopped(any()) }
         // Never retried either: a refusal is not transient.
         verify(exactly = 1) {
             client.requestLocationUpdates(any<LocationRequest>(), any<PendingIntent>())
@@ -440,7 +440,7 @@ class PolygonApproachMonitorTest : RobolectricTest() {
         shadowOf(Looper.getMainLooper()).idle()
 
         verify { logger.logPolygonApproachRequestFailed(any(), "remove_updates") }
-        verify(exactly = 0) { logger.logPolygonApproachMonitoringStopped() }
+        verify(exactly = 0) { logger.logPolygonApproachMonitoringStopped(any()) }
     }
 
     @Test
@@ -559,7 +559,7 @@ class PolygonApproachMonitorTest : RobolectricTest() {
             client.requestLocationUpdates(any<LocationRequest>(), any<PendingIntent>())
         }
         verify(exactly = 0) { client.removeLocationUpdates(any<PendingIntent>()) }
-        verify(exactly = 0) { logger.logPolygonApproachMonitoringStopped() }
+        verify(exactly = 0) { logger.logPolygonApproachMonitoringStopped(any()) }
     }
 
     private fun monitor() = PolygonApproachMonitor(

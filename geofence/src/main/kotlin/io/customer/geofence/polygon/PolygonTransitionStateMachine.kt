@@ -49,6 +49,9 @@ internal class PolygonTransitionStateMachine(
         return candidate
     }
 
+    /** Whether a transition is part-confirmed for [polygonId] and still waiting on more evidence. */
+    fun hasPending(polygonId: String): Boolean = pendingByPolygon.containsKey(polygonId)
+
     fun clear(polygonId: String) {
         pendingByPolygon.remove(polygonId)
     }

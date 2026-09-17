@@ -81,7 +81,8 @@ class PolygonCoarseEnterRealStoreTest : RobolectricTest() {
             engine = engine,
             approachMonitor = approachMonitor,
             manager = manager,
-            secureUserStore = secureUserStore
+            secureUserStore = secureUserStore,
+            logger = mockk(relaxed = true)
         )
     }
 

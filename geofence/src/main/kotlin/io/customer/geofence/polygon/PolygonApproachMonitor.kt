@@ -12,6 +12,7 @@ import com.google.android.gms.location.LocationRequest
 import com.google.android.gms.location.Priority
 import com.google.android.gms.tasks.Task
 import io.customer.geofence.GeofenceLogger
+import io.customer.geofence.PolygonApproachStopRefusal
 import io.customer.geofence.store.GeofenceRegionStore
 import kotlin.coroutines.CoroutineContext
 import kotlinx.coroutines.CoroutineScope
@@ -94,6 +95,10 @@ internal class PolygonApproachMonitor(
             registrationRetryAttempt = 0
             registrationRetryJob?.cancel()
             registrationRetryJob = null
+            // Reset when the session arms, not when it ends: an ending that bypasses the normal
+            // stop would otherwise carry its samples into the next session's count, and this
+            // instrument exists to make "ended with n=0" decisive. It can only ever hide a zero.
+            samplesThisSession.set(0)
             sessionTimeoutJob?.cancel()
             sessionTimeoutJob = retryScope.launch {
                 delay(
@@ -121,10 +126,19 @@ internal class PolygonApproachMonitor(
         requestUpdates(registration.second, expectedUserStateGeneration)
     }
 
+    /** Counted so a session that armed and received nothing is distinguishable from one that never armed. */
+    private val samplesThisSession = java.util.concurrent.atomic.AtomicInteger(0)
+
+    /** Called by the controller on every delivered sample batch. */
+    fun recordSampleDelivered() {
+        samplesThisSession.incrementAndGet()
+    }
+
     fun stop(
         expectedUserStateGeneration: Long? = null,
         expectedSessionDeadlineElapsedRealtimeMs: Long? = null
     ) {
+        var refusal: PolygonApproachStopRefusal? = null
         val pendingIntent = synchronized(lock) {
             // A caller naming a generation means "stop the session I started", so a live session
             // from a later one is not theirs to tear down: an identify can land between reading the
@@ -135,14 +149,16 @@ internal class PolygonApproachMonitor(
                 expectedUserStateGeneration != null &&
                 userStateGeneration != expectedUserStateGeneration
             ) {
-                return
+                refusal = PolygonApproachStopRefusal.NOT_CURRENT_SESSION
+                return@synchronized null
             }
             if (
                 expectedSessionDeadlineElapsedRealtimeMs != null &&
                 desired &&
                 sessionDeadlineElapsedRealtimeMs != expectedSessionDeadlineElapsedRealtimeMs
             ) {
-                return
+                refusal = PolygonApproachStopRefusal.DEADLINE_MISMATCH
+                return@synchronized null
             }
             val generationToRemove = userStateGeneration ?: expectedUserStateGeneration
             desired = false
@@ -155,6 +171,16 @@ internal class PolygonApproachMonitor(
             sessionTimeoutJob = null
             activePendingIntent.also { activePendingIntent = null }
                 ?: generationToRemove?.let { existingPendingIntentOrNull(applicationContext, it) }
+        }
+        // Logged outside the lock. The dispatcher set by setLogDispatcher is host-supplied code,
+        // so invoking it while holding this lock would let a slow customer lambda stall every
+        // start and stop on the monitor. The rest of this file already logs after its blocks close.
+        //
+        // Order is load-bearing: a refusal and a legitimately absent pending intent both yield
+        // null above, and they are told apart only by checking the refusal first.
+        refusal?.let {
+            logger.logPolygonApproachStopRefused(it)
+            return
         }
         pendingIntent?.let(::removeUpdates)
     }
@@ -181,6 +207,12 @@ internal class PolygonApproachMonitor(
                             activePendingIntent != pendingIntent
                     }
                     if (stale) {
+                        // Armed, then discarded the request we had just made. This is the shape
+                        // that produces a started session which never delivers a sample. The
+                        // removal below emits the ending; this only records why it was triggered.
+                        logger.logPolygonApproachRequestDiscarded(
+                            synchronized(lock) { userStateGeneration }
+                        )
                         removeUpdates(pendingIntent)
                     } else {
                         synchronized(lock) {
@@ -269,7 +301,9 @@ internal class PolygonApproachMonitor(
                             desired && activePendingIntent == pendingIntent
                         }
                     }
-                    logger.logPolygonApproachMonitoringStopped()
+                    logger.logPolygonApproachMonitoringStopped(
+                        samplesReceived = samplesThisSession.get()
+                    )
                     if (restartGeneration != null) {
                         requestUpdates(pendingIntent, restartGeneration)
                     }

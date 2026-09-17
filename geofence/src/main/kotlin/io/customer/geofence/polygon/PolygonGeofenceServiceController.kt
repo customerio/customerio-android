@@ -6,9 +6,12 @@ import android.location.Location
 import android.os.SystemClock
 import io.customer.geofence.GeofenceConstants
 import io.customer.geofence.GeofenceLocation
+import io.customer.geofence.GeofenceLogger
 import io.customer.geofence.GeofenceManager
 import io.customer.geofence.GeofenceRegion
 import io.customer.geofence.GeofenceTransitionType
+import io.customer.geofence.PolygonCallbackDrop
+import io.customer.geofence.PolygonSamplingSkip
 import io.customer.geofence.distanceTo
 import io.customer.geofence.store.GeofenceRegionStore
 import io.customer.geofence.store.getCachedConfigOrFallback
@@ -24,7 +27,8 @@ internal class PolygonGeofenceServiceController(
     private val engine: PolygonLocationEngine,
     private val approachMonitor: PolygonApproachMonitor,
     private val manager: GeofenceManager,
-    private val secureUserStore: SecureUserStore
+    private val secureUserStore: SecureUserStore,
+    private val logger: GeofenceLogger
 ) {
     private val movementTriggerPolicy = PolygonMovementTriggerPolicy()
     private val controllerLock = Any()
@@ -52,9 +56,13 @@ internal class PolygonGeofenceServiceController(
         expectedRegionRevision: Int? = null
     ) = coarseTransitionMutex.withLock {
         if (!isCurrentRegisteredPolygon(polygonId, expectedUserStateGeneration, expectedRegionRevision)) {
+            logger.logPolygonCallbackDropped(PolygonCallbackDrop.NOT_ROUTABLE, polygonId)
             return@withLock
         }
-        if (!acceptCoarseTransition(polygonId, triggeringLocation)) return@withLock
+        if (!acceptCoarseTransition(polygonId, triggeringLocation)) {
+            logger.logPolygonCallbackDropped(PolygonCallbackDrop.DUPLICATE_DELIVERY, polygonId)
+            return@withLock
+        }
         activate(polygonId, expectedUserStateGeneration, expectedRegionRevision)
         if (triggeringLocation != null) {
             val accepted = processTriggeredLocation(triggeringLocation, expectedUserStateGeneration)
@@ -78,6 +86,7 @@ internal class PolygonGeofenceServiceController(
                 expectedRegionRevision
             )
         ) {
+            logger.logPolygonCallbackDropped(PolygonCallbackDrop.NOT_ROUTABLE, polygonId)
             return@synchronized
         }
         val alreadyActive = polygonId in store.getActivePolygonIds()
@@ -107,9 +116,13 @@ internal class PolygonGeofenceServiceController(
         expectedRegionRevision: Int? = null
     ) = coarseTransitionMutex.withLock {
         if (!isCurrentRegisteredPolygon(polygonId, expectedUserStateGeneration, expectedRegionRevision)) {
+            logger.logPolygonCallbackDropped(PolygonCallbackDrop.NOT_ROUTABLE, polygonId)
             return@withLock
         }
-        if (!acceptCoarseTransition(polygonId, triggeringLocation)) return@withLock
+        if (!acceptCoarseTransition(polygonId, triggeringLocation)) {
+            logger.logPolygonCallbackDropped(PolygonCallbackDrop.DUPLICATE_DELIVERY, polygonId)
+            return@withLock
+        }
         val recordedCoarseExit = synchronized(controllerLock) {
             if (!isCurrentRegisteredPolygonLocked(
                     polygonId,
@@ -123,7 +136,10 @@ internal class PolygonGeofenceServiceController(
                 true
             }
         }
-        if (!recordedCoarseExit) return@withLock
+        if (!recordedCoarseExit) {
+            logger.logPolygonCallbackDropped(PolygonCallbackDrop.NOT_ROUTABLE, polygonId)
+            return@withLock
+        }
         if (triggeringLocation != null) {
             val accepted = processTriggeredLocation(triggeringLocation, expectedUserStateGeneration)
             if (accepted) {
@@ -165,10 +181,12 @@ internal class PolygonGeofenceServiceController(
     ): Float? {
         if (triggeringLocation == null) return null
         val fix = triggeringLocation.toPolygonLocationFix()
+        var notCurrentSession = false
         val activated = synchronized(controllerLock) {
             if (!hasMatchingIdentifiedUserLocked() ||
                 store.userStateGeneration() != expectedUserStateGeneration
             ) {
+                notCurrentSession = true
                 return@synchronized false
             }
             val activeIds = store.getActivePolygonIds()
@@ -195,7 +213,19 @@ internal class PolygonGeofenceServiceController(
             if (polygonIds.isNotEmpty()) approachMonitor.start(expectedUserStateGeneration)
             polygonIds.isNotEmpty()
         }
-        if (!activated) return null
+        if (!activated) {
+            // Split deliberately. "No polygon in range" is routine and would otherwise fill the
+            // capture, hiding the two state failures inside it — and a lost arrival caused by a
+            // generation mismatch on this path would read as routine.
+            logger.logPolygonCallbackDropped(
+                if (notCurrentSession) {
+                    PolygonCallbackDrop.NOT_CURRENT_SESSION
+                } else {
+                    PolygonCallbackDrop.NO_POLYGON_IN_RANGE
+                }
+            )
+            return null
+        }
         val accepted = processTriggeredLocation(triggeringLocation, expectedUserStateGeneration)
         return if (accepted) {
             updateMovementTriggerFromAcceptedFix(
@@ -238,19 +268,32 @@ internal class PolygonGeofenceServiceController(
         locations: List<Location>,
         expectedUserStateGeneration: Long
     ): PolygonSamplingDecision {
-        if (locations.isEmpty()) return PolygonSamplingDecision.CONTINUE
+        if (locations.isEmpty()) {
+            logger.logPolygonSamplingSkipped(PolygonSamplingSkip.EMPTY_BATCH)
+            return PolygonSamplingDecision.CONTINUE
+        }
         val admitted = synchronized(controllerLock) {
             hasMatchingIdentifiedUserLocked() &&
                 store.userStateGeneration() == expectedUserStateGeneration
         }
-        if (!admitted) return PolygonSamplingDecision.STALE
+        if (!admitted) {
+            // The one reason here that ends sampling outright rather than dropping a sample.
+            logger.logPolygonSamplingSkipped(PolygonSamplingSkip.NOT_CURRENT_SESSION)
+            return PolygonSamplingDecision.STALE
+        }
+        approachMonitor.recordSampleDelivered()
         var lastAcceptedLocation: Location? = null
         for (location in locations.sortedBy(Location::getElapsedRealtimeNanos)) {
-            val fix = location.toPolygonLocationFix() ?: continue
+            val fix = location.toPolygonLocationFix()
+            if (fix == null) {
+                logger.logPolygonSamplingSkipped(PolygonSamplingSkip.NO_USABLE_FIX)
+                continue
+            }
             val shouldProcess = synchronized(controllerLock) {
                 if (!hasMatchingIdentifiedUserLocked() ||
                     store.userStateGeneration() != expectedUserStateGeneration
                 ) {
+                    logger.logPolygonSamplingSkipped(PolygonSamplingSkip.NOT_CURRENT_SESSION)
                     return PolygonSamplingDecision.STALE
                 }
                 val routableIds = store.getRoutableRegisteredIds()
@@ -269,7 +312,10 @@ internal class PolygonGeofenceServiceController(
                     }
                 store.getActivePolygonIds().isNotEmpty()
             }
-            if (!shouldProcess) continue
+            if (!shouldProcess) {
+                logger.logPolygonSamplingSkipped(PolygonSamplingSkip.NO_POLYGON_IN_RANGE)
+                continue
+            }
             if (processTriggeredLocation(location, expectedUserStateGeneration)) {
                 lastAcceptedLocation = location
             }
@@ -277,6 +323,7 @@ internal class PolygonGeofenceServiceController(
                 if (!hasMatchingIdentifiedUserLocked() ||
                     store.userStateGeneration() != expectedUserStateGeneration
                 ) {
+                    logger.logPolygonSamplingSkipped(PolygonSamplingSkip.NOT_CURRENT_SESSION)
                     return PolygonSamplingDecision.STALE
                 }
                 val coarseInside = store.getCoarseInsidePolygonIds()

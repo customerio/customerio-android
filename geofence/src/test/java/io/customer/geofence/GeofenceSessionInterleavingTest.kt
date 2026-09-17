@@ -109,7 +109,8 @@ class GeofenceSessionInterleavingTest : RobolectricTest() {
             engine = mockk(relaxed = true),
             approachMonitor = mockk(relaxed = true),
             manager = mockk(relaxed = true),
-            secureUserStore = secureUserStore
+            secureUserStore = secureUserStore,
+            logger = mockk(relaxed = true)
         )
         store.beginUserSession(USER_A)
         val readStarted = CountDownLatch(1)

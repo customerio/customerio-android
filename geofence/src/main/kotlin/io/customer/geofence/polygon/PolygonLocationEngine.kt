@@ -5,6 +5,7 @@ import android.os.SystemClock
 import io.customer.geofence.GeofenceBusinessTransitionProcessor
 import io.customer.geofence.GeofenceLogTail
 import io.customer.geofence.GeofenceLogger
+import io.customer.geofence.PolygonEvaluationSkip
 import io.customer.geofence.PolygonFixRejection
 import io.customer.geofence.PolygonNotRankedReason
 import io.customer.geofence.store.GeofenceRegionStore
@@ -127,11 +128,20 @@ internal class PolygonLocationEngine(
         expectedUserStateGeneration: Long
     ): Boolean = processingMutex.withLock {
         if (locations.isEmpty()) return@withLock false
-        if (store.userStateGeneration() != expectedUserStateGeneration) return@withLock false
+        if (store.userStateGeneration() != expectedUserStateGeneration) {
+            logger.logPolygonEvaluationSkipped(PolygonEvaluationSkip.USER_STATE_CHANGED)
+            return@withLock false
+        }
         // Every active location batch is also an autonomous outbox-recovery opportunity. Do not
         // evaluate a newer edge while an older one is still unable to reach the durable file queue.
-        if (!transitionProcessor.recoverPendingTransitions()) return@withLock false
-        if (store.userStateGeneration() != expectedUserStateGeneration) return@withLock false
+        if (!transitionProcessor.recoverPendingTransitions()) {
+            logger.logPolygonEvaluationSkipped(PolygonEvaluationSkip.OUTBOX_BLOCKED)
+            return@withLock false
+        }
+        if (store.userStateGeneration() != expectedUserStateGeneration) {
+            logger.logPolygonEvaluationSkipped(PolygonEvaluationSkip.USER_STATE_CHANGED)
+            return@withLock false
+        }
         val sessionArmed = synchronized(stateLock) {
             if (store.userStateGeneration() != expectedUserStateGeneration) {
                 false
@@ -140,17 +150,26 @@ internal class PolygonLocationEngine(
                 true
             }
         }
-        if (!sessionArmed) return@withLock false
+        if (!sessionArmed) {
+            logger.logPolygonEvaluationSkipped(PolygonEvaluationSkip.SESSION_NOT_ARMED)
+            return@withLock false
+        }
         var acceptedFix = false
         for (location in locations.sortedBy(Location::getElapsedRealtimeNanos)) {
-            if (store.userStateGeneration() != expectedUserStateGeneration) return@withLock false
+            if (store.userStateGeneration() != expectedUserStateGeneration) {
+                logger.logPolygonEvaluationSkipped(PolygonEvaluationSkip.USER_STATE_CHANGED)
+                return@withLock false
+            }
             val fix = location.toPolygonLocationFix()
             if (fix == null) {
                 logger.logPolygonFixNotUsable(PolygonFixRejection.NO_USABLE_FIX)
                 continue
             }
             val detections = synchronized(stateLock) {
-                if (store.userStateGeneration() != expectedUserStateGeneration) return@withLock false
+                if (store.userStateGeneration() != expectedUserStateGeneration) {
+                    logger.logPolygonEvaluationSkipped(PolygonEvaluationSkip.USER_STATE_CHANGED)
+                    return@withLock false
+                }
                 if (!isCurrentSessionFixLocked(fix.elapsedRealtimeNanos)) {
                     logger.logPolygonFixNotUsable(
                         PolygonFixRejection.FIX_TOO_OLD,
@@ -161,6 +180,7 @@ internal class PolygonLocationEngine(
                 } else {
                     val fences = activePolygonFencesLocked()
                     if (fences.isEmpty()) {
+                        logger.logPolygonEvaluationSkipped(PolygonEvaluationSkip.NO_EVALUABLE_FENCES)
                         emptyList()
                     } else {
                         acceptedFix = true
@@ -177,7 +197,10 @@ internal class PolygonLocationEngine(
                 }
             } ?: continue
             detections.forEach { detection ->
-                if (store.userStateGeneration() != expectedUserStateGeneration) return@withLock false
+                if (store.userStateGeneration() != expectedUserStateGeneration) {
+                    logger.logPolygonEvaluationSkipped(PolygonEvaluationSkip.USER_STATE_CHANGED)
+                    return@withLock false
+                }
                 val transition = when (detection.transition) {
                     PolygonTransition.ENTER -> Event.GeofenceTransition.ENTER
                     PolygonTransition.EXIT -> Event.GeofenceTransition.EXIT

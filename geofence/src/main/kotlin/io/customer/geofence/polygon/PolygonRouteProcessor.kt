@@ -96,7 +96,18 @@ internal class PolygonRouteProcessor(
                         PolygonTransition.ENTER
                     }
                     else -> confirmArrival(fence.id, committedState, evidence, elapsedRealtimeNanos)
-                        ?: return@mapNotNull null
+                        ?: run {
+                            // Decided ENTER, held for a second fix. Without this record the branch
+                            // consumes a fix and emits nothing, which is indistinguishable in a
+                            // capture from a callback that never arrived.
+                            logger.logPolygonArrivalPending(
+                                geofenceId = fence.id,
+                                signedBoundaryDistanceMeters = result.signedBoundaryDistanceMeters,
+                                horizontalAccuracyMeters = sample.horizontalAccuracyMeters,
+                                fixAgeSeconds = fixAgeSeconds
+                            )
+                            return@mapNotNull null
+                        }
                 }
                 // Departure keeps its clearance margin, so it needs no second opinion, and delaying
                 // it would report a visit as still running after it ended.
@@ -137,8 +148,24 @@ internal class PolygonRouteProcessor(
      * and a marginal fix from a pass minutes later combine into an arrival neither observed.
      */
     private fun retireStaleArrivalConfirmation(polygonId: String, elapsedRealtimeNanos: Long) {
+        // Derived from the state machine rather than maintained alongside it. Three call sites end
+        // a hold and only one of them owns this map, so every attempt to keep the two in step at
+        // the write sites has left a stamp behind and reported an expiry for an arrival that never
+        // existed or had already been honoured.
+        if (!arrivalConfirmations.hasPending(polygonId)) {
+            arrivalConfirmationNanos.remove(polygonId)
+            return
+        }
         val observedAt = arrivalConfirmationNanos[polygonId] ?: return
-        if (elapsedRealtimeNanos - observedAt > MAX_CORROBORATION_GAP_NANOS) {
+        val heldForNanos = elapsedRealtimeNanos - observedAt
+        if (heldForNanos > MAX_CORROBORATION_GAP_NANOS) {
+            // The counterpart to the pending record. Without it a capture cannot separate a hold
+            // that completed from one that died, which is the whole question the field has to
+            // answer about corroboration.
+            logger.logPolygonArrivalExpired(
+                geofenceId = polygonId,
+                heldForSeconds = heldForNanos.toDouble() / NANOS_PER_SECOND
+            )
             arrivalConfirmations.clear(polygonId)
             arrivalConfirmationNanos.remove(polygonId)
         }
@@ -150,8 +177,17 @@ internal class PolygonRouteProcessor(
         evidence: PolygonEvidence,
         elapsedRealtimeNanos: Long
     ): PolygonTransition? {
-        arrivalConfirmationNanos[polygonId] = elapsedRealtimeNanos
-        return arrivalConfirmations.evaluate(polygonId, committedState, evidence)
+        val transition = arrivalConfirmations.evaluate(polygonId, committedState, evidence)
+        // Only a fence actually holding a part-confirmed arrival is timed. This is also reached to
+        // break a run of agreeing fixes, and stamping those made every quiet fence look like a
+        // pending arrival that later expired. The read in retireStaleArrivalConfirmation re-derives
+        // this, so a stamp left behind by another call site cannot outlive its hold.
+        if (arrivalConfirmations.hasPending(polygonId)) {
+            arrivalConfirmationNanos[polygonId] = elapsedRealtimeNanos
+        } else {
+            arrivalConfirmationNanos.remove(polygonId)
+        }
+        return transition
     }
 
     private fun recorded(
@@ -184,5 +220,6 @@ internal class PolygonRouteProcessor(
          * Bounds the age of the evidence, not how much of it is required.
          */
         const val MAX_CORROBORATION_GAP_NANOS = 60_000_000_000L
+        const val NANOS_PER_SECOND = 1_000_000_000.0
     }
 }

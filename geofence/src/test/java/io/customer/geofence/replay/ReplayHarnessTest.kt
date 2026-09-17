@@ -208,9 +208,14 @@ class ReplayHarnessTest : RobolectricTest() {
         val scenario = ScenarioLoader.load(
             scenarioFile(
                 header("anonymous"),
-                """{"k":"when","at":1.0,"ev":"location.fix","lat":10.00000,"lon":20.00000,"prov":"bus"}""",
+                // Identify first, then the fix — the order the crossing case uses. Inverted, this
+                // scenario never reached a registration at all: identify carries no position, so
+                // `onLocationAcquired` exits with no user set, the sync never runs, the fixture goes
+                // unused and B is never registered. The drop below then passed on `unknown_id`
+                // without exercising sign-out, which is the behaviour this case is named for.
+                """{"k":"when","at":1.0,"ev":"identity.changed","ok":true}""",
+                """{"k":"when","at":1.5,"ev":"location.fix","lat":10.00000,"lon":20.00000,"prov":"bus"}""",
                 """{"k":"given","at":2.0,"ev":"fixture.api.fetch","ok":true,"n":1,"body":[${fenceFarAway("B")}]}""",
-                """{"k":"when","at":2.0,"ev":"identity.changed","ok":true}""",
                 """{"k":"when","at":30.0,"ev":"identity.changed","ok":false}""",
                 """{"k":"when","at":60.0,"ev":"os.callback","ids":"B","n":1,"t":"enter","lat":10.04510,"lon":20.00000}"""
             )
@@ -219,6 +224,13 @@ class ReplayHarnessTest : RobolectricTest() {
         runner().run(scenario)
 
         val emitted = replayLogger.emitted()
+        // The precondition the case is named for. Without it the refusal below cannot be told apart
+        // from a drive that never registered anything to refuse.
+        api.fetchCount shouldBeEqualTo 1
+        api.unusedFixtureCount shouldBeEqualTo 0
+        emitted.count { it.ev == "registration.applied" } shouldBeEqualTo 1
+        registrar.calls.any { it.startsWith("replace(") }.shouldBeTrue()
+
         emitted.none { it.ev == "transition.accepted" }.shouldBeTrue()
         // Sign-out clears the registered set, so the crossing is refused as an orphan before it can
         // reach the identity check. Either refusal is a `transition.dropped`; both are the SDK
@@ -239,14 +251,22 @@ class ReplayHarnessTest : RobolectricTest() {
         val scenario = ScenarioLoader.load(
             scenarioFile(
                 header("orphan"),
-                """{"k":"when","at":1.0,"ev":"location.fix","lat":10.00000,"lon":20.00000,"prov":"bus"}""",
+                // Identify before the fix, for the reason the anonymous case spells out: the other
+                // order registers nothing, and "GHOST is unknown" is not a discrimination when the
+                // store is empty and every id is unknown.
+                """{"k":"when","at":1.0,"ev":"identity.changed","ok":true}""",
+                """{"k":"when","at":1.5,"ev":"location.fix","lat":10.00000,"lon":20.00000,"prov":"bus"}""",
                 """{"k":"given","at":2.0,"ev":"fixture.api.fetch","ok":true,"n":1,"body":[${fenceAtDevice("A")}]}""",
-                """{"k":"when","at":2.0,"ev":"identity.changed","ok":true}""",
                 """{"k":"when","at":60.0,"ev":"os.callback","ids":"GHOST","n":1,"t":"enter","lat":10.00000,"lon":20.00000}"""
             )
         )
 
         runner().run(scenario)
+
+        // A is registered and GHOST is not, so the refusal below is the SDK telling them apart
+        // rather than an empty store refusing everything put to it.
+        api.fetchCount shouldBeEqualTo 1
+        registrar.registeredIds.contains("A").shouldBeTrue()
 
         val dropped = replayLogger.emitted().filter { it.ev == "transition.dropped" }
         dropped.any { it.fields["id"] == "GHOST" && it.fields["why"] == "unknown_id" }.shouldBeTrue()

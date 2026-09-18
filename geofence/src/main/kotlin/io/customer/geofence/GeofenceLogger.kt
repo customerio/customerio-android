@@ -64,6 +64,63 @@ internal enum class PolygonFixRejection(val wire: String, val detail: String) {
 }
 
 /**
+ * Why a delivered OS geofence callback was discarded before anything was evaluated.
+ *
+ * Added after the 2026-09-17 drive, where an arrival was lost and left no record at all. These are
+ * the controller's own refusals, each one netting against an `os.callback.received` receipt.
+ */
+internal enum class PolygonCallbackDrop(val wire: String, val detail: String) {
+    NOT_ROUTABLE("not_routable", "the fence is not a current routable registration"),
+    DUPLICATE_DELIVERY("duplicate_delivery", "this fix was already delivered for this fence"),
+    NO_POLYGON_IN_RANGE("no_polygon_in_range", "no routable polygon lies within reach of this fix"),
+    NOT_CURRENT_SESSION("not_current_session", "it belongs to a user or state generation that is no longer current")
+}
+
+/**
+ * A stop that was declined. The session is still live afterwards, so these are deliberately NOT
+ * endings: counting them as such would over-count sessions that ended in any capture.
+ */
+/** Why a held arrival was discarded without being reported. */
+internal enum class PolygonArrivalExpiry(val wire: String, val detail: String) {
+    WINDOW_ELAPSED("window_elapsed", "no second agreeing fix arrived inside the corroboration window"),
+    SESSION_ENDED("session_ended", "the evaluation session ended while it was still waiting"),
+    EVIDENCE_BROKEN("evidence_broken", "a later fix disagreed or could not judge, so the run of agreeing fixes ended")
+}
+
+internal enum class PolygonApproachStopRefusal(val wire: String, val detail: String) {
+    NOT_CURRENT_SESSION("not_current_session", "the live session belongs to a later generation"),
+    DEADLINE_MISMATCH("deadline_mismatch", "it named a different session deadline")
+}
+
+/**
+ * Why the bounded approach session discarded one of its own samples, or stopped.
+ *
+ * The open half of the 2026-09-17 investigation: a held arrival starved because sampling went
+ * quiet for five minutes and nothing recorded why. [NOT_CURRENT_SESSION] is the one that ends
+ * sampling outright; the rest discard a single fix and keep going.
+ */
+internal enum class PolygonSamplingSkip(val wire: String, val detail: String) {
+    NOT_CURRENT_SESSION("not_current_session", "it belongs to a user or state generation that is no longer current"),
+    EMPTY_BATCH("empty_batch", "the delivery carried no locations"),
+    NO_USABLE_FIX("no_usable_fix", "the sample carries no usable accuracy or monotonic timestamp"),
+    NO_POLYGON_IN_RANGE("no_polygon_in_range", "no routable polygon lies within reach of the sample")
+}
+
+/**
+ * Why a fix reached the engine but no polygon was evaluated against it.
+ *
+ * Deliberately NOT `os.callback.dropped`. The engine is reached from the bounded approach session
+ * as well as from a callback, so these records have no receipt to net against, and one blocked
+ * batch can emit several of them for zero callbacks. They are evaluation refusals, not callback
+ * drops, and a capture that conflated the two would over-count dropped callbacks.
+ */
+internal enum class PolygonEvaluationSkip(val wire: String, val detail: String) {
+    USER_STATE_CHANGED("user_state_changed", "user state changed while the fix was in flight"),
+    OUTBOX_BLOCKED("outbox_blocked", "an older transition still cannot reach the durable queue"),
+    NO_EVALUABLE_FENCES("no_evaluable_fences", "no active polygon had a usable ring to evaluate")
+}
+
+/**
  * Structured logger for geofence operations, tagged for logcat filtering.
  *
  * Every record carries a ` || key=value` tail after its human-readable prose: `ev=` is a stable
@@ -1128,6 +1185,116 @@ internal class GeofenceLogger(private val logger: Logger) {
         )
     }
 
+    /**
+     * An arrival that was decided but is being held for a second agreeing fix.
+     *
+     * This branch consumed a fix and emitted nothing at all, which is how the 2026-09-17 arrival
+     * looked identical to a callback that never arrived. It is the only path in the pipeline that
+     * decides something and stays silent, so it needs its own record rather than a drop reason:
+     * the fence IS arriving, and a capture that calls it a refusal would mis-calibrate the margins.
+     */
+    fun logPolygonArrivalPending(
+        geofenceId: String,
+        signedBoundaryDistanceMeters: Double?,
+        horizontalAccuracyMeters: Double?,
+        fixAgeSeconds: Double?
+    ) {
+        logger.debug(
+            "Polygon '$geofenceId' reads as an arrival but its accuracy circle reaches the boundary. Holding for a second agreeing fix." +
+                tail(
+                    "polygon.arrival.pending",
+                    GeofenceLogIo.OUTPUT,
+                    listOf(
+                        "id" to geofenceId,
+                        "sh" to "polygon",
+                        "edge" to num(signedBoundaryDistanceMeters),
+                        "acc" to num(horizontalAccuracyMeters),
+                        "age" to num(fixAgeSeconds)
+                    )
+                ),
+            tag = TAG
+        )
+    }
+
+    /**
+     * One record per discarded callback, keyed `os.callback.dropped` so it nets against the
+     * `os.callback.received` receipt exactly like every other drop on this path.
+     */
+    /**
+     * A fix the engine accepted but evaluated nothing against. Separate from a callback drop
+     * because the approach session reaches this path too; see [PolygonEvaluationSkip].
+     */
+    /**
+     * One record per discarded approach sample. Sampling is what supplies a corroborating fix, so
+     * a silent gap here is indistinguishable from the session never having run.
+     */
+    fun logPolygonSamplingSkipped(reason: PolygonSamplingSkip) {
+        logger.debug(
+            "Polygon approach sample skipped — ${reason.detail}." +
+                tail(
+                    "polygon.sampling.skipped",
+                    GeofenceLogIo.OUTPUT,
+                    listOf("why" to reason.wire)
+                ),
+            tag = TAG
+        )
+    }
+
+    fun logPolygonEvaluationSkipped(reason: PolygonEvaluationSkip) {
+        logger.debug(
+            "Polygon evaluation skipped — ${reason.detail}. No polygon was judged against this fix." +
+                tail(
+                    "polygon.evaluation.skipped",
+                    GeofenceLogIo.OUTPUT,
+                    listOf("why" to reason.wire)
+                ),
+            tag = TAG
+        )
+    }
+
+    /**
+     * A held arrival discarded because no corroborating fix arrived in time.
+     *
+     * The counterpart to [logPolygonArrivalPending], and the record that makes a capture readable:
+     * without it a trace shows N holds and M decisions and cannot say which holds completed and
+     * which died. That is the question the field has to answer.
+     */
+    fun logPolygonArrivalExpired(
+        geofenceId: String,
+        reason: PolygonArrivalExpiry,
+        heldForSeconds: Double? = null
+    ) {
+        logger.debug(
+            "Polygon '$geofenceId' arrival expired — ${reason.detail}. The visit was not reported." +
+                tail(
+                    "polygon.arrival.expired",
+                    GeofenceLogIo.OUTPUT,
+                    listOf(
+                        "id" to geofenceId,
+                        "sh" to "polygon",
+                        "why" to reason.wire,
+                        "held" to num(heldForSeconds)
+                    )
+                ),
+            tag = TAG
+        )
+    }
+
+    fun logPolygonCallbackDropped(reason: PolygonCallbackDrop, geofenceId: String? = null) {
+        logger.debug(
+            "Polygon callback discarded — ${reason.detail}. Nothing was evaluated for it." +
+                tail(
+                    "os.callback.dropped",
+                    GeofenceLogIo.INPUT,
+                    listOf(
+                        "why" to reason.wire,
+                        "id" to geofenceId
+                    )
+                ),
+            tag = TAG
+        )
+    }
+
     fun logPolygonFixNotUsable(
         reason: PolygonFixRejection,
         horizontalAccuracyMeters: Double? = null,
@@ -1308,10 +1475,54 @@ internal class GeofenceLogger(private val logger: Logger) {
         )
     }
 
-    fun logPolygonApproachMonitoringStopped() {
+    /**
+     * The sampler armed and then discarded the request it had just made, because the session went
+     * stale between asking and being granted.
+     *
+     * Its own key, not `polygon.approach.stopped`. This is a teardown *initiation*: the removal it
+     * triggers emits the ending itself, so sharing the key would make one stale teardown look like
+     * two endings and break started-versus-stopped counting on the exact path this exists to catch.
+     *
+     * `gen` is carried because this can fire while a NEWER session is live, and without it a reader
+     * cannot tell whether sampling is still running afterwards.
+     */
+    fun logPolygonApproachRequestDiscarded(userStateGeneration: Long?) {
+        logger.debug(
+            "Polygon approach request discarded — it went stale between being asked for and granted." +
+                tail(
+                    "polygon.approach.request_discarded",
+                    GeofenceLogIo.OUTPUT,
+                    listOf("gen" to userStateGeneration?.let { int(it.toInt()) })
+                ),
+            tag = TAG
+        )
+    }
+
+    /**
+     * A stop that was declined, leaving sampling running. Separate event from
+     * [logPolygonApproachSessionEnded] so a capture counting endings cannot count these as one.
+     */
+    fun logPolygonApproachStopRefused(reason: PolygonApproachStopRefusal) {
+        logger.debug(
+            "Polygon approach stop refused — ${reason.detail}. Sampling continues." +
+                tail(
+                    "polygon.approach.stop_refused",
+                    GeofenceLogIo.OUTPUT,
+                    listOf("why" to reason.wire)
+                ),
+            tag = TAG
+        )
+    }
+
+    /** [samplesReceived] is how many sample batches the session delivered, zero being the finding. */
+    fun logPolygonApproachMonitoringStopped(samplesReceived: Int? = null) {
         logger.debug(
             "Polygon responsive approach monitoring removed" +
-                tail("polygon.approach.stopped", GeofenceLogIo.OUTPUT),
+                tail(
+                    "polygon.approach.stopped",
+                    GeofenceLogIo.OUTPUT,
+                    listOf("n" to samplesReceived?.let(::int))
+                ),
             tag = TAG
         )
     }

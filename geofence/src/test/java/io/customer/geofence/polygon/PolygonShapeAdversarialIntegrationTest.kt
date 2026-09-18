@@ -1,8 +1,5 @@
 package io.customer.geofence.polygon
 
-import io.customer.geofence.GeofenceLogger
-import io.customer.sdk.core.util.CioLogLevel
-import io.customer.sdk.core.util.Logger
 import kotlin.math.PI
 import kotlin.math.atan2
 import kotlin.math.cos
@@ -166,9 +163,7 @@ class PolygonShapeAdversarialIntegrationTest {
     private class RouteHarness(
         private val fences: List<PolygonFence>
     ) {
-        private val processor = PolygonRouteProcessor(
-            logger = GeofenceLogger(DiscardingLogger())
-        )
+        private val processor = PolygonRouteProcessor()
         private val committedStates = mutableMapOf<String, PolygonCommittedState>()
         private var elapsedRealtimeNanos = 0L
 
@@ -185,7 +180,7 @@ class PolygonShapeAdversarialIntegrationTest {
                 elapsedRealtimeNanos = elapsedRealtimeNanos,
                 fixAgeSeconds = 0.0,
                 committedStates = committedStates
-            ).also { detections ->
+            ).detections.also { detections ->
                 detections.forEach { detection ->
                     committedStates[detection.polygonId] = when (detection.transition) {
                         PolygonTransition.ENTER -> PolygonCommittedState.INSIDE
@@ -217,14 +212,4 @@ class PolygonShapeAdversarialIntegrationTest {
             return EARTH_RADIUS_METERS * centralAngle
         }
     }
-}
-
-private class DiscardingLogger : Logger {
-    override var logLevel: CioLogLevel = CioLogLevel.NONE
-
-    override fun setLogDispatcher(dispatcher: ((CioLogLevel, String) -> Unit)?) = Unit
-
-    override fun info(message: String, tag: String?) = Unit
-    override fun debug(message: String, tag: String?) = Unit
-    override fun error(message: String, tag: String?, throwable: Throwable?) = Unit
 }

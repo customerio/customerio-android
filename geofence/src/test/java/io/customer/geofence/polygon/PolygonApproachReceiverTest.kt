@@ -21,7 +21,7 @@ class PolygonApproachReceiverTest : RobolectricTest() {
     fun handleLocations_givenCurrentUserGeneration_expectRoutesFixesToController() = runTest {
         val locations = listOf(location())
         coEvery {
-            controller.processApproachLocations(locations, 7L)
+            controller.processApproachLocations(locations, 7L, any())
         } returns PolygonSamplingDecision.CONTINUE
 
         PolygonApproachReceiver().handleLocations(
@@ -34,7 +34,9 @@ class PolygonApproachReceiverTest : RobolectricTest() {
         )
 
         verify { controller.beginUserSessionForCurrentUser() }
-        coVerify { controller.processApproachLocations(locations, 7L) }
+        // Pinned, not any(): the deadline is what identifies the delivering session, and the
+        // sample count is attributed with it. A wildcard here would not notice it going missing.
+        coVerify { controller.processApproachLocations(locations, 7L, Long.MAX_VALUE) }
         verify { monitor.start(7L, Long.MAX_VALUE) }
         verify(exactly = 0) { monitor.removeStaleGeneration(any()) }
     }
@@ -47,7 +49,7 @@ class PolygonApproachReceiverTest : RobolectricTest() {
         // just armed. Opening by value is what makes that reachable.
         val locations = listOf(location())
         coEvery {
-            controller.processApproachLocations(locations, 7L)
+            controller.processApproachLocations(locations, 7L, any())
         } returns PolygonSamplingDecision.CONTINUE
 
         PolygonApproachReceiver().handleLocations(
@@ -66,7 +68,7 @@ class PolygonApproachReceiverTest : RobolectricTest() {
     fun handleLocations_givenStaleUserGeneration_expectRemovesOldBackgroundRequest() = runTest {
         val locations = listOf(location())
         coEvery {
-            controller.processApproachLocations(locations, 7L)
+            controller.processApproachLocations(locations, 7L, any())
         } returns PolygonSamplingDecision.STALE
 
         PolygonApproachReceiver().handleLocations(
@@ -92,7 +94,7 @@ class PolygonApproachReceiverTest : RobolectricTest() {
             monitor = monitor
         )
 
-        coVerify(exactly = 0) { controller.processApproachLocations(any(), any()) }
+        coVerify(exactly = 0) { controller.processApproachLocations(any(), any(), any()) }
         verify { monitor.removeStaleGeneration(7L) }
     }
 
@@ -100,7 +102,7 @@ class PolygonApproachReceiverTest : RobolectricTest() {
     fun handleLocations_givenExpiredSession_expectEvaluatesDeliveredFixThenRemovesMatchingRequest() = runTest {
         val locations = listOf(location())
         coEvery {
-            controller.processApproachLocations(locations, 7L)
+            controller.processApproachLocations(locations, 7L, any())
         } returns PolygonSamplingDecision.CONTINUE
         val deadline = SystemClock.elapsedRealtime()
 
@@ -113,7 +115,7 @@ class PolygonApproachReceiverTest : RobolectricTest() {
             monitor = monitor
         )
 
-        coVerify { controller.processApproachLocations(locations, 7L) }
+        coVerify { controller.processApproachLocations(locations, 7L, any()) }
         verify { monitor.stop(7L, deadline) }
     }
 
@@ -121,7 +123,7 @@ class PolygonApproachReceiverTest : RobolectricTest() {
     fun handleLocations_givenSafeDecision_expectColdProcessRequestIsRemoved() = runTest {
         val locations = listOf(location())
         coEvery {
-            controller.processApproachLocations(locations, 7L)
+            controller.processApproachLocations(locations, 7L, any())
         } returns PolygonSamplingDecision.STOP
 
         PolygonApproachReceiver().handleLocations(

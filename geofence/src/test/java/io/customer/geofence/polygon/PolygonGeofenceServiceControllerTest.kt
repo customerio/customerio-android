@@ -5,8 +5,10 @@ import android.location.Location
 import io.customer.geofence.GeofenceConfig
 import io.customer.geofence.GeofenceConstants
 import io.customer.geofence.GeofenceLocation
+import io.customer.geofence.GeofenceLogger
 import io.customer.geofence.GeofenceManager
 import io.customer.geofence.GeofenceRegion
+import io.customer.geofence.PolygonCallbackDrop
 import io.customer.geofence.store.GeofenceRegionStore
 import io.customer.geofence.transitionRevision
 import io.customer.sdk.data.store.SecureUserStore
@@ -35,13 +37,15 @@ class PolygonGeofenceServiceControllerTest {
     private val approachMonitor: PolygonApproachMonitor = mockk(relaxed = true)
     private val manager: GeofenceManager = mockk(relaxed = true)
     private val secureUserStore: SecureUserStore = mockk(relaxed = true)
+    private val mockLogger: GeofenceLogger = mockk(relaxed = true)
     private val controller = PolygonGeofenceServiceController(
         context,
         store,
         engine,
         approachMonitor,
         manager,
-        secureUserStore
+        secureUserStore,
+        logger = mockLogger
     )
 
     @Before
@@ -426,12 +430,16 @@ class PolygonGeofenceServiceControllerTest {
         }
 
     @Test
-    fun deactivate_givenLastActivePolygon_expectStopsBoundedSession() {
+    fun onCoarseExit_givenLastActivePolygonAndNoTriggeringFix_expectStopsBoundedSession() = runTest {
+        // Driven through the coarse EXIT rather than a deactivate entry point of its own: the
+        // callback is the only thing in production that tears a polygon's session down, and with
+        // no triggering fix it is also the path that reaches the teardown with an arrival still
+        // held. See PolygonLockFreedomTest for that half.
         var activeIds = setOf("campus")
         every { store.getActivePolygonIds() } answers { activeIds }
         every { store.deactivatePolygon("campus") } answers { activeIds = emptySet() }
 
-        controller.deactivate("campus", 0L)
+        controller.onCoarseExit("campus", triggeringLocation = null, expectedUserStateGeneration = 0L)
 
         verify { approachMonitor.stop(0L) }
     }
@@ -444,7 +452,8 @@ class PolygonGeofenceServiceControllerTest {
 
         val accepted = controller.processApproachLocations(
             locations = listOf(location(elapsedRealtimeNanos = 100L)),
-            expectedUserStateGeneration = 0L
+            expectedUserStateGeneration = 0L,
+            0L
         )
 
         accepted shouldBeEqualTo PolygonSamplingDecision.CONTINUE
@@ -466,7 +475,8 @@ class PolygonGeofenceServiceControllerTest {
 
         val accepted = controller.processApproachLocations(
             locations = listOf(outside),
-            expectedUserStateGeneration = 0L
+            expectedUserStateGeneration = 0L,
+            0L
         )
 
         accepted shouldBeEqualTo PolygonSamplingDecision.STOP
@@ -478,7 +488,7 @@ class PolygonGeofenceServiceControllerTest {
     fun processApproachLocations_givenUncertainFixAtTrigger_expectDoesNotStartFineSession() = runTest {
         val uncertain = location(elapsedRealtimeNanos = 100L).apply { accuracy = 500f }
 
-        controller.processApproachLocations(listOf(uncertain), 0L)
+        controller.processApproachLocations(listOf(uncertain), 0L, 0L)
 
         verify(exactly = 0) { store.activatePolygon(any()) }
         verify(exactly = 0) { engine.activate(any()) }
@@ -492,7 +502,7 @@ class PolygonGeofenceServiceControllerTest {
             longitude = -122.0
         }
 
-        controller.processApproachLocations(listOf(farAway), 0L)
+        controller.processApproachLocations(listOf(farAway), 0L, 0L)
 
         coVerify(exactly = 0) { engine.processResponsiveLocation(any(), any()) }
     }
@@ -506,7 +516,7 @@ class PolygonGeofenceServiceControllerTest {
             longitude = -122.0
         }
 
-        controller.processApproachLocations(listOf(outside), 0L)
+        controller.processApproachLocations(listOf(outside), 0L, 0L)
 
         verify(exactly = 0) { store.deactivatePolygon("campus") }
         verify(exactly = 0) { engine.deactivate("campus") }
@@ -537,7 +547,8 @@ class PolygonGeofenceServiceControllerTest {
 
         val accepted = controller.processApproachLocations(
             locations = listOf(fix),
-            expectedUserStateGeneration = 0L
+            expectedUserStateGeneration = 0L,
+            0L
         )
 
         accepted shouldBeEqualTo PolygonSamplingDecision.STALE
@@ -549,7 +560,8 @@ class PolygonGeofenceServiceControllerTest {
 
         val accepted = controller.processApproachLocations(
             locations = listOf(location(elapsedRealtimeNanos = 100L)),
-            expectedUserStateGeneration = 0L
+            expectedUserStateGeneration = 0L,
+            0L
         )
 
         accepted shouldBeEqualTo PolygonSamplingDecision.STALE
@@ -585,4 +597,44 @@ class PolygonGeofenceServiceControllerTest {
             PolygonCoordinate(37.7755, -122.4200)
         )
     )
+
+    @Test
+    fun activate_givenTheFenceIsNotRoutable_expectTheDropIsLoggedWithAReason() = runTest {
+        // The path that lost an arrival on the 2026-09-17 drive returned silently, so a capture
+        // could not tell a callback the OS never sent from one the SDK discarded.
+        every { store.getRoutableRegisteredIds() } returns emptySet()
+
+        controller.activate(
+            polygonId = "campus",
+            triggeringLocation = location(elapsedRealtimeNanos = 5_000_000_000L),
+            expectedUserStateGeneration = 0L,
+            expectedRegionRevision = null
+        )
+
+        verify(exactly = 1) {
+            mockLogger.logPolygonCallbackDropped(PolygonCallbackDrop.NOT_ROUTABLE, "campus")
+        }
+    }
+
+    @Test
+    fun onCoarseExit_givenTheSameFixAlreadyDelivered_expectTheDuplicateIsLoggedWithAReason() = runTest {
+        val fix = location(elapsedRealtimeNanos = 5_000_000_000L)
+        controller.onCoarseExit(
+            polygonId = "campus",
+            triggeringLocation = fix,
+            expectedUserStateGeneration = 0L,
+            expectedRegionRevision = null
+        )
+
+        controller.onCoarseExit(
+            polygonId = "campus",
+            triggeringLocation = fix,
+            expectedUserStateGeneration = 0L,
+            expectedRegionRevision = null
+        )
+
+        verify(exactly = 1) {
+            mockLogger.logPolygonCallbackDropped(PolygonCallbackDrop.DUPLICATE_DELIVERY, "campus")
+        }
+    }
 }

@@ -69,18 +69,15 @@ internal class PolygonAccuracyEvaluator {
      * clearance margin. The symmetric rule this replaces required `edge > accuracy + margin` in
      * both directions, which at median background accuracy leaves no decidable point anywhere
      * inside a 24 m fence — and three of our four real polygons are 24-42 m across.
+     *
+     * The three questions are asked in the order they can be answered: geometry, then clearance,
+     * then precision. Precision is only ever a question about an arrival.
      */
     fun decisiveEvidenceFor(
         geometry: PolygonGeometry,
         sample: PolygonLocationSample,
         committedState: PolygonCommittedState
     ): PolygonEvidenceResult {
-        if (sample.horizontalAccuracyMeters > MAX_DECISIVE_FIX_ACCURACY_METERS) {
-            return undecided(
-                PolygonUndecidedReason.ACCURACY_TOO_LOW,
-                geometry.signedBoundaryDistanceMeters(sample.coordinate)
-            )
-        }
         val relation = geometry.relationTo(sample.coordinate)
         if (relation == PolygonPointRelation.BOUNDARY) {
             return undecided(
@@ -89,12 +86,43 @@ internal class PolygonAccuracyEvaluator {
             )
         }
         val boundaryDistanceMeters = geometry.boundaryDistanceMeters(sample.coordinate)
+        val signedBoundaryDistanceMeters = signedBoundaryDistance(boundaryDistanceMeters, relation)
+        // Clearance before accuracy. A fix clear of the ring by more than its own accuracy plus the
+        // margin has settled which side of it the device is on, however coarse the fix is: a device
+        // 988 m outside a ring is not ambiguous at 122 m accuracy. Reading the accuracy ceiling
+        // first, as this did until 2026-09-18, discarded such a fix for being imprecise about a
+        // distance nothing doubted, and a discarded departure leaves the visit open and then
+        // suppresses the next arrival at that venue through the redundant-ENTER guard.
+        if (
+            relation == PolygonPointRelation.OUTSIDE &&
+            boundaryDistanceMeters > sample.horizontalAccuracyMeters + DEPARTURE_BOUNDARY_MARGIN_METERS
+        ) {
+            return if (committedState == PolygonCommittedState.INSIDE) {
+                PolygonEvidenceResult(
+                    PolygonEvidence.EXIT,
+                    signedBoundaryDistanceMeters = signedBoundaryDistanceMeters
+                )
+            } else {
+                PolygonEvidenceResult(
+                    PolygonEvidence.AMBIGUOUS,
+                    signedBoundaryDistanceMeters = signedBoundaryDistanceMeters,
+                    agreedWithCommittedState = true
+                )
+            }
+        }
+        // Only an arrival still needs the fix to be precise enough to mean anything. Departure has
+        // already been answered above, so from here the ceiling governs arrivals alone.
+        if (sample.horizontalAccuracyMeters > MAX_DECISIVE_FIX_ACCURACY_METERS) {
+            return undecided(
+                PolygonUndecidedReason.ACCURACY_TOO_LOW,
+                signedBoundaryDistanceMeters
+            )
+        }
         return when {
             committedState == PolygonCommittedState.OUTSIDE && relation == PolygonPointRelation.INSIDE ->
                 PolygonEvidenceResult(
                     PolygonEvidence.ENTER,
-                    signedBoundaryDistanceMeters =
-                    signedBoundaryDistance(boundaryDistanceMeters, relation),
+                    signedBoundaryDistanceMeters = signedBoundaryDistanceMeters,
                     // Arrival carries no clearance margin, so nothing else bounds accuracy against
                     // the boundary. Measured on our own rings, the exterior band a single
                     // inside-reading fix can have come from is over twice the area of the polygon
@@ -102,28 +130,14 @@ internal class PolygonAccuracyEvaluator {
                     requiresCorroboration =
                     boundaryDistanceMeters <= sample.horizontalAccuracyMeters
                 )
+            // Outside, and not clear of the ring by enough to have ruled out the other side.
             committedState == PolygonCommittedState.INSIDE && relation == PolygonPointRelation.OUTSIDE ->
-                if (
-                    boundaryDistanceMeters >
-                    sample.horizontalAccuracyMeters + DEPARTURE_BOUNDARY_MARGIN_METERS
-                ) {
-                    PolygonEvidenceResult(
-                        PolygonEvidence.EXIT,
-                        signedBoundaryDistanceMeters =
-                        signedBoundaryDistance(boundaryDistanceMeters, relation)
-                    )
-                } else {
-                    undecided(
-                        PolygonUndecidedReason.WITHIN_ACCURACY,
-                        signedBoundaryDistance(boundaryDistanceMeters, relation)
-                    )
-                }
+                undecided(PolygonUndecidedReason.WITHIN_ACCURACY, signedBoundaryDistanceMeters)
             // Decisive, and it agrees with the committed state. Nothing to decide, so no reason and
             // no transition, but the fix quality is still worth recording.
             else -> PolygonEvidenceResult(
                 PolygonEvidence.AMBIGUOUS,
-                signedBoundaryDistanceMeters =
-                signedBoundaryDistance(boundaryDistanceMeters, relation),
+                signedBoundaryDistanceMeters = signedBoundaryDistanceMeters,
                 agreedWithCommittedState = true
             )
         }

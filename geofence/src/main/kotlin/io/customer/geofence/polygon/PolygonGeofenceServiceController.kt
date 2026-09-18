@@ -13,6 +13,7 @@ import io.customer.geofence.GeofenceRegion
 import io.customer.geofence.GeofenceTransitionType
 import io.customer.geofence.PolygonArrivalExpiry
 import io.customer.geofence.PolygonCallbackDrop
+import io.customer.geofence.PolygonFreshFixSkip
 import io.customer.geofence.PolygonSamplingSkip
 import io.customer.geofence.distanceTo
 import io.customer.geofence.store.GeofenceRegionStore
@@ -30,10 +31,31 @@ internal class PolygonGeofenceServiceController(
     private val approachMonitor: PolygonApproachMonitor,
     private val manager: GeofenceManager,
     private val secureUserStore: SecureUserStore,
+    private val freshFixSource: PolygonFreshFixSource,
     private val logger: GeofenceLogger
 ) {
     private val movementTriggerPolicy = PolygonMovementTriggerPolicy()
     private val controllerLock = Any()
+
+    /** @see preciseFixForCallback */
+    private var lastFreshFixRequestElapsedMs: Long? = null
+    private var lastFreshFix: Location? = null
+
+    /**
+     * Drops the requested fix and its rate limit, wherever [lastCoarseTransitionElapsedNanos] is
+     * dropped.
+     *
+     * Both are user-scoped even though neither is keyed by a user. A fix taken under one identity
+     * is a real position, but letting it decide an arrival under the next is the carry-over every
+     * other memo in this class is cleared to prevent. The rate limit matters more: a sign-out
+     * leads to a sync and a registration with `INITIAL_TRIGGER_ENTER`, so the next user's first
+     * callback arrives within seconds and would otherwise be refused its own fix because the
+     * previous session asked for one.
+     */
+    private fun forgetRequestedFix() {
+        lastFreshFix = null
+        lastFreshFixRequestElapsedMs = null
+    }
     private val coarseTransitionMutex = Mutex()
     private val lastCoarseTransitionElapsedNanos = mutableMapOf<String, Long>()
 
@@ -66,15 +88,7 @@ internal class PolygonGeofenceServiceController(
             return@withLock
         }
         activate(polygonId, expectedUserStateGeneration, expectedRegionRevision)
-        if (triggeringLocation != null) {
-            val accepted = processTriggeredLocation(triggeringLocation, expectedUserStateGeneration)
-            if (accepted) {
-                updateMovementTriggerFromAcceptedFix(
-                    triggeringLocation,
-                    expectedUserStateGeneration
-                )
-            }
-        }
+        evaluateCallbackFix(polygonId, triggeringLocation, expectedUserStateGeneration)
     }
 
     fun activate(
@@ -160,15 +174,7 @@ internal class PolygonGeofenceServiceController(
             logger.logPolygonCallbackDropped(PolygonCallbackDrop.NOT_ROUTABLE, polygonId)
             return@withLock
         }
-        if (triggeringLocation != null) {
-            val accepted = processTriggeredLocation(triggeringLocation, expectedUserStateGeneration)
-            if (accepted) {
-                updateMovementTriggerFromAcceptedFix(
-                    triggeringLocation,
-                    expectedUserStateGeneration
-                )
-            }
-        }
+        evaluateCallbackFix(polygonId, triggeringLocation, expectedUserStateGeneration)
         val discarded = synchronized(controllerLock) {
             if (!isCurrentRegisteredPolygonLocked(
                     polygonId,
@@ -251,7 +257,8 @@ internal class PolygonGeofenceServiceController(
             )
             return null
         }
-        val accepted = processTriggeredLocation(triggeringLocation, expectedUserStateGeneration)
+        val accepted =
+            processTriggeredLocation(triggeringLocation, expectedUserStateGeneration).acceptedFix
         return if (accepted) {
             updateMovementTriggerFromAcceptedFix(
                 triggeringLocation,
@@ -369,7 +376,7 @@ internal class PolygonGeofenceServiceController(
                 logger.logPolygonSamplingSkipped(PolygonSamplingSkip.NO_POLYGON_IN_RANGE)
                 continue
             }
-            if (processTriggeredLocation(location, expectedUserStateGeneration)) {
+            if (processTriggeredLocation(location, expectedUserStateGeneration).acceptedFix) {
                 lastAcceptedLocation = location
             }
             var staleAfterProcessing = false
@@ -440,6 +447,54 @@ internal class PolygonGeofenceServiceController(
 
     private companion object {
         const val APPROACH_EXIT_HYSTERESIS_METERS = 100.0
+
+        /**
+         * How long a dispatch may wait for a precise fix.
+         *
+         * **This spends the receiver's dispatch budget, and it is not the only claimant.**
+         * `GeofenceBroadcastReceiver` holds its `goAsync` window open for
+         * `DISPATCH_WAIT_BUDGET_MS`, 8 s, covering persistence, the GMS awaits and the
+         * movement-refresh join, and the join is last. A batch naming both a polygon and the
+         * movement trigger is a common shape in the captures, so this wait lands ahead of that
+         * join.
+         *
+         * Sized against the refresh it competes with: callback to `movement.registered` measures
+         * 0.1 s to 6.57 s over 22 observations, median 0.31 s. At three seconds the join still has
+         * its full window for 21 of those 22, and the worst one loses part of a protection window
+         * rather than the refresh itself, which runs on the longer-lived services scope either way.
+         *
+         * The cooldown bounds the total spend to one wait per dispatch: `lastFreshFix` is set only
+         * on success, so a timeout leaves the rate limit armed and later fences in the batch skip.
+         */
+        const val FRESH_FIX_TIMEOUT_MS = 3_000L
+
+        /** @see preciseFixForCallback */
+        const val FRESH_FIX_COOLDOWN_MS = 30_000L
+
+        /**
+         * How long a fix already obtained may answer a later callback from the same GMS batch.
+         *
+         * Sized to the batch, which is measured: consecutive `os.callback.received` gaps inside one
+         * delivery are 0.07 s to 0.36 s across seven captures, with the next gap above 4 s being a
+         * separate wake. Two seconds is a 5x margin on the widest batch observed.
+         *
+         * Not 30 s. A reused fix bypasses the cooldown, and the engine's own fix-age ceiling is
+         * 120 s, so a half-minute-old fix would pass every gate and decide an arrival from a
+         * position the device may have left: at the 26 km/h measured on the 2026-09-18 drive, 25 s
+         * is 180 m, against a wake circle of about 100 m. iOS's 30 s is a gate on a cache they
+         * cannot bound, which is a different problem from this one.
+         */
+        const val BATCH_REUSE_WINDOW_MS = 2_000L
+
+        const val MILLIS_PER_SECOND = 1_000.0
+        const val NANOS_PER_MILLI = 1_000_000L
+    }
+
+    /** What the cooldown decided, resolved under the lock so two callbacks cannot both request. */
+    private sealed interface CallbackFixDecision {
+        data class Reuse(val fix: Location) : CallbackFixDecision
+        data object Request : CallbackFixDecision
+        data object WithinCooldown : CallbackFixDecision
     }
 
     fun invalidatePersistedCoarseState() {
@@ -453,6 +508,7 @@ internal class PolygonGeofenceServiceController(
         store.retainCoarseInsidePolygonIds(emptySet())
         val discarded = engine.stop()
         lastCoarseTransitionElapsedNanos.clear()
+        forgetRequestedFix()
         approachMonitor.stop(generation)
         return discarded
     }
@@ -467,6 +523,7 @@ internal class PolygonGeofenceServiceController(
             store.retainCoarseInsidePolygonIds(emptySet())
             val holds = engine.stop()
             lastCoarseTransitionElapsedNanos.clear()
+            forgetRequestedFix()
             approachMonitor.stop(generation)
             holds
         }
@@ -480,6 +537,7 @@ internal class PolygonGeofenceServiceController(
             store.retainCoarseInsidePolygonIds(emptySet())
             val holds = engine.stop()
             lastCoarseTransitionElapsedNanos.clear()
+            forgetRequestedFix()
             approachMonitor.stop(generation)
             holds
         }
@@ -495,6 +553,7 @@ internal class PolygonGeofenceServiceController(
             store.clearUserScopedState()
             val holds = engine.stop()
             lastCoarseTransitionElapsedNanos.clear()
+            forgetRequestedFix()
             approachMonitor.stop(generation)
             holds
         }
@@ -507,6 +566,7 @@ internal class PolygonGeofenceServiceController(
             store.clearUserSessionRetainingOsRegistrations()
             val holds = engine.stop()
             lastCoarseTransitionElapsedNanos.clear()
+            forgetRequestedFix()
             approachMonitor.stop(generation)
             holds
         }
@@ -521,6 +581,7 @@ internal class PolygonGeofenceServiceController(
             store.completeUserReset(expectedUserStateGeneration, osRegistrationsCleared)
             val holds = engine.stop()
             lastCoarseTransitionElapsedNanos.clear()
+            forgetRequestedFix()
             approachMonitor.stop(expectedUserStateGeneration)
             holds
         }
@@ -575,6 +636,7 @@ internal class PolygonGeofenceServiceController(
         val discarded = engine.stop()
         approachMonitor.stop(previousGeneration)
         lastCoarseTransitionElapsedNanos.clear()
+        forgetRequestedFix()
         return discarded
     }
 
@@ -619,10 +681,120 @@ internal class PolygonGeofenceServiceController(
         return store.activeUserSessionId() == currentUserId
     }
 
+    /**
+     * Evaluates a coarse callback, and asks for a precise fix when the delivered one decided
+     * nothing.
+     *
+     * Every fix this pipeline has ever evaluated came attached to a GMS callback, and its accuracy
+     * is GMS's choice rather than ours: across four field captures it degrades to 100-1000 m when
+     * the device is parked, which is above the arrival ceiling of every real fence we monitor. This
+     * request is the only fix in the pipeline whose accuracy class the SDK picks.
+     *
+     * Undecided, not stale, is the trigger, and the difference is measured rather than assumed: the
+     * attached fix has a median age of 0.6 s and a maximum of 9.7 s across 54 callbacks, so the age
+     * gate iOS uses would never fire here. What goes wrong is accuracy, not freshness.
+     *
+     * A request that answers with nothing is not a failure to handle. The delivered verdict stands,
+     * and the pair of records says which happened.
+     */
+    private suspend fun evaluateCallbackFix(
+        polygonId: String,
+        triggeringLocation: Location?,
+        expectedUserStateGeneration: Long
+    ) {
+        if (triggeringLocation == null) {
+            // Nothing to judge and nothing to fall back on, so the request is the whole pass.
+            // Unmeasured: every callback in seven captures carried a fix, 49 of 49 fixsrc=os_trigger
+            // and no fixsrc=none, so this is fail-open surface rather than an observed case.
+            val only = preciseFixForCallback(polygonId, setOf(polygonId)) ?: return
+            evaluateAndRecentre(only, expectedUserStateGeneration)
+            return
+        }
+        val delivered = evaluateAndRecentre(triggeringLocation, expectedUserStateGeneration)
+        if (delivered.undecidedPolygonIds.isEmpty()) return
+        val fresh = preciseFixForCallback(polygonId, delivered.undecidedPolygonIds) ?: return
+        evaluateAndRecentre(fresh, expectedUserStateGeneration)
+    }
+
+    private suspend fun evaluateAndRecentre(
+        fix: Location,
+        expectedUserStateGeneration: Long
+    ): PolygonEvaluationOutcome {
+        val outcome = processTriggeredLocation(fix, expectedUserStateGeneration)
+        if (outcome.acceptedFix) {
+            updateMovementTriggerFromAcceptedFix(fix, expectedUserStateGeneration)
+        }
+        return outcome
+    }
+
+    /**
+     * A precise fix for this callback, or null to evaluate whatever it delivered.
+     *
+     * Rate-limited rather than requested per callback. One GMS batch can report several polygons,
+     * and the receiver dispatches each one separately, so an unbounded version would open the GPS
+     * once per fence in the batch. Within the cooldown the fix already obtained answers the later
+     * callbacks while it is still young, so a batch of undecided fences costs one request.
+     */
+    private suspend fun preciseFixForCallback(
+        polygonId: String,
+        undecidedPolygonIds: Set<String>
+    ): Location? {
+        val requestedAt = SystemClock.elapsedRealtime()
+        val decision = synchronized(controllerLock) {
+            val reusable = lastFreshFix?.takeIf {
+                (it.fixAgeMsOrNull(requestedAt) ?: Long.MAX_VALUE) <= BATCH_REUSE_WINDOW_MS
+            }
+            val previous = lastFreshFixRequestElapsedMs
+            when {
+                reusable != null -> CallbackFixDecision.Reuse(reusable)
+                previous != null && requestedAt - previous < FRESH_FIX_COOLDOWN_MS ->
+                    CallbackFixDecision.WithinCooldown
+                else -> {
+                    lastFreshFixRequestElapsedMs = requestedAt
+                    CallbackFixDecision.Request
+                }
+            }
+        }
+        when (decision) {
+            is CallbackFixDecision.Reuse -> return decision.fix
+            CallbackFixDecision.WithinCooldown -> {
+                logger.logPolygonFreshFixSkipped(PolygonFreshFixSkip.WITHIN_COOLDOWN)
+                return null
+            }
+            CallbackFixDecision.Request -> Unit
+        }
+        logger.logPolygonFreshFixRequested(undecidedPolygonIds.sorted())
+        val fix = freshFixSource.awaitFreshFix(FRESH_FIX_TIMEOUT_MS)
+        if (fix == null) {
+            logger.logPolygonFreshFixSkipped(PolygonFreshFixSkip.NONE_ARRIVED)
+            return null
+        }
+        // Memoised only while this request is still the one in flight. A user-scope reset during
+        // the await clears the memo deliberately, and storing the fix afterwards would repopulate
+        // it with the previous user's position for the next user's callback to reuse inside the
+        // batch window. That pass would abort on the generation check, so this is about
+        // attribution rather than a wrong verdict, and attribution is what the reset is for. This
+        // callback still gets its fix: it asked before the reset, and the fix is the device's real
+        // position either way.
+        synchronized(controllerLock) {
+            if (lastFreshFixRequestElapsedMs == requestedAt) lastFreshFix = fix
+        }
+        logger.logPolygonFreshFixReceived(
+            location = fix,
+            waitedSeconds = (SystemClock.elapsedRealtime() - requestedAt) / MILLIS_PER_SECOND
+        )
+        return fix
+    }
+
+    /** Null when the fix carries no monotonic timestamp, which is the same as carrying no age. */
+    private fun Location.fixAgeMsOrNull(nowElapsedMs: Long): Long? =
+        elapsedRealtimeNanos.takeIf { it > 0L }?.let { nowElapsedMs - it / NANOS_PER_MILLI }
+
     private suspend fun processTriggeredLocation(
         location: Location,
         expectedUserStateGeneration: Long
-    ): Boolean = engine.processResponsiveLocation(location, expectedUserStateGeneration)
+    ): PolygonEvaluationOutcome =
+        engine.processResponsiveLocation(location, expectedUserStateGeneration)
 
     // Reached only from a delivered GMS geofence callback, which the OS makes only for a
     // registration that already held the permission.

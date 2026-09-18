@@ -89,6 +89,7 @@ class PolygonApproachIntegrationTest : RobolectricTest() {
             approachMonitor = mockk(relaxed = true),
             manager = mockk<GeofenceManager>(relaxed = true),
             secureUserStore = secureUserStore,
+            freshFixSource = NeverAnswersFreshFix,
             logger = mockk(relaxed = true)
         )
         val now = SystemClock.elapsedRealtimeNanos()

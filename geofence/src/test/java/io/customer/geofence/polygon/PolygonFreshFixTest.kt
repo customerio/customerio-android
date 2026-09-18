@@ -442,6 +442,7 @@ class PolygonFreshFixTest : RobolectricTest() {
         secureUserStore = secureUserStore,
         freshFixSource = freshFixSource,
         recheckScheduler = NoopRecheckScheduler,
+        passiveMonitor = NoopPassiveMonitor,
         logger = mockLogger
     )
 

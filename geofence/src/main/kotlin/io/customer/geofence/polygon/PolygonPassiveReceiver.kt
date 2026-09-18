@@ -1,0 +1,96 @@
+package io.customer.geofence.polygon
+
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.location.Location
+import com.google.android.gms.location.LocationResult
+import io.customer.geofence.GeofenceRegion
+import io.customer.geofence.PolygonPassiveSkip
+import io.customer.geofence.di.geofenceLogger
+import io.customer.geofence.di.geofenceRegionStore
+import io.customer.geofence.di.polygonGeofenceServiceController
+import io.customer.geofence.di.polygonPassiveMonitor
+import io.customer.geofence.distanceTo
+import io.customer.sdk.core.di.SDKComponent
+import io.customer.sdk.core.di.setupAndroidComponent
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.launch
+
+/**
+ * Receives fixes another app paid for and feeds the useful ones through the ordinary path.
+ *
+ * Same shape as [PolygonRecheckWorker] on purpose: admit the polygons whose wake circle contains
+ * the fix, then hand each to the [PolygonGeofenceServiceController.activate] a GMS callback uses.
+ * A passive fix is an extra trigger, never a second set of rules, so dedupe, the accuracy decision,
+ * the on-demand precise fix and emission all stay where they already are.
+ */
+class PolygonPassiveReceiver : BroadcastReceiver() {
+    override fun onReceive(context: Context, intent: Intent) {
+        val result = runCatching { LocationResult.extractResult(intent) }.getOrNull() ?: return
+        val fix = newestFix(result.locations) ?: return
+
+        val pendingResult = goAsync()
+        try {
+            SDKComponent.setupAndroidComponent(context = context)
+            SDKComponent.scopeProvider.geofenceScope.launch {
+                try {
+                    handleFix(fix)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    SDKComponent.geofenceLogger.logPolygonPassiveFailed(e.message)
+                } finally {
+                    runCatching { pendingResult.finish() }
+                }
+            }
+        } catch (e: Exception) {
+            SDKComponent.geofenceLogger.logPolygonPassiveFailed(e.message)
+            runCatching { pendingResult.finish() }
+        }
+    }
+
+    /**
+     * A batch can carry several fixes. The older ones describe where the device was on the way in,
+     * and each would buy another evaluation of the same arrival, so only the freshest is used.
+     */
+    internal fun newestFix(locations: List<Location>): Location? =
+        locations.maxByOrNull(Location::getElapsedRealtimeNanos)
+
+    internal suspend fun handleFix(fix: Location) {
+        val logger = SDKComponent.geofenceLogger
+        val store = SDKComponent.android().geofenceRegionStore
+        val routableIds = store.getRoutableRegisteredIds()
+        val polygons = store.getCachedRegions().filter { it.id in routableIds && it.isPolygon }
+        if (polygons.isEmpty()) {
+            // Retires itself, the way the re-check worker cancels its own work. reconcile is the
+            // only caller of stop(), and it runs from the registration paths alone, so a sign-out
+            // or the kill switch leaves this request live with GMS across process death — and for
+            // a signed-out user no later registration ever arrives to tear it down. Every other
+            // app's fix would then wake our process to read the store and return, indefinitely.
+            // Self-healing here bounds that at one wake rather than relying on every reset path
+            // remembering.
+            logger.logPolygonPassiveSkipped(PolygonPassiveSkip.NOTHING_REGISTERED)
+            SDKComponent.android().polygonPassiveMonitor.stop()
+            return
+        }
+        // Read before anything is dispatched, so a user change mid-dispatch is refused by the
+        // controller rather than attributed to whoever is current when it lands.
+        val expectedUserStateGeneration = store.userStateGeneration()
+        val admitted = polygons.filter { it.distanceTo(fix.latitude, fix.longitude) <= it.radius }
+        logger.logPolygonPassiveReceived(
+            location = fix,
+            candidateCount = polygons.size,
+            admittedIds = admitted.map(GeofenceRegion::id).sorted()
+        )
+        if (admitted.isEmpty()) return
+        val controller = SDKComponent.android().polygonGeofenceServiceController
+        admitted.forEach { region ->
+            controller.activate(
+                polygonId = region.id,
+                triggeringLocation = fix,
+                expectedUserStateGeneration = expectedUserStateGeneration
+            )
+        }
+    }
+}

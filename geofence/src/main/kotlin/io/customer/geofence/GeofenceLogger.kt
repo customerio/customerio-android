@@ -89,6 +89,11 @@ internal enum class PolygonFreshFixSkip(val wire: String, val detail: String) {
     NONE_ARRIVED("none_arrived", "nothing arrived inside the broadcast's budget")
 }
 
+/** Why a passively delivered fix was not used. */
+internal enum class PolygonPassiveSkip(val wire: String, val detail: String) {
+    NOTHING_REGISTERED("nothing_registered", "no polygon is registered, so the delivery is stale")
+}
+
 /** Why a periodic re-check wake did nothing. */
 internal enum class PolygonRecheckSkip(val wire: String, val detail: String) {
     NOTHING_REGISTERED("nothing_registered", "no polygon is registered, so the work retired itself"),
@@ -1352,6 +1357,56 @@ internal class GeofenceLogger(private val logger: Logger) {
                         "cleared" to list(clearedIds)
                     ) + GeofenceLogTail.fixQuality(location, GeofenceLogTail.FixSource.FRESH_REQUEST)
                 ),
+            tag = TAG
+        )
+    }
+
+    /**
+     * The passive listener is registered, which is the half that can be verified without another
+     * app cooperating. A capture with a start and no [logPolygonPassiveReceived] means no other app
+     * asked for location while this ran, and that is the measurement, not a fault.
+     */
+    fun logPolygonPassiveStarted() {
+        logger.debug(
+            "Listening for location other apps request; no sensor is turned on for this." +
+                tail("polygon.passive.started", GeofenceLogIo.OUTPUT, emptyList()),
+            tag = TAG
+        )
+    }
+
+    fun logPolygonPassiveStopped() {
+        logger.debug(
+            "Stopped listening for other apps' location." +
+                tail("polygon.passive.stopped", GeofenceLogIo.OUTPUT, emptyList()),
+            tag = TAG
+        )
+    }
+
+    fun logPolygonPassiveReceived(location: Location, candidateCount: Int, admittedIds: List<String>) {
+        logger.debug(
+            "A fix arrived from another app's request: ${admittedIds.size} of $candidateCount registered polygon(s) are within their wake circle." +
+                tail(
+                    "polygon.passive.received",
+                    GeofenceLogIo.INPUT,
+                    listOf("cand" to int(candidateCount), "n" to int(admittedIds.size), "ids" to list(admittedIds)) +
+                        GeofenceLogTail.fixQuality(location, GeofenceLogTail.FixSource.CACHED)
+                ),
+            tag = TAG
+        )
+    }
+
+    fun logPolygonPassiveSkipped(reason: PolygonPassiveSkip) {
+        logger.debug(
+            "Passive fix not used — ${reason.detail}." +
+                tail("polygon.passive.skipped", GeofenceLogIo.OUTPUT, listOf("why" to reason.wire)),
+            tag = TAG
+        )
+    }
+
+    fun logPolygonPassiveFailed(message: String?) {
+        logger.debug(
+            "Passive location listening failed — ${message ?: "no reason given"}." +
+                tail("polygon.passive.failed", GeofenceLogIo.OUTPUT, listOf("why" to token(message ?: "unknown"))),
             tag = TAG
         )
     }

@@ -1382,14 +1382,25 @@ internal class GeofenceLogger(private val logger: Logger) {
         )
     }
 
-    fun logPolygonPassiveReceived(location: Location, candidateCount: Int, admittedIds: List<String>) {
+    fun logPolygonPassiveReceived(
+        location: Location,
+        candidateCount: Int,
+        admittedIds: List<String>,
+        clearedIds: List<String>
+    ) {
         logger.debug(
-            "A fix arrived from another app's request: ${admittedIds.size} of $candidateCount registered polygon(s) are within their wake circle." +
+            "A fix arrived from another app's request: ${admittedIds.size} of $candidateCount registered polygon(s) " +
+                "are within their wake circle, ${clearedIds.size} left." +
                 tail(
                     "polygon.passive.received",
                     GeofenceLogIo.INPUT,
-                    listOf("cand" to int(candidateCount), "n" to int(admittedIds.size), "ids" to list(admittedIds)) +
-                        GeofenceLogTail.fixQuality(location, GeofenceLogTail.FixSource.CACHED)
+                    listOf(
+                        "cand" to int(candidateCount),
+                        "n" to int(admittedIds.size),
+                        "ids" to list(admittedIds),
+                        "ncleared" to int(clearedIds.size),
+                        "cleared" to list(clearedIds)
+                    ) + GeofenceLogTail.fixQuality(location, GeofenceLogTail.FixSource.CACHED)
                 ),
             tag = TAG
         )

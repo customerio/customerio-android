@@ -7,10 +7,10 @@ import org.junit.Test
 
 class PolygonWakeCircleValidatorTest {
     @Test
-    fun prepare_givenARetailSizedCircle_expectTheFloorWithoutRecentering() {
-        // A real workspace polygon catalogues a 101 m base circle. GMS coarse containment is wrong
-        // by hundreds of metres, so a ring this small would be driven by that error rather than by
-        // the device's position.
+    fun prepare_givenARetailSizedCircle_expectItRegisteredAsSent() {
+        // A real workspace polygon catalogues a 101 m base circle. It already encloses the ring,
+        // so anything added to it only moves the wake further from the venue: the 400 m floor this
+        // replaces woke us 193 m outside that shop on 2026-09-18 and the visit went unrecorded.
         val wakeCircle = PolygonWakeCircle(
             center = point(37.0005, -121.9995),
             baseRadiusMeters = 101.0
@@ -19,14 +19,12 @@ class PolygonWakeCircleValidatorTest {
         val trigger = PolygonWakeCircleValidator().prepare(wakeCircle)
 
         trigger.center shouldBeEqualTo wakeCircle.center
-        trigger.radiusMeters shouldBeEqualTo
-            PolygonWakeCircleValidator.MINIMUM_TRIGGER_RADIUS_METERS.toFloat()
+        trigger.radiusMeters shouldBeEqualTo 101f
     }
 
     @Test
-    fun prepare_givenCircleAlreadyAboveTheFloor_expectItRegisteredVerbatim() {
-        // The floor never pads. Adding a kilometre to a circle that is already kilometres wide is
-        // what the old rule did, and it bought nothing.
+    fun prepare_givenAKilometreWideCircle_expectItRegisteredAsSent() {
+        // The same rule at the other end of the catalogue, where the old floor was inert.
         val wakeCircle = PolygonWakeCircle(
             center = point(37.0005, -121.9995),
             baseRadiusMeters = 5_000.0
@@ -45,6 +43,19 @@ class PolygonWakeCircleValidatorTest {
         invoking {
             PolygonWakeCircleValidator().prepare(wakeCircle)
         } shouldThrow IllegalArgumentException::class
+    }
+
+    @Test
+    fun prepare_givenACircleSmallerThanAnyBackendSends_expectNoFloorApplied() {
+        // Nothing clamps a small circle up. Whether GMS triggers one this small is unknown below
+        // 250 m in this repository and is what the next field capture is for; inventing a floor
+        // here would only hide which radius was registered when that capture is read.
+        val wakeCircle = PolygonWakeCircle(
+            center = point(37.0005, -121.9995),
+            baseRadiusMeters = 30.0
+        )
+
+        PolygonWakeCircleValidator().prepare(wakeCircle).radiusMeters shouldBeEqualTo 30f
     }
 
     private fun point(latitude: Double, longitude: Double) =

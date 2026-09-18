@@ -51,13 +51,18 @@ internal class PolygonApproachMonitor(
      * teardown that cannot name the session it ended, so a repeat of that removal is not reported
      * as a second teardown.
      *
-     * Reading it only there is what makes one slot safe. `setData` carries the generation but the
-     * deadline is an extra, and `filterEquals` ignores extras, so two sessions in one generation
-     * build equal [PendingIntent]s and this slot cannot tell them apart. While it also gated
-     * named teardowns, a delayed listener from an earlier session could write the shared intent
-     * back after a later one had armed, and the later session's real teardown was then suppressed
-     * as a repeat with its sample count left stranded. Named teardowns are now decided by their
-     * own accounting entry, which is per session and atomic, leaving this to the one case that has
+     * One slot is enough because **equal intents are one registration.** `setData` carries the
+     * generation but the deadline is an extra, and `filterEquals` ignores extras, so every session
+     * in a generation shares a single GMS registration. A second removal of an equal intent is
+     * therefore a repeat of one teardown whichever session issued it, and suppressing it is right
+     * regardless of what the call graph does. That is checkable against `filterEquals`; it does not
+     * depend on enumerating which callers pass a deadline.
+     *
+     * What this must not do is gate a *named* teardown, which is what it used to do. Sharing one
+     * registration means sharing this slot, so a delayed removal listener from an earlier session
+     * could write the intent back after a later one had armed, and the later session's real
+     * teardown was suppressed as a repeat with its sample count stranded. Named teardowns are now
+     * decided by their own accounting entry, per session and atomic, leaving this to the case with
      * no entry to consult: a request that outlived the process which armed it.
      */
     private var lastRemoval: PendingIntent? = null

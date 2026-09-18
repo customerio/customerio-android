@@ -141,12 +141,46 @@ internal class PolygonRecheckWorker(
         // The wake circle, with no accuracy margin, matching the approach admission gate. A
         // polygon whose circle does not contain this fix has nothing to re-check.
         val admitted = polygons.filter { it.distanceTo(fix.latitude, fix.longitude) <= it.radius }
+        // The departure half of the same fix, and the reason this path is safe to activate from at
+        // all. activate() records the polygon coarse-inside, and the only ordinary route that
+        // clears it is a GMS coarse EXIT. When this worker recovers an ENTER that GMS never
+        // issued, GMS holds no inside state for that fence, so it may issue no EXIT and the
+        // polygon stays in the active set for the life of the install, re-evaluated by every fix
+        // that reaches the engine.
+        //
+        // The fix's accuracy is subtracted rather than gated on MAX_DECISIVE_FIX_ACCURACY_METERS.
+        // That ceiling is for ring-level decisions, where the margin is tens of metres; here the
+        // margin is the whole accuracy value plus the circle's slack over the ring, so the
+        // predicate is self-limiting and a coarse fix simply fails it. Requiring the ceiling too
+        // would make this unreachable from the balanced fix asked for above, leaving dead code.
+        val activeIds = store.getActivePolygonIds()
+        val departed = polygons.filter { region ->
+            region.id in activeIds &&
+                // Location.accuracy reports 0 when unset, which would remove the margin and clear
+                // on a fix whose error is unknown. GMS fixes carry it; this keeps "decisively" a
+                // property of the predicate rather than of the provider.
+                fix.hasAccuracy() &&
+                region.distanceTo(fix.latitude, fix.longitude) - fix.accuracy > region.radius
+        }
         logger.logPolygonRecheckRan(
             location = fix,
             candidateCount = polygons.size,
-            admittedIds = admitted.map { it.id }.sorted()
+            admittedIds = admitted.map { it.id }.sorted(),
+            clearedIds = departed.map { it.id }.sorted()
         )
         val controller = SDKComponent.android().polygonGeofenceServiceController
+        // onCoarseExit, not the store flag and not a direct deactivate. It is the reviewed order:
+        // record outside, drop a duplicate delivery, evaluate the fix, keep the polygon active if
+        // the arrival was already committed, and otherwise deactivate and report the holds it
+        // discarded. Clearing the flag alone leaves an already-emitted business EXIT with nothing
+        // to re-run, so the polygon would stay active regardless.
+        departed.forEach { region ->
+            controller.onCoarseExit(
+                polygonId = region.id,
+                triggeringLocation = fix,
+                expectedUserStateGeneration = expectedUserStateGeneration
+            )
+        }
         admitted.forEach { region ->
             controller.activate(
                 polygonId = region.id,

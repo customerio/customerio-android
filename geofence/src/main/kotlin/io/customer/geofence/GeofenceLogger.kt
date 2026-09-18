@@ -1332,14 +1332,25 @@ internal class GeofenceLogger(private val logger: Logger) {
      * distinguishable from one that never ran: a capture with no re-check records at all means the
      * work is not scheduled, which is a different fault.
      */
-    fun logPolygonRecheckRan(location: Location, candidateCount: Int, admittedIds: List<String>) {
+    fun logPolygonRecheckRan(
+        location: Location,
+        candidateCount: Int,
+        admittedIds: List<String>,
+        clearedIds: List<String>
+    ) {
         logger.debug(
-            "Periodic polygon re-check: ${admittedIds.size} of $candidateCount registered polygon(s) are within their wake circle." +
+            "Periodic polygon re-check: ${admittedIds.size} of $candidateCount registered polygon(s) are within their wake circle, " +
+                "${clearedIds.size} left." +
                 tail(
                     "polygon.recheck.ran",
                     GeofenceLogIo.INPUT,
-                    listOf("cand" to int(candidateCount), "n" to int(admittedIds.size), "ids" to list(admittedIds)) +
-                        GeofenceLogTail.fixQuality(location, GeofenceLogTail.FixSource.FRESH_REQUEST)
+                    listOf(
+                        "cand" to int(candidateCount),
+                        "n" to int(admittedIds.size),
+                        "ids" to list(admittedIds),
+                        "ncleared" to int(clearedIds.size),
+                        "cleared" to list(clearedIds)
+                    ) + GeofenceLogTail.fixQuality(location, GeofenceLogTail.FixSource.FRESH_REQUEST)
                 ),
             tag = TAG
         )

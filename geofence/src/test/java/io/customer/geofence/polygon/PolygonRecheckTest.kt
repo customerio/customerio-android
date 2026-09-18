@@ -266,6 +266,191 @@ class PolygonRecheckTest : RobolectricTest() {
         coVerify(exactly = 0) { mockController.activate(any(), any(), any(), any()) }
     }
 
+    @Test
+    fun teardown_expectEveryPathThatDisablesGeofencingCancelsTheWork() {
+        // Enumerated, not sampled. When this landed, the scheduler reached exactly one call site
+        // while approachMonitor.stop reached eleven, so the periodic work outlived every teardown
+        // but one and kept fetching fixes after geofencing was stopped. A new teardown path on this
+        // class belongs in this list or in the test below it.
+        val paths = listOf<Pair<String, (PolygonGeofenceServiceController) -> Unit>>(
+            "invalidateOsRegistrationState" to { it.invalidateOsRegistrationState() },
+            "stopAll" to { it.stopAll() },
+            "clearUserScopedState" to { it.clearUserScopedState() },
+            "clearUserSessionRetainingOsRegistrations" to {
+                it.clearUserSessionRetainingOsRegistrations()
+            },
+            "completeUserReset" to { it.completeUserReset(7L, osRegistrationsCleared = true) }
+        )
+
+        val observed = paths.associate { (name, teardown) ->
+            val scheduler = RecordingRecheckScheduler()
+            teardown(controller(scheduler))
+            name to scheduler.calls.toList()
+        }
+
+        // Compared as a map so a failure names the path that leaked rather than a bare count.
+        observed shouldBeEqualTo paths.associate { (name, _) -> name to listOf("cancel") }
+    }
+
+    @Test
+    fun teardown_givenRegistrationsSurvive_expectTheWorkIsLeftAlone() {
+        // The control for the test above. invalidatePersistedCoarseState wipes coarse and active
+        // state but deliberately keeps registrations, so the polygons are still registered and the
+        // re-check is the one thing left that can re-derive an arrival GMS never reported.
+        // Cancelling here would disable it in exactly the case it exists for.
+        val scheduler = RecordingRecheckScheduler()
+
+        controller(scheduler).invalidatePersistedCoarseState()
+
+        scheduler.calls shouldBeEqualTo emptyList()
+    }
+
+    @Test
+    fun teardown_expectTheCancelIsNotIssuedUnderTheControllerLock() {
+        // cancel() reaches WorkManager, which does disk work, and the scheduler logs through the
+        // host dispatcher, which is customer code. Issuing it under controllerLock would stall
+        // every coarse callback behind that dispatcher.
+        lateinit var subject: PolygonGeofenceServiceController
+        var heldLockDuringCancel: Boolean? = null
+        val scheduler = object : PolygonRecheckScheduler {
+            override fun schedule(): Boolean = true
+
+            override fun cancel(): Boolean {
+                heldLockDuringCancel = subject.holdsControllerLock()
+                return true
+            }
+        }
+        subject = controller(scheduler)
+
+        subject.stopAll()
+
+        heldLockDuringCancel shouldBeEqualTo false
+    }
+
+    @Test
+    fun worker_expectAdmissionIsPinnedToTheWakeCircleRadius() = runTest {
+        // This replaces a fixture that put the fix at the exact centre and its only negative case
+        // ~111 km away, which asserted nothing about the radius: a build that halved the wake
+        // circle passed it. The venue circle is 120 m, so 110 m out must admit and 130 m must not.
+        grantLocationPermission()
+        every { mockStore.getRoutableRegisteredIds() } returns setOf(VENUE_ID)
+        every { mockStore.getCachedRegions() } returns listOf(venueRegion())
+        every { mockStore.getActivePolygonIds() } returns emptySet()
+        val justInside = fixNorthOfVenue(110.0, accuracyMeters = 1.0f)
+        val justOutside = fixNorthOfVenue(130.0, accuracyMeters = 1.0f)
+        coEvery { mockFreshFix.awaitFreshFix(any(), any()) } returnsMany
+            listOf(justInside, justOutside)
+
+        TestListenableWorkerBuilder<PolygonRecheckWorker>(applicationMock).build().doWork()
+        TestListenableWorkerBuilder<PolygonRecheckWorker>(applicationMock).build().doWork()
+
+        // Identified by which fix reached activate, so neither run can stand in for the other.
+        coVerify(exactly = 1) { mockController.activate(VENUE_ID, justInside, any(), any()) }
+        coVerify(exactly = 0) { mockController.activate(VENUE_ID, justOutside, any(), any()) }
+    }
+
+    @Test
+    fun worker_givenAnActivePolygonIsDecisivelyOutside_expectASyntheticCoarseExit() = runTest {
+        // activate() records the polygon coarse-inside and only a GMS coarse EXIT clears it. If
+        // this worker recovered an ENTER that GMS never issued, GMS holds no inside state for the
+        // fence and may issue no EXIT, so without this the polygon stays active for the life of
+        // the install and every fix reaching the engine re-evaluates it.
+        grantLocationPermission()
+        every { mockStore.getRoutableRegisteredIds() } returns setOf(VENUE_ID)
+        every { mockStore.getCachedRegions() } returns listOf(venueRegion())
+        every { mockStore.getActivePolygonIds() } returns setOf(VENUE_ID)
+        val fix = fixNorthOfVenue(300.0, accuracyMeters = 20.0f)
+        coEvery { mockFreshFix.awaitFreshFix(any(), any()) } returns fix
+
+        TestListenableWorkerBuilder<PolygonRecheckWorker>(applicationMock).build().doWork()
+
+        // onCoarseExit, not the store flag and not a direct deactivate: it is the path that keeps
+        // a committed arrival active and reports the holds a teardown discarded.
+        coVerify(exactly = 1) {
+            mockController.onCoarseExit(
+                polygonId = VENUE_ID,
+                triggeringLocation = fix,
+                expectedUserStateGeneration = 7L,
+                expectedRegionRevision = null
+            )
+        }
+        coVerify(exactly = 0) { mockController.activate(any(), any(), any(), any()) }
+    }
+
+    @Test
+    fun worker_expectTheDepartureThresholdIsPinnedToTheRadius() = runTest {
+        // The decisively-outside test left the threshold unpinned: 300 m out with 20 m error
+        // clears a 120 m circle and would equally clear a 240 m one, so a mutant that doubled the
+        // radius survived it. Ten metres either side pins the subtraction: 150 - 20 = 130 clears
+        // 120, and 130 - 20 = 110 does not.
+        grantLocationPermission()
+        every { mockStore.getRoutableRegisteredIds() } returns setOf(VENUE_ID)
+        every { mockStore.getCachedRegions() } returns listOf(venueRegion())
+        every { mockStore.getActivePolygonIds() } returns setOf(VENUE_ID)
+        val clears = fixNorthOfVenue(150.0, accuracyMeters = 20.0f)
+        val doesNotClear = fixNorthOfVenue(130.0, accuracyMeters = 20.0f)
+        coEvery { mockFreshFix.awaitFreshFix(any(), any()) } returnsMany listOf(clears, doesNotClear)
+
+        TestListenableWorkerBuilder<PolygonRecheckWorker>(applicationMock).build().doWork()
+        TestListenableWorkerBuilder<PolygonRecheckWorker>(applicationMock).build().doWork()
+
+        coVerify(exactly = 1) { mockController.onCoarseExit(VENUE_ID, clears, any(), any()) }
+        coVerify(exactly = 0) { mockController.onCoarseExit(VENUE_ID, doesNotClear, any(), any()) }
+    }
+
+    @Test
+    fun worker_givenTheFixReportsNoAccuracy_expectNoClear() = runTest {
+        // accuracy is 0 when unset, which would make the margin vanish and clear a live session on
+        // a fix whose error is unknown.
+        grantLocationPermission()
+        every { mockStore.getRoutableRegisteredIds() } returns setOf(VENUE_ID)
+        every { mockStore.getCachedRegions() } returns listOf(venueRegion())
+        every { mockStore.getActivePolygonIds() } returns setOf(VENUE_ID)
+        coEvery { mockFreshFix.awaitFreshFix(any(), any()) } returns Location("test").apply {
+            latitude = VENUE_LAT + 300.0 / METRES_PER_DEGREE_LATITUDE
+            longitude = VENUE_LNG
+            elapsedRealtimeNanos = 5_000_000_000L
+        }
+
+        TestListenableWorkerBuilder<PolygonRecheckWorker>(applicationMock).build().doWork()
+
+        coVerify(exactly = 0) { mockController.onCoarseExit(any(), any(), any(), any()) }
+    }
+
+    @Test
+    fun worker_givenTheOutsideFixIsTooCoarseToDecide_expectNoClear() = runTest {
+        // The guard against re-introducing a phantom EXIT. 300 m out with 250 m of error does not
+        // establish a departure, and tearing a live session down on it is the failure this
+        // component already paid for three times.
+        grantLocationPermission()
+        every { mockStore.getRoutableRegisteredIds() } returns setOf(VENUE_ID)
+        every { mockStore.getCachedRegions() } returns listOf(venueRegion())
+        every { mockStore.getActivePolygonIds() } returns setOf(VENUE_ID)
+        coEvery { mockFreshFix.awaitFreshFix(any(), any()) } returns
+            fixNorthOfVenue(300.0, accuracyMeters = 250.0f)
+
+        TestListenableWorkerBuilder<PolygonRecheckWorker>(applicationMock).build().doWork()
+
+        coVerify(exactly = 0) { mockController.onCoarseExit(any(), any(), any(), any()) }
+    }
+
+    @Test
+    fun worker_givenTheOutsidePolygonWasNeverActive_expectNothingToClear() = runTest {
+        // The control for the two above. A registered polygon we never activated has no coarse
+        // state to clear, and calling the exit path for it would churn the dedupe memo and put a
+        // departure in the capture for a polygon that was never arrived at.
+        grantLocationPermission()
+        every { mockStore.getRoutableRegisteredIds() } returns setOf(VENUE_ID)
+        every { mockStore.getCachedRegions() } returns listOf(venueRegion())
+        every { mockStore.getActivePolygonIds() } returns emptySet()
+        coEvery { mockFreshFix.awaitFreshFix(any(), any()) } returns
+            fixNorthOfVenue(300.0, accuracyMeters = 20.0f)
+
+        TestListenableWorkerBuilder<PolygonRecheckWorker>(applicationMock).build().doWork()
+
+        coVerify(exactly = 0) { mockController.onCoarseExit(any(), any(), any(), any()) }
+    }
+
     private fun controller(scheduler: PolygonRecheckScheduler) = PolygonGeofenceServiceController(
         context = applicationMock,
         store = mockStore,
@@ -298,6 +483,18 @@ class PolygonRecheckTest : RobolectricTest() {
         elapsedRealtimeNanos = 5_000_000_000L
     }
 
+    /**
+     * A fix [metres] due north of the venue centre. Derived from a fixed metres-per-degree, which
+     * is ~0.4% off at this latitude, so it is accurate to well under a metre over these distances
+     * but not exact: the tests below stay ten metres clear of the boundary for that reason.
+     */
+    private fun fixNorthOfVenue(metres: Double, accuracyMeters: Float) = Location("test").apply {
+        latitude = VENUE_LAT + metres / METRES_PER_DEGREE_LATITUDE
+        longitude = VENUE_LNG
+        accuracy = accuracyMeters
+        elapsedRealtimeNanos = 5_000_000_000L
+    }
+
     private fun grantLocationPermission() {
         shadowOf(ApplicationProvider.getApplicationContext<Application>())
             .grantPermissions(
@@ -311,6 +508,7 @@ class PolygonRecheckTest : RobolectricTest() {
     }
 
     private companion object {
+        const val METRES_PER_DEGREE_LATITUDE = 111_320.0
         const val VENUE_ID = "venue"
         const val VENUE_LAT = 24.0
         const val VENUE_LNG = 67.0

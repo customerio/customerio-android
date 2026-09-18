@@ -289,7 +289,7 @@ internal class PolygonGeofenceServiceController(
         // Keyed on what is REGISTERED, not on what is active. An active polygon is one already
         // woken, and the re-check exists for the polygon that never woke at all, so gating on the
         // active set would switch the thing off in exactly the case it is for.
-        if (ids.isEmpty()) recheckScheduler.cancel() else recheckScheduler.schedule()
+        if (ids.isEmpty()) stopScheduledWakes() else recheckScheduler.schedule()
     }
 
     fun recover() {
@@ -504,6 +504,20 @@ internal class PolygonGeofenceServiceController(
         data object WithinCooldown : CallbackFixDecision
     }
 
+    /**
+     * Stops the schedule-driven wake. Every path that tears geofencing or the user session down
+     * calls this, outside [controllerLock], because WorkManager does disk work and logs through the
+     * host dispatcher.
+     *
+     * Unconditional rather than keyed on what is still registered: [stopAll] and
+     * [clearUserSessionRetainingOsRegistrations] leave registrations in place on purpose, so
+     * reading them here would re-arm the wake the caller is removing.
+     * [reconcileRegisteredPolygons] arms it again the next time registrations are written.
+     */
+    private fun stopScheduledWakes() {
+        recheckScheduler.cancel()
+    }
+
     fun invalidatePersistedCoarseState() {
         val discarded = synchronized(controllerLock) { invalidatePersistedCoarseStateLocked() }
         reportDiscardedArrivals(discarded)
@@ -535,6 +549,7 @@ internal class PolygonGeofenceServiceController(
             holds
         }
         reportDiscardedArrivals(discarded)
+        stopScheduledWakes()
     }
 
     fun stopAll() {
@@ -549,6 +564,7 @@ internal class PolygonGeofenceServiceController(
             holds
         }
         reportDiscardedArrivals(discarded)
+        stopScheduledWakes()
     }
 
     fun clearUserScopedState() {
@@ -565,6 +581,7 @@ internal class PolygonGeofenceServiceController(
             holds
         }
         reportDiscardedArrivals(discarded)
+        stopScheduledWakes()
     }
 
     fun clearUserSessionRetainingOsRegistrations() {
@@ -578,6 +595,7 @@ internal class PolygonGeofenceServiceController(
             holds
         }
         reportDiscardedArrivals(discarded)
+        stopScheduledWakes()
     }
 
     fun completeUserReset(
@@ -593,6 +611,7 @@ internal class PolygonGeofenceServiceController(
             holds
         }
         reportDiscardedArrivals(discarded)
+        stopScheduledWakes()
     }
 
     fun beginUserSession(userId: String) {

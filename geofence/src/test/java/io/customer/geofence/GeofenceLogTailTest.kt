@@ -224,7 +224,7 @@ class GeofenceLogTailTest : RobolectricTest() {
             Row("polygonFreshFixRequested", "polygon.freshfix.requested", listOf("ids", "n"), GeofenceLogger::logPolygonFreshFixRequested.name) { it.logPolygonFreshFixRequested(listOf("notl_core")) },
             Row("polygonFreshFixReceived", "polygon.freshfix.received", listOf("waited", "fixsrc", "acc", "age"), GeofenceLogger::logPolygonFreshFixReceived.name, io = "in") { it.logPolygonFreshFixReceived(fix, waitedSeconds = 1.4) },
             Row("polygonFreshFixSkipped", "polygon.freshfix.skipped", listOf("why"), GeofenceLogger::logPolygonFreshFixSkipped.name, pinned = mapOf("why" to "none_arrived")) { it.logPolygonFreshFixSkipped(PolygonFreshFixSkip.NONE_ARRIVED) },
-            Row("polygonRecheckRan", "polygon.recheck.ran", listOf("cand", "n", "ids", "fixsrc", "acc", "age"), GeofenceLogger::logPolygonRecheckRan.name, io = "in") { it.logPolygonRecheckRan(fix, candidateCount = 3, admittedIds = listOf("notl_core")) },
+            Row("polygonRecheckRan", "polygon.recheck.ran", listOf("cand", "n", "ids", "ncleared", "cleared", "fixsrc", "acc", "age"), GeofenceLogger::logPolygonRecheckRan.name, io = "in") { it.logPolygonRecheckRan(fix, candidateCount = 3, admittedIds = listOf("notl_core"), clearedIds = listOf("notl_annex")) },
             Row("polygonRecheckSkipped", "polygon.recheck.skipped", listOf("why"), GeofenceLogger::logPolygonRecheckSkipped.name, pinned = mapOf("why" to "nothing_registered")) { it.logPolygonRecheckSkipped(PolygonRecheckSkip.NOTHING_REGISTERED) }
         )
     }

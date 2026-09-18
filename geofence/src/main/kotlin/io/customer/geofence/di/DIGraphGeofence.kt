@@ -20,9 +20,11 @@ import io.customer.geofence.GeofenceTransitionEmitter
 import io.customer.geofence.api.GeofenceApiService
 import io.customer.geofence.api.GeofenceApiServiceImpl
 import io.customer.geofence.polygon.AndroidPolygonBootSessionProvider
+import io.customer.geofence.polygon.GmsPolygonFreshFixSource
 import io.customer.geofence.polygon.PolygonApproachMonitor
 import io.customer.geofence.polygon.PolygonApproachWorkScheduler
 import io.customer.geofence.polygon.PolygonBootSessionProvider
+import io.customer.geofence.polygon.PolygonFreshFixSource
 import io.customer.geofence.polygon.PolygonGeofenceServiceController
 import io.customer.geofence.polygon.PolygonLocationEngine
 import io.customer.geofence.polygon.PolygonSupport
@@ -181,6 +183,11 @@ internal val AndroidSDKComponent.polygonApproachMonitor: PolygonApproachMonitor
         )
     }
 
+internal val AndroidSDKComponent.polygonFreshFixSource: PolygonFreshFixSource
+    get() = singleton<PolygonFreshFixSource> {
+        GmsPolygonFreshFixSource(client = polygonFusedLocationClient)
+    }
+
 internal val AndroidSDKComponent.polygonGeofenceServiceController: PolygonGeofenceServiceController
     get() = singleton {
         PolygonGeofenceServiceController(
@@ -190,6 +197,7 @@ internal val AndroidSDKComponent.polygonGeofenceServiceController: PolygonGeofen
             approachMonitor = polygonApproachMonitor,
             manager = geofenceManager,
             secureUserStore = secureUserStore,
+            freshFixSource = polygonFreshFixSource,
             logger = SDKComponent.geofenceLogger
         )
     }

@@ -45,6 +45,7 @@ class PolygonGeofenceServiceControllerTest {
         approachMonitor,
         manager,
         secureUserStore,
+        freshFixSource = NeverAnswersFreshFix,
         logger = mockLogger
     )
 
@@ -74,7 +75,7 @@ class PolygonGeofenceServiceControllerTest {
         every { store.getRoutableRegisteredIds() } returns setOf("campus")
         every { store.getEnteredIds() } returns emptySet()
         every { store.getCachedConfig() } returns geofenceConfig()
-        coEvery { engine.processResponsiveLocation(exitLocation, any()) } returns true
+        coEvery { engine.processResponsiveLocation(exitLocation, any()) } returns acceptedFix()
         coEvery { manager.replaceMovementTrigger(any()) } coAnswers {
             registrationStarted.complete(Unit)
             finishRegistration.await()
@@ -103,7 +104,7 @@ class PolygonGeofenceServiceControllerTest {
         every { store.getEnteredIds() } returns emptySet()
         every { store.getCachedConfig() } returns geofenceConfig()
         every { store.saveLastMovementTriggerLocationIfCurrent(any(), any(), any()) } returns true
-        coEvery { engine.processResponsiveLocation(exitLocation, any()) } returns true
+        coEvery { engine.processResponsiveLocation(exitLocation, any()) } returns acceptedFix()
         coEvery { manager.replaceMovementTrigger(any()) } returns Result.success(Unit)
 
         controller.onCoarseExit("campus", exitLocation)
@@ -171,7 +172,7 @@ class PolygonGeofenceServiceControllerTest {
         io.mockk.coEvery { engine.processResponsiveLocation(exitLocation, any()) } coAnswers {
             processingStarted.complete(Unit)
             finishProcessing.await()
-            true
+            acceptedFix()
         }
 
         val exit = async { controller.onCoarseExit("campus", exitLocation) }
@@ -548,7 +549,7 @@ class PolygonGeofenceServiceControllerTest {
         every { store.getActivePolygonIds() } answers { activeIds }
         every { store.deactivatePolygon(any()) } answers { activeIds = activeIds - firstArg<String>() }
         every { store.getCachedConfig() } returns geofenceConfig()
-        coEvery { engine.processResponsiveLocation(fix, any()) } returns true
+        coEvery { engine.processResponsiveLocation(fix, any()) } returns acceptedFix()
         coEvery { manager.replaceMovementTrigger(any()) } coAnswers {
             // Identify completes while the registration is in flight.
             generation = 1L
@@ -585,6 +586,10 @@ class PolygonGeofenceServiceControllerTest {
         accuracy = 5f
         this.elapsedRealtimeNanos = elapsedRealtimeNanos
     }
+
+    /** An evaluation that used the fix and left nothing undecided, which is the ordinary pass. */
+    private fun acceptedFix() =
+        PolygonEvaluationOutcome(acceptedFix = true, undecidedPolygonIds = emptySet())
 
     private fun geofenceConfig() = GeofenceConfig(
         localRefreshTriggerRadius = 1_000f,

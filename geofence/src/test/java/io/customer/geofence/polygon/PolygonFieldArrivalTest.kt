@@ -114,6 +114,7 @@ class PolygonFieldArrivalTest : RobolectricTest() {
             approachMonitor = approachMonitor,
             manager = manager,
             secureUserStore = secureUserStore,
+            freshFixSource = NeverAnswersFreshFix,
             logger = mockLogger
         )
     }

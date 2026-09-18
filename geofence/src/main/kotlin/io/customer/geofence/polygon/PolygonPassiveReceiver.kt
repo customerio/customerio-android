@@ -70,6 +70,11 @@ class PolygonPassiveReceiver : BroadcastReceiver() {
             // app's fix would then wake our process to read the store and return, indefinitely.
             // Self-healing here bounds that at one wake rather than relying on every reset path
             // remembering.
+            //
+            // One narrow race this creates: a delivery between a session opening and that sync's
+            // reconcile stops the listener asynchronously, and if GMS executes the removal after
+            // reconcile's request, the listener is off until the next registration change. Bounded
+            // by the next sync that has additions, and cheaper than the unbounded wake it replaces.
             logger.logPolygonPassiveSkipped(PolygonPassiveSkip.NOTHING_REGISTERED)
             SDKComponent.android().polygonPassiveMonitor.stop()
             return
@@ -78,13 +83,40 @@ class PolygonPassiveReceiver : BroadcastReceiver() {
         // controller rather than attributed to whoever is current when it lands.
         val expectedUserStateGeneration = store.userStateGeneration()
         val admitted = polygons.filter { it.distanceTo(fix.latitude, fix.longitude) <= it.radius }
+        // The departure half, and the reason activating from here is safe. activate() records the
+        // polygon coarse-inside and only a GMS coarse EXIT clears it, so a polygon this listener
+        // activated from an ENTER GMS never issued could stay active for the life of the install.
+        //
+        // The accuracy is subtracted rather than gated on MAX_DECISIVE_FIX_ACCURACY_METERS: that
+        // ceiling is for ring-level decisions where the margin is tens of metres, while here the
+        // margin is the whole accuracy value plus the circle's slack over the ring. A passive fix
+        // is whatever another app asked for, so requiring the ceiling would leave this unreachable.
+        val activeIds = store.getActivePolygonIds()
+        val departed = polygons.filter { region ->
+            region.id in activeIds &&
+                // Location.accuracy reports 0 when unset, which would turn the margin off and
+                // clear on a fix with unknown error. GMS fixes carry it; this keeps "decisively"
+                // true of the predicate rather than of the provider.
+                fix.hasAccuracy() &&
+                region.distanceTo(fix.latitude, fix.longitude) - fix.accuracy > region.radius
+        }
         logger.logPolygonPassiveReceived(
             location = fix,
             candidateCount = polygons.size,
-            admittedIds = admitted.map(GeofenceRegion::id).sorted()
+            admittedIds = admitted.map(GeofenceRegion::id).sorted(),
+            clearedIds = departed.map(GeofenceRegion::id).sorted()
         )
-        if (admitted.isEmpty()) return
+        if (admitted.isEmpty() && departed.isEmpty()) return
         val controller = SDKComponent.android().polygonGeofenceServiceController
+        // onCoarseExit, not the store flag and not a direct deactivate: it keeps a committed
+        // arrival active, drops a duplicate delivery, and reports the holds it discarded.
+        departed.forEach { region ->
+            controller.onCoarseExit(
+                polygonId = region.id,
+                triggeringLocation = fix,
+                expectedUserStateGeneration = expectedUserStateGeneration
+            )
+        }
         admitted.forEach { region ->
             controller.activate(
                 polygonId = region.id,

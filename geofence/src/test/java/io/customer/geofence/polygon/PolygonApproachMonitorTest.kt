@@ -654,6 +654,29 @@ class PolygonApproachMonitorTest : RobolectricTest() {
     }
 
     @Test
+    fun recordSampleDelivered_givenTheBatchArrivesBeforeTheSessionIsAdopted_expectItIsStillCounted() {
+        // PROBE for a Bugbot finding, and the ordering is production's: a PendingIntent can
+        // cold-start the process, and PolygonApproachReceiver records the delivering batch through
+        // processApproachLocations BEFORE calling monitor.start to adopt the session. A count that
+        // only incremented pre-existing entries lost that batch and reported n=0 for a session that
+        // had delivered, which is the exact reading this field exists to make.
+        every {
+            client.requestLocationUpdates(any<LocationRequest>(), any<PendingIntent>())
+        } returns Tasks.forResult(null)
+        every { client.removeLocationUpdates(any<PendingIntent>()) } returns Tasks.forResult(null)
+        val monitor = monitor()
+        val deadline = SystemClock.elapsedRealtime() + 60_000L
+
+        monitor.recordSampleDelivered(deadline)
+        monitor.start(7L, deadline)
+        shadowOf(Looper.getMainLooper()).idle()
+        monitor.stop(expectedUserStateGeneration = 7L, expectedSessionDeadlineElapsedRealtimeMs = deadline)
+        shadowOf(Looper.getMainLooper()).idle()
+
+        verify(exactly = 1) { logger.logPolygonApproachMonitoringStopped(samplesReceived = 1) }
+    }
+
+    @Test
     fun recordSampleDelivered_givenTheSessionAlreadyEnded_expectItCannotBuyASecondEnding() {
         // PROBE for a peer review finding. putIfAbsent had no liveness check, so a batch arriving
         // after a teardown re-created the entry for a dead deadline, and a later removal naming it
@@ -734,6 +757,50 @@ class PolygonApproachMonitorTest : RobolectricTest() {
         // delivered against that deadline. Skipping the removal above is what used to strand it,
         // leaving the entry in the map and the finding unreported.
         verify(exactly = 1) { logger.logPolygonApproachMonitoringStopped(0) }
+    }
+
+    @Test
+    fun stop_givenRemovalRetriedThenStaleStop_expectOnlyOneEndingReported() {
+        // The retry re-issues the removal, and it used to re-issue it without the generation it
+        // was removing. The success path then could not tell a repeat teardown from a first one,
+        // so the ending was reported and never recorded, and the next stale stop reported it
+        // again. This is the 14-records-for-two-sessions shape reached through a flaky remove.
+        var removals = 0
+        every {
+            client.requestLocationUpdates(any<LocationRequest>(), any<PendingIntent>())
+        } returns Tasks.forResult(null)
+        every { client.removeLocationUpdates(any<PendingIntent>()) } answers {
+            removals += 1
+            if (removals == 1) {
+                Tasks.forException(IllegalStateException("remove boom"))
+            } else {
+                Tasks.forResult(null)
+            }
+        }
+        val scheduler = TestCoroutineScheduler()
+        val monitor = PolygonApproachMonitor(
+            context = applicationMock,
+            client = client,
+            store = mockStore,
+            logger = logger,
+            backgroundContext = StandardTestDispatcher(scheduler)
+        )
+        val deadline = SystemClock.elapsedRealtime() + 60_000L
+
+        monitor.start(7L, deadline)
+        shadowOf(Looper.getMainLooper()).idle()
+        repeat(3) { monitor.recordSampleDelivered(deadline) }
+        monitor.stop(7L, deadline)
+        shadowOf(Looper.getMainLooper()).idle()
+        scheduler.advanceTimeBy(5_001L)
+        scheduler.runCurrent()
+        shadowOf(Looper.getMainLooper()).idle()
+        // The same session named again, which is how a teardown path that lost its context asks.
+        monitor.stop(7L, deadline)
+        shadowOf(Looper.getMainLooper()).idle()
+
+        verify(exactly = 1) { logger.logPolygonApproachMonitoringStopped(3) }
+        verify(exactly = 0) { logger.logPolygonApproachMonitoringStopped(null) }
     }
 
     private fun monitor() = PolygonApproachMonitor(

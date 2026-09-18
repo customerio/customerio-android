@@ -11,8 +11,9 @@ import io.customer.geofence.GeofenceLogger
 import io.customer.geofence.store.GeofenceRegionStore
 import io.mockk.every
 import io.mockk.mockk
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.TestCoroutineScheduler
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -25,9 +26,9 @@ import org.robolectric.Shadows.shadowOf
  * Five review rounds on this seam each found the *next* case: a delayed removal listener writing a
  * shared memo back, a cold-process teardown with no local accounting entry, a re-arm that reported
  * an ending the memo never learned about. Every one of them was a path nobody had picked by hand,
- * which is the argument against picking paths by hand. This enumerates every sequence of six
- * operations up to length three, drains whatever is left live, and asserts properties that must
- * hold for all of them.
+ * which is the argument against picking paths by hand. This enumerates every sequence of the
+ * lifecycle operations up to length three, drains whatever is left live, and asserts properties
+ * that must hold for all of them.
  *
  * The invariants, for a single monitor instance that armed everything it could remove:
  *
@@ -66,7 +67,23 @@ class PolygonApproachTeardownInvariantTest : RobolectricTest() {
         STOP_NAMED_STALE,
 
         /** Permission revoked mid-session: the request fails and nothing is ever registered. */
-        SECURITY_FAILURE
+        SECURITY_FAILURE,
+
+        /** A batch for the first session, which may by now have ended. */
+        LATE_SAMPLE,
+
+        /** The cold-process order: a batch is recorded, then the session it belongs to is adopted. */
+        ADOPT_AFTER_SAMPLE,
+
+        /** A stale batch for an earlier generation, which is the second route to a repeat removal. */
+        REMOVE_STALE_GENERATION,
+
+        /**
+         * A removal GMS rejects once and accepts on the retry. The retried call is the only place
+         * the session's two keys can be dropped, and dropping either makes the retry's success
+         * look like a first teardown.
+         */
+        REMOVAL_FAILS_ONCE
     }
 
     @Test
@@ -84,7 +101,10 @@ class PolygonApproachTeardownInvariantTest : RobolectricTest() {
             "invariant violated by ${failures.size} of ${sequences.size} sequences:\n" +
                 failures.take(12).joinToString("\n") { "  $it" }
         }
-        check(sequences.size == 216) { "expected every sequence of three, got ${sequences.size}" }
+        val ops = Op.entries.size
+        check(sequences.size == ops * ops * ops) {
+            "expected every sequence of three, got ${sequences.size}"
+        }
     }
 
     @Test
@@ -114,7 +134,12 @@ class PolygonApproachTeardownInvariantTest : RobolectricTest() {
         }
         every { logger.logPolygonApproachMonitoringStarted() } answers { starts += 1 }
 
+        // Scheduler-backed rather than unconfined: every job this class launches opens with a
+        // delay, so nothing runs until time is advanced, and only REMOVAL_FAILS_ONCE advances it.
+        // The session timeout sits a minute out and so stays unreached.
+        val scheduler = TestCoroutineScheduler()
         var requestFails = false
+        var removalFailsOnce = false
         every { client.requestLocationUpdates(any<LocationRequest>(), any<PendingIntent>()) } answers {
             if (requestFails) {
                 requestFails = false
@@ -123,14 +148,21 @@ class PolygonApproachTeardownInvariantTest : RobolectricTest() {
                 Tasks.forResult(null)
             }
         }
-        every { client.removeLocationUpdates(any<PendingIntent>()) } returns Tasks.forResult(null)
+        every { client.removeLocationUpdates(any<PendingIntent>()) } answers {
+            if (removalFailsOnce) {
+                removalFailsOnce = false
+                Tasks.forException(IllegalStateException("remove rejected"))
+            } else {
+                Tasks.forResult(null)
+            }
+        }
 
         val monitor = PolygonApproachMonitor(
             context = applicationMock,
             client = client,
             store = store,
             logger = logger,
-            backgroundContext = Dispatchers.Unconfined
+            backgroundContext = StandardTestDispatcher(scheduler)
         )
 
         var attempts = 0
@@ -151,7 +183,7 @@ class PolygonApproachTeardownInvariantTest : RobolectricTest() {
                 armed += 1
                 deadlines += deadline
                 // A distinct number of samples per session, so a count names which one ended.
-                repeat(armed) { monitor.recordSampleDelivered(deadline) }
+                repeat(armed * SAMPLES_PER_SESSION) { monitor.recordSampleDelivered(deadline) }
                 idle()
             }
         }
@@ -171,6 +203,31 @@ class PolygonApproachTeardownInvariantTest : RobolectricTest() {
                 Op.SECURITY_FAILURE -> {
                     requestFails = true
                     arm()
+                }
+                Op.LATE_SAMPLE -> deadlines.firstOrNull()?.let { monitor.recordSampleDelivered(it) }
+                Op.REMOVE_STALE_GENERATION -> monitor.removeStaleGeneration(7L)
+                Op.REMOVAL_FAILS_ONCE -> {
+                    removalFailsOnce = true
+                    deadlines.lastOrNull()?.let { monitor.stop(generation, it) } ?: monitor.stop()
+                    idle()
+                    scheduler.advanceTimeBy(FIRST_RETRY_BACKOFF_MS + 1L)
+                    scheduler.runCurrent()
+                    idle()
+                    removalFailsOnce = false
+                }
+                Op.ADOPT_AFTER_SAMPLE -> {
+                    attempts += 1
+                    val deadline = SystemClock.elapsedRealtime() + 60_000L + attempts * 1_000L
+                    monitor.recordSampleDelivered(deadline)
+                    val startsBefore = starts
+                    monitor.start(generation, deadline)
+                    idle()
+                    if (starts > startsBefore) {
+                        armed += 1
+                        deadlines += deadline
+                        repeat(armed * SAMPLES_PER_SESSION - 1) { monitor.recordSampleDelivered(deadline) }
+                        idle()
+                    }
                 }
             }
             idle()
@@ -193,4 +250,15 @@ class PolygonApproachTeardownInvariantTest : RobolectricTest() {
     }
 
     private fun idle() = shadowOf(Looper.getMainLooper()).idle()
+
+    private companion object {
+        /**
+         * Samples per session, in tens, so a late batch landing in one session's count cannot make
+         * it collide with another session's and read as a duplicate report.
+         */
+        const val SAMPLES_PER_SESSION = 10
+
+        /** The monitor's first removal-retry delay, which the retry op has to step over. */
+        const val FIRST_RETRY_BACKOFF_MS = 5_000L
+    }
 }

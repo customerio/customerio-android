@@ -253,6 +253,51 @@ class PolygonApproachMonitorTest : RobolectricTest() {
     }
 
     @Test
+    fun stop_givenRepeatedStopsAfterTheSessionEnded_expectOneRecordNotOnePerPass() {
+        // The 2026-09-18 field case. Once any session has built a PendingIntent for the live
+        // generation, nothing cancels it, so every later sync pass that calls stop gets a success
+        // back from GMS for a request no longer attached. That filled the capture with fourteen
+        // teardowns against two real sessions, at two per pass, which is the record we rely on to
+        // tell whether the approach session ever sampled.
+        every {
+            client.requestLocationUpdates(any<LocationRequest>(), any<PendingIntent>())
+        } returns Tasks.forResult(null)
+        every { client.removeLocationUpdates(any<PendingIntent>()) } returns Tasks.forResult(null)
+        val monitor = monitor()
+
+        monitor.start(7L)
+        shadowOf(Looper.getMainLooper()).idle()
+        monitor.stop(expectedUserStateGeneration = 7L)
+        shadowOf(Looper.getMainLooper()).idle()
+        repeat(4) {
+            monitor.stop(expectedUserStateGeneration = 7L)
+            shadowOf(Looper.getMainLooper()).idle()
+        }
+
+        verify(exactly = 1) { logger.logPolygonApproachMonitoringStopped(any()) }
+    }
+
+    @Test
+    fun stop_givenTheSessionReArmedBetweenTeardowns_expectBothReported() {
+        // The control for the memo above: it must suppress a repeat of the same removal, not a
+        // second genuine teardown. Arming again is what makes the next removal real.
+        every {
+            client.requestLocationUpdates(any<LocationRequest>(), any<PendingIntent>())
+        } returns Tasks.forResult(null)
+        every { client.removeLocationUpdates(any<PendingIntent>()) } returns Tasks.forResult(null)
+        val monitor = monitor()
+
+        repeat(2) {
+            monitor.start(7L)
+            shadowOf(Looper.getMainLooper()).idle()
+            monitor.stop(expectedUserStateGeneration = 7L)
+            shadowOf(Looper.getMainLooper()).idle()
+        }
+
+        verify(exactly = 2) { logger.logPolygonApproachMonitoringStopped(any()) }
+    }
+
+    @Test
     fun start_givenExistingDeadline_expectCarriesItAcrossProcessDelivery() {
         val pendingIntent = slot<PendingIntent>()
         every {
@@ -559,7 +604,11 @@ class PolygonApproachMonitorTest : RobolectricTest() {
             client.requestLocationUpdates(any<LocationRequest>(), any<PendingIntent>())
         }
         verify(exactly = 0) { client.removeLocationUpdates(any<PendingIntent>()) }
-        verify(exactly = 0) { logger.logPolygonApproachMonitoringStopped(any()) }
+        // The first session did end, so its tally is owed exactly one record, and it is pinned to
+        // zero rather than any(): the count is the whole point of the record, and nothing was
+        // delivered against that deadline. Skipping the removal above is what used to strand it,
+        // leaving the entry in the map and the finding unreported.
+        verify(exactly = 1) { logger.logPolygonApproachMonitoringStopped(0) }
     }
 
     private fun monitor() = PolygonApproachMonitor(

@@ -47,6 +47,13 @@ internal class PolygonApproachMonitor(
     private val removalRetryJobs = mutableMapOf<PendingIntent, Job>()
 
     /**
+     * The request most recently removed, so a repeat removal of it is not reported as a teardown.
+     * One slot rather than a set: the case this exists for is the same generation being stopped
+     * over and over with nothing armed in between, and a single slot needs no pruning.
+     */
+    private var lastRemovedPendingIntent: PendingIntent? = null
+
+    /**
      * Asks Play services for approach fixes, best-effort.
      *
      * Deliberately **not** `@RequiresPermission`: holding a location permission is not a
@@ -122,6 +129,10 @@ internal class PolygonApproachMonitor(
                 sessionDeadlineElapsedRealtimeMs,
                 java.util.concurrent.atomic.AtomicInteger(0)
             )
+            // Something is armed again, so the next removal can genuinely tear it down and is
+            // worth a record. Only reached when this call actually arms: the early returns above
+            // leave the memo alone.
+            lastRemovedPendingIntent = null
             Triple(previous, current, outgoingDeadline)
         }
         // Only when it is a DIFFERENT request. A re-arm for the same generation builds an equal
@@ -131,6 +142,18 @@ internal class PolygonApproachMonitor(
         registration.first?.takeIf { it != registration.second }?.let {
             removeUpdates(it, registration.third)
         }
+        // The equal-PendingIntent case still ends a session, it just does not remove anything. Its
+        // count is consumed here because the removal that normally reports it is skipped above, so
+        // without this the outgoing deadline's tally is never reported and never freed.
+        registration.first
+            ?.takeIf { it == registration.second }
+            ?.let { registration.third }
+            ?.takeIf { it != sessionDeadlineElapsedRealtimeMs }
+            ?.let { outgoingDeadline ->
+                logger.logPolygonApproachMonitoringStopped(
+                    samplesReceived = samplesByDeadline.remove(outgoingDeadline)?.get()
+                )
+            }
         requestUpdates(registration.second, expectedUserStateGeneration, sessionDeadlineElapsedRealtimeMs)
     }
 
@@ -352,9 +375,18 @@ internal class PolygonApproachMonitor(
         try {
             client.removeLocationUpdates(pendingIntent)
                 .addOnSuccessListener {
+                    var removedALiveRequest = false
                     val restartGeneration = synchronized(lock) {
                         removalRetryJobs.remove(pendingIntent)?.cancel()
                         removalRetryAttempts.remove(pendingIntent)
+                        // GMS reports success whether or not a request is attached, and nothing
+                        // cancels the PendingIntent, so every later stop naming a generation that
+                        // has already been removed succeeds again. Reporting those claims a
+                        // teardown that did not happen: the 2026-09-18 capture carried 14 of them
+                        // against two real sessions, two per sync pass. Arming clears this memo, so
+                        // a genuine teardown following a re-arm is still reported.
+                        removedALiveRequest = lastRemovedPendingIntent != pendingIntent
+                        lastRemovedPendingIntent = pendingIntent
                         userStateGeneration?.takeIf {
                             desired && activePendingIntent == pendingIntent
                         }
@@ -363,11 +395,13 @@ internal class PolygonApproachMonitor(
                     // that armed in this process always has an entry, seeded at zero, so n=0 is
                     // observed evidence that nothing was delivered. Reaching for a default here
                     // would manufacture that finding from a teardown we simply could not name.
-                    logger.logPolygonApproachMonitoringStopped(
-                        samplesReceived = sessionDeadlineElapsedRealtimeMs
-                            ?.let { samplesByDeadline.remove(it) }
-                            ?.get()
-                    )
+                    if (removedALiveRequest) {
+                        logger.logPolygonApproachMonitoringStopped(
+                            samplesReceived = sessionDeadlineElapsedRealtimeMs
+                                ?.let { samplesByDeadline.remove(it) }
+                                ?.get()
+                        )
+                    }
                     if (restartGeneration != null) {
                         requestUpdates(
                             pendingIntent,

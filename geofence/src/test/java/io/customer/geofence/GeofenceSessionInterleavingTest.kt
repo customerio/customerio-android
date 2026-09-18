@@ -5,6 +5,7 @@ import io.customer.commontest.config.TestConfig
 import io.customer.commontest.config.testConfigurationDefault
 import io.customer.commontest.core.RobolectricTest
 import io.customer.geofence.polygon.NeverAnswersFreshFix
+import io.customer.geofence.polygon.NoopRecheckScheduler
 import io.customer.geofence.polygon.PolygonGeofenceServiceController
 import io.customer.geofence.store.GeofenceRegionStoreImpl
 import io.customer.sdk.core.util.Clock
@@ -112,6 +113,7 @@ class GeofenceSessionInterleavingTest : RobolectricTest() {
             manager = mockk(relaxed = true),
             secureUserStore = secureUserStore,
             freshFixSource = NeverAnswersFreshFix,
+            recheckScheduler = NoopRecheckScheduler,
             logger = mockk(relaxed = true)
         )
         store.beginUserSession(USER_A)

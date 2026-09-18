@@ -111,6 +111,7 @@ class PolygonDropVisibilityTest : RobolectricTest() {
             manager = manager,
             secureUserStore = secureUserStore,
             freshFixSource = NeverAnswersFreshFix,
+            recheckScheduler = NoopRecheckScheduler,
             logger = mockLogger
         )
     }

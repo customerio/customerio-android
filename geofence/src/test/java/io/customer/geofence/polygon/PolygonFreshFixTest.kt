@@ -407,7 +407,7 @@ class PolygonFreshFixTest : RobolectricTest() {
         var requests: Int = 0
             private set
 
-        override suspend fun awaitFreshFix(timeoutMs: Long): Location? {
+        override suspend fun awaitFreshFix(timeoutMs: Long, priority: PolygonFixPriority): Location? {
             requests++
             return null
         }
@@ -441,6 +441,7 @@ class PolygonFreshFixTest : RobolectricTest() {
         manager = manager,
         secureUserStore = secureUserStore,
         freshFixSource = freshFixSource,
+        recheckScheduler = NoopRecheckScheduler,
         logger = mockLogger
     )
 

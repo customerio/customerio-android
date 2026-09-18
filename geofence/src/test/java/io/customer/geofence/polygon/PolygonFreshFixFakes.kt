@@ -8,7 +8,7 @@ import android.location.Location
  * change what they measure.
  */
 internal object NeverAnswersFreshFix : PolygonFreshFixSource {
-    override suspend fun awaitFreshFix(timeoutMs: Long): Location? = null
+    override suspend fun awaitFreshFix(timeoutMs: Long, priority: PolygonFixPriority): Location? = null
 }
 
 /** Answers the first request with [location] and every later one with nothing. */
@@ -16,8 +16,35 @@ internal class AnswersOnceFreshFix(private val location: Location) : PolygonFres
     var requests: Int = 0
         private set
 
-    override suspend fun awaitFreshFix(timeoutMs: Long): Location? {
+    override suspend fun awaitFreshFix(timeoutMs: Long, priority: PolygonFixPriority): Location? {
         requests++
         return location.takeIf { requests == 1 }
     }
+}
+
+/**
+ * Records what the controller asked of the periodic re-check without scheduling anything.
+ *
+ * A fake rather than a mock because the interesting assertion is the *last* thing asked for: a
+ * reconcile that schedules and then cancels leaves the re-check off, and a call-count check would
+ * pass either way.
+ */
+internal class RecordingRecheckScheduler : PolygonRecheckScheduler {
+    val calls = mutableListOf<String>()
+
+    override fun schedule(): Boolean {
+        calls += "schedule"
+        return true
+    }
+
+    override fun cancel(): Boolean {
+        calls += "cancel"
+        return true
+    }
+}
+
+/** The default for tests about something else, so scheduling never changes what they measure. */
+internal object NoopRecheckScheduler : PolygonRecheckScheduler {
+    override fun schedule(): Boolean = true
+    override fun cancel(): Boolean = true
 }

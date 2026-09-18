@@ -25,6 +25,7 @@ import java.time.Duration
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.runTest
 import org.amshove.kluent.shouldBeEqualTo
+import org.amshove.kluent.shouldNotContain
 import org.junit.After
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -214,8 +215,16 @@ class PolygonLockFreedomTest : RobolectricTest() {
         controller.activate(polygonId = VENUE_ID, expectedUserStateGeneration = generation)
         engine.processResponsiveLocation(marginalFix())
 
+        // The teardown branch is taken only for a polygon that is not committed INSIDE, so a
+        // fixture where the arrival had been confirmed would make this test cover nothing while
+        // still passing. A held arrival is not a commitment, which is the whole point of the case.
+        store.getEnteredIds() shouldNotContain VENUE_ID
+
         controller.onCoarseExit(VENUE_ID, triggeringLocation = null, expectedUserStateGeneration = generation)
 
+        // Reachability asserted rather than assumed: the session is gone, so the branch that
+        // discards the hold under the outer lock is the one that just ran.
+        store.getActivePolygonIds() shouldNotContain VENUE_ID
         assertNoViolations()
     }
 
@@ -239,6 +248,11 @@ class PolygonLockFreedomTest : RobolectricTest() {
         controller.invalidateOsRegistrationState()
         controller.clearUserSessionRetainingOsRegistrations()
         controller.clearUserScopedState()
+        // Both have real production callers and neither was driven here: completeUserReset from
+        // GeofenceRepository's user reset, and beginUserSession from the identify path in
+        // ModuleGeofence. Only the ForCurrentUser sibling was covered.
+        controller.completeUserReset(store.userStateGeneration(), osRegistrationsCleared = true)
+        controller.beginUserSession(USER_ID)
 
         assertNoViolations()
     }

@@ -61,8 +61,13 @@ import org.robolectric.shadows.ShadowSystemClock
  * `holdsStateLock` has no such seam and was validated by mutation instead: a peer review on
  * 2026-09-18 confirmed that a `logger` call placed inside `synchronized(stateLock)` kills
  * [heldArrival_expectThePendingRecordIsEmittedOutsideBothLocks], and one inside
- * `synchronized(controllerLock)` in `deactivate` kills
+ * `synchronized(controllerLock)` in `deactivateLocked` kills
  * [coarseCallbacksAndTeardowns_expectEveryRecordIsEmittedOutsideBothLocks]. Both predicates fire.
+ *
+ * A sweep is not a substitute for naming a path. Reporting `onCoarseExit`'s discards inside its
+ * own lock kills only
+ * [coarseExitWithNoFixWhileAnArrivalIsHeld_expectTheDiscardIsEmittedOutsideBothLocks], because
+ * the sweep unregisters the polygon before it gets there.
  */
 @RunWith(RobolectricTestRunner::class)
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -199,12 +204,28 @@ class PolygonLockFreedomTest : RobolectricTest() {
     }
 
     @Test
+    fun coarseExitWithNoFixWhileAnArrivalIsHeld_expectTheDiscardIsEmittedOutsideBothLocks() = runTest {
+        // The nested case, which the sweep below cannot reach because it unregisters the polygon
+        // first. onCoarseExit holds controllerLock across its final block and tears the session
+        // down from inside it, so a teardown that discards a hold reports it while the outer lock
+        // is still held unless the ids are carried out. Both preconditions are needed: a fix would
+        // resolve the hold before the teardown, and an unregistered polygon returns early.
+        val generation = store.userStateGeneration()
+        controller.activate(polygonId = VENUE_ID, expectedUserStateGeneration = generation)
+        engine.processResponsiveLocation(marginalFix())
+
+        controller.onCoarseExit(VENUE_ID, triggeringLocation = null, expectedUserStateGeneration = generation)
+
+        assertNoViolations()
+    }
+
+    @Test
     fun coarseCallbacksAndTeardowns_expectEveryRecordIsEmittedOutsideBothLocks() = runTest {
         // A sweep rather than one assertion per record: these are the controllerLock paths that
         // log, and the point is that none of them may log while holding it.
         val generation = store.userStateGeneration()
         controller.activate(polygonId = VENUE_ID, expectedUserStateGeneration = generation)
-        controller.deactivate(polygonId = VENUE_ID, expectedUserStateGeneration = generation)
+        controller.onCoarseExit(VENUE_ID, triggeringLocation = null, expectedUserStateGeneration = generation)
         controller.resetEvidence(VENUE_ID)
         controller.reconcileRegisteredPolygons(emptySet())
         controller.recover()

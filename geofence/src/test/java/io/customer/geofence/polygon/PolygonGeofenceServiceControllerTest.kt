@@ -430,12 +430,16 @@ class PolygonGeofenceServiceControllerTest {
         }
 
     @Test
-    fun deactivate_givenLastActivePolygon_expectStopsBoundedSession() {
+    fun onCoarseExit_givenLastActivePolygonAndNoTriggeringFix_expectStopsBoundedSession() = runTest {
+        // Driven through the coarse EXIT rather than a deactivate entry point of its own: the
+        // callback is the only thing in production that tears a polygon's session down, and with
+        // no triggering fix it is also the path that reaches the teardown with an arrival still
+        // held. See PolygonLockFreedomTest for that half.
         var activeIds = setOf("campus")
         every { store.getActivePolygonIds() } answers { activeIds }
         every { store.deactivatePolygon("campus") } answers { activeIds = emptySet() }
 
-        controller.deactivate("campus", 0L)
+        controller.onCoarseExit("campus", triggeringLocation = null, expectedUserStateGeneration = 0L)
 
         verify { approachMonitor.stop(0L) }
     }

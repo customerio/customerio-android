@@ -555,6 +555,51 @@ class PolygonApproachMonitorTest : RobolectricTest() {
     }
 
     @Test
+    fun stop_givenTheEarlierRemovalLandsAfterAReArm_expectTheNewSessionStillReportsItsOwnCount() {
+        // The ABA across a re-arm. D1 is stopped, D2 arms on the same generation before D1's
+        // removal listener runs, and the two sessions build equal PendingIntents. While a
+        // one-slot memo of the last removed intent gated every teardown, D1's late listener wrote
+        // that intent back after D2 had armed, so D2's real teardown was suppressed as a repeat
+        // and its sample count was never reported.
+        //
+        // The counts are what name the sessions here: D2 delivered a sample and D1 did not, so
+        // one record of each is the only outcome that attributes both correctly.
+        val firstDeadline = SystemClock.elapsedRealtime() + 60_000L
+        val secondDeadline = SystemClock.elapsedRealtime() + 120_000L
+        val firstRemoval = TaskCompletionSource<Void>()
+        every {
+            client.requestLocationUpdates(any<LocationRequest>(), any<PendingIntent>())
+        } returns Tasks.forResult(null)
+        var removals = 0
+        every { client.removeLocationUpdates(any<PendingIntent>()) } answers {
+            removals += 1
+            if (removals == 1) firstRemoval.task else Tasks.forResult(null)
+        }
+        val monitor = monitor()
+
+        monitor.start(7L, firstDeadline)
+        shadowOf(Looper.getMainLooper()).idle()
+        monitor.stop(
+            expectedUserStateGeneration = 7L,
+            expectedSessionDeadlineElapsedRealtimeMs = firstDeadline
+        )
+        shadowOf(Looper.getMainLooper()).idle()
+        monitor.start(7L, secondDeadline)
+        monitor.recordSampleDelivered(secondDeadline)
+        shadowOf(Looper.getMainLooper()).idle()
+        firstRemoval.setResult(null)
+        shadowOf(Looper.getMainLooper()).idle()
+        monitor.stop(
+            expectedUserStateGeneration = 7L,
+            expectedSessionDeadlineElapsedRealtimeMs = secondDeadline
+        )
+        shadowOf(Looper.getMainLooper()).idle()
+
+        verify(exactly = 1) { logger.logPolygonApproachMonitoringStopped(samplesReceived = 0) }
+        verify(exactly = 1) { logger.logPolygonApproachMonitoringStopped(samplesReceived = 1) }
+    }
+
+    @Test
     fun start_givenAPartlySpentSession_expectOnlyTheRemainingBudgetOnTheRequest() {
         // A retry or a restart mid-session must not hand the OS a fresh two minutes, or a session
         // that keeps failing to register renews its own bound every attempt.

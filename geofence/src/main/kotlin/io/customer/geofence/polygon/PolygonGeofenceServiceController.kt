@@ -106,21 +106,27 @@ internal class PolygonGeofenceServiceController(
         }
     }
 
-    fun deactivate(
+    /**
+     * Tears a polygon's coarse session down. Callers hold [controllerLock] and report the returned
+     * arrival holds once they have left it.
+     *
+     * Returning the holds rather than logging them is what keeps the record lock-free. The public
+     * wrapper this replaces could not: `synchronized` is reentrant, so [onCoarseExit] calling it
+     * from inside the lock reported the discards when only the inner block had closed, and
+     * `session_ended` reached the host dispatcher under the outer lock.
+     */
+    private fun deactivateLocked(
         polygonId: String,
-        expectedUserStateGeneration: Long = store.userStateGeneration()
-    ) {
-        val discarded = synchronized(controllerLock) {
-            store.recordPolygonCoarseOutside(polygonId)
-            store.deactivatePolygon(polygonId)
-            val holds = engine.deactivate(polygonId).toMutableSet()
-            if (store.getActivePolygonIds().isEmpty()) {
-                holds += engine.stop()
-                approachMonitor.stop(expectedUserStateGeneration)
-            }
-            holds
+        expectedUserStateGeneration: Long
+    ): Set<String> {
+        store.recordPolygonCoarseOutside(polygonId)
+        store.deactivatePolygon(polygonId)
+        val holds = engine.deactivate(polygonId).toMutableSet()
+        if (store.getActivePolygonIds().isEmpty()) {
+            holds += engine.stop()
+            approachMonitor.stop(expectedUserStateGeneration)
         }
-        reportDiscardedArrivals(discarded)
+        return holds
     }
 
     suspend fun onCoarseExit(
@@ -163,25 +169,27 @@ internal class PolygonGeofenceServiceController(
                 )
             }
         }
-        synchronized(controllerLock) {
+        val discarded = synchronized(controllerLock) {
             if (!isCurrentRegisteredPolygonLocked(
                     polygonId,
                     expectedUserStateGeneration,
                     expectedRegionRevision
                 )
             ) {
-                return@synchronized
+                return@synchronized emptySet()
             }
             // A catalog refresh can activate from a newer live fix while the triggering fix is
             // evaluated. Never let this older EXIT tear that newer session down.
-            if (polygonId in store.getCoarseInsidePolygonIds()) return@synchronized
+            if (polygonId in store.getCoarseInsidePolygonIds()) return@synchronized emptySet()
             if (polygonId in store.getEnteredIds()) {
                 store.activatePolygon(polygonId)
                 approachMonitor.start(expectedUserStateGeneration)
+                emptySet()
             } else {
-                deactivate(polygonId, expectedUserStateGeneration)
+                deactivateLocked(polygonId, expectedUserStateGeneration)
             }
         }
+        reportDiscardedArrivals(discarded)
     }
 
     fun resetEvidence(polygonId: String) {

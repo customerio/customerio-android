@@ -307,8 +307,9 @@ private fun GeofenceApiRegion.toPolygonRegionOrNull(
         latitude = trigger.center.latitude,
         longitude = trigger.center.longitude,
         radius = trigger.radiusMeters,
-        // The padded radius above is what GMS registers; ranking needs the backend's own circle,
-        // so both meanings are carried rather than one overwriting the other.
+        // Equal to the base radius now that the circle is registered as sent. Both are still
+        // carried: `radius` is what GMS holds for any region, and `baseRadiusMeters` is what the
+        // backend said, which is what ranking asks for.
         baseRadiusMeters = baseRadiusMeters,
         transitionTypes = resolveTransitionTypes(transitionTypes),
         lastUpdated = lastUpdated ?: 0L,

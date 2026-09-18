@@ -334,9 +334,19 @@ internal class PolygonGeofenceServiceController(
                 val polygons = store.getCachedRegions().filter {
                     it.id in routableIds && it.isPolygon
                 }
+                // The fix's own position inside the circle, with no accuracy margin. Requiring the
+                // whole accuracy circle to fit made sense against a padded radius; against the
+                // backend's own circle, which is only tens of metres wider than the ring, an
+                // indoor fix could never satisfy it from anywhere, and six of the eleven catalogued
+                // circles are 163 m or smaller.
+                //
+                // Reason about the cost together with the on-demand fix, which ships alongside
+                // this: a false admission is evaluated, comes back undecided, and therefore buys a
+                // high-accuracy request inside the broadcast budget. So it costs a bounded amount
+                // of sensor time per spurious fix, not a sampling session. Against that, a missed
+                // admission loses the visit outright, because nothing re-derives a polygon arrival.
                 polygons.filter {
-                    it.distanceTo(location.latitude, location.longitude) +
-                        fix.sample.horizontalAccuracyMeters <= it.radius
+                    it.distanceTo(location.latitude, location.longitude) <= it.radius
                 }
                     .forEach { region ->
                         if (region.id !in store.getActivePolygonIds()) {

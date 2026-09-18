@@ -485,14 +485,24 @@ class PolygonGeofenceServiceControllerTest {
     }
 
     @Test
-    fun processApproachLocations_givenUncertainFixAtTrigger_expectDoesNotStartFineSession() = runTest {
+    fun processApproachLocations_givenUncertainFixInsideTheTrigger_expectItStillOpensASession() = runTest {
+        // Admission asks where the fix is, not how sure it is. The accuracy term that used to sit
+        // here required the whole accuracy circle inside the radius, which was satisfiable only
+        // because the radius was padded to 400 m; against the backend's own circle an indoor fix
+        // could never satisfy it from anywhere, and the polygon would never be evaluated.
+        //
+        // What a coarse fix cannot do is produce a verdict — the evaluator's ceiling still refuses
+        // it — so the cost of admitting one is a sampling session, against a missed arrival that
+        // nothing re-derives.
+        var activeIds = emptySet<String>()
+        every { store.getActivePolygonIds() } answers { activeIds }
+        every { store.activatePolygon(any()) } answers { activeIds = activeIds + firstArg<String>() }
         val uncertain = location(elapsedRealtimeNanos = 100L).apply { accuracy = 500f }
 
         controller.processApproachLocations(listOf(uncertain), 0L, 0L)
 
-        verify(exactly = 0) { store.activatePolygon(any()) }
-        verify(exactly = 0) { engine.activate(any()) }
-        coVerify(exactly = 0) { engine.processResponsiveLocation(any(), any()) }
+        verify { store.activatePolygon("campus") }
+        coVerify { engine.processResponsiveLocation(uncertain, 0L) }
     }
 
     @Test

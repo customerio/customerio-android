@@ -48,3 +48,27 @@ internal object NoopRecheckScheduler : PolygonRecheckScheduler {
     override fun schedule(): Boolean = true
     override fun cancel(): Boolean = true
 }
+
+/**
+ * Records the passive listener's lifecycle without touching GMS.
+ *
+ * The interesting property is the ORDER: a reconcile that starts and then stops leaves the listener
+ * off, and a call-count assertion would pass either way.
+ */
+internal class RecordingPassiveMonitor : PolygonPassiveMonitor {
+    val calls = mutableListOf<String>()
+
+    override fun start() {
+        calls += "start"
+    }
+
+    override fun stop() {
+        calls += "stop"
+    }
+}
+
+/** The default for tests about something else. */
+internal object NoopPassiveMonitor : PolygonPassiveMonitor {
+    override fun start() = Unit
+    override fun stop() = Unit
+}

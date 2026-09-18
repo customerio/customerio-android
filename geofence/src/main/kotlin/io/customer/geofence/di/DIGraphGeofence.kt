@@ -21,12 +21,14 @@ import io.customer.geofence.api.GeofenceApiService
 import io.customer.geofence.api.GeofenceApiServiceImpl
 import io.customer.geofence.polygon.AndroidPolygonBootSessionProvider
 import io.customer.geofence.polygon.GmsPolygonFreshFixSource
+import io.customer.geofence.polygon.GmsPolygonPassiveMonitor
 import io.customer.geofence.polygon.PolygonApproachMonitor
 import io.customer.geofence.polygon.PolygonApproachWorkScheduler
 import io.customer.geofence.polygon.PolygonBootSessionProvider
 import io.customer.geofence.polygon.PolygonFreshFixSource
 import io.customer.geofence.polygon.PolygonGeofenceServiceController
 import io.customer.geofence.polygon.PolygonLocationEngine
+import io.customer.geofence.polygon.PolygonPassiveMonitor
 import io.customer.geofence.polygon.PolygonRecheckScheduler
 import io.customer.geofence.polygon.PolygonSupport
 import io.customer.geofence.polygon.WorkManagerPolygonRecheckScheduler
@@ -83,6 +85,17 @@ internal val AndroidSDKComponent.polygonRecheckScheduler: PolygonRecheckSchedule
     // singleton keys on the implementation, and a host override would resolve to a second instance.
     get() = singleton<PolygonRecheckScheduler> {
         WorkManagerPolygonRecheckScheduler(workManagerProvider = SDKComponent.workManagerProvider)
+    }
+
+internal val AndroidSDKComponent.polygonPassiveMonitor: PolygonPassiveMonitor
+    // Keyed by the interface, like its siblings: an implementation key would let a host override
+    // resolve to a second instance holding a second GMS registration.
+    get() = singleton<PolygonPassiveMonitor> {
+        GmsPolygonPassiveMonitor(
+            context = applicationContext,
+            client = polygonFusedLocationClient,
+            logger = SDKComponent.geofenceLogger
+        )
     }
 
 internal val AndroidSDKComponent.polygonBootSessionProvider: PolygonBootSessionProvider
@@ -208,6 +221,7 @@ internal val AndroidSDKComponent.polygonGeofenceServiceController: PolygonGeofen
             secureUserStore = secureUserStore,
             freshFixSource = polygonFreshFixSource,
             recheckScheduler = polygonRecheckScheduler,
+            passiveMonitor = polygonPassiveMonitor,
             logger = SDKComponent.geofenceLogger
         )
     }

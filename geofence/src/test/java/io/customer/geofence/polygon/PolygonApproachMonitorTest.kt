@@ -240,6 +240,31 @@ class PolygonApproachMonitorTest : RobolectricTest() {
     }
 
     @Test
+    fun stop_givenAColdProcessNamesADeadlineItNeverArmed_expectTheEndingIsStillReported() {
+        // The cross-process case with a deadline attached, which is reachable: an expired batch
+        // with no identified user calls stop naming the deadline it recorded, and the registration
+        // outlives the process that armed it. This process has no accounting entry for that
+        // deadline, so it cannot count the session — but the ending is real and must not vanish.
+        every {
+            client.requestLocationUpdates(any<LocationRequest>(), any<PendingIntent>())
+        } returns Tasks.forResult(null)
+        every { client.removeLocationUpdates(any<PendingIntent>()) } returns Tasks.forResult(null)
+        val deadline = SystemClock.elapsedRealtime() + 60_000L
+
+        monitor().start(7L, deadline)
+        shadowOf(Looper.getMainLooper()).idle()
+        monitor().stop(
+            expectedUserStateGeneration = 7L,
+            expectedSessionDeadlineElapsedRealtimeMs = deadline
+        )
+        shadowOf(Looper.getMainLooper()).idle()
+
+        // Absent, not zero. Zero is the finding that a session armed and received nothing, and
+        // this process is in no position to claim it.
+        verify(exactly = 1) { logger.logPolygonApproachMonitoringStopped(samplesReceived = null) }
+    }
+
+    @Test
     fun stop_givenAGenerationNeverRegistered_expectNothingRemovedAndNoStopReported() {
         // Asking the OS to remove a request that was never made used to MINT the PendingIntent,
         // because FLAG_UPDATE_CURRENT creates when none exists, and then report a teardown for it.

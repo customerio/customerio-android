@@ -47,9 +47,8 @@ internal class PolygonApproachMonitor(
     private val removalRetryJobs = mutableMapOf<PendingIntent, Job>()
 
     /**
-     * The request most recently removed. Written on every successful removal, and read only by a
-     * teardown that cannot name the session it ended, so a repeat of that removal is not reported
-     * as a second teardown.
+     * The request most recently removed, so a repeat of that removal is not reported as a second
+     * teardown.
      *
      * One slot is enough because **equal intents are one registration.** `setData` carries the
      * generation but the deadline is an extra, and `filterEquals` ignores extras, so every session
@@ -58,12 +57,12 @@ internal class PolygonApproachMonitor(
      * regardless of what the call graph does. That is checkable against `filterEquals`; it does not
      * depend on enumerating which callers pass a deadline.
      *
-     * What this must not do is gate a *named* teardown, which is what it used to do. Sharing one
+     * What it must not do is decide the *count*, which is what it used to do. Sharing one
      * registration means sharing this slot, so a delayed removal listener from an earlier session
      * could write the intent back after a later one had armed, and the later session's real
-     * teardown was suppressed as a repeat with its sample count stranded. Named teardowns are now
-     * decided by their own accounting entry, per session and atomic, leaving this to the case with
-     * no entry to consult: a request that outlived the process which armed it.
+     * teardown was suppressed as a repeat with its sample count stranded. A session that armed
+     * here is now counted from its own accounting entry regardless of this slot; the slot only
+     * decides whether an ending with no entry is a first ending or a repeat.
      */
     private var lastRemoval: PendingIntent? = null
 
@@ -385,38 +384,41 @@ internal class PolygonApproachMonitor(
         try {
             client.removeLocationUpdates(pendingIntent)
                 .addOnSuccessListener {
-                    var unnamedTeardown = false
+                    var firstRemovalInThisProcess = false
                     val restartGeneration = synchronized(lock) {
                         removalRetryJobs.remove(pendingIntent)?.cancel()
                         removalRetryAttempts.remove(pendingIntent)
-                        // Written on every removal, read only when this one cannot name a session.
-                        if (sessionDeadlineElapsedRealtimeMs == null) {
-                            unnamedTeardown = lastRemoval != pendingIntent
-                        }
+                        firstRemovalInThisProcess = lastRemoval != pendingIntent
                         lastRemoval = pendingIntent
                         userStateGeneration?.takeIf {
                             desired && activePendingIntent == pendingIntent
                         }
                     }
+                    // Two questions, asked separately: did a teardown happen, and can it be
+                    // counted.
+                    //
                     // GMS reports success whether or not a request is attached, and nothing cancels
                     // the PendingIntent, so a stop naming an already-removed generation succeeds
                     // again. Reporting those claims a teardown that did not happen: the 2026-09-18
-                    // capture carried 14 against two real sessions.
+                    // capture carried 14 against two real sessions. What separates them is whether
+                    // this process has torn this registration down before, and since equal intents
+                    // are one registration (see [lastRemoval]) that is what the memo answers.
                     //
-                    // The accounting entry decides it. One exists from the moment a session arms
-                    // until its teardown is reported, so removing it is both the permission to
-                    // report and the count to report, atomically and for that session alone. See
-                    // [lastRemoval] for why the memo cannot do this job.
+                    // The count comes from the accounting entry, which exists from the moment a
+                    // session arms until its teardown is reported, so consuming it is atomic and
+                    // belongs to that session alone. A first removal with no entry is a real
+                    // ending this process cannot count: a request that outlived the process which
+                    // armed it, reached either by generation alone or by a deadline this process
+                    // never seeded. It is reported with no count rather than dropped.
                     //
-                    // n=0 is observed evidence that nothing was delivered, because a session that
-                    // armed in this process always has an entry seeded at zero. Absent means the
-                    // teardown could not name a session at all.
+                    // n=0 is therefore observed evidence that nothing was delivered, and absent
+                    // means the ending could not be attributed. Neither is a default.
                     val samples = sessionDeadlineElapsedRealtimeMs
                         ?.let { samplesByDeadline.remove(it) }
                     when {
                         samples != null ->
                             logger.logPolygonApproachMonitoringStopped(samplesReceived = samples.get())
-                        unnamedTeardown ->
+                        firstRemovalInThisProcess ->
                             logger.logPolygonApproachMonitoringStopped(samplesReceived = null)
                     }
                     if (restartGeneration != null) {

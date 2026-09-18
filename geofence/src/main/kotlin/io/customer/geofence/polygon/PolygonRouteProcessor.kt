@@ -1,6 +1,5 @@
 package io.customer.geofence.polygon
 
-import io.customer.geofence.GeofenceLogger
 import io.customer.geofence.PolygonArrivalExpiry
 
 internal data class PolygonFence(
@@ -19,13 +18,72 @@ internal data class PolygonTransitionDetection(
     val regionRevision: Int = 0
 )
 
+/**
+ * A record decided during [PolygonRouteProcessor.process] and emitted by the caller.
+ *
+ * Returned rather than logged because every caller of `process` holds a lock, and
+ * `GeofenceLogger` forwards to the host `Logger`, whose dispatcher is customer-supplied code. A
+ * slow dispatcher would then stall polygon evaluation for as long as it ran.
+ */
+internal sealed interface PolygonRouteRecord {
+    val geofenceId: String
+
+    /** Evaluated, but the fix does not separate inside from outside. */
+    data class Undecided(
+        override val geofenceId: String,
+        val reason: PolygonUndecidedReason,
+        val signedBoundaryDistanceMeters: Double?,
+        val horizontalAccuracyMeters: Double,
+        val fixAgeSeconds: Double
+    ) : PolygonRouteRecord
+
+    /** Decisive, and it agrees with what is already committed. */
+    data class Unchanged(
+        override val geofenceId: String,
+        val membership: String,
+        val signedBoundaryDistanceMeters: Double?,
+        val horizontalAccuracyMeters: Double,
+        val fixAgeSeconds: Double
+    ) : PolygonRouteRecord
+
+    /** A transition this pass is claiming. */
+    data class Decided(
+        override val geofenceId: String,
+        val transitionName: String,
+        val signedBoundaryDistanceMeters: Double?,
+        val horizontalAccuracyMeters: Double,
+        val fixAgeSeconds: Double,
+        val corroborated: Boolean
+    ) : PolygonRouteRecord
+
+    /** Decided ENTER, held for a second agreeing fix. */
+    data class ArrivalPending(
+        override val geofenceId: String,
+        val signedBoundaryDistanceMeters: Double?,
+        val horizontalAccuracyMeters: Double?,
+        val fixAgeSeconds: Double?
+    ) : PolygonRouteRecord
+
+    /** A hold that ended without becoming an arrival. */
+    data class ArrivalExpired(
+        override val geofenceId: String,
+        val reason: PolygonArrivalExpiry,
+        val heldForSeconds: Double? = null
+    ) : PolygonRouteRecord
+}
+
+/** What one pass over the active polygons decided, and what it owes the log. */
+internal data class PolygonRouteOutcome(
+    val detections: List<PolygonTransitionDetection>,
+    val records: List<PolygonRouteRecord>
+)
+
 /** Evaluates one ordered location stream against the currently active polygons. */
 internal class PolygonRouteProcessor(
     private val accuracyEvaluator: PolygonAccuracyEvaluator = PolygonAccuracyEvaluator(),
     /** Gates arrivals: the evidence rule has no clearance margin, so a marginal fix needs a second. */
     private val arrivalConfirmations: PolygonTransitionStateMachine =
-        PolygonTransitionStateMachine(requiredConfirmations = 2),
-    private val logger: GeofenceLogger
+        PolygonTransitionStateMachine(requiredConfirmations = 2)
 ) {
     private val latestElapsedRealtimeNanos = mutableMapOf<String, Long>()
 
@@ -35,7 +93,7 @@ internal class PolygonRouteProcessor(
         elapsedRealtimeNanos: Long,
         fixAgeSeconds: Double,
         committedStates: Map<String, PolygonCommittedState>
-    ): List<PolygonTransitionDetection> {
+    ): PolygonRouteOutcome {
         require(elapsedRealtimeNanos >= 0L) { "elapsed realtime must be non-negative" }
         require(fences.map(PolygonFence::id).distinct().size == fences.size) {
             "polygon ids must be unique"
@@ -51,16 +109,17 @@ internal class PolygonRouteProcessor(
         trackedFenceIds.clear()
         trackedFenceIds.addAll(activeIds)
 
-        return fences.mapNotNull { fence ->
+        val records = mutableListOf<PolygonRouteRecord>()
+        val detections = fences.mapNotNull { fence ->
             val latest = latestElapsedRealtimeNanos[fence.id]
             if (latest != null && elapsedRealtimeNanos <= latest) return@mapNotNull null
             latestElapsedRealtimeNanos[fence.id] = elapsedRealtimeNanos
-            retireStaleArrivalConfirmation(fence.id, elapsedRealtimeNanos)
+            retireStaleArrivalConfirmation(fence.id, elapsedRealtimeNanos, records)
             val committedState = committedStates[fence.id] ?: PolygonCommittedState.OUTSIDE
             val result = accuracyEvaluator.decisiveEvidenceFor(fence.geometry, sample, committedState)
             val evidence = result.evidence
             result.undecidedReason?.let { reason ->
-                logger.logPolygonUndecided(
+                records += PolygonRouteRecord.Undecided(
                     geofenceId = fence.id,
                     reason = reason,
                     signedBoundaryDistanceMeters = result.signedBoundaryDistanceMeters,
@@ -69,7 +128,7 @@ internal class PolygonRouteProcessor(
                 )
             }
             if (result.agreedWithCommittedState) {
-                logger.logPolygonUnchanged(
+                records += PolygonRouteRecord.Unchanged(
                     geofenceId = fence.id,
                     membership = committedState.name,
                     signedBoundaryDistanceMeters = result.signedBoundaryDistanceMeters,
@@ -89,7 +148,7 @@ internal class PolygonRouteProcessor(
                 // shows an arrival.pending with no counterpart and cannot tell a hold that was
                 // broken from one still waiting.
                 if (hadPendingArrival && !arrivalConfirmations.hasPending(fence.id)) {
-                    logger.logPolygonArrivalExpired(
+                    records += PolygonRouteRecord.ArrivalExpired(
                         geofenceId = fence.id,
                         reason = PolygonArrivalExpiry.EVIDENCE_BROKEN
                     )
@@ -111,7 +170,7 @@ internal class PolygonRouteProcessor(
                             // Decided ENTER, held for a second fix. Without this record the branch
                             // consumes a fix and emits nothing, which is indistinguishable in a
                             // capture from a callback that never arrived.
-                            logger.logPolygonArrivalPending(
+                            records += PolygonRouteRecord.ArrivalPending(
                                 geofenceId = fence.id,
                                 signedBoundaryDistanceMeters = result.signedBoundaryDistanceMeters,
                                 horizontalAccuracyMeters = sample.horizontalAccuracyMeters,
@@ -128,15 +187,17 @@ internal class PolygonRouteProcessor(
                 }
                 PolygonEvidence.AMBIGUOUS -> return@mapNotNull null
             }
-            recorded(
-                fence = fence,
-                transition = transition,
-                result = result,
-                sample = sample,
+            records += PolygonRouteRecord.Decided(
+                geofenceId = fence.id,
+                transitionName = transition.name,
+                signedBoundaryDistanceMeters = result.signedBoundaryDistanceMeters,
+                horizontalAccuracyMeters = sample.horizontalAccuracyMeters,
                 fixAgeSeconds = fixAgeSeconds,
                 corroborated = result.requiresCorroboration
             )
+            PolygonTransitionDetection(fence.id, transition, fence.regionRevision)
         }
+        return PolygonRouteOutcome(detections, records)
     }
 
     /**
@@ -168,7 +229,11 @@ internal class PolygonRouteProcessor(
      * fixes and knows nothing about when they arrived, so without this a marginal fix from one pass
      * and a marginal fix from a pass minutes later combine into an arrival neither observed.
      */
-    private fun retireStaleArrivalConfirmation(polygonId: String, elapsedRealtimeNanos: Long) {
+    private fun retireStaleArrivalConfirmation(
+        polygonId: String,
+        elapsedRealtimeNanos: Long,
+        records: MutableList<PolygonRouteRecord>
+    ) {
         // Derived from the state machine rather than maintained alongside it. Three call sites end
         // a hold and only one of them owns this map, so every attempt to keep the two in step at
         // the write sites has left a stamp behind and reported an expiry for an arrival that never
@@ -183,7 +248,7 @@ internal class PolygonRouteProcessor(
             // The counterpart to the pending record. Without it a capture cannot separate a hold
             // that completed from one that died, which is the whole question the field has to
             // answer about corroboration.
-            logger.logPolygonArrivalExpired(
+            records += PolygonRouteRecord.ArrivalExpired(
                 geofenceId = polygonId,
                 reason = PolygonArrivalExpiry.WINDOW_ELAPSED,
                 heldForSeconds = heldForNanos.toDouble() / NANOS_PER_SECOND
@@ -210,25 +275,6 @@ internal class PolygonRouteProcessor(
             arrivalConfirmationNanos.remove(polygonId)
         }
         return transition
-    }
-
-    private fun recorded(
-        fence: PolygonFence,
-        transition: PolygonTransition,
-        result: PolygonEvidenceResult,
-        sample: PolygonLocationSample,
-        fixAgeSeconds: Double,
-        corroborated: Boolean
-    ): PolygonTransitionDetection {
-        logger.logPolygonDecided(
-            geofenceId = fence.id,
-            transitionName = transition.name,
-            signedBoundaryDistanceMeters = result.signedBoundaryDistanceMeters,
-            horizontalAccuracyMeters = sample.horizontalAccuracyMeters,
-            fixAgeSeconds = fixAgeSeconds,
-            corroborated = corroborated
-        )
-        return PolygonTransitionDetection(fence.id, transition, fence.regionRevision)
     }
 
     private val trackedFenceIds = mutableSetOf<String>()

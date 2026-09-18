@@ -2,10 +2,10 @@ package io.customer.geofence.polygon
 
 import android.location.Location
 import android.os.SystemClock
+import androidx.annotation.VisibleForTesting
 import io.customer.geofence.GeofenceBusinessTransitionProcessor
 import io.customer.geofence.GeofenceLogTail
 import io.customer.geofence.GeofenceLogger
-import io.customer.geofence.PolygonArrivalExpiry
 import io.customer.geofence.PolygonEvaluationSkip
 import io.customer.geofence.PolygonFixRejection
 import io.customer.geofence.PolygonNotRankedReason
@@ -50,7 +50,7 @@ internal class PolygonLocationEngine(
     private val clock: Clock,
     private val logger: GeofenceLogger
 ) {
-    private val routeProcessor = PolygonRouteProcessor(logger = logger)
+    private val routeProcessor = PolygonRouteProcessor()
     private var sessionStartElapsedRealtimeNanos: Long? = null
     private val processingMutex = Mutex()
     private val stateLock = Any()
@@ -66,22 +66,16 @@ internal class PolygonLocationEngine(
      * Discards the current evaluation session. Called when no polygon is active any more, or when
      * user-scoped state is invalidated, so a later fix cannot be judged against a stale session.
      */
-    fun stop() {
-        val discarded = synchronized(stateLock) {
-            routeProcessor.clear().also {
-                geometryCache.clear()
-                invalidateFenceCacheLocked()
-                sessionStartElapsedRealtimeNanos = null
-            }
+    fun stop(): Set<String> = synchronized(stateLock) {
+        routeProcessor.clear().also {
+            geometryCache.clear()
+            invalidateFenceCacheLocked()
+            sessionStartElapsedRealtimeNanos = null
         }
-        reportDiscardedArrivals(discarded)
     }
 
-    fun activate(polygonId: String) {
-        val discarded = synchronized(stateLock) {
-            resetEvidenceLocked(polygonId).also { armSessionLocked(restartSession = true) }
-        }
-        reportDiscardedArrivals(discarded)
+    fun activate(polygonId: String): Set<String> = synchronized(stateLock) {
+        resetEvidenceLocked(polygonId).also { armSessionLocked(restartSession = true) }
     }
 
     /**
@@ -89,32 +83,65 @@ internal class PolygonLocationEngine(
      * delivery can batch recent locations, so using only the normal trigger grace would discard an
      * observed crossing merely because Play services delivered the batch late.
      */
-    fun activateFromApproach(polygonId: String, firstFixElapsedRealtimeNanos: Long) {
-        val discarded = synchronized(stateLock) {
-            resetEvidenceLocked(polygonId).also {
-                armSessionLocked(
-                    restartSession = true,
-                    observedSessionStartElapsedRealtimeNanos = firstFixElapsedRealtimeNanos
-                )
-            }
+    fun activateFromApproach(
+        polygonId: String,
+        firstFixElapsedRealtimeNanos: Long
+    ): Set<String> = synchronized(stateLock) {
+        resetEvidenceLocked(polygonId).also {
+            armSessionLocked(
+                restartSession = true,
+                observedSessionStartElapsedRealtimeNanos = firstFixElapsedRealtimeNanos
+            )
         }
-        reportDiscardedArrivals(discarded)
     }
 
-    fun resetEvidence(polygonId: String) {
-        val discarded = synchronized(stateLock) { resetEvidenceLocked(polygonId) }
-        reportDiscardedArrivals(discarded)
-    }
+    fun resetEvidence(polygonId: String): Set<String> =
+        synchronized(stateLock) { resetEvidenceLocked(polygonId) }
 
     /**
-     * Emitted outside every lock. A hold that dies because the session ended was previously removed
-     * in silence, which is the exact field case the pending record exists to explain: sampling goes
-     * quiet, the session is torn down, and the capture cannot say whether the hold completed.
+     * Whether the calling thread holds [stateLock]. Exposed only so a test can assert that no
+     * record reaches the host's log dispatcher while this lock is held, which is the invariant the
+     * returned-record plumbing in this file exists to preserve. A boolean rather than the lock
+     * itself: nothing outside this class has any business synchronizing on it.
      */
-    private fun reportDiscardedArrivals(polygonIds: Set<String>) {
-        polygonIds.forEach { id ->
-            logger.logPolygonArrivalExpired(id, PolygonArrivalExpiry.SESSION_ENDED)
-        }
+    @VisibleForTesting
+    internal fun holdsStateLock(): Boolean = Thread.holdsLock(stateLock)
+
+    /** The one place a returned [PolygonRouteRecord] becomes a log line. */
+    private fun emitRouteRecord(record: PolygonRouteRecord) = when (record) {
+        is PolygonRouteRecord.Undecided -> logger.logPolygonUndecided(
+            geofenceId = record.geofenceId,
+            reason = record.reason,
+            signedBoundaryDistanceMeters = record.signedBoundaryDistanceMeters,
+            horizontalAccuracyMeters = record.horizontalAccuracyMeters,
+            fixAgeSeconds = record.fixAgeSeconds
+        )
+        is PolygonRouteRecord.Unchanged -> logger.logPolygonUnchanged(
+            geofenceId = record.geofenceId,
+            membership = record.membership,
+            signedBoundaryDistanceMeters = record.signedBoundaryDistanceMeters,
+            horizontalAccuracyMeters = record.horizontalAccuracyMeters,
+            fixAgeSeconds = record.fixAgeSeconds
+        )
+        is PolygonRouteRecord.Decided -> logger.logPolygonDecided(
+            geofenceId = record.geofenceId,
+            transitionName = record.transitionName,
+            signedBoundaryDistanceMeters = record.signedBoundaryDistanceMeters,
+            horizontalAccuracyMeters = record.horizontalAccuracyMeters,
+            fixAgeSeconds = record.fixAgeSeconds,
+            corroborated = record.corroborated
+        )
+        is PolygonRouteRecord.ArrivalPending -> logger.logPolygonArrivalPending(
+            geofenceId = record.geofenceId,
+            signedBoundaryDistanceMeters = record.signedBoundaryDistanceMeters,
+            horizontalAccuracyMeters = record.horizontalAccuracyMeters,
+            fixAgeSeconds = record.fixAgeSeconds
+        )
+        is PolygonRouteRecord.ArrivalExpired -> logger.logPolygonArrivalExpired(
+            geofenceId = record.geofenceId,
+            reason = record.reason,
+            heldForSeconds = record.heldForSeconds
+        )
     }
 
     private fun resetEvidenceLocked(polygonId: String): Set<String> {
@@ -124,13 +151,8 @@ internal class PolygonLocationEngine(
         return if (wasPending) setOf(polygonId) else emptySet()
     }
 
-    fun deactivate(polygonId: String) {
-        // Expression body here silently returned the discard set to callers that ignore it. This is
-        // the likeliest way a hold actually dies in the field: a coarse EXIT near a boundary, which
-        // is the same situation that creates the hold in the first place.
-        val discarded = synchronized(stateLock) { resetEvidenceLocked(polygonId) }
-        reportDiscardedArrivals(discarded)
-    }
+    fun deactivate(polygonId: String): Set<String> =
+        synchronized(stateLock) { resetEvidenceLocked(polygonId) }
 
     /**
      * Evaluates one fix that arrived from a low-power source, moving containment only when that
@@ -203,7 +225,7 @@ internal class PolygonLocationEngine(
             var userStateChanged = false
             var fixTooOld = false
             var noEvaluableFences = false
-            val detections = synchronized(stateLock) {
+            val outcome = synchronized(stateLock) {
                 if (store.userStateGeneration() != expectedUserStateGeneration) {
                     userStateChanged = true
                     null
@@ -214,7 +236,7 @@ internal class PolygonLocationEngine(
                     val fences = activePolygonFencesLocked()
                     if (fences.isEmpty()) {
                         noEvaluableFences = true
-                        emptyList()
+                        PolygonRouteOutcome(emptyList(), emptyList())
                     } else {
                         acceptedFix = true
                         val committedStates = store.getEnteredIds()
@@ -243,8 +265,13 @@ internal class PolygonLocationEngine(
             if (noEvaluableFences) {
                 logger.logPolygonEvaluationSkipped(PolygonEvaluationSkip.NO_EVALUABLE_FENCES)
             }
-            detections ?: continue
-            detections.forEach { detection ->
+            val routeOutcome = outcome ?: continue
+            // Every record decided inside the block above is emitted here. The route processor
+            // returns them instead of logging them because stateLock gates every polygon
+            // evaluation, and these records reach the host's log dispatcher, which is customer
+            // code. PolygonLockFreedomTest is what keeps that true.
+            routeOutcome.records.forEach(::emitRouteRecord)
+            routeOutcome.detections.forEach { detection ->
                 if (store.userStateGeneration() != expectedUserStateGeneration) {
                     // Not under a lock here, so it logs in place and aborts the pass as before.
                     logger.logPolygonEvaluationSkipped(PolygonEvaluationSkip.USER_STATE_CHANGED)

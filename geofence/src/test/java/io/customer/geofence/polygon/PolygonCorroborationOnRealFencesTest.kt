@@ -1,8 +1,5 @@
 package io.customer.geofence.polygon
 
-import io.customer.geofence.GeofenceLogger
-import io.customer.sdk.core.util.CioLogLevel
-import io.customer.sdk.core.util.Logger
 import org.amshove.kluent.shouldBeEqualTo
 import org.junit.Test
 
@@ -127,7 +124,7 @@ class PolygonCorroborationOnRealFencesTest {
     fun route_givenAHeldArrivalAndASecondFixWithinTheWindow_expectTheArrivalCommits() {
         // The design working as intended: the approach session samples every 15 s, so the
         // corroborating fix is normally the next one.
-        val processor = PolygonRouteProcessor(logger = GeofenceLogger(SilentLogger()))
+        val processor = PolygonRouteProcessor()
         val fence = PolygonFence("fence-b", fenceB)
 
         val first = processor.process(
@@ -145,8 +142,8 @@ class PolygonCorroborationOnRealFencesTest {
             committedStates = emptyMap()
         )
 
-        first shouldBeEqualTo emptyList()
-        second shouldBeEqualTo listOf(
+        first.detections shouldBeEqualTo emptyList()
+        second.detections shouldBeEqualTo listOf(
             PolygonTransitionDetection("fence-b", PolygonTransition.ENTER)
         )
     }
@@ -156,7 +153,7 @@ class PolygonCorroborationOnRealFencesTest {
         // The field failure as behaviour rather than as a story. The sampler went quiet for five
         // minutes, so the corroborating fix fell outside the 60 s window. The visit is real and
         // ongoing and this is still not an arrival: the count restarted rather than completing.
-        val processor = PolygonRouteProcessor(logger = GeofenceLogger(SilentLogger()))
+        val processor = PolygonRouteProcessor()
         val fence = PolygonFence("fence-b", fenceB)
 
         processor.process(
@@ -174,16 +171,6 @@ class PolygonCorroborationOnRealFencesTest {
             committedStates = emptyMap()
         )
 
-        afterTheGap shouldBeEqualTo emptyList()
-    }
-
-    private class SilentLogger : Logger {
-        override var logLevel: CioLogLevel = CioLogLevel.NONE
-
-        override fun setLogDispatcher(dispatcher: ((CioLogLevel, String) -> Unit)?) = Unit
-
-        override fun info(message: String, tag: String?) = Unit
-        override fun debug(message: String, tag: String?) = Unit
-        override fun error(message: String, tag: String?, throwable: Throwable?) = Unit
+        afterTheGap.detections shouldBeEqualTo emptyList()
     }
 }

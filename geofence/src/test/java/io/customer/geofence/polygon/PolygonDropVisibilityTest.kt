@@ -267,50 +267,54 @@ class PolygonDropVisibilityTest : RobolectricTest() {
     // ---------- route processor: a held arrival dying ----------
 
     @Test
-    fun route_givenAHeldArrivalAndNoCorroborationInTime_expectTheExpiryIsLogged() {
+    fun route_givenAHeldArrivalAndNoCorroborationInTime_expectTheExpiryIsRecorded() {
         // The counterpart to the pending record. Without this a capture shows holds and decisions
         // and cannot say which holds died, which is the question the field has to answer.
-        val processor = PolygonRouteProcessor(logger = mockLogger)
+        val processor = PolygonRouteProcessor()
         val fence = PolygonFence(VENUE_ID, PolygonGeometry.from(venueVertices()))
         val marginal = PolygonLocationSample(PolygonCoordinate(37.77455, -122.4194), 18.0)
 
         processor.process(listOf(fence), marginal, 1_000_000_000L, 0.0, emptyMap())
-        processor.process(listOf(fence), marginal, 301_000_000_000L, 0.0, emptyMap())
+        val afterTheGap = processor.process(listOf(fence), marginal, 301_000_000_000L, 0.0, emptyMap())
 
-        verify { mockLogger.logPolygonArrivalExpired(VENUE_ID, PolygonArrivalExpiry.WINDOW_ELAPSED, any()) }
+        afterTheGap.records
+            .filterIsInstance<PolygonRouteRecord.ArrivalExpired>()
+            .map { it.geofenceId to it.reason } shouldBeEqualTo
+            listOf(VENUE_ID to PolygonArrivalExpiry.WINDOW_ELAPSED)
     }
 
     @Test
-    fun route_givenAFenceThatNeverHeldAnArrival_expectNoExpiryIsLogged() {
+    fun route_givenAFenceThatNeverHeldAnArrival_expectNoExpiryIsRecorded() {
         // Found on the 2026-09-17 evening drive: 11 expiry records fired and zero holds preceded
         // them. Every quiet fence was being stamped as a pending arrival, because the same helper
         // is reached to break a run of agreeing fixes, so a minute later each one reported an
         // arrival that had never existed. A record that fires when nothing happened is worse than
         // no record.
-        val processor = PolygonRouteProcessor(logger = mockLogger)
+        val processor = PolygonRouteProcessor()
         val fence = PolygonFence(VENUE_ID, PolygonGeometry.from(venueVertices()))
         // Far outside the ring, so every pass agrees with the committed OUTSIDE state.
         val outside = PolygonLocationSample(PolygonCoordinate(37.9000, -122.4194), 5.0)
 
-        processor.process(listOf(fence), outside, 1_000_000_000L, 0.0, emptyMap())
-        processor.process(listOf(fence), outside, 301_000_000_000L, 0.0, emptyMap())
+        val first = processor.process(listOf(fence), outside, 1_000_000_000L, 0.0, emptyMap())
+        val second = processor.process(listOf(fence), outside, 301_000_000_000L, 0.0, emptyMap())
 
-        verify(exactly = 0) { mockLogger.logPolygonArrivalExpired(any(), any(), any()) }
+        (first.records + second.records)
+            .filterIsInstance<PolygonRouteRecord.ArrivalExpired>() shouldBeEqualTo emptyList()
     }
 
     @Test
-    fun route_givenAHoldThatWasHonouredByADecisiveFix_expectNoExpiryIsLogged() {
+    fun route_givenAHoldThatWasHonouredByADecisiveFix_expectNoExpiryIsRecorded() {
         // The stamp is written by confirmArrival but cleared by two other call sites that do not
         // know about it, so a hold that COMPLETED left its timestamp behind and reported an expiry
         // for an arrival that succeeded.
-        val processor = PolygonRouteProcessor(logger = mockLogger)
+        val processor = PolygonRouteProcessor()
         val fence = PolygonFence(VENUE_ID, PolygonGeometry.from(venueVertices()))
         val marginal = PolygonLocationSample(PolygonCoordinate(37.77455, -122.4194), 18.0)
         val decisive = PolygonLocationSample(PolygonCoordinate(37.7750, -122.4194), 18.0)
 
         processor.process(listOf(fence), marginal, 1_000_000_000L, 0.0, emptyMap())
         val committed = processor.process(listOf(fence), decisive, 6_000_000_000L, 0.0, emptyMap())
-        processor.process(
+        val laterPass = processor.process(
             listOf(fence),
             decisive,
             131_000_000_000L,
@@ -318,8 +322,9 @@ class PolygonDropVisibilityTest : RobolectricTest() {
             mapOf(VENUE_ID to PolygonCommittedState.INSIDE)
         )
 
-        committed.map { it.transition } shouldBeEqualTo listOf(PolygonTransition.ENTER)
-        verify(exactly = 0) { mockLogger.logPolygonArrivalExpired(any(), any(), any()) }
+        committed.detections.map { it.transition } shouldBeEqualTo listOf(PolygonTransition.ENTER)
+        (committed.records + laterPass.records)
+            .filterIsInstance<PolygonRouteRecord.ArrivalExpired>() shouldBeEqualTo emptyList()
     }
 
     @Test
@@ -332,7 +337,11 @@ class PolygonDropVisibilityTest : RobolectricTest() {
         engine.activate(VENUE_ID)
         engine.processResponsiveLocation(marginalFix())
 
-        engine.stop()
+        // Torn down through the controller, not by calling engine.stop() directly. The engine
+        // returns the discarded ids and the controller emits them once controllerLock is released,
+        // so only this route proves the record actually reaches the log. Calling the engine here
+        // would assert on a logger the engine no longer talks to, and pass for the wrong reason.
+        controller.stopAll()
 
         verify {
             mockLogger.logPolygonArrivalExpired(
@@ -353,25 +362,22 @@ class PolygonDropVisibilityTest : RobolectricTest() {
     }
 
     @Test
-    fun route_givenAHoldBrokenByACoarseFix_expectTheBreakIsLogged() {
+    fun route_givenAHoldBrokenByACoarseFix_expectTheBreakIsRecorded() {
         // A marginal ENTER holds; the next fix is too coarse to judge, which breaks the run of
         // agreeing fixes. That is the commonest way a hold ends and it had no record, so a capture
         // saw an arrival.pending with no counterpart and could not tell it from one still waiting.
-        val processor = PolygonRouteProcessor(logger = mockLogger)
+        val processor = PolygonRouteProcessor()
         val fence = PolygonFence(VENUE_ID, PolygonGeometry.from(venueVertices()))
         val marginal = PolygonLocationSample(PolygonCoordinate(37.77455, -122.4194), 18.0)
         val tooCoarse = PolygonLocationSample(PolygonCoordinate(37.77455, -122.4194), 120.0)
 
         processor.process(listOf(fence), marginal, 1_000_000_000L, 0.0, emptyMap())
-        processor.process(listOf(fence), tooCoarse, 6_000_000_000L, 0.0, emptyMap())
+        val broken = processor.process(listOf(fence), tooCoarse, 6_000_000_000L, 0.0, emptyMap())
 
-        verify {
-            mockLogger.logPolygonArrivalExpired(
-                VENUE_ID,
-                PolygonArrivalExpiry.EVIDENCE_BROKEN,
-                any()
-            )
-        }
+        broken.records
+            .filterIsInstance<PolygonRouteRecord.ArrivalExpired>()
+            .map { it.geofenceId to it.reason } shouldBeEqualTo
+            listOf(VENUE_ID to PolygonArrivalExpiry.EVIDENCE_BROKEN)
     }
 
     private fun insideFix() = fix(37.7750, -122.4194)

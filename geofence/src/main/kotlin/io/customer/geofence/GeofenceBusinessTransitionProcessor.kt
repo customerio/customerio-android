@@ -37,10 +37,23 @@ internal class GeofenceBusinessTransitionProcessor(
         if (expectedRegionRevision != null && currentRegionRevision != expectedRegionRevision) {
             return@withLock
         }
+        // Both clauses answer "should this EXIT exist", from different records, and a fence that
+        // never reports ENTER is excluded from both: it can satisfy neither, so requiring either
+        // would swallow every EXIT it produces. Mirrors isRedundantEnter in the emitter.
+        val monitorsEnter = cachedRegion?.transitionTypes?.contains(GeofenceTransitionType.ENTER) == true
+        val exitingUserId = secureUserStore.getUserId()?.takeIf { it.isNotEmpty() }
+        // Where the device IS: nothing recorded us inside, so there is nothing to leave.
+        val deviceWasNeverInside = geofenceId !in store.getEnteredIds() && store.hasContainmentRecord()
+        // What the BACKEND believes: a sync can seed containment from a fix too coarse to
+        // synthesise the matching ENTER, and the EXIT then reads as matched while the backend was
+        // never told of an arrival. Measured on 2026-09-19: a 1 km circle registered around a
+        // device already inside it, on a 400 m fix, delivered an EXIT for a visit never reported.
+        val backendWasNeverTold = exitingUserId != null &&
+            store.hasEmittedEnterRecord(exitingUserId) &&
+            !store.hasEmittedEnter(exitingUserId, geofenceId)
         val isUnmatchedExit = transition == Event.GeofenceTransition.EXIT &&
-            geofenceId !in store.getEnteredIds() &&
-            store.hasContainmentRecord() &&
-            cachedRegion?.transitionTypes?.contains(GeofenceTransitionType.ENTER) == true
+            monitorsEnter &&
+            (deviceWasNeverInside || backendWasNeverTold)
         if (isUnmatchedExit) {
             logger.logExitDroppedNeverEntered(geofenceId)
             return@withLock

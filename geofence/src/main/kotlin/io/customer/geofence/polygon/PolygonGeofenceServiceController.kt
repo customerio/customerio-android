@@ -33,6 +33,7 @@ internal class PolygonGeofenceServiceController(
     private val secureUserStore: SecureUserStore,
     private val freshFixSource: PolygonFreshFixSource,
     private val recheckScheduler: PolygonRecheckScheduler,
+    private val passiveMonitor: PolygonPassiveMonitor,
     private val logger: GeofenceLogger
 ) {
     private val movementTriggerPolicy = PolygonMovementTriggerPolicy()
@@ -289,7 +290,16 @@ internal class PolygonGeofenceServiceController(
         // Keyed on what is REGISTERED, not on what is active. An active polygon is one already
         // woken, and the re-check exists for the polygon that never woke at all, so gating on the
         // active set would switch the thing off in exactly the case it is for.
-        if (ids.isEmpty()) stopScheduledWakes() else recheckScheduler.schedule()
+        if (ids.isEmpty()) {
+            stopScheduledWakes()
+        } else {
+            // Both wakes share this lifetime. The passive listener costs nothing to hold open and
+            // guarantees nothing, so it is the cheaper half of the same answer: it can land inside
+            // the re-check's interval, and on a device where no other app asks for location it
+            // simply never fires.
+            recheckScheduler.schedule()
+            passiveMonitor.start()
+        }
     }
 
     fun recover() {
@@ -505,9 +515,9 @@ internal class PolygonGeofenceServiceController(
     }
 
     /**
-     * Stops the schedule-driven wake. Every path that tears geofencing or the user session down
-     * calls this, outside [controllerLock], because WorkManager does disk work and logs through the
-     * host dispatcher.
+     * Stops both schedule-driven wakes. Every path that tears geofencing or the user session down
+     * calls this, outside [controllerLock], because WorkManager does disk work and both log through
+     * the host dispatcher.
      *
      * Unconditional rather than keyed on what is still registered: [stopAll] and
      * [clearUserSessionRetainingOsRegistrations] leave registrations in place on purpose, so
@@ -516,6 +526,7 @@ internal class PolygonGeofenceServiceController(
      */
     private fun stopScheduledWakes() {
         recheckScheduler.cancel()
+        passiveMonitor.stop()
     }
 
     fun invalidatePersistedCoarseState() {

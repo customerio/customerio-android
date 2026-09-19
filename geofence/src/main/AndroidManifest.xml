@@ -30,6 +30,16 @@
             android:name="io.customer.geofence.polygon.PolygonApproachReceiver"
             android:exported="false" />
 
+        <!--
+            Receives fixes other apps requested, while any polygon is registered.
+
+            Always enabled, for the reason above: its registration is a PendingIntent held by GMS
+            that outlives the process, so disabling this would strand a live request.
+        -->
+        <receiver
+            android:name="io.customer.geofence.polygon.PolygonPassiveReceiver"
+            android:exported="false" />
+
         <!-- Disabled by default; enabled alongside GeofenceBroadcastReceiver -->
         <receiver
             android:name="io.customer.geofence.GeofenceBootReceiver"

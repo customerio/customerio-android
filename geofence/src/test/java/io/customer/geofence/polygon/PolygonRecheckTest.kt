@@ -460,6 +460,7 @@ class PolygonRecheckTest : RobolectricTest() {
         secureUserStore = mockSecureUserStore,
         freshFixSource = NeverAnswersFreshFix,
         recheckScheduler = scheduler,
+        passiveMonitor = NoopPassiveMonitor,
         logger = mockk(relaxed = true)
     )
 

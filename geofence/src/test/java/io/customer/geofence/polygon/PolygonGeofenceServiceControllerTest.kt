@@ -46,6 +46,7 @@ class PolygonGeofenceServiceControllerTest {
         manager,
         secureUserStore,
         freshFixSource = NeverAnswersFreshFix,
+        recheckScheduler = NoopRecheckScheduler,
         logger = mockLogger
     )
 

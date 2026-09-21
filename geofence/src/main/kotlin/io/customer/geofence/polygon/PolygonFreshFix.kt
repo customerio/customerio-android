@@ -23,6 +23,18 @@ import kotlinx.coroutines.withTimeoutOrNull
  * test has to be able to make it return late, return nothing, or throw, and none of those are
  * reachable through the real client.
  */
+/**
+ * What the caller is willing to spend on a fix.
+ *
+ * [BALANCED] answers "roughly where is this device", which is all that is needed to tell whether it
+ * is inside a wake circle hundreds of metres across. [HIGH_ACCURACY] is what a ring needs and what
+ * costs GPS, so it is asked for only once a cheap fix has shown it could matter.
+ */
+internal enum class PolygonFixPriority {
+    BALANCED,
+    HIGH_ACCURACY
+}
+
 internal interface PolygonFreshFixSource {
     /**
      * A fix no older than this call, or null if none arrived within [timeoutMs].
@@ -30,7 +42,10 @@ internal interface PolygonFreshFixSource {
      * Never throws: a missing permission, a disabled provider and a timeout are all the same
      * outcome to the caller, which is "decide on what you already have".
      */
-    suspend fun awaitFreshFix(timeoutMs: Long): Location?
+    suspend fun awaitFreshFix(
+        timeoutMs: Long,
+        priority: PolygonFixPriority = PolygonFixPriority.HIGH_ACCURACY
+    ): Location?
 }
 
 internal class GmsPolygonFreshFixSource(
@@ -43,7 +58,7 @@ internal class GmsPolygonFreshFixSource(
      * handled outcome, not a precondition.
      */
     @SuppressLint("MissingPermission")
-    override suspend fun awaitFreshFix(timeoutMs: Long): Location? {
+    override suspend fun awaitFreshFix(timeoutMs: Long, priority: PolygonFixPriority): Location? {
         if (timeoutMs <= 0L) return null
         val tokenSource = CancellationTokenSource()
         val request = CurrentLocationRequest.Builder()
@@ -52,7 +67,12 @@ internal class GmsPolygonFreshFixSource(
             // captures it degrades to 100-1000 m when the device is slow or parked, which reads as
             // network positioning rather than GNSS. This request is the only fix in the pipeline
             // whose accuracy class we pick.
-            .setPriority(Priority.PRIORITY_HIGH_ACCURACY)
+            .setPriority(
+                when (priority) {
+                    PolygonFixPriority.BALANCED -> Priority.PRIORITY_BALANCED_POWER_ACCURACY
+                    PolygonFixPriority.HIGH_ACCURACY -> Priority.PRIORITY_HIGH_ACCURACY
+                }
+            )
             // No cached fix, because a cached one is the fix we already failed to decide on. The
             // caller is asking for an accuracy class, not for a younger timestamp.
             .setMaxUpdateAgeMillis(0L)

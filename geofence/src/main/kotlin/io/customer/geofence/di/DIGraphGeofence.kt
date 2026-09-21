@@ -27,7 +27,9 @@ import io.customer.geofence.polygon.PolygonBootSessionProvider
 import io.customer.geofence.polygon.PolygonFreshFixSource
 import io.customer.geofence.polygon.PolygonGeofenceServiceController
 import io.customer.geofence.polygon.PolygonLocationEngine
+import io.customer.geofence.polygon.PolygonRecheckScheduler
 import io.customer.geofence.polygon.PolygonSupport
+import io.customer.geofence.polygon.WorkManagerPolygonRecheckScheduler
 import io.customer.geofence.store.GeofenceCooldownStore
 import io.customer.geofence.store.GeofenceCooldownStoreImpl
 import io.customer.geofence.store.GeofenceRegionStore
@@ -74,6 +76,13 @@ internal val AndroidSDKComponent.polygonApproachWorkScheduler: PolygonApproachWo
             store = geofenceRegionStore,
             bootSessionProvider = polygonBootSessionProvider
         )
+    }
+
+internal val AndroidSDKComponent.polygonRecheckScheduler: PolygonRecheckScheduler
+    // Keyed by the interface for the reason the sibling seams are: without the explicit type the
+    // singleton keys on the implementation, and a host override would resolve to a second instance.
+    get() = singleton<PolygonRecheckScheduler> {
+        WorkManagerPolygonRecheckScheduler(workManagerProvider = SDKComponent.workManagerProvider)
     }
 
 internal val AndroidSDKComponent.polygonBootSessionProvider: PolygonBootSessionProvider
@@ -198,6 +207,7 @@ internal val AndroidSDKComponent.polygonGeofenceServiceController: PolygonGeofen
             manager = geofenceManager,
             secureUserStore = secureUserStore,
             freshFixSource = polygonFreshFixSource,
+            recheckScheduler = polygonRecheckScheduler,
             logger = SDKComponent.geofenceLogger
         )
     }

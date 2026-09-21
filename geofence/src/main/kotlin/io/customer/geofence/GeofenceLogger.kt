@@ -89,6 +89,13 @@ internal enum class PolygonFreshFixSkip(val wire: String, val detail: String) {
     NONE_ARRIVED("none_arrived", "nothing arrived inside the broadcast's budget")
 }
 
+/** Why a periodic re-check wake did nothing. */
+internal enum class PolygonRecheckSkip(val wire: String, val detail: String) {
+    NOTHING_REGISTERED("nothing_registered", "no polygon is registered, so the work retired itself"),
+    NO_FIX("no_fix", "no location arrived within the re-check's budget"),
+    NO_PERMISSION("no_permission", "location permission is not granted, so nothing was asked for")
+}
+
 /**
  * A stop that was declined. The session is still live afterwards, so these are deliberately NOT
  * endings: counting them as such would over-count sessions that ended in any capture.
@@ -1314,6 +1321,48 @@ internal class GeofenceLogger(private val logger: Logger) {
                     listOf("waited" to num(waitedSeconds)) +
                         GeofenceLogTail.fixQuality(location, GeofenceLogTail.FixSource.FRESH_REQUEST) +
                         GeofenceLogTail.position(location)
+                ),
+            tag = TAG
+        )
+    }
+
+    /**
+     * [candidateCount] is every registered polygon and [admittedIds] the ones whose wake circle
+     * contains the fix. Both, because a wake that admits nothing is the expected case and has to be
+     * distinguishable from one that never ran: a capture with no re-check records at all means the
+     * work is not scheduled, which is a different fault.
+     */
+    fun logPolygonRecheckRan(
+        location: Location,
+        candidateCount: Int,
+        admittedIds: List<String>,
+        clearedIds: List<String>
+    ) {
+        logger.debug(
+            "Periodic polygon re-check: ${admittedIds.size} of $candidateCount registered polygon(s) are within their wake circle, " +
+                "${clearedIds.size} left." +
+                tail(
+                    "polygon.recheck.ran",
+                    GeofenceLogIo.INPUT,
+                    listOf(
+                        "cand" to int(candidateCount),
+                        "n" to int(admittedIds.size),
+                        "ids" to list(admittedIds),
+                        "ncleared" to int(clearedIds.size),
+                        "cleared" to list(clearedIds)
+                    ) + GeofenceLogTail.fixQuality(location, GeofenceLogTail.FixSource.FRESH_REQUEST)
+                ),
+            tag = TAG
+        )
+    }
+
+    fun logPolygonRecheckSkipped(reason: PolygonRecheckSkip) {
+        logger.debug(
+            "Periodic polygon re-check did nothing — ${reason.detail}." +
+                tail(
+                    "polygon.recheck.skipped",
+                    GeofenceLogIo.OUTPUT,
+                    listOf("why" to reason.wire)
                 ),
             tag = TAG
         )

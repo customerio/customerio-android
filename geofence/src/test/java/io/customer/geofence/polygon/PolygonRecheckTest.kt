@@ -532,6 +532,55 @@ class PolygonRecheckTest : RobolectricTest() {
     }
 
     @Test
+    fun worker_expectTheOwnershipSnapshotIsTakenBeforeTheCatalogReads() = runTest {
+        // Raised by Shahroz on #896 with a reproduction: the token was read after the routable
+        // catalog and the permission check, so a teardown landing during that work was captured as
+        // though it had always been current. The run then handed over the post-teardown token,
+        // matched it, and re-armed the polygon teardown had just removed.
+        //
+        // Both halves of the snapshot are pinned here, because the user generation was read late
+        // for the same reason and carries the same defect: a catalog read for the outgoing user
+        // attributed to the incoming one. Stubs that move the way a teardown and an identify would,
+        // driven from the FIRST store read, so the capture has to precede it.
+        var teardowns = 3L
+        var generation = 7L
+        every { mockController.teardownGeneration() } answers { teardowns }
+        every { mockStore.userStateGeneration() } answers { generation }
+        every { mockStore.getRoutableRegisteredIds() } answers {
+            teardowns = 4L
+            generation = 8L
+            setOf(VENUE_ID)
+        }
+        every { mockStore.getCachedRegions() } returns listOf(venueRegion())
+        val fix = fixAt(VENUE_LAT, VENUE_LNG)
+        coEvery { mockFreshFix.awaitFreshFix(any(), any()) } returns fix
+
+        TestListenableWorkerBuilder<PolygonRecheckWorker>(applicationMock).build().doWork()
+
+        coVerify {
+            mockController.activate(
+                polygonId = VENUE_ID,
+                triggeringLocation = fix,
+                expectedUserStateGeneration = 7L,
+                expectedRegionRevision = null,
+                expectedTeardownGeneration = 3L
+            )
+        }
+        coVerify(exactly = 0) {
+            mockController.activate(any(), any(), any(), any(), expectedTeardownGeneration = 4L)
+        }
+        coVerify(exactly = 0) {
+            mockController.activate(
+                polygonId = any(),
+                triggeringLocation = any(),
+                expectedUserStateGeneration = 8L,
+                expectedRegionRevision = any(),
+                expectedTeardownGeneration = any()
+            )
+        }
+    }
+
+    @Test
     fun activate_givenATeardownLandsAfterTheEarlyCheck_expectTheLockedActivationRefuses() = runTest {
         // Raised by Shahroz on #896, reproduced on the latest head. The suspend entry checked the
         // token and then called the locked activation without it. The registration and dedupe reads

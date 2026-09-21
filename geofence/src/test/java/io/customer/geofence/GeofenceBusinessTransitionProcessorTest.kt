@@ -57,6 +57,22 @@ class GeofenceBusinessTransitionProcessorTest {
     }
 
     @Test
+    fun process_givenTheDeviceWasNeverInside_expectNoCommitSoASyncSeedSurvives() = runTest {
+        // Raised by Shahroz on #898. There is no departure to commit when containment is already
+        // empty, and committing one is not free: it bumps the fence's exit epoch, and
+        // reconcileEnteredIds drops any `stillInside` entry whose exit epoch postdates the caller's
+        // fix. A sync holding an earlier inside fix therefore loses its seed and initial-ENTER
+        // synthesis has nothing left to act on. Only the backend-was-never-told case describes a
+        // real departure, so only that one falls through.
+        every { store.getEnteredIds() } returns emptySet()
+        every { store.hasContainmentRecord() } returns true
+
+        processor.process("polygon", Event.GeofenceTransition.EXIT, 100L)
+
+        verify(exactly = 0) { store.commitBusinessTransition(any(), any(), any(), any(), any()) }
+    }
+
+    @Test
     fun process_givenTheExitIsSuppressed_expectContainmentIsStillCommitted() = runTest {
         // Raised by Shahroz on #898 with a reproduction. Suppressing delivery must not also skip
         // the containment commit, which every other suppressed path does reach. A rapid revisit

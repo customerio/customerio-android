@@ -57,6 +57,16 @@ internal class GeofenceBusinessTransitionProcessor(
         if (isUnmatchedExit) {
             logger.logExitDroppedNeverEntered(geofenceId)
         }
+        // The two halves need different endings, which is the whole reason they are separate
+        // conditions. `backendWasNeverTold` is a real departure we cannot report, so it falls
+        // through to the containment commit below. `deviceWasNeverInside` has no departure to
+        // commit, and committing one is not free: it bumps the fence's exit epoch, and
+        // reconcileEnteredIds drops any inside entry whose exit epoch postdates the caller's fix,
+        // so a sync holding an earlier inside fix loses its seed and initial-ENTER synthesis has
+        // nothing to act on.
+        if (transition == Event.GeofenceTransition.EXIT && monitorsEnter && deviceWasNeverInside) {
+            return@withLock
+        }
 
         val configuredTransition = when (transition) {
             Event.GeofenceTransition.ENTER -> GeofenceTransitionType.ENTER

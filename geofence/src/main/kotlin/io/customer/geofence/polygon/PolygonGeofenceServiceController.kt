@@ -601,6 +601,12 @@ internal class PolygonGeofenceServiceController(
     }
 
     /** What the cooldown decided, resolved under the lock so two callbacks cannot both request. */
+    /**
+     * A fix for a callback, with the request session that produced it, or null when it came from
+     * the batch-reuse window and no request of ours is in flight for it.
+     */
+    private data class CallbackFix(val fix: Location, val requestSessionElapsedMs: Long?)
+
     private sealed interface CallbackFixDecision {
         data class Reuse(val fix: Location) : CallbackFixDecision
         data object Request : CallbackFixDecision
@@ -858,7 +864,7 @@ internal class PolygonGeofenceServiceController(
             // and no fixsrc=none, so this is fail-open surface rather than an observed case.
             val only = preciseFixForCallback(polygonId, setOf(polygonId), triggeringLocation = null)
                 ?: return
-            evaluateAndRecentre(only, expectedUserStateGeneration)
+            evaluateAndRecentre(only.fix, expectedUserStateGeneration)
             return
         }
         val delivered = evaluateAndRecentre(triggeringLocation, expectedUserStateGeneration)
@@ -869,12 +875,17 @@ internal class PolygonGeofenceServiceController(
         val needing = delivered.undecidedPolygonIds + delivered.pendingArrivalPolygonIds
         if (needing.isEmpty()) return
         val fresh = preciseFixForCallback(polygonId, needing, triggeringLocation) ?: return
-        val after = evaluateAndRecentre(fresh, expectedUserStateGeneration)
+        val after = evaluateAndRecentre(fresh.fix, expectedUserStateGeneration)
+        // Only a pass that actually evaluated says anything about this position. An aborted one
+        // reports nothing undecided without having decided, and reading that as "decided" cleared
+        // every memo and let the parked loop resume on the next wake.
+        if (!after.acceptedFix) return
         recordEscalationOutcomes(
             requested = needing,
             stillUndecided = after.undecidedPolygonIds,
-            fix = fresh,
-            atElapsedMs = SystemClock.elapsedRealtime()
+            fix = fresh.fix,
+            atElapsedMs = SystemClock.elapsedRealtime(),
+            requestSessionElapsedMs = fresh.requestSessionElapsedMs
         )
     }
 
@@ -901,7 +912,7 @@ internal class PolygonGeofenceServiceController(
         polygonId: String,
         needingPolygonIds: Set<String>,
         triggeringLocation: Location?
-    ): Location? {
+    ): CallbackFix? {
         val requestedAt = SystemClock.elapsedRealtime()
         val decision = synchronized(controllerLock) {
             val reusable = lastFreshFix?.takeIf {
@@ -926,7 +937,7 @@ internal class PolygonGeofenceServiceController(
             }
         }
         when (decision) {
-            is CallbackFixDecision.Reuse -> return decision.fix
+            is CallbackFixDecision.Reuse -> return CallbackFix(decision.fix, requestSessionElapsedMs = null)
             CallbackFixDecision.WithinCooldown -> {
                 logger.logPolygonFreshFixSkipped(PolygonFreshFixSkip.WITHIN_COOLDOWN)
                 return null
@@ -951,7 +962,8 @@ internal class PolygonGeofenceServiceController(
                     requested = undecidedPolygonIds,
                     stillUndecided = undecidedPolygonIds,
                     fix = triggeringLocation,
-                    atElapsedMs = SystemClock.elapsedRealtime()
+                    atElapsedMs = SystemClock.elapsedRealtime(),
+                    requestSessionElapsedMs = requestedAt
                 )
             }
             return null
@@ -970,7 +982,7 @@ internal class PolygonGeofenceServiceController(
             location = fix,
             waitedSeconds = (SystemClock.elapsedRealtime() - requestedAt) / MILLIS_PER_SECOND
         )
-        return fix
+        return CallbackFix(fix, requestSessionElapsedMs = requestedAt)
     }
 
     /**
@@ -1019,8 +1031,18 @@ internal class PolygonGeofenceServiceController(
         requested: Set<String>,
         stillUndecided: Set<String>,
         fix: Location,
-        atElapsedMs: Long
+        atElapsedMs: Long,
+        requestSessionElapsedMs: Long?
     ) = synchronized(controllerLock) {
+        // The write lands after awaitFreshFix suspended, and a teardown in that window clears
+        // futileEscalations. Without this the continuation repopulated it with the previous
+        // session's position, and the next session's first callback there skipped its own precise
+        // fix for the whole retry window. Keyed on the in-flight request rather than the store
+        // generation, exactly as the lastFreshFix memo is, because a reset that clears this need
+        // not advance a generation.
+        if (requestSessionElapsedMs != null && lastFreshFixRequestElapsedMs != requestSessionElapsedMs) {
+            return@synchronized
+        }
         requested.forEach { id ->
             if (id in stillUndecided) {
                 futileEscalations[id] = FutileEscalation(fix, atElapsedMs)

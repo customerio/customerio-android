@@ -494,6 +494,80 @@ class PolygonFreshFixTest : RobolectricTest() {
     }
 
     @Test
+    fun activate_givenAPassAbortedAfterTheFix_expectAnEarlierSuppressionSurvives() = runTest {
+        // Found by Bugbot on #899. recordEscalationOutcomes read "absent from stillUndecided" as
+        // "decided" and dropped the memo, but an aborted pass reports nothing undecided without
+        // having decided anything. Here the device parks, escalates futilely, moves 150 m so the
+        // next wake is allowed to ask, and that request aborts because its fix is too old for the
+        // session. Returning to the parked position must still be suppressed: nothing has shown
+        // that position is answerable, and the abort said nothing about it either way.
+        var requestCount = 0
+        val freshFix = CountingCoarseFreshFix {
+            requestCount++
+            if (requestCount == 2) {
+                coarseFixInsideTheVenue(elapsedRealtimeNanos = 1L)
+            } else {
+                coarseFixInsideTheVenue(SystemClock.elapsedRealtimeNanos())
+            }
+        }
+        val controller = controller(freshFix)
+
+        controller.activate(VENUE_ID, coarseFixInsideTheVenue(), store.userStateGeneration(), null)
+        ShadowSystemClock.advanceBy(Duration.ofSeconds(31))
+        controller.activate(
+            VENUE_ID,
+            fixMetresNorthOfTheVenue(150.0),
+            store.userStateGeneration(),
+            null
+        )
+        ShadowSystemClock.advanceBy(Duration.ofSeconds(31))
+        controller.activate(
+            VENUE_ID,
+            coarseFixInsideTheVenue(SystemClock.elapsedRealtimeNanos()),
+            store.userStateGeneration(),
+            null
+        )
+
+        freshFix.requests shouldBeEqualTo 2
+    }
+
+    @Test
+    fun activate_givenAResetWhileSuspendedAndNoFix_expectNoMemoFromTheOldRequest() = runTest {
+        // Raised by Shahroz on #899. The memo is written after awaitFreshFix suspended, and a
+        // teardown in that window clears futileEscalations. This is the path the aborted-pass guard
+        // cannot cover: when no fix arrives there is no evaluation to abort, so the continuation
+        // wrote the cleared memo straight back from the triggering fix. The next session's first
+        // callback at that position then skipped its own request for the whole retry window.
+        var resetDuringRequest: (() -> Unit)? = null
+        val freshFix = object : PolygonFreshFixSource {
+            var requests: Int = 0
+                private set
+
+            override suspend fun awaitFreshFix(timeoutMs: Long, priority: PolygonFixPriority): Location? {
+                requests++
+                resetDuringRequest?.invoke()
+                return null
+            }
+        }
+        val controller = controller(freshFix)
+        resetDuringRequest = { controller.invalidatePersistedCoarseState() }
+
+        controller.activate(VENUE_ID, coarseFixInsideTheVenue(), store.userStateGeneration(), null)
+
+        resetDuringRequest = null
+        resetStoreToASingleRegisteredVenue()
+        ShadowSystemClock.advanceBy(Duration.ofSeconds(31))
+        controller.activate(
+            VENUE_ID,
+            coarseFixInsideTheVenue(SystemClock.elapsedRealtimeNanos()),
+            store.userStateGeneration(),
+            null
+        )
+
+        freshFix.requests shouldBeEqualTo 2
+    }
+
+    @Test
     fun activate_givenThePreciseFixDecided_expectTheNextEscalationIsStillAllowed() = runTest {
         // Only a futile escalation suppresses the next one. A fix that decided proves this
         // position is answerable, so nothing should be held back afterwards.

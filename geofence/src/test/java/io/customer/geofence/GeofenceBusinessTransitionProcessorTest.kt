@@ -57,6 +57,28 @@ class GeofenceBusinessTransitionProcessorTest {
     }
 
     @Test
+    fun process_givenTheExitIsSuppressed_expectContainmentIsStillCommitted() = runTest {
+        // Raised by Shahroz on #898 with a reproduction. Suppressing delivery must not also skip
+        // the containment commit, which every other suppressed path does reach. A rapid revisit
+        // whose ENTER was cooldown-suppressed leaves no emitted-enter record for the fence, so this
+        // guard fires on the next departure; returning early left the fence in getEnteredIds()
+        // after the device had gone, and the redundant-ENTER guard then read every later visit as
+        // unchanged. The physical EXIT is not in doubt here, only whether the backend can be told.
+        every { store.getEnteredIds() } returns setOf("polygon")
+        every { store.hasEmittedEnterRecord("user-1") } returns true
+        every { store.hasEmittedEnter("user-1", "polygon") } returns false
+
+        processor.process("polygon", Event.GeofenceTransition.EXIT, 100L)
+
+        coVerify(exactly = 0) {
+            emitter.emitWithRetainedAttempt(any(), any(), any(), any(), any(), any(), any(), any(), any(), any())
+        }
+        verify {
+            store.commitBusinessTransition("polygon", Event.GeofenceTransition.EXIT, null, 0L, any())
+        }
+    }
+
+    @Test
     fun process_givenTheEnterWasEmitted_expectTheExitIsStillDelivered() = runTest {
         // The control that stops the guard above being written as "drop every EXIT". A fence the
         // backend was told about must still be able to close.

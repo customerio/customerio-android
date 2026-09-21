@@ -56,15 +56,22 @@ internal class GeofenceBusinessTransitionProcessor(
             (deviceWasNeverInside || backendWasNeverTold)
         if (isUnmatchedExit) {
             logger.logExitDroppedNeverEntered(geofenceId)
-            return@withLock
         }
 
         val configuredTransition = when (transition) {
             Event.GeofenceTransition.ENTER -> GeofenceTransitionType.ENTER
             Event.GeofenceTransition.EXIT -> GeofenceTransitionType.EXIT
         }
-        val shouldEmit = !enforceConfiguredTransition ||
-            cachedRegion?.transitionTypes?.contains(configuredTransition) == true
+        // Suppresses delivery only. The departure itself is not in question, so it falls through to
+        // the containment commit every other suppressed path reaches: returning here instead left
+        // the fence in getEnteredIds() after the device had gone, and the redundant-ENTER guard
+        // then read every later visit at that venue as unchanged. What the backend cannot be told
+        // about is this one crossing, not the device's position.
+        val shouldEmit = !isUnmatchedExit &&
+            (
+                !enforceConfiguredTransition ||
+                    cachedRegion?.transitionTypes?.contains(configuredTransition) == true
+                )
         var emissionResult: GeofenceTransitionEmitter.Result? = null
         var emittingUserId: String? = null
         if (shouldEmit) {

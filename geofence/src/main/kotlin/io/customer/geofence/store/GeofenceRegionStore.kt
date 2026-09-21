@@ -223,6 +223,15 @@ internal interface GeofenceRegionStore {
      * Scoped to [userId] because a direct A-to-B identify publishes no `ResetEvent`. Set by
      * [markEnterEmitted], cleared by [claimExit].
      */
+    /**
+     * Whether an emitted-ENTER record exists for [userId] at all, regardless of contents.
+     *
+     * The baseline for the EXIT-side guard, exactly as [hasContainmentRecord] is for containment.
+     * Without it, a device upgrading from a build that predates these marks would read every fence
+     * as never-reported and drop the first genuine EXIT for each one.
+     */
+    fun hasEmittedEnterRecord(userId: String): Boolean
+
     fun hasEmittedEnter(userId: String, geofenceId: String): Boolean
 
     /** Records that an ENTER for [geofenceId] reached the delivery pipeline for [userId]. Idempotent. */
@@ -783,6 +792,10 @@ internal class GeofenceRegionStoreImpl(
         exitEpochByGeofenceId.keys.retainAll(registeredIds)
         enterEpochByGeofenceId.keys.retainAll(registeredIds)
         dropped
+    }
+
+    override fun hasEmittedEnterRecord(userId: String): Boolean = synchronized(enteredLock) {
+        readEmittedEnterOwner() == userId && prefs.read { contains(KEY_EMITTED_ENTER_IDS) } == true
     }
 
     override fun hasEmittedEnter(userId: String, geofenceId: String): Boolean = synchronized(enteredLock) {

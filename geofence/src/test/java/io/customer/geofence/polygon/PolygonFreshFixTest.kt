@@ -608,6 +608,97 @@ class PolygonFreshFixTest : RobolectricTest() {
     }
 
     @Test
+    fun activate_givenAReusedFixWasAlsoUndecided_expectItSuppressesThatFencesNextRequest() = runTest {
+        // The half of the reuse contract the reset test cannot pin. Refusing to record a reused fix
+        // would also keep a teardown from restoring an old memo, so "no stale memo" passes either
+        // way; what only the token delivers is that a reused fix still counts as a futile
+        // escalation for the fence it was judged against. One request answers the whole batch, so
+        // dropping that would leave every fence after the first asking again on its own next wake.
+        //
+        // The neighbour is registered after the first callback so its memo can only come from the
+        // reused fix: had it been active earlier, the first pass would have recorded it directly
+        // and this would pass without the token.
+        val base = SystemClock.elapsedRealtimeNanos()
+        val freshFix = CountingCoarseFreshFix { coarseFixInsideTheVenue(elapsedRealtimeNanos = base) }
+        val controller = controller(freshFix)
+
+        controller.activate(
+            VENUE_ID,
+            coarseFixInsideTheVenue(elapsedRealtimeNanos = base - 5_000_000_000L),
+            store.userStateGeneration(),
+            null
+        )
+
+        store.saveCachedRegions(listOf(venueRegion(), neighbourRegion()))
+        store.saveRegisteredIds(setOf(VENUE_ID, NEIGHBOUR_ID))
+        store.saveRoutableRegisteredIds(setOf(VENUE_ID, NEIGHBOUR_ID))
+
+        controller.activate(
+            NEIGHBOUR_ID,
+            coarseFixInsideTheVenue(elapsedRealtimeNanos = base - 3_000_000_000L),
+            store.userStateGeneration(),
+            null
+        )
+
+        ShadowSystemClock.advanceBy(Duration.ofSeconds(31))
+        controller.activate(
+            NEIGHBOUR_ID,
+            coarseFixInsideTheVenue(SystemClock.elapsedRealtimeNanos()),
+            store.userStateGeneration(),
+            null
+        )
+
+        freshFix.requests shouldBeEqualTo 1
+        verify(exactly = 1) {
+            mockLogger.logPolygonFreshFixSkipped(PolygonFreshFixSkip.UNCHANGED_POSITION)
+        }
+    }
+
+    @Test
+    fun activate_givenADecisiveFixThatOnlyAgreed_expectTheSuppressionIsStillCleared() = runTest {
+        // evaluatedPolygonIds is derived from every record, not only the deciding ones, and this is
+        // what that breadth buys. A fix clear of the ring while the fence is already committed
+        // OUTSIDE decides the position without producing a transition: it writes Unchanged. That
+        // still proves the position is answerable, so the memo has to go.
+        //
+        // Park and escalate futilely, move 150 m so the next wake may ask, answer that one with a
+        // precise fix that reads decisively outside, then come back. The return must be allowed to
+        // ask again, because the position was shown to be answerable in between.
+        var requestCount = 0
+        val freshFix = CountingCoarseFreshFix {
+            requestCount++
+            if (requestCount == 2) {
+                // A second of the request's own wait, so the answer is strictly newer than the fix
+                // that triggered it. Without this the processor skips the fence as not-newer and
+                // the pass correctly says nothing, which is the case the test above covers.
+                ShadowSystemClock.advanceBy(Duration.ofSeconds(1))
+                fixMetresNorthOfTheVenue(150.0, accuracyMeters = 8f)
+            } else {
+                coarseFixInsideTheVenue(SystemClock.elapsedRealtimeNanos())
+            }
+        }
+        val controller = controller(freshFix)
+
+        controller.activate(VENUE_ID, coarseFixInsideTheVenue(), store.userStateGeneration(), null)
+        ShadowSystemClock.advanceBy(Duration.ofSeconds(31))
+        controller.activate(
+            VENUE_ID,
+            fixMetresNorthOfTheVenue(150.0),
+            store.userStateGeneration(),
+            null
+        )
+        ShadowSystemClock.advanceBy(Duration.ofSeconds(31))
+        controller.activate(
+            VENUE_ID,
+            coarseFixInsideTheVenue(SystemClock.elapsedRealtimeNanos()),
+            store.userStateGeneration(),
+            null
+        )
+
+        freshFix.requests shouldBeEqualTo 3
+    }
+
+    @Test
     fun activate_givenAResetWhileAReusedFixIsEvaluated_expectNoMemoFromTheOldSession() = runTest {
         // Raised by Shahroz on #899. A reused fix carried no request token, so the memo written
         // after its evaluation could not be checked against a teardown: the continuation wrote the

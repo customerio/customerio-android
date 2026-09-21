@@ -1054,8 +1054,12 @@ internal class PolygonGeofenceServiceController(
         // A reused fix reaches here with the token of the request that produced it, so the same
         // comparison covers it. Refusing to record it instead would have thrown away the batch
         // case this path exists for: one request answers every fence in the batch, and each of
-        // them is genuinely undecided at this position. A null token means no request can be
-        // named at all, which nothing should be written on.
+        // them is genuinely undecided at this position.
+        //
+        // The null half is defensive, not a guard: both branches that produce a CallbackFix name
+        // their request, so nothing passes null today and inverting this disjunct alone changes
+        // nothing the suite can see. It stays so that a later caller with no request to name
+        // cannot silently vouch for one.
         if (requestSessionElapsedMs == null || lastFreshFixRequestElapsedMs != requestSessionElapsedMs) {
             return@synchronized
         }

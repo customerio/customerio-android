@@ -70,6 +70,14 @@ internal sealed interface PolygonRouteRecord {
         val reason: PolygonArrivalExpiry,
         val heldForSeconds: Double? = null
     ) : PolygonRouteRecord
+
+    /** A held arrival that was handed the measurement it is already holding, so it did not advance. */
+    data class ArrivalEcho(
+        override val geofenceId: String,
+        val signedBoundaryDistanceMeters: Double?,
+        val horizontalAccuracyMeters: Double,
+        val fixAgeSeconds: Double
+    ) : PolygonRouteRecord
 }
 
 /** What one pass over the active polygons decided, and what it owes the log. */
@@ -86,6 +94,7 @@ internal class PolygonRouteProcessor(
         PolygonTransitionStateMachine(requiredConfirmations = 2)
 ) {
     private val latestElapsedRealtimeNanos = mutableMapOf<String, Long>()
+    private val lastCountedSample = mutableMapOf<String, PolygonLocationSample>()
 
     fun process(
         fences: List<PolygonFence>,
@@ -106,6 +115,7 @@ internal class PolygonRouteProcessor(
         }
         latestElapsedRealtimeNanos.keys.retainAll(activeIds)
         arrivalConfirmationNanos.keys.retainAll(activeIds)
+        lastCountedSample.keys.retainAll(activeIds)
         trackedFenceIds.clear()
         trackedFenceIds.addAll(activeIds)
 
@@ -143,7 +153,7 @@ internal class PolygonRouteProcessor(
                 // Breaks a run of agreeing arrival fixes: the requirement below is consecutive, and
                 // a fix too coarse to judge is not agreement.
                 val hadPendingArrival = arrivalConfirmations.hasPending(fence.id)
-                confirmArrival(fence.id, committedState, evidence, elapsedRealtimeNanos)
+                confirmArrival(fence.id, committedState, evidence, elapsedRealtimeNanos, sample)
                 // The third way a hold ends, and the commonest. Without its own record the capture
                 // shows an arrival.pending with no counterpart and cannot tell a hold that was
                 // broken from one still waiting.
@@ -165,7 +175,20 @@ internal class PolygonRouteProcessor(
                         arrivalConfirmations.clear(fence.id)
                         PolygonTransition.ENTER
                     }
-                    else -> confirmArrival(fence.id, committedState, evidence, elapsedRealtimeNanos)
+                    // Corroboration is a second opinion, so it has to be a second measurement. The
+                    // dedupe above only refuses a repeated elapsed-realtime stamp, and the fused
+                    // provider re-emits one carried-forward position under a fresh stamp, so
+                    // without this an echo agrees with itself and completes the arrival.
+                    lastCountedSample[fence.id] == sample -> {
+                        records += PolygonRouteRecord.ArrivalEcho(
+                            geofenceId = fence.id,
+                            signedBoundaryDistanceMeters = result.signedBoundaryDistanceMeters,
+                            horizontalAccuracyMeters = sample.horizontalAccuracyMeters,
+                            fixAgeSeconds = fixAgeSeconds
+                        )
+                        return@mapNotNull null
+                    }
+                    else -> confirmArrival(fence.id, committedState, evidence, elapsedRealtimeNanos, sample)
                         ?: run {
                             // Decided ENTER, held for a second fix. Without this record the branch
                             // consumes a fix and emits nothing, which is indistinguishable in a
@@ -210,6 +233,7 @@ internal class PolygonRouteProcessor(
         latestElapsedRealtimeNanos.clear()
         trackedFenceIds.clear()
         arrivalConfirmationNanos.clear()
+        lastCountedSample.clear()
         arrivalConfirmations.clearAll()
         return discarded
     }
@@ -220,6 +244,7 @@ internal class PolygonRouteProcessor(
         trackedFenceIds.remove(polygonId)
         latestElapsedRealtimeNanos.remove(polygonId)
         arrivalConfirmationNanos.remove(polygonId)
+        lastCountedSample.remove(polygonId)
         arrivalConfirmations.clear(polygonId)
         return wasPending
     }
@@ -240,6 +265,7 @@ internal class PolygonRouteProcessor(
         // existed or had already been honoured.
         if (!arrivalConfirmations.hasPending(polygonId)) {
             arrivalConfirmationNanos.remove(polygonId)
+            lastCountedSample.remove(polygonId)
             return
         }
         val observedAt = arrivalConfirmationNanos[polygonId] ?: return
@@ -255,6 +281,7 @@ internal class PolygonRouteProcessor(
             )
             arrivalConfirmations.clear(polygonId)
             arrivalConfirmationNanos.remove(polygonId)
+            lastCountedSample.remove(polygonId)
         }
     }
 
@@ -262,7 +289,8 @@ internal class PolygonRouteProcessor(
         polygonId: String,
         committedState: PolygonCommittedState,
         evidence: PolygonEvidence,
-        elapsedRealtimeNanos: Long
+        elapsedRealtimeNanos: Long,
+        sample: PolygonLocationSample
     ): PolygonTransition? {
         val transition = arrivalConfirmations.evaluate(polygonId, committedState, evidence)
         // Only a fence actually holding a part-confirmed arrival is timed. This is also reached to
@@ -271,8 +299,10 @@ internal class PolygonRouteProcessor(
         // this, so a stamp left behind by another call site cannot outlive its hold.
         if (arrivalConfirmations.hasPending(polygonId)) {
             arrivalConfirmationNanos[polygonId] = elapsedRealtimeNanos
+            lastCountedSample[polygonId] = sample
         } else {
             arrivalConfirmationNanos.remove(polygonId)
+            lastCountedSample.remove(polygonId)
         }
         return transition
     }

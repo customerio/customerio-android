@@ -1271,6 +1271,37 @@ internal class GeofenceLogger(private val logger: Logger) {
     }
 
     /**
+     * A held arrival handed the measurement it is already holding.
+     *
+     * Corroboration counts agreeing fixes, and the only thing stopping one fix counting twice is
+     * the dedupe on elapsed-realtime. The fused provider re-emits a carried-forward position under
+     * a fresh stamp, so this is the record that says the hold saw a fix and still did not advance.
+     * Without it an echo is indistinguishable in a capture from a hold nothing arrived for.
+     */
+    fun logPolygonArrivalEcho(
+        geofenceId: String,
+        signedBoundaryDistanceMeters: Double?,
+        horizontalAccuracyMeters: Double?,
+        fixAgeSeconds: Double?
+    ) {
+        logger.debug(
+            "Polygon '$geofenceId' was handed the fix it is already holding, so the arrival is still waiting on a second measurement." +
+                tail(
+                    "polygon.arrival.echo",
+                    GeofenceLogIo.OUTPUT,
+                    listOf(
+                        "id" to geofenceId,
+                        "sh" to "polygon",
+                        "edge" to num(signedBoundaryDistanceMeters),
+                        "acc" to num(horizontalAccuracyMeters),
+                        "age" to num(fixAgeSeconds)
+                    )
+                ),
+            tag = TAG
+        )
+    }
+
+    /**
      * A held arrival discarded because no corroborating fix arrived in time.
      *
      * The counterpart to [logPolygonArrivalPending], and the record that makes a capture readable:

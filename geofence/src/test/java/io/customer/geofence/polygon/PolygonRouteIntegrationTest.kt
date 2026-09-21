@@ -155,7 +155,7 @@ class PolygonRouteIntegrationTest {
 
         val detections = processor.process(
             fences = listOf(campus),
-            sample = marginal,
+            sample = marginal.resampled(),
             elapsedRealtimeNanos = 1L + FIFTEEN_SECONDS_NANOS,
             fixAgeSeconds = 0.0,
             committedStates = emptyMap()
@@ -226,7 +226,7 @@ class PolygonRouteIntegrationTest {
 
         val second = processor.process(
             fences = listOf(campus),
-            sample = marginal,
+            sample = marginal.resampled(),
             elapsedRealtimeNanos = 2L,
             fixAgeSeconds = 0.0,
             committedStates = emptyMap()
@@ -374,7 +374,7 @@ class PolygonRouteIntegrationTest {
         detections.shouldBeEmpty()
 
         route.process(
-            37.77452,
+            37.77452 + RESAMPLE_LATITUDE_DELTA,
             -122.4194,
             accuracy = 30.0,
             elapsedRealtimeNanos = 3L
@@ -470,7 +470,8 @@ class PolygonRouteIntegrationTest {
         route = RouteHarness(listOf(campus), durableStates)
         // If the pending arrival had survived, this single fix would complete it.
         route.process(37.77452, -122.4194, accuracy = 30.0).shouldBeEmpty()
-        val eventsAfterRestart = route.process(37.77452, -122.4194, accuracy = 30.0)
+        val eventsAfterRestart =
+            route.process(37.77452 + RESAMPLE_LATITUDE_DELTA, -122.4194, accuracy = 30.0)
 
         eventsAfterRestart shouldBeEqualTo listOf(
             PolygonTransitionDetection("campus", PolygonTransition.ENTER)
@@ -494,9 +495,9 @@ class PolygonRouteIntegrationTest {
         )
         processor.clear()
 
-        fun sample(at: Long) = processor.process(
+        fun sample(at: Long, fix: PolygonLocationSample) = processor.process(
             fences = listOf(campus),
-            sample = marginal,
+            sample = fix,
             elapsedRealtimeNanos = at,
             fixAgeSeconds = 0.0,
             committedStates = states
@@ -505,8 +506,8 @@ class PolygonRouteIntegrationTest {
         // Asserted per fix, not over the pair. Both the correct and the broken processor emit
         // exactly one arrival across two fixes; they differ only in *which* fix produces it, so
         // collecting them and counting proves nothing.
-        sample(1L).shouldBeEmpty()
-        sample(2L) shouldBeEqualTo listOf(
+        sample(1L, marginal).shouldBeEmpty()
+        sample(2L, marginal.resampled()) shouldBeEqualTo listOf(
             PolygonTransitionDetection("campus", PolygonTransition.ENTER)
         )
     }
@@ -563,7 +564,17 @@ class PolygonRouteIntegrationTest {
         const val FIVE_MINUTES_NANOS = 5L * 60 * 1_000_000_000
         const val FIFTEEN_SECONDS_NANOS = 15L * 1_000_000_000
 
+        /**
+         * About 2 m north. A stationary device's next fix differs by its own jitter, and that is
+         * what makes it a second measurement rather than the held one delivered again.
+         */
+        const val RESAMPLE_LATITUDE_DELTA = 0.000018
+
         fun point(latitude: Double, longitude: Double) =
             PolygonCoordinate(latitude = latitude, longitude = longitude)
+
+        fun PolygonLocationSample.resampled() = copy(
+            coordinate = coordinate.copy(latitude = coordinate.latitude + RESAMPLE_LATITUDE_DELTA)
+        )
     }
 }

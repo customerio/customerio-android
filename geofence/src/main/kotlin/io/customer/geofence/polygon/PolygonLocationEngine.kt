@@ -159,6 +159,12 @@ internal class PolygonLocationEngine(
             reason = record.reason,
             heldForSeconds = record.heldForSeconds
         )
+        is PolygonRouteRecord.ArrivalEcho -> logger.logPolygonArrivalEcho(
+            geofenceId = record.geofenceId,
+            signedBoundaryDistanceMeters = record.signedBoundaryDistanceMeters,
+            horizontalAccuracyMeters = record.horizontalAccuracyMeters,
+            fixAgeSeconds = record.fixAgeSeconds
+        )
     }
 
     private fun resetEvidenceLocked(polygonId: String): Set<String> {

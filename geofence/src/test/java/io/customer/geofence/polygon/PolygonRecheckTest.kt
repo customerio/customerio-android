@@ -24,6 +24,7 @@ import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
+import io.mockk.verifyOrder
 import kotlinx.coroutines.test.runTest
 import org.amshove.kluent.shouldBeEqualTo
 import org.junit.Test
@@ -143,6 +144,9 @@ class PolygonRecheckTest : RobolectricTest() {
         result shouldBeEqualTo ListenableWorker.Result.success()
         // Self-healing: a missed cancel site costs one wake rather than a permanent periodic job.
         verify { mockRecheckScheduler.cancel() }
+        // And the re-assert stays out of it when the catalog really is empty, or the retirement
+        // would put back exactly what it just removed.
+        verify(exactly = 0) { mockRecheckScheduler.schedule() }
         coVerify(exactly = 0) { mockFreshFix.awaitFreshFix(any(), any()) }
     }
 
@@ -529,6 +533,41 @@ class PolygonRecheckTest : RobolectricTest() {
         )
 
         verify { mockStore.activatePolygon(VENUE_ID) }
+    }
+
+    @Test
+    fun worker_givenTheCatalogFillsDuringRetirement_expectTheScheduleIsReasserted() = runTest {
+        // Raised by Shahroz on #896 with a reproduction: a sync scheduled the unique periodic work
+        // after this run read an empty catalog, and the retirement cancelled that newer schedule.
+        // His run expected [schedule] and got [schedule, cancel]. What is left behind is no
+        // periodic re-check until another sync, which is the stationary-device gap this worker is
+        // for.
+        //
+        // Fixed by ordering rather than by narrowing: cancel, re-read, and re-assert if the
+        // catalog filled. Modelled as a catalog that is empty on the first read and populated on
+        // the re-read, which is the interleaving where the sync's write beat the re-read.
+        var reads = 0
+        every { mockStore.getRoutableRegisteredIds() } answers {
+            reads++
+            if (reads == 1) emptySet() else setOf(VENUE_ID)
+        }
+        every { mockStore.getCachedRegions() } returns listOf(venueRegion())
+
+        val result = TestListenableWorkerBuilder<PolygonRecheckWorker>(applicationMock)
+            .build()
+            .doWork()
+
+        result shouldBeEqualTo ListenableWorker.Result.success()
+        reads shouldBeEqualTo 2
+        // Order, not counts: cancelling after the re-assert would leave nothing scheduled and a
+        // count assertion would pass either way.
+        verifyOrder {
+            mockRecheckScheduler.cancel()
+            mockRecheckScheduler.schedule()
+        }
+        verify(exactly = 1) { mockRecheckScheduler.schedule() }
+        // Still asks for no fix: this run read an empty catalog and has nothing to re-check.
+        coVerify(exactly = 0) { mockFreshFix.awaitFreshFix(any(), any()) }
     }
 
     @Test

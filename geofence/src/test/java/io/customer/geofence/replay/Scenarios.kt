@@ -20,18 +20,42 @@ internal object Scenarios {
 
     private const val SUFFIX = ".scenario.ndjson"
 
-    val root: File? by lazy {
-        System.getenv("CIO_GEOFENCE_SCENARIOS")?.let { override ->
-            return@lazy File(override).takeIf { it.isDirectory }
+    internal const val OVERRIDE = "CIO_GEOFENCE_SCENARIOS"
+
+    val root: File? by lazy { resolve(System.getenv(OVERRIDE)) }
+
+    /**
+     * Where the drives are, given an override and somewhere to start walking from.
+     *
+     * Split out of [root] so the override rules can be tested: [root] reads the environment once
+     * and caches it, which no test can arrange.
+     *
+     * An override that names something other than a directory **throws**. Resolving it to `null`
+     * made a typo or a moved checkout indistinguishable from "no corpus here" — every caller
+     * `assumeTrue(isAvailable)`, so discovery and all the replays skipped and the suite went green
+     * having replayed nothing, which is the one outcome this harness exists to refuse.
+     *
+     * Blank is treated as unset rather than as an error: it names no path, and an environment that
+     * exports the variable empty is not asserting where the corpus is.
+     */
+    internal fun resolve(override: String?, from: File = File("").absoluteFile): File? {
+        override?.takeIf { it.isNotBlank() }?.let { path ->
+            val dir = File(path)
+            check(dir.isDirectory) {
+                "$OVERRIDE is set to \"$path\", which is not a directory. Point it at the " +
+                    "directory holding the $SUFFIX files — geofence-scenarios/recorded, not " +
+                    "geofence-scenarios — or unset it to use the checkout beside this repo."
+            }
+            return dir
         }
         // Resolved by walking up from the module's working directory, which Gradle sets to the
         // project dir. Six levels is deliberate slack: the checkout sits beside customerio-android.
-        var dir: File? = File("").absoluteFile
+        var dir: File? = from
         repeat(6) {
-            dir?.resolve("geofence-scenarios/recorded")?.takeIf { it.isDirectory }?.let { return@lazy it }
+            dir?.resolve("geofence-scenarios/recorded")?.takeIf { it.isDirectory }?.let { return it }
             dir = dir?.parentFile
         }
-        null
+        return null
     }
 
     val isAvailable: Boolean get() = root != null

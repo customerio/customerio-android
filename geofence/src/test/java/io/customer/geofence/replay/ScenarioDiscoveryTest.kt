@@ -1,5 +1,11 @@
 package io.customer.geofence.replay
 
+import java.io.File
+import java.nio.file.Files
+import org.amshove.kluent.invoking
+import org.amshove.kluent.shouldBeEqualTo
+import org.amshove.kluent.shouldBeNull
+import org.amshove.kluent.shouldThrow
 import org.junit.Assume.assumeTrue
 import org.junit.Test
 
@@ -48,5 +54,51 @@ class ScenarioDiscoveryTest {
                     "at the directory containing the .scenario.ndjson files"
             )
         }
+    }
+
+    /**
+     * An override that cannot be used fails the run instead of emptying it.
+     *
+     * This is the hole the rest of this class could not see. Every caller here guards on
+     * `assumeTrue(isAvailable)`, so an override that resolved to `null` skipped discovery *and*
+     * every replay — a typo or a moved checkout looked exactly like a machine that simply has no
+     * corpus, and the suite went green having replayed nothing.
+     *
+     * Exercised through [Scenarios.resolve] rather than the environment: [Scenarios.root] reads
+     * `getenv` once and caches it, which a test cannot arrange.
+     */
+    @Test
+    fun resolve_givenOverrideThatDoesNotExist_expectError() {
+        invoking {
+            Scenarios.resolve(File(Files.createTempDirectory("cio-geofence").toFile(), "nope").path)
+        } shouldThrow IllegalStateException::class
+    }
+
+    /** The likelier typo: the path exists, but names a file — a drive, say — rather than its directory. */
+    @Test
+    fun resolve_givenOverrideNamingAFile_expectError() {
+        val file = File.createTempFile("drive", ".scenario.ndjson").apply { deleteOnExit() }
+
+        invoking { Scenarios.resolve(file.path) } shouldThrow IllegalStateException::class
+    }
+
+    @Test
+    fun resolve_givenOverrideThatIsADirectory_expectThatDirectory() {
+        val dir = Files.createTempDirectory("cio-geofence").toFile().apply { deleteOnExit() }
+
+        Scenarios.resolve(dir.path) shouldBeEqualTo dir
+    }
+
+    /**
+     * Blank is not an assertion about where the corpus is, so it falls through to the sibling walk
+     * rather than failing. Started somewhere with no checkout above it, so the walk finds nothing
+     * and the answer is a plain absence — the case the `assumeTrue` guards are for.
+     */
+    @Test
+    fun resolve_givenBlankOverride_expectSiblingLookup() {
+        val empty = Files.createTempDirectory("cio-geofence-empty").toFile().apply { deleteOnExit() }
+
+        Scenarios.resolve("", from = empty).shouldBeNull()
+        Scenarios.resolve(null, from = empty).shouldBeNull()
     }
 }

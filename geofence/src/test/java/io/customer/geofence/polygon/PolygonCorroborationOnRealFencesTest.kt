@@ -135,8 +135,13 @@ class PolygonCorroborationOnRealFencesTest {
             committedStates = emptyMap()
         )
         val second = processor.process(
+            // About 2 m north of the first: the next sample of a real visit differs by its own
+            // jitter, which is what separates a second measurement from the held one re-delivered.
             fences = listOf(fence),
-            sample = PolygonLocationSample(fenceBDriveFix, 18.0),
+            sample = PolygonLocationSample(
+                fenceBDriveFix.copy(latitude = fenceBDriveFix.latitude + 0.000018),
+                18.0
+            ),
             elapsedRealtimeNanos = 16_000_000_000L,
             fixAgeSeconds = 0.0,
             committedStates = emptyMap()

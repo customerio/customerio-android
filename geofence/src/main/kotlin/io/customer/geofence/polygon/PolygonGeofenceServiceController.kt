@@ -836,8 +836,13 @@ internal class PolygonGeofenceServiceController(
             return
         }
         val delivered = evaluateAndRecentre(triggeringLocation, expectedUserStateGeneration)
-        if (delivered.undecidedPolygonIds.isEmpty()) return
-        val fresh = preciseFixForCallback(polygonId, delivered.undecidedPolygonIds) ?: return
+        // A held arrival needs a fix for the opposite reason to an undecided one, and the same
+        // request answers both. Batch reuse stays eligible: lastFreshFix only ever holds a previous
+        // request's answer, never the triggering fix, so it is a separate measurement; and if it is
+        // the very fix a hold is waiting on, the corroboration guard refuses it there instead.
+        val needing = delivered.undecidedPolygonIds + delivered.pendingArrivalPolygonIds
+        if (needing.isEmpty()) return
+        val fresh = preciseFixForCallback(polygonId, needing) ?: return
         evaluateAndRecentre(fresh, expectedUserStateGeneration)
     }
 
@@ -862,7 +867,7 @@ internal class PolygonGeofenceServiceController(
      */
     private suspend fun preciseFixForCallback(
         polygonId: String,
-        undecidedPolygonIds: Set<String>
+        needingPolygonIds: Set<String>
     ): Location? {
         val requestedAt = SystemClock.elapsedRealtime()
         val decision = synchronized(controllerLock) {
@@ -888,7 +893,7 @@ internal class PolygonGeofenceServiceController(
             }
             CallbackFixDecision.Request -> Unit
         }
-        logger.logPolygonFreshFixRequested(undecidedPolygonIds.sorted())
+        logger.logPolygonFreshFixRequested(needingPolygonIds.sorted())
         val fix = freshFixSource.awaitFreshFix(FRESH_FIX_TIMEOUT_MS)
         if (fix == null) {
             logger.logPolygonFreshFixSkipped(PolygonFreshFixSkip.NONE_ARRIVED)

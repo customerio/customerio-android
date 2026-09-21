@@ -235,7 +235,10 @@ class PolygonFieldArrivalTest : RobolectricTest() {
         )
         controller.activate(
             polygonId = VENUE_ID,
-            triggeringLocation = fieldFix(elapsedRealtimeNanos = SystemClock.elapsedRealtimeNanos()),
+            triggeringLocation = fieldFix(
+                elapsedRealtimeNanos = SystemClock.elapsedRealtimeNanos(),
+                latitudeDelta = 0.000018
+            ),
             expectedUserStateGeneration = store.userStateGeneration(),
             expectedRegionRevision = null
         )
@@ -245,9 +248,14 @@ class PolygonFieldArrivalTest : RobolectricTest() {
 
     // ~10 m north of the ring's southern edge, at the accuracy GMS actually reported on the drive.
     private fun fieldFix(
-        elapsedRealtimeNanos: Long = SystemClock.elapsedRealtimeNanos() - 2_000_000_000L
+        elapsedRealtimeNanos: Long = SystemClock.elapsedRealtimeNanos() - 2_000_000_000L,
+        /**
+         * About 2 m north when set. A stationary device's next fix differs by its own jitter, and
+         * that is what makes it a second measurement rather than the held one delivered again.
+         */
+        latitudeDelta: Double = 0.0
     ) = Location("test").apply {
-        latitude = 37.77459
+        latitude = 37.77459 + latitudeDelta
         longitude = -122.4194
         accuracy = 18f
         this.elapsedRealtimeNanos = elapsedRealtimeNanos

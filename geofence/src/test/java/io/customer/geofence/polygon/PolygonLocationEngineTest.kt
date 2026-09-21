@@ -274,8 +274,10 @@ class PolygonLocationEngineTest : RobolectricTest() {
         )
         store.getEnteredIds().shouldBeEmpty()
 
+        // About 2 m north: the next sample of a real visit differs by its own jitter, which is
+        // what separates a second measurement from the held one delivered again.
         engine.processResponsiveLocation(
-            fix(37.7750, -122.4194, elapsedRealtimeNanos = base + 5_000_000_000L, accuracyMeters = 20f)
+            fix(37.775018, -122.4194, elapsedRealtimeNanos = base + 5_000_000_000L, accuracyMeters = 20f)
         )
 
         store.getEnteredIds() shouldBeEqualTo setOf(SMALL_POLYGON_ID)

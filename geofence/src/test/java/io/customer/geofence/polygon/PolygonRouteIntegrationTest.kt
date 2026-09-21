@@ -129,9 +129,12 @@ class PolygonRouteIntegrationTest {
             committedStates = emptyMap()
         ).detections.shouldBeEmpty()
 
+        // Distinct from the first, so the echo guard is not what refuses it. Two passes past the
+        // same shop are two real measurements, and only the window can tell them from one visit:
+        // with an identical sample this would pass however wide the window got.
         processor.process(
             fences = listOf(campus),
-            sample = marginal,
+            sample = marginal.resampled(),
             elapsedRealtimeNanos = 1L + FIVE_MINUTES_NANOS,
             fixAgeSeconds = 0.0,
             committedStates = emptyMap()
@@ -155,7 +158,7 @@ class PolygonRouteIntegrationTest {
 
         val detections = processor.process(
             fences = listOf(campus),
-            sample = marginal,
+            sample = marginal.resampled(),
             elapsedRealtimeNanos = 1L + FIFTEEN_SECONDS_NANOS,
             fixAgeSeconds = 0.0,
             committedStates = emptyMap()
@@ -226,7 +229,7 @@ class PolygonRouteIntegrationTest {
 
         val second = processor.process(
             fences = listOf(campus),
-            sample = marginal,
+            sample = marginal.resampled(),
             elapsedRealtimeNanos = 2L,
             fixAgeSeconds = 0.0,
             committedStates = emptyMap()
@@ -368,13 +371,16 @@ class PolygonRouteIntegrationTest {
         // committed state then absorbs every replay, so the guard is invisible: this test passed
         // with the guard deleted when it used accuracy 5.0. A marginal fix needs a second agreeing
         // one, so a replay that slipped through would complete the arrival by itself.
-        val detections = listOf(2L, 2L, 1L).flatMap { elapsed ->
-            route.process(37.77452, -122.4194, accuracy = 30.0, elapsedRealtimeNanos = elapsed)
+        // The replays vary their accuracy, so the echo guard cannot be what refuses them and the
+        // monotonic stamp check is the only thing left that can. With identical replays this test
+        // passed with that check deleted.
+        val detections = listOf(2L to 30.0, 2L to 29.0, 1L to 28.0).flatMap { (elapsed, accuracy) ->
+            route.process(37.77452, -122.4194, accuracy = accuracy, elapsedRealtimeNanos = elapsed)
         }
         detections.shouldBeEmpty()
 
         route.process(
-            37.77452,
+            37.77452 + RESAMPLE_LATITUDE_DELTA,
             -122.4194,
             accuracy = 30.0,
             elapsedRealtimeNanos = 3L
@@ -470,7 +476,8 @@ class PolygonRouteIntegrationTest {
         route = RouteHarness(listOf(campus), durableStates)
         // If the pending arrival had survived, this single fix would complete it.
         route.process(37.77452, -122.4194, accuracy = 30.0).shouldBeEmpty()
-        val eventsAfterRestart = route.process(37.77452, -122.4194, accuracy = 30.0)
+        val eventsAfterRestart =
+            route.process(37.77452 + RESAMPLE_LATITUDE_DELTA, -122.4194, accuracy = 30.0)
 
         eventsAfterRestart shouldBeEqualTo listOf(
             PolygonTransitionDetection("campus", PolygonTransition.ENTER)
@@ -494,9 +501,9 @@ class PolygonRouteIntegrationTest {
         )
         processor.clear()
 
-        fun sample(at: Long) = processor.process(
+        fun sample(at: Long, fix: PolygonLocationSample) = processor.process(
             fences = listOf(campus),
-            sample = marginal,
+            sample = fix,
             elapsedRealtimeNanos = at,
             fixAgeSeconds = 0.0,
             committedStates = states
@@ -505,8 +512,8 @@ class PolygonRouteIntegrationTest {
         // Asserted per fix, not over the pair. Both the correct and the broken processor emit
         // exactly one arrival across two fixes; they differ only in *which* fix produces it, so
         // collecting them and counting proves nothing.
-        sample(1L).shouldBeEmpty()
-        sample(2L) shouldBeEqualTo listOf(
+        sample(1L, marginal).shouldBeEmpty()
+        sample(2L, marginal.resampled()) shouldBeEqualTo listOf(
             PolygonTransitionDetection("campus", PolygonTransition.ENTER)
         )
     }
@@ -563,7 +570,17 @@ class PolygonRouteIntegrationTest {
         const val FIVE_MINUTES_NANOS = 5L * 60 * 1_000_000_000
         const val FIFTEEN_SECONDS_NANOS = 15L * 1_000_000_000
 
+        /**
+         * About 2 m north. A stationary device's next fix differs by its own jitter, and that is
+         * what makes it a second measurement rather than the held one delivered again.
+         */
+        const val RESAMPLE_LATITUDE_DELTA = 0.000018
+
         fun point(latitude: Double, longitude: Double) =
             PolygonCoordinate(latitude = latitude, longitude = longitude)
+
+        fun PolygonLocationSample.resampled() = copy(
+            coordinate = coordinate.copy(latitude = coordinate.latitude + RESAMPLE_LATITUDE_DELTA)
+        )
     }
 }

@@ -23,10 +23,15 @@ import kotlinx.coroutines.sync.withLock
  * against a real fix and it did not separate inside from outside. A pass that aborted, rather than
  * one that decided nothing, reports neither, so an identify landing mid-pass does not trigger a
  * sensor request for a session that is already gone.
+ *
+ * [pendingArrivalPolygonIds] is the same cue for the opposite verdict. Those fences decided ENTER
+ * and are holding it for a second measurement, which nothing in the background supplies inside the
+ * corroboration window: `cor=true` appears in no capture, so every marginal arrival was dropped.
  */
 internal data class PolygonEvaluationOutcome(
     val acceptedFix: Boolean,
-    val undecidedPolygonIds: Set<String>
+    val undecidedPolygonIds: Set<String>,
+    val pendingArrivalPolygonIds: Set<String> = emptySet()
 ) {
     internal companion object {
         val NOTHING = PolygonEvaluationOutcome(acceptedFix = false, undecidedPolygonIds = emptySet())
@@ -159,6 +164,13 @@ internal class PolygonLocationEngine(
             reason = record.reason,
             heldForSeconds = record.heldForSeconds
         )
+        is PolygonRouteRecord.ArrivalEcho -> logger.logPolygonArrivalEcho(
+            geofenceId = record.geofenceId,
+            signedBoundaryDistanceMeters = record.signedBoundaryDistanceMeters,
+            horizontalAccuracyMeters = record.horizontalAccuracyMeters,
+            fixAgeSeconds = record.fixAgeSeconds,
+            sinceCountedFixSeconds = record.sinceCountedFixSeconds
+        )
     }
 
     private fun resetEvidenceLocked(polygonId: String): Set<String> {
@@ -225,6 +237,7 @@ internal class PolygonLocationEngine(
         }
         var acceptedFix = false
         val undecidedPolygonIds = mutableSetOf<String>()
+        val pendingArrivalPolygonIds = mutableSetOf<String>()
         for (location in locations.sortedBy(Location::getElapsedRealtimeNanos)) {
             if (store.userStateGeneration() != expectedUserStateGeneration) {
                 logger.logPolygonEvaluationSkipped(PolygonEvaluationSkip.USER_STATE_CHANGED)
@@ -290,6 +303,8 @@ internal class PolygonLocationEngine(
             // code. PolygonLockFreedomTest is what keeps that true.
             routeOutcome.records.filterIsInstance<PolygonRouteRecord.Undecided>()
                 .mapTo(undecidedPolygonIds, PolygonRouteRecord.Undecided::geofenceId)
+            routeOutcome.records.filterIsInstance<PolygonRouteRecord.ArrivalPending>()
+                .mapTo(pendingArrivalPolygonIds, PolygonRouteRecord.ArrivalPending::geofenceId)
             routeOutcome.records.forEach(::emitRouteRecord)
             routeOutcome.detections.forEach { detection ->
                 if (store.userStateGeneration() != expectedUserStateGeneration) {
@@ -330,7 +345,11 @@ internal class PolygonLocationEngine(
                 }
             }
         }
-        PolygonEvaluationOutcome(acceptedFix = acceptedFix, undecidedPolygonIds = undecidedPolygonIds)
+        PolygonEvaluationOutcome(
+            acceptedFix = acceptedFix,
+            undecidedPolygonIds = undecidedPolygonIds,
+            pendingArrivalPolygonIds = pendingArrivalPolygonIds
+        )
     }
 
     private fun observedTimestampSeconds(fix: AndroidPolygonLocationFix): Long {

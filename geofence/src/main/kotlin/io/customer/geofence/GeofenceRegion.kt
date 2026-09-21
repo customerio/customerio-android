@@ -43,9 +43,10 @@ internal data class GeofenceRegion(
     @SerialName("polygonVertices")
     val polygonVertices: List<PolygonCoordinate>? = null,
     /**
-     * The backend's own wake-circle radius for a polygon, before the platform margin. [radius] is
-     * what GMS registers; ranking needs the canonical circle, so both are kept. Null for circles,
-     * whose [radius] is already the backend's.
+     * The backend's own wake-circle radius for a polygon. Equal to [radius] now that the circle is
+     * registered as sent, and kept distinct because they answer different questions: [radius] is
+     * whatever GMS holds for a region, this is what the backend said the enclosing circle is. Null
+     * for circles, whose [radius] is already the backend's.
      */
     @SerialName("baseRadiusMeters")
     val baseRadiusMeters: Double? = null

@@ -119,7 +119,7 @@ class GeofenceApiResponseTest : RobolectricTest() {
         region.isPolygon.shouldBeTrue()
         region.latitude shouldBeEqualTo 37.775
         region.longitude shouldBeEqualTo -122.4194
-        region.radius shouldBeEqualTo 400f
+        region.radius shouldBeEqualTo 100f
         region.polygonVertices?.size shouldBeEqualTo 4
         region.polygonVertices?.first() shouldBeEqualTo PolygonCoordinate(37.7745, -122.4200)
         region.polygonVertices.orEmpty().forEach { vertex ->
@@ -1163,13 +1163,14 @@ class GeofenceApiResponseTest : RobolectricTest() {
     }
 
     @Test
-    fun toDomainRegions_givenValidPolygon_expectBackendBaseRadiusKeptAlongsideTheRegisteredOne() {
-        // Ranking needs the backend circle; GMS gets the floored one.
+    fun toDomainRegions_givenValidPolygon_expectTheBackendCircleRegisteredAsSent() {
+        // The registered radius is the backend's, not a floored or padded one. Both fields are
+        // still carried because they answer different questions, and here they agree.
         val regions = parseRegions(polygonAndCircleJson(), PolygonSupport.Enabled)
         val polygon = regions.first { it.id == "campus" }
 
         polygon.baseRadiusMeters shouldBeEqualTo 100.0
-        polygon.radius shouldBeEqualTo 400f
+        polygon.radius shouldBeEqualTo 100f
     }
 
     /** One malformed polygon next to a perfectly good circle. */

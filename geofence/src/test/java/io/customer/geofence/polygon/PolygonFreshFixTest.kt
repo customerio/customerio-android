@@ -403,6 +403,11 @@ class PolygonFreshFixTest : RobolectricTest() {
     fun activate_givenTheCooldownHasElapsed_expectItAsksAgain() = runTest {
         // The control for the test above: a rate limit that never lifts is an off switch, and the
         // session is two minutes long, so it has to allow more than one attempt.
+        //
+        // The second callback comes from 150 m away on purpose. A stationary repeat is now
+        // suppressed by the futile-escalation check, which would confound this: the assertion
+        // would fail for a reason that has nothing to do with the cooldown. Moving the device
+        // leaves the cooldown as the only thing under test, which is what this test is for.
         val freshFix = CountingNeverAnswersFreshFix()
         val controller = controller(freshFix)
 
@@ -415,14 +420,139 @@ class PolygonFreshFixTest : RobolectricTest() {
         ShadowSystemClock.advanceBy(Duration.ofSeconds(31))
         controller.activate(
             polygonId = VENUE_ID,
-            triggeringLocation = coarseFixInsideTheVenue(
-                elapsedRealtimeNanos = SystemClock.elapsedRealtimeNanos()
-            ),
+            triggeringLocation = fixMetresNorthOfTheVenue(150.0),
             expectedUserStateGeneration = store.userStateGeneration(),
             expectedRegionRevision = null
         )
 
         freshFix.requests shouldBeEqualTo 2
+    }
+
+    @Test
+    fun activate_givenAPreciseFixAlreadyFailedFromHere_expectItDoesNotAskAgain() = runTest {
+        // Measured 2026-09-20: a device parked inside one polygon's wake circle asked 190 times in
+        // a day, median 6 minutes apart, and every answer was undecided. The 30 s cooldown is far
+        // shorter than the wake cadence, so nothing stopped it.
+        val freshFix = CountingCoarseFreshFix { coarseFixInsideTheVenue(SystemClock.elapsedRealtimeNanos()) }
+        val controller = controller(freshFix)
+
+        controller.activate(VENUE_ID, coarseFixInsideTheVenue(), store.userStateGeneration(), null)
+        // Past the cooldown, so a suppression here is the position check rather than the rate
+        // limit. Without this the test would pass on the old code.
+        ShadowSystemClock.advanceBy(Duration.ofSeconds(31))
+        controller.activate(
+            VENUE_ID,
+            coarseFixInsideTheVenue(SystemClock.elapsedRealtimeNanos()),
+            store.userStateGeneration(),
+            null
+        )
+
+        freshFix.requests shouldBeEqualTo 1
+        verify(exactly = 1) {
+            mockLogger.logPolygonFreshFixSkipped(PolygonFreshFixSkip.UNCHANGED_POSITION)
+        }
+    }
+
+    @Test
+    fun activate_givenTheDeviceMovedFurtherThanTheFixError_expectItAsksAgain() = runTest {
+        // The discriminator is movement, not time. 150 m exceeds the 122 m error of both fixes, so
+        // the device demonstrably moved; the new spot is still undecided, so the escalation is
+        // still worth making.
+        val freshFix = CountingCoarseFreshFix { coarseFixInsideTheVenue(SystemClock.elapsedRealtimeNanos()) }
+        val controller = controller(freshFix)
+
+        controller.activate(VENUE_ID, coarseFixInsideTheVenue(), store.userStateGeneration(), null)
+        ShadowSystemClock.advanceBy(Duration.ofSeconds(31))
+        controller.activate(
+            VENUE_ID,
+            fixMetresNorthOfTheVenue(150.0),
+            store.userStateGeneration(),
+            null
+        )
+
+        freshFix.requests shouldBeEqualTo 2
+    }
+
+    @Test
+    fun activate_givenTheRetryWindowElapsed_expectItAsksAgainEvenParked() = runTest {
+        // Accuracy at a fixed position is bimodal on this hardware, either about 1 m or exactly
+        // 100 m, so a parked device does occasionally get a fix that would decide. A suppression
+        // that never lifted would be an off switch.
+        val freshFix = CountingCoarseFreshFix { coarseFixInsideTheVenue(SystemClock.elapsedRealtimeNanos()) }
+        val controller = controller(freshFix)
+
+        controller.activate(VENUE_ID, coarseFixInsideTheVenue(), store.userStateGeneration(), null)
+        ShadowSystemClock.advanceBy(Duration.ofMinutes(31))
+        controller.activate(
+            VENUE_ID,
+            coarseFixInsideTheVenue(SystemClock.elapsedRealtimeNanos()),
+            store.userStateGeneration(),
+            null
+        )
+
+        freshFix.requests shouldBeEqualTo 2
+    }
+
+    @Test
+    fun activate_givenThePreciseFixDecided_expectTheNextEscalationIsStillAllowed() = runTest {
+        // Only a futile escalation suppresses the next one. A fix that decided proves this
+        // position is answerable, so nothing should be held back afterwards.
+        val freshFix = CountingCoarseFreshFix { preciseFixInsideTheVenue() }
+        val controller = controller(freshFix)
+
+        controller.activate(VENUE_ID, coarseFixInsideTheVenue(), store.userStateGeneration(), null)
+        ShadowSystemClock.advanceBy(Duration.ofSeconds(31))
+        controller.activate(
+            VENUE_ID,
+            coarseFixInsideTheVenue(SystemClock.elapsedRealtimeNanos()),
+            store.userStateGeneration(),
+            null
+        )
+
+        freshFix.requests shouldBeEqualTo 2
+        verify(exactly = 0) {
+            mockLogger.logPolygonFreshFixSkipped(PolygonFreshFixSkip.UNCHANGED_POSITION)
+        }
+    }
+
+    @Test
+    fun activate_givenTheMoveIsInsideTheOlderFixError_expectItDoesNotAskAgain() = runTest {
+        // Pins the tolerance to the LOOSER of the two errors. The first fix was +/-122 m, the
+        // second is +/-60 m and reads 100 m away. That displacement is entirely explainable by the
+        // first fix's own error, so the device has not been shown to move and asking again would
+        // repeat a request that already failed. Taking the tighter error instead would treat
+        // measurement noise as movement and re-open the loop.
+        //
+        // 60 m is above the decisive ceiling on purpose: a tighter fix decides outright and never
+        // reaches the escalation, so the tolerance could not be observed at all.
+        val freshFix = CountingCoarseFreshFix { coarseFixInsideTheVenue(SystemClock.elapsedRealtimeNanos()) }
+        val controller = controller(freshFix)
+
+        controller.activate(VENUE_ID, coarseFixInsideTheVenue(), store.userStateGeneration(), null)
+        ShadowSystemClock.advanceBy(Duration.ofSeconds(31))
+        controller.activate(
+            VENUE_ID,
+            fixMetresNorthOfTheVenue(metres = 100.0, accuracyMeters = 60f),
+            store.userStateGeneration(),
+            null
+        )
+
+        freshFix.requests shouldBeEqualTo 1
+        verify(exactly = 1) {
+            mockLogger.logPolygonFreshFixSkipped(PolygonFreshFixSkip.UNCHANGED_POSITION)
+        }
+    }
+
+    private class CountingCoarseFreshFix(
+        private val fix: () -> Location
+    ) : PolygonFreshFixSource {
+        var requests: Int = 0
+            private set
+
+        override suspend fun awaitFreshFix(timeoutMs: Long, priority: PolygonFixPriority): Location? {
+            requests++
+            return fix()
+        }
     }
 
     private class CountingNeverAnswersFreshFix : PolygonFreshFixSource {
@@ -494,6 +624,22 @@ class PolygonFreshFixTest : RobolectricTest() {
         longitude = -122.4194
         accuracy = 122.4f
         this.elapsedRealtimeNanos = elapsedRealtimeNanos
+        time = 100_000L
+    }
+
+    /**
+     * [metres] due north of the venue centre, carrying the same 122 m error. Far enough that the
+     * move is larger than either fix's error, close enough that the verdict is still undecided, so
+     * the only thing that changes between this and [coarseFixInsideTheVenue] is the position.
+     */
+    private fun fixMetresNorthOfTheVenue(
+        metres: Double,
+        accuracyMeters: Float = 122.4f
+    ) = Location("test").apply {
+        latitude = 37.7750 + metres / 111_320.0
+        longitude = -122.4194
+        accuracy = accuracyMeters
+        elapsedRealtimeNanos = SystemClock.elapsedRealtimeNanos()
         time = 100_000L
     }
 

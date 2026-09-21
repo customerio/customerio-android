@@ -86,7 +86,11 @@ internal enum class PolygonArrivalExpiry(val wire: String, val detail: String) {
 /** Why an undecided verdict was left to stand without a precise fix. */
 internal enum class PolygonFreshFixSkip(val wire: String, val detail: String) {
     WITHIN_COOLDOWN("within_cooldown", "one was already requested too recently to ask again"),
-    NONE_ARRIVED("none_arrived", "nothing arrived inside the broadcast's budget")
+    NONE_ARRIVED("none_arrived", "nothing arrived inside the broadcast's budget"),
+    UNCHANGED_POSITION(
+        "unchanged_position",
+        "a precise fix from this position already failed to decide this polygon"
+    )
 }
 
 /** Why a passively delivered fix was not used. */

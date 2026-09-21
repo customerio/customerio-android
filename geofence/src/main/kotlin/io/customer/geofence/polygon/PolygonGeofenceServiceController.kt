@@ -86,7 +86,20 @@ internal class PolygonGeofenceServiceController(
         lastFreshFix = null
         lastFreshFixRequestElapsedMs = null
         teardownGeneration += 1
+        futileEscalations.clear()
     }
+
+    /**
+     * A precise fix that was requested for [polygonId] and still could not decide it, with the
+     * position it was taken from. Guarded by [controllerLock], cleared through
+     * [forgetRequestedFix] so every teardown path already covers it.
+     */
+    private data class FutileEscalation(
+        val fix: Location,
+        val atElapsedMs: Long
+    )
+
+    private val futileEscalations = mutableMapOf<String, FutileEscalation>()
     private val coarseTransitionMutex = Mutex()
     private val lastCoarseTransitionElapsedNanos = mutableMapOf<String, Long>()
 
@@ -558,6 +571,17 @@ internal class PolygonGeofenceServiceController(
         const val FRESH_FIX_COOLDOWN_MS = 30_000L
 
         /**
+         * How long a futile escalation suppresses the next one for the same polygon from the same
+         * position.
+         *
+         * **Unmeasured**, a starting value. 30 minutes turns the measured 190 requests a day into
+         * at most 48 for a parked device, and the position check means a user who actually moves is
+         * never delayed. Revisit from a capture that reports request spacing and whether a fix good
+         * enough to decide ever arrives while stationary, not by reasoning.
+         */
+        const val FUTILE_ESCALATION_RETRY_MS = 30 * 60_000L
+
+        /**
          * How long a fix already obtained may answer a later callback from the same GMS batch.
          *
          * Sized to the batch, which is measured: consecutive `os.callback.received` gaps inside one
@@ -581,6 +605,7 @@ internal class PolygonGeofenceServiceController(
         data class Reuse(val fix: Location) : CallbackFixDecision
         data object Request : CallbackFixDecision
         data object WithinCooldown : CallbackFixDecision
+        data object UnchangedPosition : CallbackFixDecision
     }
 
     /**
@@ -831,7 +856,8 @@ internal class PolygonGeofenceServiceController(
             // Nothing to judge and nothing to fall back on, so the request is the whole pass.
             // Unmeasured: every callback in seven captures carried a fix, 49 of 49 fixsrc=os_trigger
             // and no fixsrc=none, so this is fail-open surface rather than an observed case.
-            val only = preciseFixForCallback(polygonId, setOf(polygonId)) ?: return
+            val only = preciseFixForCallback(polygonId, setOf(polygonId), triggeringLocation = null)
+                ?: return
             evaluateAndRecentre(only, expectedUserStateGeneration)
             return
         }
@@ -842,8 +868,14 @@ internal class PolygonGeofenceServiceController(
         // the very fix a hold is waiting on, the corroboration guard refuses it there instead.
         val needing = delivered.undecidedPolygonIds + delivered.pendingArrivalPolygonIds
         if (needing.isEmpty()) return
-        val fresh = preciseFixForCallback(polygonId, needing) ?: return
-        evaluateAndRecentre(fresh, expectedUserStateGeneration)
+        val fresh = preciseFixForCallback(polygonId, needing, triggeringLocation) ?: return
+        val after = evaluateAndRecentre(fresh, expectedUserStateGeneration)
+        recordEscalationOutcomes(
+            requested = needing,
+            stillUndecided = after.undecidedPolygonIds,
+            fix = fresh,
+            atElapsedMs = SystemClock.elapsedRealtime()
+        )
     }
 
     private suspend fun evaluateAndRecentre(
@@ -867,7 +899,8 @@ internal class PolygonGeofenceServiceController(
      */
     private suspend fun preciseFixForCallback(
         polygonId: String,
-        needingPolygonIds: Set<String>
+        needingPolygonIds: Set<String>,
+        triggeringLocation: Location?
     ): Location? {
         val requestedAt = SystemClock.elapsedRealtime()
         val decision = synchronized(controllerLock) {
@@ -876,9 +909,16 @@ internal class PolygonGeofenceServiceController(
             }
             val previous = lastFreshFixRequestElapsedMs
             when {
+                // Reuse first: a fix already in hand costs nothing, so the suppression below has
+                // no reason to refuse it.
                 reusable != null -> CallbackFixDecision.Reuse(reusable)
+                // The cooldown stays ahead of the suppression below, so this only ever changes a
+                // pass that would otherwise have asked. Reversing them would relabel a rate-limited
+                // skip and change what a capture says about behaviour that was already correct.
                 previous != null && requestedAt - previous < FRESH_FIX_COOLDOWN_MS ->
                     CallbackFixDecision.WithinCooldown
+                escalationWouldRepeatItselfLocked(polygonId, triggeringLocation, requestedAt) ->
+                    CallbackFixDecision.UnchangedPosition
                 else -> {
                     lastFreshFixRequestElapsedMs = requestedAt
                     CallbackFixDecision.Request
@@ -891,12 +931,29 @@ internal class PolygonGeofenceServiceController(
                 logger.logPolygonFreshFixSkipped(PolygonFreshFixSkip.WITHIN_COOLDOWN)
                 return null
             }
+            CallbackFixDecision.UnchangedPosition -> {
+                logger.logPolygonFreshFixSkipped(PolygonFreshFixSkip.UNCHANGED_POSITION)
+                return null
+            }
             CallbackFixDecision.Request -> Unit
         }
         logger.logPolygonFreshFixRequested(needingPolygonIds.sorted())
         val fix = freshFixSource.awaitFreshFix(FRESH_FIX_TIMEOUT_MS)
         if (fix == null) {
             logger.logPolygonFreshFixSkipped(PolygonFreshFixSkip.NONE_ARRIVED)
+            // Nothing arrived, so the delivered fix is the best available statement of where this
+            // was asked from, and the movement check reads it identically: it carries a position
+            // and an accuracy. Without this a device whose precise fix never arrives keeps asking
+            // on every wake, which is the same waste by a different route. The log stays
+            // NONE_ARRIVED; only the memo changes.
+            if (triggeringLocation != null) {
+                recordEscalationOutcomes(
+                    requested = undecidedPolygonIds,
+                    stillUndecided = undecidedPolygonIds,
+                    fix = triggeringLocation,
+                    atElapsedMs = SystemClock.elapsedRealtime()
+                )
+            }
             return null
         }
         // Memoised only while this request is still the one in flight. A user-scope reset during
@@ -914,6 +971,64 @@ internal class PolygonGeofenceServiceController(
             waitedSeconds = (SystemClock.elapsedRealtime() - requestedAt) / MILLIS_PER_SECOND
         )
         return fix
+    }
+
+    /**
+     * Whether asking for another precise fix would repeat one that already failed.
+     *
+     * Measured 2026-09-20: a device parked inside one polygon's 371 m wake circle produced **190
+     * precise-fix requests in a day**, median 6 minutes apart, 99% of them returning exactly 100 m
+     * and every one undecided. The wake sources are working as intended and the 30 s cooldown is
+     * far shorter than the wake cadence, so nothing stopped it. Zero transitions came out of that
+     * day.
+     *
+     * The discriminator is movement, not time: a fix taken from where the last futile one was
+     * taken cannot separate inside from outside any better. [FUTILE_ESCALATION_RETRY_MS] lets one
+     * through periodically anyway, because accuracy at a fixed position is bimodal on this hardware
+     * (either ~1 m or exactly 100 m), so a stationary device does occasionally get a fix that would
+     * decide.
+     */
+    private fun escalationWouldRepeatItselfLocked(
+        polygonId: String,
+        triggeringLocation: Location?,
+        nowElapsedMs: Long
+    ): Boolean {
+        val previous = futileEscalations[polygonId] ?: return false
+        if (nowElapsedMs - previous.atElapsedMs >= FUTILE_ESCALATION_RETRY_MS) return false
+        val current = triggeringLocation ?: return false
+        // Either fix's own error bounds how far the device can be shown to have moved, so the
+        // looser of the two is the threshold. Below it, "moved" is indistinguishable from noise.
+        val tolerance = maxOf(previous.fix.accuracy, current.accuracy)
+        return current.distanceTo(previous.fix) <= tolerance
+    }
+
+    /**
+     * One request answers every polygon in [requested], so the outcome is recorded for all of
+     * them rather than for the callback's own id alone.
+     *
+     * **Unasserted, deliberately.** Recording only the callback's own id survives the whole test
+     * class, because a polygon normally reaches [requested] by being active, activating it is its
+     * own callback, and that callback already records it.
+     *
+     * One route does escape that: [onMovementTriggerExit] activates a polygon without passing
+     * through the callback-fix path, so it can sit in another polygon's undecided set carrying no
+     * record of its own. Even then the leak is one extra request, since its own next fallback wake
+     * records it. Bounded rather than absent, which is why this records the set.
+     */
+    private fun recordEscalationOutcomes(
+        requested: Set<String>,
+        stillUndecided: Set<String>,
+        fix: Location,
+        atElapsedMs: Long
+    ) = synchronized(controllerLock) {
+        requested.forEach { id ->
+            if (id in stillUndecided) {
+                futileEscalations[id] = FutileEscalation(fix, atElapsedMs)
+            } else {
+                // A fix that decided says this position is answerable after all.
+                futileEscalations.remove(id)
+            }
+        }
     }
 
     /** Null when the fix carries no monotonic timestamp, which is the same as carrying no age. */

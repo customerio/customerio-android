@@ -7,6 +7,7 @@ import androidx.work.CoroutineWorker
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkerParameters
+import io.customer.geofence.GeofenceRegion
 import io.customer.geofence.PolygonRecheckSkip
 import io.customer.geofence.di.geofenceLogger
 import io.customer.geofence.di.geofenceRegionStore
@@ -14,6 +15,7 @@ import io.customer.geofence.di.polygonFreshFixSource
 import io.customer.geofence.di.polygonGeofenceServiceController
 import io.customer.geofence.di.polygonRecheckScheduler
 import io.customer.geofence.distanceTo
+import io.customer.geofence.store.GeofenceRegionStore
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.di.setupAndroidComponent
 import io.customer.sdk.core.util.CustomerIOWorkManagerProvider
@@ -117,14 +119,36 @@ internal class PolygonRecheckWorker(
         val expectedUserStateGeneration = store.userStateGeneration()
         val expectedTeardownGeneration =
             SDKComponent.android().polygonGeofenceServiceController.teardownGeneration()
-        val routableIds = store.getRoutableRegisteredIds()
-        val polygons = store.getCachedRegions().filter { it.id in routableIds && it.isPolygon }
+        val polygons = registeredPolygons(store)
         if (polygons.isEmpty()) {
             // Self-healing rather than relying on every cancel site being wired: if the set is
             // empty this work has nothing to do again, so it retires itself. A missed cancel
             // therefore costs one wake, not a permanent periodic job.
             logger.logPolygonRecheckSkipped(PolygonRecheckSkip.NOTHING_REGISTERED)
-            SDKComponent.android().polygonRecheckScheduler.cancel()
+            // Cancel, then re-read, then put it back if the catalog filled in the meantime.
+            //
+            // Raised by Shahroz on #896 with a reproduction: a sync scheduled this unique work
+            // after the run above read an empty catalog, and the retirement then cancelled that
+            // newer schedule, leaving no periodic re-check until the next sync. That is precisely
+            // the stationary-device gap this worker exists to cover, so between the two failures
+            // the retirement is the expensive one and has to yield.
+            //
+            // Ordering this way closes the window rather than narrowing it, and needs no lock.
+            // Both callers write the routable ids before they call reconcile, and reconcile's
+            // schedule() comes after that write, so there are only two interleavings. Either the
+            // sync's write lands before the re-read below, and this run sees it and re-asserts, or
+            // it lands after, in which case the sync's own schedule() also lands after this cancel
+            // and survives it. A re-read before the cancel could see neither.
+            //
+            // Relies on WorkManager running a cancel and an enqueue from this process in call
+            // order, which its serial task executor gives. Neither call suspends, so the
+            // cancellation this very cancel provokes cannot interleave between them: a
+            // CoroutineWorker's job can only be observed at a suspension point and there is none
+            // here.
+            val scheduler = SDKComponent.android().polygonRecheckScheduler
+            scheduler.cancel()
+            // KEEP, so re-asserting over a schedule the sync already made leaves that one alone.
+            if (registeredPolygons(store).isNotEmpty()) scheduler.schedule()
             return Result.success()
         }
         if (!hasLocationPermission()) {
@@ -200,6 +224,15 @@ internal class PolygonRecheckWorker(
             )
         }
         return Result.success()
+    }
+
+    /**
+     * The registered polygons, read the same way both times the run needs them, so the retirement
+     * check cannot drift from the decision it is re-testing.
+     */
+    private fun registeredPolygons(store: GeofenceRegionStore): List<GeofenceRegion> {
+        val routableIds = store.getRoutableRegisteredIds()
+        return store.getCachedRegions().filter { it.id in routableIds && it.isPolygon }
     }
 
     /**

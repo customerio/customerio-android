@@ -935,7 +935,7 @@ internal class PolygonGeofenceServiceController(
                 // skip and change what a capture says about behaviour that was already correct.
                 previous != null && requestedAt - previous < FRESH_FIX_COOLDOWN_MS ->
                     CallbackFixDecision.WithinCooldown
-                escalationWouldRepeatItselfLocked(polygonId, triggeringLocation, requestedAt) ->
+                requestWouldRepeatItselfLocked(needingPolygonIds, triggeringLocation, requestedAt) ->
                     CallbackFixDecision.UnchangedPosition
                 else -> {
                     lastFreshFixRequestElapsedMs = requestedAt
@@ -1009,6 +1009,45 @@ internal class PolygonGeofenceServiceController(
      * (either ~1 m or exactly 100 m), so a stationary device does occasionally get a fix that would
      * decide.
      */
+    /**
+     * Whether a request made for [needingPolygonIds] would repeat one that already failed for
+     * every fence in it.
+     *
+     * Keyed to the set the request serves rather than to the callback's own fence, because those
+     * differ routinely. A fix that decides the callback's fence and leaves a co-tenant undecided
+     * clears the first fence's memo and keeps the second's, so the callback arrives carrying no
+     * memo while the only fence it would ask for is already suppressed. Checking the callback's
+     * fence therefore funded a request that could help nobody, once per wake, which is the loop
+     * this whole path exists to stop. Recording has always covered the set; only the check was
+     * narrower.
+     *
+     * [Set.all] rather than [Set.any], deliberately. One fence that could still be answered is
+     * reason enough to spend the fix, so a fence the device has moved relative to keeps its
+     * escalation even while a co-tenant stays parked. Suppressing on `any` would withhold the fix
+     * from a fence that is demonstrably answerable because a neighbour is not, which is how this
+     * turns into a delayed arrival.
+     *
+     * The emptiness check is defensive rather than reachable: both callers pass a non-empty set,
+     * the callback path having returned already when nothing needs a fix. It is here because an
+     * empty set would otherwise satisfy [Set.all] and suppress, which is the opposite of what an
+     * absence of demand should mean.
+     *
+     * One consequence worth knowing before reading a capture: a fence that is in the set because
+     * its arrival is being held never carries a memo, because ArrivalPending puts it among the
+     * evaluated rather than the undecided and so clears rather than sets one. A held arrival
+     * therefore always defeats this check and keeps the batch asking. That is what it should do,
+     * since a second measurement is exactly what a hold needs and the window caps it at 60 s, but
+     * it means batch suppression is off for as long as any co-tenant hold is open.
+     */
+    private fun requestWouldRepeatItselfLocked(
+        needingPolygonIds: Set<String>,
+        triggeringLocation: Location?,
+        nowElapsedMs: Long
+    ): Boolean = needingPolygonIds.isNotEmpty() &&
+        needingPolygonIds.all {
+            escalationWouldRepeatItselfLocked(it, triggeringLocation, nowElapsedMs)
+        }
+
     private fun escalationWouldRepeatItselfLocked(
         polygonId: String,
         triggeringLocation: Location?,

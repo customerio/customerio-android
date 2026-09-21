@@ -791,6 +791,87 @@ class PolygonFreshFixTest : RobolectricTest() {
     }
 
     @Test
+    fun activate_givenEveryFenceTheRequestServesIsSuppressed_expectNoRequest() = runTest {
+        // The gate used to read the callback's own fence, which is often not one the request would
+        // serve at all. A fix that decides the callback's fence clears its memo, so the callback
+        // arrives carrying none, while the only fence still needing a fix is already suppressed.
+        // The request was funded anyway, once per wake, which is the loop this path exists to stop.
+        // Raised by Bugbot twice and reproduced by Shahroz with two active polygons.
+        // A second of the request's own wait, so the answer is strictly newer than the fix that
+        // triggered it. Without it the processor skips every fence as not-newer, the pass records
+        // nothing, and no memo is ever set for the test to exercise.
+        val freshFix = CountingCoarseFreshFix {
+            ShadowSystemClock.advanceBy(Duration.ofSeconds(1))
+            preciseFixInsideTheVenue()
+        }
+        val controller = controller(freshFix)
+        store.saveCachedRegions(listOf(venueRegion(), regionJustNorthOfTheVenue(NEIGHBOUR_ID)))
+        store.saveRegisteredIds(setOf(VENUE_ID, NEIGHBOUR_ID))
+        store.saveRoutableRegisteredIds(setOf(VENUE_ID, NEIGHBOUR_ID))
+        // Committed INSIDE, so the venue-centre fix reads outside its ring without clearing it,
+        // which is undecided rather than a departure.
+        store.recordEntered(NEIGHBOUR_ID)
+
+        controller.activate(NEIGHBOUR_ID, preciseFixInsideTheVenue(), store.userStateGeneration(), null)
+        // Past the cooldown, so a refusal below is the position check and not the rate limit.
+        ShadowSystemClock.advanceBy(Duration.ofSeconds(31))
+        // A callback for the venue, whose own verdict is decisive and carries no memo. The only
+        // fence needing a fix is still the neighbour, and it is suppressed.
+        controller.activate(VENUE_ID, preciseFixInsideTheVenue(), store.userStateGeneration(), null)
+
+        freshFix.requests shouldBeEqualTo 1
+        verify(exactly = 1) {
+            mockLogger.logPolygonFreshFixSkipped(PolygonFreshFixSkip.UNCHANGED_POSITION)
+        }
+    }
+
+    @Test
+    fun activate_givenOneFenceInTheSetIsStillAnswerable_expectItStillAsks() = runTest {
+        // The other half of the contract, and the reason the check is `all` and not `any`. One
+        // fence that could still be answered is worth the fix, so a suppressed co-tenant must not
+        // withhold it. Suppressing on `any` here is how this turns into a delayed arrival, which
+        // is the whole reason the stack exists.
+        //
+        // The second neighbour is registered only after the first request, so it carries no memo of
+        // its own while the first neighbour does.
+        // A second of the request's own wait, so the answer is strictly newer than the fix that
+        // triggered it. Without it the processor skips every fence as not-newer, the pass records
+        // nothing, and no memo is ever set for the test to exercise.
+        val freshFix = CountingCoarseFreshFix {
+            ShadowSystemClock.advanceBy(Duration.ofSeconds(1))
+            preciseFixInsideTheVenue()
+        }
+        val controller = controller(freshFix)
+        store.saveCachedRegions(listOf(venueRegion(), regionJustNorthOfTheVenue(NEIGHBOUR_ID)))
+        store.saveRegisteredIds(setOf(VENUE_ID, NEIGHBOUR_ID))
+        store.saveRoutableRegisteredIds(setOf(VENUE_ID, NEIGHBOUR_ID))
+        store.recordEntered(NEIGHBOUR_ID)
+
+        controller.activate(NEIGHBOUR_ID, preciseFixInsideTheVenue(), store.userStateGeneration(), null)
+
+        store.saveCachedRegions(
+            listOf(
+                venueRegion(),
+                regionJustNorthOfTheVenue(NEIGHBOUR_ID),
+                regionJustNorthOfTheVenue(SECOND_NEIGHBOUR_ID)
+            )
+        )
+        store.saveRegisteredIds(setOf(VENUE_ID, NEIGHBOUR_ID, SECOND_NEIGHBOUR_ID))
+        store.saveRoutableRegisteredIds(setOf(VENUE_ID, NEIGHBOUR_ID, SECOND_NEIGHBOUR_ID))
+        store.recordEntered(SECOND_NEIGHBOUR_ID)
+
+        ShadowSystemClock.advanceBy(Duration.ofSeconds(31))
+        controller.activate(
+            SECOND_NEIGHBOUR_ID,
+            preciseFixInsideTheVenue(),
+            store.userStateGeneration(),
+            null
+        )
+
+        freshFix.requests shouldBeEqualTo 2
+    }
+
+    @Test
     fun activate_givenTheMoveIsInsideTheOlderFixError_expectItDoesNotAskAgain() = runTest {
         // Pins the tolerance to the LOOSER of the two errors. The first fix was +/-122 m, the
         // second is +/-60 m and reads 100 m away. That displacement is entirely explainable by the
@@ -945,7 +1026,27 @@ class PolygonFreshFixTest : RobolectricTest() {
     /** A second polygon at the same place, so one batch can report both as undecided. */
     private fun neighbourRegion() = venueRegion().copy(id = NEIGHBOUR_ID)
 
+    /**
+     * A polygon shifted ~60 m north, so a fix at the venue's centre sits about 4 m OUTSIDE its
+     * southern edge while sitting ~52 m inside the venue's.
+     *
+     * That is what lets one precise fix reach two different verdicts: decisive for the venue, and,
+     * for this one committed INSIDE, outside its ring but not clear of it, which is
+     * WITHIN_ACCURACY. Needed because the accuracy ceiling is a flat 50 m rather than per fence,
+     * so two fences cannot diverge on fix quality alone.
+     */
+    private fun regionJustNorthOfTheVenue(id: String) = venueRegion().copy(
+        id = id,
+        latitude = 37.7750 + NORTH_SHIFT_DEGREES,
+        polygonVertices = venueRegion().polygonVertices?.map {
+            PolygonCoordinate(it.latitude + NORTH_SHIFT_DEGREES, it.longitude)
+        }
+    )
+
     private companion object {
+        /** ~59.7 m, which puts the venue-centre fix about 4 m south of the shifted fence's edge. */
+        const val NORTH_SHIFT_DEGREES = 0.0005359
+        const val SECOND_NEIGHBOUR_ID = "neighbour-2"
         const val USER_ID = "user-1"
         const val VENUE_ID = "venue"
         const val NEIGHBOUR_ID = "neighbour"

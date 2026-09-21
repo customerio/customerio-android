@@ -116,6 +116,7 @@ class PolygonFieldArrivalTest : RobolectricTest() {
             secureUserStore = secureUserStore,
             freshFixSource = NeverAnswersFreshFix,
             recheckScheduler = NoopRecheckScheduler,
+            passiveMonitor = NoopPassiveMonitor,
             logger = mockLogger
         )
     }

@@ -225,7 +225,12 @@ class GeofenceLogTailTest : RobolectricTest() {
             Row("polygonFreshFixReceived", "polygon.freshfix.received", listOf("waited", "fixsrc", "acc", "age"), GeofenceLogger::logPolygonFreshFixReceived.name, io = "in") { it.logPolygonFreshFixReceived(fix, waitedSeconds = 1.4) },
             Row("polygonFreshFixSkipped", "polygon.freshfix.skipped", listOf("why"), GeofenceLogger::logPolygonFreshFixSkipped.name, pinned = mapOf("why" to "none_arrived")) { it.logPolygonFreshFixSkipped(PolygonFreshFixSkip.NONE_ARRIVED) },
             Row("polygonRecheckRan", "polygon.recheck.ran", listOf("cand", "n", "ids", "ncleared", "cleared", "fixsrc", "acc", "age"), GeofenceLogger::logPolygonRecheckRan.name, io = "in") { it.logPolygonRecheckRan(fix, candidateCount = 3, admittedIds = listOf("notl_core"), clearedIds = listOf("notl_annex")) },
-            Row("polygonRecheckSkipped", "polygon.recheck.skipped", listOf("why"), GeofenceLogger::logPolygonRecheckSkipped.name, pinned = mapOf("why" to "nothing_registered")) { it.logPolygonRecheckSkipped(PolygonRecheckSkip.NOTHING_REGISTERED) }
+            Row("polygonRecheckSkipped", "polygon.recheck.skipped", listOf("why"), GeofenceLogger::logPolygonRecheckSkipped.name, pinned = mapOf("why" to "nothing_registered")) { it.logPolygonRecheckSkipped(PolygonRecheckSkip.NOTHING_REGISTERED) },
+            Row("polygonPassiveStarted", "polygon.passive.started", emptyList(), GeofenceLogger::logPolygonPassiveStarted.name) { it.logPolygonPassiveStarted() },
+            Row("polygonPassiveStopped", "polygon.passive.stopped", emptyList(), GeofenceLogger::logPolygonPassiveStopped.name) { it.logPolygonPassiveStopped() },
+            Row("polygonPassiveReceived", "polygon.passive.received", listOf("cand", "n", "ids", "ncleared", "cleared", "fixsrc", "acc", "age"), GeofenceLogger::logPolygonPassiveReceived.name, io = "in") { it.logPolygonPassiveReceived(fix, candidateCount = 2, admittedIds = listOf("notl_core"), clearedIds = listOf("notl_annex")) },
+            Row("polygonPassiveSkipped", "polygon.passive.skipped", listOf("why"), GeofenceLogger::logPolygonPassiveSkipped.name, pinned = mapOf("why" to "nothing_registered")) { it.logPolygonPassiveSkipped(PolygonPassiveSkip.NOTHING_REGISTERED) },
+            Row("polygonPassiveFailed", "polygon.passive.failed", listOf("why"), GeofenceLogger::logPolygonPassiveFailed.name, pinned = mapOf("why" to "boom")) { it.logPolygonPassiveFailed("boom") }
         )
     }
 
@@ -366,6 +371,11 @@ class GeofenceLogTailTest : RobolectricTest() {
             "polygon.freshfix.skipped",
             "polygon.recheck.ran",
             "polygon.recheck.skipped",
+            "polygon.passive.started",
+            "polygon.passive.stopped",
+            "polygon.passive.received",
+            "polygon.passive.skipped",
+            "polygon.passive.failed",
             "api.transition.unknown",
             "containment.judged",
             "delivery.failed",

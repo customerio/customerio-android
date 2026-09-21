@@ -35,6 +35,121 @@ class GeofenceBusinessTransitionProcessorTest {
     }
 
     @Test
+    fun process_givenContainmentSeededButNoEnterEverEmitted_expectExitIsNotDelivered() = runTest {
+        // Reproduces the 2026-09-19 field failure. A 1 km circle was registered while the device
+        // was already inside it, from a movement-trigger fix with acc=400. That fix was too coarse
+        // for initial-enter synthesis, so no ENTER was ever emitted -- but it still seeded
+        // containment, so five minutes later a real GMS EXIT read as *matched* and a false EXIT was
+        // delivered to the backend for a fence the user never entered.
+        //
+        // getEnteredIds tracks where the device IS. Whether the backend was ever told is
+        // hasEmittedEnter, and the EXIT path never consults it. The ENTER path already has the
+        // mirror of this guard (isRedundantEnter in GeofenceTransitionEmitter).
+        every { store.getEnteredIds() } returns setOf("polygon")
+        every { store.hasEmittedEnterRecord("user-1") } returns true
+        every { store.hasEmittedEnter("user-1", "polygon") } returns false
+
+        processor.process("polygon", Event.GeofenceTransition.EXIT, 100L)
+
+        coVerify(exactly = 0) {
+            emitter.emitWithRetainedAttempt(any(), any(), any(), any(), any(), any(), any(), any(), any(), any())
+        }
+    }
+
+    @Test
+    fun process_givenTheDeviceWasNeverInside_expectNoCommitSoASyncSeedSurvives() = runTest {
+        // Raised by Shahroz on #898. There is no departure to commit when containment is already
+        // empty, and committing one is not free: it bumps the fence's exit epoch, and
+        // reconcileEnteredIds drops any `stillInside` entry whose exit epoch postdates the caller's
+        // fix. A sync holding an earlier inside fix therefore loses its seed and initial-ENTER
+        // synthesis has nothing left to act on. Only the backend-was-never-told case describes a
+        // real departure, so only that one falls through.
+        every { store.getEnteredIds() } returns emptySet()
+        every { store.hasContainmentRecord() } returns true
+
+        processor.process("polygon", Event.GeofenceTransition.EXIT, 100L)
+
+        verify(exactly = 0) { store.commitBusinessTransition(any(), any(), any(), any(), any()) }
+    }
+
+    @Test
+    fun process_givenTheExitIsSuppressed_expectContainmentIsStillCommitted() = runTest {
+        // Raised by Shahroz on #898 with a reproduction. Suppressing delivery must not also skip
+        // the containment commit, which every other suppressed path does reach. A rapid revisit
+        // whose ENTER was cooldown-suppressed leaves no emitted-enter record for the fence, so this
+        // guard fires on the next departure; returning early left the fence in getEnteredIds()
+        // after the device had gone, and the redundant-ENTER guard then read every later visit as
+        // unchanged. The physical EXIT is not in doubt here, only whether the backend can be told.
+        every { store.getEnteredIds() } returns setOf("polygon")
+        every { store.hasEmittedEnterRecord("user-1") } returns true
+        every { store.hasEmittedEnter("user-1", "polygon") } returns false
+
+        processor.process("polygon", Event.GeofenceTransition.EXIT, 100L)
+
+        coVerify(exactly = 0) {
+            emitter.emitWithRetainedAttempt(any(), any(), any(), any(), any(), any(), any(), any(), any(), any())
+        }
+        verify {
+            store.commitBusinessTransition("polygon", Event.GeofenceTransition.EXIT, null, 0L, any())
+        }
+    }
+
+    @Test
+    fun process_givenTheEnterWasEmitted_expectTheExitIsStillDelivered() = runTest {
+        // The control that stops the guard above being written as "drop every EXIT". A fence the
+        // backend was told about must still be able to close.
+        every { store.getEnteredIds() } returns setOf("polygon")
+        every { store.hasEmittedEnterRecord("user-1") } returns true
+        every { store.hasEmittedEnter("user-1", "polygon") } returns true
+
+        processor.process("polygon", Event.GeofenceTransition.EXIT, 100L)
+
+        coVerify(exactly = 1) {
+            emitter.emitWithRetainedAttempt(any(), any(), any(), any(), any(), any(), any(), any(), any(), any())
+        }
+    }
+
+    @Test
+    fun process_givenNoEmittedEnterRecordAtAll_expectTheExitIsStillDelivered() = runTest {
+        // The upgrade control. A device coming from a build that predates these marks has no
+        // record, so every fence would read as never-reported and the first genuine EXIT for each
+        // would be dropped. The baseline check is what stops that, exactly as hasContainmentRecord
+        // does on the other clause.
+        every { store.getEnteredIds() } returns setOf("polygon")
+        every { store.hasEmittedEnterRecord("user-1") } returns false
+        every { store.hasEmittedEnter("user-1", "polygon") } returns false
+
+        processor.process("polygon", Event.GeofenceTransition.EXIT, 100L)
+
+        coVerify(exactly = 1) {
+            emitter.emitWithRetainedAttempt(any(), any(), any(), any(), any(), any(), any(), any(), any(), any())
+        }
+    }
+
+    @Test
+    fun process_givenAnExitOnlyFence_expectTheExitIsStillDelivered() = runTest {
+        // The second control, and the reason the existing ENTER-side guard carries `monitorsExit`.
+        // A fence that never reports ENTER can never have an emitted-enter mark, so requiring one
+        // would swallow every EXIT it ever produces.
+        every { store.getCachedRegion("exit-only") } returns GeofenceRegion(
+            id = "exit-only",
+            latitude = 0.0,
+            longitude = 0.0,
+            radius = 100f,
+            transitionTypes = listOf(GeofenceTransitionType.EXIT)
+        )
+        every { store.getEnteredIds() } returns setOf("exit-only")
+        every { store.hasEmittedEnterRecord("user-1") } returns true
+        every { store.hasEmittedEnter("user-1", "exit-only") } returns false
+
+        processor.process("exit-only", Event.GeofenceTransition.EXIT, 100L)
+
+        coVerify(exactly = 1) {
+            emitter.emitWithRetainedAttempt(any(), any(), any(), any(), any(), any(), any(), any(), any(), any())
+        }
+    }
+
+    @Test
     fun process_givenOutboxPersistenceFailure_expectContainmentNotCommittedSoFixCanRetry() = runTest {
         coEvery { emitter.emitWithRetainedAttempt(any(), any(), any(), any(), any(), any(), any(), any(), any(), any()) } returns
             GeofenceTransitionEmitter.Result.PERSIST_FAILED

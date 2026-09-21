@@ -178,7 +178,7 @@ class PolygonRecheckTest : RobolectricTest() {
             .doWork()
 
         result shouldBeEqualTo ListenableWorker.Result.success()
-        coVerify(exactly = 0) { mockController.activate(any(), any(), any(), any()) }
+        coVerify(exactly = 0) { mockController.activate(any(), any(), any(), any(), any()) }
     }
 
     @Test
@@ -209,11 +209,12 @@ class PolygonRecheckTest : RobolectricTest() {
                 polygonId = VENUE_ID,
                 triggeringLocation = fix,
                 expectedUserStateGeneration = 7L,
-                expectedRegionRevision = null
+                expectedRegionRevision = null,
+                expectedTeardownGeneration = any()
             )
         }
         coVerify(exactly = 0) {
-            mockController.activate(any(), any(), expectedUserStateGeneration = 8L, any())
+            mockController.activate(any(), any(), expectedUserStateGeneration = 8L, any(), any())
         }
     }
 
@@ -247,7 +248,7 @@ class PolygonRecheckTest : RobolectricTest() {
             .build()
             .doWork() shouldBeEqualTo ListenableWorker.Result.success()
 
-        coVerify(exactly = 0) { mockController.activate(any(), any(), any(), any()) }
+        coVerify(exactly = 0) { mockController.activate(any(), any(), any(), any(), any()) }
     }
 
     @Test
@@ -263,7 +264,7 @@ class PolygonRecheckTest : RobolectricTest() {
             .doWork() shouldBeEqualTo ListenableWorker.Result.success()
 
         verify { mockRecheckScheduler.cancel() }
-        coVerify(exactly = 0) { mockController.activate(any(), any(), any(), any()) }
+        coVerify(exactly = 0) { mockController.activate(any(), any(), any(), any(), any()) }
     }
 
     @Test
@@ -345,8 +346,8 @@ class PolygonRecheckTest : RobolectricTest() {
         TestListenableWorkerBuilder<PolygonRecheckWorker>(applicationMock).build().doWork()
 
         // Identified by which fix reached activate, so neither run can stand in for the other.
-        coVerify(exactly = 1) { mockController.activate(VENUE_ID, justInside, any(), any()) }
-        coVerify(exactly = 0) { mockController.activate(VENUE_ID, justOutside, any(), any()) }
+        coVerify(exactly = 1) { mockController.activate(VENUE_ID, justInside, any(), any(), any()) }
+        coVerify(exactly = 0) { mockController.activate(VENUE_ID, justOutside, any(), any(), any()) }
     }
 
     @Test
@@ -374,7 +375,7 @@ class PolygonRecheckTest : RobolectricTest() {
                 expectedRegionRevision = null
             )
         }
-        coVerify(exactly = 0) { mockController.activate(any(), any(), any(), any()) }
+        coVerify(exactly = 0) { mockController.activate(any(), any(), any(), any(), any()) }
     }
 
     @Test
@@ -449,6 +450,82 @@ class PolygonRecheckTest : RobolectricTest() {
         TestListenableWorkerBuilder<PolygonRecheckWorker>(applicationMock).build().doWork()
 
         coVerify(exactly = 0) { mockController.onCoarseExit(any(), any(), any(), any()) }
+    }
+
+    @Test
+    fun worker_expectTheTeardownTokenIsReadBeforeTheWaitNotAfterIt() = runTest {
+        // The read has to happen before awaitFreshFix, or it cannot distinguish a session that
+        // ended during the wait. A stub that moves the way a teardown would is what pins that: if
+        // the worker read it after the fix landed it would hand over the current value and the
+        // controller would accept a wake its session no longer owns.
+        every { mockStore.getRoutableRegisteredIds() } returns setOf(VENUE_ID)
+        every { mockStore.getCachedRegions() } returns listOf(venueRegion())
+        val fix = fixAt(VENUE_LAT, VENUE_LNG)
+        var teardowns = 3L
+        every { mockController.teardownGeneration() } answers { teardowns }
+        coEvery { mockFreshFix.awaitFreshFix(any(), any()) } coAnswers {
+            teardowns = 4L
+            fix
+        }
+
+        TestListenableWorkerBuilder<PolygonRecheckWorker>(applicationMock).build().doWork()
+
+        coVerify {
+            mockController.activate(
+                polygonId = VENUE_ID,
+                triggeringLocation = fix,
+                expectedUserStateGeneration = any(),
+                expectedRegionRevision = null,
+                expectedTeardownGeneration = 3L
+            )
+        }
+        coVerify(exactly = 0) {
+            mockController.activate(any(), any(), any(), any(), expectedTeardownGeneration = 4L)
+        }
+    }
+
+    @Test
+    fun activate_givenATeardownSinceTheTokenWasTaken_expectNoReArm() = runTest {
+        // Raised by Shahroz on #896. stopAll() leaves the routable ids and the user generation in
+        // place on purpose, so a worker already past its wait passed both checks and re-armed the
+        // polygon it had just torn down. Cancellation cannot close this: the coroutine may already
+        // be past the suspension point when the teardown lands.
+        every { mockStore.getRoutableRegisteredIds() } returns setOf(VENUE_ID)
+        every { mockStore.getCachedRegions() } returns listOf(venueRegion())
+        every { mockStore.getCachedRegion(VENUE_ID) } returns venueRegion()
+        every { mockStore.activeUserSessionId() } returns "user-1"
+        val controller = controller(mockRecheckScheduler)
+        val tokenBeforeTeardown = controller.teardownGeneration()
+
+        controller.stopAll()
+        controller.activate(
+            polygonId = VENUE_ID,
+            expectedUserStateGeneration = 7L,
+            expectedRegionRevision = null,
+            expectedTeardownGeneration = tokenBeforeTeardown
+        )
+
+        verify(exactly = 0) { mockStore.activatePolygon(VENUE_ID) }
+    }
+
+    @Test
+    fun activate_givenNoTeardownSinceTheTokenWasTaken_expectItStillArms() = runTest {
+        // The control. A token that is still current must not block an ordinary scheduled wake,
+        // or the fix above would be an off switch for the whole mechanism.
+        every { mockStore.getRoutableRegisteredIds() } returns setOf(VENUE_ID)
+        every { mockStore.getCachedRegions() } returns listOf(venueRegion())
+        every { mockStore.getCachedRegion(VENUE_ID) } returns venueRegion()
+        every { mockStore.activeUserSessionId() } returns "user-1"
+        val controller = controller(mockRecheckScheduler)
+
+        controller.activate(
+            polygonId = VENUE_ID,
+            expectedUserStateGeneration = 7L,
+            expectedRegionRevision = null,
+            expectedTeardownGeneration = controller.teardownGeneration()
+        )
+
+        verify { mockStore.activatePolygon(VENUE_ID) }
     }
 
     private fun controller(scheduler: PolygonRecheckScheduler) = PolygonGeofenceServiceController(

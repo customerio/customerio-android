@@ -125,6 +125,13 @@ internal class PolygonRecheckWorker(
             return Result.success()
         }
         val expectedUserStateGeneration = store.userStateGeneration()
+        // Captured before the wait, checked when activate takes the controller lock. A teardown
+        // during the wait leaves the routable ids and the user generation alone on purpose, so
+        // this is the only read that can tell a resumed worker its session is over. Cancellation
+        // cleans the work up but cannot enforce the boundary: the coroutine may already be past
+        // the suspension point when it lands.
+        val expectedTeardownGeneration =
+            SDKComponent.android().polygonGeofenceServiceController.teardownGeneration()
         // Balanced, not high accuracy. This fix answers one question — is the device inside a wake
         // circle, which is hundreds of metres across — and a GPS-grade answer to it is waste. The
         // registered polygons are only the nearest set, so a user kilometres from all of them would
@@ -185,7 +192,8 @@ internal class PolygonRecheckWorker(
             controller.activate(
                 polygonId = region.id,
                 triggeringLocation = fix,
-                expectedUserStateGeneration = expectedUserStateGeneration
+                expectedUserStateGeneration = expectedUserStateGeneration,
+                expectedTeardownGeneration = expectedTeardownGeneration
             )
         }
         return Result.success()

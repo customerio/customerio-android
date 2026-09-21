@@ -53,9 +53,26 @@ internal class PolygonGeofenceServiceController(
      * callback arrives within seconds and would otherwise be refused its own fix because the
      * previous session asked for one.
      */
+    /**
+     * Bumped by every teardown, so a scheduled wake already past its wait cannot re-arm what the
+     * teardown removed.
+     *
+     * Cancellation cannot enforce this boundary on its own: a worker suspended in `awaitFreshFix`
+     * resumes and reaches [activate] with the routable ids and user generation that teardown leaves
+     * in place on purpose, so neither of those reads can tell it its session is over.
+     */
+    private var teardownGeneration: Long = 0L
+
+    /** Captured by a scheduled wake before it waits, and handed back to [activate] afterwards. */
+    fun teardownGeneration(): Long = synchronized(controllerLock) { teardownGeneration }
+
+    private fun isAfterTeardown(expected: Long?): Boolean = expected != null &&
+        synchronized(controllerLock) { expected != teardownGeneration }
+
     private fun forgetRequestedFix() {
         lastFreshFix = null
         lastFreshFixRequestElapsedMs = null
+        teardownGeneration += 1
     }
     private val coarseTransitionMutex = Mutex()
     private val lastCoarseTransitionElapsedNanos = mutableMapOf<String, Long>()
@@ -78,8 +95,13 @@ internal class PolygonGeofenceServiceController(
         polygonId: String,
         triggeringLocation: Location?,
         expectedUserStateGeneration: Long = store.userStateGeneration(),
-        expectedRegionRevision: Int? = null
+        expectedRegionRevision: Int? = null,
+        expectedTeardownGeneration: Long? = null
     ) = coarseTransitionMutex.withLock {
+        if (isAfterTeardown(expectedTeardownGeneration)) {
+            logger.logPolygonCallbackDropped(PolygonCallbackDrop.NOT_ROUTABLE, polygonId)
+            return@withLock
+        }
         if (!isCurrentRegisteredPolygon(polygonId, expectedUserStateGeneration, expectedRegionRevision)) {
             logger.logPolygonCallbackDropped(PolygonCallbackDrop.NOT_ROUTABLE, polygonId)
             return@withLock
@@ -95,10 +117,14 @@ internal class PolygonGeofenceServiceController(
     fun activate(
         polygonId: String,
         expectedUserStateGeneration: Long = store.userStateGeneration(),
-        expectedRegionRevision: Int? = null
+        expectedRegionRevision: Int? = null,
+        expectedTeardownGeneration: Long? = null
     ) {
         val discarded = mutableSetOf<String>()
         val routable = synchronized(controllerLock) {
+            if (expectedTeardownGeneration != null && expectedTeardownGeneration != teardownGeneration) {
+                return@synchronized false
+            }
             if (!isCurrentRegisteredPolygonLocked(
                     polygonId,
                     expectedUserStateGeneration,

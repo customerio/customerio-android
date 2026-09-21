@@ -104,6 +104,19 @@ internal class PolygonRecheckWorker(
         SDKComponent.setupAndroidComponent(context = applicationContext)
         val logger = SDKComponent.geofenceLogger
         val store = SDKComponent.android().geofenceRegionStore
+        // The ownership snapshot is taken before any of the work it describes, not after.
+        //
+        // Both of these say which session this run belongs to, and both are checked when activate
+        // takes the controller lock. Read after the catalog and permission work, a teardown or an
+        // identify landing during that work would be captured as though it had always been the
+        // current session: the run would hand over the post-teardown token, match it, and re-arm
+        // the polygon it had just removed. Raised by Shahroz on #896 with a reproduction.
+        //
+        // Cancellation cannot enforce this boundary either, here or after the wait: the coroutine
+        // may already be past the suspension point when the teardown lands.
+        val expectedUserStateGeneration = store.userStateGeneration()
+        val expectedTeardownGeneration =
+            SDKComponent.android().polygonGeofenceServiceController.teardownGeneration()
         val routableIds = store.getRoutableRegisteredIds()
         val polygons = store.getCachedRegions().filter { it.id in routableIds && it.isPolygon }
         if (polygons.isEmpty()) {
@@ -114,9 +127,6 @@ internal class PolygonRecheckWorker(
             SDKComponent.android().polygonRecheckScheduler.cancel()
             return Result.success()
         }
-        // Read before the fix is awaited, and passed down, so an identify during the await is
-        // caught by the controller's own generation check instead of being attributed to whoever
-        // is current when the fix lands.
         if (!hasLocationPermission()) {
             // Told apart from NO_FIX deliberately. awaitFreshFix reports a revoked permission and a
             // silent GPS as the same null, and a capture that cannot separate them reads a
@@ -124,14 +134,6 @@ internal class PolygonRecheckWorker(
             logger.logPolygonRecheckSkipped(PolygonRecheckSkip.NO_PERMISSION)
             return Result.success()
         }
-        val expectedUserStateGeneration = store.userStateGeneration()
-        // Captured before the wait, checked when activate takes the controller lock. A teardown
-        // during the wait leaves the routable ids and the user generation alone on purpose, so
-        // this is the only read that can tell a resumed worker its session is over. Cancellation
-        // cleans the work up but cannot enforce the boundary: the coroutine may already be past
-        // the suspension point when it lands.
-        val expectedTeardownGeneration =
-            SDKComponent.android().polygonGeofenceServiceController.teardownGeneration()
         // Balanced, not high accuracy. This fix answers one question — is the device inside a wake
         // circle, which is hundreds of metres across — and a GPS-grade answer to it is waste. The
         // registered polygons are only the nearest set, so a user kilometres from all of them would

@@ -1,5 +1,6 @@
 package io.customer.geofence.polygon
 
+import io.customer.geofence.PolygonArrivalExpiry
 import org.amshove.kluent.shouldBeEqualTo
 import org.junit.Test
 
@@ -7,11 +8,18 @@ import org.junit.Test
  * Whether a marginal arrival can actually be confirmed at the cadence the field delivers fixes at,
  * and whether the second fix has to be a second measurement.
  *
- * The window was sized against a 15 s approach sampler. Captures from 2026-09-17 to 2026-09-20 show
- * the real gap between consecutive fixes for one fence at 300.7, 301.0, 301.3, 305.8, 703.2 and
- * 1539.4 s, measured as the `held` value on every `arrival.expired` record, which is retired lazily
- * on the next fix and so reports the gap itself. `cor=true` never appears in any capture: no
- * marginal arrival has ever been confirmed on a device.
+ * The window is sized against the approach sampler's 15 s `UPDATE_INTERVAL_MS`. Captures from
+ * 2026-09-17 to 2026-09-20 show the real gap between consecutive fixes for one fence at 300.7,
+ * 301.0, 301.3, 305.8, 703.2 and 1539.4 s, measured as the `held` value on every `arrival.expired`
+ * record, which is retired lazily on the next fix and so reports the gap itself. `cor=true` never
+ * appears in any capture: no marginal arrival has ever been confirmed on a device.
+ *
+ * **The window is not the lever.** Widening it to reach 300 s contradicts
+ * `process_givenTwoMarginalFixesMinutesApart_expectNoArrivalFromCombiningThem`, which Shahroz
+ * reported on #882 with a reproduction and which pins that two marginal fixes `FIVE_MINUTES_NANOS`
+ * apart must not combine into a visit. The field's corroborating gap and that defect's gap are the
+ * same number, so at this cadence two fixes cannot distinguish one visit from two passes at all.
+ * The sampler not delivering at its requested 15 s is the defect; see the arrival-sampler notes.
  *
  * The ring is the fence that lost the arrival, translated to a different latitude band with the
  * longitude deltas rescaled by the ratio of the two cosines, so every edge length and clearance is
@@ -67,10 +75,11 @@ class PolygonCorroborationWindowTest {
     }
 
     @Test
-    fun process_givenASecondMeasurementAtTheFieldCadence_expectTheArrivalIsConfirmed() {
-        // The defect. 301 s is the gap the captures actually show between two fixes for one fence,
-        // and it is the gap every lost arrival died in. A second measurement of the same visit has
-        // to be able to confirm it, or no marginal arrival is ever reportable.
+    fun process_givenASecondMeasurementAtTheFieldCadence_expectTheArrivalIsLost() {
+        // Characterization of the live defect, not an endorsement of it. 301 s is the gap the
+        // captures show between two fixes for one fence and the gap every lost arrival died in.
+        // The hold is retired before the second fix is judged, so that fix starts a fresh hold
+        // instead of completing the first, and at this cadence the cycle never terminates.
         val processor = PolygonRouteProcessor()
         processor.process(
             fences = listOf(fence),
@@ -88,7 +97,12 @@ class PolygonCorroborationWindowTest {
             committedStates = committedOutside
         )
 
-        outcome.detections.map { it.transition } shouldBeEqualTo listOf(PolygonTransition.ENTER)
+        outcome.detections shouldBeEqualTo emptyList()
+        outcome.records.filterIsInstance<PolygonRouteRecord.ArrivalExpired>()
+            .single().reason shouldBeEqualTo PolygonArrivalExpiry.WINDOW_ELAPSED
+        // And it starts over rather than giving up, which is why the captures show the same fence
+        // expiring at ~301 s again and again instead of once.
+        outcome.records.filterIsInstance<PolygonRouteRecord.ArrivalPending>().size shouldBeEqualTo 1
     }
 
     @Test

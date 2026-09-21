@@ -33,6 +33,9 @@ internal interface PolygonPassiveMonitor {
     fun start()
 
     fun stop()
+
+    /** Whether a delivered passive fix still belongs to a live registration. */
+    fun isArmed(): Boolean
 }
 
 internal class GmsPolygonPassiveMonitor(
@@ -60,7 +63,21 @@ internal class GmsPolygonPassiveMonitor(
                 .addOnSuccessListener { logger.logPolygonPassiveStopped() }
                 .addOnFailureListener { logger.logPolygonPassiveFailed(it.message) }
         }.onFailure { logger.logPolygonPassiveFailed(it.message) }
+        // Cancelled as well as removed, which is what makes [isArmed] answerable. Removing the
+        // request stops new deliveries but leaves the intent alive, so a fix already dispatched
+        // still arrives and nothing it can read says the session ended.
+        pendingIntent.cancel()
     }
+
+    /**
+     * Whether this registration is still live, which is the only thing a delivered fix can check.
+     *
+     * Read at delivery rather than captured beforehand, deliberately. A passive fix is dispatched
+     * by the OS before the receiver runs, so a token taken when the receiver starts is already the
+     * post-teardown value. The system owns the intent, so this survives process death too, and a
+     * cold-process delivery under a live registration is still admitted.
+     */
+    override fun isArmed(): Boolean = pendingIntent(FLAG_NO_CREATE) != null
 
     private fun pendingIntent(flags: Int): PendingIntent? = PendingIntent.getBroadcast(
         context,

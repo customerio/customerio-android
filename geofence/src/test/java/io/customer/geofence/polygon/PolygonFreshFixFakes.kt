@@ -58,17 +58,30 @@ internal object NoopRecheckScheduler : PolygonRecheckScheduler {
 internal class RecordingPassiveMonitor : PolygonPassiveMonitor {
     val calls = mutableListOf<String>()
 
+    /**
+     * Armed until something stops it. Receiver tests are about what a delivered fix does, and a
+     * fake that started disarmed would refuse all of them at the arming check.
+     */
+    private var armed = true
+
     override fun start() {
         calls += "start"
+        armed = true
     }
 
     override fun stop() {
         calls += "stop"
+        armed = false
     }
+
+    override fun isArmed(): Boolean = armed
 }
 
 /** The default for tests about something else. */
 internal object NoopPassiveMonitor : PolygonPassiveMonitor {
     override fun start() = Unit
     override fun stop() = Unit
+
+    /** Armed by default: tests about something else must not be refused by the arming check. */
+    override fun isArmed(): Boolean = true
 }

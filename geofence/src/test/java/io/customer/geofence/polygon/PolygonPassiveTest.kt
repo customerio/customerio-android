@@ -81,6 +81,21 @@ class PolygonPassiveTest : RobolectricTest() {
     }
 
     @Test
+    fun receiver_givenTheRegistrationWasStopped_expectNoActivation() = runTest {
+        // Raised by Shahroz on #897. A fix the OS dispatched before teardown completed still
+        // arrives afterwards, and teardown leaves the routable ids and the user generation in
+        // place on purpose, so neither check activate() already makes can refuse it. The
+        // registration is the one thing that did change.
+        every { mockStore.getRoutableRegisteredIds() } returns setOf(VENUE_ID)
+        every { mockStore.getCachedRegions() } returns listOf(venueRegion())
+        recordingPassiveMonitor.stop()
+
+        PolygonPassiveReceiver().handleFix(fixAt(VENUE_LAT, VENUE_LNG))
+
+        coVerify(exactly = 0) { mockController.activate(any(), any(), any(), any(), any()) }
+    }
+
+    @Test
     fun receiver_givenTheFixIsInsideTheWakeCircle_expectTheOrdinaryCoarseEnterPath() = runTest {
         every { mockStore.getRoutableRegisteredIds() } returns setOf(VENUE_ID)
         every { mockStore.getCachedRegions() } returns listOf(venueRegion())
@@ -93,7 +108,8 @@ class PolygonPassiveTest : RobolectricTest() {
                 polygonId = VENUE_ID,
                 triggeringLocation = fix,
                 expectedUserStateGeneration = 7L,
-                expectedRegionRevision = null
+                expectedRegionRevision = null,
+                expectedTeardownGeneration = any()
             )
         }
     }
@@ -105,7 +121,7 @@ class PolygonPassiveTest : RobolectricTest() {
 
         PolygonPassiveReceiver().handleFix(fixAt(VENUE_LAT + 1.0, VENUE_LNG))
 
-        coVerify(exactly = 0) { mockController.activate(any(), any(), any(), any()) }
+        coVerify(exactly = 0) { mockController.activate(any(), any(), any(), any(), any()) }
     }
 
     @Test
@@ -119,7 +135,7 @@ class PolygonPassiveTest : RobolectricTest() {
 
         PolygonPassiveReceiver().handleFix(fixAt(VENUE_LAT, VENUE_LNG))
 
-        coVerify(exactly = 0) { mockController.activate(any(), any(), any(), any()) }
+        coVerify(exactly = 0) { mockController.activate(any(), any(), any(), any(), any()) }
         recordingPassiveMonitor.calls shouldBeEqualTo listOf("stop")
     }
 
@@ -144,7 +160,7 @@ class PolygonPassiveTest : RobolectricTest() {
 
         PolygonPassiveReceiver().handleFix(fixAt(VENUE_LAT, VENUE_LNG))
 
-        coVerify(exactly = 0) { mockController.activate(any(), any(), any(), any()) }
+        coVerify(exactly = 0) { mockController.activate(any(), any(), any(), any(), any()) }
     }
 
     @Test
@@ -176,8 +192,8 @@ class PolygonPassiveTest : RobolectricTest() {
         PolygonPassiveReceiver().handleFix(justInside)
         PolygonPassiveReceiver().handleFix(justOutside)
 
-        coVerify(exactly = 1) { mockController.activate(VENUE_ID, justInside, any(), any()) }
-        coVerify(exactly = 0) { mockController.activate(VENUE_ID, justOutside, any(), any()) }
+        coVerify(exactly = 1) { mockController.activate(VENUE_ID, justInside, any(), any(), any()) }
+        coVerify(exactly = 0) { mockController.activate(VENUE_ID, justOutside, any(), any(), any()) }
     }
 
     @Test
@@ -197,7 +213,7 @@ class PolygonPassiveTest : RobolectricTest() {
 
         PolygonPassiveReceiver().handleFix(fixNorthOfVenue(10.0, accuracyMeters = 5.0f))
 
-        coVerify { mockController.activate(VENUE_ID, any(), 7L, null) }
+        coVerify { mockController.activate(VENUE_ID, any(), 7L, null, any()) }
     }
 
     @Test
@@ -220,7 +236,7 @@ class PolygonPassiveTest : RobolectricTest() {
                 expectedRegionRevision = null
             )
         }
-        coVerify(exactly = 0) { mockController.activate(any(), any(), any(), any()) }
+        coVerify(exactly = 0) { mockController.activate(any(), any(), any(), any(), any()) }
     }
 
     @Test
@@ -300,6 +316,22 @@ class PolygonPassiveTest : RobolectricTest() {
 
         verify(exactly = 0) { mockClient.removeLocationUpdates(any<PendingIntent>()) }
         verify(exactly = 0) { mockLogger.logPolygonPassiveStopped() }
+    }
+
+    @Test
+    fun monitor_givenStopped_expectItReportsItselfDisarmed() = runTest {
+        // What makes the receiver's check answerable. Removing the GMS request stops new
+        // deliveries but leaves the intent alive, so without the cancel a fix already dispatched
+        // arrives after teardown and finds a registration that still looks live.
+        val mockClient: FusedLocationProviderClient = mockk(relaxed = true)
+        val monitor = GmsPolygonPassiveMonitor(applicationMock, mockClient, mockk(relaxed = true))
+
+        monitor.start()
+        val armedWhileRegistered = monitor.isArmed()
+        monitor.stop()
+
+        armedWhileRegistered shouldBeEqualTo true
+        monitor.isArmed() shouldBeEqualTo false
     }
 
     @Test

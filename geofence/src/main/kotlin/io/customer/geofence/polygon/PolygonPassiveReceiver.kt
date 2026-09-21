@@ -82,6 +82,16 @@ class PolygonPassiveReceiver : BroadcastReceiver() {
         // Read before anything is dispatched, so a user change mid-dispatch is refused by the
         // controller rather than attributed to whoever is current when it lands.
         val expectedUserStateGeneration = store.userStateGeneration()
+        // A fix the OS dispatched before teardown completed still arrives afterwards, and
+        // teardown leaves the routable ids and the user generation in place on purpose, so neither
+        // of the checks activate() already makes can refuse it. The registration itself is the one
+        // thing that did change: stop() removes the request and cancels the intent, so a delivery
+        // under a dead registration is exactly the case to drop. Checked here rather than captured
+        // earlier, because by the time this receiver runs any teardown has already happened.
+        if (!SDKComponent.android().polygonPassiveMonitor.isArmed()) {
+            logger.logPolygonPassiveSkipped(PolygonPassiveSkip.NOTHING_REGISTERED)
+            return
+        }
         val admitted = polygons.filter { it.distanceTo(fix.latitude, fix.longitude) <= it.radius }
         // The departure half, and the reason activating from here is safe. activate() records the
         // polygon coarse-inside and only a GMS coarse EXIT clears it, so a polygon this listener

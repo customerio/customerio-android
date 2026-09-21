@@ -140,11 +140,23 @@ internal class PolygonRecheckWorker(
             // it lands after, in which case the sync's own schedule() also lands after this cancel
             // and survives it. A re-read before the cancel could see neither.
             //
-            // Relies on WorkManager running a cancel and an enqueue from this process in call
-            // order, which its serial task executor gives. Neither call suspends, so the
-            // cancellation this very cancel provokes cannot interleave between them: a
-            // CoroutineWorker's job can only be observed at a suspension point and there is none
-            // here.
+            // Three properties of WorkManager have to hold for the re-assert to land, and the fix
+            // degrades quietly to the racy version if any of them stops holding. Read out of
+            // 2.10.5 rather than assumed, because none of them is promised by the public contract:
+            //
+            //  - A cancel and an enqueue issued from this process run in call order. Both are
+            //    posted to the same serialTaskExecutor, so the cancel's transaction commits first.
+            //  - The cancel moves a RUNNING row straight to CANCELLED instead of waiting for the
+            //    worker to stop: iterativelyCancelWorkAndDependents calls setCancelledState for
+            //    every state except SUCCEEDED and FAILED. This run is RUNNING when it cancels
+            //    itself, so this is the property that makes self-cancellation workable at all.
+            //  - KEEP inserts unless it finds an existing row ENQUEUED or RUNNING. EnqueueRunnable
+            //    tests those two states explicitly rather than calling isFinished, so the
+            //    CANCELLED row this run just produced does not suppress the insert.
+            //
+            // Separately, the cancellation this cancel provokes cannot interleave between the two
+            // calls: neither suspends, and a CoroutineWorker's job is only observable at a
+            // suspension point.
             val scheduler = SDKComponent.android().polygonRecheckScheduler
             scheduler.cancel()
             // KEEP, so re-asserting over a schedule the sync already made leaves that one alone.

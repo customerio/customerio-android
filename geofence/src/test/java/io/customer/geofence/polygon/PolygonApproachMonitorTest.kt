@@ -214,7 +214,7 @@ class PolygonApproachMonitorTest : RobolectricTest() {
         shadowOf(Looper.getMainLooper()).idle()
 
         verify(atLeast = 1) { client.removeLocationUpdates(any<PendingIntent>()) }
-        verify { logger.logPolygonApproachMonitoringStopped() }
+        verify { logger.logPolygonApproachMonitoringStopped(any()) }
     }
 
     @Test
@@ -236,7 +236,32 @@ class PolygonApproachMonitorTest : RobolectricTest() {
             PolygonApproachMonitor.EXTRA_USER_STATE_GENERATION,
             -1L
         ) shouldBeEqualTo 7L
-        verify { logger.logPolygonApproachMonitoringStopped() }
+        verify { logger.logPolygonApproachMonitoringStopped(any()) }
+    }
+
+    @Test
+    fun stop_givenAColdProcessNamesADeadlineItNeverArmed_expectTheEndingIsStillReported() {
+        // The cross-process case with a deadline attached, which is reachable: an expired batch
+        // with no identified user calls stop naming the deadline it recorded, and the registration
+        // outlives the process that armed it. This process has no accounting entry for that
+        // deadline, so it cannot count the session — but the ending is real and must not vanish.
+        every {
+            client.requestLocationUpdates(any<LocationRequest>(), any<PendingIntent>())
+        } returns Tasks.forResult(null)
+        every { client.removeLocationUpdates(any<PendingIntent>()) } returns Tasks.forResult(null)
+        val deadline = SystemClock.elapsedRealtime() + 60_000L
+
+        monitor().start(7L, deadline)
+        shadowOf(Looper.getMainLooper()).idle()
+        monitor().stop(
+            expectedUserStateGeneration = 7L,
+            expectedSessionDeadlineElapsedRealtimeMs = deadline
+        )
+        shadowOf(Looper.getMainLooper()).idle()
+
+        // Absent, not zero. Zero is the finding that a session armed and received nothing, and
+        // this process is in no position to claim it.
+        verify(exactly = 1) { logger.logPolygonApproachMonitoringStopped(samplesReceived = null) }
     }
 
     @Test
@@ -249,7 +274,52 @@ class PolygonApproachMonitorTest : RobolectricTest() {
         shadowOf(Looper.getMainLooper()).idle()
 
         verify(exactly = 0) { client.removeLocationUpdates(any<PendingIntent>()) }
-        verify(exactly = 0) { logger.logPolygonApproachMonitoringStopped() }
+        verify(exactly = 0) { logger.logPolygonApproachMonitoringStopped(any()) }
+    }
+
+    @Test
+    fun stop_givenRepeatedStopsAfterTheSessionEnded_expectOneRecordNotOnePerPass() {
+        // The 2026-09-18 field case. Once any session has built a PendingIntent for the live
+        // generation, nothing cancels it, so every later sync pass that calls stop gets a success
+        // back from GMS for a request no longer attached. That filled the capture with fourteen
+        // teardowns against two real sessions, at two per pass, which is the record we rely on to
+        // tell whether the approach session ever sampled.
+        every {
+            client.requestLocationUpdates(any<LocationRequest>(), any<PendingIntent>())
+        } returns Tasks.forResult(null)
+        every { client.removeLocationUpdates(any<PendingIntent>()) } returns Tasks.forResult(null)
+        val monitor = monitor()
+
+        monitor.start(7L)
+        shadowOf(Looper.getMainLooper()).idle()
+        monitor.stop(expectedUserStateGeneration = 7L)
+        shadowOf(Looper.getMainLooper()).idle()
+        repeat(4) {
+            monitor.stop(expectedUserStateGeneration = 7L)
+            shadowOf(Looper.getMainLooper()).idle()
+        }
+
+        verify(exactly = 1) { logger.logPolygonApproachMonitoringStopped(any()) }
+    }
+
+    @Test
+    fun stop_givenTheSessionReArmedBetweenTeardowns_expectBothReported() {
+        // The control for the memo above: it must suppress a repeat of the same removal, not a
+        // second genuine teardown. Arming again is what makes the next removal real.
+        every {
+            client.requestLocationUpdates(any<LocationRequest>(), any<PendingIntent>())
+        } returns Tasks.forResult(null)
+        every { client.removeLocationUpdates(any<PendingIntent>()) } returns Tasks.forResult(null)
+        val monitor = monitor()
+
+        repeat(2) {
+            monitor.start(7L)
+            shadowOf(Looper.getMainLooper()).idle()
+            monitor.stop(expectedUserStateGeneration = 7L)
+            shadowOf(Looper.getMainLooper()).idle()
+        }
+
+        verify(exactly = 2) { logger.logPolygonApproachMonitoringStopped(any()) }
     }
 
     @Test
@@ -383,7 +453,7 @@ class PolygonApproachMonitorTest : RobolectricTest() {
         shadowOf(Looper.getMainLooper()).idle()
 
         verify(exactly = 0) { client.removeLocationUpdates(any<PendingIntent>()) }
-        verify(exactly = 0) { logger.logPolygonApproachMonitoringStopped() }
+        verify(exactly = 0) { logger.logPolygonApproachMonitoringStopped(any()) }
         // Never retried either: a refusal is not transient.
         verify(exactly = 1) {
             client.requestLocationUpdates(any<LocationRequest>(), any<PendingIntent>())
@@ -440,7 +510,7 @@ class PolygonApproachMonitorTest : RobolectricTest() {
         shadowOf(Looper.getMainLooper()).idle()
 
         verify { logger.logPolygonApproachRequestFailed(any(), "remove_updates") }
-        verify(exactly = 0) { logger.logPolygonApproachMonitoringStopped() }
+        verify(exactly = 0) { logger.logPolygonApproachMonitoringStopped(any()) }
     }
 
     @Test
@@ -510,6 +580,129 @@ class PolygonApproachMonitorTest : RobolectricTest() {
     }
 
     @Test
+    fun stop_givenTheEarlierRemovalLandsAfterAReArm_expectTheNewSessionStillReportsItsOwnCount() {
+        // The ABA across a re-arm. D1 is stopped, D2 arms on the same generation before D1's
+        // removal listener runs, and the two sessions build equal PendingIntents. While a
+        // one-slot memo of the last removed intent gated every teardown, D1's late listener wrote
+        // that intent back after D2 had armed, so D2's real teardown was suppressed as a repeat
+        // and its sample count was never reported.
+        //
+        // The counts are what name the sessions here: D2 delivered a sample and D1 did not, so
+        // one record of each is the only outcome that attributes both correctly.
+        val firstDeadline = SystemClock.elapsedRealtime() + 60_000L
+        val secondDeadline = SystemClock.elapsedRealtime() + 120_000L
+        val firstRemoval = TaskCompletionSource<Void>()
+        every {
+            client.requestLocationUpdates(any<LocationRequest>(), any<PendingIntent>())
+        } returns Tasks.forResult(null)
+        var removals = 0
+        every { client.removeLocationUpdates(any<PendingIntent>()) } answers {
+            removals += 1
+            if (removals == 1) firstRemoval.task else Tasks.forResult(null)
+        }
+        val monitor = monitor()
+
+        monitor.start(7L, firstDeadline)
+        shadowOf(Looper.getMainLooper()).idle()
+        monitor.stop(
+            expectedUserStateGeneration = 7L,
+            expectedSessionDeadlineElapsedRealtimeMs = firstDeadline
+        )
+        shadowOf(Looper.getMainLooper()).idle()
+        monitor.start(7L, secondDeadline)
+        monitor.recordSampleDelivered(secondDeadline)
+        shadowOf(Looper.getMainLooper()).idle()
+        firstRemoval.setResult(null)
+        shadowOf(Looper.getMainLooper()).idle()
+        monitor.stop(
+            expectedUserStateGeneration = 7L,
+            expectedSessionDeadlineElapsedRealtimeMs = secondDeadline
+        )
+        shadowOf(Looper.getMainLooper()).idle()
+
+        verify(exactly = 1) { logger.logPolygonApproachMonitoringStopped(samplesReceived = 0) }
+        verify(exactly = 1) { logger.logPolygonApproachMonitoringStopped(samplesReceived = 1) }
+    }
+
+    @Test
+    fun removeUpdates_givenTheSessionIsRestartedByTheSameSuccess_expectNoEndingReported() {
+        // PROBE for a peer review finding, asserting the record rather than the request count.
+        // A removal that lands while the request is still wanted re-requests it, so the session
+        // continues. Reporting an ending there both claims a stop that did not happen and consumes
+        // the live session's count, so its real ending would later report a partial one.
+        val removal = TaskCompletionSource<Void>()
+        every {
+            client.requestLocationUpdates(any<LocationRequest>(), any<PendingIntent>())
+        } returns Tasks.forResult(null)
+        every { client.removeLocationUpdates(any<PendingIntent>()) } returns removal.task
+        val monitor = monitor()
+        val deadline = SystemClock.elapsedRealtime() + 60_000L
+
+        monitor.start(7L, deadline)
+        shadowOf(Looper.getMainLooper()).idle()
+        monitor.recordSampleDelivered(deadline)
+        monitor.recordSampleDelivered(deadline)
+        // A stop and an immediate re-arm on the same deadline: one registration throughout, and
+        // the in-flight removal lands after the session is wanted again.
+        monitor.stop()
+        monitor.start(7L, deadline)
+        shadowOf(Looper.getMainLooper()).idle()
+        removal.setResult(null)
+        shadowOf(Looper.getMainLooper()).idle()
+
+        verify(exactly = 0) { logger.logPolygonApproachMonitoringStopped(any()) }
+    }
+
+    @Test
+    fun recordSampleDelivered_givenTheBatchArrivesBeforeTheSessionIsAdopted_expectItIsStillCounted() {
+        // PROBE for a Bugbot finding, and the ordering is production's: a PendingIntent can
+        // cold-start the process, and PolygonApproachReceiver records the delivering batch through
+        // processApproachLocations BEFORE calling monitor.start to adopt the session. A count that
+        // only incremented pre-existing entries lost that batch and reported n=0 for a session that
+        // had delivered, which is the exact reading this field exists to make.
+        every {
+            client.requestLocationUpdates(any<LocationRequest>(), any<PendingIntent>())
+        } returns Tasks.forResult(null)
+        every { client.removeLocationUpdates(any<PendingIntent>()) } returns Tasks.forResult(null)
+        val monitor = monitor()
+        val deadline = SystemClock.elapsedRealtime() + 60_000L
+
+        monitor.recordSampleDelivered(deadline)
+        monitor.start(7L, deadline)
+        shadowOf(Looper.getMainLooper()).idle()
+        monitor.stop(expectedUserStateGeneration = 7L, expectedSessionDeadlineElapsedRealtimeMs = deadline)
+        shadowOf(Looper.getMainLooper()).idle()
+
+        verify(exactly = 1) { logger.logPolygonApproachMonitoringStopped(samplesReceived = 1) }
+    }
+
+    @Test
+    fun recordSampleDelivered_givenTheSessionAlreadyEnded_expectItCannotBuyASecondEnding() {
+        // PROBE for a peer review finding. putIfAbsent had no liveness check, so a batch arriving
+        // after a teardown re-created the entry for a dead deadline, and a later removal naming it
+        // reported a second counted ending for one session.
+        every {
+            client.requestLocationUpdates(any<LocationRequest>(), any<PendingIntent>())
+        } returns Tasks.forResult(null)
+        every { client.removeLocationUpdates(any<PendingIntent>()) } returns Tasks.forResult(null)
+        val monitor = monitor()
+        val deadline = SystemClock.elapsedRealtime() + 60_000L
+
+        monitor.start(7L, deadline)
+        shadowOf(Looper.getMainLooper()).idle()
+        monitor.recordSampleDelivered(deadline)
+        monitor.stop(expectedUserStateGeneration = 7L, expectedSessionDeadlineElapsedRealtimeMs = deadline)
+        shadowOf(Looper.getMainLooper()).idle()
+        // The late batch, and then another teardown naming the same dead session.
+        monitor.recordSampleDelivered(deadline)
+        monitor.stop(expectedUserStateGeneration = 7L, expectedSessionDeadlineElapsedRealtimeMs = deadline)
+        shadowOf(Looper.getMainLooper()).idle()
+
+        verify(exactly = 1) { logger.logPolygonApproachMonitoringStopped(samplesReceived = 1) }
+        verify(exactly = 1) { logger.logPolygonApproachMonitoringStopped(any()) }
+    }
+
+    @Test
     fun start_givenAPartlySpentSession_expectOnlyTheRemainingBudgetOnTheRequest() {
         // A retry or a restart mid-session must not hand the OS a fresh two minutes, or a session
         // that keeps failing to register renews its own bound every attempt.
@@ -559,7 +752,55 @@ class PolygonApproachMonitorTest : RobolectricTest() {
             client.requestLocationUpdates(any<LocationRequest>(), any<PendingIntent>())
         }
         verify(exactly = 0) { client.removeLocationUpdates(any<PendingIntent>()) }
-        verify(exactly = 0) { logger.logPolygonApproachMonitoringStopped() }
+        // The first session did end, so its tally is owed exactly one record, and it is pinned to
+        // zero rather than any(): the count is the whole point of the record, and nothing was
+        // delivered against that deadline. Skipping the removal above is what used to strand it,
+        // leaving the entry in the map and the finding unreported.
+        verify(exactly = 1) { logger.logPolygonApproachMonitoringStopped(0) }
+    }
+
+    @Test
+    fun stop_givenRemovalRetriedThenStaleStop_expectOnlyOneEndingReported() {
+        // The retry re-issues the removal, and it used to re-issue it without the generation it
+        // was removing. The success path then could not tell a repeat teardown from a first one,
+        // so the ending was reported and never recorded, and the next stale stop reported it
+        // again. This is the 14-records-for-two-sessions shape reached through a flaky remove.
+        var removals = 0
+        every {
+            client.requestLocationUpdates(any<LocationRequest>(), any<PendingIntent>())
+        } returns Tasks.forResult(null)
+        every { client.removeLocationUpdates(any<PendingIntent>()) } answers {
+            removals += 1
+            if (removals == 1) {
+                Tasks.forException(IllegalStateException("remove boom"))
+            } else {
+                Tasks.forResult(null)
+            }
+        }
+        val scheduler = TestCoroutineScheduler()
+        val monitor = PolygonApproachMonitor(
+            context = applicationMock,
+            client = client,
+            store = mockStore,
+            logger = logger,
+            backgroundContext = StandardTestDispatcher(scheduler)
+        )
+        val deadline = SystemClock.elapsedRealtime() + 60_000L
+
+        monitor.start(7L, deadline)
+        shadowOf(Looper.getMainLooper()).idle()
+        repeat(3) { monitor.recordSampleDelivered(deadline) }
+        monitor.stop(7L, deadline)
+        shadowOf(Looper.getMainLooper()).idle()
+        scheduler.advanceTimeBy(5_001L)
+        scheduler.runCurrent()
+        shadowOf(Looper.getMainLooper()).idle()
+        // The same session named again, which is how a teardown path that lost its context asks.
+        monitor.stop(7L, deadline)
+        shadowOf(Looper.getMainLooper()).idle()
+
+        verify(exactly = 1) { logger.logPolygonApproachMonitoringStopped(3) }
+        verify(exactly = 0) { logger.logPolygonApproachMonitoringStopped(null) }
     }
 
     private fun monitor() = PolygonApproachMonitor(

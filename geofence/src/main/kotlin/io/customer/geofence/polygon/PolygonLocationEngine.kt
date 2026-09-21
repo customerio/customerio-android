@@ -2,9 +2,11 @@ package io.customer.geofence.polygon
 
 import android.location.Location
 import android.os.SystemClock
+import androidx.annotation.VisibleForTesting
 import io.customer.geofence.GeofenceBusinessTransitionProcessor
 import io.customer.geofence.GeofenceLogTail
 import io.customer.geofence.GeofenceLogger
+import io.customer.geofence.PolygonEvaluationSkip
 import io.customer.geofence.PolygonFixRejection
 import io.customer.geofence.PolygonNotRankedReason
 import io.customer.geofence.store.GeofenceRegionStore
@@ -48,7 +50,7 @@ internal class PolygonLocationEngine(
     private val clock: Clock,
     private val logger: GeofenceLogger
 ) {
-    private val routeProcessor = PolygonRouteProcessor(logger = logger)
+    private val routeProcessor = PolygonRouteProcessor()
     private var sessionStartElapsedRealtimeNanos: Long? = null
     private val processingMutex = Mutex()
     private val stateLock = Any()
@@ -64,16 +66,16 @@ internal class PolygonLocationEngine(
      * Discards the current evaluation session. Called when no polygon is active any more, or when
      * user-scoped state is invalidated, so a later fix cannot be judged against a stale session.
      */
-    fun stop() = synchronized(stateLock) {
-        routeProcessor.clear()
-        geometryCache.clear()
-        invalidateFenceCacheLocked()
-        sessionStartElapsedRealtimeNanos = null
+    fun stop(): Set<String> = synchronized(stateLock) {
+        routeProcessor.clear().also {
+            geometryCache.clear()
+            invalidateFenceCacheLocked()
+            sessionStartElapsedRealtimeNanos = null
+        }
     }
 
-    fun activate(polygonId: String) = synchronized(stateLock) {
-        resetEvidenceLocked(polygonId)
-        armSessionLocked(restartSession = true)
+    fun activate(polygonId: String): Set<String> = synchronized(stateLock) {
+        resetEvidenceLocked(polygonId).also { armSessionLocked(restartSession = true) }
     }
 
     /**
@@ -81,28 +83,76 @@ internal class PolygonLocationEngine(
      * delivery can batch recent locations, so using only the normal trigger grace would discard an
      * observed crossing merely because Play services delivered the batch late.
      */
-    fun activateFromApproach(polygonId: String, firstFixElapsedRealtimeNanos: Long) =
-        synchronized(stateLock) {
-            resetEvidenceLocked(polygonId)
+    fun activateFromApproach(
+        polygonId: String,
+        firstFixElapsedRealtimeNanos: Long
+    ): Set<String> = synchronized(stateLock) {
+        resetEvidenceLocked(polygonId).also {
             armSessionLocked(
                 restartSession = true,
                 observedSessionStartElapsedRealtimeNanos = firstFixElapsedRealtimeNanos
             )
         }
-
-    fun resetEvidence(polygonId: String) = synchronized(stateLock) {
-        resetEvidenceLocked(polygonId)
     }
 
-    private fun resetEvidenceLocked(polygonId: String) {
-        routeProcessor.clear(polygonId)
+    fun resetEvidence(polygonId: String): Set<String> =
+        synchronized(stateLock) { resetEvidenceLocked(polygonId) }
+
+    /**
+     * Whether the calling thread holds [stateLock]. Exposed only so a test can assert that no
+     * record reaches the host's log dispatcher while this lock is held, which is the invariant the
+     * returned-record plumbing in this file exists to preserve. A boolean rather than the lock
+     * itself: nothing outside this class has any business synchronizing on it.
+     */
+    @VisibleForTesting
+    internal fun holdsStateLock(): Boolean = Thread.holdsLock(stateLock)
+
+    /** The one place a returned [PolygonRouteRecord] becomes a log line. */
+    private fun emitRouteRecord(record: PolygonRouteRecord) = when (record) {
+        is PolygonRouteRecord.Undecided -> logger.logPolygonUndecided(
+            geofenceId = record.geofenceId,
+            reason = record.reason,
+            signedBoundaryDistanceMeters = record.signedBoundaryDistanceMeters,
+            horizontalAccuracyMeters = record.horizontalAccuracyMeters,
+            fixAgeSeconds = record.fixAgeSeconds
+        )
+        is PolygonRouteRecord.Unchanged -> logger.logPolygonUnchanged(
+            geofenceId = record.geofenceId,
+            membership = record.membership,
+            signedBoundaryDistanceMeters = record.signedBoundaryDistanceMeters,
+            horizontalAccuracyMeters = record.horizontalAccuracyMeters,
+            fixAgeSeconds = record.fixAgeSeconds
+        )
+        is PolygonRouteRecord.Decided -> logger.logPolygonDecided(
+            geofenceId = record.geofenceId,
+            transitionName = record.transitionName,
+            signedBoundaryDistanceMeters = record.signedBoundaryDistanceMeters,
+            horizontalAccuracyMeters = record.horizontalAccuracyMeters,
+            fixAgeSeconds = record.fixAgeSeconds,
+            corroborated = record.corroborated
+        )
+        is PolygonRouteRecord.ArrivalPending -> logger.logPolygonArrivalPending(
+            geofenceId = record.geofenceId,
+            signedBoundaryDistanceMeters = record.signedBoundaryDistanceMeters,
+            horizontalAccuracyMeters = record.horizontalAccuracyMeters,
+            fixAgeSeconds = record.fixAgeSeconds
+        )
+        is PolygonRouteRecord.ArrivalExpired -> logger.logPolygonArrivalExpired(
+            geofenceId = record.geofenceId,
+            reason = record.reason,
+            heldForSeconds = record.heldForSeconds
+        )
+    }
+
+    private fun resetEvidenceLocked(polygonId: String): Set<String> {
+        val wasPending = routeProcessor.clear(polygonId)
         geometryCache.remove(polygonId)
         invalidateFenceCacheLocked()
+        return if (wasPending) setOf(polygonId) else emptySet()
     }
 
-    fun deactivate(polygonId: String) = synchronized(stateLock) {
-        resetEvidenceLocked(polygonId)
-    }
+    fun deactivate(polygonId: String): Set<String> =
+        synchronized(stateLock) { resetEvidenceLocked(polygonId) }
 
     /**
      * Evaluates one fix that arrived from a low-power source, moving containment only when that
@@ -127,11 +177,20 @@ internal class PolygonLocationEngine(
         expectedUserStateGeneration: Long
     ): Boolean = processingMutex.withLock {
         if (locations.isEmpty()) return@withLock false
-        if (store.userStateGeneration() != expectedUserStateGeneration) return@withLock false
+        if (store.userStateGeneration() != expectedUserStateGeneration) {
+            logger.logPolygonEvaluationSkipped(PolygonEvaluationSkip.USER_STATE_CHANGED)
+            return@withLock false
+        }
         // Every active location batch is also an autonomous outbox-recovery opportunity. Do not
         // evaluate a newer edge while an older one is still unable to reach the durable file queue.
-        if (!transitionProcessor.recoverPendingTransitions()) return@withLock false
-        if (store.userStateGeneration() != expectedUserStateGeneration) return@withLock false
+        if (!transitionProcessor.recoverPendingTransitions()) {
+            logger.logPolygonEvaluationSkipped(PolygonEvaluationSkip.OUTBOX_BLOCKED)
+            return@withLock false
+        }
+        if (store.userStateGeneration() != expectedUserStateGeneration) {
+            logger.logPolygonEvaluationSkipped(PolygonEvaluationSkip.USER_STATE_CHANGED)
+            return@withLock false
+        }
         val sessionArmed = synchronized(stateLock) {
             if (store.userStateGeneration() != expectedUserStateGeneration) {
                 false
@@ -140,28 +199,44 @@ internal class PolygonLocationEngine(
                 true
             }
         }
-        if (!sessionArmed) return@withLock false
+        if (!sessionArmed) {
+            // armSessionLocked cannot fail, so the only way to get here is the generation check
+            // above. Reporting this as "session not armed" would hide an identify or sign-out race
+            // behind a reason that cannot actually occur.
+            logger.logPolygonEvaluationSkipped(PolygonEvaluationSkip.USER_STATE_CHANGED)
+            return@withLock false
+        }
         var acceptedFix = false
         for (location in locations.sortedBy(Location::getElapsedRealtimeNanos)) {
-            if (store.userStateGeneration() != expectedUserStateGeneration) return@withLock false
+            if (store.userStateGeneration() != expectedUserStateGeneration) {
+                logger.logPolygonEvaluationSkipped(PolygonEvaluationSkip.USER_STATE_CHANGED)
+                return@withLock false
+            }
             val fix = location.toPolygonLocationFix()
             if (fix == null) {
                 logger.logPolygonFixNotUsable(PolygonFixRejection.NO_USABLE_FIX)
                 continue
             }
-            val detections = synchronized(stateLock) {
-                if (store.userStateGeneration() != expectedUserStateGeneration) return@withLock false
-                if (!isCurrentSessionFixLocked(fix.elapsedRealtimeNanos)) {
-                    logger.logPolygonFixNotUsable(
-                        PolygonFixRejection.FIX_TOO_OLD,
-                        horizontalAccuracyMeters = fix.sample.horizontalAccuracyMeters,
-                        fixAgeSeconds = GeofenceLogTail.fixAgeSeconds(fix.elapsedRealtimeNanos)
-                    )
+            // Every record below is emitted after the block closes. GeofenceLogger forwards to the
+            // host Logger, whose dispatcher is customer code, so logging under stateLock would let
+            // a slow customer lambda stall evaluation. The FIX_TOO_OLD record predates this change
+            // and had the same problem; it is hoisted with the rest rather than left behind in a
+            // block being restructured around it.
+            var userStateChanged = false
+            var fixTooOld = false
+            var noEvaluableFences = false
+            val outcome = synchronized(stateLock) {
+                if (store.userStateGeneration() != expectedUserStateGeneration) {
+                    userStateChanged = true
+                    null
+                } else if (!isCurrentSessionFixLocked(fix.elapsedRealtimeNanos)) {
+                    fixTooOld = true
                     null
                 } else {
                     val fences = activePolygonFencesLocked()
                     if (fences.isEmpty()) {
-                        emptyList()
+                        noEvaluableFences = true
+                        PolygonRouteOutcome(emptyList(), emptyList())
                     } else {
                         acceptedFix = true
                         val committedStates = store.getEnteredIds()
@@ -175,9 +250,33 @@ internal class PolygonLocationEngine(
                         )
                     }
                 }
-            } ?: continue
-            detections.forEach { detection ->
-                if (store.userStateGeneration() != expectedUserStateGeneration) return@withLock false
+            }
+            if (userStateChanged) {
+                logger.logPolygonEvaluationSkipped(PolygonEvaluationSkip.USER_STATE_CHANGED)
+                return@withLock false
+            }
+            if (fixTooOld) {
+                logger.logPolygonFixNotUsable(
+                    PolygonFixRejection.FIX_TOO_OLD,
+                    horizontalAccuracyMeters = fix.sample.horizontalAccuracyMeters,
+                    fixAgeSeconds = GeofenceLogTail.fixAgeSeconds(fix.elapsedRealtimeNanos)
+                )
+            }
+            if (noEvaluableFences) {
+                logger.logPolygonEvaluationSkipped(PolygonEvaluationSkip.NO_EVALUABLE_FENCES)
+            }
+            val routeOutcome = outcome ?: continue
+            // Every record decided inside the block above is emitted here. The route processor
+            // returns them instead of logging them because stateLock gates every polygon
+            // evaluation, and these records reach the host's log dispatcher, which is customer
+            // code. PolygonLockFreedomTest is what keeps that true.
+            routeOutcome.records.forEach(::emitRouteRecord)
+            routeOutcome.detections.forEach { detection ->
+                if (store.userStateGeneration() != expectedUserStateGeneration) {
+                    // Not under a lock here, so it logs in place and aborts the pass as before.
+                    logger.logPolygonEvaluationSkipped(PolygonEvaluationSkip.USER_STATE_CHANGED)
+                    return@withLock false
+                }
                 val transition = when (detection.transition) {
                     PolygonTransition.ENTER -> Event.GeofenceTransition.ENTER
                     PolygonTransition.EXIT -> Event.GeofenceTransition.EXIT

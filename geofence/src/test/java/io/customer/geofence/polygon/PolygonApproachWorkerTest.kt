@@ -152,7 +152,7 @@ class PolygonApproachWorkerTest : RobolectricTest() {
         // Dropping and evaluating both end with the batch removed and success, so the outcome alone
         // cannot tell them apart. Elapsed-realtime timestamps from a previous boot are meaningless
         // against this boot's clock, so the locations must never reach the evaluator.
-        coVerify(exactly = 0) { mockController.processApproachLocations(any(), any()) }
+        coVerify(exactly = 0) { mockController.processApproachLocations(any(), any(), any()) }
     }
 
     @Test

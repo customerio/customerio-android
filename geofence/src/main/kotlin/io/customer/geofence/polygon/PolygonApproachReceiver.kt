@@ -91,7 +91,8 @@ class PolygonApproachReceiver : BroadcastReceiver() {
             when (
                 controller.processApproachLocations(
                     locations,
-                    expectedUserStateGeneration
+                    expectedUserStateGeneration,
+                    effectiveDeadline
                 )
             ) {
                 PolygonSamplingDecision.CONTINUE -> {

@@ -233,7 +233,8 @@ class PolygonPassiveTest : RobolectricTest() {
                 polygonId = VENUE_ID,
                 triggeringLocation = fix,
                 expectedUserStateGeneration = 7L,
-                expectedRegionRevision = null
+                expectedRegionRevision = null,
+                expectedTeardownGeneration = any()
             )
         }
         coVerify(exactly = 0) { mockController.activate(any(), any(), any(), any(), any()) }
@@ -254,8 +255,12 @@ class PolygonPassiveTest : RobolectricTest() {
         PolygonPassiveReceiver().handleFix(clears)
         PolygonPassiveReceiver().handleFix(doesNotClear)
 
-        coVerify(exactly = 1) { mockController.onCoarseExit(VENUE_ID, clears, any(), any()) }
-        coVerify(exactly = 0) { mockController.onCoarseExit(VENUE_ID, doesNotClear, any(), any()) }
+        coVerify(exactly = 1) {
+            mockController.onCoarseExit(VENUE_ID, clears, any(), any(), any())
+        }
+        coVerify(exactly = 0) {
+            mockController.onCoarseExit(VENUE_ID, doesNotClear, any(), any(), any())
+        }
     }
 
     @Test
@@ -273,7 +278,7 @@ class PolygonPassiveTest : RobolectricTest() {
 
         PolygonPassiveReceiver().handleFix(noAccuracy)
 
-        coVerify(exactly = 0) { mockController.onCoarseExit(any(), any(), any(), any()) }
+        coVerify(exactly = 0) { mockController.onCoarseExit(any(), any(), any(), any(), any()) }
     }
 
     @Test
@@ -287,7 +292,7 @@ class PolygonPassiveTest : RobolectricTest() {
 
         PolygonPassiveReceiver().handleFix(fixNorthOfVenue(300.0, accuracyMeters = 250.0f))
 
-        coVerify(exactly = 0) { mockController.onCoarseExit(any(), any(), any(), any()) }
+        coVerify(exactly = 0) { mockController.onCoarseExit(any(), any(), any(), any(), any()) }
     }
 
     @Test
@@ -301,7 +306,7 @@ class PolygonPassiveTest : RobolectricTest() {
 
         PolygonPassiveReceiver().handleFix(fixNorthOfVenue(300.0, accuracyMeters = 20.0f))
 
-        coVerify(exactly = 0) { mockController.onCoarseExit(any(), any(), any(), any()) }
+        coVerify(exactly = 0) { mockController.onCoarseExit(any(), any(), any(), any(), any()) }
     }
 
     @Test
@@ -356,6 +361,66 @@ class PolygonPassiveTest : RobolectricTest() {
         }
 
         observed shouldBeEqualTo paths.associate { (name, _) -> name to listOf("stop") }
+    }
+
+    @Test
+    fun receiver_expectTheTeardownTokenIsTheOneReadOnEntryNotAtDispatch() = runTest {
+        // Raised by Shahroz and Bugbot on #897. isArmed() answers for one instant: a teardown
+        // landing after it returns true but before the activation below leaves a delivery that
+        // passed every check on its way to re-arming what was just torn down.
+        //
+        // The token only closes that window if it is the value read on entry. A stub that moves
+        // the way a teardown would, part way through the handler, is what pins it: re-read at
+        // dispatch it would hand over the current value and the controller would accept a fix
+        // whose session had ended.
+        every { mockStore.getRoutableRegisteredIds() } returns setOf(VENUE_ID)
+        every { mockStore.getCachedRegions() } returns listOf(venueRegion())
+        var teardowns = 3L
+        every { mockController.teardownGeneration() } answers { teardowns }
+        every { mockStore.getActivePolygonIds() } answers {
+            teardowns = 4L
+            emptySet()
+        }
+        val fix = fixAt(VENUE_LAT, VENUE_LNG)
+
+        PolygonPassiveReceiver().handleFix(fix)
+
+        coVerify {
+            mockController.activate(
+                polygonId = VENUE_ID,
+                triggeringLocation = fix,
+                expectedUserStateGeneration = any(),
+                expectedRegionRevision = null,
+                expectedTeardownGeneration = 3L
+            )
+        }
+        coVerify(exactly = 0) {
+            mockController.activate(any(), any(), any(), any(), expectedTeardownGeneration = 4L)
+        }
+    }
+
+    @Test
+    fun receiver_expectTheTeardownTokenReachesTheDeparturePathToo() = runTest {
+        // The departure half re-arms as well: onCoarseExit keeps a polygon active when it is still
+        // in the entered set. Handing the token to activate alone would leave this path able to
+        // undo the same teardown.
+        every { mockStore.getRoutableRegisteredIds() } returns setOf(VENUE_ID)
+        every { mockStore.getCachedRegions() } returns listOf(venueRegion())
+        every { mockStore.getActivePolygonIds() } returns setOf(VENUE_ID)
+        every { mockController.teardownGeneration() } returns 3L
+        val fix = fixNorthOfVenue(300.0, accuracyMeters = 20.0f)
+
+        PolygonPassiveReceiver().handleFix(fix)
+
+        coVerify {
+            mockController.onCoarseExit(
+                polygonId = VENUE_ID,
+                triggeringLocation = fix,
+                expectedUserStateGeneration = any(),
+                expectedRegionRevision = null,
+                expectedTeardownGeneration = 3L
+            )
+        }
     }
 
     private fun controller(passive: PolygonPassiveMonitor) = PolygonGeofenceServiceController(

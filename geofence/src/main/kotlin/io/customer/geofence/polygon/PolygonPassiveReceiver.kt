@@ -82,6 +82,15 @@ class PolygonPassiveReceiver : BroadcastReceiver() {
         // Read before anything is dispatched, so a user change mid-dispatch is refused by the
         // controller rather than attributed to whoever is current when it lands.
         val expectedUserStateGeneration = store.userStateGeneration()
+        // Captured before the registration check below, because the two cover different windows
+        // and neither covers the other. isArmed() is a point-in-time answer: a teardown that lands
+        // after it has returned true, but before the activation at the end of this handler, leaves
+        // a delivery that passed every check on its way to re-arming what was just torn down.
+        // The token is what straddles that gap. Every teardown bumps it under the controller lock
+        // and only then cancels the registration, so a delivery admitted by isArmed() is still
+        // refused at the write. Taken first so the window it covers starts as early as possible.
+        val expectedTeardownGeneration =
+            SDKComponent.android().polygonGeofenceServiceController.teardownGeneration()
         // A fix the OS dispatched before teardown completed still arrives afterwards, and
         // teardown leaves the routable ids and the user generation in place on purpose, so neither
         // of the checks activate() already makes can refuse it. The registration itself is the one
@@ -124,14 +133,16 @@ class PolygonPassiveReceiver : BroadcastReceiver() {
             controller.onCoarseExit(
                 polygonId = region.id,
                 triggeringLocation = fix,
-                expectedUserStateGeneration = expectedUserStateGeneration
+                expectedUserStateGeneration = expectedUserStateGeneration,
+                expectedTeardownGeneration = expectedTeardownGeneration
             )
         }
         admitted.forEach { region ->
             controller.activate(
                 polygonId = region.id,
                 triggeringLocation = fix,
-                expectedUserStateGeneration = expectedUserStateGeneration
+                expectedUserStateGeneration = expectedUserStateGeneration,
+                expectedTeardownGeneration = expectedTeardownGeneration
             )
         }
     }

@@ -599,33 +599,74 @@ class PolygonRecheckTest : RobolectricTest() {
         )
 
         verify(exactly = 0) { mockStore.activatePolygon(VENUE_ID) }
-        // Refused before it records anything, which is what the pre-lock check buys. Teardown
-        // retains the registrations, so without it this dead departure records coarse-outside and
-        // goes on to evaluateCallbackFix, which can open the GPS for a polygon whose session is
-        // over.
+        // Refused before it records anything. Teardown retains the registrations, so without a
+        // token check this dead departure passes the registration check, records coarse-outside,
+        // and reaches evaluateCallbackFix, which can open the GPS for a finished session.
         verify(exactly = 0) { mockStore.recordPolygonCoarseOutside(VENUE_ID) }
     }
 
     @Test
-    fun onCoarseExit_givenATeardownLandsMidPass_expectTheLockedReArmRefuses() = runTest {
-        // The other half of the same defect, and the one the pre-lock check cannot catch. The
-        // re-arm at the tail runs after evaluateCallbackFix, which suspends, so a teardown that was
-        // not yet current when this departure started can be current by the time it re-arms. Driven
-        // from the first registration read so the interleaving is deterministic.
+    fun onCoarseExit_givenATeardownLandsBeforeTheWrite_expectNoCoarseStateAndNoFixRequest() =
+        runTest {
+            // Raised by Bugbot on #896 once the re-arm was guarded: the tail check leaves the
+            // write and the fix evaluation before it unguarded, so a departure whose session ended
+            // mid-pass still recorded coarse state and could open the GPS for it.
+            //
+            // The teardown is driven from the pre-lock registration read, so it lands after the
+            // cheap bail has already passed and the locked check is the only one left.
+            every { mockStore.getRoutableRegisteredIds() } returns setOf(VENUE_ID)
+            every { mockStore.activeUserSessionId() } returns "user-1"
+            every { mockStore.getCoarseInsidePolygonIds() } returns emptySet()
+            every { mockStore.getEnteredIds() } returns setOf(VENUE_ID)
+            var subject: PolygonGeofenceServiceController? = null
+            var tornDown = false
+            every { mockStore.getCachedRegion(VENUE_ID) } answers {
+                if (!tornDown) {
+                    tornDown = true
+                    subject?.stopAll()
+                }
+                venueRegion()
+            }
+            val mockEngine: PolygonLocationEngine = mockk(relaxed = true)
+            val controller = controller(mockRecheckScheduler, mockEngine).also { subject = it }
+            val token = controller.teardownGeneration()
+
+            controller.onCoarseExit(
+                polygonId = VENUE_ID,
+                triggeringLocation = fixNorthOfVenue(300.0, accuracyMeters = 20.0f),
+                expectedUserStateGeneration = 7L,
+                expectedRegionRevision = null,
+                expectedTeardownGeneration = token
+            )
+
+            tornDown shouldBeEqualTo true
+            verify(exactly = 0) { mockStore.recordPolygonCoarseOutside(VENUE_ID) }
+            coVerify(exactly = 0) { mockEngine.processResponsiveLocation(any(), any()) }
+            verify(exactly = 0) { mockStore.activatePolygon(VENUE_ID) }
+        }
+
+    @Test
+    fun onCoarseExit_givenATeardownLandsWhileTheFixIsEvaluated_expectNoReArm() = runTest {
+        // The window the check above cannot cover. evaluateCallbackFix suspends, so a teardown
+        // that was not yet current when the coarse-outside write happened can be current by the
+        // time the tail decides whether to keep the polygon active. Driven from the evaluation
+        // itself, which is exactly where the suspension is.
         every { mockStore.getRoutableRegisteredIds() } returns setOf(VENUE_ID)
+        every { mockStore.getCachedRegion(VENUE_ID) } returns venueRegion()
         every { mockStore.activeUserSessionId() } returns "user-1"
         every { mockStore.getCoarseInsidePolygonIds() } returns emptySet()
         every { mockStore.getEnteredIds() } returns setOf(VENUE_ID)
         var subject: PolygonGeofenceServiceController? = null
         var tornDown = false
-        every { mockStore.getCachedRegion(VENUE_ID) } answers {
+        val mockEngine: PolygonLocationEngine = mockk(relaxed = true)
+        coEvery { mockEngine.processResponsiveLocation(any(), any()) } coAnswers {
             if (!tornDown) {
                 tornDown = true
                 subject?.stopAll()
             }
-            venueRegion()
+            PolygonEvaluationOutcome.NOTHING
         }
-        val controller = controller(mockRecheckScheduler).also { subject = it }
+        val controller = controller(mockRecheckScheduler, mockEngine).also { subject = it }
         val token = controller.teardownGeneration()
 
         controller.onCoarseExit(

@@ -75,12 +75,9 @@ internal class PolygonGeofenceServiceController(
      * it guards. Every teardown bumps the generation under this same lock, which is what makes a
      * check made inside it one no teardown can land behind.
      *
-     * The checks made before taking the lock are cost control, and earn their place separately: a
-     * teardown retains the registrations, so a dead wake otherwise passes the registration check,
-     * records coarse-outside, and reaches [evaluateCallbackFix], which can open the GPS for a
-     * polygon whose session is over. It would also write its timestamp into the dedupe memo that
-     * the teardown just cleared, which suppresses a later real transition carrying an older stamp,
-     * though that needs a reordered or re-delivered callback and is the smaller case.
+     * The matching checks made before taking the lock are a fast path, not a guard: removing one
+     * changes what a dead wake costs on its way to being refused, not whether it is refused. They
+     * save the registration read and the dedupe memo write that would otherwise happen first.
      */
     private fun isAfterTeardownLocked(expected: Long?): Boolean =
         expected != null && expected != teardownGeneration
@@ -224,7 +221,12 @@ internal class PolygonGeofenceServiceController(
             return@withLock
         }
         val recordedCoarseExit = synchronized(controllerLock) {
-            if (!isCurrentRegisteredPolygonLocked(
+            // Checked here as well as at the tail, because these are different windows. The tail
+            // guards the re-arm; this guards the write below and the fix evaluation after it,
+            // which can open the GPS for a polygon whose session is already over.
+            if (isAfterTeardownLocked(expectedTeardownGeneration)) {
+                false
+            } else if (!isCurrentRegisteredPolygonLocked(
                     polygonId,
                     expectedUserStateGeneration,
                     expectedRegionRevision

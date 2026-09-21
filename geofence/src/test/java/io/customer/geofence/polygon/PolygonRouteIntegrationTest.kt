@@ -129,9 +129,12 @@ class PolygonRouteIntegrationTest {
             committedStates = emptyMap()
         ).detections.shouldBeEmpty()
 
+        // Distinct from the first, so the echo guard is not what refuses it. Two passes past the
+        // same shop are two real measurements, and only the window can tell them from one visit:
+        // with an identical sample this would pass however wide the window got.
         processor.process(
             fences = listOf(campus),
-            sample = marginal,
+            sample = marginal.resampled(),
             elapsedRealtimeNanos = 1L + FIVE_MINUTES_NANOS,
             fixAgeSeconds = 0.0,
             committedStates = emptyMap()
@@ -368,8 +371,11 @@ class PolygonRouteIntegrationTest {
         // committed state then absorbs every replay, so the guard is invisible: this test passed
         // with the guard deleted when it used accuracy 5.0. A marginal fix needs a second agreeing
         // one, so a replay that slipped through would complete the arrival by itself.
-        val detections = listOf(2L, 2L, 1L).flatMap { elapsed ->
-            route.process(37.77452, -122.4194, accuracy = 30.0, elapsedRealtimeNanos = elapsed)
+        // The replays vary their accuracy, so the echo guard cannot be what refuses them and the
+        // monotonic stamp check is the only thing left that can. With identical replays this test
+        // passed with that check deleted.
+        val detections = listOf(2L to 30.0, 2L to 29.0, 1L to 28.0).flatMap { (elapsed, accuracy) ->
+            route.process(37.77452, -122.4194, accuracy = accuracy, elapsedRealtimeNanos = elapsed)
         }
         detections.shouldBeEmpty()
 

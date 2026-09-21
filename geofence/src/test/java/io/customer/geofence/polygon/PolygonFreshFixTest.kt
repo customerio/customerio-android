@@ -185,6 +185,28 @@ class PolygonFreshFixTest : RobolectricTest() {
     }
 
     @Test
+    fun activate_givenTheFixDecidesButOnlyMarginally_expectAPreciseFixIsAskedForToCorroborate() = runTest {
+        // cor=true appears in no capture: nothing in the background ever supplied the second
+        // measurement a held arrival waits for, so every marginal arrival expired. The fix that
+        // held it is also the only fix the batch has, so the request is the one thing that can
+        // answer it.
+        val freshFix = AnswersOnceFreshFix(preciseFixInsideTheVenue())
+        val controller = controller(freshFix)
+
+        controller.activate(
+            polygonId = VENUE_ID,
+            triggeringLocation = marginalFixInsideTheVenue(),
+            expectedUserStateGeneration = store.userStateGeneration(),
+            expectedRegionRevision = null
+        )
+
+        freshFix.requests shouldBeEqualTo 1
+        // The precise fix clears the ring on its own, so the hold ends as an arrival rather than
+        // by expiring. This is the field case the branch exists for, end to end.
+        store.getEnteredIds() shouldContain VENUE_ID
+    }
+
+    @Test
     fun activate_givenTheDeliveredFixDecides_expectNoPreciseFixIsAskedFor() = runTest {
         // The cheap path must stay cheap. A fix that already decides must not spend the sensor, or
         // every ordinary drive-by crossing pays for a GPS request it did not need.
@@ -452,6 +474,19 @@ class PolygonFreshFixTest : RobolectricTest() {
      * venue this size carries no information about containment — the accuracy circle covers the
      * venue and most of the street around it. This is the ordinary indoor case, not an edge.
      */
+    /**
+     * Inside, but only 5.6 m past the southern edge, so at 20 m of uncertainty the fix decides
+     * ENTER and the evaluator still asks for a second measurement. Both arrivals lost in the field
+     * were this shape: one read 6.7 m inside its ring at 10.9 m accuracy.
+     */
+    private fun marginalFixInsideTheVenue() = Location("test").apply {
+        latitude = 37.77455
+        longitude = -122.4194
+        accuracy = 20f
+        elapsedRealtimeNanos = SystemClock.elapsedRealtimeNanos() - 2_000_000_000L
+        time = 100_000L
+    }
+
     private fun coarseFixInsideTheVenue(
         elapsedRealtimeNanos: Long = SystemClock.elapsedRealtimeNanos() - 2_000_000_000L
     ) = Location("test").apply {

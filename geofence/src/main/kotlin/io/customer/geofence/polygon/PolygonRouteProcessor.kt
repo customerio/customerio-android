@@ -71,12 +71,19 @@ internal sealed interface PolygonRouteRecord {
         val heldForSeconds: Double? = null
     ) : PolygonRouteRecord
 
-    /** A held arrival that was handed the measurement it is already holding, so it did not advance. */
+    /**
+     * A held arrival handed a fix at the position it is already counting, so it did not advance.
+     *
+     * [sinceCountedFixSeconds] is what makes the record readable: `edge` and `acc` cannot separate
+     * a re-delivery milliseconds later from an identical coordinate a minute later, and only the
+     * second is a second opinion this refused.
+     */
     data class ArrivalEcho(
         override val geofenceId: String,
         val signedBoundaryDistanceMeters: Double?,
         val horizontalAccuracyMeters: Double,
-        val fixAgeSeconds: Double
+        val fixAgeSeconds: Double,
+        val sinceCountedFixSeconds: Double?
     ) : PolygonRouteRecord
 }
 
@@ -89,11 +96,26 @@ internal data class PolygonRouteOutcome(
 /** Evaluates one ordered location stream against the currently active polygons. */
 internal class PolygonRouteProcessor(
     private val accuracyEvaluator: PolygonAccuracyEvaluator = PolygonAccuracyEvaluator(),
-    /** Gates arrivals: the evidence rule has no clearance margin, so a marginal fix needs a second. */
+    /**
+     * Gates arrivals: the evidence rule has no clearance margin, so a marginal fix needs a second.
+     *
+     * The echo guard below compares against the most recently counted sample only, which is
+     * sufficient at two confirmations and not at more: at three, an A, B, A sequence would count
+     * three confirmations from two positions. Raising this needs the guard to keep the whole run.
+     */
     private val arrivalConfirmations: PolygonTransitionStateMachine =
         PolygonTransitionStateMachine(requiredConfirmations = 2)
 ) {
     private val latestElapsedRealtimeNanos = mutableMapOf<String, Long>()
+
+    /**
+     * The measurement each held arrival is already counting, so an echo of it cannot corroborate it.
+     *
+     * Derived, like [arrivalConfirmationNanos]: [retireStaleArrivalConfirmation] runs before the
+     * comparison on every pass and drops the entry whenever no hold is pending, so a write site
+     * that skips a removal costs one pass rather than a wrong verdict. Two hold-ending branches do
+     * exactly that, the decisive ENTER and the EXIT, and both are safe for that reason.
+     */
     private val lastCountedSample = mutableMapOf<String, PolygonLocationSample>()
 
     fun process(
@@ -175,16 +197,35 @@ internal class PolygonRouteProcessor(
                         arrivalConfirmations.clear(fence.id)
                         PolygonTransition.ENTER
                     }
-                    // Corroboration is a second opinion, so it has to be a second measurement. The
-                    // dedupe above only refuses a repeated elapsed-realtime stamp, and the fused
-                    // provider re-emits one carried-forward position under a fresh stamp, so
-                    // without this an echo agrees with itself and completes the arrival.
-                    lastCountedSample[fence.id] == sample -> {
+                    // Corroboration asks whether a second observation also puts the device
+                    // inside. An identical coordinate answers that with the first observation, so
+                    // it cannot corroborate however the fix is labelled. The dedupe above only
+                    // refuses a repeated elapsed-realtime stamp, and the fused provider re-emits a
+                    // carried-forward position under a fresh stamp.
+                    //
+                    // Position alone, deliberately, because position is the part measured to carry
+                    // forward and accuracy is the part measured to be substituted: on this device
+                    // the re-emission arrives with accuracy replaced by a placeholder while the
+                    // coordinate is identical to 6 dp. Requiring both to match would let the same
+                    // coordinate at a different sub-ceiling accuracy confirm an arrival from one
+                    // observation, which is the defect this exists to close.
+                    //
+                    // The cost is real and accepted: a parked device whose coordinate is snapped
+                    // identical can never corroborate itself, so its arrival waits for the precise
+                    // fix the callback path now asks for, and is dropped if that cannot produce a
+                    // different position either. Claiming a second opinion we do not have is worse.
+                    //
+                    // The early return skips confirmArrival deliberately: an echo neither advances
+                    // the run nor refreshes the hold's stamp, so it cannot buy time for a genuine
+                    // fix arriving after the window.
+                    lastCountedSample[fence.id]?.coordinate == sample.coordinate -> {
                         records += PolygonRouteRecord.ArrivalEcho(
                             geofenceId = fence.id,
                             signedBoundaryDistanceMeters = result.signedBoundaryDistanceMeters,
                             horizontalAccuracyMeters = sample.horizontalAccuracyMeters,
-                            fixAgeSeconds = fixAgeSeconds
+                            fixAgeSeconds = fixAgeSeconds,
+                            sinceCountedFixSeconds = arrivalConfirmationNanos[fence.id]
+                                ?.let { (elapsedRealtimeNanos - it).toDouble() / NANOS_PER_SECOND }
                         )
                         return@mapNotNull null
                     }

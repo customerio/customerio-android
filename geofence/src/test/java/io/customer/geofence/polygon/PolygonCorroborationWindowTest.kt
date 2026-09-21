@@ -27,9 +27,14 @@ import org.junit.Test
  */
 class PolygonCorroborationWindowTest {
 
-    /** The ring that held and then dropped a real arrival. */
+    /**
+     * The 2026-09-17 ring, the same geometry [PolygonCorroborationOnRealFencesTest] calls fence B.
+     * The two field arrivals that expired were on other rings; this one is used because its
+     * clearance and accuracy are already documented against a real fix, and the failure is the
+     * same shape on any marginal ring.
+     */
     private val fence = PolygonFence(
-        id = "16",
+        id = "fence-b",
         geometry = PolygonGeometry.from(
             listOf(
                 PolygonCoordinate(-8.908793, 22.430434),
@@ -52,8 +57,8 @@ class PolygonCorroborationWindowTest {
 
     private val committedOutside = mapOf(fence.id to PolygonCommittedState.OUTSIDE)
 
-    /** Above the 8.4 m clearance, so the evaluator asks for corroboration. Matches a field record. */
-    private val marginalAccuracy = 10.9
+    /** The accuracy this fix was recorded at, and above its 8.4 m clearance, so it is marginal. */
+    private val marginalAccuracy = 18.0
 
     private fun sampleAt(coordinate: PolygonCoordinate) =
         PolygonLocationSample(coordinate, horizontalAccuracyMeters = marginalAccuracy)
@@ -106,10 +111,14 @@ class PolygonCorroborationWindowTest {
     }
 
     @Test
-    fun process_givenTheSamePositionAtADifferentAccuracy_expectTheArrivalIsConfirmed() {
-        // The discriminator is the whole measurement, not the position. A second fix that agrees on
-        // where the device is but carries its own accuracy is a second measurement, and a parked
-        // device reporting the same coordinate twice is the commonest way a real visit corroborates.
+    fun process_givenTheSamePositionAtADifferentAccuracy_expectNoConfirmation() {
+        // The discriminator is the position, not the whole measurement. This is the case the
+        // measured re-emission actually produces: the coordinate is carried forward and the
+        // accuracy is substituted, so requiring both to match would let one observation confirm an
+        // arrival. An identical coordinate answers "is it also inside" with the first fix.
+        //
+        // The accuracy here is a tier the capture shows 10 times, and it is under the ceiling, so
+        // nothing downstream would have refused it.
         val processor = PolygonRouteProcessor()
         processor.process(
             fences = listOf(fence),
@@ -121,13 +130,50 @@ class PolygonCorroborationWindowTest {
 
         val outcome = processor.process(
             fences = listOf(fence),
-            sample = PolygonLocationSample(insideFix, horizontalAccuracyMeters = 9.8),
+            sample = PolygonLocationSample(insideFix, horizontalAccuracyMeters = 20.0),
             elapsedRealtimeNanos = 15_000_000_000L,
             fixAgeSeconds = 0.3,
             committedStates = committedOutside
         )
 
-        outcome.detections.map { it.transition } shouldBeEqualTo listOf(PolygonTransition.ENTER)
+        outcome.detections shouldBeEqualTo emptyList()
+        outcome.records.filterIsInstance<PolygonRouteRecord.ArrivalEcho>().size shouldBeEqualTo 1
+    }
+
+    @Test
+    fun process_givenAnEchoInsideTheWindow_expectItDoesNotExtendTheHold() {
+        // An echo must not buy the hold more time. If it did, a carried-forward position could keep
+        // a hold alive until a genuine fix arrived minutes later, and the arrival would rest on one
+        // observation the second fix never saw, which is #882 reached by another route.
+        val processor = PolygonRouteProcessor()
+        processor.process(
+            fences = listOf(fence),
+            sample = sampleAt(insideFix),
+            elapsedRealtimeNanos = 0L,
+            fixAgeSeconds = 0.3,
+            committedStates = committedOutside
+        )
+        processor.process(
+            fences = listOf(fence),
+            sample = sampleAt(insideFix),
+            elapsedRealtimeNanos = 50_000_000_000L,
+            fixAgeSeconds = 0.1,
+            committedStates = committedOutside
+        )
+
+        // 70 s after the hold opened, so outside the window. Had the echo at 50 s refreshed the
+        // stamp this would be 20 s after it and would complete the arrival instead.
+        val outcome = processor.process(
+            fences = listOf(fence),
+            sample = sampleAt(insideFixResampled),
+            elapsedRealtimeNanos = 70_000_000_000L,
+            fixAgeSeconds = 0.3,
+            committedStates = committedOutside
+        )
+
+        outcome.detections shouldBeEqualTo emptyList()
+        outcome.records.filterIsInstance<PolygonRouteRecord.ArrivalExpired>()
+            .single().reason shouldBeEqualTo PolygonArrivalExpiry.WINDOW_ELAPSED
     }
 
     @Test

@@ -220,7 +220,10 @@ class GeofenceLogTailTest : RobolectricTest() {
             Row("polygonApproachStarted", "polygon.approach.started", emptyList(), GeofenceLogger::logPolygonApproachMonitoringStarted.name) { it.logPolygonApproachMonitoringStarted() },
             Row("polygonApproachStopped", "polygon.approach.stopped", listOf("n"), GeofenceLogger::logPolygonApproachMonitoringStopped.name) { it.logPolygonApproachMonitoringStopped(samplesReceived = 0) },
             Row("polygonApproachRequestFailed", "polygon.approach.failed", listOf("ok", "op", "why"), GeofenceLogger::logPolygonApproachRequestFailed.name, io = "in") { it.logPolygonApproachRequestFailed("no permission", operation = "request_updates") },
-            Row("polygonApproachProcessingFailed", "polygon.approach.dropped", listOf("ok", "op", "why"), GeofenceLogger::logPolygonApproachProcessingFailed.name) { it.logPolygonApproachProcessingFailed("boom", operation = "deliver") }
+            Row("polygonApproachProcessingFailed", "polygon.approach.dropped", listOf("ok", "op", "why"), GeofenceLogger::logPolygonApproachProcessingFailed.name) { it.logPolygonApproachProcessingFailed("boom", operation = "deliver") },
+            Row("polygonFreshFixRequested", "polygon.freshfix.requested", listOf("ids", "n"), GeofenceLogger::logPolygonFreshFixRequested.name) { it.logPolygonFreshFixRequested(listOf("notl_core")) },
+            Row("polygonFreshFixReceived", "polygon.freshfix.received", listOf("waited", "fixsrc", "acc", "age"), GeofenceLogger::logPolygonFreshFixReceived.name, io = "in") { it.logPolygonFreshFixReceived(fix, waitedSeconds = 1.4) },
+            Row("polygonFreshFixSkipped", "polygon.freshfix.skipped", listOf("why"), GeofenceLogger::logPolygonFreshFixSkipped.name, pinned = mapOf("why" to "none_arrived")) { it.logPolygonFreshFixSkipped(PolygonFreshFixSkip.NONE_ARRIVED) }
         )
     }
 
@@ -356,6 +359,9 @@ class GeofenceLogTailTest : RobolectricTest() {
             "polygon.sampling.skipped",
             "polygon.approach.stop_refused",
             "polygon.approach.request_discarded",
+            "polygon.freshfix.requested",
+            "polygon.freshfix.received",
+            "polygon.freshfix.skipped",
             "api.transition.unknown",
             "containment.judged",
             "delivery.failed",

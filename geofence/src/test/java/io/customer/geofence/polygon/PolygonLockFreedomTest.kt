@@ -167,6 +167,7 @@ class PolygonLockFreedomTest : RobolectricTest() {
             approachMonitor = approachMonitor,
             manager = manager,
             secureUserStore = secureUserStore,
+            freshFixSource = NeverAnswersFreshFix,
             logger = logger
         )
         lockHeld = { controller.holdsControllerLock() || engine.holdsStateLock() }

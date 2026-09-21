@@ -17,6 +17,23 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
 /**
+ * What one evaluation pass concluded, beyond the transitions it already committed.
+ *
+ * [undecidedPolygonIds] is the caller's cue to go and get a better fix: those fences were judged
+ * against a real fix and it did not separate inside from outside. A pass that aborted, rather than
+ * one that decided nothing, reports neither, so an identify landing mid-pass does not trigger a
+ * sensor request for a session that is already gone.
+ */
+internal data class PolygonEvaluationOutcome(
+    val acceptedFix: Boolean,
+    val undecidedPolygonIds: Set<String>
+) {
+    internal companion object {
+        val NOTHING = PolygonEvaluationOutcome(acceptedFix = false, undecidedPolygonIds = emptySet())
+    }
+}
+
+/**
  * Decides polygon containment from fixes admitted by the wake-scoped responsive runtime.
  *
  * ## What this engine is
@@ -162,7 +179,7 @@ internal class PolygonLocationEngine(
     suspend fun processResponsiveLocation(
         location: Location,
         expectedUserStateGeneration: Long = store.userStateGeneration()
-    ): Boolean = processLocations(
+    ): PolygonEvaluationOutcome = processLocations(
         locations = listOf(location),
         expectedUserStateGeneration = expectedUserStateGeneration
     )
@@ -175,21 +192,21 @@ internal class PolygonLocationEngine(
     private suspend fun processLocations(
         locations: List<Location>,
         expectedUserStateGeneration: Long
-    ): Boolean = processingMutex.withLock {
-        if (locations.isEmpty()) return@withLock false
+    ): PolygonEvaluationOutcome = processingMutex.withLock {
+        if (locations.isEmpty()) return@withLock PolygonEvaluationOutcome.NOTHING
         if (store.userStateGeneration() != expectedUserStateGeneration) {
             logger.logPolygonEvaluationSkipped(PolygonEvaluationSkip.USER_STATE_CHANGED)
-            return@withLock false
+            return@withLock PolygonEvaluationOutcome.NOTHING
         }
         // Every active location batch is also an autonomous outbox-recovery opportunity. Do not
         // evaluate a newer edge while an older one is still unable to reach the durable file queue.
         if (!transitionProcessor.recoverPendingTransitions()) {
             logger.logPolygonEvaluationSkipped(PolygonEvaluationSkip.OUTBOX_BLOCKED)
-            return@withLock false
+            return@withLock PolygonEvaluationOutcome.NOTHING
         }
         if (store.userStateGeneration() != expectedUserStateGeneration) {
             logger.logPolygonEvaluationSkipped(PolygonEvaluationSkip.USER_STATE_CHANGED)
-            return@withLock false
+            return@withLock PolygonEvaluationOutcome.NOTHING
         }
         val sessionArmed = synchronized(stateLock) {
             if (store.userStateGeneration() != expectedUserStateGeneration) {
@@ -204,13 +221,14 @@ internal class PolygonLocationEngine(
             // above. Reporting this as "session not armed" would hide an identify or sign-out race
             // behind a reason that cannot actually occur.
             logger.logPolygonEvaluationSkipped(PolygonEvaluationSkip.USER_STATE_CHANGED)
-            return@withLock false
+            return@withLock PolygonEvaluationOutcome.NOTHING
         }
         var acceptedFix = false
+        val undecidedPolygonIds = mutableSetOf<String>()
         for (location in locations.sortedBy(Location::getElapsedRealtimeNanos)) {
             if (store.userStateGeneration() != expectedUserStateGeneration) {
                 logger.logPolygonEvaluationSkipped(PolygonEvaluationSkip.USER_STATE_CHANGED)
-                return@withLock false
+                return@withLock PolygonEvaluationOutcome.NOTHING
             }
             val fix = location.toPolygonLocationFix()
             if (fix == null) {
@@ -253,7 +271,7 @@ internal class PolygonLocationEngine(
             }
             if (userStateChanged) {
                 logger.logPolygonEvaluationSkipped(PolygonEvaluationSkip.USER_STATE_CHANGED)
-                return@withLock false
+                return@withLock PolygonEvaluationOutcome.NOTHING
             }
             if (fixTooOld) {
                 logger.logPolygonFixNotUsable(
@@ -270,12 +288,14 @@ internal class PolygonLocationEngine(
             // returns them instead of logging them because stateLock gates every polygon
             // evaluation, and these records reach the host's log dispatcher, which is customer
             // code. PolygonLockFreedomTest is what keeps that true.
+            routeOutcome.records.filterIsInstance<PolygonRouteRecord.Undecided>()
+                .mapTo(undecidedPolygonIds, PolygonRouteRecord.Undecided::geofenceId)
             routeOutcome.records.forEach(::emitRouteRecord)
             routeOutcome.detections.forEach { detection ->
                 if (store.userStateGeneration() != expectedUserStateGeneration) {
                     // Not under a lock here, so it logs in place and aborts the pass as before.
                     logger.logPolygonEvaluationSkipped(PolygonEvaluationSkip.USER_STATE_CHANGED)
-                    return@withLock false
+                    return@withLock PolygonEvaluationOutcome.NOTHING
                 }
                 val transition = when (detection.transition) {
                     PolygonTransition.ENTER -> Event.GeofenceTransition.ENTER
@@ -290,11 +310,11 @@ internal class PolygonLocationEngine(
                     expectedUserStateGeneration = expectedUserStateGeneration,
                     requireRegistered = true
                 )
-                if (store.userStateGeneration() != expectedUserStateGeneration) return@withLock false
+                if (store.userStateGeneration() != expectedUserStateGeneration) return@withLock PolygonEvaluationOutcome.NOTHING
                 if (detection.transition == PolygonTransition.EXIT) {
                     synchronized(stateLock) {
                         if (store.userStateGeneration() != expectedUserStateGeneration) {
-                            return@withLock false
+                            return@withLock PolygonEvaluationOutcome.NOTHING
                         }
                         if (
                             detection.polygonId !in store.getCoarseInsidePolygonIds() &&
@@ -310,7 +330,7 @@ internal class PolygonLocationEngine(
                 }
             }
         }
-        acceptedFix
+        PolygonEvaluationOutcome(acceptedFix = acceptedFix, undecidedPolygonIds = undecidedPolygonIds)
     }
 
     private fun observedTimestampSeconds(fix: AndroidPolygonLocationFix): Long {

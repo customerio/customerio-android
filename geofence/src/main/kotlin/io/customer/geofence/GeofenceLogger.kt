@@ -76,10 +76,6 @@ internal enum class PolygonCallbackDrop(val wire: String, val detail: String) {
     NOT_CURRENT_SESSION("not_current_session", "it belongs to a user or state generation that is no longer current")
 }
 
-/**
- * A stop that was declined. The session is still live afterwards, so these are deliberately NOT
- * endings: counting them as such would over-count sessions that ended in any capture.
- */
 /** Why a held arrival was discarded without being reported. */
 internal enum class PolygonArrivalExpiry(val wire: String, val detail: String) {
     WINDOW_ELAPSED("window_elapsed", "no second agreeing fix arrived inside the corroboration window"),
@@ -87,6 +83,16 @@ internal enum class PolygonArrivalExpiry(val wire: String, val detail: String) {
     EVIDENCE_BROKEN("evidence_broken", "a later fix disagreed or could not judge, so the run of agreeing fixes ended")
 }
 
+/** Why an undecided verdict was left to stand without a precise fix. */
+internal enum class PolygonFreshFixSkip(val wire: String, val detail: String) {
+    WITHIN_COOLDOWN("within_cooldown", "one was already requested too recently to ask again"),
+    NONE_ARRIVED("none_arrived", "nothing arrived inside the broadcast's budget")
+}
+
+/**
+ * A stop that was declined. The session is still live afterwards, so these are deliberately NOT
+ * endings: counting them as such would over-count sessions that ended in any capture.
+ */
 internal enum class PolygonApproachStopRefusal(val wire: String, val detail: String) {
     NOT_CURRENT_SESSION("not_current_session", "the live session belongs to a later generation"),
     DEADLINE_MISMATCH("deadline_mismatch", "it named a different session deadline")
@@ -1275,6 +1281,51 @@ internal class GeofenceLogger(private val logger: Logger) {
                         "why" to reason.wire,
                         "held" to num(heldForSeconds)
                     )
+                ),
+            tag = TAG
+        )
+    }
+
+    /**
+     * A precise fix asked for because the delivered one decided nothing.
+     *
+     * Paired with exactly one of [logPolygonFreshFixReceived] or [logPolygonFreshFixSkipped], so a
+     * capture can tell a request that was never answered from one that was never made. Nothing is
+     * recorded when the delivered fix decided, which is the ordinary drive-by case.
+     */
+    fun logPolygonFreshFixRequested(geofenceIds: List<String>) {
+        logger.debug(
+            "Requesting a precise fix: ${geofenceIds.size} polygon(s) could not be decided from the delivered one." +
+                tail(
+                    "polygon.freshfix.requested",
+                    GeofenceLogIo.OUTPUT,
+                    listOf("ids" to list(geofenceIds), "n" to int(geofenceIds.size))
+                ),
+            tag = TAG
+        )
+    }
+
+    fun logPolygonFreshFixReceived(location: Location, waitedSeconds: Double) {
+        logger.debug(
+            "Precise fix received; evaluating the callback against it." +
+                tail(
+                    "polygon.freshfix.received",
+                    GeofenceLogIo.INPUT,
+                    listOf("waited" to num(waitedSeconds)) +
+                        GeofenceLogTail.fixQuality(location, GeofenceLogTail.FixSource.FRESH_REQUEST) +
+                        GeofenceLogTail.position(location)
+                ),
+            tag = TAG
+        )
+    }
+
+    fun logPolygonFreshFixSkipped(reason: PolygonFreshFixSkip) {
+        logger.debug(
+            "No precise fix for this verdict — ${reason.detail}. The delivered fix stands." +
+                tail(
+                    "polygon.freshfix.skipped",
+                    GeofenceLogIo.OUTPUT,
+                    listOf("why" to reason.wire)
                 ),
             tag = TAG
         )

@@ -162,6 +162,10 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
         }
         // Circles, then the movement trigger, then polygons, whatever order GMS delivered.
         //
+        // The polygon group also SPENDS this budget: an undecided verdict awaits a precise fix for
+        // up to PolygonGeofenceServiceController.FRESH_FIX_TIMEOUT_MS, and that wait lands before
+        // the join below. Sizing lives on that constant; the arithmetic is against this one.
+        //
         // Circles first because the refresh this batch starts can evict one under the monitoring
         // cap, and its `requireRegistered` check would then drop an EXIT the OS had already
         // delivered. The trigger next because the polygon handlers await GMS, so leaving it behind

@@ -588,6 +588,20 @@ internal class PolygonGeofenceServiceController(
      * calls this, outside [controllerLock], because WorkManager does disk work and both log through
      * the host dispatcher.
      *
+     * **Called before the state wipe, not after it, and the order is load-bearing.** Raised by
+     * Shahroz on #897 with a reproduction. Teardown used to bump the teardown generation first and
+     * cancel the passive registration last, which is the worst possible order: a delivery landing
+     * in between captured the already-bumped token, so the token agreed with the teardown that had
+     * just happened, while [PolygonPassiveMonitor.isArmed] still answered yes because the intent
+     * was not cancelled yet. It passed both checks and re-armed the polygon after shutdown, with
+     * the store wipe already behind it. His run returned from stopAll() with active ids [venue].
+     *
+     * Reversed, the two become one boundary. Cancelling the intent first shuts the gate
+     * synchronously and permanently, so any delivery that arrives afterwards is refused by
+     * isArmed() whatever the token says, including one the OS had already dispatched. A delivery
+     * admitted just before the cancel can still activate, and that is harmless now: the wipe runs
+     * after, so it clears what that delivery armed instead of being overwritten by it.
+     *
      * Unconditional rather than keyed on what is still registered: [stopAll] and
      * [clearUserSessionRetainingOsRegistrations] leave registrations in place on purpose, so
      * reading them here would re-arm the wake the caller is removing.
@@ -615,6 +629,8 @@ internal class PolygonGeofenceServiceController(
     }
 
     fun invalidateOsRegistrationState() {
+        // Before the wipe, not after it. See stopScheduledWakes.
+        stopScheduledWakes()
         val discarded = synchronized(controllerLock) {
             val generation = store.userStateGeneration()
             store.saveRegisteredIds(emptySet())
@@ -629,10 +645,11 @@ internal class PolygonGeofenceServiceController(
             holds
         }
         reportDiscardedArrivals(discarded)
-        stopScheduledWakes()
     }
 
     fun stopAll() {
+        // Before the wipe, not after it. See stopScheduledWakes.
+        stopScheduledWakes()
         val discarded = synchronized(controllerLock) {
             val generation = store.userStateGeneration()
             store.clearActivePolygonIds()
@@ -644,10 +661,11 @@ internal class PolygonGeofenceServiceController(
             holds
         }
         reportDiscardedArrivals(discarded)
-        stopScheduledWakes()
     }
 
     fun clearUserScopedState() {
+        // Before the wipe, not after it. See stopScheduledWakes.
+        stopScheduledWakes()
         val discarded = synchronized(controllerLock) {
             // The generation/registration wipe shares this lock with coarse callbacks. A callback
             // that GMS queued before sign-out can therefore neither pass its generation check after
@@ -661,10 +679,11 @@ internal class PolygonGeofenceServiceController(
             holds
         }
         reportDiscardedArrivals(discarded)
-        stopScheduledWakes()
     }
 
     fun clearUserSessionRetainingOsRegistrations() {
+        // Before the wipe, not after it. See stopScheduledWakes.
+        stopScheduledWakes()
         val discarded = synchronized(controllerLock) {
             val generation = store.userStateGeneration()
             store.clearUserSessionRetainingOsRegistrations()
@@ -675,13 +694,14 @@ internal class PolygonGeofenceServiceController(
             holds
         }
         reportDiscardedArrivals(discarded)
-        stopScheduledWakes()
     }
 
     fun completeUserReset(
         expectedUserStateGeneration: Long,
         osRegistrationsCleared: Boolean
     ) {
+        // Before the wipe, not after it. See stopScheduledWakes.
+        stopScheduledWakes()
         val discarded = synchronized(controllerLock) {
             store.completeUserReset(expectedUserStateGeneration, osRegistrationsCleared)
             val holds = engine.stop()
@@ -691,7 +711,6 @@ internal class PolygonGeofenceServiceController(
             holds
         }
         reportDiscardedArrivals(discarded)
-        stopScheduledWakes()
     }
 
     fun beginUserSession(userId: String) {

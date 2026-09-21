@@ -83,12 +83,18 @@ class PolygonPassiveReceiver : BroadcastReceiver() {
         // controller rather than attributed to whoever is current when it lands.
         val expectedUserStateGeneration = store.userStateGeneration()
         // Captured before the registration check below, because the two cover different windows
-        // and neither covers the other. isArmed() is a point-in-time answer: a teardown that lands
-        // after it has returned true, but before the activation at the end of this handler, leaves
-        // a delivery that passed every check on its way to re-arming what was just torn down.
-        // The token is what straddles that gap. Every teardown bumps it under the controller lock
-        // and only then cancels the registration, so a delivery admitted by isArmed() is still
-        // refused at the write. Taken first so the window it covers starts as early as possible.
+        // and neither covers the other.
+        //
+        // isArmed() is the outer gate. Teardown cancels the registration before it wipes any
+        // state, so once that cancel lands the gate is shut synchronously and for good, and every
+        // later delivery is refused here whatever the token says, including one the OS had already
+        // dispatched. That is the case no in-process token can see.
+        //
+        // The token covers what gets past it: a delivery admitted a moment before the cancel,
+        // whose activation then runs after teardown has wiped the state. Its token was read before
+        // teardown bumped the generation, so the activation is refused at the write rather than
+        // re-arming what was just removed. Read on entry for that reason, never at dispatch, or it
+        // would be the post-teardown value and agree with whatever is current.
         val expectedTeardownGeneration =
             SDKComponent.android().polygonGeofenceServiceController.teardownGeneration()
         // A fix the OS dispatched before teardown completed still arrives afterwards, and

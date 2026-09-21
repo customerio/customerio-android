@@ -423,6 +423,94 @@ class PolygonPassiveTest : RobolectricTest() {
         }
     }
 
+    @Test
+    fun teardown_givenADeliveryLandsDuringTheStop_expectItIsNotLeftActive() = runTest {
+        // Raised by Shahroz on #897 with a reproduction: stopAll() returned with active ids
+        // [venue]. Teardown bumped the teardown generation first and cancelled the passive
+        // registration last, which is the worst order. A delivery in between captured the
+        // already-bumped token, so the token agreed with the teardown that had just happened,
+        // while isArmed() still answered yes because the intent was not cancelled. It passed both
+        // checks and armed the polygon with the store wipe already behind it.
+        //
+        // The delivery is driven from inside the monitor's stop(), which IS the cancel, so this
+        // pins the ordering rather than a timing window: reversed, the wipe runs after the cancel
+        // and clears whatever slipped through; unreversed, nothing runs after it.
+        //
+        // A stateful store, because the assertion is the state left behind. A fixed stub would
+        // report the same set whichever order ran.
+        val active = mutableSetOf(VENUE_ID)
+        every { mockStore.getActivePolygonIds() } answers { active.toSet() }
+        every { mockStore.activatePolygon(any()) } answers { active += firstArg<String>() }
+        every { mockStore.clearActivePolygonIds() } answers { active.clear() }
+        every { mockStore.getRoutableRegisteredIds() } returns setOf(VENUE_ID)
+        every { mockStore.getCachedRegion(VENUE_ID) } returns venueRegion()
+        every { mockStore.activeUserSessionId() } returns "user-1"
+        var subject: PolygonGeofenceServiceController? = null
+        var delivered = false
+        val passive = object : PolygonPassiveMonitor {
+            override fun start() = Unit
+            override fun isArmed(): Boolean = true
+            override fun stop() {
+                if (delivered) return
+                delivered = true
+                // A fix the OS dispatched before this cancel, reaching the controller now. It
+                // reads the token on entry, exactly as the receiver does.
+                val controller = subject ?: return
+                controller.activate(
+                    polygonId = VENUE_ID,
+                    expectedUserStateGeneration = 7L,
+                    expectedRegionRevision = null,
+                    expectedTeardownGeneration = controller.teardownGeneration()
+                )
+            }
+        }
+        val controller = controller(passive).also { subject = it }
+
+        controller.stopAll()
+
+        delivered shouldBeEqualTo true
+        active shouldBeEqualTo emptySet()
+    }
+
+    @Test
+    fun teardown_expectTheListenerIsStoppedBeforeAnyStateIsWiped() = runTest {
+        // The ordering above, for every teardown path rather than just stopAll. The concrete
+        // outcome is only observable at this level for the two paths that clear the active set
+        // themselves; the other three delegate the wipe to the store, so what is asserted here is
+        // the order itself: the listener stop must come before the first state wipe, so the gate is
+        // shut before the token moves.
+        val paths = listOf<Pair<String, (PolygonGeofenceServiceController) -> Unit>>(
+            "invalidateOsRegistrationState" to { it.invalidateOsRegistrationState() },
+            "stopAll" to { it.stopAll() },
+            "clearUserScopedState" to { it.clearUserScopedState() },
+            "clearUserSessionRetainingOsRegistrations" to {
+                it.clearUserSessionRetainingOsRegistrations()
+            },
+            "completeUserReset" to { it.completeUserReset(7L, osRegistrationsCleared = true) }
+        )
+
+        val observed = paths.associate { (name, teardown) ->
+            val order = mutableListOf<String>()
+            val wipe = { if (order.none { it == "wipe" }) order += "wipe" }
+            every { mockStore.clearActivePolygonIds() } answers { wipe() }
+            every { mockStore.clearUserScopedState() } answers { wipe() }
+            every { mockStore.clearUserSessionRetainingOsRegistrations() } answers { wipe() }
+            every { mockStore.completeUserReset(any(), any()) } answers { wipe() }
+            every { mockStore.saveRegisteredIds(any()) } answers { wipe() }
+            val passive = object : PolygonPassiveMonitor {
+                override fun start() = Unit
+                override fun isArmed(): Boolean = true
+                override fun stop() {
+                    if (order.none { it == "stop" }) order += "stop"
+                }
+            }
+            teardown(controller(passive))
+            name to order.toList()
+        }
+
+        observed shouldBeEqualTo paths.associate { (name, _) -> name to listOf("stop", "wipe") }
+    }
+
     private fun controller(passive: PolygonPassiveMonitor) = PolygonGeofenceServiceController(
         context = applicationMock,
         store = mockStore,

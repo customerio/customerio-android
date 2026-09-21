@@ -185,7 +185,8 @@ internal class PolygonRecheckWorker(
             controller.onCoarseExit(
                 polygonId = region.id,
                 triggeringLocation = fix,
-                expectedUserStateGeneration = expectedUserStateGeneration
+                expectedUserStateGeneration = expectedUserStateGeneration,
+                expectedTeardownGeneration = expectedTeardownGeneration
             )
         }
         admitted.forEach { region ->

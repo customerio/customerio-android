@@ -82,6 +82,21 @@ class PolygonPassiveReceiver : BroadcastReceiver() {
         // Read before anything is dispatched, so a user change mid-dispatch is refused by the
         // controller rather than attributed to whoever is current when it lands.
         val expectedUserStateGeneration = store.userStateGeneration()
+        // Captured before the registration check below, because the two cover different windows
+        // and neither covers the other.
+        //
+        // isArmed() is the outer gate. Teardown cancels the registration before it wipes any
+        // state, so once that cancel lands the gate is shut synchronously and for good, and every
+        // later delivery is refused here whatever the token says, including one the OS had already
+        // dispatched. That is the case no in-process token can see.
+        //
+        // The token covers what gets past it: a delivery admitted a moment before the cancel,
+        // whose activation then runs after teardown has wiped the state. Its token was read before
+        // teardown bumped the generation, so the activation is refused at the write rather than
+        // re-arming what was just removed. Read on entry for that reason, never at dispatch, or it
+        // would be the post-teardown value and agree with whatever is current.
+        val expectedTeardownGeneration =
+            SDKComponent.android().polygonGeofenceServiceController.teardownGeneration()
         // A fix the OS dispatched before teardown completed still arrives afterwards, and
         // teardown leaves the routable ids and the user generation in place on purpose, so neither
         // of the checks activate() already makes can refuse it. The registration itself is the one
@@ -124,14 +139,16 @@ class PolygonPassiveReceiver : BroadcastReceiver() {
             controller.onCoarseExit(
                 polygonId = region.id,
                 triggeringLocation = fix,
-                expectedUserStateGeneration = expectedUserStateGeneration
+                expectedUserStateGeneration = expectedUserStateGeneration,
+                expectedTeardownGeneration = expectedTeardownGeneration
             )
         }
         admitted.forEach { region ->
             controller.activate(
                 polygonId = region.id,
                 triggeringLocation = fix,
-                expectedUserStateGeneration = expectedUserStateGeneration
+                expectedUserStateGeneration = expectedUserStateGeneration,
+                expectedTeardownGeneration = expectedTeardownGeneration
             )
         }
     }

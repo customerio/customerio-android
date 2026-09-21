@@ -68,7 +68,19 @@ internal class PolygonGeofenceServiceController(
     fun teardownGeneration(): Long = synchronized(controllerLock) { teardownGeneration }
 
     private fun isAfterTeardown(expected: Long?): Boolean = expected != null &&
-        synchronized(controllerLock) { expected != teardownGeneration }
+        synchronized(controllerLock) { isAfterTeardownLocked(expected) }
+
+    /**
+     * For callers already inside [controllerLock], so the check cannot be separated from the state
+     * it guards. Every teardown bumps the generation under this same lock, which is what makes a
+     * check made inside it one no teardown can land behind.
+     *
+     * The matching checks made before taking the lock are a fast path, not a guard: removing one
+     * changes what a dead wake costs on its way to being refused, not whether it is refused. They
+     * save the registration read and the dedupe memo write that would otherwise happen first.
+     */
+    private fun isAfterTeardownLocked(expected: Long?): Boolean =
+        expected != null && expected != teardownGeneration
 
     private fun forgetRequestedFix() {
         lastFreshFix = null
@@ -111,19 +123,29 @@ internal class PolygonGeofenceServiceController(
             logger.logPolygonCallbackDropped(PolygonCallbackDrop.DUPLICATE_DELIVERY, polygonId)
             return@withLock
         }
-        activate(polygonId, expectedUserStateGeneration, expectedRegionRevision)
+        // The token goes through to the locked activation as well. The check above runs before the
+        // registration and dedupe reads, none of which hold the lock, so a teardown landing in that
+        // gap used to meet no further check and re-armed the polygon it had just removed.
+        val armed = activate(
+            polygonId,
+            expectedUserStateGeneration,
+            expectedRegionRevision,
+            expectedTeardownGeneration
+        )
+        if (!armed) return@withLock
         evaluateCallbackFix(polygonId, triggeringLocation, expectedUserStateGeneration)
     }
 
+    /** Returns whether the polygon was armed, so a caller can skip work that assumed it was. */
     fun activate(
         polygonId: String,
         expectedUserStateGeneration: Long = store.userStateGeneration(),
         expectedRegionRevision: Int? = null,
         expectedTeardownGeneration: Long? = null
-    ) {
+    ): Boolean {
         val discarded = mutableSetOf<String>()
         val routable = synchronized(controllerLock) {
-            if (expectedTeardownGeneration != null && expectedTeardownGeneration != teardownGeneration) {
+            if (isAfterTeardownLocked(expectedTeardownGeneration)) {
                 return@synchronized false
             }
             if (!isCurrentRegisteredPolygonLocked(
@@ -146,6 +168,7 @@ internal class PolygonGeofenceServiceController(
         if (!routable) {
             logger.logPolygonCallbackDropped(PolygonCallbackDrop.NOT_ROUTABLE, polygonId)
         }
+        return routable
     }
 
     /**
@@ -171,12 +194,24 @@ internal class PolygonGeofenceServiceController(
         return holds
     }
 
+    /**
+     * Takes a teardown token for the same reason [activate] does, which is easy to miss on a path
+     * whose name says departure. The tail of this function re-arms: a polygon still in the entered
+     * set stays active rather than being deactivated, and teardown retains the entered set on
+     * purpose, so a departure dispatched before a teardown and run after it would put the polygon
+     * back into the active set and restart approach sampling.
+     */
     suspend fun onCoarseExit(
         polygonId: String,
         triggeringLocation: Location?,
         expectedUserStateGeneration: Long = store.userStateGeneration(),
-        expectedRegionRevision: Int? = null
+        expectedRegionRevision: Int? = null,
+        expectedTeardownGeneration: Long? = null
     ) = coarseTransitionMutex.withLock {
+        if (isAfterTeardown(expectedTeardownGeneration)) {
+            logger.logPolygonCallbackDropped(PolygonCallbackDrop.NOT_ROUTABLE, polygonId)
+            return@withLock
+        }
         if (!isCurrentRegisteredPolygon(polygonId, expectedUserStateGeneration, expectedRegionRevision)) {
             logger.logPolygonCallbackDropped(PolygonCallbackDrop.NOT_ROUTABLE, polygonId)
             return@withLock
@@ -186,7 +221,12 @@ internal class PolygonGeofenceServiceController(
             return@withLock
         }
         val recordedCoarseExit = synchronized(controllerLock) {
-            if (!isCurrentRegisteredPolygonLocked(
+            // Checked here as well as at the tail, because these are different windows. The tail
+            // guards the re-arm; this guards the write below and the fix evaluation after it,
+            // which can open the GPS for a polygon whose session is already over.
+            if (isAfterTeardownLocked(expectedTeardownGeneration)) {
+                false
+            } else if (!isCurrentRegisteredPolygonLocked(
                     polygonId,
                     expectedUserStateGeneration,
                     expectedRegionRevision
@@ -204,6 +244,9 @@ internal class PolygonGeofenceServiceController(
         }
         evaluateCallbackFix(polygonId, triggeringLocation, expectedUserStateGeneration)
         val discarded = synchronized(controllerLock) {
+            // Re-checked under the lock: evaluateCallbackFix above can suspend, so a teardown that
+            // was current when this started may have landed by now.
+            if (isAfterTeardownLocked(expectedTeardownGeneration)) return@synchronized emptySet()
             if (!isCurrentRegisteredPolygonLocked(
                     polygonId,
                     expectedUserStateGeneration,
@@ -545,6 +588,20 @@ internal class PolygonGeofenceServiceController(
      * calls this, outside [controllerLock], because WorkManager does disk work and both log through
      * the host dispatcher.
      *
+     * **Called before the state wipe, not after it, and the order is load-bearing.** Raised by
+     * Shahroz on #897 with a reproduction. Teardown used to bump the teardown generation first and
+     * cancel the passive registration last, which is the worst possible order: a delivery landing
+     * in between captured the already-bumped token, so the token agreed with the teardown that had
+     * just happened, while [PolygonPassiveMonitor.isArmed] still answered yes because the intent
+     * was not cancelled yet. It passed both checks and re-armed the polygon after shutdown, with
+     * the store wipe already behind it. His run returned from stopAll() with active ids [venue].
+     *
+     * Reversed, the two become one boundary. Cancelling the intent first shuts the gate
+     * synchronously and permanently, so any delivery that arrives afterwards is refused by
+     * isArmed() whatever the token says, including one the OS had already dispatched. A delivery
+     * admitted just before the cancel can still activate, and that is harmless now: the wipe runs
+     * after, so it clears what that delivery armed instead of being overwritten by it.
+     *
      * Unconditional rather than keyed on what is still registered: [stopAll] and
      * [clearUserSessionRetainingOsRegistrations] leave registrations in place on purpose, so
      * reading them here would re-arm the wake the caller is removing.
@@ -572,6 +629,8 @@ internal class PolygonGeofenceServiceController(
     }
 
     fun invalidateOsRegistrationState() {
+        // Before the wipe, not after it. See stopScheduledWakes.
+        stopScheduledWakes()
         val discarded = synchronized(controllerLock) {
             val generation = store.userStateGeneration()
             store.saveRegisteredIds(emptySet())
@@ -586,10 +645,11 @@ internal class PolygonGeofenceServiceController(
             holds
         }
         reportDiscardedArrivals(discarded)
-        stopScheduledWakes()
     }
 
     fun stopAll() {
+        // Before the wipe, not after it. See stopScheduledWakes.
+        stopScheduledWakes()
         val discarded = synchronized(controllerLock) {
             val generation = store.userStateGeneration()
             store.clearActivePolygonIds()
@@ -601,10 +661,11 @@ internal class PolygonGeofenceServiceController(
             holds
         }
         reportDiscardedArrivals(discarded)
-        stopScheduledWakes()
     }
 
     fun clearUserScopedState() {
+        // Before the wipe, not after it. See stopScheduledWakes.
+        stopScheduledWakes()
         val discarded = synchronized(controllerLock) {
             // The generation/registration wipe shares this lock with coarse callbacks. A callback
             // that GMS queued before sign-out can therefore neither pass its generation check after
@@ -618,10 +679,11 @@ internal class PolygonGeofenceServiceController(
             holds
         }
         reportDiscardedArrivals(discarded)
-        stopScheduledWakes()
     }
 
     fun clearUserSessionRetainingOsRegistrations() {
+        // Before the wipe, not after it. See stopScheduledWakes.
+        stopScheduledWakes()
         val discarded = synchronized(controllerLock) {
             val generation = store.userStateGeneration()
             store.clearUserSessionRetainingOsRegistrations()
@@ -632,13 +694,14 @@ internal class PolygonGeofenceServiceController(
             holds
         }
         reportDiscardedArrivals(discarded)
-        stopScheduledWakes()
     }
 
     fun completeUserReset(
         expectedUserStateGeneration: Long,
         osRegistrationsCleared: Boolean
     ) {
+        // Before the wipe, not after it. See stopScheduledWakes.
+        stopScheduledWakes()
         val discarded = synchronized(controllerLock) {
             store.completeUserReset(expectedUserStateGeneration, osRegistrationsCleared)
             val holds = engine.stop()
@@ -648,7 +711,6 @@ internal class PolygonGeofenceServiceController(
             holds
         }
         reportDiscardedArrivals(discarded)
-        stopScheduledWakes()
     }
 
     fun beginUserSession(userId: String) {

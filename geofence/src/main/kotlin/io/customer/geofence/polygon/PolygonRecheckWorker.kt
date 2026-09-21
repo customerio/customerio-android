@@ -7,6 +7,7 @@ import androidx.work.CoroutineWorker
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkerParameters
+import io.customer.geofence.GeofenceRegion
 import io.customer.geofence.PolygonRecheckSkip
 import io.customer.geofence.di.geofenceLogger
 import io.customer.geofence.di.geofenceRegionStore
@@ -14,6 +15,7 @@ import io.customer.geofence.di.polygonFreshFixSource
 import io.customer.geofence.di.polygonGeofenceServiceController
 import io.customer.geofence.di.polygonRecheckScheduler
 import io.customer.geofence.distanceTo
+import io.customer.geofence.store.GeofenceRegionStore
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.di.setupAndroidComponent
 import io.customer.sdk.core.util.CustomerIOWorkManagerProvider
@@ -104,19 +106,63 @@ internal class PolygonRecheckWorker(
         SDKComponent.setupAndroidComponent(context = applicationContext)
         val logger = SDKComponent.geofenceLogger
         val store = SDKComponent.android().geofenceRegionStore
-        val routableIds = store.getRoutableRegisteredIds()
-        val polygons = store.getCachedRegions().filter { it.id in routableIds && it.isPolygon }
+        // The ownership snapshot is taken before any of the work it describes, not after.
+        //
+        // Both of these say which session this run belongs to, and both are checked when activate
+        // takes the controller lock. Read after the catalog and permission work, a teardown or an
+        // identify landing during that work would be captured as though it had always been the
+        // current session: the run would hand over the post-teardown token, match it, and re-arm
+        // the polygon it had just removed. Raised by Shahroz on #896 with a reproduction.
+        //
+        // Cancellation cannot enforce this boundary either, here or after the wait: the coroutine
+        // may already be past the suspension point when the teardown lands.
+        val expectedUserStateGeneration = store.userStateGeneration()
+        val expectedTeardownGeneration =
+            SDKComponent.android().polygonGeofenceServiceController.teardownGeneration()
+        val polygons = registeredPolygons(store)
         if (polygons.isEmpty()) {
             // Self-healing rather than relying on every cancel site being wired: if the set is
             // empty this work has nothing to do again, so it retires itself. A missed cancel
             // therefore costs one wake, not a permanent periodic job.
             logger.logPolygonRecheckSkipped(PolygonRecheckSkip.NOTHING_REGISTERED)
-            SDKComponent.android().polygonRecheckScheduler.cancel()
+            // Cancel, then re-read, then put it back if the catalog filled in the meantime.
+            //
+            // Raised by Shahroz on #896 with a reproduction: a sync scheduled this unique work
+            // after the run above read an empty catalog, and the retirement then cancelled that
+            // newer schedule, leaving no periodic re-check until the next sync. That is precisely
+            // the stationary-device gap this worker exists to cover, so between the two failures
+            // the retirement is the expensive one and has to yield.
+            //
+            // Ordering this way closes the window rather than narrowing it, and needs no lock.
+            // Both callers write the routable ids before they call reconcile, and reconcile's
+            // schedule() comes after that write, so there are only two interleavings. Either the
+            // sync's write lands before the re-read below, and this run sees it and re-asserts, or
+            // it lands after, in which case the sync's own schedule() also lands after this cancel
+            // and survives it. A re-read before the cancel could see neither.
+            //
+            // Three properties of WorkManager have to hold for the re-assert to land, and the fix
+            // degrades quietly to the racy version if any of them stops holding. Read out of
+            // 2.10.5 rather than assumed, because none of them is promised by the public contract:
+            //
+            //  - A cancel and an enqueue issued from this process run in call order. Both are
+            //    posted to the same serialTaskExecutor, so the cancel's transaction commits first.
+            //  - The cancel moves a RUNNING row straight to CANCELLED instead of waiting for the
+            //    worker to stop: iterativelyCancelWorkAndDependents calls setCancelledState for
+            //    every state except SUCCEEDED and FAILED. This run is RUNNING when it cancels
+            //    itself, so this is the property that makes self-cancellation workable at all.
+            //  - KEEP inserts unless it finds an existing row ENQUEUED or RUNNING. EnqueueRunnable
+            //    tests those two states explicitly rather than calling isFinished, so the
+            //    CANCELLED row this run just produced does not suppress the insert.
+            //
+            // Separately, the cancellation this cancel provokes cannot interleave between the two
+            // calls: neither suspends, and a CoroutineWorker's job is only observable at a
+            // suspension point.
+            val scheduler = SDKComponent.android().polygonRecheckScheduler
+            scheduler.cancel()
+            // KEEP, so re-asserting over a schedule the sync already made leaves that one alone.
+            if (registeredPolygons(store).isNotEmpty()) scheduler.schedule()
             return Result.success()
         }
-        // Read before the fix is awaited, and passed down, so an identify during the await is
-        // caught by the controller's own generation check instead of being attributed to whoever
-        // is current when the fix lands.
         if (!hasLocationPermission()) {
             // Told apart from NO_FIX deliberately. awaitFreshFix reports a revoked permission and a
             // silent GPS as the same null, and a capture that cannot separate them reads a
@@ -124,14 +170,6 @@ internal class PolygonRecheckWorker(
             logger.logPolygonRecheckSkipped(PolygonRecheckSkip.NO_PERMISSION)
             return Result.success()
         }
-        val expectedUserStateGeneration = store.userStateGeneration()
-        // Captured before the wait, checked when activate takes the controller lock. A teardown
-        // during the wait leaves the routable ids and the user generation alone on purpose, so
-        // this is the only read that can tell a resumed worker its session is over. Cancellation
-        // cleans the work up but cannot enforce the boundary: the coroutine may already be past
-        // the suspension point when it lands.
-        val expectedTeardownGeneration =
-            SDKComponent.android().polygonGeofenceServiceController.teardownGeneration()
         // Balanced, not high accuracy. This fix answers one question — is the device inside a wake
         // circle, which is hundreds of metres across — and a GPS-grade answer to it is waste. The
         // registered polygons are only the nearest set, so a user kilometres from all of them would
@@ -185,7 +223,8 @@ internal class PolygonRecheckWorker(
             controller.onCoarseExit(
                 polygonId = region.id,
                 triggeringLocation = fix,
-                expectedUserStateGeneration = expectedUserStateGeneration
+                expectedUserStateGeneration = expectedUserStateGeneration,
+                expectedTeardownGeneration = expectedTeardownGeneration
             )
         }
         admitted.forEach { region ->
@@ -197,6 +236,15 @@ internal class PolygonRecheckWorker(
             )
         }
         return Result.success()
+    }
+
+    /**
+     * The registered polygons, read the same way both times the run needs them, so the retirement
+     * check cannot drift from the decision it is re-testing.
+     */
+    private fun registeredPolygons(store: GeofenceRegionStore): List<GeofenceRegion> {
+        val routableIds = store.getRoutableRegisteredIds()
+        return store.getCachedRegions().filter { it.id in routableIds && it.isPolygon }
     }
 
     /**

@@ -24,6 +24,7 @@ import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
+import io.mockk.verifyOrder
 import kotlinx.coroutines.test.runTest
 import org.amshove.kluent.shouldBeEqualTo
 import org.junit.Test
@@ -143,6 +144,9 @@ class PolygonRecheckTest : RobolectricTest() {
         result shouldBeEqualTo ListenableWorker.Result.success()
         // Self-healing: a missed cancel site costs one wake rather than a permanent periodic job.
         verify { mockRecheckScheduler.cancel() }
+        // And the re-assert stays out of it when the catalog really is empty, or the retirement
+        // would put back exactly what it just removed.
+        verify(exactly = 0) { mockRecheckScheduler.schedule() }
         coVerify(exactly = 0) { mockFreshFix.awaitFreshFix(any(), any()) }
     }
 
@@ -372,7 +376,8 @@ class PolygonRecheckTest : RobolectricTest() {
                 polygonId = VENUE_ID,
                 triggeringLocation = fix,
                 expectedUserStateGeneration = 7L,
-                expectedRegionRevision = null
+                expectedRegionRevision = null,
+                expectedTeardownGeneration = any()
             )
         }
         coVerify(exactly = 0) { mockController.activate(any(), any(), any(), any(), any()) }
@@ -395,8 +400,10 @@ class PolygonRecheckTest : RobolectricTest() {
         TestListenableWorkerBuilder<PolygonRecheckWorker>(applicationMock).build().doWork()
         TestListenableWorkerBuilder<PolygonRecheckWorker>(applicationMock).build().doWork()
 
-        coVerify(exactly = 1) { mockController.onCoarseExit(VENUE_ID, clears, any(), any()) }
-        coVerify(exactly = 0) { mockController.onCoarseExit(VENUE_ID, doesNotClear, any(), any()) }
+        coVerify(exactly = 1) { mockController.onCoarseExit(VENUE_ID, clears, any(), any(), any()) }
+        coVerify(exactly = 0) {
+            mockController.onCoarseExit(VENUE_ID, doesNotClear, any(), any(), any())
+        }
     }
 
     @Test
@@ -415,7 +422,7 @@ class PolygonRecheckTest : RobolectricTest() {
 
         TestListenableWorkerBuilder<PolygonRecheckWorker>(applicationMock).build().doWork()
 
-        coVerify(exactly = 0) { mockController.onCoarseExit(any(), any(), any(), any()) }
+        coVerify(exactly = 0) { mockController.onCoarseExit(any(), any(), any(), any(), any()) }
     }
 
     @Test
@@ -432,7 +439,7 @@ class PolygonRecheckTest : RobolectricTest() {
 
         TestListenableWorkerBuilder<PolygonRecheckWorker>(applicationMock).build().doWork()
 
-        coVerify(exactly = 0) { mockController.onCoarseExit(any(), any(), any(), any()) }
+        coVerify(exactly = 0) { mockController.onCoarseExit(any(), any(), any(), any(), any()) }
     }
 
     @Test
@@ -449,7 +456,7 @@ class PolygonRecheckTest : RobolectricTest() {
 
         TestListenableWorkerBuilder<PolygonRecheckWorker>(applicationMock).build().doWork()
 
-        coVerify(exactly = 0) { mockController.onCoarseExit(any(), any(), any(), any()) }
+        coVerify(exactly = 0) { mockController.onCoarseExit(any(), any(), any(), any(), any()) }
     }
 
     @Test
@@ -528,10 +535,295 @@ class PolygonRecheckTest : RobolectricTest() {
         verify { mockStore.activatePolygon(VENUE_ID) }
     }
 
-    private fun controller(scheduler: PolygonRecheckScheduler) = PolygonGeofenceServiceController(
+    @Test
+    fun worker_givenTheCatalogFillsDuringRetirement_expectTheScheduleIsReasserted() = runTest {
+        // Raised by Shahroz on #896 with a reproduction: a sync scheduled the unique periodic work
+        // after this run read an empty catalog, and the retirement cancelled that newer schedule.
+        // His run expected [schedule] and got [schedule, cancel]. What is left behind is no
+        // periodic re-check until another sync, which is the stationary-device gap this worker is
+        // for.
+        //
+        // Fixed by ordering rather than by narrowing: cancel, re-read, and re-assert if the
+        // catalog filled. Modelled as a catalog that is empty on the first read and populated on
+        // the re-read, which is the interleaving where the sync's write beat the re-read.
+        var reads = 0
+        every { mockStore.getRoutableRegisteredIds() } answers {
+            reads++
+            if (reads == 1) emptySet() else setOf(VENUE_ID)
+        }
+        every { mockStore.getCachedRegions() } returns listOf(venueRegion())
+
+        val result = TestListenableWorkerBuilder<PolygonRecheckWorker>(applicationMock)
+            .build()
+            .doWork()
+
+        result shouldBeEqualTo ListenableWorker.Result.success()
+        reads shouldBeEqualTo 2
+        // Order, not counts: cancelling after the re-assert would leave nothing scheduled and a
+        // count assertion would pass either way.
+        verifyOrder {
+            mockRecheckScheduler.cancel()
+            mockRecheckScheduler.schedule()
+        }
+        verify(exactly = 1) { mockRecheckScheduler.schedule() }
+        // Still asks for no fix: this run read an empty catalog and has nothing to re-check.
+        coVerify(exactly = 0) { mockFreshFix.awaitFreshFix(any(), any()) }
+    }
+
+    @Test
+    fun worker_expectTheOwnershipSnapshotIsTakenBeforeTheCatalogReads() = runTest {
+        // Raised by Shahroz on #896 with a reproduction: the token was read after the routable
+        // catalog and the permission check, so a teardown landing during that work was captured as
+        // though it had always been current. The run then handed over the post-teardown token,
+        // matched it, and re-armed the polygon teardown had just removed.
+        //
+        // Both halves of the snapshot are pinned here, because the user generation was read late
+        // for the same reason and carries the same defect: a catalog read for the outgoing user
+        // attributed to the incoming one. Stubs that move the way a teardown and an identify would,
+        // driven from the FIRST store read, so the capture has to precede it.
+        var teardowns = 3L
+        var generation = 7L
+        every { mockController.teardownGeneration() } answers { teardowns }
+        every { mockStore.userStateGeneration() } answers { generation }
+        every { mockStore.getRoutableRegisteredIds() } answers {
+            teardowns = 4L
+            generation = 8L
+            setOf(VENUE_ID)
+        }
+        every { mockStore.getCachedRegions() } returns listOf(venueRegion())
+        val fix = fixAt(VENUE_LAT, VENUE_LNG)
+        coEvery { mockFreshFix.awaitFreshFix(any(), any()) } returns fix
+
+        TestListenableWorkerBuilder<PolygonRecheckWorker>(applicationMock).build().doWork()
+
+        coVerify {
+            mockController.activate(
+                polygonId = VENUE_ID,
+                triggeringLocation = fix,
+                expectedUserStateGeneration = 7L,
+                expectedRegionRevision = null,
+                expectedTeardownGeneration = 3L
+            )
+        }
+        coVerify(exactly = 0) {
+            mockController.activate(any(), any(), any(), any(), expectedTeardownGeneration = 4L)
+        }
+        coVerify(exactly = 0) {
+            mockController.activate(
+                polygonId = any(),
+                triggeringLocation = any(),
+                expectedUserStateGeneration = 8L,
+                expectedRegionRevision = any(),
+                expectedTeardownGeneration = any()
+            )
+        }
+    }
+
+    @Test
+    fun activate_givenATeardownLandsAfterTheEarlyCheck_expectTheLockedActivationRefuses() = runTest {
+        // Raised by Shahroz on #896, reproduced on the latest head. The suspend entry checked the
+        // token and then called the locked activation without it. The registration and dedupe reads
+        // in between take and release the lock, so a teardown landing in that gap met no further
+        // check and the polygon went back into the active set.
+        //
+        // The teardown is driven from the first registration read, which is the gap itself, so the
+        // interleaving is deterministic rather than raced. A real teardown on another thread would
+        // block on the lock instead of running inside that read, but for the check this defeats
+        // the two are indistinguishable: the generation has moved before the lock is retaken. Not
+        // a lock-freedom fixture, though: under reentrancy stopAll's reporting runs while this
+        // caller still holds the lock, so read it only for the assertion it makes.
+        every { mockStore.getRoutableRegisteredIds() } returns setOf(VENUE_ID)
+        every { mockStore.getCachedRegions() } returns listOf(venueRegion())
+        every { mockStore.activeUserSessionId() } returns "user-1"
+        var subject: PolygonGeofenceServiceController? = null
+        var tornDown = false
+        every { mockStore.getCachedRegion(VENUE_ID) } answers {
+            if (!tornDown) {
+                tornDown = true
+                subject?.stopAll()
+            }
+            venueRegion()
+        }
+        val mockEngine: PolygonLocationEngine = mockk(relaxed = true)
+        val controller = controller(mockRecheckScheduler, mockEngine).also { subject = it }
+        val token = controller.teardownGeneration()
+
+        controller.activate(
+            polygonId = VENUE_ID,
+            triggeringLocation = fixAt(VENUE_LAT, VENUE_LNG),
+            expectedUserStateGeneration = 7L,
+            expectedRegionRevision = null,
+            expectedTeardownGeneration = token
+        )
+
+        tornDown shouldBeEqualTo true
+        verify(exactly = 0) { mockStore.activatePolygon(VENUE_ID) }
+        // A refused activation must not go on to judge its fix either, or the polygon it was
+        // refused for could still have an arrival committed against it.
+        coVerify(exactly = 0) { mockEngine.processResponsiveLocation(any(), any()) }
+    }
+
+    @Test
+    fun onCoarseExit_givenATeardownSinceTheTokenWasTaken_expectNoReArm() = runTest {
+        // Raised by Shahroz on #896. The departure path re-arms: a polygon still in the entered set
+        // is kept active instead of being deactivated. Teardown retains the entered set on purpose,
+        // so a scheduled departure dispatched before stopAll() and run after it put the polygon
+        // back and restarted approach sampling, which is the teardown undone by its own exit path.
+        every { mockStore.getRoutableRegisteredIds() } returns setOf(VENUE_ID)
+        every { mockStore.getCachedRegion(VENUE_ID) } returns venueRegion()
+        every { mockStore.activeUserSessionId() } returns "user-1"
+        every { mockStore.getCoarseInsidePolygonIds() } returns emptySet()
+        every { mockStore.getEnteredIds() } returns setOf(VENUE_ID)
+        val controller = controller(mockRecheckScheduler)
+        val tokenBeforeTeardown = controller.teardownGeneration()
+
+        controller.stopAll()
+        controller.onCoarseExit(
+            polygonId = VENUE_ID,
+            triggeringLocation = fixNorthOfVenue(300.0, accuracyMeters = 20.0f),
+            expectedUserStateGeneration = 7L,
+            expectedRegionRevision = null,
+            expectedTeardownGeneration = tokenBeforeTeardown
+        )
+
+        verify(exactly = 0) { mockStore.activatePolygon(VENUE_ID) }
+        // Refused before it records anything. Teardown retains the registrations, so without a
+        // token check this dead departure passes the registration check, records coarse-outside,
+        // and reaches evaluateCallbackFix, which can open the GPS for a finished session.
+        verify(exactly = 0) { mockStore.recordPolygonCoarseOutside(VENUE_ID) }
+    }
+
+    @Test
+    fun onCoarseExit_givenATeardownLandsBeforeTheWrite_expectNoCoarseStateAndNoFixRequest() =
+        runTest {
+            // Raised by Bugbot on #896 once the re-arm was guarded: the tail check leaves the
+            // write and the fix evaluation before it unguarded, so a departure whose session ended
+            // mid-pass still recorded coarse state and could open the GPS for it.
+            //
+            // The teardown is driven from the pre-lock registration read, so it lands after the
+            // cheap bail has already passed and the locked check is the only one left.
+            every { mockStore.getRoutableRegisteredIds() } returns setOf(VENUE_ID)
+            every { mockStore.activeUserSessionId() } returns "user-1"
+            every { mockStore.getCoarseInsidePolygonIds() } returns emptySet()
+            every { mockStore.getEnteredIds() } returns setOf(VENUE_ID)
+            var subject: PolygonGeofenceServiceController? = null
+            var tornDown = false
+            every { mockStore.getCachedRegion(VENUE_ID) } answers {
+                if (!tornDown) {
+                    tornDown = true
+                    subject?.stopAll()
+                }
+                venueRegion()
+            }
+            val mockEngine: PolygonLocationEngine = mockk(relaxed = true)
+            val controller = controller(mockRecheckScheduler, mockEngine).also { subject = it }
+            val token = controller.teardownGeneration()
+
+            controller.onCoarseExit(
+                polygonId = VENUE_ID,
+                triggeringLocation = fixNorthOfVenue(300.0, accuracyMeters = 20.0f),
+                expectedUserStateGeneration = 7L,
+                expectedRegionRevision = null,
+                expectedTeardownGeneration = token
+            )
+
+            tornDown shouldBeEqualTo true
+            verify(exactly = 0) { mockStore.recordPolygonCoarseOutside(VENUE_ID) }
+            coVerify(exactly = 0) { mockEngine.processResponsiveLocation(any(), any()) }
+            verify(exactly = 0) { mockStore.activatePolygon(VENUE_ID) }
+        }
+
+    @Test
+    fun onCoarseExit_givenATeardownLandsWhileTheFixIsEvaluated_expectNoReArm() = runTest {
+        // The window the check above cannot cover. evaluateCallbackFix suspends, so a teardown
+        // that was not yet current when the coarse-outside write happened can be current by the
+        // time the tail decides whether to keep the polygon active. Driven from the evaluation
+        // itself, which is exactly where the suspension is.
+        every { mockStore.getRoutableRegisteredIds() } returns setOf(VENUE_ID)
+        every { mockStore.getCachedRegion(VENUE_ID) } returns venueRegion()
+        every { mockStore.activeUserSessionId() } returns "user-1"
+        every { mockStore.getCoarseInsidePolygonIds() } returns emptySet()
+        every { mockStore.getEnteredIds() } returns setOf(VENUE_ID)
+        var subject: PolygonGeofenceServiceController? = null
+        var tornDown = false
+        val mockEngine: PolygonLocationEngine = mockk(relaxed = true)
+        coEvery { mockEngine.processResponsiveLocation(any(), any()) } coAnswers {
+            if (!tornDown) {
+                tornDown = true
+                subject?.stopAll()
+            }
+            PolygonEvaluationOutcome.NOTHING
+        }
+        val controller = controller(mockRecheckScheduler, mockEngine).also { subject = it }
+        val token = controller.teardownGeneration()
+
+        controller.onCoarseExit(
+            polygonId = VENUE_ID,
+            triggeringLocation = fixNorthOfVenue(300.0, accuracyMeters = 20.0f),
+            expectedUserStateGeneration = 7L,
+            expectedRegionRevision = null,
+            expectedTeardownGeneration = token
+        )
+
+        tornDown shouldBeEqualTo true
+        verify(exactly = 0) { mockStore.activatePolygon(VENUE_ID) }
+    }
+
+    @Test
+    fun onCoarseExit_givenNoTeardown_expectACommittedArrivalStaysActive() = runTest {
+        // The control for the two above. The re-arm this guards is the correct behaviour when no
+        // teardown happened: an already-committed arrival keeps its session so the business EXIT
+        // has something to run against. Without this, the guard could be an off switch for the
+        // whole departure path and both tests above would still pass.
+        every { mockStore.getRoutableRegisteredIds() } returns setOf(VENUE_ID)
+        every { mockStore.getCachedRegion(VENUE_ID) } returns venueRegion()
+        every { mockStore.activeUserSessionId() } returns "user-1"
+        every { mockStore.getCoarseInsidePolygonIds() } returns emptySet()
+        every { mockStore.getEnteredIds() } returns setOf(VENUE_ID)
+        val controller = controller(mockRecheckScheduler)
+
+        controller.onCoarseExit(
+            polygonId = VENUE_ID,
+            triggeringLocation = fixNorthOfVenue(300.0, accuracyMeters = 20.0f),
+            expectedUserStateGeneration = 7L,
+            expectedRegionRevision = null,
+            expectedTeardownGeneration = controller.teardownGeneration()
+        )
+
+        verify { mockStore.activatePolygon(VENUE_ID) }
+    }
+
+    @Test
+    fun worker_expectTheTeardownTokenReachesTheDeparturePathToo() = runTest {
+        // Forwarding the token to activate() alone fixed the arrival half and left the departure
+        // half able to undo a teardown, so the worker has to hand the same token to both.
+        every { mockStore.getRoutableRegisteredIds() } returns setOf(VENUE_ID)
+        every { mockStore.getCachedRegions() } returns listOf(venueRegion())
+        every { mockStore.getActivePolygonIds() } returns setOf(VENUE_ID)
+        every { mockController.teardownGeneration() } returns 3L
+        val fix = fixNorthOfVenue(300.0, accuracyMeters = 20.0f)
+        coEvery { mockFreshFix.awaitFreshFix(any(), any()) } returns fix
+
+        TestListenableWorkerBuilder<PolygonRecheckWorker>(applicationMock).build().doWork()
+
+        coVerify {
+            mockController.onCoarseExit(
+                polygonId = VENUE_ID,
+                triggeringLocation = fix,
+                expectedUserStateGeneration = any(),
+                expectedRegionRevision = null,
+                expectedTeardownGeneration = 3L
+            )
+        }
+    }
+
+    private fun controller(
+        scheduler: PolygonRecheckScheduler,
+        engine: PolygonLocationEngine = mockk(relaxed = true)
+    ) = PolygonGeofenceServiceController(
         context = applicationMock,
         store = mockStore,
-        engine = mockk(relaxed = true),
+        engine = engine,
         approachMonitor = mockk(relaxed = true),
         manager = mockk(relaxed = true),
         secureUserStore = mockSecureUserStore,

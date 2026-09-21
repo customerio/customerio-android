@@ -608,7 +608,13 @@ internal class PolygonGeofenceServiceController(
     private data class CallbackFix(val fix: Location, val requestSessionElapsedMs: Long?)
 
     private sealed interface CallbackFixDecision {
-        data class Reuse(val fix: Location) : CallbackFixDecision
+        /**
+         * [requestSessionElapsedMs] is the token of the request that produced [fix], read under
+         * the same lock as the reuse decision. A reused fix is real evidence about every fence it
+         * is judged against, so it has to stay recordable; without a token the write could not be
+         * checked against a teardown and had to be taken on trust.
+         */
+        data class Reuse(val fix: Location, val requestSessionElapsedMs: Long?) : CallbackFixDecision
         data object Request : CallbackFixDecision
         data object WithinCooldown : CallbackFixDecision
         data object UnchangedPosition : CallbackFixDecision
@@ -883,6 +889,7 @@ internal class PolygonGeofenceServiceController(
         recordEscalationOutcomes(
             requested = needing,
             stillUndecided = after.undecidedPolygonIds,
+            evaluated = after.evaluatedPolygonIds,
             fix = fresh.fix,
             atElapsedMs = SystemClock.elapsedRealtime(),
             requestSessionElapsedMs = fresh.requestSessionElapsedMs
@@ -922,7 +929,7 @@ internal class PolygonGeofenceServiceController(
             when {
                 // Reuse first: a fix already in hand costs nothing, so the suppression below has
                 // no reason to refuse it.
-                reusable != null -> CallbackFixDecision.Reuse(reusable)
+                reusable != null -> CallbackFixDecision.Reuse(reusable, previous)
                 // The cooldown stays ahead of the suppression below, so this only ever changes a
                 // pass that would otherwise have asked. Reversing them would relabel a rate-limited
                 // skip and change what a capture says about behaviour that was already correct.
@@ -937,7 +944,8 @@ internal class PolygonGeofenceServiceController(
             }
         }
         when (decision) {
-            is CallbackFixDecision.Reuse -> return CallbackFix(decision.fix, requestSessionElapsedMs = null)
+            is CallbackFixDecision.Reuse ->
+                return CallbackFix(decision.fix, decision.requestSessionElapsedMs)
             CallbackFixDecision.WithinCooldown -> {
                 logger.logPolygonFreshFixSkipped(PolygonFreshFixSkip.WITHIN_COOLDOWN)
                 return null
@@ -959,8 +967,9 @@ internal class PolygonGeofenceServiceController(
             // NONE_ARRIVED; only the memo changes.
             if (triggeringLocation != null) {
                 recordEscalationOutcomes(
-                    requested = undecidedPolygonIds,
-                    stillUndecided = undecidedPolygonIds,
+                    requested = needingPolygonIds,
+                    stillUndecided = needingPolygonIds,
+                    evaluated = needingPolygonIds,
                     fix = triggeringLocation,
                     atElapsedMs = SystemClock.elapsedRealtime(),
                     requestSessionElapsedMs = requestedAt
@@ -1030,6 +1039,7 @@ internal class PolygonGeofenceServiceController(
     private fun recordEscalationOutcomes(
         requested: Set<String>,
         stillUndecided: Set<String>,
+        evaluated: Set<String>,
         fix: Location,
         atElapsedMs: Long,
         requestSessionElapsedMs: Long?
@@ -1040,15 +1050,26 @@ internal class PolygonGeofenceServiceController(
         // fix for the whole retry window. Keyed on the in-flight request rather than the store
         // generation, exactly as the lastFreshFix memo is, because a reset that clears this need
         // not advance a generation.
-        if (requestSessionElapsedMs != null && lastFreshFixRequestElapsedMs != requestSessionElapsedMs) {
+        //
+        // A reused fix reaches here with the token of the request that produced it, so the same
+        // comparison covers it. Refusing to record it instead would have thrown away the batch
+        // case this path exists for: one request answers every fence in the batch, and each of
+        // them is genuinely undecided at this position. A null token means no request can be
+        // named at all, which nothing should be written on.
+        if (requestSessionElapsedMs == null || lastFreshFixRequestElapsedMs != requestSessionElapsedMs) {
             return@synchronized
         }
         requested.forEach { id ->
-            if (id in stillUndecided) {
-                futileEscalations[id] = FutileEscalation(fix, atElapsedMs)
-            } else {
+            when {
+                id in stillUndecided -> futileEscalations[id] = FutileEscalation(fix, atElapsedMs)
                 // A fix that decided says this position is answerable after all.
-                futileEscalations.remove(id)
+                id in evaluated -> futileEscalations.remove(id)
+                // Judged by neither branch: the route processor skipped this fence because the fix
+                // was not strictly newer than the one it last saw for it, so the pass says nothing
+                // about this position. Clearing here read that silence as a decision and let the
+                // parked loop resume on the next wake, which is the waste this whole path exists
+                // to stop.
+                else -> Unit
             }
         }
     }

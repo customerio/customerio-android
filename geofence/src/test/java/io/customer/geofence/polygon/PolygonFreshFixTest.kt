@@ -532,6 +532,46 @@ class PolygonFreshFixTest : RobolectricTest() {
     }
 
     @Test
+    fun activate_givenTheRequestedFixIsOneTheFenceAlreadySaw_expectAnEarlierSuppressionSurvives() = runTest {
+        // Raised by Shahroz on #899, and not the aborted-pass case above: this pass is accepted, so
+        // the acceptedFix guard cannot catch it. The route processor skips a fence whose fix is not
+        // strictly newer than the one it last saw for it, leaving no record for that fence at all.
+        // Reading that silence as "decided" dropped a memo the pass had said nothing about, and the
+        // parked loop resumed on the next wake.
+        //
+        // Park and escalate futilely so a memo exists, move 150 m so the next wake is allowed to
+        // ask, and let that request answer with the stamp its own triggering fix already recorded
+        // for the fence. Returning to the parked spot must still be suppressed.
+        //
+        // The single lambda serves both passes because the triggering fixes differ in age: the
+        // parked fix is 2 s old so the answer is newer and gets judged, while the 150 m fix carries
+        // the current stamp so the answer ties with it and the fence is skipped.
+        val freshFix = CountingCoarseFreshFix { coarseFixInsideTheVenue(SystemClock.elapsedRealtimeNanos()) }
+        val controller = controller(freshFix)
+
+        controller.activate(VENUE_ID, coarseFixInsideTheVenue(), store.userStateGeneration(), null)
+        ShadowSystemClock.advanceBy(Duration.ofSeconds(31))
+        controller.activate(
+            VENUE_ID,
+            fixMetresNorthOfTheVenue(150.0),
+            store.userStateGeneration(),
+            null
+        )
+        ShadowSystemClock.advanceBy(Duration.ofSeconds(31))
+        controller.activate(
+            VENUE_ID,
+            coarseFixInsideTheVenue(SystemClock.elapsedRealtimeNanos()),
+            store.userStateGeneration(),
+            null
+        )
+
+        freshFix.requests shouldBeEqualTo 2
+        verify(exactly = 1) {
+            mockLogger.logPolygonFreshFixSkipped(PolygonFreshFixSkip.UNCHANGED_POSITION)
+        }
+    }
+
+    @Test
     fun activate_givenAResetWhileSuspendedAndNoFix_expectNoMemoFromTheOldRequest() = runTest {
         // Raised by Shahroz on #899. The memo is written after awaitFreshFix suspended, and a
         // teardown in that window clears futileEscalations. This is the path the aborted-pass guard
@@ -565,6 +605,76 @@ class PolygonFreshFixTest : RobolectricTest() {
         )
 
         freshFix.requests shouldBeEqualTo 2
+    }
+
+    @Test
+    fun activate_givenAResetWhileAReusedFixIsEvaluated_expectNoMemoFromTheOldSession() = runTest {
+        // Raised by Shahroz on #899. A reused fix carried no request token, so the memo written
+        // after its evaluation could not be checked against a teardown: the continuation wrote the
+        // previous session's suppression straight back, and the next session's first callback at
+        // that position skipped its own precise request for the whole retry window.
+        //
+        // The interleaving is built explicitly because it does not fall out of an ordinary batch. A
+        // reused fix is normally skipped by every fence, since the triggering fix of the pass that
+        // reuses it is newer and the processor only judges a strictly newer stamp. The exception is
+        // a fence that became active during this pass, whose stamp is unset: a callback carrying a
+        // fix older than the last requested one then leaves the reused fix newer for that fence
+        // alone, so it is judged and recorded.
+        val base = SystemClock.elapsedRealtimeNanos()
+        val freshFix = CountingCoarseFreshFix { coarseFixInsideTheVenue(elapsedRealtimeNanos = base) }
+        val controller = controller(freshFix)
+
+        var neighbourUndecidedCalls = 0
+        every {
+            mockLogger.logPolygonUndecided(any(), any(), any(), any(), any())
+        } answers {
+            if (firstArg<String>() == NEIGHBOUR_ID) {
+                neighbourUndecidedCalls++
+                // The second one is the reused fix's own evaluation, which is the window the memo
+                // is written after.
+                if (neighbourUndecidedCalls == 2) controller.invalidatePersistedCoarseState()
+            }
+        }
+
+        controller.activate(
+            VENUE_ID,
+            coarseFixInsideTheVenue(elapsedRealtimeNanos = base - 5_000_000_000L),
+            store.userStateGeneration(),
+            null
+        )
+
+        // Newly active, so the processor has no stamp for it and the reused fix can still be
+        // judged against it.
+        store.saveCachedRegions(listOf(venueRegion(), neighbourRegion()))
+        store.saveRegisteredIds(setOf(VENUE_ID, NEIGHBOUR_ID))
+        store.saveRoutableRegisteredIds(setOf(VENUE_ID, NEIGHBOUR_ID))
+
+        controller.activate(
+            NEIGHBOUR_ID,
+            coarseFixInsideTheVenue(elapsedRealtimeNanos = base - 3_000_000_000L),
+            store.userStateGeneration(),
+            null
+        )
+
+        // A new session at the same place must get its own first request.
+        store.clearAll()
+        every { secureUserStore.getUserId() } returns USER_ID
+        store.beginUserSession(USER_ID)
+        store.saveCachedRegions(listOf(venueRegion(), neighbourRegion()))
+        store.saveRegisteredIds(setOf(VENUE_ID, NEIGHBOUR_ID))
+        store.saveRoutableRegisteredIds(setOf(VENUE_ID, NEIGHBOUR_ID))
+        ShadowSystemClock.advanceBy(Duration.ofSeconds(31))
+        controller.activate(
+            NEIGHBOUR_ID,
+            coarseFixInsideTheVenue(SystemClock.elapsedRealtimeNanos()),
+            store.userStateGeneration(),
+            null
+        )
+
+        freshFix.requests shouldBeEqualTo 2
+        verify(exactly = 0) {
+            mockLogger.logPolygonFreshFixSkipped(PolygonFreshFixSkip.UNCHANGED_POSITION)
+        }
     }
 
     @Test

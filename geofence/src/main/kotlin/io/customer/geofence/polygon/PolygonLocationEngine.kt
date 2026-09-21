@@ -27,11 +27,18 @@ import kotlinx.coroutines.sync.withLock
  * [pendingArrivalPolygonIds] is the same cue for the opposite verdict. Those fences decided ENTER
  * and are holding it for a second measurement, which nothing in the background supplies inside the
  * corroboration window: `cor=true` appears in no capture, so every marginal arrival was dropped.
+ *
+ * [evaluatedPolygonIds] is every fence this pass actually judged. A fence the route processor
+ * skipped, because the fix is not strictly newer than the one it last saw for it, appears in
+ * neither this set nor [undecidedPolygonIds], so a caller cannot read absence from the undecided
+ * set as a decision. [acceptedFix] cannot answer that: it is set once for the pass, before any
+ * fence is judged.
  */
 internal data class PolygonEvaluationOutcome(
     val acceptedFix: Boolean,
     val undecidedPolygonIds: Set<String>,
-    val pendingArrivalPolygonIds: Set<String> = emptySet()
+    val pendingArrivalPolygonIds: Set<String> = emptySet(),
+    val evaluatedPolygonIds: Set<String> = emptySet()
 ) {
     internal companion object {
         val NOTHING = PolygonEvaluationOutcome(acceptedFix = false, undecidedPolygonIds = emptySet())
@@ -238,6 +245,7 @@ internal class PolygonLocationEngine(
         var acceptedFix = false
         val undecidedPolygonIds = mutableSetOf<String>()
         val pendingArrivalPolygonIds = mutableSetOf<String>()
+        val evaluatedPolygonIds = mutableSetOf<String>()
         for (location in locations.sortedBy(Location::getElapsedRealtimeNanos)) {
             if (store.userStateGeneration() != expectedUserStateGeneration) {
                 logger.logPolygonEvaluationSkipped(PolygonEvaluationSkip.USER_STATE_CHANGED)
@@ -305,6 +313,9 @@ internal class PolygonLocationEngine(
                 .mapTo(undecidedPolygonIds, PolygonRouteRecord.Undecided::geofenceId)
             routeOutcome.records.filterIsInstance<PolygonRouteRecord.ArrivalPending>()
                 .mapTo(pendingArrivalPolygonIds, PolygonRouteRecord.ArrivalPending::geofenceId)
+            // Every record names the fence it judged, so the records are the pass's own statement
+            // of what it looked at. A skipped fence produces none.
+            routeOutcome.records.mapTo(evaluatedPolygonIds, PolygonRouteRecord::geofenceId)
             routeOutcome.records.forEach(::emitRouteRecord)
             routeOutcome.detections.forEach { detection ->
                 if (store.userStateGeneration() != expectedUserStateGeneration) {
@@ -348,7 +359,8 @@ internal class PolygonLocationEngine(
         PolygonEvaluationOutcome(
             acceptedFix = acceptedFix,
             undecidedPolygonIds = undecidedPolygonIds,
-            pendingArrivalPolygonIds = pendingArrivalPolygonIds
+            pendingArrivalPolygonIds = pendingArrivalPolygonIds,
+            evaluatedPolygonIds = evaluatedPolygonIds
         )
     }
 

@@ -539,7 +539,11 @@ class PolygonRecheckTest : RobolectricTest() {
         // check and the polygon went back into the active set.
         //
         // The teardown is driven from the first registration read, which is the gap itself, so the
-        // interleaving is deterministic rather than raced.
+        // interleaving is deterministic rather than raced. A real teardown on another thread would
+        // block on the lock instead of running inside that read, but for the check this defeats
+        // the two are indistinguishable: the generation has moved before the lock is retaken. Not
+        // a lock-freedom fixture, though: under reentrancy stopAll's reporting runs while this
+        // caller still holds the lock, so read it only for the assertion it makes.
         every { mockStore.getRoutableRegisteredIds() } returns setOf(VENUE_ID)
         every { mockStore.getCachedRegions() } returns listOf(venueRegion())
         every { mockStore.activeUserSessionId() } returns "user-1"
@@ -595,9 +599,10 @@ class PolygonRecheckTest : RobolectricTest() {
         )
 
         verify(exactly = 0) { mockStore.activatePolygon(VENUE_ID) }
-        // Refused before it records anything, which is what the pre-lock check buys: teardown
-        // clears the dedupe memo, and a dead departure writing its timestamp back into it would
-        // suppress the next real transition for this polygon as a duplicate.
+        // Refused before it records anything, which is what the pre-lock check buys. Teardown
+        // retains the registrations, so without it this dead departure records coarse-outside and
+        // goes on to evaluateCallbackFix, which can open the GPS for a polygon whose session is
+        // over.
         verify(exactly = 0) { mockStore.recordPolygonCoarseOutside(VENUE_ID) }
     }
 

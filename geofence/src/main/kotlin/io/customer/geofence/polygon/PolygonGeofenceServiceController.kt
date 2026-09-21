@@ -66,15 +66,20 @@ internal class PolygonGeofenceServiceController(
     /** Captured by a scheduled wake before it waits, and handed back to [activate] afterwards. */
     fun teardownGeneration(): Long = synchronized(controllerLock) { teardownGeneration }
 
-    private fun isAfterTeardown(expected: Long?): Boolean =
+    private fun isAfterTeardown(expected: Long?): Boolean = expected != null &&
         synchronized(controllerLock) { isAfterTeardownLocked(expected) }
 
     /**
      * For callers already inside [controllerLock], so the check cannot be separated from the state
      * it guards. Every teardown bumps the generation under this same lock, which is what makes a
-     * check made inside it one no teardown can land behind. The checks made before taking the lock
-     * are worth keeping anyway: they stop a dead wake from churning the dedupe memo on its way to
-     * being refused.
+     * check made inside it one no teardown can land behind.
+     *
+     * The checks made before taking the lock are cost control, and earn their place separately: a
+     * teardown retains the registrations, so a dead wake otherwise passes the registration check,
+     * records coarse-outside, and reaches [evaluateCallbackFix], which can open the GPS for a
+     * polygon whose session is over. It would also write its timestamp into the dedupe memo that
+     * the teardown just cleared, which suppresses a later real transition carrying an older stamp,
+     * though that needs a reordered or re-delivered callback and is the smaller case.
      */
     private fun isAfterTeardownLocked(expected: Long?): Boolean =
         expected != null && expected != teardownGeneration

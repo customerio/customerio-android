@@ -369,10 +369,15 @@ class PolygonDropVisibilityTest : RobolectricTest() {
         // A marginal ENTER holds; the next fix is too coarse to judge, which breaks the run of
         // agreeing fixes. That is the commonest way a hold ends and it had no record, so a capture
         // saw an arrival.pending with no counterpart and could not tell it from one still waiting.
+        //
+        // The coarse fix is at a different coordinate, about 2 m north. It used to repeat the held
+        // one, which is a re-emission of the same observation rather than a disagreeing fix, and
+        // that is now recorded as an echo instead of breaking the hold. A break needs a genuine
+        // second observation that cannot be judged, which is what this asserts.
         val processor = PolygonRouteProcessor()
         val fence = PolygonFence(VENUE_ID, PolygonGeometry.from(venueVertices()))
         val marginal = PolygonLocationSample(PolygonCoordinate(37.77455, -122.4194), 18.0)
-        val tooCoarse = PolygonLocationSample(PolygonCoordinate(37.77455, -122.4194), 120.0)
+        val tooCoarse = PolygonLocationSample(PolygonCoordinate(37.774568, -122.4194), 120.0)
 
         processor.process(listOf(fence), marginal, 1_000_000_000L, 0.0, emptyMap())
         val broken = processor.process(listOf(fence), tooCoarse, 6_000_000_000L, 0.0, emptyMap())

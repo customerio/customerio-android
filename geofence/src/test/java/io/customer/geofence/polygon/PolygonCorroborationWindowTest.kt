@@ -177,6 +177,40 @@ class PolygonCorroborationWindowTest {
     }
 
     @Test
+    fun process_givenACoarseReEmissionOfTheHeldPosition_expectItDoesNotBreakTheHold() {
+        // The interaction that decides whether asking for a precise fix helps at all. The requested
+        // fix comes back over the ceiling most of the time on this device, and a fix at the held
+        // coordinate carries no information about containment whichever side of the ceiling its
+        // accuracy label falls on. Reading it as evidence against the arrival destroys the hold
+        // within seconds of opening it, so the visit is lost faster than before it was asked for.
+        val processor = PolygonRouteProcessor()
+        processor.process(
+            fences = listOf(fence),
+            sample = sampleAt(insideFix),
+            elapsedRealtimeNanos = 0L,
+            fixAgeSeconds = 0.3,
+            committedStates = committedOutside
+        )
+        processor.process(
+            fences = listOf(fence),
+            sample = PolygonLocationSample(insideFix, horizontalAccuracyMeters = 100.0),
+            elapsedRealtimeNanos = 20_000_000_000L,
+            fixAgeSeconds = 0.1,
+            committedStates = committedOutside
+        )
+
+        val outcome = processor.process(
+            fences = listOf(fence),
+            sample = sampleAt(insideFixResampled),
+            elapsedRealtimeNanos = 40_000_000_000L,
+            fixAgeSeconds = 0.3,
+            committedStates = committedOutside
+        )
+
+        outcome.detections.map { it.transition } shouldBeEqualTo listOf(PolygonTransition.ENTER)
+    }
+
+    @Test
     fun process_givenTheSameMeasurementDeliveredTwice_expectNoConfirmation() {
         // The other half. The platform re-stamps a carried-forward sample, so the dedupe on
         // elapsed-realtime admits an echo as a new observation. Position and accuracy identical is

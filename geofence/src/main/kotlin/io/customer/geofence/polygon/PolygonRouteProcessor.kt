@@ -172,6 +172,17 @@ internal class PolygonRouteProcessor(
                 committedState == PolygonCommittedState.OUTSIDE && evidence == PolygonEvidence.ENTER ||
                     committedState == PolygonCommittedState.INSIDE && evidence == PolygonEvidence.EXIT
             if (!isTransitionEvidence) {
+                // Before breaking the run: a fix at the coordinate the hold is already counting is
+                // not evidence against the arrival, because it is not a new observation of where
+                // the device is. It usually arrives over the accuracy ceiling, which is what makes
+                // it read as disagreement, and on this device that is what the precise fix a hold
+                // asks for mostly returns. Reading it as a broken run destroyed the hold seconds
+                // after opening it and lost the visit faster than not asking at all.
+                echoOfHeldPosition(fence.id, sample, result, fixAgeSeconds, elapsedRealtimeNanos)
+                    ?.let { echo ->
+                        records += echo
+                        return@mapNotNull null
+                    }
                 // Breaks a run of agreeing arrival fixes: the requirement below is consecutive, and
                 // a fix too coarse to judge is not agreement.
                 val hadPendingArrival = arrivalConfirmations.hasPending(fence.id)
@@ -218,30 +229,32 @@ internal class PolygonRouteProcessor(
                     // The early return skips confirmArrival deliberately: an echo neither advances
                     // the run nor refreshes the hold's stamp, so it cannot buy time for a genuine
                     // fix arriving after the window.
-                    lastCountedSample[fence.id]?.coordinate == sample.coordinate -> {
-                        records += PolygonRouteRecord.ArrivalEcho(
-                            geofenceId = fence.id,
-                            signedBoundaryDistanceMeters = result.signedBoundaryDistanceMeters,
-                            horizontalAccuracyMeters = sample.horizontalAccuracyMeters,
-                            fixAgeSeconds = fixAgeSeconds,
-                            sinceCountedFixSeconds = arrivalConfirmationNanos[fence.id]
-                                ?.let { (elapsedRealtimeNanos - it).toDouble() / NANOS_PER_SECOND }
+                    else -> {
+                        val echo = echoOfHeldPosition(
+                            fence.id,
+                            sample,
+                            result,
+                            fixAgeSeconds,
+                            elapsedRealtimeNanos
                         )
-                        return@mapNotNull null
-                    }
-                    else -> confirmArrival(fence.id, committedState, evidence, elapsedRealtimeNanos, sample)
-                        ?: run {
-                            // Decided ENTER, held for a second fix. Without this record the branch
-                            // consumes a fix and emits nothing, which is indistinguishable in a
-                            // capture from a callback that never arrived.
-                            records += PolygonRouteRecord.ArrivalPending(
-                                geofenceId = fence.id,
-                                signedBoundaryDistanceMeters = result.signedBoundaryDistanceMeters,
-                                horizontalAccuracyMeters = sample.horizontalAccuracyMeters,
-                                fixAgeSeconds = fixAgeSeconds
-                            )
+                        if (echo != null) {
+                            records += echo
                             return@mapNotNull null
                         }
+                        confirmArrival(fence.id, committedState, evidence, elapsedRealtimeNanos, sample)
+                            ?: run {
+                                // Decided ENTER, held for a second fix. Without this record the
+                                // branch consumes a fix and emits nothing, which is
+                                // indistinguishable in a capture from a callback that never arrived.
+                                records += PolygonRouteRecord.ArrivalPending(
+                                    geofenceId = fence.id,
+                                    signedBoundaryDistanceMeters = result.signedBoundaryDistanceMeters,
+                                    horizontalAccuracyMeters = sample.horizontalAccuracyMeters,
+                                    fixAgeSeconds = fixAgeSeconds
+                                )
+                                return@mapNotNull null
+                            }
+                    }
                 }
                 // Departure keeps its clearance margin, so it needs no second opinion, and delaying
                 // it would report a visit as still running after it ended.
@@ -324,6 +337,36 @@ internal class PolygonRouteProcessor(
             arrivalConfirmationNanos.remove(polygonId)
             lastCountedSample.remove(polygonId)
         }
+    }
+
+    /**
+     * The record to emit when [sample] repeats the position [polygonId]'s hold is already counting,
+     * or null when it is a different position and the caller should carry on.
+     *
+     * Both callers then return without touching the run: such a fix can neither corroborate the
+     * arrival nor contradict it, because it is not a new observation of where the device is. Only
+     * the coordinate is compared, since that is the part the provider carries forward while it
+     * substitutes the accuracy.
+     *
+     * Null whenever no hold is live: [lastCountedSample] is derived, and
+     * [retireStaleArrivalConfirmation] has already run for this fence on this pass.
+     */
+    private fun echoOfHeldPosition(
+        polygonId: String,
+        sample: PolygonLocationSample,
+        result: PolygonEvidenceResult,
+        fixAgeSeconds: Double,
+        elapsedRealtimeNanos: Long
+    ): PolygonRouteRecord.ArrivalEcho? {
+        if (lastCountedSample[polygonId]?.coordinate != sample.coordinate) return null
+        return PolygonRouteRecord.ArrivalEcho(
+            geofenceId = polygonId,
+            signedBoundaryDistanceMeters = result.signedBoundaryDistanceMeters,
+            horizontalAccuracyMeters = sample.horizontalAccuracyMeters,
+            fixAgeSeconds = fixAgeSeconds,
+            sinceCountedFixSeconds = arrivalConfirmationNanos[polygonId]
+                ?.let { (elapsedRealtimeNanos - it).toDouble() / NANOS_PER_SECOND }
+        )
     }
 
     private fun confirmArrival(

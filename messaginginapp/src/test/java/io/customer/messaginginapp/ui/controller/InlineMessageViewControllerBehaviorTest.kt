@@ -26,6 +26,7 @@ import io.customer.messaginginapp.state.InAppMessagingAction
 import io.customer.messaginginapp.state.InAppMessagingManager
 import io.customer.messaginginapp.testutils.core.JUnitTest
 import io.customer.messaginginapp.testutils.extension.createInAppMessage
+import io.customer.messaginginapp.testutils.extension.pageRuleEquals
 import io.customer.messaginginapp.ui.bridge.EngineWebViewDelegate
 import io.customer.messaginginapp.ui.bridge.InAppHostViewDelegate
 import io.customer.messaginginapp.ui.bridge.InAppPlatformDelegate
@@ -202,6 +203,51 @@ class InlineMessageViewControllerBehaviorTest : JUnitTest() {
         controller.currentMessage.shouldBeNull()
         controller.contentWidthInDp.shouldBeNull()
         controller.contentHeightInDp.shouldBeNull()
+    }
+
+    @Test
+    fun handleMessageState_givenReadyMessageRemovedFromQueue_expectMessageHidden() {
+        val controller = setupGistAndCreateViewController()
+        val viewCallback = controller.initMockViewCallback()
+        val givenElementId = "test-element-id"
+        controller.elementId = givenElementId
+        val givenInAppMessage = createInAppMessage(queueId = "1", elementId = givenElementId)
+        messagingManager
+            .dispatch(InAppMessagingAction.EmbedMessages(listOf(givenInAppMessage)))
+            .flushCoroutines(scopeProviderStub.inAppLifecycleScope)
+
+        messagingManager
+            .dispatch(InAppMessagingAction.ReconcileInlineMessages(emptyList()))
+            .flushCoroutines(scopeProviderStub.inAppLifecycleScope)
+
+        assertMessageDismissedCalls(viewCallback = viewCallback)
+        controller.engineWebViewDelegate.shouldBeNull()
+        controller.currentMessage.shouldBeNull()
+    }
+
+    @Test
+    fun handleMessageState_givenRouteStopsMatching_expectMessageHidden() {
+        val controller = setupGistAndCreateViewController()
+        val viewCallback = controller.initMockViewCallback()
+        val givenElementId = "test-element-id"
+        controller.elementId = givenElementId
+        val givenInAppMessage = createInAppMessage(
+            queueId = "1",
+            elementId = givenElementId,
+            pageRule = pageRuleEquals("home")
+        )
+        messagingManager.dispatch(InAppMessagingAction.SetPageRoute("home"))
+        messagingManager
+            .dispatch(InAppMessagingAction.ProcessMessageQueue(listOf(givenInAppMessage)))
+            .flushCoroutines(scopeProviderStub.inAppLifecycleScope)
+
+        messagingManager
+            .dispatch(InAppMessagingAction.SetPageRoute("settings"))
+            .flushCoroutines(scopeProviderStub.inAppLifecycleScope)
+
+        assertMessageDismissedCalls(viewCallback = viewCallback)
+        controller.engineWebViewDelegate.shouldBeNull()
+        controller.currentMessage.shouldBeNull()
     }
 
     @Test

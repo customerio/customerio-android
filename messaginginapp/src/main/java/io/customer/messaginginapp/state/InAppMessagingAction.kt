@@ -16,6 +16,7 @@ internal sealed class InAppMessagingAction {
     data class SetPageRoute(val route: String) : InAppMessagingAction()
     data class LoadMessage(val message: Message, val position: MessagePosition? = null) : InAppMessagingAction()
     data class EmbedMessages(val messages: List<Message>) : InAppMessagingAction()
+    data class ReconcileInlineMessages(val messages: List<Message>) : InAppMessagingAction()
     data class SetUserIdentifier(val user: String) : InAppMessagingAction()
     data class SetAnonymousIdentifier(val anonymousId: String) : InAppMessagingAction()
     data class ProcessMessageQueue(val messages: List<Message>) : InAppMessagingAction()

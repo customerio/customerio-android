@@ -103,7 +103,11 @@ internal constructor(
     @UiThread
     private fun refreshViewState(state: InAppMessagingState) {
         val viewElementId = elementId ?: return
-        val inlineMessageState = state.queuedInlineMessagesState.getMessage(viewElementId) ?: return
+        val inlineMessageState = state.queuedInlineMessagesState.getMessage(viewElementId)
+        if (inlineMessageState == null) {
+            currentMessage?.let { message -> dismissMessage(message) {} }
+            return
+        }
 
         when (inlineMessageState) {
             is InlineMessageState.ReadyToEmbed -> {

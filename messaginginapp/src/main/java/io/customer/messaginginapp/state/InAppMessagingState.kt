@@ -3,6 +3,7 @@ package io.customer.messaginginapp.state
 import io.customer.messaginginapp.gist.GistEnvironment
 import io.customer.messaginginapp.gist.data.model.InboxMessage
 import io.customer.messaginginapp.gist.data.model.Message
+import io.customer.messaginginapp.gist.data.model.matchesRoute
 import io.customer.messaginginapp.type.ColorScheme
 
 internal data class InAppMessagingState(
@@ -150,6 +151,33 @@ internal data class QueuedInlineMessagesState(
                 put(entry.key, newState)
             }
         )
+    }
+
+    /**
+     * Reconciles messages waiting for a host view with the latest eligible queue snapshot.
+     *
+     * Messages that are already embedded stay active until they are dismissed or stop matching the
+     * current route. This prevents a displayed inline message from disappearing when displaying it
+     * removes it from the pending queue. Ready and dismissed states are rebuilt from the snapshot so
+     * an element does not remain available after the server removes its message.
+     */
+    fun reconcileMessages(messages: List<Message>, currentRoute: String?): QueuedInlineMessagesState {
+        val reconciledMessages = buildMap {
+            messagesByElementId.forEach { (elementId, state) ->
+                if (state is InlineMessageState.Embedded && state.message.matchesRoute(currentRoute)) {
+                    put(elementId, state)
+                }
+            }
+
+            messages.forEach { message ->
+                val elementId = message.embeddedElementId ?: return@forEach
+                if (message.matchesRoute(currentRoute) && get(elementId) !is InlineMessageState.Embedded) {
+                    put(elementId, InlineMessageState.ReadyToEmbed(message, elementId))
+                }
+            }
+        }
+
+        return copy(messagesByElementId = reconciledMessages)
     }
 
     fun getMessage(elementId: String): InlineMessageState? = messagesByElementId[elementId]

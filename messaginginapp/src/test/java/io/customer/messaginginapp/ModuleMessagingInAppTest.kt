@@ -10,9 +10,12 @@ import io.customer.commontest.extensions.random
 import io.customer.commontest.util.ScopeProviderStub
 import io.customer.messaginginapp.di.gistCustomAttributes
 import io.customer.messaginginapp.di.gistProvider
+import io.customer.messaginginapp.di.inAppMessagingManager
 import io.customer.messaginginapp.gist.data.model.Message
 import io.customer.messaginginapp.gist.data.model.MessagePosition
 import io.customer.messaginginapp.gist.presentation.GistProvider
+import io.customer.messaginginapp.state.InAppMessagingAction
+import io.customer.messaginginapp.state.MessageBuilderMock.createMessage
 import io.customer.messaginginapp.testutils.core.JUnitTest
 import io.customer.messaginginapp.testutils.extension.createInAppMessage
 import io.customer.messaginginapp.type.InAppEventListener
@@ -30,7 +33,15 @@ import io.mockk.slot
 import io.mockk.spyk
 import io.mockk.verify
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.take
+import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
 internal class ModuleMessagingInAppTest : JUnitTest() {
@@ -137,6 +148,57 @@ internal class ModuleMessagingInAppTest : JUnitTest() {
 
         // verify that the module's dismissMessage method was called
         assertCalledOnce { inAppMessagesProviderMock.dismissMessage() }
+    }
+
+    @Test
+    fun observeInlineMessageAvailability_givenMessageStateChanges_expectCurrentAvailability() = runTest {
+        val elementId = String.random
+        val message = createMessage(elementId = elementId)
+        val availability = module.observeInlineMessageAvailability(elementId)
+        val manager = SDKComponent.inAppMessagingManager
+
+        assertFalse(availability.first())
+
+        manager.dispatch(InAppMessagingAction.EmbedMessages(listOf(message)))
+        assertTrue(availability.first())
+
+        manager.dispatch(InAppMessagingAction.DisplayMessage(message))
+        assertTrue(availability.first())
+
+        manager.dispatch(InAppMessagingAction.DismissMessage(message))
+        assertFalse(availability.first())
+    }
+
+    @Test
+    fun observeInlineMessageAvailability_givenRouteStopsMatching_expectUnavailable() = runTest {
+        val elementId = String.random
+        val message = createMessage(elementId = elementId, routeRule = "home/.*")
+        val manager = SDKComponent.inAppMessagingManager
+        manager.dispatch(InAppMessagingAction.SetPageRoute("home/feed"))
+        manager.dispatch(InAppMessagingAction.EmbedMessages(listOf(message)))
+
+        assertTrue(module.observeInlineMessageAvailability(elementId).first())
+
+        manager.dispatch(InAppMessagingAction.SetPageRoute("settings"))
+
+        assertFalse(module.observeInlineMessageAvailability(elementId).first())
+    }
+
+    @Test
+    @OptIn(ExperimentalCoroutinesApi::class)
+    fun observeInlineMessageAvailability_givenUnrelatedStateChanges_expectDistinctValues() = runTest {
+        val elementId = String.random
+        val message = createMessage(elementId = elementId)
+        val emissions = mutableListOf<Boolean>()
+        val collectionJob = launch(UnconfinedTestDispatcher(testScheduler)) {
+            module.observeInlineMessageAvailability(elementId).take(2).toList(emissions)
+        }
+
+        SDKComponent.inAppMessagingManager.dispatch(InAppMessagingAction.SetColorScheme(io.customer.messaginginapp.type.ColorScheme.DARK))
+        SDKComponent.inAppMessagingManager.dispatch(InAppMessagingAction.EmbedMessages(listOf(message)))
+        collectionJob.join()
+
+        assertEquals(listOf(false, true), emissions)
     }
 
     @Test

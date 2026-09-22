@@ -136,6 +136,13 @@ internal val inAppMessagingReducer: Reducer<InAppMessagingState> = { state, acti
             state.copy(queuedInlineMessagesState = newEmbeddedMessagesState)
         }
 
+        is InAppMessagingAction.ReconcileInlineMessages -> state.copy(
+            queuedInlineMessagesState = state.queuedInlineMessagesState.reconcileMessages(
+                messages = action.messages,
+                currentRoute = state.currentRoute
+            )
+        )
+
         is InAppMessagingAction.DisplayMessage -> {
             action.message.queueId?.let { queueId ->
                 // If the message should be tracked shown when it is displayed, add the queueId to shownMessageQueueIds.

@@ -23,16 +23,20 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import io.customer.android.sample.kotlin_compose.ui.theme.CustomerIoSDKTheme
 import io.customer.messaginginapp.compose.InlineInAppMessage
+import io.customer.messaginginapp.compose.rememberInlineMessageAvailability
 import io.customer.messaginginapp.type.InAppMessage
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun KotlinComposeInlineComponent(context: Context) {
+    val isCenterMessageAvailable by rememberInlineMessageAvailability("compose-sticky-center")
+
     /**
      * Helper function to handle in-app message actions consistently
      */
@@ -75,16 +79,18 @@ fun KotlinComposeInlineComponent(context: Context) {
                 )
 
                 // Middle inline in-app message with "inline" elementId to match XML
-                InlineInAppMessage(
-                    elementId = "compose-sticky-center",
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(start = 16.dp, end = 16.dp, top = 16.dp),
-                    progressTint = Color(0xFF03DAC5), // Using a custom teal color
-                    onAction = { message: InAppMessage, action: String, name: String ->
-                        handleMessageAction("Inline", message, action, name)
-                    }
-                )
+                if (isCenterMessageAvailable) {
+                    InlineInAppMessage(
+                        elementId = "compose-sticky-center",
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(start = 16.dp, end = 16.dp, top = 16.dp),
+                        progressTint = Color(0xFF03DAC5), // Using a custom teal color
+                        onAction = { message: InAppMessage, action: String, name: String ->
+                            handleMessageAction("Inline", message, action, name)
+                        }
+                    )
+                }
 
                 // Second profile card layout
                 ProfileCardPlaceholder()

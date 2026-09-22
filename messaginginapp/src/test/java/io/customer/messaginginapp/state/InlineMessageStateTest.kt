@@ -64,6 +64,78 @@ class InlineMessageStateTest : JUnitTest() {
     }
 
     @Test
+    fun reconcileInlineMessages_givenAvailableMessage_expectReadyStateAdded() {
+        val elementId = String.random
+        val message = createMessage(elementId = elementId, routeRule = "home/.*")
+        val initialState = InAppMessagingState(currentRoute = "home/feed")
+
+        val resultState = inAppMessagingReducer(
+            initialState,
+            InAppMessagingAction.ReconcileInlineMessages(listOf(message))
+        )
+
+        val inlineState = resultState.queuedInlineMessagesState.getMessage(elementId)
+        assertTrue(inlineState is InlineMessageState.ReadyToEmbed)
+        assertEquals(message, inlineState?.message)
+    }
+
+    @Test
+    fun reconcileInlineMessages_givenReadyMessageMissingFromQueue_expectStateRemoved() {
+        val elementId = String.random
+        val message = createMessage(elementId = elementId)
+        val initialState = InAppMessagingState(
+            queuedInlineMessagesState = QueuedInlineMessagesState().addMessage(message, elementId)
+        )
+
+        val resultState = inAppMessagingReducer(
+            initialState,
+            InAppMessagingAction.ReconcileInlineMessages(emptyList())
+        )
+
+        assertEquals(null, resultState.queuedInlineMessagesState.getMessage(elementId))
+    }
+
+    @Test
+    fun reconcileInlineMessages_givenEmbeddedMessageMissingFromQueue_expectStateRetained() {
+        val elementId = String.random
+        val message = createMessage(elementId = elementId, routeRule = "home/.*")
+        val queuedState = QueuedInlineMessagesState()
+            .addMessage(message, elementId)
+            .updateMessageState(message.queueId!!, InlineMessageState.Embedded(message, elementId))
+        val initialState = InAppMessagingState(
+            currentRoute = "home/feed",
+            queuedInlineMessagesState = queuedState
+        )
+
+        val resultState = inAppMessagingReducer(
+            initialState,
+            InAppMessagingAction.ReconcileInlineMessages(emptyList())
+        )
+
+        assertTrue(resultState.queuedInlineMessagesState.getMessage(elementId) is InlineMessageState.Embedded)
+    }
+
+    @Test
+    fun reconcileInlineMessages_givenEmbeddedMessageNoLongerMatchesRoute_expectStateRemoved() {
+        val elementId = String.random
+        val message = createMessage(elementId = elementId, routeRule = "home/.*")
+        val queuedState = QueuedInlineMessagesState()
+            .addMessage(message, elementId)
+            .updateMessageState(message.queueId!!, InlineMessageState.Embedded(message, elementId))
+        val initialState = InAppMessagingState(
+            currentRoute = "settings",
+            queuedInlineMessagesState = queuedState
+        )
+
+        val resultState = inAppMessagingReducer(
+            initialState,
+            InAppMessagingAction.ReconcileInlineMessages(emptyList())
+        )
+
+        assertEquals(null, resultState.queuedInlineMessagesState.getMessage(elementId))
+    }
+
+    @Test
     fun displayMessage_givenInlineMessage_expectStateUpdatedToEmbedded() {
         val elementId = String.random
         val message = createMessage(elementId = elementId)

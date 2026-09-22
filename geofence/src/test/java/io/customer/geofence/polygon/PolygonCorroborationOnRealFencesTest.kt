@@ -56,18 +56,33 @@ class PolygonCorroborationOnRealFencesTest {
     private val evaluator = PolygonAccuracyEvaluator()
 
     @Test
-    fun fenceA_givenAccuracyAboveItsMaximumClearance_expectTheArrivalIsRefusedOutright() {
-        // 25 m beats the 24.2 m clearance of the most favourable point in the fence, so at this
-        // accuracy no point inside Fence A is separable from outside it and the circle can hold the
-        // whole ring. The ceiling is the venue's own depth, so this is refused rather than held.
+    fun fenceA_givenAccuracyAboveItsMaximumClearance_expectEvenTheBestPointIsHeld() {
+        // 25 m beats the 24.2 m clearance of the most favourable point in the fence, so nothing
+        // anywhere inside Fence A arrives on a single fix at this accuracy. It is still admitted
+        // and held, because the ceiling does not fall below 50 m however shallow the ring.
         //
-        // This is the pairing that makes the permissive arrival rule safe. A held arrival now
-        // commits unless a fix positively contradicts it, so were this held instead it would be
-        // reported, and on a 24 m ring at 25 m accuracy that verdict is a coin flip. Background
-        // accuracy on this drive ran 13-24 m, so the fence spends real time right at this edge.
+        // Scaling the ceiling all the way down to the venue depth would refuse this outright, and
+        // with it every background fix on a 24 m shop, since this drive's accuracy ran 13-24 m.
+        // The floor is what keeps such a venue detectable at all; what stops the verdict being a
+        // coin flip is the hold, which any later fix that can judge the ring and reads outside
+        // discards.
         val result = evaluator.decisiveEvidenceFor(
             geometry = fenceA,
             sample = PolygonLocationSample(fenceABestPoint, horizontalAccuracyMeters = 25.0),
+            committedState = PolygonCommittedState.OUTSIDE
+        )
+
+        result.evidence shouldBeEqualTo PolygonEvidence.ENTER
+        result.requiresCorroboration shouldBeEqualTo true
+    }
+
+    @Test
+    fun fenceA_givenAccuracyPastTheFloor_expectTheArrivalIsRefused() {
+        // Above the floor the ceiling does bite, on any ring. 60 m against a 24 m fence cannot say
+        // anything about containment at all.
+        val result = evaluator.decisiveEvidenceFor(
+            geometry = fenceA,
+            sample = PolygonLocationSample(fenceABestPoint, horizontalAccuracyMeters = 60.0),
             committedState = PolygonCommittedState.OUTSIDE
         )
 

@@ -197,7 +197,6 @@ internal class PolygonRouteProcessor(
             when (
                 val held = resolveHeldArrival(
                     fence.id,
-                    committedState,
                     result,
                     sample,
                     elapsedRealtimeNanos,
@@ -323,13 +322,18 @@ internal class PolygonRouteProcessor(
      * a hold at all: the flat accuracy ceiling refused it first. What the captures show is that the
      * requirement is unsatisfiable here, not that it has already cost a visit.
      *
+     * A hold is only ever open while the fence is committed outside, so nothing here rechecks
+     * that: no production route commits a polygon inside behind this processor. Both
+     * `reconcileEnteredIds` call sites filter polygons out of `inside`, `commitBusinessTransition`
+     * is reached only through the single engine that owns this processor, and every ENTER it
+     * decides clears the hold in the same pass.
+     *
      * Ordered so the incoming fix is judged before the clock is consulted. The staleness bound
      * below would otherwise let the arbitrary 60 s boundary decide what a contradicting fix means:
      * the same fix reading 47 m outside broke the arrival at 59 s and committed it at 61 s.
      */
     private fun resolveHeldArrival(
         polygonId: String,
-        committedState: PolygonCommittedState,
         result: PolygonEvidenceResult,
         sample: PolygonLocationSample,
         elapsedRealtimeNanos: Long,
@@ -338,21 +342,6 @@ internal class PolygonRouteProcessor(
         val held = heldArrivals[polygonId]
         if (!arrivalConfirmations.hasPending(polygonId) || held == null) {
             clearHold(polygonId)
-            return HeldArrivalOutcome.NotCommitted
-        }
-        // Defensive, and known to be unreachable today. A hold opens only while the fence is
-        // committed outside, and no production route commits a polygon inside behind this
-        // processor's back: both `reconcileEnteredIds` call sites filter polygons out of `inside`,
-        // `commitBusinessTransition` is reached only through the single engine that owns this
-        // processor, and every ENTER it decides clears the hold in the same pass. Kept because the
-        // failure it prevents is a second ENTER for a visit already running, and the invariant is
-        // held by a `!isPolygon` filter two files away that a later change could drop silently.
-        if (committedState != PolygonCommittedState.OUTSIDE) {
-            clearHold(polygonId)
-            records += PolygonRouteRecord.ArrivalExpired(
-                geofenceId = polygonId,
-                reason = PolygonArrivalExpiry.ALREADY_INSIDE
-            )
             return HeldArrivalOutcome.NotCommitted
         }
         // iOS's predicate exactly: any fix that could judge this venue and read outside blocks the

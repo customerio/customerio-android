@@ -79,10 +79,6 @@ internal enum class PolygonCallbackDrop(val wire: String, val detail: String) {
 /** Why a held arrival was discarded without being reported. */
 internal enum class PolygonArrivalExpiry(val wire: String, val detail: String) {
     WINDOW_ELAPSED("window_elapsed", "it went stale before any further fix could speak to it"),
-    ALREADY_INSIDE(
-        "already_inside",
-        "the fence was already committed inside, so the arrival it describes is already reported"
-    ),
     SESSION_ENDED("session_ended", "the evaluation session ended while it was still waiting"),
     EVIDENCE_BROKEN("evidence_broken", "a later fix positively placed the device outside the polygon")
 }

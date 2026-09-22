@@ -345,61 +345,6 @@ class PolygonCorroborationWindowTest {
     }
 
     @Test
-    fun process_givenTheFenceCommittedInsideWhileHeld_expectNoSecondEnter() {
-        // A hold opens only while the fence is committed outside, but it does not end there: a sync
-        // seeding containment commits a polygon inside without this processor deciding it. Reporting
-        // the hold then would be a second ENTER for a visit already running.
-        val processor = PolygonRouteProcessor()
-        processor.process(
-            fences = listOf(fence),
-            sample = sampleAt(insideFix),
-            elapsedRealtimeNanos = 0L,
-            fixAgeSeconds = 0.3,
-            committedStates = committedOutside
-        )
-
-        val outcome = processor.process(
-            fences = listOf(fence),
-            sample = sampleAt(insideFixResampled),
-            elapsedRealtimeNanos = 15_000_000_000L,
-            fixAgeSeconds = 0.3,
-            committedStates = mapOf(fence.id to PolygonCommittedState.INSIDE)
-        )
-
-        outcome.detections shouldBeEqualTo emptyList()
-        outcome.records.filterIsInstance<PolygonRouteRecord.ArrivalExpired>()
-            .single().reason shouldBeEqualTo PolygonArrivalExpiry.ALREADY_INSIDE
-    }
-
-    @Test
-    fun process_givenTheFenceCommittedInsideAndAFixOutside_expectTheDepartureStillFires() {
-        // The defect a surviving mutant found. Ending the pass as soon as a hold was settled meant
-        // an open hold swallowed a departure: a fix that positively places the device outside is
-        // exactly the fix that should emit EXIT once the fence is committed inside, and the hold
-        // being open is no reason to drop it.
-        val processor = PolygonRouteProcessor()
-        processor.process(
-            fences = listOf(fence),
-            sample = sampleAt(insideFix),
-            elapsedRealtimeNanos = 0L,
-            fixAgeSeconds = 0.3,
-            committedStates = committedOutside
-        )
-
-        val outcome = processor.process(
-            fences = listOf(fence),
-            sample = PolygonLocationSample(clearlyOutsideFix, horizontalAccuracyMeters = 20.0),
-            elapsedRealtimeNanos = 15_000_000_000L,
-            fixAgeSeconds = 0.3,
-            committedStates = mapOf(fence.id to PolygonCommittedState.INSIDE)
-        )
-
-        outcome.detections.map { it.transition } shouldBeEqualTo listOf(PolygonTransition.EXIT)
-        outcome.records.filterIsInstance<PolygonRouteRecord.ArrivalExpired>()
-            .single().reason shouldBeEqualTo PolygonArrivalExpiry.ALREADY_INSIDE
-    }
-
-    @Test
     fun process_givenTheSameMeasurementDeliveredTwice_expectTheStampDedupeRefusesIt() {
         // Unchanged by the new rule and load-bearing for it: a re-delivery under the SAME
         // elapsed-realtime stamp is refused before the hold is consulted at all, so a broadcast

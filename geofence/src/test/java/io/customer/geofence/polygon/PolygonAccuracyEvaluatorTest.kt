@@ -96,16 +96,31 @@ class PolygonAccuracyEvaluatorTest {
     }
 
     @Test
-    fun decisiveEvidenceFor_whenAccuracyReachesTheVenueDepth_thenRefusesTheArrival() {
+    fun decisiveEvidenceFor_whenAccuracyIsPastTheFloor_thenRefusesTheArrival() {
         // The ceiling's own question: once the accuracy circle is as wide as the venue is deep it
         // can contain the whole ring, so "inside" carries no information and no second fix repairs
-        // that. [shallowGeometry] is 11 m deep, well under this fix's 60 m.
+        // that. [shallowGeometry] is 11 m deep, but the ceiling never drops below 50 m, so it is
+        // this fix's 60 m clearing the floor that refuses it.
         val sample = sample(latitude = 0.0, longitude = 0.0, accuracyMeters = 60.0)
 
         val result = evaluator.decisiveEvidenceFor(shallowGeometry, sample, PolygonCommittedState.OUTSIDE)
 
         result.evidence shouldBeEqualTo PolygonEvidence.AMBIGUOUS
         result.undecidedReason shouldBeEqualTo PolygonUndecidedReason.ACCURACY_TOO_LOW
+    }
+
+    @Test
+    fun decisiveEvidenceFor_whenTheVenueIsShallowerThanTheFloor_thenStillHoldsTheArrival() {
+        // The floor, which is where Android is deliberately looser than iOS. An 11 m-deep ring at
+        // 30 m accuracy says little, but refusing it outright makes a small venue undetectable at
+        // ordinary background accuracy, and a refused arrival loses the visit for good. It is
+        // admitted and held instead, for a later fix to discard if one reads outside.
+        val sample = sample(latitude = 0.0, longitude = 0.0, accuracyMeters = 30.0)
+
+        val result = evaluator.decisiveEvidenceFor(shallowGeometry, sample, PolygonCommittedState.OUTSIDE)
+
+        result.evidence shouldBeEqualTo PolygonEvidence.ENTER
+        result.requiresCorroboration shouldBeEqualTo true
     }
 
     @Test

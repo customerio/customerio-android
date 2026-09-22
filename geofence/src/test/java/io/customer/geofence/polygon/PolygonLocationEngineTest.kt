@@ -260,28 +260,29 @@ class PolygonLocationEngineTest : RobolectricTest() {
     }
 
     @Test
-    fun processResponsiveLocation_givenAVenueShallowerThanTheFixAccuracy_expectNoEnter() = runTest {
-        // The deliberate cost of the per-fence ceiling, recorded here rather than left to be
-        // discovered. This ring is 18.5 m deep and no interior point is more than 17.6 m from an
-        // edge, so at 20 m accuracy the circle reaches outside the ring from everywhere inside it
-        // and "inside" carries no information about containment.
+    fun processResponsiveLocation_givenAVenueShallowerThanTheFixAccuracy_expectItStillReports() = runTest {
+        // This ring is 18.5 m deep and no interior point is more than 17.6 m from an edge, so at
+        // 20 m accuracy nothing inside it is separable from outside on one fix. It is still
+        // detectable, because the arrival ceiling does not fall below 50 m however shallow the ring
+        // is. Scaling it to the venue depth would make a retail unit undetectable at the accuracy
+        // the background routinely delivers, which is the defect this module already fixed once.
         //
-        // The flat 50 m ceiling this replaces admitted the fix and then held it for a second
-        // opinion. That is now the wrong pairing: a held arrival commits unless contradicted, so
-        // admitting this fix would report a verdict that is right about half the time. Detection on
-        // a venue this shallow instead waits for a fix fine enough to mean something, which
-        // `givenAFixWhoseUncertaintyClearsTheRing` covers.
+        // The first fix holds, and the second settles it. What keeps that from being a coin flip is
+        // not the ceiling but the hold: a fix that can judge this ring and reads outside discards
+        // the arrival, which `PolygonCorroborationWindowTest` pins.
         armSmallPolygon()
         val base = SystemClock.elapsedRealtimeNanos() - 10_000_000_000L
 
         engine.processResponsiveLocation(
             fix(37.7750, -122.4194, elapsedRealtimeNanos = base, accuracyMeters = 20f)
         )
+        store.getEnteredIds().shouldBeEmpty()
+
         engine.processResponsiveLocation(
             fix(37.775018, -122.4194, elapsedRealtimeNanos = base + 5_000_000_000L, accuracyMeters = 20f)
         )
 
-        store.getEnteredIds().shouldBeEmpty()
+        store.getEnteredIds() shouldBeEqualTo setOf(SMALL_POLYGON_ID)
     }
 
     @Test

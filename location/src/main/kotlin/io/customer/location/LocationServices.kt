@@ -26,6 +26,9 @@ interface LocationServices {
      * send that data to Customer.io without the SDK managing location permissions
      * or the FusedLocationProviderClient directly.
      *
+     * Bare coordinates carry no age, so the SDK treats them as a current
+     * position. Prefer the [Location] overload when you have one.
+     *
      * @param latitude the latitude in degrees, must be between -90 and 90
      * @param longitude the longitude in degrees, must be between -180 and 180
      */
@@ -35,7 +38,8 @@ interface LocationServices {
      * Sets the last known location from an Android [Location] object.
      *
      * Convenience overload for apps that already have a [Location] instance
-     * from their own location system.
+     * from their own location system. Its time is forwarded, so an old fix is
+     * weighed accordingly instead of taken as current.
      *
      * @param location the Android Location object to track
      */

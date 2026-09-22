@@ -10,6 +10,7 @@ import io.customer.sdk.core.util.Clock
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
+import org.amshove.kluent.shouldBeEqualTo
 import org.amshove.kluent.shouldBeNull
 import org.amshove.kluent.shouldNotBeNull
 import org.junit.Test
@@ -34,23 +35,17 @@ class GeofenceCooldownFilterTest : RobolectricTest() {
     }
 
     @Test
-    fun release_expectStoreRemovesKey() {
-        filter.release("user-1", "biz-1", Event.GeofenceTransition.ENTER)
-
-        verify(exactly = 1) { mockStore.remove("user-1", "biz-1", Event.GeofenceTransition.ENTER) }
-    }
-
-    @Test
-    fun tryAcquire_givenNoPreviousEmit_expectTrueAndRecorded() {
+    fun cooldown_givenNoPreviousEmit_expectAllowedAndRecorded() {
         every { mockStore.getLastEmitTimestamp(any(), any(), any()) } returns null
         every { mockClock.currentTimeMillis() } returns 100_000L
 
-        filter.tryAcquire("user-1", "biz-1", Event.GeofenceTransition.ENTER).shouldBeNull()
+        filter.suppressedForSeconds("user-1", "biz-1", Event.GeofenceTransition.ENTER).shouldBeNull()
+        filter.record("user-1", "biz-1", Event.GeofenceTransition.ENTER)
         verify(exactly = 1) { mockStore.recordEmit("user-1", "biz-1", Event.GeofenceTransition.ENTER, 100_000L) }
     }
 
     @Test
-    fun tryAcquire_givenAllowedEmit_expectStalePruneSweep() {
+    fun cooldown_givenAllowedEmit_expectStalePruneSweep() {
         // Each allowed emit sweeps entries older than the max clampable cooldown —
         // they can't suppress under any config, so pruning them bounds the store
         // as fence definitions churn.
@@ -58,80 +53,98 @@ class GeofenceCooldownFilterTest : RobolectricTest() {
         val now = 100_000L + GeofenceConstants.MAX_DUPLICATE_EVENTS_EXPIRY_MS
         every { mockClock.currentTimeMillis() } returns now
 
-        filter.tryAcquire("user-1", "biz-1", Event.GeofenceTransition.ENTER).shouldBeNull()
+        filter.suppressedForSeconds("user-1", "biz-1", Event.GeofenceTransition.ENTER).shouldBeNull()
+        filter.record("user-1", "biz-1", Event.GeofenceTransition.ENTER)
 
         verify(exactly = 1) { mockStore.pruneOlderThan(now - GeofenceConstants.MAX_DUPLICATE_EVENTS_EXPIRY_MS) }
     }
 
     @Test
-    fun tryAcquire_givenSuppressedEmit_expectNoPruneSweep() {
+    fun cooldown_givenSuppressedEmit_expectNoPruneSweep() {
         val lastEmit = 100_000L
         every { mockStore.getLastEmitTimestamp("user-1", "biz-1", Event.GeofenceTransition.ENTER) } returns lastEmit
         every { mockClock.currentTimeMillis() } returns lastEmit + 1
 
-        filter.tryAcquire("user-1", "biz-1", Event.GeofenceTransition.ENTER).shouldNotBeNull()
+        filter.suppressedForSeconds("user-1", "biz-1", Event.GeofenceTransition.ENTER).shouldNotBeNull()
 
         verify(exactly = 0) { mockStore.pruneOlderThan(any()) }
     }
 
     @Test
-    fun tryAcquire_givenPreviousEmitWithinCooldown_expectFalseAndNotRecorded() {
+    fun cooldown_givenPreviousEmitWithinCooldown_expectRemainderReportedAndNotRecorded() {
         val lastEmit = 100_000L
         val now = lastEmit + (GeofenceConstants.DEDUPE_COOLDOWN_MS - 1)
         every { mockStore.getLastEmitTimestamp("user-1", "biz-1", Event.GeofenceTransition.ENTER) } returns lastEmit
         every { mockClock.currentTimeMillis() } returns now
 
-        filter.tryAcquire("user-1", "biz-1", Event.GeofenceTransition.ENTER).shouldNotBeNull()
+        filter.suppressedForSeconds("user-1", "biz-1", Event.GeofenceTransition.ENTER).shouldNotBeNull()
         verify(exactly = 0) { mockStore.recordEmit(any(), any(), any(), any()) }
     }
 
     @Test
-    fun tryAcquire_givenPreviousEmitExactlyAtCooldownBoundary_expectTrueAndRecorded() {
+    fun suppressedForSeconds_givenHalfTheWindowElapsed_expectTheRemainderInSeconds() {
+        // The number goes straight into the suppression log tail, so a constant would read as a
+        // real measurement to anyone parsing it.
+        val lastEmit = 100_000L
+        val elapsed = GeofenceConstants.DEDUPE_COOLDOWN_MS / 2
+        every { mockStore.getLastEmitTimestamp("user-1", "biz-1", Event.GeofenceTransition.ENTER) } returns lastEmit
+        every { mockClock.currentTimeMillis() } returns lastEmit + elapsed
+
+        filter.suppressedForSeconds("user-1", "biz-1", Event.GeofenceTransition.ENTER) shouldBeEqualTo
+            (GeofenceConstants.DEDUPE_COOLDOWN_MS - elapsed) / 1000.0
+    }
+
+    @Test
+    fun cooldown_givenPreviousEmitExactlyAtCooldownBoundary_expectAllowedAndRecorded() {
         val lastEmit = 100_000L
         val now = lastEmit + GeofenceConstants.DEDUPE_COOLDOWN_MS
         every { mockStore.getLastEmitTimestamp("user-1", "biz-1", Event.GeofenceTransition.ENTER) } returns lastEmit
         every { mockClock.currentTimeMillis() } returns now
 
-        filter.tryAcquire("user-1", "biz-1", Event.GeofenceTransition.ENTER).shouldBeNull()
+        filter.suppressedForSeconds("user-1", "biz-1", Event.GeofenceTransition.ENTER).shouldBeNull()
+        filter.record("user-1", "biz-1", Event.GeofenceTransition.ENTER)
         verify(exactly = 1) { mockStore.recordEmit("user-1", "biz-1", Event.GeofenceTransition.ENTER, now) }
     }
 
     @Test
-    fun tryAcquire_givenPreviousEmitOutsideCooldown_expectTrueAndRecorded() {
+    fun cooldown_givenPreviousEmitOutsideCooldown_expectAllowedAndRecorded() {
         val lastEmit = 100_000L
         val now = lastEmit + GeofenceConstants.DEDUPE_COOLDOWN_MS + 1
         every { mockStore.getLastEmitTimestamp("user-1", "biz-1", Event.GeofenceTransition.ENTER) } returns lastEmit
         every { mockClock.currentTimeMillis() } returns now
 
-        filter.tryAcquire("user-1", "biz-1", Event.GeofenceTransition.ENTER).shouldBeNull()
+        filter.suppressedForSeconds("user-1", "biz-1", Event.GeofenceTransition.ENTER).shouldBeNull()
+        filter.record("user-1", "biz-1", Event.GeofenceTransition.ENTER)
         verify(exactly = 1) { mockStore.recordEmit("user-1", "biz-1", Event.GeofenceTransition.ENTER, now) }
     }
 
     @Test
-    fun tryAcquire_givenSameGeofenceDifferentTransition_keysIndependently() {
+    fun cooldown_givenSameGeofenceDifferentTransition_keysIndependently() {
         // ENTER fired recently, EXIT never fired — EXIT should still acquire
         every { mockStore.getLastEmitTimestamp("user-1", "biz-1", Event.GeofenceTransition.ENTER) } returns 100L
         every { mockStore.getLastEmitTimestamp("user-1", "biz-1", Event.GeofenceTransition.EXIT) } returns null
         every { mockClock.currentTimeMillis() } returns 200L
 
-        filter.tryAcquire("user-1", "biz-1", Event.GeofenceTransition.ENTER).shouldNotBeNull()
-        filter.tryAcquire("user-1", "biz-1", Event.GeofenceTransition.EXIT).shouldBeNull()
+        filter.suppressedForSeconds("user-1", "biz-1", Event.GeofenceTransition.ENTER).shouldNotBeNull()
+        filter.suppressedForSeconds("user-1", "biz-1", Event.GeofenceTransition.EXIT).shouldBeNull()
+        filter.record("user-1", "biz-1", Event.GeofenceTransition.EXIT)
     }
 
     @Test
-    fun tryAcquire_givenSameGeofenceDifferentUser_keysIndependently() {
+    fun cooldown_givenSameGeofenceDifferentUser_keysIndependently() {
         // Account switch: the previous user's window must not mask the new user's
         // transition on the same fence.
         every { mockStore.getLastEmitTimestamp("user-1", "biz-1", Event.GeofenceTransition.ENTER) } returns 100L
         every { mockStore.getLastEmitTimestamp("user-2", "biz-1", Event.GeofenceTransition.ENTER) } returns null
         every { mockClock.currentTimeMillis() } returns 200L
 
-        filter.tryAcquire("user-1", "biz-1", Event.GeofenceTransition.ENTER).shouldNotBeNull()
-        filter.tryAcquire("user-2", "biz-1", Event.GeofenceTransition.ENTER).shouldBeNull()
+        filter.suppressedForSeconds("user-1", "biz-1", Event.GeofenceTransition.ENTER).shouldNotBeNull()
+        filter.suppressedForSeconds("user-2", "biz-1", Event.GeofenceTransition.ENTER).shouldBeNull()
+        filter.record("user-2", "biz-1", Event.GeofenceTransition.ENTER)
     }
 
     @Test
-    fun tryAcquire_givenCachedConfig_expectServerConfiguredCooldownUsed() {
+    fun cooldown_givenCachedConfig_expectServerConfiguredCooldownUsed() {
         // Server-pushed cooldown is shorter than the fallback. Verifies the
         // filter actually consults GeofenceConfig and isn't pinned to the constant.
         val serverCooldownMs = 5_000L
@@ -141,13 +154,16 @@ class GeofenceCooldownFilterTest : RobolectricTest() {
         val lastEmit = 100_000L
         every { mockStore.getLastEmitTimestamp("user-1", "biz-1", Event.GeofenceTransition.ENTER) } returns lastEmit
 
-        // Inside the server window but well outside the constant fallback → must block.
-        every { mockClock.currentTimeMillis() } returns lastEmit + serverCooldownMs - 1
-        filter.tryAcquire("user-1", "biz-1", Event.GeofenceTransition.ENTER).shouldNotBeNull()
+        // Inside the server window but well outside the constant fallback → must block, and the
+        // remainder must be measured against the server window rather than the fallback constant.
+        every { mockClock.currentTimeMillis() } returns lastEmit + 1_000
+        filter.suppressedForSeconds("user-1", "biz-1", Event.GeofenceTransition.ENTER) shouldBeEqualTo
+            (serverCooldownMs - 1_000) / 1000.0
 
         // Past the server window but still inside the constant fallback → must allow.
         every { mockClock.currentTimeMillis() } returns lastEmit + serverCooldownMs + 1
-        filter.tryAcquire("user-1", "biz-1", Event.GeofenceTransition.ENTER).shouldBeNull()
+        filter.suppressedForSeconds("user-1", "biz-1", Event.GeofenceTransition.ENTER).shouldBeNull()
+        filter.record("user-1", "biz-1", Event.GeofenceTransition.ENTER)
     }
 
     @Test

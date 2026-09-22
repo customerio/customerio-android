@@ -30,5 +30,12 @@ internal interface GeofenceRegistrar {
     suspend fun removeGeofencesByIds(ids: List<String>): Result<Unit>
 
     /** Needs no location permission, for the same reason as [removeGeofencesByIds]. */
+    /**
+     * Replaces just the movement trigger, leaving business registrations untouched. Separate from
+     * [replaceGeofences] because the polygon controller re-sizes the trigger on its own, on the
+     * broadcast path where the worst case must stay at one GMS call.
+     */
+    suspend fun replaceMovementTrigger(region: GeofenceRegion): Result<Unit>
+
     suspend fun clearAll(): Result<Unit>
 }

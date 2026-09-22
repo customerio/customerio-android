@@ -268,6 +268,9 @@ internal class ReplayRegistrar(private val gate: ReplayBoundaryGate) : GeofenceR
         return Result.success(Unit)
     }
 
+    override suspend fun replaceMovementTrigger(region: GeofenceRegion): Result<Unit> =
+        replaceGeofences(listOf(region), emptySet())
+
     override suspend fun clearAll(): Result<Unit> {
         roundTrip("clearAll", clearAnswers)
         registeredIds.clear()

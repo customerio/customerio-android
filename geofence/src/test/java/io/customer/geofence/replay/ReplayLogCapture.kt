@@ -74,6 +74,9 @@ internal fun ScenarioRecord.toCrossing(receivedAtSeconds: Long): GeofenceCrossin
         rawTransitionCode = -1,
         latitude = double("lat"),
         longitude = double("lon"),
+        // A replayed crossing has coordinates but no OS Location object; the polygon resolver
+        // treats that exactly as a callback the OS delivered without a fix.
+        triggeringLocation = null,
         // Production stamps this where the broadcast is parsed, before any dispatch work. The
         // replay's equivalent is the virtual clock at this stimulus, which the runner has already
         // stepped to `record.at`.

@@ -8,6 +8,7 @@ import androidx.annotation.VisibleForTesting
 import io.customer.geofence.di.geofenceLogger
 import io.customer.geofence.di.geofencePermissionChecker
 import io.customer.geofence.di.geofenceRepository
+import io.customer.geofence.di.polygonGeofenceServiceController
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.di.setupAndroidComponent
 import kotlinx.coroutines.CancellationException
@@ -59,6 +60,7 @@ class GeofenceBootReceiver : BroadcastReceiver() {
             SDKComponent.geofenceLogger.logSyncSkippedNoPermission(REASON_BOOT_RESTORE)
             return
         }
+        android.polygonGeofenceServiceController.beginUserSessionForCurrentUser()
         @SuppressLint("MissingPermission")
         android.geofenceRepository.restoreFromCache()
     }

@@ -3,11 +3,14 @@ package io.customer.geofence
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.location.Location
 import androidx.annotation.VisibleForTesting
 import com.google.android.gms.location.Geofence
+import com.google.android.gms.location.GeofenceStatusCodes
 import com.google.android.gms.location.GeofencingEvent
 import io.customer.geofence.di.geofenceCrossingPipeline
 import io.customer.geofence.di.geofenceLogger
+import io.customer.geofence.di.polygonGeofenceServiceController
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.di.clock
 import io.customer.sdk.core.di.setupAndroidComponent
@@ -65,6 +68,12 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
 
         if (geofencingEvent.hasError()) {
             logger.logGeofencingError(geofencingEvent.errorCode)
+            if (geofencingEvent.errorCode == GeofenceStatusCodes.GEOFENCE_NOT_AVAILABLE) {
+                // GMS requires callers to re-register after this error. Invalidate only our claim
+                // that OS registrations are live; cached definitions and containment survive so
+                // the next foreground/location refresh can restore them without duplicate ENTERs.
+                SDKComponent.android().polygonGeofenceServiceController.invalidateOsRegistrationState()
+            }
             return
         }
 
@@ -88,14 +97,39 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
             logger.logTransitionWithoutLocation()
         }
 
+        dispatchTransition(
+            gmsTransitionType = gmsTransition,
+            triggeringGeofenceIds = triggeringGeofenceIds,
+            latitude = location?.latitude,
+            longitude = location?.longitude,
+            triggeringLocation = location
+        )
+    }
+
+    /**
+     * Builds the [GeofenceCrossing] and hands it to the pipeline.
+     *
+     * Kept as a named entry point, rather than inlined above, because it is the seam the receiver
+     * suite drives: a test that starts from a parsed transition does not have to construct a
+     * `GeofencingEvent`, which cannot be built without GMS internals.
+     */
+    @VisibleForTesting
+    internal suspend fun dispatchTransition(
+        gmsTransitionType: Int,
+        triggeringGeofenceIds: List<String>,
+        latitude: Double?,
+        longitude: Double?,
+        triggeringLocation: Location? = null
+    ) {
         dispatchCrossing(
             GeofenceCrossing(
                 geofenceIds = triggeringGeofenceIds,
-                transition = crossingTransition(gmsTransition),
-                transitionName = transitionName(gmsTransition),
-                rawTransitionCode = gmsTransition,
-                latitude = location?.latitude,
-                longitude = location?.longitude,
+                transition = crossingTransition(gmsTransitionType),
+                transitionName = transitionName(gmsTransitionType),
+                rawTransitionCode = gmsTransitionType,
+                latitude = latitude,
+                longitude = longitude,
+                triggeringLocation = triggeringLocation,
                 receivedAtSeconds = SDKComponent.clock.currentTimeSeconds()
             )
         )

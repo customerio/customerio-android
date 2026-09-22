@@ -94,6 +94,28 @@ class LocationTrackerTest {
         captured.captured shouldBeEqualTo Event.LocationAcquired(latitude = 37.7749, longitude = -122.4194)
     }
 
+    @Test
+    fun givenLocationReceived_expectFixQualityPublishedSeparately() {
+        // Quality rides its own event so LocationAcquired keeps its published shape.
+        val captured = mutableListOf<Event>()
+
+        tracker.onLocationReceived(
+            latitude = 37.7749,
+            longitude = -122.4194,
+            fixElapsedRealtimeMillis = 90_000L
+        )
+
+        verify { mockEventBus.publish(capture(captured)) }
+        captured.filterIsInstance<Event.LocationAcquired>().single() shouldBeEqualTo
+            Event.LocationAcquired(latitude = 37.7749, longitude = -122.4194)
+        captured.filterIsInstance<Event.LocationFixAcquired>().single() shouldBeEqualTo
+            Event.LocationFixAcquired(
+                latitude = 37.7749,
+                longitude = -122.4194,
+                fixElapsedRealtimeMillis = 90_000L
+            )
+    }
+
     // -- onLocationReceivedWithoutTracking --
 
     @Test

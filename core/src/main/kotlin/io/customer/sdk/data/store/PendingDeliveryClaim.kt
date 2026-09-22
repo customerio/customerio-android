@@ -19,6 +19,17 @@ sealed interface PendingDeliveryResult {
      */
     object AlreadyClaimed : PendingDeliveryResult
 
+    /**
+     * [send] reported success but the removing write did not land, so the entry is still queued.
+     *
+     * Distinct from [Delivered] because the work is done while the bookkeeping is not: a caller that
+     * drains "the oldest entry" in a loop would otherwise read the same entry again and resend it
+     * immediately, without bound. Hand this to a backoff-capable channel (a WorkManager retry) so the
+     * duplicate — deduped backend-side on the stable payload id — costs one delayed attempt rather
+     * than a tight loop.
+     */
+    object DeliveredNotRemoved : PendingDeliveryResult
+
     /** [send] failed transiently; the entry was restored so a retry can deliver it later. */
     data class Retryable(val cause: Throwable?) : PendingDeliveryResult
 
@@ -54,7 +65,7 @@ suspend fun <T : PendingDeliveryStore.PendingDeliveryEntry> PendingDeliveryStore
         // A false claim is either another channel taking the entry (now gone) or the removing write
         // failing (still present). Only the former was delivered elsewhere; a still-present entry was
         // claimed by no one, so retry rather than reporting success.
-        return if (get(entry.key) == null) {
+        return if (contains(entry.key) == false) {
             PendingDeliveryResult.AlreadyClaimed
         } else {
             PendingDeliveryResult.Retryable(null)
@@ -87,6 +98,10 @@ suspend fun <T : PendingDeliveryStore.PendingDeliveryEntry> PendingDeliveryStore
  * The presence check is best-effort — not atomic with [send] — so it only trims a duplicate when
  * another channel already removed the entry. On failure the row is left in place (never removed)
  * so the next attempt can deliver it.
+ *
+ * A send that succeeds but whose removal doesn't persist reports
+ * [PendingDeliveryResult.DeliveredNotRemoved], never [PendingDeliveryResult.Delivered]: the entry is
+ * still queued, and a caller that assumed otherwise would resend it on its very next pass.
  */
 @InternalCustomerIOApi
 suspend fun <T : PendingDeliveryStore.PendingDeliveryEntry> PendingDeliveryStore<T>.sendRemoveOnSuccess(
@@ -94,13 +109,14 @@ suspend fun <T : PendingDeliveryStore.PendingDeliveryEntry> PendingDeliveryStore
     isRetryable: (Throwable?) -> Boolean = { it is IOException },
     send: suspend () -> Result<Unit>
 ): PendingDeliveryResult {
-    if (loadAll().none { it.key == entry.key }) return PendingDeliveryResult.AlreadyClaimed
+    if (contains(entry.key) == false) return PendingDeliveryResult.AlreadyClaimed
 
     val result = send()
     return when {
-        result.isSuccess -> {
-            remove(entry.key)
+        result.isSuccess -> if (remove(entry.key)) {
             PendingDeliveryResult.Delivered
+        } else {
+            PendingDeliveryResult.DeliveredNotRemoved
         }
         isRetryable(result.exceptionOrNull()) -> PendingDeliveryResult.Retryable(result.exceptionOrNull())
         else -> PendingDeliveryResult.Failed(result.exceptionOrNull())

@@ -6,6 +6,8 @@ import io.customer.geofence.GeofenceConfig
 import io.customer.geofence.GeofenceJsonSerializer
 import io.customer.geofence.GeofenceLocation
 import io.customer.geofence.GeofenceRegion
+import io.customer.geofence.transitionRevision
+import io.customer.sdk.communication.Event
 import io.customer.sdk.core.util.Logger
 import io.customer.sdk.data.store.PreferenceCrypto
 import io.customer.sdk.data.store.PreferenceStore
@@ -25,6 +27,8 @@ import kotlinx.serialization.builtins.serializer
  *
  * Cleared on sign-out:
  *   registeredIds               — subset live in OS; drives the stale-cleanup diff.
+ *   retainedRegisteredRegions   — definitions for stale registrations whose OS removal failed;
+ *                                  excluded from nearest-N, but retained for callback routing.
  *   enteredIds                  — fences the device is inside; goes with the registrations it
  *                                  describes.
  *   emittedEnterIds             — fences reported entered, plus the userId they belong to.
@@ -33,6 +37,7 @@ import kotlinx.serialization.builtins.serializer
  *                                  registration; used by boot restore to re-center
  *                                  closer to the user's real position than the anchor.
  *   lastSyncTimestamp           — freshness throttle; cleared so the next login re-fetches.
+ *   pendingPolygonApproachBatches — exact responsive-mode fixes awaiting ordered evaluation.
  *
  * Rationale: the backend geofence fetch is workspace-scoped (no userId on
  * the wire), so cached regions/config stay valid for any user in the workspace
@@ -46,18 +51,117 @@ import kotlinx.serialization.builtins.serializer
  *
  * Storage: SharedPreferences. Workspace configuration (geofence IDs, names,
  * lat/lng, radii, external IDs) is plaintext — UID isolation keeps it
- * app-private. The two user-location snapshots are encrypted at rest via
- * [PreferenceCrypto] (AES-256-GCM, Android Keystore) and cleared on sign-out.
+ * app-private. User-location snapshots and queued polygon approach fixes are encrypted at rest
+ * via [PreferenceCrypto] (AES-256-GCM, Android Keystore) and cleared on sign-out.
  */
 internal interface GeofenceRegionStore {
+    /** Ordered exact-location batches used by responsive polygon evaluation. */
+    fun appendPendingPolygonApproachBatches(entries: List<PendingPolygonApproachBatch>): Boolean
+    fun getPendingPolygonApproachBatches(): List<PendingPolygonApproachBatch>
+    fun removePendingPolygonApproachBatch(id: String): Boolean
+
     fun saveCachedRegions(regions: List<GeofenceRegion>)
     fun getCachedRegions(): List<GeofenceRegion>
 
-    /** The cached region with [id], or null if it isn't cached. */
+    /** Current server-catalog region. Retained cleanup-only definitions are deliberately excluded. */
     fun getCachedRegion(id: String): GeofenceRegion? = getCachedRegions().find { it.id == id }
+
+    /** Shape discriminator for an OS registration, including a failed-removal tombstone. */
+    fun getRegisteredRegion(id: String): GeofenceRegion? =
+        getCachedRegion(id) ?: getRetainedRegisteredRegions().find { it.id == id }
+
+    fun saveRetainedRegisteredRegions(regions: List<GeofenceRegion>)
+    fun getRetainedRegisteredRegions(): List<GeofenceRegion>
+
+    /** Durable staging rows used to recover the crash window before the delivery outbox append. */
+    fun getPendingTransitionEntries(
+        userId: String,
+        geofenceId: String,
+        transition: Event.GeofenceTransition
+    ): List<PendingGeofenceDelivery>
+
+    fun getAllPendingTransitionEntries(): List<PendingGeofenceDelivery>
+
+    /**
+     * Synchronously stages one attempt and commits its physical containment if
+     * [expectedUserStateGeneration] is still current.
+     */
+    fun savePendingTransitionEntries(
+        entries: List<PendingGeofenceDelivery>,
+        expectedUserStateGeneration: Long
+    ): Boolean
+    fun clearPendingTransitionEntries(transitionId: String)
+
+    /** Synchronously clears a staged attempt after its file-outbox rows are durable. */
+    fun completePendingTransition(transitionId: String): Boolean
+
+    /** Changes whenever sign-out clears user-scoped state. */
+    fun userStateGeneration(): Long
+
+    /** Whether polygon fine monitoring belongs to a currently identified user session. */
+    fun activeUserSessionId(): String?
+
+    /** Invalidates in-flight transition work when the identified profile changes. */
+    fun beginUserSession(userId: String)
+
+    /**
+     * Opens or keeps a session for whoever [currentUserId] reports, reading it under the same lock
+     * that opens the session.
+     *
+     * For callers that do not own the identity they are acting on — app launch, boot restore, an OS
+     * callback — and would otherwise read it, then race an identify to the write. Reading inside
+     * the lock means a concurrent identify is either already visible here, so this is a no-op, or
+     * lands after this returns and switches on top. Either order leaves the identified user owning
+     * the session. No user reported means no session opens.
+     */
+    fun beginUserSessionForCurrentUser(currentUserId: () -> String?)
+
+    /**
+     * Opens a session for [userId] only while none is recorded, checked and written under one lock.
+     *
+     * For callers that read the identified user before calling: a concurrent identify can land in
+     * between, and this must not undo it by reopening the older user.
+     */
+    fun beginUserSessionIfAbsent(userId: String)
+
+    /** Atomically commits containment and clears its staged transition for this user generation. */
+    fun commitBusinessTransition(
+        geofenceId: String,
+        transition: Event.GeofenceTransition,
+        transitionId: String?,
+        expectedUserStateGeneration: Long,
+        expectedRegionRevision: Int? = null
+    ): Boolean
 
     fun saveRegisteredIds(ids: Set<String>)
     fun getRegisteredIds(): Set<String>
+
+    /** OS registrations allowed to generate business events for the current user session. */
+    fun saveRoutableRegisteredIds(ids: Set<String>)
+
+    /**
+     * Arms routing for [ids], but only while [expectedUserStateGeneration] is still current.
+     *
+     * A refresh that began before an identify must not re-arm the previous user's registrations
+     * after [beginUserSession] cleared them; the generation is the fencing token that says so.
+     * Returns whether the write happened.
+     */
+    fun saveRoutableRegisteredIdsIfCurrent(ids: Set<String>, expectedUserStateGeneration: Long): Boolean
+
+    /** Empty until a pass arms it: a registration only routes once a session has claimed it. */
+    fun getRoutableRegisteredIds(): Set<String>
+
+    /** Polygon enclosing circles currently known to contain the device. */
+    fun getActivePolygonIds(): Set<String>
+    fun activatePolygon(id: String)
+    fun deactivatePolygon(id: String)
+    fun deactivatePolygonIfCurrent(id: String, expectedUserStateGeneration: Long): Boolean
+    fun retainActivePolygonIds(ids: Set<String>)
+    fun clearActivePolygonIds()
+    fun getCoarseInsidePolygonIds(): Set<String>
+    fun recordPolygonCoarseInside(id: String)
+    fun recordPolygonCoarseOutside(id: String)
+    fun retainCoarseInsidePolygonIds(ids: Set<String>)
 
     /** Fences the device is known to be inside. Drives the EXIT guard — see [claimExit]. */
     fun getEnteredIds(): Set<String>
@@ -79,8 +183,11 @@ internal interface GeofenceRegionStore {
 
     /**
      * Prunes the entered set to [registeredIds] and unions in [inside], the fences our own geometry
-     * puts the device within at registration time. Union rather than replace, because [inside] may
-     * come from a stale anchor whose "outside" must not erase real containment.
+     * puts the device within at registration time. Union rather than replace, because a fix can miss
+     * containment the OS already reported.
+     *
+     * A null [inside] is a pass with no live fix: it prunes only, and leaves the entered set absent
+     * if it was — key-absence is the upgrade grace [hasContainmentRecord] reads.
      *
      * [sinceEpoch] is [containmentEpoch] as of the fix [inside] was derived from; a fence whose exit
      * was claimed after that is dropped, so a departure reported during the sync's GMS await wins
@@ -96,15 +203,15 @@ internal interface GeofenceRegionStore {
      */
     fun reconcileEnteredIds(
         registeredIds: Set<String>,
-        inside: Set<String>,
+        inside: Set<String>?,
         sinceEpoch: Long,
         resetIds: Set<String> = emptySet()
     ): Set<String>
 
     /**
      * Whether containment has ever been recorded. False on an install upgraded from a version that
-     * predates the set, until the first registration seeds it — the EXIT guard defers while it is,
-     * since "empty" and "no data yet" are otherwise indistinguishable.
+     * predates the set, until the first pass holding a live fix judges it — the EXIT guard defers
+     * while it is, since "empty" and "no data yet" are otherwise indistinguishable.
      */
     fun hasContainmentRecord(): Boolean
 
@@ -116,6 +223,15 @@ internal interface GeofenceRegionStore {
      * Scoped to [userId] because a direct A-to-B identify publishes no `ResetEvent`. Set by
      * [markEnterEmitted], cleared by [claimExit].
      */
+    /**
+     * Whether an emitted-ENTER record exists for [userId] at all, regardless of contents.
+     *
+     * The baseline for the EXIT-side guard, exactly as [hasContainmentRecord] is for containment.
+     * Without it, a device upgrading from a build that predates these marks would read every fence
+     * as never-reported and drop the first genuine EXIT for each one.
+     */
+    fun hasEmittedEnterRecord(userId: String): Boolean
+
     fun hasEmittedEnter(userId: String, geofenceId: String): Boolean
 
     /** Records that an ENTER for [geofenceId] reached the delivery pipeline for [userId]. Idempotent. */
@@ -139,15 +255,46 @@ internal interface GeofenceRegionStore {
     fun saveCachedConfig(config: GeofenceConfig)
     fun getCachedConfig(): GeofenceConfig?
 
-    fun saveLastApiFetchLocation(location: GeofenceLocation)
     fun getLastApiFetchLocation(): GeofenceLocation?
 
-    fun saveLastMovementTriggerLocation(location: GeofenceLocation)
+    fun saveLastMovementTriggerLocation(location: GeofenceLocation, radiusMeters: Float)
+
+    /**
+     * Records [location] as the movement-trigger center, but only while [expectedUserStateGeneration]
+     * is still current. Returns whether the write happened.
+     *
+     * For callers that register the trigger with the OS first: that await holds no lock, so a
+     * sign-out can complete inside it and this must not write the departing user's position back
+     * over state the reset just cleared.
+     */
+    fun saveLastMovementTriggerLocationIfCurrent(
+        location: GeofenceLocation,
+        radiusMeters: Float,
+        expectedUserStateGeneration: Long
+    ): Boolean
+
     fun getLastMovementTriggerLocation(): GeofenceLocation?
+
+    /**
+     * Radius of the circle actually registered at [getLastMovementTriggerLocation], which a polygon
+     * can shrink below the configured one. Null before the first registration writes it, including
+     * the first pass after an upgrade.
+     */
+    fun getLastMovementTriggerRadius(): Float?
     fun clearLastMovementTriggerLocation()
 
     fun getLastSyncTimestamp(): Long?
-    fun setLastSyncTimestamp(timestamp: Long)
+
+    /**
+     * Marks the cache fresh as of [location], but only while [expectedUserStateGeneration] is still
+     * current. Anchor and timestamp move together because they describe the same fetch, and the
+     * check shares [beginUserSession]'s lock so an identify cannot land between them.
+     */
+    fun saveApiFetchStateIfCurrent(
+        location: GeofenceLocation,
+        syncTimestamp: Long,
+        expectedUserStateGeneration: Long
+    ): Boolean
 
     /**
      * Sign-out wipe. Drops the anchor, movement-trigger location, registered
@@ -156,6 +303,16 @@ internal interface GeofenceRegionStore {
      */
     fun clearUserScopedState()
 
+    /** Stops user-scoped work after OS cleanup fails while retaining IDs needed to retry removal. */
+    fun clearUserSessionRetainingOsRegistrations()
+
+    /**
+     * Completes a sign-out that started at [expectedUserStateGeneration]. If a newer identify has
+     * already advanced the generation, its owner is preserved while the departing user's state is
+     * still cleared.
+     */
+    fun completeUserReset(expectedUserStateGeneration: Long, osRegistrationsCleared: Boolean)
+
     fun clearAll()
 }
 
@@ -163,29 +320,418 @@ internal interface GeofenceRegionStore {
 internal fun GeofenceRegionStore.getCachedConfigOrFallback(): GeofenceConfig =
     getCachedConfig() ?: GeofenceConfig.fallback()
 
+internal interface GeofenceLocationCrypto {
+    fun encrypt(plaintext: String): String
+    fun decrypt(encoded: String): String
+}
+
+private class PreferenceGeofenceLocationCrypto(logger: Logger) : GeofenceLocationCrypto {
+    private val delegate = PreferenceCrypto("cio_geofence_location_key", logger)
+
+    override fun encrypt(plaintext: String): String = delegate.encrypt(plaintext)
+    override fun decrypt(encoded: String): String = delegate.decrypt(encoded)
+}
+
 internal class GeofenceRegionStoreImpl(
     context: Context,
     private val jsonSerializer: GeofenceJsonSerializer,
-    logger: Logger
+    logger: Logger,
+    private val locationCrypto: GeofenceLocationCrypto = PreferenceGeofenceLocationCrypto(logger)
 ) : PreferenceStore(context), GeofenceRegionStore {
 
     override val prefsName: String by lazy {
         "io.customer.sdk.geofence_regions.${context.packageName}"
     }
 
-    private val crypto = PreferenceCrypto(CRYPTO_KEY_ALIAS, logger)
+    override fun appendPendingPolygonApproachBatches(
+        entries: List<PendingPolygonApproachBatch>
+    ): Boolean = synchronized(enteredLock) {
+        if (entries.isEmpty()) return@synchronized true
+        val expectedGeneration = entries.first().userStateGeneration
+        if (
+            entries.any { it.userStateGeneration != expectedGeneration } ||
+            expectedGeneration != currentUserStateGenerationLocked() ||
+            !hasActiveUserSessionLocked()
+        ) {
+            return@synchronized false
+        }
+        val incomingIds = entries.mapTo(mutableSetOf(), PendingPolygonApproachBatch::id)
+        val retained = readPendingPolygonApproachBatches().filterNot { it.id in incomingIds }
+        // Preserve the oldest evidence when storage is under sustained pressure: a newer fix must
+        // never overtake an already-persisted route segment. But a batch that doesn't fit is a batch
+        // nothing will ever replay, and reporting success for it would tell the scheduler to enqueue
+        // work for locations that are not on disk — silently losing them. Report failure instead, so
+        // PolygonApproachReceiver evaluates these locations in-process while it still holds them.
+        if (retained.size + entries.size > MAXIMUM_PENDING_APPROACH_BATCHES) {
+            return@synchronized false
+        }
+        writeEncryptedJsonCommitted(
+            KEY_PENDING_POLYGON_APPROACH_BATCHES,
+            PENDING_APPROACH_BATCHES_SERIALIZER,
+            retained + entries
+        )
+    }
 
-    override fun saveCachedRegions(regions: List<GeofenceRegion>) =
+    override fun getPendingPolygonApproachBatches(): List<PendingPolygonApproachBatch> =
+        synchronized(enteredLock) { readPendingPolygonApproachBatches() }
+
+    override fun removePendingPolygonApproachBatch(id: String): Boolean = synchronized(enteredLock) {
+        val entries = readPendingPolygonApproachBatches()
+        val retained = entries.filterNot { it.id == id }
+        if (retained.size == entries.size) return@synchronized true
+        if (retained.isEmpty()) {
+            // Explicit commit, not the KTX edit {}: the caller needs to know whether the write
+            // reached disk, and the KTX form returns Unit.
+            @Suppress("ApplySharedPref", "UseKtx")
+            prefs.edit().remove(KEY_PENDING_POLYGON_APPROACH_BATCHES).commit()
+        } else {
+            writeEncryptedJsonCommitted(
+                KEY_PENDING_POLYGON_APPROACH_BATCHES,
+                PENDING_APPROACH_BATCHES_SERIALIZER,
+                retained
+            )
+        }
+    }
+
+    override fun saveCachedRegions(regions: List<GeofenceRegion>) = synchronized(enteredLock) {
         writeJson(KEY_CACHED_REGIONS, REGIONS_SERIALIZER, regions)
+    }
 
     override fun getCachedRegions(): List<GeofenceRegion> =
         readJson(KEY_CACHED_REGIONS, REGIONS_SERIALIZER) ?: emptyList()
+
+    override fun saveRetainedRegisteredRegions(regions: List<GeofenceRegion>) = synchronized(enteredLock) {
+        if (regions.isEmpty()) {
+            prefs.edit { remove(KEY_RETAINED_REGISTERED_REGIONS) }
+        } else {
+            writeJson(KEY_RETAINED_REGISTERED_REGIONS, REGIONS_SERIALIZER, regions)
+        }
+    }
+
+    override fun getRetainedRegisteredRegions(): List<GeofenceRegion> =
+        readJson(KEY_RETAINED_REGISTERED_REGIONS, REGIONS_SERIALIZER) ?: emptyList()
+
+    override fun getPendingTransitionEntries(
+        userId: String,
+        geofenceId: String,
+        transition: Event.GeofenceTransition
+    ): List<PendingGeofenceDelivery> = synchronized(enteredLock) {
+        readPendingTransitionEntries().filter {
+            it.userId == userId && it.geofenceId == geofenceId && it.transition == transition
+        }
+    }
+
+    override fun getAllPendingTransitionEntries(): List<PendingGeofenceDelivery> = synchronized(enteredLock) {
+        readPendingTransitionEntries()
+    }
+
+    override fun savePendingTransitionEntries(
+        entries: List<PendingGeofenceDelivery>,
+        expectedUserStateGeneration: Long
+    ): Boolean = synchronized(enteredLock) {
+        require(entries.isNotEmpty()) { "pending transition entries cannot be empty" }
+        require(entries.map(PendingGeofenceDelivery::transitionId).distinct().size == 1) {
+            "pending transition entries must share a transition id"
+        }
+        if (expectedUserStateGeneration != currentUserStateGenerationLocked()) {
+            return@synchronized false
+        }
+        val first = entries.first()
+        if (
+            first.regionRevision != null &&
+            getCachedRegion(first.geofenceId)?.transitionRevision() != first.regionRevision
+        ) {
+            return@synchronized false
+        }
+        // Distinct physical crossings can repeat a direction while an older attempt is still staged
+        // (ENTER → EXIT → ENTER). Replace only an idempotent replay of this exact attempt.
+        val retained = readPendingTransitionEntries().filterNot {
+            it.transitionId == first.transitionId
+        }
+        val updatedEntered = when (first.transition) {
+            Event.GeofenceTransition.ENTER -> getEnteredIds() + first.geofenceId
+            Event.GeofenceTransition.EXIT -> getEnteredIds() - first.geofenceId
+        }
+        val emittedOwner = readEmittedEnterOwner()
+        val updatedEmitted = when {
+            first.transition == Event.GeofenceTransition.EXIT -> readEmittedEnterIds() - first.geofenceId
+            first.marksEnterReported -> {
+                val sameOwner = emittedOwner == first.userId
+                (if (sameOwner) readEmittedEnterIds() else emptySet()) + first.geofenceId
+            }
+            else -> null
+        }
+        val editor = prefs.edit()
+            .putString(
+                KEY_PENDING_TRANSITION_ENTRIES,
+                jsonSerializer.encode(PENDING_TRANSITIONS_SERIALIZER, retained + entries)
+            )
+            .putString(KEY_ENTERED_IDS, jsonSerializer.encode(ID_SET_SERIALIZER, updatedEntered))
+        updatedEmitted?.let {
+            editor.putString(KEY_EMITTED_ENTER_IDS, jsonSerializer.encode(ID_SET_SERIALIZER, it))
+        }
+        if (first.marksEnterReported && first.userId != null) {
+            editor.putString(KEY_EMITTED_ENTER_OWNER, first.userId)
+        }
+        if (!editor.commit()) return@synchronized false
+
+        epoch += 1
+        when (first.transition) {
+            Event.GeofenceTransition.ENTER -> enterEpochByGeofenceId[first.geofenceId] = epoch
+            Event.GeofenceTransition.EXIT -> exitEpochByGeofenceId[first.geofenceId] = epoch
+        }
+        true
+    }
+
+    override fun clearPendingTransitionEntries(transitionId: String) = synchronized(enteredLock) {
+        val retained = readPendingTransitionEntries().filterNot { it.transitionId == transitionId }
+        if (retained.isEmpty()) {
+            prefs.edit { remove(KEY_PENDING_TRANSITION_ENTRIES) }
+        } else {
+            writeJson(KEY_PENDING_TRANSITION_ENTRIES, PENDING_TRANSITIONS_SERIALIZER, retained)
+        }
+    }
+
+    override fun completePendingTransition(transitionId: String): Boolean = synchronized(enteredLock) {
+        val allPending = readPendingTransitionEntries()
+        val pending = allPending.filterNot { it.transitionId == transitionId }
+        if (pending.size == allPending.size) return@synchronized true
+        // Explicit editor, not the KTX edit {}: the commit result is this function's return value.
+        @Suppress("UseKtx")
+        val editor = prefs.edit()
+        if (pending.isEmpty()) {
+            editor.remove(KEY_PENDING_TRANSITION_ENTRIES)
+        } else {
+            editor.putString(
+                KEY_PENDING_TRANSITION_ENTRIES,
+                jsonSerializer.encode(PENDING_TRANSITIONS_SERIALIZER, pending)
+            )
+        }
+        // Explicit commit, not the KTX edit {}: this returns whether the write reached disk.
+        @Suppress("ApplySharedPref")
+        editor.commit()
+    }
+
+    override fun userStateGeneration(): Long = synchronized(enteredLock) {
+        currentUserStateGenerationLocked()
+    }
+
+    private fun hasActiveUserSessionLocked(): Boolean =
+        !prefs.read { getString(KEY_USER_STATE_OWNER, null) }.isNullOrEmpty()
+
+    override fun activeUserSessionId(): String? = synchronized(enteredLock) {
+        prefs.read { getString(KEY_USER_STATE_OWNER, null) }?.takeIf { it.isNotEmpty() }
+    }
+
+    override fun beginUserSession(userId: String) = synchronized(enteredLock) {
+        beginUserSessionLocked(userId)
+    }
+
+    override fun beginUserSessionForCurrentUser(currentUserId: () -> String?) =
+        synchronized(enteredLock) {
+            val userId = currentUserId()?.takeIf { it.isNotEmpty() } ?: return@synchronized
+            beginUserSessionLocked(userId)
+        }
+
+    private fun beginUserSessionLocked(userId: String) {
+        val currentOwner = prefs.read { getString(KEY_USER_STATE_OWNER, null) }
+        if (currentOwner == userId) return
+        // An absent owner means an install upgraded from a version without these keys, and nothing
+        // records who the persisted state belongs to. Adopting whoever is identified now was a guess
+        // that a late read or a replayed identify can get wrong, so an unowned session still opens
+        // as a switch: user-scoped state is dropped rather than attributed to a user we inferred.
+        if (currentOwner.isNullOrEmpty()) {
+            adoptUnownedSessionLocked(userId)
+        } else {
+            openUserSessionLocked(userId)
+        }
+    }
+
+    override fun beginUserSessionIfAbsent(userId: String) = synchronized(enteredLock) {
+        if (hasActiveUserSessionLocked()) return@synchronized
+        // Reached only with no owner recorded, which is the adoption case by definition.
+        adoptUnownedSessionLocked(userId)
+    }
+
+    /**
+     * Adopts persisted state that records no owner, keeping only the two location anchors.
+     *
+     * Those anchors are where the existing OS registrations were placed, and boot restore has
+     * nothing else to work from: no live fix and no network. Dropping them with the session-scoped
+     * state made the first reboot after an upgrade report a successful restore that registered
+     * nothing, leaving the device unmonitored until some later pass took a live fix.
+     *
+     * The sync stamp is not kept. Retaining it throttles the next pass as fresh, and that pass is
+     * what arms routing after the generation bump, so the adopted session would register nothing
+     * it could attribute.
+     */
+    private fun adoptUnownedSessionLocked(userId: String) {
+        openUserSessionLocked(userId, clearedKeys = SESSION_SCOPED_KEYS)
+    }
+
+    private fun openUserSessionLocked(
+        userId: String,
+        clearedKeys: List<String> = SESSION_SCOPED_KEYS + REGISTRATION_ANCHOR_KEYS
+    ) {
+        val nextGeneration = currentUserStateGenerationLocked() + 1L
+        prefs.edit(commit = true) {
+            putString(KEY_USER_STATE_OWNER, userId)
+            putLong(KEY_USER_STATE_GENERATION, nextGeneration)
+            putString(KEY_ROUTABLE_REGISTERED_IDS, jsonSerializer.encode(ID_SET_SERIALIZER, emptySet()))
+            clearedKeys.forEach(::remove)
+        }
+    }
+
+    override fun commitBusinessTransition(
+        geofenceId: String,
+        transition: Event.GeofenceTransition,
+        transitionId: String?,
+        expectedUserStateGeneration: Long,
+        expectedRegionRevision: Int?
+    ): Boolean = synchronized(enteredLock) {
+        if (expectedUserStateGeneration != currentUserStateGenerationLocked()) return@synchronized false
+        if (
+            expectedRegionRevision != null &&
+            getCachedRegion(geofenceId)?.transitionRevision() != expectedRegionRevision
+        ) {
+            return@synchronized false
+        }
+
+        val currentEntered = getEnteredIds()
+        val updatedEntered = when (transition) {
+            Event.GeofenceTransition.ENTER -> currentEntered + geofenceId
+            Event.GeofenceTransition.EXIT -> currentEntered - geofenceId
+        }
+        val allPending = readPendingTransitionEntries()
+        val committedAttempt = transitionId?.let { id -> allPending.firstOrNull { it.transitionId == id } }
+        val pending = transitionId?.let { id ->
+            allPending.filterNot { it.transitionId == id }
+        } ?: allPending
+        val emittedOwner = readEmittedEnterOwner()
+        val emitted = when {
+            transition == Event.GeofenceTransition.EXIT -> readEmittedEnterIds() - geofenceId
+            committedAttempt?.marksEnterReported == true -> {
+                val sameOwner = emittedOwner == committedAttempt.userId
+                (if (sameOwner) readEmittedEnterIds() else emptySet()) + geofenceId
+            }
+            else -> null
+        }
+        val editor = prefs.edit()
+            .putString(KEY_ENTERED_IDS, jsonSerializer.encode(ID_SET_SERIALIZER, updatedEntered))
+        if (pending.isEmpty()) {
+            editor.remove(KEY_PENDING_TRANSITION_ENTRIES)
+        } else {
+            editor.putString(
+                KEY_PENDING_TRANSITION_ENTRIES,
+                jsonSerializer.encode(PENDING_TRANSITIONS_SERIALIZER, pending)
+            )
+        }
+        emitted?.let {
+            editor.putString(KEY_EMITTED_ENTER_IDS, jsonSerializer.encode(ID_SET_SERIALIZER, it))
+        }
+        if (committedAttempt?.marksEnterReported == true && committedAttempt.userId != null) {
+            editor.putString(KEY_EMITTED_ENTER_OWNER, committedAttempt.userId)
+        }
+        if (!editor.commit()) return@synchronized false
+
+        epoch += 1
+        when (transition) {
+            Event.GeofenceTransition.ENTER -> enterEpochByGeofenceId[geofenceId] = epoch
+            Event.GeofenceTransition.EXIT -> exitEpochByGeofenceId[geofenceId] = epoch
+        }
+        true
+    }
+
+    private fun readPendingTransitionEntries(): List<PendingGeofenceDelivery> =
+        readJson(KEY_PENDING_TRANSITION_ENTRIES, PENDING_TRANSITIONS_SERIALIZER) ?: emptyList()
+
+    private fun currentUserStateGenerationLocked(): Long =
+        prefs.read { getLong(KEY_USER_STATE_GENERATION, 0L) } ?: 0L
 
     override fun saveRegisteredIds(ids: Set<String>) =
         writeJson(KEY_REGISTERED_IDS, ID_SET_SERIALIZER, ids)
 
     override fun getRegisteredIds(): Set<String> =
         readJson(KEY_REGISTERED_IDS, ID_SET_SERIALIZER) ?: emptySet()
+
+    override fun saveRoutableRegisteredIds(ids: Set<String>) =
+        writeJson(KEY_ROUTABLE_REGISTERED_IDS, ID_SET_SERIALIZER, ids)
+
+    override fun saveRoutableRegisteredIdsIfCurrent(
+        ids: Set<String>,
+        expectedUserStateGeneration: Long
+    ): Boolean = synchronized(enteredLock) {
+        if (expectedUserStateGeneration != currentUserStateGenerationLocked()) return@synchronized false
+        writeJson(KEY_ROUTABLE_REGISTERED_IDS, ID_SET_SERIALIZER, ids)
+        true
+    }
+
+    override fun getRoutableRegisteredIds(): Set<String> =
+        readJson(KEY_ROUTABLE_REGISTERED_IDS, ID_SET_SERIALIZER) ?: emptySet()
+
+    override fun getActivePolygonIds(): Set<String> = synchronized(activePolygonLock) {
+        readJson(KEY_ACTIVE_POLYGON_IDS, ID_SET_SERIALIZER) ?: emptySet()
+    }
+
+    override fun activatePolygon(id: String) = synchronized(activePolygonLock) {
+        val current = getActivePolygonIds()
+        if (id !in current) writeJson(KEY_ACTIVE_POLYGON_IDS, ID_SET_SERIALIZER, current + id)
+    }
+
+    override fun deactivatePolygon(id: String) = synchronized(activePolygonLock) {
+        val current = getActivePolygonIds()
+        if (id in current) writeJson(KEY_ACTIVE_POLYGON_IDS, ID_SET_SERIALIZER, current - id)
+    }
+
+    override fun deactivatePolygonIfCurrent(
+        id: String,
+        expectedUserStateGeneration: Long
+    ): Boolean = synchronized(enteredLock) {
+        if (currentUserStateGenerationLocked() != expectedUserStateGeneration) {
+            return@synchronized false
+        }
+        synchronized(activePolygonLock) {
+            val current = getActivePolygonIds()
+            if (id in current) writeJson(KEY_ACTIVE_POLYGON_IDS, ID_SET_SERIALIZER, current - id)
+        }
+        true
+    }
+
+    override fun retainActivePolygonIds(ids: Set<String>) = synchronized(activePolygonLock) {
+        val retained = getActivePolygonIds() intersect ids
+        if (retained.isEmpty()) {
+            prefs.edit { remove(KEY_ACTIVE_POLYGON_IDS) }
+        } else {
+            writeJson(KEY_ACTIVE_POLYGON_IDS, ID_SET_SERIALIZER, retained)
+        }
+    }
+
+    override fun clearActivePolygonIds() = synchronized(activePolygonLock) {
+        prefs.edit { remove(KEY_ACTIVE_POLYGON_IDS) }
+    }
+
+    override fun getCoarseInsidePolygonIds(): Set<String> = synchronized(activePolygonLock) {
+        readJson(KEY_COARSE_INSIDE_POLYGON_IDS, ID_SET_SERIALIZER) ?: emptySet()
+    }
+
+    override fun recordPolygonCoarseInside(id: String) = synchronized(activePolygonLock) {
+        val current = getCoarseInsidePolygonIds()
+        if (id !in current) writeJson(KEY_COARSE_INSIDE_POLYGON_IDS, ID_SET_SERIALIZER, current + id)
+    }
+
+    override fun recordPolygonCoarseOutside(id: String) = synchronized(activePolygonLock) {
+        val current = getCoarseInsidePolygonIds()
+        if (id in current) writeJson(KEY_COARSE_INSIDE_POLYGON_IDS, ID_SET_SERIALIZER, current - id)
+    }
+
+    override fun retainCoarseInsidePolygonIds(ids: Set<String>) = synchronized(activePolygonLock) {
+        val retained = getCoarseInsidePolygonIds() intersect ids
+        if (retained.isEmpty()) {
+            prefs.edit { remove(KEY_COARSE_INSIDE_POLYGON_IDS) }
+        } else {
+            writeJson(KEY_COARSE_INSIDE_POLYGON_IDS, ID_SET_SERIALIZER, retained)
+        }
+    }
 
     override fun getEnteredIds(): Set<String> =
         readJson(KEY_ENTERED_IDS, ID_SET_SERIALIZER) ?: emptySet()
@@ -208,9 +754,14 @@ internal class GeofenceRegionStoreImpl(
     override fun claimExit(geofenceId: String): Boolean = synchronized(enteredLock) {
         val current = getEnteredIds()
         if (geofenceId !in current) return@synchronized false
-        writeJson(KEY_ENTERED_IDS, ID_SET_SERIALIZER, current - geofenceId)
-        // Same step: a mark stranded by a later failure would silence the next genuine arrival.
-        clearEnterEmitted(geofenceId)
+        val marks = readEmittedEnterIds()
+        // One commit: a mark stranded by a torn write would silence the next genuine arrival.
+        prefs.edit {
+            putString(KEY_ENTERED_IDS, jsonSerializer.encode(ID_SET_SERIALIZER, current - geofenceId))
+            if (geofenceId in marks) {
+                putString(KEY_EMITTED_ENTER_IDS, jsonSerializer.encode(ID_SET_SERIALIZER, marks - geofenceId))
+            }
+        }
         // Only a consumed record bumps the epoch; a claim that found nothing is a suspected GMS
         // artifact and must not block the geometry seed.
         epoch += 1
@@ -222,20 +773,29 @@ internal class GeofenceRegionStoreImpl(
 
     override fun reconcileEnteredIds(
         registeredIds: Set<String>,
-        inside: Set<String>,
+        inside: Set<String>?,
         sinceEpoch: Long,
         resetIds: Set<String>
     ): Set<String> = synchronized(enteredLock) {
-        val stillInside = inside.filter { (exitEpochByGeofenceId[it] ?: 0L) <= sinceEpoch }
+        val stillInside = inside.orEmpty().filter { (exitEpochByGeofenceId[it] ?: 0L) <= sinceEpoch }
         // An entry reported since the caller's fix describes the geometry being registered now, so
         // it survives a reset aimed at the geometry it replaced.
         val dropped = resetIds.filter { (enterEpochByGeofenceId[it] ?: 0L) <= sinceEpoch }.toSet() - stillInside
-        val carried = (getEnteredIds() intersect registeredIds) - dropped
-        writeJson(KEY_ENTERED_IDS, ID_SET_SERIALIZER, carried + stillInside)
+        // A live fix ends the grace even when it finds nothing inside — that is a real reading of
+        // "not in any fence". A prune-only pass creating the key would instead arm the EXIT guard
+        // off an anchor and drop crossings that predate any record.
+        if (inside != null || hasContainmentRecord()) {
+            val carried = (getEnteredIds() intersect registeredIds) - dropped
+            writeJson(KEY_ENTERED_IDS, ID_SET_SERIALIZER, carried + stillInside)
+        }
         // Bound the maps, after the filters have read them.
         exitEpochByGeofenceId.keys.retainAll(registeredIds)
         enterEpochByGeofenceId.keys.retainAll(registeredIds)
         dropped
+    }
+
+    override fun hasEmittedEnterRecord(userId: String): Boolean = synchronized(enteredLock) {
+        readEmittedEnterOwner() == userId && prefs.read { contains(KEY_EMITTED_ENTER_IDS) } == true
     }
 
     override fun hasEmittedEnter(userId: String, geofenceId: String): Boolean = synchronized(enteredLock) {
@@ -247,11 +807,13 @@ internal class GeofenceRegionStoreImpl(
         // One identity owns the set at a time, so a different owner makes it stale — replace, not add.
         val sameOwner = readEmittedEnterOwner() == userId
         val current = if (sameOwner) readEmittedEnterIds() else emptySet()
-        if (!sameOwner) {
-            prefs.edit { putString(KEY_EMITTED_ENTER_OWNER, userId) }
-        }
-        if (geofenceId !in current) {
-            writeJson(KEY_EMITTED_ENTER_IDS, ID_SET_SERIALIZER, current + geofenceId)
+        if (sameOwner && geofenceId in current) return@synchronized
+        // One commit: a death between separate writes leaves the new owner holding the old set.
+        prefs.edit {
+            if (!sameOwner) {
+                putString(KEY_EMITTED_ENTER_OWNER, userId)
+            }
+            putString(KEY_EMITTED_ENTER_IDS, jsonSerializer.encode(ID_SET_SERIALIZER, current + geofenceId))
         }
     }
 
@@ -259,13 +821,6 @@ internal class GeofenceRegionStoreImpl(
         readJson(KEY_EMITTED_ENTER_IDS, ID_SET_SERIALIZER) ?: emptySet()
 
     private fun readEmittedEnterOwner(): String? = prefs.read { getString(KEY_EMITTED_ENTER_OWNER, null) }
-
-    private fun clearEnterEmitted(geofenceId: String) = synchronized(enteredLock) {
-        val current = readEmittedEnterIds()
-        if (geofenceId in current) {
-            writeJson(KEY_EMITTED_ENTER_IDS, ID_SET_SERIALIZER, current - geofenceId)
-        }
-    }
 
     override fun pruneEmittedEnterIds(registeredIds: Set<String>) = synchronized(enteredLock) {
         val current = readEmittedEnterIds()
@@ -297,42 +852,112 @@ internal class GeofenceRegionStoreImpl(
     override fun getCachedConfig(): GeofenceConfig? =
         readJson(KEY_CACHED_CONFIG, GeofenceConfig.serializer())
 
-    override fun saveLastApiFetchLocation(location: GeofenceLocation) =
+    private fun saveLastApiFetchLocation(location: GeofenceLocation) =
         writeEncryptedJson(KEY_LAST_API_FETCH_LOCATION, GeofenceLocation.serializer(), location)
 
     override fun getLastApiFetchLocation(): GeofenceLocation? =
         readEncryptedJson(KEY_LAST_API_FETCH_LOCATION, GeofenceLocation.serializer())
 
-    override fun saveLastMovementTriggerLocation(location: GeofenceLocation) =
-        writeEncryptedJson(KEY_LAST_MOVEMENT_TRIGGER_LOCATION, GeofenceLocation.serializer(), location)
+    override fun saveLastMovementTriggerLocation(location: GeofenceLocation, radiusMeters: Float) {
+        // One edit: a centre without its radius would be read as the configured one and undo the
+        // shrink, which is the defect this pair exists to close.
+        val encrypted = locationCrypto.encrypt(
+            jsonSerializer.encode(GeofenceLocation.serializer(), location)
+        )
+        prefs.edit {
+            putString(KEY_LAST_MOVEMENT_TRIGGER_LOCATION, encrypted)
+            putFloat(KEY_LAST_MOVEMENT_TRIGGER_RADIUS, radiusMeters)
+        }
+    }
+
+    override fun saveLastMovementTriggerLocationIfCurrent(
+        location: GeofenceLocation,
+        radiusMeters: Float,
+        expectedUserStateGeneration: Long
+    ): Boolean = synchronized(enteredLock) {
+        if (expectedUserStateGeneration != currentUserStateGenerationLocked()) return@synchronized false
+        saveLastMovementTriggerLocation(location, radiusMeters)
+        true
+    }
 
     override fun getLastMovementTriggerLocation(): GeofenceLocation? =
         readEncryptedJson(KEY_LAST_MOVEMENT_TRIGGER_LOCATION, GeofenceLocation.serializer())
 
+    override fun getLastMovementTriggerRadius(): Float? = prefs.read {
+        if (contains(KEY_LAST_MOVEMENT_TRIGGER_RADIUS)) {
+            getFloat(KEY_LAST_MOVEMENT_TRIGGER_RADIUS, 0f)
+        } else {
+            null
+        }
+    }
+
     override fun clearLastMovementTriggerLocation() {
-        prefs.edit { remove(KEY_LAST_MOVEMENT_TRIGGER_LOCATION) }
+        prefs.edit {
+            remove(KEY_LAST_MOVEMENT_TRIGGER_LOCATION)
+            remove(KEY_LAST_MOVEMENT_TRIGGER_RADIUS)
+        }
     }
 
     override fun getLastSyncTimestamp(): Long? = prefs.read {
         if (contains(KEY_LAST_SYNC)) getLong(KEY_LAST_SYNC, 0L) else null
     }
 
-    override fun setLastSyncTimestamp(timestamp: Long) {
+    private fun setLastSyncTimestamp(timestamp: Long) {
         prefs.edit { putLong(KEY_LAST_SYNC, timestamp) }
     }
 
+    override fun saveApiFetchStateIfCurrent(
+        location: GeofenceLocation,
+        syncTimestamp: Long,
+        expectedUserStateGeneration: Long
+    ): Boolean = synchronized(enteredLock) {
+        if (expectedUserStateGeneration != currentUserStateGenerationLocked()) return@synchronized false
+        saveLastApiFetchLocation(location)
+        setLastSyncTimestamp(syncTimestamp)
+        true
+    }
+
     override fun clearUserScopedState() {
-        prefs.edit {
+        completeUserReset(userStateGeneration(), osRegistrationsCleared = true)
+    }
+
+    override fun clearUserSessionRetainingOsRegistrations() {
+        completeUserReset(userStateGeneration(), osRegistrationsCleared = false)
+    }
+
+    override fun completeUserReset(
+        expectedUserStateGeneration: Long,
+        osRegistrationsCleared: Boolean
+    ): Unit = synchronized(enteredLock) {
+        val currentGeneration = currentUserStateGenerationLocked()
+        val resetWasSuperseded = currentGeneration != expectedUserStateGeneration
+        prefs.edit(commit = true) {
             remove(KEY_LAST_API_FETCH_LOCATION)
             remove(KEY_LAST_MOVEMENT_TRIGGER_LOCATION)
-            remove(KEY_REGISTERED_IDS)
+            remove(KEY_LAST_MOVEMENT_TRIGGER_RADIUS)
+            remove(KEY_PENDING_TRANSITION_ENTRIES)
+            remove(KEY_PENDING_POLYGON_APPROACH_BATCHES)
+            remove(KEY_ACTIVE_POLYGON_IDS)
+            remove(KEY_COARSE_INSIDE_POLYGON_IDS)
             remove(KEY_ENTERED_IDS)
             remove(KEY_EMITTED_ENTER_IDS)
             remove(KEY_EMITTED_ENTER_OWNER)
-            remove(KEY_LAST_REGISTRATION_UPTIME)
-            remove(KEY_LAST_REGISTRATION_PACKAGE_UPDATE_TIME)
             remove(KEY_LAST_SYNC)
+            if (osRegistrationsCleared) {
+                remove(KEY_REGISTERED_IDS)
+                remove(KEY_ROUTABLE_REGISTERED_IDS)
+                remove(KEY_RETAINED_REGISTERED_REGIONS)
+                remove(KEY_LAST_REGISTRATION_UPTIME)
+                remove(KEY_LAST_REGISTRATION_PACKAGE_UPDATE_TIME)
+            } else {
+                putString(KEY_ROUTABLE_REGISTERED_IDS, jsonSerializer.encode(ID_SET_SERIALIZER, emptySet()))
+            }
+            if (!resetWasSuperseded) {
+                remove(KEY_USER_STATE_OWNER)
+                putLong(KEY_USER_STATE_GENERATION, currentGeneration + 1L)
+            }
         }
+        Unit
     }
 
     override fun clearAll() {
@@ -358,7 +983,22 @@ internal class GeofenceRegionStoreImpl(
     }
 
     private fun <T> writeEncryptedJson(key: String, serializer: KSerializer<T>, value: T) {
-        prefs.edit { putString(key, crypto.encrypt(jsonSerializer.encode(serializer, value))) }
+        prefs.edit { putString(key, locationCrypto.encrypt(jsonSerializer.encode(serializer, value))) }
+    }
+
+    private fun <T> writeEncryptedJsonCommitted(
+        key: String,
+        serializer: KSerializer<T>,
+        value: T
+    ): Boolean {
+        val plaintext = jsonSerializer.encode(serializer, value)
+        val encrypted = locationCrypto.encrypt(plaintext)
+        // Exact route history must never take PreferenceCrypto's API 21/OEM plaintext fallback.
+        // The receiver can evaluate the batch immediately when durable encryption is unavailable.
+        if (encrypted == plaintext) return false
+        // Explicit commit, not the KTX edit {}: this returns whether the write reached disk.
+        @Suppress("UseKtx")
+        return prefs.edit().putString(key, encrypted).commit()
     }
 
     /**
@@ -369,13 +1009,20 @@ internal class GeofenceRegionStoreImpl(
      */
     private fun <T> readEncryptedJson(key: String, serializer: KSerializer<T>): T? {
         val raw = prefs.read { getString(key, null) } ?: return null
-        return jsonSerializer.decodeOrNull(serializer, crypto.decrypt(raw)) ?: run {
+        return jsonSerializer.decodeOrNull(serializer, locationCrypto.decrypt(raw)) ?: run {
             prefs.edit { remove(key) }
             null
         }
     }
 
     private val enteredLock = Any()
+    private val activePolygonLock = Any()
+
+    private fun readPendingPolygonApproachBatches(): List<PendingPolygonApproachBatch> =
+        readEncryptedJson(
+            KEY_PENDING_POLYGON_APPROACH_BATCHES,
+            PENDING_APPROACH_BATCHES_SERIALIZER
+        ) ?: emptyList()
 
     // Guarded by [enteredLock]. Bumped per reported transition, so a sync can tell which of the two
     // directions a fence reported most recently against the fix the sync is holding. Per-fence
@@ -384,20 +1031,55 @@ internal class GeofenceRegionStoreImpl(
     private val exitEpochByGeofenceId = mutableMapOf<String, Long>()
     private val enterEpochByGeofenceId = mutableMapOf<String, Long>()
 
-    private companion object {
+    internal companion object {
         const val KEY_CACHED_REGIONS = "cached_regions"
         const val KEY_REGISTERED_IDS = "registered_ids"
+        const val KEY_ROUTABLE_REGISTERED_IDS = "routable_registered_ids"
+        const val KEY_RETAINED_REGISTERED_REGIONS = "retained_registered_regions"
+        const val KEY_PENDING_TRANSITION_ENTRIES = "pending_transition_entries"
+        const val KEY_PENDING_POLYGON_APPROACH_BATCHES = "pending_polygon_approach_batches"
+        const val KEY_USER_STATE_GENERATION = "user_state_generation"
+        const val KEY_USER_STATE_OWNER = "user_state_owner"
+        const val KEY_ACTIVE_POLYGON_IDS = "active_polygon_ids"
+        const val KEY_COARSE_INSIDE_POLYGON_IDS = "coarse_inside_polygon_ids"
         const val KEY_ENTERED_IDS = "entered_ids"
         const val KEY_EMITTED_ENTER_IDS = "emitted_enter_ids"
         const val KEY_EMITTED_ENTER_OWNER = "emitted_enter_owner"
         const val KEY_CACHED_CONFIG = "cached_config"
         const val KEY_LAST_API_FETCH_LOCATION = "last_api_fetch_location"
         const val KEY_LAST_MOVEMENT_TRIGGER_LOCATION = "last_movement_trigger_location"
+        const val KEY_LAST_MOVEMENT_TRIGGER_RADIUS = "last_movement_trigger_radius"
         const val KEY_LAST_SYNC = "last_sync_timestamp"
         const val KEY_LAST_REGISTRATION_UPTIME = "last_registration_uptime"
         const val KEY_LAST_REGISTRATION_PACKAGE_UPDATE_TIME = "last_registration_package_update_time"
-        const val CRYPTO_KEY_ALIAS = "cio_geofence_location_key"
+
+        // Cleared whenever a session opens. Everything here is attributed to the user that owned
+        // it, plus the freshness throttle, so the session that opens next re-fetches.
+        val SESSION_SCOPED_KEYS = listOf(
+            KEY_PENDING_TRANSITION_ENTRIES,
+            KEY_PENDING_POLYGON_APPROACH_BATCHES,
+            KEY_ACTIVE_POLYGON_IDS,
+            KEY_COARSE_INSIDE_POLYGON_IDS,
+            KEY_ENTERED_IDS,
+            KEY_EMITTED_ENTER_IDS,
+            KEY_EMITTED_ENTER_OWNER,
+            KEY_LAST_SYNC
+        )
+
+        // Where the OS registrations were placed. A switch between two known users drops these with
+        // the rest; adopting unowned state keeps them, because they describe registrations that
+        // outlived the upgrade and boot restore has nothing else to anchor on.
+        val REGISTRATION_ANCHOR_KEYS = listOf(
+            KEY_LAST_API_FETCH_LOCATION,
+            KEY_LAST_MOVEMENT_TRIGGER_LOCATION,
+            KEY_LAST_MOVEMENT_TRIGGER_RADIUS
+        )
+
+        const val MAXIMUM_PENDING_APPROACH_BATCHES = 128
         val REGIONS_SERIALIZER = ListSerializer(GeofenceRegion.serializer())
+        val PENDING_TRANSITIONS_SERIALIZER = ListSerializer(PendingGeofenceDelivery.serializer())
+        val PENDING_APPROACH_BATCHES_SERIALIZER =
+            ListSerializer(PendingPolygonApproachBatch.serializer())
         val ID_SET_SERIALIZER = SetSerializer(String.serializer())
     }
 }

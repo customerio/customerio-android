@@ -40,6 +40,52 @@ internal class PolygonGeometry private constructor(
      * to the ring — turning a two-degree seam edge into a 358-degree chord.
      */
 
+    /**
+     * Roughly how deep this venue is: `2 x area / perimeter`, in metres.
+     *
+     * Answers "can a fix of accuracy A say anything about being inside this shape at all?". Once
+     * the accuracy circle is as wide as the venue is deep it can contain the whole ring, so
+     * `inside` stops carrying information and no second fix repairs that. Used as the arrival
+     * ceiling by [PolygonAccuracyEvaluator], per fence rather than as one constant because the
+     * monitored rings differ by more than an order of magnitude: the twelve in the field captures
+     * measure 24 m to 371 m.
+     *
+     * An approximation of the maximum inradius, deliberately: it is O(n) from the ring already
+     * held, where a true inradius needs a search. It reads exact for a circle
+     * (`2 pi r^2 / 2 pi r = r`) and measured 1.00x and 1.07x the grid-computed inradius on the two
+     * real rings in the test workspace, 24.19 m against 24.16 m and 112.99 m against 105.93 m.
+     *
+     * It errs high on a convex ring, which widens the accuracy accepted rather than narrowing it,
+     * and that is the safe direction because refusing a real arrival loses the visit outright. It
+     * is NOT a bound: a ring with a thin appendage reads low, since the spike adds perimeter
+     * without area, and a 100 m square with a 5 m by 300 m spike measures 23 m against a 50 m
+     * inradius. All twelve rings seen in the field are convex enough to err high, and nothing
+     * downstream reads this as a distance, but a strongly concave fence would be gated more
+     * tightly than its shape deserves.
+     *
+     * Computed on the contiguous ring against its own mean position, which is the projection iOS
+     * uses for the same value, so both platforms put the ceiling in the same place.
+     */
+    val venueScaleMeters: Double by lazy {
+        val meanLatitude = vertices.sumOf(PolygonCoordinate::latitude) / vertices.size
+        val meanLongitude = ringLongitudes.average()
+        val cosMeanLatitude = cos(Math.toRadians(meanLatitude))
+        val x = DoubleArray(vertices.size) {
+            EARTH_RADIUS_METERS * Math.toRadians(ringLongitudes[it] - meanLongitude) * cosMeanLatitude
+        }
+        val y = DoubleArray(vertices.size) {
+            EARTH_RADIUS_METERS * Math.toRadians(vertices[it].latitude - meanLatitude)
+        }
+        var twiceArea = 0.0
+        var perimeter = 0.0
+        for (index in vertices.indices) {
+            val next = (index + 1) % vertices.size
+            twiceArea += x[index] * y[next] - x[next] * y[index]
+            perimeter += hypot(x[next] - x[index], y[next] - y[index])
+        }
+        if (perimeter > 0.0) abs(twiceArea) / perimeter else 0.0
+    }
+
     fun relationTo(point: PolygonCoordinate): PolygonPointRelation {
         val pointLongitude = onRingLine(point.longitude)
         var inside = false

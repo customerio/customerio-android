@@ -78,9 +78,31 @@ internal enum class PolygonCallbackDrop(val wire: String, val detail: String) {
 
 /** Why a held arrival was discarded without being reported. */
 internal enum class PolygonArrivalExpiry(val wire: String, val detail: String) {
-    WINDOW_ELAPSED("window_elapsed", "no second agreeing fix arrived inside the corroboration window"),
+    WINDOW_ELAPSED("window_elapsed", "it went stale before any further fix could speak to it"),
     SESSION_ENDED("session_ended", "the evaluation session ended while it was still waiting"),
-    EVIDENCE_BROKEN("evidence_broken", "a later fix disagreed or could not judge, so the run of agreeing fixes ended")
+    EVIDENCE_BROKEN("evidence_broken", "a later fix positively placed the device outside the polygon")
+}
+
+/**
+ * Why a marginal arrival was reported without a second fix agreeing with it.
+ *
+ * A held arrival is only ever blocked by a fix that positively reads outside; everything else
+ * commits, because refusing an arrival loses the visit outright while a spurious one is corrected
+ * by the next decisive fix. The reason rides on the verdict so a capture never reads one of these
+ * as decisive.
+ *
+ * [NOT_INDEPENDENT] carries iOS's token verbatim. [UNJUDGEABLE] has no iOS counterpart because iOS
+ * folds it into `accuracy_too_low`, which here is already a reason of its own.
+ */
+internal enum class PolygonArrivalCommit(val wire: String, val detail: String) {
+    NOT_INDEPENDENT(
+        "corroboration_not_independent",
+        "the next fix repeated the position already counted, so it is the same observation again"
+    ),
+    UNJUDGEABLE(
+        "corroboration_unjudgeable",
+        "the next fix could not separate inside from outside either, which is not evidence against it"
+    )
 }
 
 /** Why an undecided verdict was left to stand without a precise fix. */
@@ -1275,40 +1297,6 @@ internal class GeofenceLogger(private val logger: Logger) {
     }
 
     /**
-     * A held arrival handed the measurement it is already holding.
-     *
-     * Corroboration counts agreeing fixes, and the only thing stopping one position counting twice
-     * is the dedupe on elapsed-realtime, which a re-stamped sample passes. Measured on a device:
-     * the fused provider re-emits a carried-forward coordinate under a fresh stamp. No capture
-     * shows an arrival confirmed that way, because `cor=true` has never occurred at all, so this
-     * record is the instrument that would show it rather than evidence that it happened.
-     */
-    fun logPolygonArrivalEcho(
-        geofenceId: String,
-        signedBoundaryDistanceMeters: Double?,
-        horizontalAccuracyMeters: Double?,
-        fixAgeSeconds: Double?,
-        sinceCountedFixSeconds: Double?
-    ) {
-        logger.debug(
-            "Polygon '$geofenceId' was handed a fix at the position it is already counting, so the arrival is still waiting on a second measurement." +
-                tail(
-                    "polygon.arrival.echo",
-                    GeofenceLogIo.OUTPUT,
-                    listOf(
-                        "id" to geofenceId,
-                        "sh" to "polygon",
-                        "edge" to num(signedBoundaryDistanceMeters),
-                        "acc" to num(horizontalAccuracyMeters),
-                        "age" to num(fixAgeSeconds),
-                        "since" to num(sinceCountedFixSeconds)
-                    )
-                ),
-            tag = TAG
-        )
-    }
-
-    /**
      * A held arrival discarded because no corroborating fix arrived in time.
      *
      * The counterpart to [logPolygonArrivalPending], and the record that makes a capture readable:
@@ -1568,10 +1556,12 @@ internal class GeofenceLogger(private val logger: Logger) {
         signedBoundaryDistanceMeters: Double?,
         horizontalAccuracyMeters: Double,
         fixAgeSeconds: Double,
-        corroborated: Boolean
+        corroborated: Boolean,
+        uncorroboratedReason: PolygonArrivalCommit? = null
     ) {
+        val detail = uncorroboratedReason?.let { " Reported unconfirmed: ${it.detail}." } ?: ""
         logger.debug(
-            "Polygon '$geofenceId' decided this fix is a $transitionName." +
+            "Polygon '$geofenceId' decided this fix is a $transitionName.$detail" +
                 tail(
                     "polygon.decided",
                     GeofenceLogIo.OUTPUT,
@@ -1582,7 +1572,8 @@ internal class GeofenceLogger(private val logger: Logger) {
                         "edge" to num(signedBoundaryDistanceMeters),
                         "acc" to num(horizontalAccuracyMeters),
                         "age" to num(fixAgeSeconds),
-                        "cor" to bool(corroborated)
+                        "cor" to bool(corroborated),
+                        "corwhy" to uncorroboratedReason?.wire
                     )
                 ),
             tag = TAG

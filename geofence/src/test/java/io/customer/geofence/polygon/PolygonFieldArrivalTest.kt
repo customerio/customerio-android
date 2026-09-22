@@ -12,6 +12,7 @@ import io.customer.geofence.GeofenceLogger
 import io.customer.geofence.GeofenceManager
 import io.customer.geofence.GeofenceRegion
 import io.customer.geofence.GeofenceTransitionEmitter
+import io.customer.geofence.PolygonArrivalCommit
 import io.customer.geofence.store.GeofenceRegionStoreImpl
 import io.customer.sdk.core.util.Clock
 import io.customer.sdk.data.store.SecureUserStore
@@ -244,6 +245,50 @@ class PolygonFieldArrivalTest : RobolectricTest() {
         )
 
         store.getEnteredIds() shouldContain VENUE_ID
+    }
+
+    /**
+     * The field case this policy exists for, end to end.
+     *
+     * A stationary device indoors cannot produce a second measurement: the fused provider re-emits
+     * the coordinate it already carried under a fresh stamp, so the fix a hold asks for comes back
+     * as the same observation. Requiring agreement discarded the arrival here, which is how the
+     * 2026-09-18 Passport Office visit was lost — a fix 16.4 m inside a 254 m-deep venue, followed
+     * by nothing that could corroborate it.
+     *
+     * A repeat is not evidence the device is elsewhere, so the arrival is now reported and the
+     * verdict carries the reason it rests on no second opinion.
+     */
+    @Test
+    fun activate_givenTheHeldPositionDeliveredAgain_expectTheArrivalIsReportedUnconfirmed() = runTest {
+        controller.activate(
+            polygonId = VENUE_ID,
+            triggeringLocation = fieldFix(),
+            expectedUserStateGeneration = store.userStateGeneration(),
+            expectedRegionRevision = null
+        )
+        store.getEnteredIds() shouldNotContain VENUE_ID
+
+        // Same coordinate, newer stamp: the re-emission, not a second measurement.
+        controller.activate(
+            polygonId = VENUE_ID,
+            triggeringLocation = fieldFix(elapsedRealtimeNanos = SystemClock.elapsedRealtimeNanos()),
+            expectedUserStateGeneration = store.userStateGeneration(),
+            expectedRegionRevision = null
+        )
+
+        store.getEnteredIds() shouldContain VENUE_ID
+        verify(exactly = 1) {
+            mockLogger.logPolygonDecided(
+                VENUE_ID,
+                "ENTER",
+                any(),
+                any(),
+                any(),
+                corroborated = false,
+                uncorroboratedReason = PolygonArrivalCommit.NOT_INDEPENDENT
+            )
+        }
     }
 
     // ~10 m north of the ring's southern edge, at the accuracy GMS actually reported on the drive.

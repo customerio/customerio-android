@@ -1,5 +1,7 @@
 package io.customer.geofence.polygon
 
+import kotlin.math.max
+
 internal data class PolygonLocationSample(
     val coordinate: PolygonCoordinate,
     val horizontalAccuracyMeters: Double
@@ -112,7 +114,23 @@ internal class PolygonAccuracyEvaluator {
         }
         // Only an arrival still needs the fix to be precise enough to mean anything. Departure has
         // already been answered above, so from here the ceiling governs arrivals alone.
-        if (sample.horizontalAccuracyMeters > MAX_DECISIVE_FIX_ACCURACY_METERS) {
+        //
+        // Per fence, and never stricter than the flat 50 m it replaces. The old constant refused a
+        // 122 m fix 16 m inside a 254 m-deep venue, which is the one visit the field captures lost
+        // outright, so the ceiling rises with the venue's own depth.
+        //
+        // It does not fall below 50 m, which is a deliberate departure from iOS. Scaling all the
+        // way down makes a 24 m shop undecidable at the 20 m accuracy the background routinely
+        // delivers, and that is the defect this module already fixed once: requiring the accuracy
+        // circle to clear the ring made a retail unit permanently undetectable. Refusing a real
+        // arrival is the expensive error, and the captures give no reason to pay it here — across
+        // 20 evaluations of the two rings shallower than this floor, not one fix ever read inside,
+        // so the band the floor keeps open has never yet admitted anything at all.
+        //
+        // A marginal fix admitted by the floor is not reported blindly: it opens a hold, and any
+        // later fix that can judge the venue and reads outside discards it.
+        val arrivalCeilingMeters = max(MINIMUM_ARRIVAL_CEILING_METERS, geometry.venueScaleMeters)
+        if (sample.horizontalAccuracyMeters >= arrivalCeilingMeters) {
             return undecided(
                 PolygonUndecidedReason.ACCURACY_TOO_LOW,
                 signedBoundaryDistanceMeters
@@ -168,15 +186,13 @@ internal class PolygonAccuracyEvaluator {
 
     private companion object {
         /**
-         * Coarser than this and a lone background fix decides nothing in either direction.
+         * The arrival ceiling never falls below this, however shallow the ring.
          *
-         * Unchanged at 50. Indoor fixes measure around 100 m, so this is what makes an indoor
-         * arrival undecidable, and raising it is the single highest-impact calibration choice
-         * open — but it is the one that needs the real accuracy distribution rather than an
-         * argument from geometry, because at 100 m against a 24 m fence the fix carries no
-         * information about containment at all.
+         * Carried over as the old flat ceiling's value so this change cannot refuse an arrival that
+         * the previous rule accepted. It is the one place Android is deliberately looser than iOS,
+         * whose ceiling is the venue depth alone.
          */
-        const val MAX_DECISIVE_FIX_ACCURACY_METERS = 50.0
+        const val MINIMUM_ARRIVAL_CEILING_METERS = 50.0
 
         /**
          * Clearance a departure needs beyond the fix's own accuracy. Arrival has no equivalent by

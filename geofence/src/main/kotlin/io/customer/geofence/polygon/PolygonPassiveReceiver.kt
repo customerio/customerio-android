@@ -112,10 +112,10 @@ class PolygonPassiveReceiver : BroadcastReceiver() {
         // polygon coarse-inside and only a GMS coarse EXIT clears it, so a polygon this listener
         // activated from an ENTER GMS never issued could stay active for the life of the install.
         //
-        // The accuracy is subtracted rather than gated on MAX_DECISIVE_FIX_ACCURACY_METERS: that
-        // ceiling is for ring-level decisions where the margin is tens of metres, while here the
-        // margin is the whole accuracy value plus the circle's slack over the ring. A passive fix
-        // is whatever another app asked for, so requiring the ceiling would leave this unreachable.
+        // The accuracy is subtracted rather than gated on the arrival ceiling: that ceiling is for
+        // ring-level decisions where the margin is the venue's own depth, while here the margin is
+        // the whole accuracy value plus the circle's slack over the ring. A passive fix is whatever
+        // another app asked for, so requiring the ceiling would leave this unreachable.
         val activeIds = store.getActivePolygonIds()
         val departed = polygons.filter { region ->
             region.id in activeIds &&

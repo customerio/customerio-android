@@ -193,11 +193,11 @@ internal class PolygonRecheckWorker(
         // polygon stays in the active set for the life of the install, re-evaluated by every fix
         // that reaches the engine.
         //
-        // The fix's accuracy is subtracted rather than gated on MAX_DECISIVE_FIX_ACCURACY_METERS.
-        // That ceiling is for ring-level decisions, where the margin is tens of metres; here the
-        // margin is the whole accuracy value plus the circle's slack over the ring, so the
-        // predicate is self-limiting and a coarse fix simply fails it. Requiring the ceiling too
-        // would make this unreachable from the balanced fix asked for above, leaving dead code.
+        // The fix's accuracy is subtracted rather than gated on the arrival ceiling. That ceiling
+        // is for ring-level decisions, where the margin is the venue's own depth; here the margin
+        // is the whole accuracy value plus the circle's slack over the ring, so the predicate is
+        // self-limiting and a coarse fix simply fails it. Requiring the ceiling too would make
+        // this unreachable from the balanced fix asked for above, leaving dead code.
         val activeIds = store.getActivePolygonIds()
         val departed = polygons.filter { region ->
             region.id in activeIds &&

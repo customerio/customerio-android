@@ -27,6 +27,8 @@ import kotlinx.coroutines.sync.withLock
  * [pendingArrivalPolygonIds] is the same cue for the opposite verdict. Those fences decided ENTER
  * and are holding it for a second measurement, which nothing in the background supplies inside the
  * corroboration window: `cor=true` appears in no capture, so every marginal arrival was dropped.
+ * It accumulates over every location in the pass, so it reads as "still holding" only while a pass
+ * carries one location, which is all any caller passes today.
  *
  * [evaluatedPolygonIds] is every fence this pass actually judged. A fence the route processor
  * skipped, because the fix is not strictly newer than the one it last saw for it, appears in
@@ -158,7 +160,8 @@ internal class PolygonLocationEngine(
             signedBoundaryDistanceMeters = record.signedBoundaryDistanceMeters,
             horizontalAccuracyMeters = record.horizontalAccuracyMeters,
             fixAgeSeconds = record.fixAgeSeconds,
-            corroborated = record.corroborated
+            corroborated = record.corroborated,
+            uncorroboratedReason = record.uncorroboratedReason
         )
         is PolygonRouteRecord.ArrivalPending -> logger.logPolygonArrivalPending(
             geofenceId = record.geofenceId,
@@ -170,13 +173,6 @@ internal class PolygonLocationEngine(
             geofenceId = record.geofenceId,
             reason = record.reason,
             heldForSeconds = record.heldForSeconds
-        )
-        is PolygonRouteRecord.ArrivalEcho -> logger.logPolygonArrivalEcho(
-            geofenceId = record.geofenceId,
-            signedBoundaryDistanceMeters = record.signedBoundaryDistanceMeters,
-            horizontalAccuracyMeters = record.horizontalAccuracyMeters,
-            fixAgeSeconds = record.fixAgeSeconds,
-            sinceCountedFixSeconds = record.sinceCountedFixSeconds
         )
     }
 

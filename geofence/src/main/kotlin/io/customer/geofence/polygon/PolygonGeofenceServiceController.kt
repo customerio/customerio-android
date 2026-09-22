@@ -946,8 +946,12 @@ internal class PolygonGeofenceServiceController(
                 // skip and change what a capture says about behaviour that was already correct.
                 previous != null && requestedAt - previous < FRESH_FIX_COOLDOWN_MS ->
                     CallbackFixDecision.WithinCooldown
-                requestWouldRepeatItselfLocked(needingPolygonIds, triggeringLocation, requestedAt) ->
-                    CallbackFixDecision.UnchangedPosition
+                requestWouldRepeatItselfLocked(
+                    needingPolygonIds,
+                    pendingArrivalPolygonIds,
+                    triggeringLocation,
+                    requestedAt
+                ) -> CallbackFixDecision.UnchangedPosition
                 else -> {
                     lastFreshFixRequestElapsedMs = requestedAt
                     CallbackFixDecision.Request
@@ -1044,19 +1048,34 @@ internal class PolygonGeofenceServiceController(
      * [FUTILE_ESCALATION_RETRY_MS] and this check withheld the measurement it was waiting for,
      * which dropped the arrival.
      *
-     * **A hold can still be gated by a memo that predates it,** and that is not a bug. A fence
-     * whose earlier precise request failed to decide it from this position carries a truthful memo;
-     * if a later wake opens a hold on that same fence from the same position, this check refuses
-     * the request, and the hold falls back to the next delivered fix inside
-     * [PolygonRouteProcessor.MAX_CORROBORATION_GAP_NANOS]. Whether an open hold should instead
-     * bypass this check outright is a cost-against-arrival policy call, not an oversight. It is one
-     * condition here if the answer changes.
+     * **An open hold bypasses this check**, and the reason is a premise rather than a preference.
+     *
+     * A memo records that a precise fix from this position could not decide that fence. That is
+     * what made asking again pointless. It is no longer true once the fence is holding an arrival:
+     * a repeat of the same position now settles the hold rather than deciding nothing, because a
+     * held arrival is reported unless a fix places the device outside, and a fix at the counted
+     * position commits it as `corroboration_not_independent`. So the memo's own justification does
+     * not cover a fence with a hold open.
+     *
+     * Without the bypass the request is refused, no fix reaches the fence, and the hold is dropped
+     * once it goes stale. Field gaps between two fixes for one fence measured 300 s and up against
+     * a 60 s window, so the refusal loses the visit rather than delaying it.
+     *
+     * Set-wide rather than per fence, and that is the same predicate rather than a looser one:
+     * the pending ids are a subset of the needing ids, so "every fence this request would serve is
+     * memoised and none is holding" is exactly what this returns.
+     *
+     * The cost is small. Only a pass that left a fence holding bypasses, and holds are rare: six
+     * across the four field captures, against the 190 futile requests a day the memo was built to
+     * stop.
      */
     private fun requestWouldRepeatItselfLocked(
         needingPolygonIds: Set<String>,
+        pendingArrivalPolygonIds: Set<String>,
         triggeringLocation: Location?,
         nowElapsedMs: Long
-    ): Boolean = needingPolygonIds.isNotEmpty() &&
+    ): Boolean = pendingArrivalPolygonIds.isEmpty() &&
+        needingPolygonIds.isNotEmpty() &&
         needingPolygonIds.all {
             escalationWouldRepeatItselfLocked(it, triggeringLocation, nowElapsedMs)
         }

@@ -1,6 +1,7 @@
 package io.customer.geofence.polygon
 
 import org.amshove.kluent.shouldBeEqualTo
+import org.amshove.kluent.shouldBeInRange
 import org.junit.Test
 
 /**
@@ -56,9 +57,15 @@ class PolygonCorroborationOnRealFencesTest {
 
     @Test
     fun fenceA_givenAccuracyAboveItsMaximumClearance_expectEvenTheBestPointIsHeld() {
-        // 25 m beats the 24.2 m clearance of the most favourable point in the fence, so at this
-        // accuracy nothing anywhere inside Fence A can arrive on a single fix. Background
-        // accuracy on this drive ran 13-24 m, so the fence spends real time in this state.
+        // 25 m beats the 24.2 m clearance of the most favourable point in the fence, so nothing
+        // anywhere inside Fence A arrives on a single fix at this accuracy. It is still admitted
+        // and held, because the ceiling does not fall below 50 m however shallow the ring.
+        //
+        // Scaling the ceiling all the way down to the venue depth would refuse this outright, and
+        // with it every background fix on a 24 m shop, since this drive's accuracy ran 13-24 m.
+        // The floor is what keeps such a venue detectable at all; what stops the verdict being a
+        // coin flip is the hold, which any later fix that can judge the ring and reads outside
+        // discards.
         val result = evaluator.decisiveEvidenceFor(
             geometry = fenceA,
             sample = PolygonLocationSample(fenceABestPoint, horizontalAccuracyMeters = 25.0),
@@ -67,6 +74,32 @@ class PolygonCorroborationOnRealFencesTest {
 
         result.evidence shouldBeEqualTo PolygonEvidence.ENTER
         result.requiresCorroboration shouldBeEqualTo true
+    }
+
+    @Test
+    fun fenceA_givenAccuracyPastTheFloor_expectTheArrivalIsRefused() {
+        // Above the floor the ceiling does bite, on any ring. 60 m against a 24 m fence cannot say
+        // anything about containment at all.
+        val result = evaluator.decisiveEvidenceFor(
+            geometry = fenceA,
+            sample = PolygonLocationSample(fenceABestPoint, horizontalAccuracyMeters = 60.0),
+            committedState = PolygonCommittedState.OUTSIDE
+        )
+
+        result.evidence shouldBeEqualTo PolygonEvidence.AMBIGUOUS
+        result.undecidedReason shouldBeEqualTo PolygonUndecidedReason.ACCURACY_TOO_LOW
+    }
+
+    @Test
+    fun venueScale_givenTheRealRings_expectItTracksTheirMeasuredClearance() {
+        // The ceiling is an O(n) approximation of the maximum inradius, so what matters is that it
+        // tracks the grid-computed clearance on real shapes and errs high rather than low. Erring
+        // high widens the accuracy accepted, and refusing a real arrival is the expensive error.
+        fenceA.venueScaleMeters shouldBeInRange 24.0..24.5
+        fenceB.venueScaleMeters shouldBeInRange 112.0..113.5
+        // 1.001x on the triangle and 1.067x on the quadrilateral, against 24.16 m and 105.93 m.
+        (fenceA.venueScaleMeters >= 24.16) shouldBeEqualTo true
+        (fenceB.venueScaleMeters >= 105.93) shouldBeEqualTo true
     }
 
     @Test

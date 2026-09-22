@@ -18,7 +18,7 @@ internal sealed class InAppMessagingAction {
     data class EmbedMessages(val messages: List<Message>) : InAppMessagingAction()
     data class ReconcileInlineMessages(
         val messages: List<Message>,
-        val authoritativeMessages: List<Message> = messages
+        val authoritativeMessages: List<Message>
     ) : InAppMessagingAction()
     data class SetInlineMessageViewAttached(val message: Message, val isAttached: Boolean) : InAppMessagingAction()
     data class SetUserIdentifier(val user: String) : InAppMessagingAction()

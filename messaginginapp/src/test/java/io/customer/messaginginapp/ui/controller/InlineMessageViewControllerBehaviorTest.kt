@@ -219,7 +219,12 @@ class InlineMessageViewControllerBehaviorTest : JUnitTest() {
             .flushCoroutines(scopeProviderStub.inAppLifecycleScope)
 
         messagingManager
-            .dispatch(InAppMessagingAction.ReconcileInlineMessages(emptyList()))
+            .dispatch(
+                InAppMessagingAction.ReconcileInlineMessages(
+                    messages = emptyList(),
+                    authoritativeMessages = emptyList()
+                )
+            )
             .flushCoroutines(scopeProviderStub.inAppLifecycleScope)
 
         assertMessageDismissedCalls(viewCallback = viewCallback)
@@ -428,6 +433,40 @@ class InlineMessageViewControllerBehaviorTest : JUnitTest() {
         inlineState.isViewAttached shouldBeEqualTo false
         inlineState.shouldRetainWhenDetached shouldBeEqualTo true
         controller.engineWebViewDelegate.shouldBeNull()
+        controller.currentMessage.shouldBeNull()
+    }
+
+    @Test
+    fun onViewReattached_givenQueuedStateFromPreviousSubscription_expectStaleStateIgnored() {
+        val controller = setupGistAndCreateViewController()
+        controller.initMockViewCallback()
+        val givenElementId = "test-element-id"
+        val givenInAppMessage = createInAppMessage(queueId = "1", elementId = givenElementId)
+        controller.elementId = givenElementId
+        flushCoroutines(scopeProviderStub.inAppLifecycleScope)
+        clearMocks(viewDelegate, engineWebViewDelegate, platformDelegate, answers = false)
+        val pendingPosts = mutableListOf<() -> Unit>()
+        every { viewDelegate.post(any()) } answers {
+            pendingPosts += firstArg<() -> Unit>()
+        }
+
+        messagingManager
+            .dispatch(InAppMessagingAction.EmbedMessages(listOf(givenInAppMessage)))
+            .flushCoroutines(scopeProviderStub.inAppLifecycleScope)
+        val stalePost = pendingPosts.single()
+        controller.onViewDetached()
+        messagingManager.dispatch(
+            InAppMessagingAction.ReconcileInlineMessages(
+                messages = emptyList(),
+                authoritativeMessages = emptyList()
+            )
+        )
+        controller.onViewOwnerCreated()
+        flushCoroutines(scopeProviderStub.inAppLifecycleScope)
+
+        stalePost()
+
+        verify(exactly = 0) { viewDelegate.createEngineWebViewInstance() }
         controller.currentMessage.shouldBeNull()
     }
 

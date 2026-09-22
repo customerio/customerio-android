@@ -38,11 +38,12 @@ internal const val INLINE_AVAILABILITY_LIST_TAG = "inline_availability_list"
 internal const val INLINE_AVAILABILITY_STATUS_TAG = "inline_availability_status"
 internal const val INLINE_CENTER_ITEM_TAG = "inline_center_item"
 internal const val INLINE_BOTTOM_ITEM_TAG = "inline_bottom_item"
+internal const val CONDITIONAL_INLINE_ELEMENT_ID = "sticky-header"
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun KotlinComposeInlineComponent(context: Context) {
-    val isCenterMessageAvailable by rememberInlineMessageAvailability("compose-sticky-center")
+    val isCenterMessageAvailable by rememberInlineMessageAvailability(CONDITIONAL_INLINE_ELEMENT_ID)
 
     KotlinComposeInlineContent(
         context = context,
@@ -93,7 +94,7 @@ internal fun KotlinComposeInlineContent(
                             style = MaterialTheme.typography.titleMedium
                         )
                         Text(
-                            text = "compose-sticky-center: " +
+                            text = "$CONDITIONAL_INLINE_ELEMENT_ID: " +
                                 if (isCenterMessageAvailable) "available" else "unavailable",
                             modifier = Modifier.testTag(INLINE_AVAILABILITY_STATUS_TAG),
                             style = MaterialTheme.typography.bodyMedium
@@ -126,7 +127,7 @@ internal fun KotlinComposeInlineContent(
                                 .testTag(INLINE_CENTER_ITEM_TAG)
                         ) {
                             InlineInAppMessage(
-                                elementId = "compose-sticky-center",
+                                elementId = CONDITIONAL_INLINE_ELEMENT_ID,
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .padding(start = 16.dp, end = 16.dp, top = 16.dp),

@@ -9,6 +9,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performScrollToNode
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import io.customer.android.sample.kotlin_compose.ui.inline.compose.CONDITIONAL_INLINE_ELEMENT_ID
 import io.customer.android.sample.kotlin_compose.ui.inline.compose.INLINE_AVAILABILITY_LIST_TAG
 import io.customer.android.sample.kotlin_compose.ui.inline.compose.INLINE_AVAILABILITY_STATUS_TAG
 import io.customer.android.sample.kotlin_compose.ui.inline.compose.INLINE_BOTTOM_ITEM_TAG
@@ -37,7 +38,7 @@ class InlineAvailabilityInstrumentedTest {
         }
 
         composeTestRule.onNodeWithTag(INLINE_AVAILABILITY_STATUS_TAG)
-            .assertTextContains("compose-sticky-center: unavailable")
+            .assertTextContains("$CONDITIONAL_INLINE_ELEMENT_ID: unavailable")
         assertNodeCount(INLINE_CENTER_ITEM_TAG, expectedCount = 0)
 
         composeTestRule.runOnUiThread { isAvailable.value = true }

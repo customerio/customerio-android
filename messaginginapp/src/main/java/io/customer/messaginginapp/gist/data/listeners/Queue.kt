@@ -189,7 +189,7 @@ internal class Queue(
         if (responseCode == 204) {
             logger.debug("No messages found for user with response code: $responseCode")
         } else {
-            logger.debug("Queue not modified without a cached response; retaining last-known messages")
+            logger.debug("Queue not modified without a cached response; retaining last-known inline and inbox messages")
         }
         inAppMessagingManager.dispatch(
             InAppMessagingAction.ClearMessageQueue(isContentEmpty = responseCode == 204)

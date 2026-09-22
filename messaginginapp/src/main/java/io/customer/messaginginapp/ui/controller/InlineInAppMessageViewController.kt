@@ -11,6 +11,7 @@ import io.customer.messaginginapp.state.InlineMessageState
 import io.customer.messaginginapp.ui.bridge.InAppHostViewDelegate
 import io.customer.messaginginapp.ui.bridge.InAppPlatformDelegate
 import io.customer.messaginginapp.ui.bridge.InlineInAppMessageViewCallback
+import java.util.concurrent.atomic.AtomicLong
 import kotlinx.coroutines.Job
 
 internal class InlineInAppMessageViewController
@@ -49,6 +50,7 @@ internal constructor(
     internal var contentHeightInDp: Double? by threadSafe()
 
     private var stateSubscriptionJob: Job? = null
+    private val stateSubscriptionId = AtomicLong()
     private var isViewActive = false
     private var viewTransitionId = 0L
 
@@ -57,6 +59,7 @@ internal constructor(
     }
 
     private fun subscribeToStore() {
+        val subscriptionId = stateSubscriptionId.incrementAndGet()
         stateSubscriptionJob = inAppMessagingManager.subscribeToState(
             areEquivalent = { oldState, newState ->
                 val viewElementId = elementId ?: return@subscribeToState true
@@ -69,11 +72,16 @@ internal constructor(
                     oldMessageMatchesRoute == newMessageMatchesRoute
             }
         ) { state ->
-            viewDelegate.post { refreshViewState(state = state) }
+            viewDelegate.post {
+                if (subscriptionId == stateSubscriptionId.get()) {
+                    refreshViewState(state = state)
+                }
+            }
         }
     }
 
     private fun unsubscribeFromStore() {
+        stateSubscriptionId.incrementAndGet()
         stateSubscriptionJob?.cancel()
         stateSubscriptionJob = null
     }

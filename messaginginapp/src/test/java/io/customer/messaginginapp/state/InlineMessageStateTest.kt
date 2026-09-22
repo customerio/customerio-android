@@ -71,7 +71,10 @@ class InlineMessageStateTest : JUnitTest() {
 
         val resultState = inAppMessagingReducer(
             initialState,
-            InAppMessagingAction.ReconcileInlineMessages(listOf(message))
+            InAppMessagingAction.ReconcileInlineMessages(
+                messages = listOf(message),
+                authoritativeMessages = listOf(message)
+            )
         )
 
         val inlineState = resultState.queuedInlineMessagesState.getMessage(elementId)
@@ -89,7 +92,10 @@ class InlineMessageStateTest : JUnitTest() {
 
         val resultState = inAppMessagingReducer(
             initialState,
-            InAppMessagingAction.ReconcileInlineMessages(emptyList())
+            InAppMessagingAction.ReconcileInlineMessages(
+                messages = emptyList(),
+                authoritativeMessages = emptyList()
+            )
         )
 
         assertEquals(null, resultState.queuedInlineMessagesState.getMessage(elementId))
@@ -109,7 +115,10 @@ class InlineMessageStateTest : JUnitTest() {
 
         val resultState = inAppMessagingReducer(
             initialState,
-            InAppMessagingAction.ReconcileInlineMessages(emptyList())
+            InAppMessagingAction.ReconcileInlineMessages(
+                messages = emptyList(),
+                authoritativeMessages = emptyList()
+            )
         )
 
         val inlineState = resultState.queuedInlineMessagesState
@@ -136,7 +145,10 @@ class InlineMessageStateTest : JUnitTest() {
 
         val resultState = inAppMessagingReducer(
             initialState,
-            InAppMessagingAction.ReconcileInlineMessages(emptyList())
+            InAppMessagingAction.ReconcileInlineMessages(
+                messages = emptyList(),
+                authoritativeMessages = emptyList()
+            )
         )
 
         assertEquals(null, resultState.queuedInlineMessagesState.getMessage(elementId))
@@ -156,7 +168,10 @@ class InlineMessageStateTest : JUnitTest() {
 
         val resultState = inAppMessagingReducer(
             initialState,
-            InAppMessagingAction.ReconcileInlineMessages(emptyList())
+            InAppMessagingAction.ReconcileInlineMessages(
+                messages = emptyList(),
+                authoritativeMessages = emptyList()
+            )
         )
 
         assertTrue(resultState.queuedInlineMessagesState.getMessage(elementId) is InlineMessageState.Embedded)

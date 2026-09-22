@@ -826,6 +826,45 @@ class PolygonFreshFixTest : RobolectricTest() {
     }
 
     @Test
+    fun activate_givenAHeldArrivalAndATimedOutRequest_expectTheNextCallbackStillAsks() = runTest {
+        // Raised by Shahroz on #901, and a regression the set-wide gate introduced. On the
+        // NONE_ARRIVED path nothing was evaluated, so the recording took the whole requested set as
+        // still undecided, which handed a futile memo to a fence whose arrival was merely being
+        // held. The memo is good for 30 minutes and the hold expires in 60 seconds, so the next
+        // callback suppressed the one measurement that could still have saved the arrival.
+        //
+        // The later fix is coarse on purpose: that is the ordinary case, and it is what puts the
+        // held fence back in the request set as undecided rather than resolving its hold.
+        val freshFix = CountingNeverAnswersFreshFix()
+        val controller = controller(freshFix)
+        store.saveCachedRegions(
+            listOf(venueRegion(), regionShiftedNorth(NEIGHBOUR_ID, HELD_CO_TENANT_SHIFT_DEGREES))
+        )
+        store.saveRegisteredIds(setOf(VENUE_ID, NEIGHBOUR_ID))
+        store.saveRoutableRegisteredIds(setOf(VENUE_ID, NEIGHBOUR_ID))
+        store.recordEntered(NEIGHBOUR_ID)
+
+        // Marginal inside the venue, so the venue decides ENTER and holds it for a second
+        // measurement, while the co-tenant reads undecided. The request for both times out.
+        controller.activate(VENUE_ID, marginalFixInsideTheVenue(), store.userStateGeneration(), null)
+
+        ShadowSystemClock.advanceBy(Duration.ofSeconds(31))
+        controller.activate(
+            VENUE_ID,
+            coarseFixInsideTheVenue(SystemClock.elapsedRealtimeNanos()),
+            store.userStateGeneration(),
+            null
+        )
+
+        // The held fence carries no memo, so the set is not wholly suppressed and the hold still
+        // gets its request. Recording it would have refused this one.
+        freshFix.requests shouldBeEqualTo 2
+        verify(exactly = 0) {
+            mockLogger.logPolygonFreshFixSkipped(PolygonFreshFixSkip.UNCHANGED_POSITION)
+        }
+    }
+
+    @Test
     fun activate_givenOneFenceInTheSetIsStillAnswerable_expectItStillAsks() = runTest {
         // The other half of the contract, and the reason the check is `all` and not `any`. One
         // fence that could still be answered is worth the fix, so a suppressed co-tenant must not
@@ -1035,11 +1074,15 @@ class PolygonFreshFixTest : RobolectricTest() {
      * WITHIN_ACCURACY. Needed because the accuracy ceiling is a flat 50 m rather than per fence,
      * so two fences cannot diverge on fix quality alone.
      */
-    private fun regionJustNorthOfTheVenue(id: String) = venueRegion().copy(
+    private fun regionJustNorthOfTheVenue(id: String) =
+        regionShiftedNorth(id, NORTH_SHIFT_DEGREES)
+
+    /** [degrees] of latitude north, carrying the venue's shape with it. */
+    private fun regionShiftedNorth(id: String, degrees: Double) = venueRegion().copy(
         id = id,
-        latitude = 37.7750 + NORTH_SHIFT_DEGREES,
+        latitude = 37.7750 + degrees,
         polygonVertices = venueRegion().polygonVertices?.map {
-            PolygonCoordinate(it.latitude + NORTH_SHIFT_DEGREES, it.longitude)
+            PolygonCoordinate(it.latitude + degrees, it.longitude)
         }
     )
 
@@ -1047,6 +1090,13 @@ class PolygonFreshFixTest : RobolectricTest() {
         /** ~59.7 m, which puts the venue-centre fix about 4 m south of the shifted fence's edge. */
         const val NORTH_SHIFT_DEGREES = 0.0005359
         const val SECOND_NEIGHBOUR_ID = "neighbour-2"
+
+        /**
+         * ~30.6 m, which leaves the marginal fix about 25 m south of the shifted fence's edge:
+         * outside it, but not clear of it at 20 m accuracy, so the verdict is undecided rather
+         * than a departure.
+         */
+        const val HELD_CO_TENANT_SHIFT_DEGREES = 0.0002746
         const val USER_ID = "user-1"
         const val VENUE_ID = "venue"
         const val NEIGHBOUR_ID = "neighbour"

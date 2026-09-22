@@ -868,8 +868,12 @@ internal class PolygonGeofenceServiceController(
             // Nothing to judge and nothing to fall back on, so the request is the whole pass.
             // Unmeasured: every callback in seven captures carried a fix, 49 of 49 fixsrc=os_trigger
             // and no fixsrc=none, so this is fail-open surface rather than an observed case.
-            val only = preciseFixForCallback(polygonId, setOf(polygonId), triggeringLocation = null)
-                ?: return
+            val only = preciseFixForCallback(
+                polygonId,
+                undecidedPolygonIds = setOf(polygonId),
+                pendingArrivalPolygonIds = emptySet(),
+                triggeringLocation = null
+            ) ?: return
             evaluateAndRecentre(only.fix, expectedUserStateGeneration)
             return
         }
@@ -880,7 +884,12 @@ internal class PolygonGeofenceServiceController(
         // the very fix a hold is waiting on, the corroboration guard refuses it there instead.
         val needing = delivered.undecidedPolygonIds + delivered.pendingArrivalPolygonIds
         if (needing.isEmpty()) return
-        val fresh = preciseFixForCallback(polygonId, needing, triggeringLocation) ?: return
+        val fresh = preciseFixForCallback(
+            polygonId,
+            delivered.undecidedPolygonIds,
+            delivered.pendingArrivalPolygonIds,
+            triggeringLocation
+        ) ?: return
         val after = evaluateAndRecentre(fresh.fix, expectedUserStateGeneration)
         // Only a pass that actually evaluated says anything about this position. An aborted one
         // reports nothing undecided without having decided, and reading that as "decided" cleared
@@ -917,9 +926,11 @@ internal class PolygonGeofenceServiceController(
      */
     private suspend fun preciseFixForCallback(
         polygonId: String,
-        needingPolygonIds: Set<String>,
+        undecidedPolygonIds: Set<String>,
+        pendingArrivalPolygonIds: Set<String>,
         triggeringLocation: Location?
     ): CallbackFix? {
+        val needingPolygonIds = undecidedPolygonIds + pendingArrivalPolygonIds
         val requestedAt = SystemClock.elapsedRealtime()
         val decision = synchronized(controllerLock) {
             val reusable = lastFreshFix?.takeIf {
@@ -965,11 +976,19 @@ internal class PolygonGeofenceServiceController(
             // and an accuracy. Without this a device whose precise fix never arrives keeps asking
             // on every wake, which is the same waste by a different route. The log stays
             // NONE_ARRIVED; only the memo changes.
-            if (triggeringLocation != null) {
+            //
+            // Held arrivals are excluded, and that is load-bearing rather than tidy. A hold is not
+            // a futile escalation: the fix decided ENTER and is waiting for a second measurement,
+            // so memoising it records a failure that did not happen. It also outlives the thing it
+            // describes, because the memo withholds the next request for up to
+            // FUTILE_ESCALATION_RETRY_MS while the hold expires after MAX_CORROBORATION_GAP_NANOS,
+            // and the request being withheld is the one measurement that could still save the
+            // arrival. Raised by Shahroz on #901.
+            if (triggeringLocation != null && undecidedPolygonIds.isNotEmpty()) {
                 recordEscalationOutcomes(
-                    requested = needingPolygonIds,
-                    stillUndecided = needingPolygonIds,
-                    evaluated = needingPolygonIds,
+                    requested = undecidedPolygonIds,
+                    stillUndecided = undecidedPolygonIds,
+                    evaluated = undecidedPolygonIds,
                     fix = triggeringLocation,
                     atElapsedMs = SystemClock.elapsedRealtime(),
                     requestSessionElapsedMs = requestedAt
@@ -995,21 +1014,6 @@ internal class PolygonGeofenceServiceController(
     }
 
     /**
-     * Whether asking for another precise fix would repeat one that already failed.
-     *
-     * Measured 2026-09-20: a device parked inside one polygon's 371 m wake circle produced **190
-     * precise-fix requests in a day**, median 6 minutes apart, 99% of them returning exactly 100 m
-     * and every one undecided. The wake sources are working as intended and the 30 s cooldown is
-     * far shorter than the wake cadence, so nothing stopped it. Zero transitions came out of that
-     * day.
-     *
-     * The discriminator is movement, not time: a fix taken from where the last futile one was
-     * taken cannot separate inside from outside any better. [FUTILE_ESCALATION_RETRY_MS] lets one
-     * through periodically anyway, because accuracy at a fixed position is bimodal on this hardware
-     * (either ~1 m or exactly 100 m), so a stationary device does occasionally get a fix that would
-     * decide.
-     */
-    /**
      * Whether a request made for [needingPolygonIds] would repeat one that already failed for
      * every fence in it.
      *
@@ -1032,12 +1036,18 @@ internal class PolygonGeofenceServiceController(
      * empty set would otherwise satisfy [Set.all] and suppress, which is the opposite of what an
      * absence of demand should mean.
      *
-     * One consequence worth knowing before reading a capture: a fence that is in the set because
-     * its arrival is being held never carries a memo, because ArrivalPending puts it among the
-     * evaluated rather than the undecided and so clears rather than sets one. A held arrival
-     * therefore always defeats this check and keeps the batch asking. That is what it should do,
-     * since a second measurement is exactly what a hold needs and the window caps it at 60 s, but
-     * it means batch suppression is off for as long as any co-tenant hold is open.
+     * One consequence worth knowing before reading a capture: a fence in the set because its
+     * arrival is being held carries no memo, so a held arrival always defeats this check and keeps
+     * the batch asking. That is what it should do, since a second measurement is exactly what a
+     * hold needs and [PolygonRouteProcessor.MAX_CORROBORATION_GAP_NANOS] caps the wait, but it
+     * means batch suppression is off for as long as any co-tenant hold is open.
+     *
+     * Two separate things keep that true, and it was only half true once. On the answered path
+     * ArrivalPending lands among the evaluated rather than the undecided, so the outcome clears a
+     * memo rather than setting one. On the timeout path nothing was evaluated, so the recording
+     * excludes held arrivals explicitly instead. Without that second half a hold picked up a memo
+     * good for [FUTILE_ESCALATION_RETRY_MS] and this check then withheld the measurement it was
+     * waiting for, which dropped the arrival.
      */
     private fun requestWouldRepeatItselfLocked(
         needingPolygonIds: Set<String>,
@@ -1048,6 +1058,21 @@ internal class PolygonGeofenceServiceController(
             escalationWouldRepeatItselfLocked(it, triggeringLocation, nowElapsedMs)
         }
 
+    /**
+     * Whether asking for another precise fix would repeat one that already failed.
+     *
+     * Measured 2026-09-20: a device parked inside one polygon's 371 m wake circle produced **190
+     * precise-fix requests in a day**, median 6 minutes apart, 99% of them returning exactly 100 m
+     * and every one undecided. The wake sources are working as intended and the 30 s cooldown is
+     * far shorter than the wake cadence, so nothing stopped it. Zero transitions came out of that
+     * day.
+     *
+     * The discriminator is movement, not time: a fix taken from where the last futile one was
+     * taken cannot separate inside from outside any better. [FUTILE_ESCALATION_RETRY_MS] lets one
+     * through periodically anyway, because accuracy at a fixed position is bimodal on this hardware
+     * (either ~1 m or exactly 100 m), so a stationary device does occasionally get a fix that would
+     * decide.
+     */
     private fun escalationWouldRepeatItselfLocked(
         polygonId: String,
         triggeringLocation: Location?,

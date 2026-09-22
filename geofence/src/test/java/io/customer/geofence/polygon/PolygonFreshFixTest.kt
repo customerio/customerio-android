@@ -791,6 +791,164 @@ class PolygonFreshFixTest : RobolectricTest() {
     }
 
     @Test
+    fun activate_givenEveryFenceTheRequestServesIsSuppressed_expectNoRequest() = runTest {
+        // The gate used to read the callback's own fence, which is often not one the request would
+        // serve at all. A fix that decides the callback's fence clears its memo, so the callback
+        // arrives carrying none, while the only fence still needing a fix is already suppressed.
+        // The request was funded anyway, once per wake, which is the loop this path exists to stop.
+        // Raised by Bugbot twice and reproduced by Shahroz with two active polygons.
+        // A second of the request's own wait, so the answer is strictly newer than the fix that
+        // triggered it. Without it the processor skips every fence as not-newer, the pass records
+        // nothing, and no memo is ever set for the test to exercise.
+        val freshFix = CountingCoarseFreshFix {
+            ShadowSystemClock.advanceBy(Duration.ofSeconds(1))
+            preciseFixInsideTheVenue()
+        }
+        val controller = controller(freshFix)
+        store.saveCachedRegions(listOf(venueRegion(), regionJustNorthOfTheVenue(NEIGHBOUR_ID)))
+        store.saveRegisteredIds(setOf(VENUE_ID, NEIGHBOUR_ID))
+        store.saveRoutableRegisteredIds(setOf(VENUE_ID, NEIGHBOUR_ID))
+        // Committed INSIDE, so the venue-centre fix reads outside its ring without clearing it,
+        // which is undecided rather than a departure.
+        store.recordEntered(NEIGHBOUR_ID)
+
+        controller.activate(NEIGHBOUR_ID, preciseFixInsideTheVenue(), store.userStateGeneration(), null)
+        // Past the cooldown, so a refusal below is the position check and not the rate limit.
+        ShadowSystemClock.advanceBy(Duration.ofSeconds(31))
+        // A callback for the venue, whose own verdict is decisive and carries no memo. The only
+        // fence needing a fix is still the neighbour, and it is suppressed.
+        controller.activate(VENUE_ID, preciseFixInsideTheVenue(), store.userStateGeneration(), null)
+
+        freshFix.requests shouldBeEqualTo 1
+        verify(exactly = 1) {
+            mockLogger.logPolygonFreshFixSkipped(PolygonFreshFixSkip.UNCHANGED_POSITION)
+        }
+    }
+
+    @Test
+    fun activate_givenARequestTimedOut_expectTheUndecidedFenceIsStillMemoised() = runTest {
+        // The complement of the held-arrival case below, and unpinned until now: a request that
+        // answers with nothing still has to memoise the fences it was asked for, or a device whose
+        // precise fix never arrives goes on asking on every wake, which is the same waste by
+        // another route. Deleting the timeout recording altogether passed the whole suite before
+        // this existed.
+        val freshFix = CountingNeverAnswersFreshFix()
+        val controller = controller(freshFix)
+
+        controller.activate(VENUE_ID, coarseFixInsideTheVenue(), store.userStateGeneration(), null)
+        ShadowSystemClock.advanceBy(Duration.ofSeconds(31))
+        controller.activate(
+            VENUE_ID,
+            coarseFixInsideTheVenue(SystemClock.elapsedRealtimeNanos()),
+            store.userStateGeneration(),
+            null
+        )
+
+        freshFix.requests shouldBeEqualTo 1
+        verify(exactly = 1) {
+            mockLogger.logPolygonFreshFixSkipped(PolygonFreshFixSkip.UNCHANGED_POSITION)
+        }
+    }
+
+    @Test
+    fun activate_givenAHeldArrivalAndATimedOutRequest_expectTheNextCallbackStillAsks() = runTest {
+        // Raised by Shahroz on #901, and a regression the set-wide gate introduced. On the
+        // NONE_ARRIVED path nothing was evaluated, so the recording took the whole requested set as
+        // still undecided, which handed a futile memo to a fence whose arrival was merely being
+        // held. The memo is good for 30 minutes and the hold expires in 60 seconds, so the next
+        // callback suppressed the one measurement that could still have saved the arrival.
+        //
+        // The later fix is coarse on purpose: that is the ordinary case, and it is what puts the
+        // held fence back in the request set as undecided rather than resolving its hold.
+        val freshFix = CountingNeverAnswersFreshFix()
+        val controller = controller(freshFix)
+        store.saveCachedRegions(
+            listOf(venueRegion(), regionShiftedNorth(NEIGHBOUR_ID, HELD_CO_TENANT_SHIFT_DEGREES))
+        )
+        store.saveRegisteredIds(setOf(VENUE_ID, NEIGHBOUR_ID))
+        store.saveRoutableRegisteredIds(setOf(VENUE_ID, NEIGHBOUR_ID))
+        store.recordEntered(NEIGHBOUR_ID)
+
+        // The co-tenant has to be activated to be judged at all: the engine evaluates the active
+        // fences and activate() admits only the one it is called for. Activated with a decisive fix
+        // of its own so this pass asks for nothing, which keeps the cooldown free and leaves no memo
+        // behind. Stamped older than the marginal fix below, or the processor would skip it as
+        // not-newer when that one arrives.
+        controller.activate(
+            NEIGHBOUR_ID,
+            decisiveFixInsideTheShiftedFence(),
+            store.userStateGeneration(),
+            null
+        )
+        // Marginal inside the venue, so this one pass holds the venue's ENTER for a second
+        // measurement AND reads the co-tenant undecided. One request serves both, and it times out.
+        controller.activate(VENUE_ID, marginalFixInsideTheVenue(), store.userStateGeneration(), null)
+
+        ShadowSystemClock.advanceBy(Duration.ofSeconds(31))
+        controller.activate(
+            VENUE_ID,
+            coarseFixInsideTheVenue(SystemClock.elapsedRealtimeNanos()),
+            store.userStateGeneration(),
+            null
+        )
+
+        // The held fence carries no memo, so the set is not wholly suppressed and the hold still
+        // gets its request. Memoising it would have refused this one, which is the regression: the
+        // co-tenant IS memoised by the same timed-out request, so a whole-set recording leaves
+        // nothing in the set unsuppressed.
+        freshFix.requests shouldBeEqualTo 2
+        verify(exactly = 0) {
+            mockLogger.logPolygonFreshFixSkipped(PolygonFreshFixSkip.UNCHANGED_POSITION)
+        }
+    }
+
+    @Test
+    fun activate_givenOneFenceInTheSetIsStillAnswerable_expectItStillAsks() = runTest {
+        // The other half of the contract, and the reason the check is `all` and not `any`. One
+        // fence that could still be answered is worth the fix, so a suppressed co-tenant must not
+        // withhold it. Suppressing on `any` here is how this turns into a delayed arrival, which
+        // is the whole reason the stack exists.
+        //
+        // The second neighbour is registered only after the first request, so it carries no memo of
+        // its own while the first neighbour does.
+        // A second of the request's own wait, so the answer is strictly newer than the fix that
+        // triggered it. Without it the processor skips every fence as not-newer, the pass records
+        // nothing, and no memo is ever set for the test to exercise.
+        val freshFix = CountingCoarseFreshFix {
+            ShadowSystemClock.advanceBy(Duration.ofSeconds(1))
+            preciseFixInsideTheVenue()
+        }
+        val controller = controller(freshFix)
+        store.saveCachedRegions(listOf(venueRegion(), regionJustNorthOfTheVenue(NEIGHBOUR_ID)))
+        store.saveRegisteredIds(setOf(VENUE_ID, NEIGHBOUR_ID))
+        store.saveRoutableRegisteredIds(setOf(VENUE_ID, NEIGHBOUR_ID))
+        store.recordEntered(NEIGHBOUR_ID)
+
+        controller.activate(NEIGHBOUR_ID, preciseFixInsideTheVenue(), store.userStateGeneration(), null)
+
+        store.saveCachedRegions(
+            listOf(
+                venueRegion(),
+                regionJustNorthOfTheVenue(NEIGHBOUR_ID),
+                regionJustNorthOfTheVenue(SECOND_NEIGHBOUR_ID)
+            )
+        )
+        store.saveRegisteredIds(setOf(VENUE_ID, NEIGHBOUR_ID, SECOND_NEIGHBOUR_ID))
+        store.saveRoutableRegisteredIds(setOf(VENUE_ID, NEIGHBOUR_ID, SECOND_NEIGHBOUR_ID))
+        store.recordEntered(SECOND_NEIGHBOUR_ID)
+
+        ShadowSystemClock.advanceBy(Duration.ofSeconds(31))
+        controller.activate(
+            SECOND_NEIGHBOUR_ID,
+            preciseFixInsideTheVenue(),
+            store.userStateGeneration(),
+            null
+        )
+
+        freshFix.requests shouldBeEqualTo 2
+    }
+
+    @Test
     fun activate_givenTheMoveIsInsideTheOlderFixError_expectItDoesNotAskAgain() = runTest {
         // Pins the tolerance to the LOOSER of the two errors. The first fix was +/-122 m, the
         // second is +/-60 m and reads 100 m away. That displacement is entirely explainable by the
@@ -945,7 +1103,50 @@ class PolygonFreshFixTest : RobolectricTest() {
     /** A second polygon at the same place, so one batch can report both as undecided. */
     private fun neighbourRegion() = venueRegion().copy(id = NEIGHBOUR_ID)
 
+    /**
+     * A polygon shifted ~60 m north, so a fix at the venue's centre sits about 4 m OUTSIDE its
+     * southern edge while sitting ~52 m inside the venue's.
+     *
+     * That is what lets one precise fix reach two different verdicts: decisive for the venue, and,
+     * for this one committed INSIDE, outside its ring but not clear of it, which is
+     * WITHIN_ACCURACY. Needed because the accuracy ceiling is a flat 50 m rather than per fence,
+     * so two fences cannot diverge on fix quality alone.
+     */
+    private fun regionJustNorthOfTheVenue(id: String) =
+        regionShiftedNorth(id, NORTH_SHIFT_DEGREES)
+
+    /**
+     * Dead centre of the fence shifted by [HELD_CO_TENANT_SHIFT_DEGREES], precise enough to decide
+     * it, and stamped 5 s old so the 2 s old marginal fix that follows is still strictly newer.
+     */
+    private fun decisiveFixInsideTheShiftedFence() = Location("test").apply {
+        latitude = 37.7750 + HELD_CO_TENANT_SHIFT_DEGREES
+        longitude = -122.4194
+        accuracy = 8f
+        elapsedRealtimeNanos = SystemClock.elapsedRealtimeNanos() - 5_000_000_000L
+        time = 100_000L
+    }
+
+    /** [degrees] of latitude north, carrying the venue's shape with it. */
+    private fun regionShiftedNorth(id: String, degrees: Double) = venueRegion().copy(
+        id = id,
+        latitude = 37.7750 + degrees,
+        polygonVertices = venueRegion().polygonVertices?.map {
+            PolygonCoordinate(it.latitude + degrees, it.longitude)
+        }
+    )
+
     private companion object {
+        /** ~59.7 m, which puts the venue-centre fix about 4 m south of the shifted fence's edge. */
+        const val NORTH_SHIFT_DEGREES = 0.0005359
+        const val SECOND_NEIGHBOUR_ID = "neighbour-2"
+
+        /**
+         * ~30.6 m, which leaves the marginal fix about 25 m south of the shifted fence's edge:
+         * outside it, but not clear of it at 20 m accuracy, so the verdict is undecided rather
+         * than a departure.
+         */
+        const val HELD_CO_TENANT_SHIFT_DEGREES = 0.0002746
         const val USER_ID = "user-1"
         const val VENUE_ID = "venue"
         const val NEIGHBOUR_ID = "neighbour"

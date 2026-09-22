@@ -868,8 +868,12 @@ internal class PolygonGeofenceServiceController(
             // Nothing to judge and nothing to fall back on, so the request is the whole pass.
             // Unmeasured: every callback in seven captures carried a fix, 49 of 49 fixsrc=os_trigger
             // and no fixsrc=none, so this is fail-open surface rather than an observed case.
-            val only = preciseFixForCallback(polygonId, setOf(polygonId), triggeringLocation = null)
-                ?: return
+            val only = preciseFixForCallback(
+                polygonId,
+                undecidedPolygonIds = setOf(polygonId),
+                pendingArrivalPolygonIds = emptySet(),
+                triggeringLocation = null
+            ) ?: return
             evaluateAndRecentre(only.fix, expectedUserStateGeneration)
             return
         }
@@ -880,7 +884,12 @@ internal class PolygonGeofenceServiceController(
         // the very fix a hold is waiting on, the corroboration guard refuses it there instead.
         val needing = delivered.undecidedPolygonIds + delivered.pendingArrivalPolygonIds
         if (needing.isEmpty()) return
-        val fresh = preciseFixForCallback(polygonId, needing, triggeringLocation) ?: return
+        val fresh = preciseFixForCallback(
+            polygonId,
+            delivered.undecidedPolygonIds,
+            delivered.pendingArrivalPolygonIds,
+            triggeringLocation
+        ) ?: return
         val after = evaluateAndRecentre(fresh.fix, expectedUserStateGeneration)
         // Only a pass that actually evaluated says anything about this position. An aborted one
         // reports nothing undecided without having decided, and reading that as "decided" cleared
@@ -917,9 +926,11 @@ internal class PolygonGeofenceServiceController(
      */
     private suspend fun preciseFixForCallback(
         polygonId: String,
-        needingPolygonIds: Set<String>,
+        undecidedPolygonIds: Set<String>,
+        pendingArrivalPolygonIds: Set<String>,
         triggeringLocation: Location?
     ): CallbackFix? {
+        val needingPolygonIds = undecidedPolygonIds + pendingArrivalPolygonIds
         val requestedAt = SystemClock.elapsedRealtime()
         val decision = synchronized(controllerLock) {
             val reusable = lastFreshFix?.takeIf {
@@ -935,7 +946,7 @@ internal class PolygonGeofenceServiceController(
                 // skip and change what a capture says about behaviour that was already correct.
                 previous != null && requestedAt - previous < FRESH_FIX_COOLDOWN_MS ->
                     CallbackFixDecision.WithinCooldown
-                escalationWouldRepeatItselfLocked(polygonId, triggeringLocation, requestedAt) ->
+                requestWouldRepeatItselfLocked(needingPolygonIds, triggeringLocation, requestedAt) ->
                     CallbackFixDecision.UnchangedPosition
                 else -> {
                     lastFreshFixRequestElapsedMs = requestedAt
@@ -965,11 +976,19 @@ internal class PolygonGeofenceServiceController(
             // and an accuracy. Without this a device whose precise fix never arrives keeps asking
             // on every wake, which is the same waste by a different route. The log stays
             // NONE_ARRIVED; only the memo changes.
+            //
+            // Held arrivals are excluded, and that is load-bearing rather than tidy. A hold is not
+            // a futile escalation: the fix decided ENTER and is waiting for a second measurement,
+            // so memoising it records a failure that did not happen. It also outlives the thing it
+            // describes, because the memo withholds the next request for up to
+            // FUTILE_ESCALATION_RETRY_MS while the hold expires after MAX_CORROBORATION_GAP_NANOS,
+            // and the request being withheld is the one measurement that could still save the
+            // arrival. Raised by Shahroz on #901.
             if (triggeringLocation != null) {
                 recordEscalationOutcomes(
-                    requested = needingPolygonIds,
-                    stillUndecided = needingPolygonIds,
-                    evaluated = needingPolygonIds,
+                    requested = undecidedPolygonIds,
+                    stillUndecided = undecidedPolygonIds,
+                    evaluated = undecidedPolygonIds,
                     fix = triggeringLocation,
                     atElapsedMs = SystemClock.elapsedRealtime(),
                     requestSessionElapsedMs = requestedAt
@@ -993,6 +1012,54 @@ internal class PolygonGeofenceServiceController(
         )
         return CallbackFix(fix, requestSessionElapsedMs = requestedAt)
     }
+
+    /**
+     * Whether a request made for [needingPolygonIds] would repeat one that already failed for
+     * every fence in it.
+     *
+     * Keyed to the set the request serves rather than to the callback's own fence, because those
+     * differ routinely. A fix that decides the callback's fence and leaves a co-tenant undecided
+     * clears the first fence's memo and keeps the second's, so the callback arrives carrying no
+     * memo while the only fence it would ask for is already suppressed. Checking the callback's
+     * fence therefore funded a request that could help nobody, once per wake, which is the loop
+     * this whole path exists to stop. Recording has always covered the set; only the check was
+     * narrower.
+     *
+     * [Set.all] rather than [Set.any], deliberately. One fence that could still be answered is
+     * reason enough to spend the fix, so a fence the device has moved relative to keeps its
+     * escalation even while a co-tenant stays parked. Suppressing on `any` would withhold the fix
+     * from a fence that is demonstrably answerable because a neighbour is not, which is how this
+     * turns into a delayed arrival.
+     *
+     * The emptiness check is defensive rather than reachable: both callers pass a non-empty set,
+     * the callback path having returned already when nothing needs a fix. It is here because an
+     * empty set would otherwise satisfy [Set.all] and suppress, which is the opposite of what an
+     * absence of demand should mean.
+     *
+     * What holds do and do not get, stated precisely, because a looser version of this sentence
+     * has been wrong twice. **A hold never creates a memo.** On the answered path ArrivalPending
+     * lands among the evaluated rather than the undecided, so the outcome clears one rather than
+     * setting one; on the timeout path nothing was evaluated, so the recording leaves held
+     * arrivals out explicitly. Without that second half a hold picked up a memo good for
+     * [FUTILE_ESCALATION_RETRY_MS] and this check withheld the measurement it was waiting for,
+     * which dropped the arrival.
+     *
+     * **A hold can still be gated by a memo that predates it,** and that is not a bug. A fence
+     * whose earlier precise request failed to decide it from this position carries a truthful memo;
+     * if a later wake opens a hold on that same fence from the same position, this check refuses
+     * the request, and the hold falls back to the next delivered fix inside
+     * [PolygonRouteProcessor.MAX_CORROBORATION_GAP_NANOS]. Whether an open hold should instead
+     * bypass this check outright is a cost-against-arrival policy call, not an oversight. It is one
+     * condition here if the answer changes.
+     */
+    private fun requestWouldRepeatItselfLocked(
+        needingPolygonIds: Set<String>,
+        triggeringLocation: Location?,
+        nowElapsedMs: Long
+    ): Boolean = needingPolygonIds.isNotEmpty() &&
+        needingPolygonIds.all {
+            escalationWouldRepeatItselfLocked(it, triggeringLocation, nowElapsedMs)
+        }
 
     /**
      * Whether asking for another precise fix would repeat one that already failed.

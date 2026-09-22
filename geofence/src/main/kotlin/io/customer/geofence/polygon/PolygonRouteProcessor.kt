@@ -1,5 +1,6 @@
 package io.customer.geofence.polygon
 
+import io.customer.geofence.PolygonArrivalCommit
 import io.customer.geofence.PolygonArrivalExpiry
 
 internal data class PolygonFence(
@@ -53,7 +54,9 @@ internal sealed interface PolygonRouteRecord {
         val signedBoundaryDistanceMeters: Double?,
         val horizontalAccuracyMeters: Double,
         val fixAgeSeconds: Double,
-        val corroborated: Boolean
+        val corroborated: Boolean,
+        /** Set only on an arrival reported without a second fix agreeing, and says which case. */
+        val uncorroboratedReason: PolygonArrivalCommit? = null
     ) : PolygonRouteRecord
 
     /** Decided ENTER, held for a second agreeing fix. */
@@ -70,21 +73,33 @@ internal sealed interface PolygonRouteRecord {
         val reason: PolygonArrivalExpiry,
         val heldForSeconds: Double? = null
     ) : PolygonRouteRecord
+}
+
+/** How a held arrival was settled by the next fix to reach its fence. */
+internal sealed interface HeldArrivalOutcome {
+    /**
+     * Reported now. [reason] is null when the fix positively agreed, set when nothing did.
+     *
+     * [heldSignedBoundaryDistanceMeters], [heldHorizontalAccuracyMeters] and [heldFixAgeSeconds]
+     * describe the fix the arrival rests on, not whichever later fix released it.
+     */
+    data class Committed(
+        val reason: PolygonArrivalCommit?,
+        val heldSignedBoundaryDistanceMeters: Double?,
+        val heldHorizontalAccuracyMeters: Double,
+        val heldFixAgeSeconds: Double
+    ) : HeldArrivalOutcome
 
     /**
-     * A held arrival handed a fix at the position it is already counting, so it did not advance.
+     * No arrival to report from the hold, for any of four reasons the records distinguish: none was
+     * open, the fix contradicted it, it went stale, or the fence is already committed inside.
      *
-     * [sinceCountedFixSeconds] is what makes the record readable: `edge` and `acc` cannot separate
-     * a re-delivery milliseconds later from an identical coordinate a minute later, and only the
-     * second is a second opinion this refused.
+     * One case rather than four because the caller does the same thing in all of them — judge the
+     * fix on its own merits. Returning early instead swallowed a departure: a fix that positively
+     * places the device outside is exactly the fix that should emit EXIT when the fence is
+     * committed inside, and the hold being open is no reason to drop it.
      */
-    data class ArrivalEcho(
-        override val geofenceId: String,
-        val signedBoundaryDistanceMeters: Double?,
-        val horizontalAccuracyMeters: Double,
-        val fixAgeSeconds: Double,
-        val sinceCountedFixSeconds: Double?
-    ) : PolygonRouteRecord
+    data object NotCommitted : HeldArrivalOutcome
 }
 
 /** What one pass over the active polygons decided, and what it owes the log. */
@@ -97,11 +112,11 @@ internal data class PolygonRouteOutcome(
 internal class PolygonRouteProcessor(
     private val accuracyEvaluator: PolygonAccuracyEvaluator = PolygonAccuracyEvaluator(),
     /**
-     * Gates arrivals: the evidence rule has no clearance margin, so a marginal fix needs a second.
+     * Marks which fences are holding a marginal arrival.
      *
-     * The echo guard below compares against the most recently counted sample only, which is
-     * sufficient at two confirmations and not at more: at three, an A, B, A sequence would count
-     * three confirmations from two positions. Raising this needs the guard to keep the whole run.
+     * Two confirmations, so opening a hold yields no transition and [resolveHeldArrival] owns what
+     * the next fix means. Raising it would put a second fix back in charge of whether an arrival is
+     * reported at all, which is the rule this deliberately abandoned.
      */
     private val arrivalConfirmations: PolygonTransitionStateMachine =
         PolygonTransitionStateMachine(requiredConfirmations = 2)
@@ -109,14 +124,24 @@ internal class PolygonRouteProcessor(
     private val latestElapsedRealtimeNanos = mutableMapOf<String, Long>()
 
     /**
-     * The measurement each held arrival is already counting, so an echo of it cannot corroborate it.
+     * What each held arrival is counting: the fix that decided it, and when it was counted from.
      *
-     * Derived, like [arrivalConfirmationNanos]: [retireStaleArrivalConfirmation] runs before the
-     * comparison on every pass and drops the entry whenever no hold is pending, so a write site
-     * that skips a removal costs one pass rather than a wrong verdict. Two hold-ending branches do
-     * exactly that, the decisive ENTER and the EXIT, and both are safe for that reason.
+     * Carries the measurements so the committed verdict can report the fix the arrival rests on
+     * rather than whichever later fix released it. Reporting the releasing fix put a negative
+     * `edge` on a `polygon.decided ENTER`, which is a record that contradicts itself.
+     *
+     * Derived rather than maintained alongside the state machine: [resolveHeldArrival] drops the
+     * entry whenever no hold is pending, so a write site that skips a removal costs one pass
+     * rather than a wrong verdict.
      */
-    private val lastCountedSample = mutableMapOf<String, PolygonLocationSample>()
+    private val heldArrivals = mutableMapOf<String, HeldArrival>()
+
+    private data class HeldArrival(
+        val sample: PolygonLocationSample,
+        val signedBoundaryDistanceMeters: Double?,
+        val fixAgeSeconds: Double,
+        val observedAtElapsedRealtimeNanos: Long
+    )
 
     fun process(
         fences: List<PolygonFence>,
@@ -132,12 +157,10 @@ internal class PolygonRouteProcessor(
 
         val activeIds = fences.mapTo(mutableSetOf(), PolygonFence::id)
         trackedFenceIds.filterNot(activeIds::contains).forEach { retired ->
-            arrivalConfirmations.clear(retired)
-            arrivalConfirmationNanos.remove(retired)
+            clearHold(retired)
         }
         latestElapsedRealtimeNanos.keys.retainAll(activeIds)
-        arrivalConfirmationNanos.keys.retainAll(activeIds)
-        lastCountedSample.keys.retainAll(activeIds)
+        heldArrivals.keys.retainAll(activeIds)
         trackedFenceIds.clear()
         trackedFenceIds.addAll(activeIds)
 
@@ -146,7 +169,6 @@ internal class PolygonRouteProcessor(
             val latest = latestElapsedRealtimeNanos[fence.id]
             if (latest != null && elapsedRealtimeNanos <= latest) return@mapNotNull null
             latestElapsedRealtimeNanos[fence.id] = elapsedRealtimeNanos
-            retireStaleArrivalConfirmation(fence.id, elapsedRealtimeNanos, records)
             val committedState = committedStates[fence.id] ?: PolygonCommittedState.OUTSIDE
             val result = accuracyEvaluator.decisiveEvidenceFor(fence.geometry, sample, committedState)
             val evidence = result.evidence
@@ -168,98 +190,83 @@ internal class PolygonRouteProcessor(
                     fixAgeSeconds = fixAgeSeconds
                 )
             }
+            // A held arrival is settled here, before anything else this fix might say is read.
+            // It commits unless the fix positively places the device outside, so the only fix that
+            // can lose a visit is one that argues against it — a fix that merely cannot judge adds
+            // nothing to the one being held, which is not the same as contradicting it.
+            when (
+                val held = resolveHeldArrival(
+                    fence.id,
+                    committedState,
+                    result,
+                    sample,
+                    elapsedRealtimeNanos,
+                    records
+                )
+            ) {
+                is HeldArrivalOutcome.Committed -> {
+                    records += PolygonRouteRecord.Decided(
+                        geofenceId = fence.id,
+                        transitionName = PolygonTransition.ENTER.name,
+                        // The held fix, not this one: the arrival rests on the measurement that
+                        // decided it, and reporting the releasing fix put a negative edge on an
+                        // ENTER.
+                        signedBoundaryDistanceMeters = held.heldSignedBoundaryDistanceMeters,
+                        horizontalAccuracyMeters = held.heldHorizontalAccuracyMeters,
+                        fixAgeSeconds = held.heldFixAgeSeconds,
+                        corroborated = held.reason == null,
+                        uncorroboratedReason = held.reason
+                    )
+                    return@mapNotNull PolygonTransitionDetection(
+                        fence.id,
+                        PolygonTransition.ENTER,
+                        fence.regionRevision
+                    )
+                }
+                // Judge the fix normally. A stale hold's replacement arrival is this fix's to open,
+                // and a fix that broke a hold may still be a departure in its own right.
+                HeldArrivalOutcome.NotCommitted -> Unit
+            }
             val isTransitionEvidence =
                 committedState == PolygonCommittedState.OUTSIDE && evidence == PolygonEvidence.ENTER ||
                     committedState == PolygonCommittedState.INSIDE && evidence == PolygonEvidence.EXIT
-            if (!isTransitionEvidence) {
-                // Before breaking the run: a fix at the coordinate the hold is already counting is
-                // not evidence against the arrival, because it is not a new observation of where
-                // the device is. It usually arrives over the accuracy ceiling, which is what makes
-                // it read as disagreement, and on this device that is what the precise fix a hold
-                // asks for mostly returns. Reading it as a broken run destroyed the hold seconds
-                // after opening it and lost the visit faster than not asking at all.
-                echoOfHeldPosition(fence.id, sample, result, fixAgeSeconds, elapsedRealtimeNanos)
-                    ?.let { echo ->
-                        records += echo
-                        return@mapNotNull null
-                    }
-                // Breaks a run of agreeing arrival fixes: the requirement below is consecutive, and
-                // a fix too coarse to judge is not agreement.
-                val hadPendingArrival = arrivalConfirmations.hasPending(fence.id)
-                confirmArrival(fence.id, committedState, evidence, elapsedRealtimeNanos, sample)
-                // The third way a hold ends, and the commonest. Without its own record the capture
-                // shows an arrival.pending with no counterpart and cannot tell a hold that was
-                // broken from one still waiting.
-                if (hadPendingArrival && !arrivalConfirmations.hasPending(fence.id)) {
-                    records += PolygonRouteRecord.ArrivalExpired(
-                        geofenceId = fence.id,
-                        reason = PolygonArrivalExpiry.EVIDENCE_BROKEN
-                    )
-                }
-                return@mapNotNull null
-            }
+            if (!isTransitionEvidence) return@mapNotNull null
             val transition = when (evidence) {
                 // A fix whose uncertainty does not reach the ring decides on its own: a passer-by
-                // on the pavement cannot produce one. A marginal fix can, so it needs a second
-                // agreeing fix, which a real visit supplies on the next sample and someone walking
-                // past usually does not.
+                // on the pavement cannot produce one. A marginal fix opens a hold instead, and the
+                // next fix to reach this fence settles it above.
                 PolygonEvidence.ENTER -> when {
                     !result.requiresCorroboration -> {
-                        arrivalConfirmations.clear(fence.id)
+                        clearHold(fence.id)
                         PolygonTransition.ENTER
                     }
-                    // Corroboration asks whether a second observation also puts the device
-                    // inside. An identical coordinate answers that with the first observation, so
-                    // it cannot corroborate however the fix is labelled. The dedupe above only
-                    // refuses a repeated elapsed-realtime stamp, and the fused provider re-emits a
-                    // carried-forward position under a fresh stamp.
-                    //
-                    // Position alone, deliberately, because position is the part measured to carry
-                    // forward and accuracy is the part measured to be substituted: on this device
-                    // the re-emission arrives with accuracy replaced by a placeholder while the
-                    // coordinate is identical to 6 dp. Requiring both to match would let the same
-                    // coordinate at a different sub-ceiling accuracy confirm an arrival from one
-                    // observation, which is the defect this exists to close.
-                    //
-                    // The cost is real and accepted: a parked device whose coordinate is snapped
-                    // identical can never corroborate itself, so its arrival waits for the precise
-                    // fix the callback path now asks for, and is dropped if that cannot produce a
-                    // different position either. Claiming a second opinion we do not have is worse.
-                    //
-                    // The early return skips confirmArrival deliberately: an echo neither advances
-                    // the run nor refreshes the hold's stamp, so it cannot buy time for a genuine
-                    // fix arriving after the window.
                     else -> {
-                        val echo = echoOfHeldPosition(
-                            fence.id,
-                            sample,
-                            result,
-                            fixAgeSeconds,
-                            elapsedRealtimeNanos
+                        // Any hold that was open has already been settled, so reaching here always
+                        // opens a new one.
+                        openHold(
+                            polygonId = fence.id,
+                            committedState = committedState,
+                            evidence = evidence,
+                            elapsedRealtimeNanos = elapsedRealtimeNanos,
+                            sample = sample,
+                            result = result,
+                            fixAgeSeconds = fixAgeSeconds
                         )
-                        if (echo != null) {
-                            records += echo
-                            return@mapNotNull null
-                        }
-                        confirmArrival(fence.id, committedState, evidence, elapsedRealtimeNanos, sample)
-                            ?: run {
-                                // Decided ENTER, held for a second fix. Without this record the
-                                // branch consumes a fix and emits nothing, which is
-                                // indistinguishable in a capture from a callback that never arrived.
-                                records += PolygonRouteRecord.ArrivalPending(
-                                    geofenceId = fence.id,
-                                    signedBoundaryDistanceMeters = result.signedBoundaryDistanceMeters,
-                                    horizontalAccuracyMeters = sample.horizontalAccuracyMeters,
-                                    fixAgeSeconds = fixAgeSeconds
-                                )
-                                return@mapNotNull null
-                            }
+                        // Without this record the branch consumes a fix and emits nothing, which is
+                        // indistinguishable in a capture from a callback that never arrived.
+                        records += PolygonRouteRecord.ArrivalPending(
+                            geofenceId = fence.id,
+                            signedBoundaryDistanceMeters = result.signedBoundaryDistanceMeters,
+                            horizontalAccuracyMeters = sample.horizontalAccuracyMeters,
+                            fixAgeSeconds = fixAgeSeconds
+                        )
+                        return@mapNotNull null
                     }
                 }
                 // Departure keeps its clearance margin, so it needs no second opinion, and delaying
                 // it would report a visit as still running after it ended.
                 PolygonEvidence.EXIT -> {
-                    arrivalConfirmations.clear(fence.id)
+                    clearHold(fence.id)
                     PolygonTransition.EXIT
                 }
                 PolygonEvidence.AMBIGUOUS -> return@mapNotNull null
@@ -270,7 +277,7 @@ internal class PolygonRouteProcessor(
                 signedBoundaryDistanceMeters = result.signedBoundaryDistanceMeters,
                 horizontalAccuracyMeters = sample.horizontalAccuracyMeters,
                 fixAgeSeconds = fixAgeSeconds,
-                corroborated = result.requiresCorroboration
+                corroborated = false
             )
             PolygonTransitionDetection(fence.id, transition, fence.regionRevision)
         }
@@ -286,8 +293,7 @@ internal class PolygonRouteProcessor(
         val discarded = arrivalConfirmations.pendingPolygonIds()
         latestElapsedRealtimeNanos.clear()
         trackedFenceIds.clear()
-        arrivalConfirmationNanos.clear()
-        lastCountedSample.clear()
+        heldArrivals.clear()
         arrivalConfirmations.clearAll()
         return discarded
     }
@@ -297,102 +303,130 @@ internal class PolygonRouteProcessor(
         val wasPending = arrivalConfirmations.hasPending(polygonId)
         trackedFenceIds.remove(polygonId)
         latestElapsedRealtimeNanos.remove(polygonId)
-        arrivalConfirmationNanos.remove(polygonId)
-        lastCountedSample.remove(polygonId)
+        heldArrivals.remove(polygonId)
         arrivalConfirmations.clear(polygonId)
         return wasPending
     }
 
     /**
-     * A pending arrival is evidence about the visit happening now. The confirmation counts agreeing
-     * fixes and knows nothing about when they arrived, so without this a marginal fix from one pass
-     * and a marginal fix from a pass minutes later combine into an arrival neither observed.
+     * Settles a held arrival against the next fix to reach its fence.
+     *
+     * The rule is iOS's, and the asymmetry is the whole point: a marginal arrival is reported
+     * unless a fix positively places the device outside. Requiring a second fix to AGREE was never
+     * once satisfied in four field captures — `cor=true` appears in none of them — because a
+     * stationary device is exactly the case that cannot supply one: the fused provider re-emits the
+     * coordinate it already carried, and no number of those is a second observation. A fix that
+     * merely cannot judge adds nothing to the one being held, which is not evidence against it.
+     *
+     * Stated carefully, because the captures do not show this rule losing a real visit. The two
+     * holds it ever refused were both false, and the one real arrival the field lost never reached
+     * a hold at all: the flat accuracy ceiling refused it first. What the captures show is that the
+     * requirement is unsatisfiable here, not that it has already cost a visit.
+     *
+     * Ordered so the incoming fix is judged before the clock is consulted. The staleness bound
+     * below would otherwise let the arbitrary 60 s boundary decide what a contradicting fix means:
+     * the same fix reading 47 m outside broke the arrival at 59 s and committed it at 61 s.
      */
-    private fun retireStaleArrivalConfirmation(
+    private fun resolveHeldArrival(
         polygonId: String,
+        committedState: PolygonCommittedState,
+        result: PolygonEvidenceResult,
+        sample: PolygonLocationSample,
         elapsedRealtimeNanos: Long,
         records: MutableList<PolygonRouteRecord>
-    ) {
-        // Derived from the state machine rather than maintained alongside it. Three call sites end
-        // a hold and only one of them owns this map, so every attempt to keep the two in step at
-        // the write sites has left a stamp behind and reported an expiry for an arrival that never
-        // existed or had already been honoured.
-        if (!arrivalConfirmations.hasPending(polygonId)) {
-            arrivalConfirmationNanos.remove(polygonId)
-            lastCountedSample.remove(polygonId)
-            return
+    ): HeldArrivalOutcome {
+        val held = heldArrivals[polygonId]
+        if (!arrivalConfirmations.hasPending(polygonId) || held == null) {
+            clearHold(polygonId)
+            return HeldArrivalOutcome.NotCommitted
         }
-        val observedAt = arrivalConfirmationNanos[polygonId] ?: return
-        val heldForNanos = elapsedRealtimeNanos - observedAt
+        // Defensive, and known to be unreachable today. A hold opens only while the fence is
+        // committed outside, and no production route commits a polygon inside behind this
+        // processor's back: both `reconcileEnteredIds` call sites filter polygons out of `inside`,
+        // `commitBusinessTransition` is reached only through the single engine that owns this
+        // processor, and every ENTER it decides clears the hold in the same pass. Kept because the
+        // failure it prevents is a second ENTER for a visit already running, and the invariant is
+        // held by a `!isPolygon` filter two files away that a later change could drop silently.
+        if (committedState != PolygonCommittedState.OUTSIDE) {
+            clearHold(polygonId)
+            records += PolygonRouteRecord.ArrivalExpired(
+                geofenceId = polygonId,
+                reason = PolygonArrivalExpiry.ALREADY_INSIDE
+            )
+            return HeldArrivalOutcome.NotCommitted
+        }
+        // iOS's predicate exactly: any fix that could judge this venue and read outside blocks the
+        // arrival. Not the departure rule, which also demands clearance beyond the accuracy plus a
+        // 20 m margin — that is far looser, and at indoor accuracy it is looser by a lot. A fix
+        // reading 8 m outside at 15 m accuracy would commit the arrival under it, and the false
+        // visit would then stay open until something cleared the ring by 120 m.
+        val judged = result.undecidedReason == null
+        val readsOutside = (result.signedBoundaryDistanceMeters ?: 0.0) < 0.0
+        if (judged && readsOutside) {
+            clearHold(polygonId)
+            records += PolygonRouteRecord.ArrivalExpired(
+                geofenceId = polygonId,
+                reason = PolygonArrivalExpiry.EVIDENCE_BROKEN
+            )
+            return HeldArrivalOutcome.NotCommitted
+        }
+        val heldForNanos = elapsedRealtimeNanos - held.observedAtElapsedRealtimeNanos
+        // A pending arrival is evidence about a visit happening now. Past the window it no longer
+        // describes where the device is, so it is dropped rather than reported at a time we cannot
+        // defend — the one branch here that still loses a visit. Reaching it needs the precise fix
+        // the callback asks for to go missing, which it did in none of the 406 requests the field
+        // captures recorded.
         if (heldForNanos > MAX_CORROBORATION_GAP_NANOS) {
-            // The counterpart to the pending record. Without it a capture cannot separate a hold
-            // that completed from one that died, which is the whole question the field has to
-            // answer about corroboration.
+            clearHold(polygonId)
             records += PolygonRouteRecord.ArrivalExpired(
                 geofenceId = polygonId,
                 reason = PolygonArrivalExpiry.WINDOW_ELAPSED,
                 heldForSeconds = heldForNanos.toDouble() / NANOS_PER_SECOND
             )
-            arrivalConfirmations.clear(polygonId)
-            arrivalConfirmationNanos.remove(polygonId)
-            lastCountedSample.remove(polygonId)
+            return HeldArrivalOutcome.NotCommitted
         }
-    }
-
-    /**
-     * The record to emit when [sample] repeats the position [polygonId]'s hold is already counting,
-     * or null when it is a different position and the caller should carry on.
-     *
-     * Both callers then return without touching the run: such a fix can neither corroborate the
-     * arrival nor contradict it, because it is not a new observation of where the device is. Only
-     * the coordinate is compared, since that is the part the provider carries forward while it
-     * substitutes the accuracy.
-     *
-     * Null whenever no hold is live: [lastCountedSample] is derived, and
-     * [retireStaleArrivalConfirmation] has already run for this fence on this pass.
-     */
-    private fun echoOfHeldPosition(
-        polygonId: String,
-        sample: PolygonLocationSample,
-        result: PolygonEvidenceResult,
-        fixAgeSeconds: Double,
-        elapsedRealtimeNanos: Long
-    ): PolygonRouteRecord.ArrivalEcho? {
-        if (lastCountedSample[polygonId]?.coordinate != sample.coordinate) return null
-        return PolygonRouteRecord.ArrivalEcho(
-            geofenceId = polygonId,
-            signedBoundaryDistanceMeters = result.signedBoundaryDistanceMeters,
-            horizontalAccuracyMeters = sample.horizontalAccuracyMeters,
-            fixAgeSeconds = fixAgeSeconds,
-            sinceCountedFixSeconds = arrivalConfirmationNanos[polygonId]
-                ?.let { (elapsedRealtimeNanos - it).toDouble() / NANOS_PER_SECOND }
+        // Position alone, because position is the part the provider carries forward while it
+        // substitutes the accuracy: the re-emission arrives with accuracy replaced by a placeholder
+        // and the coordinate identical to 6 dp.
+        val reason = when {
+            held.sample.coordinate == sample.coordinate -> PolygonArrivalCommit.NOT_INDEPENDENT
+            result.evidence == PolygonEvidence.ENTER -> null
+            else -> PolygonArrivalCommit.UNJUDGEABLE
+        }
+        clearHold(polygonId)
+        return HeldArrivalOutcome.Committed(
+            reason = reason,
+            heldSignedBoundaryDistanceMeters = held.signedBoundaryDistanceMeters,
+            heldHorizontalAccuracyMeters = held.sample.horizontalAccuracyMeters,
+            heldFixAgeSeconds = held.fixAgeSeconds
         )
     }
 
-    private fun confirmArrival(
+    /** Opens a hold on a marginal arrival, recording the fix and the moment it is counted from. */
+    private fun openHold(
         polygonId: String,
         committedState: PolygonCommittedState,
         evidence: PolygonEvidence,
         elapsedRealtimeNanos: Long,
-        sample: PolygonLocationSample
-    ): PolygonTransition? {
-        val transition = arrivalConfirmations.evaluate(polygonId, committedState, evidence)
-        // Only a fence actually holding a part-confirmed arrival is timed. This is also reached to
-        // break a run of agreeing fixes, and stamping those made every quiet fence look like a
-        // pending arrival that later expired. The read in retireStaleArrivalConfirmation re-derives
-        // this, so a stamp left behind by another call site cannot outlive its hold.
-        if (arrivalConfirmations.hasPending(polygonId)) {
-            arrivalConfirmationNanos[polygonId] = elapsedRealtimeNanos
-            lastCountedSample[polygonId] = sample
-        } else {
-            arrivalConfirmationNanos.remove(polygonId)
-            lastCountedSample.remove(polygonId)
-        }
-        return transition
+        sample: PolygonLocationSample,
+        result: PolygonEvidenceResult,
+        fixAgeSeconds: Double
+    ) {
+        arrivalConfirmations.evaluate(polygonId, committedState, evidence)
+        heldArrivals[polygonId] = HeldArrival(
+            sample = sample,
+            signedBoundaryDistanceMeters = result.signedBoundaryDistanceMeters,
+            fixAgeSeconds = fixAgeSeconds,
+            observedAtElapsedRealtimeNanos = elapsedRealtimeNanos
+        )
+    }
+
+    private fun clearHold(polygonId: String) {
+        arrivalConfirmations.clear(polygonId)
+        heldArrivals.remove(polygonId)
     }
 
     private val trackedFenceIds = mutableSetOf<String>()
-    private val arrivalConfirmationNanos = mutableMapOf<String, Long>()
 
     private companion object {
         /**

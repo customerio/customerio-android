@@ -158,7 +158,8 @@ internal class PolygonLocationEngine(
             signedBoundaryDistanceMeters = record.signedBoundaryDistanceMeters,
             horizontalAccuracyMeters = record.horizontalAccuracyMeters,
             fixAgeSeconds = record.fixAgeSeconds,
-            corroborated = record.corroborated
+            corroborated = record.corroborated,
+            uncorroboratedReason = record.uncorroboratedReason
         )
         is PolygonRouteRecord.ArrivalPending -> logger.logPolygonArrivalPending(
             geofenceId = record.geofenceId,
@@ -170,13 +171,6 @@ internal class PolygonLocationEngine(
             geofenceId = record.geofenceId,
             reason = record.reason,
             heldForSeconds = record.heldForSeconds
-        )
-        is PolygonRouteRecord.ArrivalEcho -> logger.logPolygonArrivalEcho(
-            geofenceId = record.geofenceId,
-            signedBoundaryDistanceMeters = record.signedBoundaryDistanceMeters,
-            horizontalAccuracyMeters = record.horizontalAccuracyMeters,
-            fixAgeSeconds = record.fixAgeSeconds,
-            sinceCountedFixSeconds = record.sinceCountedFixSeconds
         )
     }
 

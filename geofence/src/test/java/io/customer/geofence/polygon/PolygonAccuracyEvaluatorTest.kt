@@ -96,23 +96,44 @@ class PolygonAccuracyEvaluatorTest {
     }
 
     @Test
-    fun decisiveEvidenceFor_whenArrivingOnACoarseFix_thenStillRefuses() {
-        // The arrival side is deliberately untouched by this change. The ceiling still governs it,
-        // still at the same value, so nothing about which arrivals are reported moves here.
+    fun decisiveEvidenceFor_whenAccuracyReachesTheVenueDepth_thenRefusesTheArrival() {
+        // The ceiling's own question: once the accuracy circle is as wide as the venue is deep it
+        // can contain the whole ring, so "inside" carries no information and no second fix repairs
+        // that. [shallowGeometry] is 11 m deep, well under this fix's 60 m.
         val sample = sample(latitude = 0.0, longitude = 0.0, accuracyMeters = 60.0)
 
-        val result = evaluator.decisiveEvidenceFor(geometry, sample, PolygonCommittedState.OUTSIDE)
+        val result = evaluator.decisiveEvidenceFor(shallowGeometry, sample, PolygonCommittedState.OUTSIDE)
 
         result.evidence shouldBeEqualTo PolygonEvidence.AMBIGUOUS
         result.undecidedReason shouldBeEqualTo PolygonUndecidedReason.ACCURACY_TOO_LOW
     }
 
     @Test
-    fun decisiveEvidenceFor_whenAccuracyIsTooLow_thenRemainsAmbiguous() {
+    fun decisiveEvidenceFor_whenTheVenueIsDeeperThanTheAccuracy_thenDecidesTheArrival() {
+        // The same fix against a deeper venue, and the reason the ceiling is per fence rather than
+        // one constant. The flat 50 m this replaces refused a 122 m fix 16 m inside a 254 m-deep
+        // venue, which was the one real arrival the field captures lost outright.
         val sample = sample(latitude = 0.0, longitude = 0.0, accuracyMeters = 60.0)
 
-        evaluator.decisiveEvidenceFor(geometry, sample, PolygonCommittedState.OUTSIDE).evidence shouldBeEqualTo
-            PolygonEvidence.AMBIGUOUS
+        val result = evaluator.decisiveEvidenceFor(geometry, sample, PolygonCommittedState.OUTSIDE)
+
+        result.evidence shouldBeEqualTo PolygonEvidence.ENTER
+        // The centre of this ring is 111 m from its nearest edge, so a 60 m circle cannot have been
+        // taken from outside it and there is nothing for a second fix to add.
+        result.requiresCorroboration shouldBeEqualTo false
+    }
+
+    @Test
+    fun decisiveEvidenceFor_whenTheVenueIsDeepButTheFixIsNearItsEdge_thenHoldsTheArrival() {
+        // The shape of the arrival the field lost: well inside a venue deep enough to judge, but by
+        // less than the fix's own uncertainty. 33 m inside a 111 m-deep ring at 60 m accuracy, which
+        // is fence 22's 16.4 m inside a 254 m-deep ring at 122 m accuracy with the numbers scaled.
+        val sample = sample(latitude = 0.0, longitude = 0.0007, accuracyMeters = 60.0)
+
+        val result = evaluator.decisiveEvidenceFor(geometry, sample, PolygonCommittedState.OUTSIDE)
+
+        result.evidence shouldBeEqualTo PolygonEvidence.ENTER
+        result.requiresCorroboration shouldBeEqualTo true
     }
 
     /**
@@ -121,6 +142,21 @@ class PolygonAccuracyEvaluatorTest {
      * to a side. The small fence above cannot separate the two: any fix coarse enough to test the
      * ceiling already swamps it.
      */
+    /**
+     * Roughly 22 m to a side, so 11 m deep: shallower than a coarse background fix, which is the
+     * only condition the arrival ceiling refuses. Two of the twelve rings in the field captures are
+     * this shallow (24.1 m and 46.7 m), and they are the ones this ceiling is stricter on than the
+     * flat 50 m it replaces.
+     */
+    private val shallowGeometry = PolygonGeometry.from(
+        listOf(
+            point(-0.0001, -0.0001),
+            point(-0.0001, 0.0001),
+            point(0.0001, 0.0001),
+            point(0.0001, -0.0001)
+        )
+    )
+
     private val wideGeometry = PolygonGeometry.from(
         listOf(
             point(-0.01, -0.01),

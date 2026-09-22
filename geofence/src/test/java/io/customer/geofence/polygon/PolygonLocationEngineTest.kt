@@ -260,48 +260,54 @@ class PolygonLocationEngineTest : RobolectricTest() {
     }
 
     @Test
-    fun processResponsiveLocation_givenPolygonSmallerThanTypicalAccuracy_expectEnterOnceCorroborated() = runTest {
-        // A ~40 m ring has no interior point more than ~20 m from its own boundary. Requiring the
-        // whole accuracy circle to clear the ring refused every point in it at every realistic
-        // accuracy, which made a retail unit permanently undetectable. Arrival now asks only that
-        // the fix is inside — but at 20 m accuracy on this ring the fix cannot rule out having been
-        // taken from the pavement, so it takes a second agreeing one.
+    fun processResponsiveLocation_givenAVenueShallowerThanTheFixAccuracy_expectNoEnter() = runTest {
+        // The deliberate cost of the per-fence ceiling, recorded here rather than left to be
+        // discovered. This ring is 18.5 m deep and no interior point is more than 17.6 m from an
+        // edge, so at 20 m accuracy the circle reaches outside the ring from everywhere inside it
+        // and "inside" carries no information about containment.
+        //
+        // The flat 50 m ceiling this replaces admitted the fix and then held it for a second
+        // opinion. That is now the wrong pairing: a held arrival commits unless contradicted, so
+        // admitting this fix would report a verdict that is right about half the time. Detection on
+        // a venue this shallow instead waits for a fix fine enough to mean something, which
+        // `givenAFixWhoseUncertaintyClearsTheRing` covers.
         armSmallPolygon()
         val base = SystemClock.elapsedRealtimeNanos() - 10_000_000_000L
 
         engine.processResponsiveLocation(
             fix(37.7750, -122.4194, elapsedRealtimeNanos = base, accuracyMeters = 20f)
         )
-        store.getEnteredIds().shouldBeEmpty()
-
-        // About 2 m north: the next sample of a real visit differs by its own jitter, which is
-        // what separates a second measurement from the held one delivered again.
         engine.processResponsiveLocation(
             fix(37.775018, -122.4194, elapsedRealtimeNanos = base + 5_000_000_000L, accuracyMeters = 20f)
         )
 
-        store.getEnteredIds() shouldBeEqualTo setOf(SMALL_POLYGON_ID)
+        store.getEnteredIds().shouldBeEmpty()
     }
 
     @Test
-    fun processResponsiveLocation_givenOneMarginalFixThenACoarseOne_expectNoEnter() = runTest {
-        // The run has to be consecutive. A fix too coarse to judge is not agreement, so it breaks
-        // the run rather than counting toward it — otherwise a passer-by's single inside-reading
-        // fix could be corroborated minutes later by an unrelated one.
-        armSmallPolygon()
+    fun processResponsiveLocation_givenOneMarginalFixThenACoarseOne_expectEnter() = runTest {
+        // On the 54 m campus ring a 5.6 m-inside fix at 18 m accuracy is marginal, so it holds.
+        // The next fix is too coarse to judge that ring, which adds nothing to the fix being held
+        // and is not evidence against it, so the arrival is reported.
+        //
+        // This is the behaviour that the field measured as the loss: coarse fixes are the common
+        // case, 407 of 424 refusals in the captures are this accuracy tier, so treating one as
+        // disagreement destroyed holds seconds after opening them.
         val base = SystemClock.elapsedRealtimeNanos() - 10_000_000_000L
+        engine.activate(POLYGON_ID)
 
         engine.processResponsiveLocation(
-            fix(37.7750, -122.4194, elapsedRealtimeNanos = base, accuracyMeters = 20f)
+            fix(37.77455, -122.4194, elapsedRealtimeNanos = base, accuracyMeters = 18f)
         )
-        engine.processResponsiveLocation(
-            fix(37.7750, -122.4194, elapsedRealtimeNanos = base + 2_000_000_000L, accuracyMeters = 120f)
-        )
-        engine.processResponsiveLocation(
-            fix(37.7750, -122.4194, elapsedRealtimeNanos = base + 4_000_000_000L, accuracyMeters = 20f)
-        )
-
         store.getEnteredIds().shouldBeEmpty()
+
+        // About 2 m north, so this is a genuinely different observation that happens to be too
+        // coarse, rather than the held one delivered again.
+        engine.processResponsiveLocation(
+            fix(37.774568, -122.4194, elapsedRealtimeNanos = base + 2_000_000_000L, accuracyMeters = 120f)
+        )
+
+        store.getEnteredIds() shouldBeEqualTo setOf(POLYGON_ID)
     }
 
     @Test

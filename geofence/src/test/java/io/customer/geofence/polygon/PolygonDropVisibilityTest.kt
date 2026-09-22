@@ -12,6 +12,7 @@ import io.customer.geofence.GeofenceLogger
 import io.customer.geofence.GeofenceManager
 import io.customer.geofence.GeofenceRegion
 import io.customer.geofence.GeofenceTransitionEmitter
+import io.customer.geofence.PolygonArrivalCommit
 import io.customer.geofence.PolygonArrivalExpiry
 import io.customer.geofence.PolygonCallbackDrop
 import io.customer.geofence.PolygonEvaluationSkip
@@ -365,23 +366,41 @@ class PolygonDropVisibilityTest : RobolectricTest() {
     }
 
     @Test
-    fun route_givenAHoldBrokenByACoarseFix_expectTheBreakIsRecorded() {
-        // A marginal ENTER holds; the next fix is too coarse to judge, which breaks the run of
-        // agreeing fixes. That is the commonest way a hold ends and it had no record, so a capture
-        // saw an arrival.pending with no counterpart and could not tell it from one still waiting.
-        //
-        // The coarse fix is at a different coordinate, about 2 m north. It used to repeat the held
-        // one, which is a re-emission of the same observation rather than a disagreeing fix, and
-        // that is now recorded as an echo instead of breaking the hold. A break needs a genuine
-        // second observation that cannot be judged, which is what this asserts.
+    fun route_givenAHoldEndedByACoarseFix_expectTheCommitIsRecordedWithItsReason() {
+        // A marginal ENTER holds; the next fix is too coarse to judge a 54 m venue. It adds nothing
+        // to the fix being held, which is not evidence against it, so the arrival is reported and
+        // the record carries the reason it rests on no second opinion. Every hold still leaves a
+        // counterpart, which is what this class exists to pin: a capture must never show an
+        // arrival.pending with nothing after it.
         val processor = PolygonRouteProcessor()
         val fence = PolygonFence(VENUE_ID, PolygonGeometry.from(venueVertices()))
         val marginal = PolygonLocationSample(PolygonCoordinate(37.77455, -122.4194), 18.0)
         val tooCoarse = PolygonLocationSample(PolygonCoordinate(37.774568, -122.4194), 120.0)
 
         processor.process(listOf(fence), marginal, 1_000_000_000L, 0.0, emptyMap())
-        val broken = processor.process(listOf(fence), tooCoarse, 6_000_000_000L, 0.0, emptyMap())
+        val ended = processor.process(listOf(fence), tooCoarse, 6_000_000_000L, 0.0, emptyMap())
 
+        ended.detections.map { it.transition } shouldBeEqualTo listOf(PolygonTransition.ENTER)
+        ended.records
+            .filterIsInstance<PolygonRouteRecord.Decided>()
+            .map { it.geofenceId to it.uncorroboratedReason } shouldBeEqualTo
+            listOf(VENUE_ID to PolygonArrivalCommit.UNJUDGEABLE)
+    }
+
+    @Test
+    fun route_givenAHoldBrokenByAFixPositivelyOutside_expectTheBreakIsRecorded() {
+        // The one fix that still loses an arrival, and the only one that should. 40 m clear of the
+        // ring at 5 m accuracy is beyond its own uncertainty plus the departure margin, so it
+        // positively places the device outside rather than merely failing to judge.
+        val processor = PolygonRouteProcessor()
+        val fence = PolygonFence(VENUE_ID, PolygonGeometry.from(venueVertices()))
+        val marginal = PolygonLocationSample(PolygonCoordinate(37.77455, -122.4194), 18.0)
+        val clearlyOutside = PolygonLocationSample(PolygonCoordinate(37.77414, -122.4194), 5.0)
+
+        processor.process(listOf(fence), marginal, 1_000_000_000L, 0.0, emptyMap())
+        val broken = processor.process(listOf(fence), clearlyOutside, 6_000_000_000L, 0.0, emptyMap())
+
+        broken.detections shouldBeEqualTo emptyList()
         broken.records
             .filterIsInstance<PolygonRouteRecord.ArrivalExpired>()
             .map { it.geofenceId to it.reason } shouldBeEqualTo

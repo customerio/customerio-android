@@ -1,6 +1,7 @@
 package io.customer.geofence.polygon
 
 import org.amshove.kluent.shouldBeEqualTo
+import org.amshove.kluent.shouldBeInRange
 import org.junit.Test
 
 /**
@@ -55,18 +56,35 @@ class PolygonCorroborationOnRealFencesTest {
     private val evaluator = PolygonAccuracyEvaluator()
 
     @Test
-    fun fenceA_givenAccuracyAboveItsMaximumClearance_expectEvenTheBestPointIsHeld() {
+    fun fenceA_givenAccuracyAboveItsMaximumClearance_expectTheArrivalIsRefusedOutright() {
         // 25 m beats the 24.2 m clearance of the most favourable point in the fence, so at this
-        // accuracy nothing anywhere inside Fence A can arrive on a single fix. Background
-        // accuracy on this drive ran 13-24 m, so the fence spends real time in this state.
+        // accuracy no point inside Fence A is separable from outside it and the circle can hold the
+        // whole ring. The ceiling is the venue's own depth, so this is refused rather than held.
+        //
+        // This is the pairing that makes the permissive arrival rule safe. A held arrival now
+        // commits unless a fix positively contradicts it, so were this held instead it would be
+        // reported, and on a 24 m ring at 25 m accuracy that verdict is a coin flip. Background
+        // accuracy on this drive ran 13-24 m, so the fence spends real time right at this edge.
         val result = evaluator.decisiveEvidenceFor(
             geometry = fenceA,
             sample = PolygonLocationSample(fenceABestPoint, horizontalAccuracyMeters = 25.0),
             committedState = PolygonCommittedState.OUTSIDE
         )
 
-        result.evidence shouldBeEqualTo PolygonEvidence.ENTER
-        result.requiresCorroboration shouldBeEqualTo true
+        result.evidence shouldBeEqualTo PolygonEvidence.AMBIGUOUS
+        result.undecidedReason shouldBeEqualTo PolygonUndecidedReason.ACCURACY_TOO_LOW
+    }
+
+    @Test
+    fun venueScale_givenTheRealRings_expectItTracksTheirMeasuredClearance() {
+        // The ceiling is an O(n) approximation of the maximum inradius, so what matters is that it
+        // tracks the grid-computed clearance on real shapes and errs high rather than low. Erring
+        // high widens the accuracy accepted, and refusing a real arrival is the expensive error.
+        fenceA.venueScaleMeters shouldBeInRange 24.0..24.5
+        fenceB.venueScaleMeters shouldBeInRange 112.0..113.5
+        // 1.001x on the triangle and 1.067x on the quadrilateral, against 24.16 m and 105.93 m.
+        (fenceA.venueScaleMeters >= 24.16) shouldBeEqualTo true
+        (fenceB.venueScaleMeters >= 105.93) shouldBeEqualTo true
     }
 
     @Test

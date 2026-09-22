@@ -112,7 +112,12 @@ internal class PolygonAccuracyEvaluator {
         }
         // Only an arrival still needs the fix to be precise enough to mean anything. Departure has
         // already been answered above, so from here the ceiling governs arrivals alone.
-        if (sample.horizontalAccuracyMeters > MAX_DECISIVE_FIX_ACCURACY_METERS) {
+        //
+        // Per fence, not one constant. The flat 50 m this replaces was wrong at both ends: it
+        // refused a 122 m fix 16 m inside a 254 m-deep venue, which was a real arrival and the one
+        // visit the field captures lost outright, while accepting 49 m against a 24 m ring where
+        // the accuracy circle swallows the whole polygon.
+        if (sample.horizontalAccuracyMeters >= geometry.venueScaleMeters) {
             return undecided(
                 PolygonUndecidedReason.ACCURACY_TOO_LOW,
                 signedBoundaryDistanceMeters
@@ -167,17 +172,6 @@ internal class PolygonAccuracyEvaluator {
         if (relation == PolygonPointRelation.OUTSIDE) -boundaryDistanceMeters else boundaryDistanceMeters
 
     private companion object {
-        /**
-         * Coarser than this and a lone background fix decides nothing in either direction.
-         *
-         * Unchanged at 50. Indoor fixes measure around 100 m, so this is what makes an indoor
-         * arrival undecidable, and raising it is the single highest-impact calibration choice
-         * open — but it is the one that needs the real accuracy distribution rather than an
-         * argument from geometry, because at 100 m against a 24 m fence the fix carries no
-         * information about containment at all.
-         */
-        const val MAX_DECISIVE_FIX_ACCURACY_METERS = 50.0
-
         /**
          * Clearance a departure needs beyond the fix's own accuracy. Arrival has no equivalent by
          * design. v1 value.

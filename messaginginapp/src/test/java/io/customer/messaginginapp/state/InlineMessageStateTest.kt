@@ -112,11 +112,38 @@ class InlineMessageStateTest : JUnitTest() {
             InAppMessagingAction.ReconcileInlineMessages(emptyList())
         )
 
-        assertTrue(resultState.queuedInlineMessagesState.getMessage(elementId) is InlineMessageState.Embedded)
+        val inlineState = resultState.queuedInlineMessagesState
+            .getMessage(elementId) as InlineMessageState.Embedded
+        assertTrue(inlineState.isViewAttached)
+        assertEquals(false, inlineState.shouldRetainWhenDetached)
     }
 
     @Test
-    fun reconcileInlineMessages_givenEmbeddedMessageNoLongerMatchesRoute_expectStateRemoved() {
+    fun reconcileInlineMessages_givenDetachedEmbeddedMessageMissingFromQueue_expectStateRemoved() {
+        val elementId = String.random
+        val message = createMessage(elementId = elementId)
+        val queuedState = QueuedInlineMessagesState()
+            .addMessage(message, elementId)
+            .updateMessageState(
+                message.queueId!!,
+                InlineMessageState.Embedded(
+                    message = message,
+                    elementId = elementId,
+                    isViewAttached = false
+                )
+            )
+        val initialState = InAppMessagingState(queuedInlineMessagesState = queuedState)
+
+        val resultState = inAppMessagingReducer(
+            initialState,
+            InAppMessagingAction.ReconcileInlineMessages(emptyList())
+        )
+
+        assertEquals(null, resultState.queuedInlineMessagesState.getMessage(elementId))
+    }
+
+    @Test
+    fun reconcileInlineMessages_givenEmbeddedMessageNoLongerMatchesRoute_expectStateRetained() {
         val elementId = String.random
         val message = createMessage(elementId = elementId, routeRule = "home/.*")
         val queuedState = QueuedInlineMessagesState()
@@ -132,7 +159,7 @@ class InlineMessageStateTest : JUnitTest() {
             InAppMessagingAction.ReconcileInlineMessages(emptyList())
         )
 
-        assertEquals(null, resultState.queuedInlineMessagesState.getMessage(elementId))
+        assertTrue(resultState.queuedInlineMessagesState.getMessage(elementId) is InlineMessageState.Embedded)
     }
 
     @Test

@@ -101,8 +101,16 @@ internal sealed class InlineMessageState {
         override fun toString() = "ReadyToEmbed(message=${message.queueId}, elementId=$elementId)"
     }
 
-    data class Embedded(override val message: Message, val elementId: String) : InlineMessageState() {
-        override fun toString() = "Embedded(message=${message.queueId}, elementId=$elementId)"
+    data class Embedded(
+        override val message: Message,
+        val elementId: String,
+        val isViewAttached: Boolean = true,
+        val shouldRetainWhenDetached: Boolean = true
+    ) : InlineMessageState() {
+        override fun toString() =
+            "Embedded(message=${message.queueId}, elementId=$elementId, " +
+                "isViewAttached=$isViewAttached, " +
+                "shouldRetainWhenDetached=$shouldRetainWhenDetached)"
     }
 
     data class Dismissed(override val message: Message) : InlineMessageState() {
@@ -153,19 +161,52 @@ internal data class QueuedInlineMessagesState(
         )
     }
 
+    fun setMessageViewAttached(queueId: String, isAttached: Boolean): QueuedInlineMessagesState {
+        val entry = messagesByElementId.entries.find { (_, state) ->
+            state.message.queueId == queueId
+        } ?: return this
+        val embeddedState = entry.value as? InlineMessageState.Embedded ?: return this
+        val updatedState = embeddedState.copy(isViewAttached = isAttached)
+
+        return copy(
+            messagesByElementId = buildMap(messagesByElementId.size) {
+                putAll(messagesByElementId)
+                if (isAttached || updatedState.shouldRetainWhenDetached) {
+                    put(entry.key, updatedState)
+                } else {
+                    remove(entry.key)
+                }
+            }
+        )
+    }
+
     /**
      * Reconciles messages waiting for a host view with the latest eligible queue snapshot.
      *
-     * Messages that are already embedded stay active until they are dismissed or stop matching the
-     * current route. This prevents a displayed inline message from disappearing when displaying it
-     * removes it from the pending queue. Ready and dismissed states are rebuilt from the snapshot so
-     * an element does not remain available after the server removes its message.
+     * Messages with an attached view stay active until they are dismissed. A detached embedded
+     * message remains available after it has been shown, or while it is still present in the
+     * authoritative queue. Route eligibility is evaluated by observers and views without treating
+     * a local route replay as an authoritative removal.
      */
-    fun reconcileMessages(messages: List<Message>, currentRoute: String?): QueuedInlineMessagesState {
+    fun reconcileMessages(
+        messages: List<Message>,
+        authoritativeMessages: List<Message>,
+        shownMessageQueueIds: Set<String>,
+        currentRoute: String?
+    ): QueuedInlineMessagesState {
         val reconciledMessages = buildMap {
             messagesByElementId.forEach { (elementId, state) ->
-                if (state is InlineMessageState.Embedded && state.message.matchesRoute(currentRoute)) {
-                    put(elementId, state)
+                if (state is InlineMessageState.Embedded) {
+                    val isInAuthoritativeQueue = authoritativeMessages.any { message ->
+                        message.queueId != null && message.queueId == state.message.queueId
+                    }
+                    val wasAlreadyShown = state.message.queueId in shownMessageQueueIds
+                    val updatedState = state.copy(
+                        shouldRetainWhenDetached = wasAlreadyShown || isInAuthoritativeQueue
+                    )
+                    if (updatedState.isViewAttached || updatedState.shouldRetainWhenDetached) {
+                        put(elementId, updatedState)
+                    }
                 }
             }
 

@@ -18,6 +18,7 @@ import io.customer.messaginginapp.state.InAppMessagingAction
 import io.customer.messaginginapp.state.MessageBuilderMock.createMessage
 import io.customer.messaginginapp.testutils.core.JUnitTest
 import io.customer.messaginginapp.testutils.extension.createInAppMessage
+import io.customer.messaginginapp.type.ColorScheme
 import io.customer.messaginginapp.type.InAppEventListener
 import io.customer.messaginginapp.type.InAppMessage
 import io.customer.sdk.communication.Event
@@ -194,7 +195,7 @@ internal class ModuleMessagingInAppTest : JUnitTest() {
             module.observeInlineMessageAvailability(elementId).take(2).toList(emissions)
         }
 
-        SDKComponent.inAppMessagingManager.dispatch(InAppMessagingAction.SetColorScheme(io.customer.messaginginapp.type.ColorScheme.DARK))
+        SDKComponent.inAppMessagingManager.dispatch(InAppMessagingAction.SetColorScheme(ColorScheme.DARK))
         SDKComponent.inAppMessagingManager.dispatch(InAppMessagingAction.EmbedMessages(listOf(message)))
         collectionJob.join()
 

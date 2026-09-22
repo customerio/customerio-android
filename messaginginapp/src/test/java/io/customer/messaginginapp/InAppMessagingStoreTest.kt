@@ -10,6 +10,7 @@ import io.customer.messaginginapp.gist.GistEnvironment
 import io.customer.messaginginapp.gist.data.model.Message
 import io.customer.messaginginapp.state.InAppMessagingAction
 import io.customer.messaginginapp.state.InAppMessagingManager
+import io.customer.messaginginapp.state.InlineMessageState
 import io.customer.messaginginapp.state.ModalMessageState
 import io.customer.messaginginapp.testutils.core.IntegrationTest
 import io.customer.messaginginapp.testutils.extension.createInAppMessage
@@ -28,6 +29,7 @@ import io.mockk.mockk
 import io.mockk.verify
 import java.util.UUID
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.amshove.kluent.shouldBe
 import org.amshove.kluent.shouldBeEqualTo
@@ -317,6 +319,59 @@ class InAppMessagingStoreTest : IntegrationTest() {
             .shouldBeInstanceOf<ModalMessageState.Displayed>()
             .message
             .queueId shouldBeEqualTo "1"
+    }
+
+    @Test
+    fun givenDisplayedInlineMessage_whenRouteChangesAwayAndBack_thenAvailabilityAndMessageAreRestored() = runTest {
+        initializeAndSetUser()
+        val elementId = "promotion"
+        val message = createInAppMessage(
+            queueId = "inline-route-round-trip",
+            elementId = elementId,
+            pageRule = pageRuleEquals("home")
+        )
+
+        manager.dispatch(InAppMessagingAction.SetPageRoute("home"))
+        manager.dispatch(InAppMessagingAction.ProcessMessageQueue(listOf(message)))
+        manager.dispatch(InAppMessagingAction.DisplayMessage(message))
+
+        manager.dispatch(InAppMessagingAction.SetPageRoute("settings"))
+        module.observeInlineMessageAvailability(elementId).first() shouldBe false
+
+        manager.dispatch(InAppMessagingAction.SetPageRoute("home"))
+
+        module.observeInlineMessageAvailability(elementId).first() shouldBe true
+        manager.getCurrentState().queuedInlineMessagesState.getMessage(elementId)
+            .shouldBeInstanceOf<InlineMessageState.Embedded>()
+            .message shouldBeEqualTo message
+    }
+
+    @Test
+    fun givenReadyInlineMessage_whenIncrementalMessageArrives_thenBothRemainAvailable() = runTest {
+        initializeAndSetUser()
+        val firstElementId = "first-promotion"
+        val firstMessage = createInAppMessage(
+            queueId = "first-inline",
+            elementId = firstElementId
+        )
+        val secondElementId = "second-promotion"
+        val secondMessage = createInAppMessage(
+            queueId = "second-inline",
+            elementId = secondElementId
+        )
+        manager.dispatch(InAppMessagingAction.ProcessMessageQueue(listOf(firstMessage)))
+
+        manager.dispatch(
+            InAppMessagingAction.ProcessMessageQueue(
+                messages = listOf(secondMessage),
+                shouldReconcileInlineMessages = false
+            )
+        )
+
+        manager.getCurrentState().queuedInlineMessagesState.getMessage(firstElementId)
+            .shouldBeInstanceOf<InlineMessageState.ReadyToEmbed>()
+        manager.getCurrentState().queuedInlineMessagesState.getMessage(secondElementId)
+            .shouldBeInstanceOf<InlineMessageState.ReadyToEmbed>()
     }
 
     @Test

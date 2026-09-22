@@ -87,14 +87,21 @@ class InlineMessageViewControllerTest : JUnitTest() {
     @Test
     fun onViewOwnerDestroyed_givenActivityChangingConfiguration_expectNoEventDispatched() {
         val controller = createViewController()
-        val givenMessage = createInAppMessage()
+        val givenMessage = createInAppMessage(
+            queueId = "1",
+            elementId = "test-element-id"
+        )
         controller.currentMessage = givenMessage
         every { platformDelegate.shouldDestroyWithOwner() } returns false
         clearMocks(inAppMessagingManager, engineWebViewDelegate, viewDelegate)
 
         controller.onViewOwnerDestroyed()
 
-        assertNoInteractions(inAppMessagingManager, engineWebViewDelegate, viewDelegate)
+        assertNoInteractions(inAppMessagingManager, engineWebViewDelegate)
+        assertCalledOnce {
+            viewDelegate.isVisible = false
+        }
+        controller.currentMessage.shouldBeNull()
     }
 
     @Test

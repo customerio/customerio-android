@@ -41,12 +41,6 @@ constructor(
     }
 
     private val lifecycleObserver: DefaultLifecycleObserver = object : DefaultLifecycleObserver {
-        override fun onCreate(owner: LifecycleOwner) {
-            super.onCreate(owner)
-            // Notify controller when owner is created so it can subscribe to in-app messaging state
-            onViewOwnerCreated()
-        }
-
         override fun onDestroy(owner: LifecycleOwner) {
             super.onDestroy(owner)
             // Clean up controller resources to prevent memory leaks
@@ -54,7 +48,7 @@ constructor(
         }
     }
 
-    private var hasSubscribedToController = false
+    private var observedLifecycle: Lifecycle? = null
 
     private val viewLifecycleOwner: Lifecycle?
         get() = findViewTreeLifecycleOwner()?.lifecycle
@@ -63,26 +57,26 @@ constructor(
         super.onAttachedToWindow()
 
         val lifecycle = viewLifecycleOwner
-        if (lifecycle != null) {
-            lifecycle.addObserver(lifecycleObserver)
-        } else {
-            // Fallback: Subscribe directly if no lifecycle owner is available
-            // This ensures compatibility with wrappers and other contexts that may not have LifecycleOwner
-            if (!hasSubscribedToController) {
-                onViewOwnerCreated()
-                hasSubscribedToController = true
-            }
-        }
+        observedLifecycle?.removeObserver(lifecycleObserver)
+        observedLifecycle = lifecycle
+        lifecycle?.addObserver(lifecycleObserver)
+
+        // Subscribe directly on every attachment. This does not rely on Lifecycle replay, which is
+        // important when Compose detaches and later reuses the same Android view instance.
+        onViewOwnerCreated()
     }
 
     override fun onDetachedFromWindow() {
         super.onDetachedFromWindow()
-        // Clean up controller if we subscribed directly
-        if (hasSubscribedToController) {
+        val lifecycle = observedLifecycle
+        lifecycle?.removeObserver(lifecycleObserver)
+        observedLifecycle = null
+
+        if (lifecycle == null) {
+            // Without a lifecycle owner, detachment is the only destruction signal available.
             onViewOwnerDestroyed()
-            hasSubscribedToController = false
         } else {
-            viewLifecycleOwner?.removeObserver(lifecycleObserver)
+            controller.onViewDetached()
         }
     }
 

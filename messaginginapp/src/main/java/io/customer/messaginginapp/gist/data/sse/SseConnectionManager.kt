@@ -245,7 +245,8 @@ internal class SseConnectionManager(
                         sseLogger.logReceivedMessages(messages.size, "in-app")
                         inAppMessagingManager.dispatch(
                             InAppMessagingAction.ProcessMessageQueue(
-                                messages
+                                messages = messages,
+                                shouldReconcileInlineMessages = false
                             )
                         )
                     } else {

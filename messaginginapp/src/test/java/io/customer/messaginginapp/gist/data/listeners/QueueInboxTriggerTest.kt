@@ -16,7 +16,11 @@ import io.customer.messaginginapp.inbox.data.InboxFetchOutcome
 import io.customer.messaginginapp.inbox.data.InboxRepository
 import io.customer.messaginginapp.state.InAppMessagingAction
 import io.customer.messaginginapp.state.InAppMessagingManager
+import io.customer.messaginginapp.state.InlineMessageState
+import io.customer.messaginginapp.state.MessageBuilderMock.createMessage
 import io.customer.messaginginapp.testutils.core.IntegrationTest
+import io.customer.messaginginapp.testutils.extension.createInboxMessage
+import io.customer.messaginginapp.testutils.extension.pageRuleContains
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.util.ScopeProvider
 import io.mockk.coEvery
@@ -29,6 +33,7 @@ import okhttp3.Headers.Companion.toHeaders
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import retrofit2.Response
 
 /**
  * Verifies the Queue->InboxRepository wiring added to make the dormant visual-inbox
@@ -48,6 +53,7 @@ class QueueInboxTriggerTest : IntegrationTest() {
 
     private val scopeProviderStub = ScopeProviderStub.Unconfined()
     private val mockRepository: InboxRepository = mockk(relaxed = true)
+    private val mockQueueService: GistQueueService = mockk(relaxed = true)
 
     private lateinit var manager: InAppMessagingManager
     private lateinit var queue: Queue
@@ -84,7 +90,7 @@ class QueueInboxTriggerTest : IntegrationTest() {
         manager.dispatch(InAppMessagingAction.SetUserIdentifier("user-1"))
         flushCoroutines(scopeProviderStub.inAppLifecycleScope)
 
-        queue = Queue()
+        queue = Queue(queueServiceOverride = mockQueueService)
     }
 
     override fun teardown() {
@@ -96,6 +102,20 @@ class QueueInboxTriggerTest : IntegrationTest() {
         val method = Queue::class.java.getDeclaredMethod("updateInboxFlag", Headers::class.java)
         method.isAccessible = true
         method.invoke(queue, headers)
+        flushCoroutines(scopeProviderStub.inAppLifecycleScope)
+    }
+
+    private fun fetchMessagesWithResponse(responseCode: Int) {
+        val response = mockk<Response<QueueMessagesResponse>>(relaxed = true) {
+            every { code() } returns responseCode
+            every { headers() } returns Headers.headersOf()
+            every { isSuccessful() } returns (responseCode in 200..299)
+        }
+        coEvery {
+            mockQueueService.fetchMessagesForUser(any(), any())
+        } returns response
+
+        queue.fetchUserMessages()
         flushCoroutines(scopeProviderStub.inAppLifecycleScope)
     }
 
@@ -173,6 +193,88 @@ class QueueInboxTriggerTest : IntegrationTest() {
         val inboxMessages = manager.getCurrentState().inboxMessages
         assert(inboxMessages.size == 1 && inboxMessages.first().queueId == "q1") {
             "expected one inbox message (q1) in state, got $inboxMessages"
+        }
+    }
+
+    @Test
+    fun fetchUserMessages_givenNoContentAndReadyInlineMessage_expectAvailabilityCleared() {
+        val elementId = "promotion"
+        val message = createMessage(elementId = elementId)
+        manager.dispatch(InAppMessagingAction.ProcessMessageQueue(listOf(message)))
+
+        fetchMessagesWithResponse(204)
+
+        assert(manager.getCurrentState().queuedInlineMessagesState.getMessage(elementId) == null) {
+            "expected an authoritative no-content response to clear an unhosted inline message"
+        }
+    }
+
+    @Test
+    fun fetchUserMessages_givenNotModifiedWithoutCache_expectAvailabilityRetained() {
+        val elementId = "promotion"
+        val message = createMessage(elementId = elementId)
+        val inboxMessage = createInboxMessage(queueId = "inbox-message")
+        manager.dispatch(InAppMessagingAction.ProcessMessageQueue(listOf(message)))
+        manager.dispatch(InAppMessagingAction.ProcessInboxMessages(listOf(inboxMessage)))
+
+        fetchMessagesWithResponse(304)
+
+        assert(
+            manager.getCurrentState().queuedInlineMessagesState.getMessage(elementId) is
+            InlineMessageState.ReadyToEmbed
+        ) {
+            "expected an uncached not-modified response to preserve last-known availability"
+        }
+        assert(manager.getCurrentState().inboxMessages.single().queueId == inboxMessage.queueId) {
+            "expected an uncached not-modified response to preserve last-known inbox messages"
+        }
+    }
+
+    @Test
+    fun fetchUserMessages_givenFailureAndMatchingRouteChange_expectMessageRetained() {
+        val elementId = "promotion"
+        val message = createMessage(
+            elementId = elementId,
+            routeRule = pageRuleContains("home")
+        )
+        manager.dispatch(InAppMessagingAction.SetPageRoute("account"))
+        manager.dispatch(InAppMessagingAction.ProcessMessageQueue(listOf(message)))
+        assert(manager.getCurrentState().queuedInlineMessagesState.getMessage(elementId) == null) {
+            "expected the inline message to remain unavailable before its route matches"
+        }
+
+        fetchMessagesWithResponse(500)
+        manager.dispatch(InAppMessagingAction.SetPageRoute("home/detail"))
+
+        assert(
+            manager.getCurrentState().queuedInlineMessagesState.getMessage(elementId) is
+            InlineMessageState.ReadyToEmbed
+        ) {
+            "expected a transient fetch failure to retain a delivered inline message for a later route"
+        }
+    }
+
+    @Test
+    fun fetchUserMessages_givenUncachedNotModifiedAndMatchingRouteChange_expectMessageRetained() {
+        val elementId = "promotion"
+        val message = createMessage(
+            elementId = elementId,
+            routeRule = pageRuleContains("home")
+        )
+        manager.dispatch(InAppMessagingAction.SetPageRoute("account"))
+        manager.dispatch(InAppMessagingAction.ProcessMessageQueue(listOf(message)))
+        assert(manager.getCurrentState().queuedInlineMessagesState.getMessage(elementId) == null) {
+            "expected the inline message to remain unavailable before its route matches"
+        }
+
+        fetchMessagesWithResponse(304)
+        manager.dispatch(InAppMessagingAction.SetPageRoute("home/detail"))
+
+        assert(
+            manager.getCurrentState().queuedInlineMessagesState.getMessage(elementId) is
+            InlineMessageState.ReadyToEmbed
+        ) {
+            "expected an uncached not-modified response to retain a delivered inline message for a later route"
         }
     }
 

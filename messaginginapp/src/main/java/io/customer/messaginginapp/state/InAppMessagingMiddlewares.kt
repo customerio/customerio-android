@@ -86,7 +86,12 @@ private fun handleMessageDismissal(logger: Logger, store: Store<InAppMessagingSt
     // The dismissed message will be filtered out by processMessages() since its queueId is now in shownMessageQueueIds
     if (store.state.shouldUseSse) {
         SDKComponent.inAppSseLogger.logTryDisplayNextMessageAfterDismissal()
-        store.dispatch(InAppMessagingAction.ProcessMessageQueue(store.state.messagesInQueue.toList()))
+        store.dispatch(
+            InAppMessagingAction.ProcessMessageQueue(
+                messages = store.state.messagesInQueue.toList(),
+                shouldReconcileInlineMessages = false
+            )
+        )
     }
 }
 
@@ -162,7 +167,12 @@ internal fun routeChangeMiddleware() = middleware<InAppMessagingState> { store, 
         }
 
         // process the messages in the queue to check if there is a message to be shown
-        store.dispatch(InAppMessagingAction.ProcessMessageQueue(store.state.messagesInQueue.toList()))
+        store.dispatch(
+            InAppMessagingAction.ProcessMessageQueue(
+                messages = store.state.messagesInQueue.toList(),
+                shouldReconcileInlineMessages = false
+            )
+        )
     } else {
         next(action)
     }
@@ -197,7 +207,14 @@ internal fun processMessages() = middleware<InAppMessagingState> { store, next, 
             .filter { it.matchesRoute(store.state.currentRoute) }
             .distinctBy(Message::embeddedElementId)
 
-        store.dispatch(InAppMessagingAction.ReconcileInlineMessages(availableInlineMessages))
+        if (action.shouldReconcileInlineMessages) {
+            store.dispatch(
+                InAppMessagingAction.ReconcileInlineMessages(
+                    messages = availableInlineMessages,
+                    authoritativeMessages = action.messages.filter { it.isEmbedded }
+                )
+            )
+        }
 
         // Handle embedded messages
         val inLineMessagesToBeShown = availableInlineMessages

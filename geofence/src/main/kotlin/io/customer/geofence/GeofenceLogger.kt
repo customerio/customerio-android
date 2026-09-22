@@ -1596,7 +1596,11 @@ internal class GeofenceLogger(private val logger: Logger) {
             "Polygon callback discarded — ${reason.detail}. Nothing was evaluated for it." +
                 tail(
                     "os.callback.dropped",
-                    GeofenceLogIo.INPUT,
+                    // `obs`, like the other three writers of this key. The drop is the SDK's own
+                    // decision, not something it was handed, and `io` is what the replay transform
+                    // routes on — one writer at `in` would feed this key back while three are
+                    // compared.
+                    GeofenceLogIo.OBSERVATION,
                     listOf(
                         "why" to reason.wire,
                         "id" to geofenceId

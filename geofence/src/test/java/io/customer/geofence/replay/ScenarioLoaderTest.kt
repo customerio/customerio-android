@@ -1,6 +1,7 @@
 package io.customer.geofence.replay
 
 import org.amshove.kluent.shouldBeEqualTo
+import org.amshove.kluent.shouldBeFalse
 import org.amshove.kluent.shouldBeTrue
 import org.junit.Test
 
@@ -31,6 +32,48 @@ class ScenarioLoaderTest {
         // A note is carried but never graded — the whole point of the third classification.
         scenario.records.size shouldBeEqualTo 4
         scenario.given.single().body.single().name shouldBeEqualTo "Here"
+    }
+
+    /**
+     * Provenance must not default to `recorded`.
+     *
+     * It did, and an authored scenario whose header omitted `source` was then counted as a phone
+     * capture — enough on its own to satisfy the "did discovery find any drives?" guard, which is
+     * the emptiness check inverted. Reproduced by deleting `source` from an authored scenario and
+     * running a one-file corpus: discovery and replay both passed over zero drives.
+     */
+    @Test
+    fun load_givenHeaderWithoutSource_expectUnknownProvenance() {
+        val scenario = ScenarioLoader.load(
+            scenarioFile(header("no-source"), """{"k":"when","at":0.0,"ev":"process.start"}""")
+        )
+
+        scenario.sourceKind shouldBeEqualTo "unknown"
+        scenario.isRecorded.shouldBeFalse()
+    }
+
+    @Test
+    fun load_givenAuthoredSource_expectNotCountedAsADrive() {
+        val scenario = ScenarioLoader.load(
+            scenarioFile(
+                header("authored", sourceKind = "authored"),
+                """{"k":"when","at":0.0,"ev":"process.start"}"""
+            )
+        )
+
+        scenario.isRecorded.shouldBeFalse()
+    }
+
+    @Test
+    fun load_givenRecordedSource_expectCountedAsADrive() {
+        val scenario = ScenarioLoader.load(
+            scenarioFile(
+                header("recorded", sourceKind = "recorded"),
+                """{"k":"when","at":0.0,"ev":"process.start"}"""
+            )
+        )
+
+        scenario.isRecorded.shouldBeTrue()
     }
 
     @Test

@@ -17,8 +17,9 @@ internal fun scenarioFile(vararg lines: String): File {
     return file
 }
 
-internal fun header(name: String, platform: String = "android") =
-    """{"k":"scenario","v":1,"name":"$name","platform":"$platform","sdk":"test","device":"synthetic"}"""
+internal fun header(name: String, platform: String = "android", sourceKind: String? = null) =
+    """{"k":"scenario","v":1,"name":"$name","platform":"$platform","sdk":"test","device":"synthetic"""" +
+        (sourceKind?.let { ""","source":{"kind":"$it"}""" } ?: "") + "}"
 
 /** A fence at the device's position, so containment is unambiguous. */
 internal fun fenceAtDevice(id: String) =

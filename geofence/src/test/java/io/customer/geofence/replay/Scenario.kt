@@ -22,19 +22,27 @@ internal data class Scenario(
     val name: String,
     val platform: String,
     /**
-     * `regression` (the default) for a recorded drive, `conformance` for an authored scenario
-     * written against the vocabulary both platforms share and expected to hold on either.
+     * `recorded` for a drive taken off a phone, `authored` for a scenario somebody wrote. Read
+     * from `source.kind`, which every header carries, rather than from the directory the file sits
+     * in — the corpus is one flat directory and provenance has to travel inside the file.
+     *
+     * Absent or unrecognised becomes `unknown` and discovery rejects it, mirroring how `platform`
+     * is handled. It must not default to `recorded`: that let an authored scenario with no
+     * `source` stand in for a phone capture and satisfy the guard that asks whether any drive was
+     * found at all.
      */
-    val expect: String,
+    val sourceKind: String,
     val sdkVersion: String?,
     val device: String?,
     val records: List<ScenarioRecord>
 ) {
     /**
-     * Whether this scenario claims to be platform-independent. A recorded drive never is: it is
-     * one OS's callback timeline, and the other OS would not have produced it.
+     * Whether this came off a phone. Only used to keep the "did discovery find any drives" guard
+     * honest: a corpus of authored scenarios alone must not satisfy it.
+     *
+     * Deliberately NOT what decides where a scenario runs. That is [platform] alone.
      */
-    val isConformance: Boolean get() = expect == "conformance"
+    val isRecorded: Boolean get() = sourceKind == "recorded"
 
     /** Pre-existing world: the fetch responses, with their fence catalogues folded in. */
     val given: List<ScenarioRecord> get() = records.filter { it.kind == Kind.GIVEN }
@@ -114,7 +122,7 @@ internal object ScenarioLoader {
         return Scenario(
             name = header["name"]?.jsonPrimitive?.content ?: file.nameWithoutExtension,
             platform = header["platform"]?.jsonPrimitive?.content ?: "unknown",
-            expect = header["expect"]?.jsonPrimitive?.content ?: "regression",
+            sourceKind = header["source"]?.jsonObject?.get("kind")?.jsonPrimitive?.content ?: "unknown",
             sdkVersion = header["sdk"]?.jsonPrimitive?.contentOrNullSafe(),
             device = header["device"]?.jsonPrimitive?.contentOrNullSafe(),
             records = records

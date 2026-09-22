@@ -20,6 +20,15 @@ internal object Scenarios {
 
     private const val SUFFIX = ".scenario.ndjson"
 
+    /** This composition. A scenario runs here if its header names this, or names every platform. */
+    private const val PLATFORM = "android"
+
+    /** A scenario that declares it runs on every composition, not just the one that recorded it. */
+    private const val ANY = "any"
+
+    /** The provenance values a header may declare. Anything else is a broken file, not a default. */
+    private val KINDS = setOf("recorded", "authored")
+
     internal const val OVERRIDE = "CIO_GEOFENCE_SCENARIOS"
 
     val root: File? by lazy { resolve(System.getenv(OVERRIDE)) }
@@ -43,8 +52,8 @@ internal object Scenarios {
             val dir = File(path)
             check(dir.isDirectory) {
                 "$OVERRIDE is set to \"$path\", which is not a directory. Point it at the " +
-                    "directory holding the $SUFFIX files — geofence-scenarios/recorded, not " +
-                    "geofence-scenarios — or unset it to use the checkout beside this repo."
+                    "directory holding the $SUFFIX files — mobile-replay-harness/scenarios, " +
+                    "not mobile-replay-harness — or unset it to use the checkout beside this repo."
             }
             return dir
         }
@@ -52,7 +61,7 @@ internal object Scenarios {
         // project dir. Six levels is deliberate slack: the checkout sits beside customerio-android.
         var dir: File? = from
         repeat(6) {
-            dir?.resolve("geofence-scenarios/recorded")?.takeIf { it.isDirectory }?.let { return it }
+            dir?.resolve("mobile-replay-harness/scenarios")?.takeIf { it.isDirectory }?.let { return it }
             dir = dir?.parentFile
         }
         return null
@@ -81,73 +90,68 @@ internal object Scenarios {
             }
 
     /**
-     * Authored scenarios, beside `recorded/` rather than in it.
-     *
-     * EXPERIMENTAL. A recorded drive belongs to the OS that produced it — the same crossing fired
-     * nine minutes apart across the 2026-09-11 fleet — so a shared file can only ever be one
-     * somebody wrote. These are written against the vocabulary both platforms already share and
-     * run on both, unfiltered by the header's `platform`.
-     */
-    private val conformanceRoot: File? by lazy {
-        root?.parentFile?.resolve("conformance")?.takeIf { it.isDirectory }
-    }
-
-    /**
-     * `expect` is checked rather than the directory: a file that has not opted in stays out, so
-     * dropping a recorded drive in here by mistake cannot silently run against the wrong OS.
-     */
-    private fun conformance(): List<File> =
-        conformanceRoot?.listFiles { f: File -> f.name.endsWith(SUFFIX) }
-            ?.sortedBy { it.name }
-            ?.filter { file -> readable(file) { it.isConformance } }
-            ?: emptyList()
-
-    /**
-     * Every drive this harness can replay, discovered from disk rather than listed, so adding a
-     * drive is dropping in a file.
-     *
-     * The platform filter reads each header rather than trusting the filename: this is the Android
-     * composition, and an iOS capture reports one fence per callback where GMS batches several.
-     */
-    /** Everything a run grades: the recorded drives plus the authored scenarios. */
-    fun replayable(): List<File> = recorded() + conformance()
-
-    /**
-     * How many recorded drives the last [replayable] or [recorded] call discovered.
+     * How many recorded drives the last discovery found.
      *
      * Exists so a caller can ask "were there any drives?" without re-running discovery — calling
-     * [recorded] a second time clears [unreadable], which would drop the conformance failures the
-     * first pass had already collected.
+     * [recorded] a second time clears [unreadable], which would drop failures an earlier pass had
+     * already collected.
      */
     var recordedCount: Int = 0
         private set
 
     /**
-     * The recorded drives alone, without the authored conformance scenarios.
+     * Every scenario in the corpus whose header says it belongs on this composition, paired with
+     * the parsed scenario so a caller can filter further without re-reading the file.
+     *
+     * Two header fields are validated rather than defaulted, because both feed guards that fail
+     * open when they are wrong. A `platform` naming neither composition nor [ANY] is a broken file,
+     * not somebody else's drive. A `source.kind` that is missing or unrecognised is reported the
+     * same way: defaulting it to `recorded` let an authored scenario with no `source` satisfy the
+     * "did discovery find any drives?" guard on its own, which is the emptiness check inverted.
+     */
+    private fun discover(): List<Pair<File, Scenario>> {
+        unreadable.clear()
+        val dir = root ?: return emptyList<Pair<File, Scenario>>().also { recordedCount = 0 }
+        val found = dir.listFiles { f: File -> f.name.endsWith(SUFFIX) }
+            ?.sortedBy { it.name }
+            ?.mapNotNull { file ->
+                runCatching { file to ScenarioLoader.load(file) }
+                    .getOrElse { error ->
+                        unreadable.add("${file.name}: $error")
+                        null
+                    }
+            }
+            ?.filter { (file, scenario) ->
+                if (scenario.platform !in setOf(PLATFORM, "ios", ANY)) {
+                    unreadable.add(
+                        "${file.name}: header platform is \"${scenario.platform}\", " +
+                            "expected \"android\", \"ios\" or \"any\""
+                    )
+                    return@filter false
+                }
+                if (scenario.sourceKind !in KINDS) {
+                    unreadable.add(
+                        "${file.name}: header source.kind is \"${scenario.sourceKind}\", " +
+                            "expected \"recorded\" or \"authored\""
+                    )
+                    return@filter false
+                }
+                scenario.platform == PLATFORM || scenario.platform == ANY
+            }
+            .orEmpty()
+        recordedCount = found.count { (_, scenario) -> scenario.isRecorded }
+        return found
+    }
+
+    /** Everything a run grades: recorded drives and authored scenarios alike. */
+    fun replayable(): List<File> = discover().map { it.first }
+
+    /**
+     * The recorded drives alone, without the authored scenarios.
      *
      * Separate from [replayable] because the two answer different questions. A guard asking "did
      * discovery find anything" against the combined list is satisfied by the authored files, which
-     * resolve from `root.parent/conformance` — so an override pointing at any drive-less sibling of
-     * `recorded/` still looks healthy while grading zero drives.
+     * carry no device and cannot detect a corpus path that resolved somewhere drive-less.
      */
-    fun recorded(): List<File> {
-        unreadable.clear()
-        val dir = root ?: return emptyList()
-        return dir.listFiles { f: File -> f.name.endsWith(SUFFIX) }
-            ?.sortedBy { it.name }
-            ?.filter { file ->
-                readable(file) { scenario ->
-                    if (scenario.platform !in setOf("android", "ios")) {
-                        // Reported, not filtered. Only a *load* failure was recorded before, so a
-                        // misspelled `platfrom` key — or a stray `Android` — parsed cleanly,
-                        // defaulted to `unknown`, and vanished from the run with nothing said.
-                        unreadable.add("${file.name}: header platform is \"${scenario.platform}\", expected \"android\" or \"ios\"")
-                        return@readable false
-                    }
-                    scenario.platform == "android"
-                }
-            }
-            .orEmpty()
-            .also { recordedCount = it.size }
-    }
+    fun recorded(): List<File> = discover().filter { it.second.isRecorded }.map { it.first }
 }

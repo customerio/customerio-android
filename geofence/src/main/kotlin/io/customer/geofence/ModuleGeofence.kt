@@ -217,8 +217,8 @@ class ModuleGeofence @JvmOverloads constructor(
                         val foregroundScope = SDKComponent.scopeProvider.geofenceScope
                         foregroundScope.launch {
                             try {
-                                    sdkAndroid.polygonGeofenceServiceController.recover()
-                                    foregroundCoordinator(sdkAndroid, locationModule).onForeground()
+                                sdkAndroid.polygonGeofenceServiceController.recover()
+                                foregroundCoordinator(sdkAndroid, locationModule).onForeground()
                             } catch (e: CancellationException) {
                                 throw e
                             } catch (e: Throwable) {
@@ -243,11 +243,11 @@ class ModuleGeofence @JvmOverloads constructor(
                     sdkAndroid.geofenceTransitionEmitter.recoverPendingTransitions()
                     val existingUserId = sdkAndroid.secureUserStore.getUserId()
                     if (!existingUserId.isNullOrEmpty()) {
-                            // Re-read rather than reuse the id above: an identify can land in between,
-                            // and reopening the older owner would clear the routing it just armed.
-                            sdkAndroid.polygonGeofenceServiceController.beginUserSessionForCurrentUser()
-                            val coordinator = foregroundCoordinator(sdkAndroid, locationModule)
-                            val anchor = coordinator.anchor()
+                        // Re-read rather than reuse the id above: an identify can land in between,
+                        // and reopening the older owner would clear the routing it just armed.
+                        sdkAndroid.polygonGeofenceServiceController.beginUserSessionForCurrentUser()
+                        val coordinator = foregroundCoordinator(sdkAndroid, locationModule)
+                        val anchor = coordinator.anchor()
                         sdkAndroid.geofenceServices.onAppLaunch(
                             latitude = anchor?.latitude,
                             longitude = anchor?.longitude

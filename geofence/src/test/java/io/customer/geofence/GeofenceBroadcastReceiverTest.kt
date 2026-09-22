@@ -1318,8 +1318,6 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
         coVerify(exactly = 0) { mockManager.removeGeofencesByIds(any()) }
     }
 
-
-
     /**
      * The delivered event is dated when the broadcast arrived, not when the SDK got round to it.
      *

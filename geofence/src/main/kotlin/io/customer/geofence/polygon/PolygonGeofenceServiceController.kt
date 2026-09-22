@@ -8,7 +8,6 @@ import androidx.annotation.VisibleForTesting
 import io.customer.geofence.GeofenceConstants
 import io.customer.geofence.GeofenceLocation
 import io.customer.geofence.GeofenceLogger
-import io.customer.geofence.GeofenceManager
 import io.customer.geofence.GeofenceRegion
 import io.customer.geofence.GeofenceRegistrar
 import io.customer.geofence.GeofenceTransitionType

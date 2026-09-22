@@ -851,6 +851,46 @@ class PolygonFreshFixTest : RobolectricTest() {
     }
 
     @Test
+    fun activate_givenASuppressedFenceThatIsNowHoldingAnArrival_expectItStillAsks() = runTest {
+        // The memo records that a precise fix from this position could not decide this fence, which
+        // is what made asking again pointless. Once that fence is holding an arrival the premise is
+        // gone: a fix at the counted position now settles the hold by committing it, rather than
+        // deciding nothing. So the memo no longer covers this case and the request goes ahead.
+        //
+        // Without the bypass the request is refused, nothing reaches the fence, and the hold is
+        // dropped when it goes stale. Field gaps between two fixes for one fence ran 300 s and up
+        // against a 60 s window, so the refusal loses the visit rather than delaying it.
+        val freshFix = CountingNeverAnswersFreshFix()
+        val controller = controller(freshFix)
+        store.saveCachedRegions(listOf(venueRegion()))
+        store.saveRegisteredIds(setOf(VENUE_ID))
+        store.saveRoutableRegisteredIds(setOf(VENUE_ID))
+
+        // Coarse at the venue centre: over the fence's 54 m ceiling, so undecided. The request
+        // times out, and the timeout memoises the fence at this position.
+        controller.activate(VENUE_ID, coarseFixInsideTheVenue(), store.userStateGeneration(), null)
+        freshFix.requests shouldBeEqualTo 1
+
+        // Past the cooldown, so a refusal now would be the position check and not the rate limit.
+        ShadowSystemClock.advanceBy(Duration.ofSeconds(31))
+
+        // The same position, inside the ceiling this time, so it reads a marginal arrival and holds
+        // it. The fence is the only one the request would serve and it is memoised, which before
+        // the bypass was exactly the shape that withheld the fix.
+        controller.activate(
+            VENUE_ID,
+            marginalFixAtTheVenueCentre(SystemClock.elapsedRealtimeNanos()),
+            store.userStateGeneration(),
+            null
+        )
+
+        freshFix.requests shouldBeEqualTo 2
+        verify(exactly = 0) {
+            mockLogger.logPolygonFreshFixSkipped(PolygonFreshFixSkip.UNCHANGED_POSITION)
+        }
+    }
+
+    @Test
     fun activate_givenAHeldArrivalAndATimedOutRequest_expectTheNextCallbackStillAsks() = runTest {
         // Raised by Shahroz on #901, and a regression the set-wide gate introduced. On the
         // NONE_ARRIVED path nothing was evaluated, so the recording took the whole requested set as
@@ -1032,12 +1072,6 @@ class PolygonFreshFixTest : RobolectricTest() {
     )
 
     /**
-     * The fix the parked phone actually produces: 122 m of accuracy, dead centre of a venue ~110 m
-     * across. It reads inside, and it decides nothing, because 122 m of uncertainty against a
-     * venue this size carries no information about containment — the accuracy circle covers the
-     * venue and most of the street around it. This is the ordinary indoor case, not an edge.
-     */
-    /**
      * Inside, but only 5.6 m past the southern edge, so at 20 m of uncertainty the fix decides
      * ENTER and the evaluator still asks for a second measurement. Both arrivals lost in the field
      * were this shape: one read 6.7 m inside its ring at 10.9 m accuracy.
@@ -1050,6 +1084,34 @@ class PolygonFreshFixTest : RobolectricTest() {
         time = 100_000L
     }
 
+    /**
+     * At the venue centre, 52 m from the nearest edge, carrying 53 m of error.
+     *
+     * Marginal rather than decisive, because the error reaches the ring, and still under the
+     * fence's own 54 m ceiling so it is admitted. The admissible-yet-marginal window here is only
+     * 52.7 m to 54.1 m wide, so this accuracy is pinned: move it either way and the fix decides
+     * outright or is refused, and the test stops exercising a hold.
+     *
+     * Deliberately at the SAME position as [coarseFixInsideTheVenue]: a futile-escalation memo is
+     * keyed on position, so this is the only way one fix can open a hold on a fence that an
+     * earlier fix already memoised.
+     */
+    private fun marginalFixAtTheVenueCentre(
+        elapsedRealtimeNanos: Long = SystemClock.elapsedRealtimeNanos() - 2_000_000_000L
+    ) = Location("test").apply {
+        latitude = 37.7750
+        longitude = -122.4194
+        accuracy = 53f
+        this.elapsedRealtimeNanos = elapsedRealtimeNanos
+        time = 100_000L
+    }
+
+    /**
+     * The fix the parked phone actually produces: 122 m of accuracy, dead centre of a venue ~110 m
+     * across. It reads inside, and it decides nothing, because 122 m of uncertainty against a
+     * venue this size carries no information about containment — the accuracy circle covers the
+     * venue and most of the street around it. This is the ordinary indoor case, not an edge.
+     */
     private fun coarseFixInsideTheVenue(
         elapsedRealtimeNanos: Long = SystemClock.elapsedRealtimeNanos() - 2_000_000_000L
     ) = Location("test").apply {
@@ -1085,8 +1147,10 @@ class PolygonFreshFixTest : RobolectricTest() {
         time = 100_000L
     }
 
-    // Roughly 110 m x 105 m, so a fix at its centre sits ~52 m from the nearest edge and the
-    // venue's own scale is ~27 m. Its arrival ceiling is therefore the floor, 50 m.
+    // Roughly 111 m x 106 m, so a fix at its centre sits ~52 m from the nearest edge. Its
+    // `2 x area / perimeter` scale is ~54 m, just above the 50 m floor, so this fence is governed by
+    // its own depth rather than the floor. The earlier "~27 m" here halved it, which put the fence
+    // on the wrong side of that boundary.
     private fun venueRegion() = GeofenceRegion(
         id = VENUE_ID,
         latitude = 37.7750,
@@ -1109,8 +1173,8 @@ class PolygonFreshFixTest : RobolectricTest() {
      *
      * That is what lets one precise fix reach two different verdicts: decisive for the venue, and,
      * for this one committed INSIDE, outside its ring but not clear of it, which is
-     * WITHIN_ACCURACY. Needed because the accuracy ceiling is a flat 50 m rather than per fence,
-     * so two fences cannot diverge on fix quality alone.
+     * WITHIN_ACCURACY. Needed because both rings are the same shape, so they share an accuracy
+     * ceiling and cannot diverge on fix quality alone.
      */
     private fun regionJustNorthOfTheVenue(id: String) =
         regionShiftedNorth(id, NORTH_SHIFT_DEGREES)

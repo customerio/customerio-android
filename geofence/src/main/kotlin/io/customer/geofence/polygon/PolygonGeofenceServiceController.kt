@@ -984,7 +984,7 @@ internal class PolygonGeofenceServiceController(
             // FUTILE_ESCALATION_RETRY_MS while the hold expires after MAX_CORROBORATION_GAP_NANOS,
             // and the request being withheld is the one measurement that could still save the
             // arrival. Raised by Shahroz on #901.
-            if (triggeringLocation != null && undecidedPolygonIds.isNotEmpty()) {
+            if (triggeringLocation != null) {
                 recordEscalationOutcomes(
                     requested = undecidedPolygonIds,
                     stillUndecided = undecidedPolygonIds,
@@ -1036,18 +1036,21 @@ internal class PolygonGeofenceServiceController(
      * empty set would otherwise satisfy [Set.all] and suppress, which is the opposite of what an
      * absence of demand should mean.
      *
-     * One consequence worth knowing before reading a capture: a fence in the set because its
-     * arrival is being held carries no memo, so a held arrival always defeats this check and keeps
-     * the batch asking. That is what it should do, since a second measurement is exactly what a
-     * hold needs and [PolygonRouteProcessor.MAX_CORROBORATION_GAP_NANOS] caps the wait, but it
-     * means batch suppression is off for as long as any co-tenant hold is open.
+     * What holds do and do not get, stated precisely, because a looser version of this sentence
+     * has been wrong twice. **A hold never creates a memo.** On the answered path ArrivalPending
+     * lands among the evaluated rather than the undecided, so the outcome clears one rather than
+     * setting one; on the timeout path nothing was evaluated, so the recording leaves held
+     * arrivals out explicitly. Without that second half a hold picked up a memo good for
+     * [FUTILE_ESCALATION_RETRY_MS] and this check withheld the measurement it was waiting for,
+     * which dropped the arrival.
      *
-     * Two separate things keep that true, and it was only half true once. On the answered path
-     * ArrivalPending lands among the evaluated rather than the undecided, so the outcome clears a
-     * memo rather than setting one. On the timeout path nothing was evaluated, so the recording
-     * excludes held arrivals explicitly instead. Without that second half a hold picked up a memo
-     * good for [FUTILE_ESCALATION_RETRY_MS] and this check then withheld the measurement it was
-     * waiting for, which dropped the arrival.
+     * **A hold can still be gated by a memo that predates it,** and that is not a bug. A fence
+     * whose earlier precise request failed to decide it from this position carries a truthful memo;
+     * if a later wake opens a hold on that same fence from the same position, this check refuses
+     * the request, and the hold falls back to the next delivered fix inside
+     * [PolygonRouteProcessor.MAX_CORROBORATION_GAP_NANOS]. Whether an open hold should instead
+     * bypass this check outright is a cost-against-arrival policy call, not an oversight. It is one
+     * condition here if the answer changes.
      */
     private fun requestWouldRepeatItselfLocked(
         needingPolygonIds: Set<String>,

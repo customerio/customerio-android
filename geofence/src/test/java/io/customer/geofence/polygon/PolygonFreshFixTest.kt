@@ -826,6 +826,31 @@ class PolygonFreshFixTest : RobolectricTest() {
     }
 
     @Test
+    fun activate_givenARequestTimedOut_expectTheUndecidedFenceIsStillMemoised() = runTest {
+        // The complement of the held-arrival case below, and unpinned until now: a request that
+        // answers with nothing still has to memoise the fences it was asked for, or a device whose
+        // precise fix never arrives goes on asking on every wake, which is the same waste by
+        // another route. Deleting the timeout recording altogether passed the whole suite before
+        // this existed.
+        val freshFix = CountingNeverAnswersFreshFix()
+        val controller = controller(freshFix)
+
+        controller.activate(VENUE_ID, coarseFixInsideTheVenue(), store.userStateGeneration(), null)
+        ShadowSystemClock.advanceBy(Duration.ofSeconds(31))
+        controller.activate(
+            VENUE_ID,
+            coarseFixInsideTheVenue(SystemClock.elapsedRealtimeNanos()),
+            store.userStateGeneration(),
+            null
+        )
+
+        freshFix.requests shouldBeEqualTo 1
+        verify(exactly = 1) {
+            mockLogger.logPolygonFreshFixSkipped(PolygonFreshFixSkip.UNCHANGED_POSITION)
+        }
+    }
+
+    @Test
     fun activate_givenAHeldArrivalAndATimedOutRequest_expectTheNextCallbackStillAsks() = runTest {
         // Raised by Shahroz on #901, and a regression the set-wide gate introduced. On the
         // NONE_ARRIVED path nothing was evaluated, so the recording took the whole requested set as
@@ -844,8 +869,19 @@ class PolygonFreshFixTest : RobolectricTest() {
         store.saveRoutableRegisteredIds(setOf(VENUE_ID, NEIGHBOUR_ID))
         store.recordEntered(NEIGHBOUR_ID)
 
-        // Marginal inside the venue, so the venue decides ENTER and holds it for a second
-        // measurement, while the co-tenant reads undecided. The request for both times out.
+        // The co-tenant has to be activated to be judged at all: the engine evaluates the active
+        // fences and activate() admits only the one it is called for. Activated with a decisive fix
+        // of its own so this pass asks for nothing, which keeps the cooldown free and leaves no memo
+        // behind. Stamped older than the marginal fix below, or the processor would skip it as
+        // not-newer when that one arrives.
+        controller.activate(
+            NEIGHBOUR_ID,
+            decisiveFixInsideTheShiftedFence(),
+            store.userStateGeneration(),
+            null
+        )
+        // Marginal inside the venue, so this one pass holds the venue's ENTER for a second
+        // measurement AND reads the co-tenant undecided. One request serves both, and it times out.
         controller.activate(VENUE_ID, marginalFixInsideTheVenue(), store.userStateGeneration(), null)
 
         ShadowSystemClock.advanceBy(Duration.ofSeconds(31))
@@ -857,7 +893,9 @@ class PolygonFreshFixTest : RobolectricTest() {
         )
 
         // The held fence carries no memo, so the set is not wholly suppressed and the hold still
-        // gets its request. Recording it would have refused this one.
+        // gets its request. Memoising it would have refused this one, which is the regression: the
+        // co-tenant IS memoised by the same timed-out request, so a whole-set recording leaves
+        // nothing in the set unsuppressed.
         freshFix.requests shouldBeEqualTo 2
         verify(exactly = 0) {
             mockLogger.logPolygonFreshFixSkipped(PolygonFreshFixSkip.UNCHANGED_POSITION)
@@ -1076,6 +1114,18 @@ class PolygonFreshFixTest : RobolectricTest() {
      */
     private fun regionJustNorthOfTheVenue(id: String) =
         regionShiftedNorth(id, NORTH_SHIFT_DEGREES)
+
+    /**
+     * Dead centre of the fence shifted by [HELD_CO_TENANT_SHIFT_DEGREES], precise enough to decide
+     * it, and stamped 5 s old so the 2 s old marginal fix that follows is still strictly newer.
+     */
+    private fun decisiveFixInsideTheShiftedFence() = Location("test").apply {
+        latitude = 37.7750 + HELD_CO_TENANT_SHIFT_DEGREES
+        longitude = -122.4194
+        accuracy = 8f
+        elapsedRealtimeNanos = SystemClock.elapsedRealtimeNanos() - 5_000_000_000L
+        time = 100_000L
+    }
 
     /** [degrees] of latitude north, carrying the venue's shape with it. */
     private fun regionShiftedNorth(id: String, degrees: Double) = venueRegion().copy(

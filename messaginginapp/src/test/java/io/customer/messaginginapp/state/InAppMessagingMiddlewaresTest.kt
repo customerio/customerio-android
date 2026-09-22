@@ -98,51 +98,6 @@ class InAppMessagingMiddlewaresTest : JUnitTest() {
     }
 
     @Test
-    fun processMessages_givenEmptyQueue_shouldReconcileInlineMessages() {
-        val dispatchedActions = mutableListOf<InAppMessagingAction>()
-        every { store.dispatch(capture(slot())) } answers {
-            dispatchedActions.add(firstArg())
-            Unit
-        }
-
-        val action = InAppMessagingAction.ProcessMessageQueue(emptyList())
-        processMessages()(store)(nextFn)(action)
-
-        verify { nextFn(action) }
-        val reconcileAction = dispatchedActions
-            .filterIsInstance<InAppMessagingAction.ReconcileInlineMessages>()
-            .single()
-        assert(reconcileAction.messages.isEmpty()) {
-            "Expected an empty queue snapshot to remove stale ready inline messages"
-        }
-    }
-
-    @Test
-    fun processMessages_givenCompetingMessagesForElement_shouldSelectHighestPriority() {
-        val elementId = String.random
-        val highPriorityMessage = createMessage(elementId = elementId, priority = 1)
-        val lowPriorityMessage = createMessage(elementId = elementId, priority = 3)
-        val dispatchedActions = mutableListOf<InAppMessagingAction>()
-        every { store.dispatch(capture(slot())) } answers {
-            dispatchedActions.add(firstArg())
-            Unit
-        }
-
-        processMessages()(store)(nextFn)(
-            InAppMessagingAction.ProcessMessageQueue(
-                listOf(lowPriorityMessage, highPriorityMessage)
-            )
-        )
-
-        val reconcileAction = dispatchedActions
-            .filterIsInstance<InAppMessagingAction.ReconcileInlineMessages>()
-            .single()
-        assert(reconcileAction.messages == listOf(highPriorityMessage)) {
-            "Expected the highest-priority message to own the element"
-        }
-    }
-
-    @Test
     fun gistListenerMiddleware_shouldNotifyListenerForEmbeddedMessages() {
         val element1 = String.random
         val element2 = String.random

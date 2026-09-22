@@ -368,10 +368,36 @@ class InAppMessagingStoreTest : IntegrationTest() {
             )
         )
 
-        manager.getCurrentState().queuedInlineMessagesState.getMessage(firstElementId)
+        module.observeInlineMessageAvailability(firstElementId).first() shouldBe true
+        module.observeInlineMessageAvailability(secondElementId).first() shouldBe true
+    }
+
+    @Test
+    fun givenReadyInlineMessage_whenAuthoritativeQueueIsEmpty_thenItBecomesUnavailable() = runTest {
+        initializeAndSetUser()
+        val elementId = "promotion"
+        val message = createInAppMessage(queueId = "inline-withdrawn", elementId = elementId)
+        manager.dispatch(InAppMessagingAction.ProcessMessageQueue(listOf(message)))
+        module.observeInlineMessageAvailability(elementId).first() shouldBe true
+
+        manager.dispatch(InAppMessagingAction.ProcessMessageQueue(emptyList()))
+
+        module.observeInlineMessageAvailability(elementId).first() shouldBe false
+    }
+
+    @Test
+    fun givenCompetingInlineMessages_whenQueueIsProcessed_thenHighestPriorityMessageIsAvailable() = runTest {
+        initializeAndSetUser()
+        val elementId = "promotion"
+        val lowerPriority = createInAppMessage(queueId = "inline-low", elementId = elementId, priority = 3)
+        val higherPriority = createInAppMessage(queueId = "inline-high", elementId = elementId, priority = 1)
+
+        manager.dispatch(InAppMessagingAction.ProcessMessageQueue(listOf(lowerPriority, higherPriority)))
+
+        module.observeInlineMessageAvailability(elementId).first() shouldBe true
+        manager.getCurrentState().queuedInlineMessagesState.getMessage(elementId)
             .shouldBeInstanceOf<InlineMessageState.ReadyToEmbed>()
-        manager.getCurrentState().queuedInlineMessagesState.getMessage(secondElementId)
-            .shouldBeInstanceOf<InlineMessageState.ReadyToEmbed>()
+            .message shouldBeEqualTo higherPriority
     }
 
     @Test

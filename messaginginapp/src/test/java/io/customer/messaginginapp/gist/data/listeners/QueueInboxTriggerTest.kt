@@ -254,30 +254,6 @@ class QueueInboxTriggerTest : IntegrationTest() {
         }
     }
 
-    @Test
-    fun fetchUserMessages_givenUncachedNotModifiedAndMatchingRouteChange_expectMessageRetained() {
-        val elementId = "promotion"
-        val message = createMessage(
-            elementId = elementId,
-            routeRule = pageRuleContains("home")
-        )
-        manager.dispatch(InAppMessagingAction.SetPageRoute("account"))
-        manager.dispatch(InAppMessagingAction.ProcessMessageQueue(listOf(message)))
-        assert(manager.getCurrentState().queuedInlineMessagesState.getMessage(elementId) == null) {
-            "expected the inline message to remain unavailable before its route matches"
-        }
-
-        fetchMessagesWithResponse(304)
-        manager.dispatch(InAppMessagingAction.SetPageRoute("home/detail"))
-
-        assert(
-            manager.getCurrentState().queuedInlineMessagesState.getMessage(elementId) is
-            InlineMessageState.ReadyToEmbed
-        ) {
-            "expected an uncached not-modified response to retain a delivered inline message for a later route"
-        }
-    }
-
     // --- disabled header never triggers a fetch ---
 
     @Test

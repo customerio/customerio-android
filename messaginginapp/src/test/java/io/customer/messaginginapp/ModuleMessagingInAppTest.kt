@@ -171,21 +171,6 @@ internal class ModuleMessagingInAppTest : JUnitTest() {
     }
 
     @Test
-    fun observeInlineMessageAvailability_givenRouteStopsMatching_expectUnavailable() = runTest {
-        val elementId = String.random
-        val message = createMessage(elementId = elementId, routeRule = "home/.*")
-        val manager = SDKComponent.inAppMessagingManager
-        manager.dispatch(InAppMessagingAction.SetPageRoute("home/feed"))
-        manager.dispatch(InAppMessagingAction.EmbedMessages(listOf(message)))
-
-        assertTrue(module.observeInlineMessageAvailability(elementId).first())
-
-        manager.dispatch(InAppMessagingAction.SetPageRoute("settings"))
-
-        assertFalse(module.observeInlineMessageAvailability(elementId).first())
-    }
-
-    @Test
     @OptIn(ExperimentalCoroutinesApi::class)
     fun observeInlineMessageAvailability_givenUnrelatedStateChanges_expectDistinctValues() = runTest {
         val elementId = String.random

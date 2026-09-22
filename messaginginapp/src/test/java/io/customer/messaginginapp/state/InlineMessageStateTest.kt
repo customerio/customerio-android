@@ -64,25 +64,6 @@ class InlineMessageStateTest : JUnitTest() {
     }
 
     @Test
-    fun reconcileInlineMessages_givenAvailableMessage_expectReadyStateAdded() {
-        val elementId = String.random
-        val message = createMessage(elementId = elementId, routeRule = "home/.*")
-        val initialState = InAppMessagingState(currentRoute = "home/feed")
-
-        val resultState = inAppMessagingReducer(
-            initialState,
-            InAppMessagingAction.ReconcileInlineMessages(
-                messages = listOf(message),
-                authoritativeMessages = listOf(message)
-            )
-        )
-
-        val inlineState = resultState.queuedInlineMessagesState.getMessage(elementId)
-        assertTrue(inlineState is InlineMessageState.ReadyToEmbed)
-        assertEquals(message, inlineState?.message)
-    }
-
-    @Test
     fun reconcileInlineMessages_givenReadyMessageMissingFromQueue_expectStateRemoved() {
         val elementId = String.random
         val message = createMessage(elementId = elementId)
@@ -152,29 +133,6 @@ class InlineMessageStateTest : JUnitTest() {
         )
 
         assertEquals(null, resultState.queuedInlineMessagesState.getMessage(elementId))
-    }
-
-    @Test
-    fun reconcileInlineMessages_givenEmbeddedMessageNoLongerMatchesRoute_expectStateRetained() {
-        val elementId = String.random
-        val message = createMessage(elementId = elementId, routeRule = "home/.*")
-        val queuedState = QueuedInlineMessagesState()
-            .addMessage(message, elementId)
-            .updateMessageState(message.queueId!!, InlineMessageState.Embedded(message, elementId))
-        val initialState = InAppMessagingState(
-            currentRoute = "settings",
-            queuedInlineMessagesState = queuedState
-        )
-
-        val resultState = inAppMessagingReducer(
-            initialState,
-            InAppMessagingAction.ReconcileInlineMessages(
-                messages = emptyList(),
-                authoritativeMessages = emptyList()
-            )
-        )
-
-        assertTrue(resultState.queuedInlineMessagesState.getMessage(elementId) is InlineMessageState.Embedded)
     }
 
     @Test

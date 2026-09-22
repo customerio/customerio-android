@@ -515,6 +515,9 @@ class GeofenceCrossingPipelineTest : RobolectricTest() {
 
     @Test
     fun handle_givenUnmatchedExitForExitOnlyFence_expectDeliveredNotDropped() = runTest {
+        // The setup default makes every registered fence read as entered, which would deliver this
+        // EXIT for the ordinary reason and never reach the fallback under test.
+        every { mockStore.getEnteredIds() } returns emptySet()
         every { mockStore.claimExit("biz-geofence-2") } returns false
         every { mockStore.getCachedRegion("biz-geofence-2") } returns GeofenceRegion(
             id = "biz-geofence-2",
@@ -536,6 +539,9 @@ class GeofenceCrossingPipelineTest : RobolectricTest() {
 
     @Test
     fun handle_givenUnmatchedExitOnUpgradedInstall_expectDeliveredNotDropped() = runTest {
+        // The setup default makes every registered fence read as entered, which would deliver this
+        // EXIT for the ordinary reason and never reach the fallback under test.
+        every { mockStore.getEnteredIds() } returns emptySet()
         every { mockStore.claimExit("biz-geofence-2") } returns false
         every { mockStore.hasContainmentRecord() } returns false
 

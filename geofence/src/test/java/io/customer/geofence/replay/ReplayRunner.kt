@@ -154,7 +154,7 @@ internal class ReplayRunner(
                 }
 
                 "os.callback" -> {
-                    val crossing = record.toCrossing(gate.clock.currentTimeSeconds())
+                    val crossing = record.toCrossing(gate.clock.currentTimeSeconds(), gate.clock.elapsedRealtime())
                     crossing.latitude?.let { lat ->
                         crossing.longitude?.let { lon -> lastFix = lat to lon }
                     }

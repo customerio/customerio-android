@@ -1,9 +1,11 @@
 package io.customer.geofence.replay
 
+import android.location.Location
 import io.customer.geofence.GeofenceCrossing
 import io.customer.geofence.GeofenceCrossingTransition
 import io.customer.sdk.core.util.CioLogLevel
 import io.customer.sdk.core.util.Logger
+import java.util.concurrent.TimeUnit
 
 /**
  * Reading back what the SDK said, and turning a recorded stimulus into the crossing the OS would
@@ -62,8 +64,33 @@ internal fun crossingTransitionOf(token: String?): GeofenceCrossingTransition = 
     else -> GeofenceCrossingTransition.UNSUPPORTED
 }
 
+/**
+ * The OS fix the callback carried, rebuilt from what the drive recorded.
+ *
+ * Not null: the polygon controller reads this object rather than the coordinates, and every one of
+ * its entry points treats a null fix as "nothing to judge" — `onMovementTriggerExit` returns on its
+ * first line, `acceptCoarseTransition` accepts unconditionally and so never dedupes, and
+ * `evaluateCallbackFix` takes its fail-open branch. Replaying null therefore walks past the whole
+ * decision path instead of grading it, and grades green for doing so.
+ *
+ * `elapsedRealtimeNanos` is dated `age` before the callback, which is where the drive says the fix
+ * was taken. It has to be monotonic across a drive as well as present, because the coarse dedupe
+ * compares it against the previous crossing's.
+ */
+private fun ScenarioRecord.triggeringFix(elapsedRealtimeMillis: Long): Location? {
+    val lat = double("lat") ?: return null
+    val lon = double("lon") ?: return null
+    return Location("replay").also { fix ->
+        fix.latitude = lat
+        fix.longitude = lon
+        double("acc")?.let { fix.accuracy = it.toFloat() }
+        val ageMillis = ((double("age") ?: 0.0) * 1000).toLong()
+        fix.elapsedRealtimeNanos = TimeUnit.MILLISECONDS.toNanos((elapsedRealtimeMillis - ageMillis).coerceAtLeast(1L))
+    }
+}
+
 /** Builds the crossing an `os.callback` stimulus describes. */
-internal fun ScenarioRecord.toCrossing(receivedAtSeconds: Long): GeofenceCrossing {
+internal fun ScenarioRecord.toCrossing(receivedAtSeconds: Long, elapsedRealtimeMillis: Long): GeofenceCrossing {
     val token = string("t")
     return GeofenceCrossing(
         geofenceIds = geofenceIds(),
@@ -74,9 +101,7 @@ internal fun ScenarioRecord.toCrossing(receivedAtSeconds: Long): GeofenceCrossin
         rawTransitionCode = -1,
         latitude = double("lat"),
         longitude = double("lon"),
-        // A replayed crossing has coordinates but no OS Location object; the polygon resolver
-        // treats that exactly as a callback the OS delivered without a fix.
-        triggeringLocation = null,
+        triggeringLocation = triggeringFix(elapsedRealtimeMillis),
         // Production stamps this where the broadcast is parsed, before any dispatch work. The
         // replay's equivalent is the virtual clock at this stimulus, which the runner has already
         // stepped to `record.at`.

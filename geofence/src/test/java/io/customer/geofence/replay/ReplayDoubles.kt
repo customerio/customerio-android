@@ -268,8 +268,16 @@ internal class ReplayRegistrar(private val gate: ReplayBoundaryGate) : GeofenceR
         return Result.success(Unit)
     }
 
-    override suspend fun replaceMovementTrigger(region: GeofenceRegion): Result<Unit> =
-        replaceGeofences(listOf(region), emptySet())
+    override suspend fun replaceMovementTrigger(region: GeofenceRegion): Result<Unit> {
+        // An upsert at the OS, not a replace. Production goes straight to `registerBatch`, which
+        // adds this one circle and leaves every business registration monitored — delegating to
+        // `replaceGeofences` cleared them all. It also emits no `registration.added`
+        // (`logGeofencesRegistered` fires only from `replaceGeofencesInternal`), so this must not
+        // spend a recorded add answer: doing so mis-dates the call and shifts every later one.
+        roundTrip("replaceMovementTrigger", ArrayDeque())
+        registeredIds.add(region.id)
+        return Result.success(Unit)
+    }
 
     override suspend fun clearAll(): Result<Unit> {
         roundTrip("clearAll", clearAnswers)

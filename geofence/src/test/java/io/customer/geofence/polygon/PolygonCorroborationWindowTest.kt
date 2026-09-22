@@ -258,8 +258,10 @@ class PolygonCorroborationWindowTest {
 
         val decided = outcome.records.filterIsInstance<PolygonRouteRecord.Decided>().single()
         decided.horizontalAccuracyMeters shouldBeEqualTo marginalAccuracy
-        decided.fixAgeSeconds shouldBeEqualTo 0.4
         (decided.signedBoundaryDistanceMeters!! > 0.0) shouldBeEqualTo true
+        // The held fix was 0.4 s old when taken and the hold then waited 15 s. Reporting the age
+        // captured at hold time would claim age=0.4 for evidence that is now 15.4 s old.
+        decided.fixAgeSeconds shouldBeEqualTo 15.4
     }
 
     @Test

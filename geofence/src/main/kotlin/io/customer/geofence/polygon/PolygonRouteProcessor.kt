@@ -82,6 +82,10 @@ internal sealed interface HeldArrivalOutcome {
      *
      * [heldSignedBoundaryDistanceMeters], [heldHorizontalAccuracyMeters] and [heldFixAgeSeconds]
      * describe the fix the arrival rests on, not whichever later fix released it.
+     *
+     * [heldFixAgeSeconds] is that fix's age at the moment the verdict is emitted, so it counts the
+     * time the hold waited. Reporting the age captured when the hold opened made a fix held for
+     * 15 s read as `age=0.4`, which is a capture claiming fresher evidence than the verdict used.
      */
     data class Committed(
         val reason: PolygonArrivalCommit?,
@@ -387,7 +391,9 @@ internal class PolygonRouteProcessor(
             reason = reason,
             heldSignedBoundaryDistanceMeters = held.signedBoundaryDistanceMeters,
             heldHorizontalAccuracyMeters = held.sample.horizontalAccuracyMeters,
-            heldFixAgeSeconds = held.fixAgeSeconds
+            // Its age when it was taken, plus what the hold has waited since. The monotonic gap is
+            // the only clock either end of this can trust.
+            heldFixAgeSeconds = held.fixAgeSeconds + heldForNanos.toDouble() / NANOS_PER_SECOND
         )
     }
 

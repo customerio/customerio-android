@@ -200,7 +200,7 @@ internal class GeofenceLogger(private val logger: Logger) {
     fun logGeofencesRegistered(count: Int) {
         logger.debug(
             "Registered $count geofences with OS" +
-                tail("registration.added", GeofenceLogIo.OUTPUT, listOf("nadd" to int(count))),
+                tail("registration.added", GeofenceLogIo.OBSERVATION, listOf("nadd" to int(count))),
             tag = TAG
         )
     }
@@ -234,7 +234,7 @@ internal class GeofenceLogger(private val logger: Logger) {
             "Kept $count business geofences unchanged in OS; skipped re-upsert to avoid GMS state reconciliation" +
                 tail(
                     "registration.kept",
-                    GeofenceLogIo.OUTPUT,
+                    GeofenceLogIo.OBSERVATION,
                     listOf("nkeep" to int(count), "why" to "unchanged")
                 ),
             tag = TAG
@@ -244,15 +244,16 @@ internal class GeofenceLogger(private val logger: Logger) {
     fun logGeofencesRemoved(count: Int) {
         logger.debug(
             "Removed $count geofences from OS" +
-                tail("registration.removed", GeofenceLogIo.OUTPUT, listOf("nrem" to int(count))),
+                tail("registration.removed", GeofenceLogIo.OBSERVATION, listOf("nrem" to int(count))),
             tag = TAG
         )
     }
 
+    /** The OS call underneath a reset; an observation, `module.reset` is the graded decision. */
     fun logGeofencesCleared() {
         logger.debug(
             "Cleared all geofences from OS" +
-                tail("registration.cleared", GeofenceLogIo.OUTPUT, listOf("why" to "cleared")),
+                tail("registration.cleared", GeofenceLogIo.OBSERVATION, listOf("why" to "cleared")),
             tag = TAG
         )
     }
@@ -262,7 +263,7 @@ internal class GeofenceLogger(private val logger: Logger) {
             "Failed to register geofences: $message" +
                 tail(
                     "registration.failed",
-                    GeofenceLogIo.OUTPUT,
+                    GeofenceLogIo.OBSERVATION,
                     listOf("ok" to bool(false), "why" to token(message ?: "unknown"))
                 ),
             tag = TAG
@@ -274,7 +275,7 @@ internal class GeofenceLogger(private val logger: Logger) {
             "Failed to remove geofences: $message" +
                 tail(
                     "registration.failed",
-                    GeofenceLogIo.OUTPUT,
+                    GeofenceLogIo.OBSERVATION,
                     listOf("ok" to bool(false), "op" to "remove", "why" to token(message ?: "unknown"))
                 ),
             tag = TAG
@@ -286,7 +287,7 @@ internal class GeofenceLogger(private val logger: Logger) {
             "Geofence '$geofenceId' dropped — invalid coordinates or radius, not registerable with the OS" +
                 tail(
                     "registration.rejected",
-                    GeofenceLogIo.OUTPUT,
+                    GeofenceLogIo.OBSERVATION,
                     listOf("id" to geofenceId, "why" to "invalid_geometry")
                 ),
             tag = TAG
@@ -298,7 +299,7 @@ internal class GeofenceLogger(private val logger: Logger) {
             "Geofence '$geofenceId' dropped — mapping failed unexpectedly: $message" +
                 tail(
                     "registration.rejected",
-                    GeofenceLogIo.OUTPUT,
+                    GeofenceLogIo.OBSERVATION,
                     listOf("id" to geofenceId, "why" to token(message ?: "mapping_failed"))
                 ),
             tag = TAG
@@ -327,7 +328,7 @@ internal class GeofenceLogger(private val logger: Logger) {
             }
             tail(
                 "rank.evaluated",
-                GeofenceLogIo.OUTPUT,
+                GeofenceLogIo.OBSERVATION,
                 listOf(
                     "ncand" to int(candidates),
                     "n" to int(selectedCount),
@@ -347,7 +348,7 @@ internal class GeofenceLogger(private val logger: Logger) {
             "Movement trigger registered with radius ${radiusMeters.toInt()} m" +
                 tail(
                     "movement.registered",
-                    GeofenceLogIo.OUTPUT,
+                    GeofenceLogIo.OBSERVATION,
                     GeofenceLogTail.position(latitude, longitude).map { (k, v) ->
                         (if (k == "lat") "rlat" else if (k == "lon") "rlon" else k) to v
                     } + listOf("rad" to num(radiusMeters, 0))
@@ -358,13 +359,43 @@ internal class GeofenceLogger(private val logger: Logger) {
 
     // MARK: - Permissions and lifecycle
 
+    /**
+     * A registration refused because the tier is not granted.
+     *
+     * `perm` carries the tier, not the Android permission constant it used to. Every other writer
+     * of this record puts a tier there — `denied`, `when_in_use`, `always` — and a reader mapping
+     * the key could make nothing of `ACCESS_FINE_LOCATION`. The constant is still worth having, so
+     * it moves to `ctx`, which `logBackgroundDeliveryUnavailable` already uses for the same job.
+     */
     fun logMissingPermission(permission: String) {
         logger.error(
             "Cannot register geofences: $permission not granted. Host app must request this permission." +
                 tail(
                     "permission.changed",
-                    GeofenceLogIo.OBSERVATION,
-                    listOf("perm" to token(permission), "why" to "not_granted")
+                    GeofenceLogIo.INPUT,
+                    listOf("perm" to PERMISSION_DENIED, "why" to "not_granted", "ctx" to token(permission))
+                ),
+            tag = TAG
+        )
+    }
+
+    /**
+     * The granted location tier, reported at process start and on foreground entry when it changes.
+     * `perm` uses iOS's vocabulary so one parser reads both platforms.
+     *
+     * `ok` means **background delivery is available**, which is the only reading that matches iOS:
+     * there the flag is written solely when Always is granted, and WhenInUse carries
+     * `why=foreground_only` instead. It used to mean "some permission was granted" here, so the one
+     * tier where the platforms disagree — WhenInUse, where geofences fire in the foreground and
+     * nowhere else — reported `ok=true` on Android and no `ok` at all on iOS.
+     */
+    fun logPermissionTier(tier: String) {
+        logger.info(
+            "Location permission is now $tier" +
+                tail(
+                    "permission.changed",
+                    GeofenceLogIo.INPUT,
+                    listOf("perm" to token(tier), "ok" to bool(tier == PERMISSION_ALWAYS))
                 ),
             tag = TAG
         )
@@ -375,8 +406,8 @@ internal class GeofenceLogger(private val logger: Logger) {
             "Geofence sync ($reason): ACCESS_BACKGROUND_LOCATION not granted — transitions will only fire while the app is in the foreground" +
                 tail(
                     "permission.changed",
-                    GeofenceLogIo.OBSERVATION,
-                    listOf("perm" to "foreground_only", "ctx" to token(reason))
+                    GeofenceLogIo.INPUT,
+                    listOf("perm" to "when_in_use", "why" to "foreground_only", "ctx" to token(reason))
                 ),
             tag = TAG
         )
@@ -390,7 +421,7 @@ internal class GeofenceLogger(private val logger: Logger) {
     fun logModuleInitialized(launchReason: GeofenceLaunchReason) {
         logger.info(
             "Geofence module initialized (${launchReason.wire})" +
-                tail("module.init", GeofenceLogIo.OBSERVATION, listOf("launch" to launchReason.wire)),
+                tail("module.init", GeofenceLogIo.INPUT, listOf("launch" to launchReason.wire)),
             tag = TAG
         )
     }
@@ -399,7 +430,7 @@ internal class GeofenceLogger(private val logger: Logger) {
     fun logModuleWoke(launchReason: GeofenceLaunchReason) {
         logger.info(
             "Geofence module woken (${launchReason.wire})" +
-                tail("module.wake", GeofenceLogIo.OBSERVATION, listOf("launch" to launchReason.wire)),
+                tail("module.wake", GeofenceLogIo.INPUT, listOf("launch" to launchReason.wire)),
             tag = TAG
         )
     }
@@ -409,17 +440,65 @@ internal class GeofenceLogger(private val logger: Logger) {
             "ModuleGeofence requires ModuleLocation to be registered alongside it. Add ModuleLocation to CustomerIOConfigBuilder; geofencing will not function until then." +
                 tail(
                     "module.init",
-                    GeofenceLogIo.OBSERVATION,
+                    GeofenceLogIo.INPUT,
                     listOf("ok" to bool(false), "why" to "missing_location_module")
                 ),
             tag = TAG
         )
     }
 
+    /** Sign-out observed. `ev=info`, not `module.reset`: that key means the outcome, not the intent. */
     fun logGeofenceStateResetOnSignOut() {
         logger.debug(
             "Geofence state reset on user sign-out: clearing persisted regions and OS registrations" +
-                tail("module.reset", GeofenceLogIo.OUTPUT, listOf("why" to "sign_out")),
+                tail("info", GeofenceLogIo.OBSERVATION, listOf("why" to "sign_out_reset_started")),
+            tag = TAG
+        )
+    }
+
+    /** Reset completed: the same key iOS asserts for "logout clears geofences". */
+    fun logResetCompleted() {
+        logger.debug(
+            "Reset completed: monitoring stopped and user-scoped state cleared" +
+                tail("module.reset", GeofenceLogIo.OUTPUT, listOf("ok" to bool(true))),
+            tag = TAG
+        )
+    }
+
+    /** A reset whose OS clear failed; state is kept so the next refresh retries. */
+    fun logResetFailed(reason: String) {
+        logger.debug(
+            "Reset failed: OS clear did not complete, keeping state for the next refresh to retry ($reason)" +
+                tail(
+                    "module.reset",
+                    GeofenceLogIo.OUTPUT,
+                    listOf("ok" to bool(false), "why" to "os_clear_failed")
+                ),
+            tag = TAG
+        )
+    }
+
+    /** A reset that deliberately did not clear because another user is signed in. */
+    fun logResetSuperseded() {
+        logger.debug(
+            "Reset skipped: another user is signed in" +
+                tail(
+                    "module.reset",
+                    GeofenceLogIo.OUTPUT,
+                    listOf("ok" to bool(false), "why" to "other_user_signed_in")
+                ),
+            tag = TAG
+        )
+    }
+
+    /**
+     * A user signed in or out. Logged per identify that names a user and per reset; the
+     * UserChangedEvent(null) after a reset is not logged. No identifier is written.
+     */
+    fun logIdentityChanged(identified: Boolean) {
+        logger.debug(
+            "Geofence identity changed: ${if (identified) "user signed in" else "user signed out"}" +
+                tail("identity.changed", GeofenceLogIo.INPUT, listOf("ok" to bool(identified))),
             tag = TAG
         )
     }
@@ -448,6 +527,22 @@ internal class GeofenceLogger(private val logger: Logger) {
                     listOf("ids" to list(geofenceIds), "n" to int(geofenceIds.size), "t" to token(transitionName)) +
                         GeofenceLogTail.fixQuality(location, source) +
                         GeofenceLogTail.position(location)
+                ),
+            tag = TAG
+        )
+    }
+
+    /**
+     * A position arrived from the Location module. Arrivals only, never the SDK's own reads.
+     * No `acc`/`age`: the core event carries coordinates only.
+     */
+    fun logLocationFix(latitude: Double, longitude: Double) {
+        logger.debug(
+            "Location fix delivered to geofencing" +
+                tail(
+                    "location.fix",
+                    GeofenceLogIo.INPUT,
+                    GeofenceLogTail.position(latitude, longitude) + listOf("prov" to "bus")
                 ),
             tag = TAG
         )
@@ -496,7 +591,7 @@ internal class GeofenceLogger(private val logger: Logger) {
             "Ignoring geofence transition type=$transitionType for '$geofenceId' (only ENTER and EXIT are tracked)" +
                 tail(
                     "os.callback.dropped",
-                    GeofenceLogIo.INPUT,
+                    GeofenceLogIo.OBSERVATION,
                     listOf("id" to geofenceId, "gms" to int(transitionType), "why" to "unsupported_transition_type")
                 ),
             tag = TAG
@@ -508,7 +603,7 @@ internal class GeofenceLogger(private val logger: Logger) {
             "Movement trigger geofence fired with transition=$transitionName; only EXIT triggers a sync" +
                 tail(
                     "os.callback.dropped",
-                    GeofenceLogIo.INPUT,
+                    GeofenceLogIo.OBSERVATION,
                     listOf("t" to token(transitionName), "why" to "movement_trigger_not_exit")
                 ),
             tag = TAG
@@ -518,7 +613,7 @@ internal class GeofenceLogger(private val logger: Logger) {
     fun logReceiverSkipped(reason: String) {
         logger.debug(
             "Geofence receiver skipped: $reason" +
-                tail("os.callback.dropped", GeofenceLogIo.INPUT, listOf("why" to token(reason))),
+                tail("os.callback.dropped", GeofenceLogIo.OBSERVATION, listOf("why" to token(reason))),
             tag = TAG
         )
     }
@@ -555,8 +650,6 @@ internal class GeofenceLogger(private val logger: Logger) {
      * `os.callback.received` record the receiver writes for the whole broadcast, which carries the
      * OS's triggering fix and the ids it applied to — find this crossing's `id` in that record's
      * `ids` list (a comma-separated list, not an `id` field; iOS is the one that emits `id` here).
-     * Threading the `Location` down to this call site instead would mean widening
-     * `dispatchTransition`, which has 78 test references, for information already recorded.
      *
      * [rows] is the per-geoset fan-out size and rides in the tail as `n`, so one crossing reads as
      * one acceptance. It is deliberately **not** added to the prose: this message predates the
@@ -584,7 +677,7 @@ internal class GeofenceLogger(private val logger: Logger) {
             "Geofence '$geofenceId' $transitionName: suppressed — same transition fired within the cooldown window" +
                 tail(
                     "transition.suppressed",
-                    GeofenceLogIo.OUTPUT,
+                    GeofenceLogIo.OBSERVATION,
                     listOf(
                         "id" to geofenceId,
                         "t" to token(transitionName),
@@ -601,7 +694,7 @@ internal class GeofenceLogger(private val logger: Logger) {
             "Geofence '$geofenceId': device already inside a newly-registered fence — synthesizing ENTER (GMS INITIAL_TRIGGER_ENTER is unreliable)" +
                 tail(
                     "transition.synthesized",
-                    GeofenceLogIo.OUTPUT,
+                    GeofenceLogIo.OBSERVATION,
                     listOf("id" to geofenceId, "t" to "enter", "why" to "initial_enter_inside")
                 ),
             tag = TAG
@@ -613,7 +706,7 @@ internal class GeofenceLogger(private val logger: Logger) {
             "Geofence '$geofenceId' transition dropped — id not in registered store" +
                 tail(
                     "transition.dropped",
-                    GeofenceLogIo.OUTPUT,
+                    GeofenceLogIo.OBSERVATION,
                     listOf("id" to geofenceId, "why" to "unknown_id")
                 ),
             tag = TAG
@@ -625,7 +718,7 @@ internal class GeofenceLogger(private val logger: Logger) {
             "Geofence '$geofenceId' ENTER: dropped — already reported as entered and no exit since, so the OS is re-reporting a state we already sent" +
                 tail(
                     "transition.dropped",
-                    GeofenceLogIo.OUTPUT,
+                    GeofenceLogIo.OBSERVATION,
                     listOf("id" to geofenceId, "t" to "enter", "why" to "already_reported")
                 ),
             tag = TAG
@@ -637,7 +730,7 @@ internal class GeofenceLogger(private val logger: Logger) {
             "Geofence '$geofenceId' EXIT: dropped — no record of the device being inside, so the OS is reconciling its own state" +
                 tail(
                     "transition.dropped",
-                    GeofenceLogIo.OUTPUT,
+                    GeofenceLogIo.OBSERVATION,
                     listOf("id" to geofenceId, "t" to "exit", "why" to "never_entered")
                 ),
             tag = TAG
@@ -649,7 +742,7 @@ internal class GeofenceLogger(private val logger: Logger) {
             "Geofence '$geofenceId' $transitionName: dropped — no identified user (geofencing is identified-only)" +
                 tail(
                     "transition.dropped",
-                    GeofenceLogIo.OUTPUT,
+                    GeofenceLogIo.OBSERVATION,
                     listOf("id" to geofenceId, "t" to token(transitionName), "why" to "no_identified_user")
                 ),
             tag = TAG
@@ -658,10 +751,36 @@ internal class GeofenceLogger(private val logger: Logger) {
 
     // MARK: - Sync
 
+    /**
+     * How long the SDK took to be ready to handle one broadcast, in ms.
+     *
+     * The crossing pipeline is a DI singleton with eager constructor injection, so resolving it
+     * builds the geofence object graph — the GMS client included — and on a cold process that
+     * happens inside the broadcast's own budget, where each branch used to resolve only what it
+     * needed. Whether that is material is a question about a real device, and the dispatch path had
+     * no timing record at all, so no capture could answer it. This is that record.
+     *
+     * Expect a large first value per process and roughly zero afterwards: the singleton is built
+     * once. Which broadcast is the first is readable from the surrounding `module.init`.
+     *
+     * Gated whole, not just in its tail. This fires on every broadcast — 72 times in nine hours on
+     * the 2026-09-14 drive — and with diagnostics off `tail` returns nothing, so the line that
+     * survived would carry a duration and no way to tell what it timed. Volume with nothing in it,
+     * in every customer's Logcat, on a record that exists purely to answer a diagnostic question.
+     */
+    fun logDispatchReady(elapsedMs: Long) {
+        if (!GeofenceDiagnostics.isEnabled) return
+        logger.debug(
+            "Crossing pipeline ready after ${elapsedMs}ms" +
+                tail("dispatch.ready", GeofenceLogIo.OBSERVATION, listOf("ms" to int(elapsedMs.toInt()))),
+            tag = TAG
+        )
+    }
+
     fun logSyncTriggered(reason: String) {
         logger.debug(
             "Geofence sync triggered: $reason" +
-                tail("sync.triggered", GeofenceLogIo.OUTPUT, listOf("why" to token(reason))),
+                tail("sync.triggered", GeofenceLogIo.OBSERVATION, listOf("why" to token(reason))),
             tag = TAG
         )
     }
@@ -669,7 +788,7 @@ internal class GeofenceLogger(private val logger: Logger) {
     fun logSyncSkipped(reason: String) {
         logger.debug(
             "Geofence sync skipped: $reason" +
-                tail("sync.skipped", GeofenceLogIo.OUTPUT, listOf("why" to token(reason))),
+                tail("sync.skipped", GeofenceLogIo.OBSERVATION, listOf("why" to token(reason))),
             tag = TAG
         )
     }
@@ -679,7 +798,7 @@ internal class GeofenceLogger(private val logger: Logger) {
             "Geofence sync skipped ($reason): no location available" +
                 tail(
                     "sync.skipped",
-                    GeofenceLogIo.OUTPUT,
+                    GeofenceLogIo.OBSERVATION,
                     listOf("why" to "no_location", "ctx" to token(reason))
                 ),
             tag = TAG
@@ -691,7 +810,7 @@ internal class GeofenceLogger(private val logger: Logger) {
             "Geofence sync skipped ($reason): OS reported an unusable fix ($latitude, $longitude)" +
                 tail(
                     "sync.skipped",
-                    GeofenceLogIo.OUTPUT,
+                    GeofenceLogIo.OBSERVATION,
                     listOf("why" to "invalid_location", "ctx" to token(reason)) +
                         GeofenceLogTail.position(latitude, longitude)
                 ),
@@ -704,7 +823,7 @@ internal class GeofenceLogger(private val logger: Logger) {
             "Geofence sync skipped ($reason): location permissions not granted" +
                 tail(
                     "sync.skipped",
-                    GeofenceLogIo.OUTPUT,
+                    GeofenceLogIo.OBSERVATION,
                     listOf("why" to "no_permission", "ctx" to token(reason))
                 ),
             tag = TAG
@@ -714,7 +833,7 @@ internal class GeofenceLogger(private val logger: Logger) {
     fun logSyncSkippedFresh() {
         logger.debug(
             "Geofence sync skipped: last successful sync is still within the freshness window" +
-                tail("sync.skipped", GeofenceLogIo.OUTPUT, listOf("why" to "within_freshness_window")),
+                tail("sync.skipped", GeofenceLogIo.OBSERVATION, listOf("why" to "within_freshness_window")),
             tag = TAG
         )
     }
@@ -724,7 +843,7 @@ internal class GeofenceLogger(private val logger: Logger) {
             "Geofence sync failed: $message" +
                 tail(
                     "sync.failed",
-                    GeofenceLogIo.OUTPUT,
+                    GeofenceLogIo.OBSERVATION,
                     listOf("ok" to bool(false), "why" to token(message ?: "unknown"))
                 ),
             tag = TAG
@@ -741,7 +860,7 @@ internal class GeofenceLogger(private val logger: Logger) {
             "Geofence sync succeeded: $count regions registered$trigger" +
                 tail(
                     "sync.completed",
-                    GeofenceLogIo.OUTPUT,
+                    GeofenceLogIo.OBSERVATION,
                     listOf(
                         "n" to int(count),
                         "mvmt" to bool(movementTriggerRegistered),
@@ -859,7 +978,7 @@ internal class GeofenceLogger(private val logger: Logger) {
             "API response contained unknown transition_type='$value' (expected enter/exit). Region's affected types dropped — check SDK / backend version alignment." +
                 tail(
                     "api.transition.unknown",
-                    GeofenceLogIo.INPUT,
+                    GeofenceLogIo.OBSERVATION,
                     listOf("ok" to bool(false), "why" to "unknown_transition_type", "value" to token(value))
                 ),
             tag = TAG
@@ -869,7 +988,7 @@ internal class GeofenceLogger(private val logger: Logger) {
     fun logMovementRearmedAfterFailedRefresh() {
         logger.debug(
             "Movement refresh failed; re-ranking from cache to re-arm the movement trigger" +
-                tail("movement.rearmed", GeofenceLogIo.OUTPUT, listOf("why" to "refresh_failed")),
+                tail("movement.rearmed", GeofenceLogIo.OBSERVATION, listOf("why" to "refresh_failed")),
             tag = TAG
         )
     }
@@ -889,7 +1008,7 @@ internal class GeofenceLogger(private val logger: Logger) {
             "Loaded $count cached region(s) from storage" +
                 tail(
                     "storage.loaded",
-                    GeofenceLogIo.INPUT,
+                    GeofenceLogIo.OBSERVATION,
                     listOf("n" to int(count), "anchor" to bool(hasAnchor))
                 ),
             tag = TAG
@@ -901,7 +1020,7 @@ internal class GeofenceLogger(private val logger: Logger) {
             "Geofence '$geofenceId' $transitionName: file outbox unavailable — kept durable staging for recovery" +
                 tail(
                     "storage.write.failed",
-                    GeofenceLogIo.OUTPUT,
+                    GeofenceLogIo.OBSERVATION,
                     listOf("id" to geofenceId, "t" to token(transitionName), "ok" to bool(false))
                 ),
             tag = TAG
@@ -918,7 +1037,7 @@ internal class GeofenceLogger(private val logger: Logger) {
             "Geofence '$geofenceId' $transitionName: HTTP delivery hit network error ($message); WorkManager will retry" +
                 tail(
                     "delivery.failed",
-                    GeofenceLogIo.OUTPUT,
+                    GeofenceLogIo.OBSERVATION,
                     listOf(
                         "id" to geofenceId,
                         "t" to token(transitionName),
@@ -942,7 +1061,7 @@ internal class GeofenceLogger(private val logger: Logger) {
             "Geofence '$geofenceId' $transitionName: HTTP delivery failed; $disposal — $message" +
                 tail(
                     "delivery.failed",
-                    GeofenceLogIo.OUTPUT,
+                    GeofenceLogIo.OBSERVATION,
                     listOf(
                         "id" to geofenceId,
                         "t" to token(transitionName),
@@ -960,7 +1079,7 @@ internal class GeofenceLogger(private val logger: Logger) {
             "Geofence event worker dropped: required field missing (geofenceId='$geofenceId', transition='$transitionName')" +
                 tail(
                     "delivery.failed",
-                    GeofenceLogIo.OUTPUT,
+                    GeofenceLogIo.OBSERVATION,
                     listOf("ok" to bool(false), "why" to "missing_required_field")
                 ),
             tag = TAG
@@ -972,7 +1091,7 @@ internal class GeofenceLogger(private val logger: Logger) {
             "Geofence '$geofenceId' $transitionName: no identified user at queue time — HTTP path deferred to foreground flush (analytics pipeline)" +
                 tail(
                     "delivery.queued",
-                    GeofenceLogIo.OUTPUT,
+                    GeofenceLogIo.OBSERVATION,
                     listOf("id" to geofenceId, "t" to token(transitionName), "why" to "no_identified_user")
                 ),
             tag = TAG
@@ -984,7 +1103,7 @@ internal class GeofenceLogger(private val logger: Logger) {
             "Geofence '$geofenceId' $transitionName: delivered via WorkManager (direct HTTP); removed from pending store" +
                 tail(
                     "delivery.sent",
-                    GeofenceLogIo.OUTPUT,
+                    GeofenceLogIo.OBSERVATION,
                     listOf("id" to geofenceId, "t" to token(transitionName), "via" to "work_manager")
                 ),
             tag = TAG
@@ -996,7 +1115,7 @@ internal class GeofenceLogger(private val logger: Logger) {
             "Geofence '$geofenceId' $transitionName: worker skipped — entry no longer in store (already delivered via the analytics pipeline)" +
                 tail(
                     "delivery.sent",
-                    GeofenceLogIo.OUTPUT,
+                    GeofenceLogIo.OBSERVATION,
                     listOf("id" to geofenceId, "t" to token(transitionName), "why" to "already_delivered")
                 ),
             tag = TAG
@@ -1008,7 +1127,7 @@ internal class GeofenceLogger(private val logger: Logger) {
             "Geofence event worker woke with nothing to send: an earlier node in the delivery chain drained the queue, or the foreground flush did" +
                 tail(
                     "delivery.sent",
-                    GeofenceLogIo.OUTPUT,
+                    GeofenceLogIo.OBSERVATION,
                     listOf("why" to "queue_empty")
                 ),
             tag = TAG
@@ -1050,7 +1169,7 @@ internal class GeofenceLogger(private val logger: Logger) {
             "Geofence foreground flush: $count pending transition(s) to hand off to the analytics pipeline" +
                 tail(
                     "delivery.flush",
-                    GeofenceLogIo.OUTPUT,
+                    GeofenceLogIo.OBSERVATION,
                     listOf("n" to int(count), "phase" to "start")
                 ),
             tag = TAG
@@ -1062,7 +1181,7 @@ internal class GeofenceLogger(private val logger: Logger) {
             "Geofence '$geofenceId' $transitionName: cancelled pending WorkManager delivery before flush" +
                 tail(
                     "delivery.flush",
-                    GeofenceLogIo.OUTPUT,
+                    GeofenceLogIo.OBSERVATION,
                     listOf("id" to geofenceId, "t" to token(transitionName), "why" to "cancelled_work_manager")
                 ),
             tag = TAG
@@ -1074,7 +1193,7 @@ internal class GeofenceLogger(private val logger: Logger) {
             "Geofence '$geofenceId' $transitionName: published to analytics pipeline via foreground flush" +
                 tail(
                     "delivery.sent",
-                    GeofenceLogIo.OUTPUT,
+                    GeofenceLogIo.OBSERVATION,
                     listOf("id" to geofenceId, "t" to token(transitionName), "via" to "foreground_flush")
                 ),
             tag = TAG
@@ -1086,7 +1205,7 @@ internal class GeofenceLogger(private val logger: Logger) {
             "Geofence '$geofenceId' $transitionName: foreground flush failed; left in store for next flush — $message" +
                 tail(
                     "delivery.failed",
-                    GeofenceLogIo.OUTPUT,
+                    GeofenceLogIo.OBSERVATION,
                     listOf(
                         "id" to geofenceId,
                         "t" to token(transitionName),
@@ -1104,7 +1223,7 @@ internal class GeofenceLogger(private val logger: Logger) {
             "Geofence foreground flush complete: $count transition(s) handed off this run" +
                 tail(
                     "delivery.flush",
-                    GeofenceLogIo.OUTPUT,
+                    GeofenceLogIo.OBSERVATION,
                     listOf("n" to int(count), "phase" to "complete", "ok" to bool(true))
                 ),
             tag = TAG
@@ -1116,7 +1235,7 @@ internal class GeofenceLogger(private val logger: Logger) {
             "Geofence '$geofenceId' $transitionName: async delivery failed unexpectedly; left in pending store for the foreground flush — $message" +
                 tail(
                     "delivery.failed",
-                    GeofenceLogIo.OUTPUT,
+                    GeofenceLogIo.OBSERVATION,
                     listOf(
                         "id" to geofenceId,
                         "t" to token(transitionName),
@@ -1133,7 +1252,7 @@ internal class GeofenceLogger(private val logger: Logger) {
             "Geofence '$geofenceId' $transitionName: WorkManager scheduling failed; left in pending store for the foreground flush — $message" +
                 tail(
                     "delivery.failed",
-                    GeofenceLogIo.OUTPUT,
+                    GeofenceLogIo.OBSERVATION,
                     listOf(
                         "id" to geofenceId,
                         "t" to token(transitionName),
@@ -1151,7 +1270,7 @@ internal class GeofenceLogger(private val logger: Logger) {
             "Judged containment from the live fix: inside $insideCount region(s)" +
                 tail(
                     "containment.judged",
-                    GeofenceLogIo.OUTPUT,
+                    GeofenceLogIo.OBSERVATION,
                     listOf("n" to int(insideCount))
                 ),
             tag = TAG
@@ -1167,7 +1286,7 @@ internal class GeofenceLogger(private val logger: Logger) {
                 // one delivery would otherwise be counted twice.
                 tail(
                     "delivery.sent",
-                    GeofenceLogIo.OUTPUT,
+                    GeofenceLogIo.OBSERVATION,
                     listOf(
                         "id" to geofenceId,
                         "t" to token(transitionName),
@@ -1198,7 +1317,7 @@ internal class GeofenceLogger(private val logger: Logger) {
             "Geofence '$geofenceId' dropped — polygon rejected: ${reason.detail}" +
                 tail(
                     "registration.rejected",
-                    GeofenceLogIo.OUTPUT,
+                    GeofenceLogIo.OBSERVATION,
                     listOf("id" to geofenceId, "sh" to "polygon", "why" to reason.wire)
                 ),
             tag = TAG
@@ -1210,7 +1329,7 @@ internal class GeofenceLogger(private val logger: Logger) {
             "Geofence '$geofenceId' dropped — it is a polygon, and this SDK build monitors circles only. The record was decoded and validated but never registered; its enclosing circle is a proximity trigger, not the fence, so registering it would report transitions for the wrong area." +
                 tail(
                     "registration.rejected",
-                    GeofenceLogIo.OUTPUT,
+                    GeofenceLogIo.OBSERVATION,
                     listOf("id" to geofenceId, "sh" to "polygon", "why" to "runtime_unsupported")
                 ),
             tag = TAG
@@ -1222,7 +1341,7 @@ internal class GeofenceLogger(private val logger: Logger) {
             "Geofence '$geofenceId' was pinned for exit monitoring but dropped — more regions are pinned than the $availableSlots business slots Google Play services allows. Keeping it would make the OS reject every geofence in the batch, so the farthest pinned regions are released first; their exits may be missed." +
                 tail(
                     "registration.rejected",
-                    GeofenceLogIo.OUTPUT,
+                    GeofenceLogIo.OBSERVATION,
                     listOf("id" to geofenceId, "n" to int(availableSlots), "why" to "os_slot_limit")
                 ),
             tag = TAG
@@ -1247,7 +1366,7 @@ internal class GeofenceLogger(private val logger: Logger) {
             "Polygon '$geofenceId' reads as an arrival but its accuracy circle reaches the boundary. Holding for a second agreeing fix." +
                 tail(
                     "polygon.arrival.pending",
-                    GeofenceLogIo.OUTPUT,
+                    GeofenceLogIo.OBSERVATION,
                     listOf(
                         "id" to geofenceId,
                         "sh" to "polygon",
@@ -1277,7 +1396,7 @@ internal class GeofenceLogger(private val logger: Logger) {
             "Polygon approach sample skipped — ${reason.detail}." +
                 tail(
                     "polygon.sampling.skipped",
-                    GeofenceLogIo.OUTPUT,
+                    GeofenceLogIo.OBSERVATION,
                     listOf("why" to reason.wire)
                 ),
             tag = TAG
@@ -1289,7 +1408,7 @@ internal class GeofenceLogger(private val logger: Logger) {
             "Polygon evaluation skipped — ${reason.detail}. No polygon was judged against this fix." +
                 tail(
                     "polygon.evaluation.skipped",
-                    GeofenceLogIo.OUTPUT,
+                    GeofenceLogIo.OBSERVATION,
                     listOf("why" to reason.wire)
                 ),
             tag = TAG
@@ -1312,7 +1431,7 @@ internal class GeofenceLogger(private val logger: Logger) {
             "Polygon '$geofenceId' arrival expired — ${reason.detail}. The visit was not reported." +
                 tail(
                     "polygon.arrival.expired",
-                    GeofenceLogIo.OUTPUT,
+                    GeofenceLogIo.OBSERVATION,
                     listOf(
                         "id" to geofenceId,
                         "sh" to "polygon",
@@ -1336,7 +1455,7 @@ internal class GeofenceLogger(private val logger: Logger) {
             "Requesting a precise fix: ${geofenceIds.size} polygon(s) could not be decided from the delivered one." +
                 tail(
                     "polygon.freshfix.requested",
-                    GeofenceLogIo.OUTPUT,
+                    GeofenceLogIo.OBSERVATION,
                     listOf("ids" to list(geofenceIds), "n" to int(geofenceIds.size))
                 ),
             tag = TAG
@@ -1395,7 +1514,7 @@ internal class GeofenceLogger(private val logger: Logger) {
     fun logPolygonPassiveStarted() {
         logger.debug(
             "Listening for location other apps request; no sensor is turned on for this." +
-                tail("polygon.passive.started", GeofenceLogIo.OUTPUT, emptyList()),
+                tail("polygon.passive.started", GeofenceLogIo.OBSERVATION, emptyList()),
             tag = TAG
         )
     }
@@ -1403,7 +1522,7 @@ internal class GeofenceLogger(private val logger: Logger) {
     fun logPolygonPassiveStopped() {
         logger.debug(
             "Stopped listening for other apps' location." +
-                tail("polygon.passive.stopped", GeofenceLogIo.OUTPUT, emptyList()),
+                tail("polygon.passive.stopped", GeofenceLogIo.OBSERVATION, emptyList()),
             tag = TAG
         )
     }
@@ -1435,7 +1554,7 @@ internal class GeofenceLogger(private val logger: Logger) {
     fun logPolygonPassiveSkipped(reason: PolygonPassiveSkip) {
         logger.debug(
             "Passive fix not used — ${reason.detail}." +
-                tail("polygon.passive.skipped", GeofenceLogIo.OUTPUT, listOf("why" to reason.wire)),
+                tail("polygon.passive.skipped", GeofenceLogIo.OBSERVATION, listOf("why" to reason.wire)),
             tag = TAG
         )
     }
@@ -1443,7 +1562,7 @@ internal class GeofenceLogger(private val logger: Logger) {
     fun logPolygonPassiveFailed(message: String?) {
         logger.debug(
             "Passive location listening failed — ${message ?: "no reason given"}." +
-                tail("polygon.passive.failed", GeofenceLogIo.OUTPUT, listOf("why" to token(message ?: "unknown"))),
+                tail("polygon.passive.failed", GeofenceLogIo.OBSERVATION, listOf("why" to token(message ?: "unknown"))),
             tag = TAG
         )
     }
@@ -1453,7 +1572,7 @@ internal class GeofenceLogger(private val logger: Logger) {
             "Periodic polygon re-check did nothing — ${reason.detail}." +
                 tail(
                     "polygon.recheck.skipped",
-                    GeofenceLogIo.OUTPUT,
+                    GeofenceLogIo.OBSERVATION,
                     listOf("why" to reason.wire)
                 ),
             tag = TAG
@@ -1465,7 +1584,7 @@ internal class GeofenceLogger(private val logger: Logger) {
             "No precise fix for this verdict — ${reason.detail}. The delivered fix stands." +
                 tail(
                     "polygon.freshfix.skipped",
-                    GeofenceLogIo.OUTPUT,
+                    GeofenceLogIo.OBSERVATION,
                     listOf("why" to reason.wire)
                 ),
             tag = TAG
@@ -1477,7 +1596,11 @@ internal class GeofenceLogger(private val logger: Logger) {
             "Polygon callback discarded — ${reason.detail}. Nothing was evaluated for it." +
                 tail(
                     "os.callback.dropped",
-                    GeofenceLogIo.INPUT,
+                    // `obs`, like the other three writers of this key. The drop is the SDK's own
+                    // decision, not something it was handed, and `io` is what the replay transform
+                    // routes on — one writer at `in` would feed this key back while three are
+                    // compared.
+                    GeofenceLogIo.OBSERVATION,
                     listOf(
                         "why" to reason.wire,
                         "id" to geofenceId
@@ -1496,7 +1619,7 @@ internal class GeofenceLogger(private val logger: Logger) {
             "Polygon fix ignored — ${reason.detail}. Responsive monitoring is best-effort: it decides only from fixes that are decisive on their own." +
                 tail(
                     "polygon.undecided",
-                    GeofenceLogIo.OUTPUT,
+                    GeofenceLogIo.OBSERVATION,
                     listOf(
                         "why" to reason.wire,
                         "acc" to num(horizontalAccuracyMeters),
@@ -1523,7 +1646,7 @@ internal class GeofenceLogger(private val logger: Logger) {
                 "separate inside from outside, so no transition is claimed." +
                 tail(
                     "polygon.undecided",
-                    GeofenceLogIo.OUTPUT,
+                    GeofenceLogIo.OBSERVATION,
                     listOf(
                         "id" to geofenceId,
                         "sh" to "polygon",
@@ -1564,7 +1687,7 @@ internal class GeofenceLogger(private val logger: Logger) {
             "Polygon '$geofenceId' decided this fix is a $transitionName.$detail" +
                 tail(
                     "polygon.decided",
-                    GeofenceLogIo.OUTPUT,
+                    GeofenceLogIo.OBSERVATION,
                     listOf(
                         "id" to geofenceId,
                         "sh" to "polygon",
@@ -1598,7 +1721,7 @@ internal class GeofenceLogger(private val logger: Logger) {
             "Polygon '$geofenceId' agrees with the committed state; no transition." +
                 tail(
                     "polygon.unchanged",
-                    GeofenceLogIo.OUTPUT,
+                    GeofenceLogIo.OBSERVATION,
                     listOf(
                         "id" to geofenceId,
                         "sh" to "polygon",
@@ -1617,7 +1740,7 @@ internal class GeofenceLogger(private val logger: Logger) {
             "Geofence '$geofenceId' excluded from ranking — ${reason.detail}. It stays cached and is never registered as its enclosing circle." +
                 tail(
                     "rank.excluded",
-                    GeofenceLogIo.OUTPUT,
+                    GeofenceLogIo.OBSERVATION,
                     listOf("id" to geofenceId, "sh" to "polygon", "why" to reason.wire)
                 ),
             tag = TAG
@@ -1631,7 +1754,7 @@ internal class GeofenceLogger(private val logger: Logger) {
                 // the drop is deliberate retirement rather than a fence we cannot account for.
                 tail(
                     "transition.dropped",
-                    GeofenceLogIo.OUTPUT,
+                    GeofenceLogIo.OBSERVATION,
                     listOf("id" to geofenceId, "why" to "retired_id")
                 ),
             tag = TAG
@@ -1643,7 +1766,7 @@ internal class GeofenceLogger(private val logger: Logger) {
             "Geofence '$geofenceId' transition dropped — registered but routing is not armed for this session; OS registration kept" +
                 tail(
                     "transition.dropped",
-                    GeofenceLogIo.OUTPUT,
+                    GeofenceLogIo.OBSERVATION,
                     listOf("id" to geofenceId, "why" to "routing_unarmed")
                 ),
             tag = TAG
@@ -1655,7 +1778,7 @@ internal class GeofenceLogger(private val logger: Logger) {
             "Geofence '$geofenceId' dropped — unsupported geometry type='$type' (only Polygon is understood). Not degraded to a circle; check SDK / backend version alignment." +
                 tail(
                     "registration.rejected",
-                    GeofenceLogIo.OUTPUT,
+                    GeofenceLogIo.OBSERVATION,
                     listOf("id" to geofenceId, "sh" to type, "why" to "unknown_shape")
                 ),
             tag = TAG
@@ -1665,7 +1788,7 @@ internal class GeofenceLogger(private val logger: Logger) {
     fun logPolygonApproachMonitoringStarted() {
         logger.debug(
             "Polygon responsive approach monitoring registered" +
-                tail("polygon.approach.started", GeofenceLogIo.OUTPUT),
+                tail("polygon.approach.started", GeofenceLogIo.OBSERVATION),
             tag = TAG
         )
     }
@@ -1686,7 +1809,7 @@ internal class GeofenceLogger(private val logger: Logger) {
             "Polygon approach request discarded — it went stale between being asked for and granted." +
                 tail(
                     "polygon.approach.request_discarded",
-                    GeofenceLogIo.OUTPUT,
+                    GeofenceLogIo.OBSERVATION,
                     listOf("gen" to userStateGeneration?.let { int(it.toInt()) })
                 ),
             tag = TAG
@@ -1702,7 +1825,7 @@ internal class GeofenceLogger(private val logger: Logger) {
             "Polygon approach stop refused — ${reason.detail}. Sampling continues." +
                 tail(
                     "polygon.approach.stop_refused",
-                    GeofenceLogIo.OUTPUT,
+                    GeofenceLogIo.OBSERVATION,
                     listOf("why" to reason.wire)
                 ),
             tag = TAG
@@ -1715,7 +1838,7 @@ internal class GeofenceLogger(private val logger: Logger) {
             "Polygon responsive approach monitoring removed" +
                 tail(
                     "polygon.approach.stopped",
-                    GeofenceLogIo.OUTPUT,
+                    GeofenceLogIo.OBSERVATION,
                     listOf("n" to samplesReceived?.let(::int))
                 ),
             tag = TAG
@@ -1751,7 +1874,7 @@ internal class GeofenceLogger(private val logger: Logger) {
             "Polygon responsive approach locations dropped: $message" +
                 tail(
                     "polygon.approach.dropped",
-                    GeofenceLogIo.OUTPUT,
+                    GeofenceLogIo.OBSERVATION,
                     listOf(
                         "ok" to bool(false),
                         "op" to operation,
@@ -1764,5 +1887,10 @@ internal class GeofenceLogger(private val logger: Logger) {
 
     companion object {
         private const val TAG = "Geofence"
+
+        /** iOS's vocabulary, so one parser reads both platforms. */
+        const val PERMISSION_DENIED = "denied"
+        const val PERMISSION_WHEN_IN_USE = "when_in_use"
+        const val PERMISSION_ALWAYS = "always"
     }
 }

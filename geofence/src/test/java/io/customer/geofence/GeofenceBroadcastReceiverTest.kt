@@ -59,7 +59,7 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
     private val mockServices: GeofenceServices = mockk(relaxed = true)
     private val mockCooldownFilter: GeofenceCooldownFilter = mockk(relaxed = true)
     private val mockStore: GeofenceRegionStore = mockk(relaxed = true)
-    private val mockManager: GeofenceManager = mockk(relaxed = true)
+    private val mockManager: GeofenceRegistrar = mockk(relaxed = true)
     private val mockSecureUserStore: SecureUserStore = mockk(relaxed = true)
     private val mockPolygonController: PolygonGeofenceServiceController = mockk(relaxed = true)
 
@@ -131,7 +131,7 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
                         overrideDependency<GeofenceServices>(mockServices)
                         overrideDependency<GeofenceCooldownFilter>(mockCooldownFilter)
                         overrideDependency<GeofenceRegionStore>(mockStore)
-                        overrideDependency<GeofenceManager>(mockManager)
+                        overrideDependency<GeofenceRegistrar>(mockManager)
                         overrideDependency<SecureUserStore>(mockSecureUserStore)
                         overrideDependency<PolygonGeofenceServiceController>(mockPolygonController)
                     }
@@ -1316,6 +1316,194 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
         )
 
         coVerify(exactly = 0) { mockManager.removeGeofencesByIds(any()) }
+    }
+
+    /**
+     * The delivered event is dated when the broadcast arrived, not when the SDK got round to it.
+     *
+     * This inverted once already: before the crossing pipeline became a DI singleton the receiver
+     * read `currentTimeSeconds()` first and resolved the object graph after, and the refactor
+     * swapped them — so on a cold process the whole geofence graph, GMS client included, was built
+     * between the OS reporting the crossing and the stamp that ships with it.
+     */
+    @Test
+    fun handleGeofencingEvent_expectTheCrossingStampedBeforeAnyDispatchWork() = runTest {
+        val stamps = mutableListOf<Long>()
+        every { mockClock.currentTimeSeconds() } answers {
+            (1_000L + stamps.size).also { stamps.add(it) }
+        }
+
+        receiver.handleGeofencingEvent(
+            buildGeofencingEvent(
+                transition = Geofence.GEOFENCE_TRANSITION_ENTER,
+                geofenceIds = listOf("biz-geofence-1"),
+                location = realLocation(1.0, 2.0)
+            )
+        )
+
+        // The first clock read of the dispatch is the crossing's, and the persisted row carries it.
+        pendingStore.loadAll().single().timestamp shouldBeEqualTo 1_000L
+    }
+
+    /**
+     * The dispatch path had no timing record at all, so no capture could say what resolving the
+     * crossing pipeline costs — and that is the open question about making it an eagerly-injected
+     * DI singleton, which builds the geofence object graph, GMS client included, inside the
+     * broadcast's own budget on a cold process.
+     *
+     * This asserts only that the measurement is taken and emitted. What the number means needs a
+     * device; the point of the record is that the next drive can answer it without a second trip.
+     */
+    @Test
+    fun handleGeofencingEvent_givenACrossing_expectTheDispatchReadyMeasurementRecorded() = runTest {
+        receiver.handleGeofencingEvent(
+            buildGeofencingEvent(
+                transition = Geofence.GEOFENCE_TRANSITION_ENTER,
+                geofenceIds = listOf("biz-geofence-1"),
+                location = realLocation(1.0, 2.0)
+            )
+        )
+
+        val record = capturingLogger.messages.singleOrNull { it.contains("ev=dispatch.ready") }
+        record.shouldNotBeNull()
+        record shouldContain "ms="
+    }
+
+    /**
+     * Pins the one DTO field with no other coverage: the crossing's coordinates come from
+     * `GeofencingEvent.triggeringLocation`, in that order.
+     *
+     * Asymmetric values on purpose. Every other test in this file uses a location whose latitude
+     * and longitude are distinguishable but small, and none of them reads them back — a transposed
+     * mapping would sail through all of them, then re-rank and re-register roughly twenty fences
+     * around a point on the wrong side of the planet.
+     */
+    @Test
+    fun handleGeofencingEvent_givenATriggeringLocation_expectTheCrossingCarriesItUntransposed() = runTest {
+        val refreshJob = launch { }
+        every { mockServices.onMovementTriggerExit(any(), any(), any()) } returns refreshJob
+
+        receiver.handleGeofencingEvent(
+            buildGeofencingEvent(
+                transition = Geofence.GEOFENCE_TRANSITION_EXIT,
+                geofenceIds = listOf(GeofenceConstants.MOVEMENT_TRIGGER_ID),
+                location = realLocation(lat = 12.25, lng = -71.75)
+            )
+        )
+
+        verify { mockServices.onMovementTriggerExit(latitude = 12.25, longitude = -71.75, movementTriggerRadius = any()) }
+    }
+
+    @Test
+    fun handleGeofencingEvent_givenDispatchBudgetAlreadySpent_expectNoWaitForRefreshJob() = runTest {
+        // Persistence/GMS awaits earlier in a dispatch count against the same budget as the
+        // join: once spent, dispatch must finish instead of stacking the full timeout on top.
+        every { mockClock.elapsedRealtime() } returnsMany listOf(0L, 9_000L)
+        val refreshJob = launch { delay(60_000) }
+        every { mockServices.onMovementTriggerExit(any(), any(), any()) } returns refreshJob
+
+        receiver.handleGeofencingEvent(
+            buildGeofencingEvent(
+                transition = Geofence.GEOFENCE_TRANSITION_EXIT,
+                geofenceIds = listOf(GeofenceConstants.MOVEMENT_TRIGGER_ID),
+                location = realLocation(1.0, 2.0)
+            )
+        )
+
+        // No virtual time consumed: the join was skipped, not merely timed out.
+        currentTime shouldBeEqualTo 0L
+        refreshJob.isActive shouldBeEqualTo true
+        refreshJob.cancel()
+    }
+
+    /** Pins the GMS-code → [GeofenceCrossingTransition] translation, the receiver's one remaining decision. */
+    @Test
+    fun handleGeofencingEvent_givenEachGmsTransitionCode_expectCorrectlyInterpreted() = runTest {
+        val cases = listOf(
+            Geofence.GEOFENCE_TRANSITION_ENTER to Event.GeofenceTransition.ENTER,
+            Geofence.GEOFENCE_TRANSITION_EXIT to Event.GeofenceTransition.EXIT
+        )
+        for ((gmsCode, expected) in cases) {
+            pendingStore.removeAll()
+            receiver.handleGeofencingEvent(
+                buildGeofencingEvent(
+                    transition = gmsCode,
+                    geofenceIds = listOf("biz-geofence-1"),
+                    location = realLocation(1.0, 2.0)
+                )
+            )
+            // Read the persisted row: MockK cannot capture into one slot across two verifies.
+            pendingStore.loadAll().single().transition shouldBeEqualTo expected
+        }
+
+        pendingStore.removeAll()
+        receiver.handleGeofencingEvent(
+            buildGeofencingEvent(
+                transition = Geofence.GEOFENCE_TRANSITION_DWELL,
+                geofenceIds = listOf("biz-geofence-1"),
+                location = realLocation(1.0, 2.0)
+            )
+        )
+        pendingStore.loadAll() shouldBeEqualTo emptyList()
+        expectRecorded("os.callback.dropped", "unsupported_transition_type")
+        capturingLogger.messages.any {
+            it.contains("ev=os.callback.dropped") && it.contains("gms=${Geofence.GEOFENCE_TRANSITION_DWELL}")
+        } shouldBeEqualTo true
+    }
+
+    @Test
+    fun handleGeofencingEvent_givenHungRefreshJob_expectWaitBoundedAndJobNotCancelled() = runTest {
+        // A hung GMS task must not blow the broadcast budget: the wait gives up after
+        // its timeout, but only the wait — the refresh itself keeps running on the
+        // services scope and self-completes if the process survives.
+        val refreshJob = launch { delay(60_000) }
+        every { mockServices.onMovementTriggerExit(any(), any(), any()) } returns refreshJob
+
+        receiver.handleGeofencingEvent(
+            buildGeofencingEvent(
+                transition = Geofence.GEOFENCE_TRANSITION_EXIT,
+                geofenceIds = listOf(GeofenceConstants.MOVEMENT_TRIGGER_ID),
+                location = realLocation(1.0, 2.0)
+            )
+        )
+
+        refreshJob.isActive shouldBeEqualTo true
+        refreshJob.cancel()
+    }
+
+    @Test
+    fun handleGeofencingEvent_givenMovementTriggerExit_expectDispatchWaitsForRefreshJob() = runTest {
+        // Movement usually fires with the app backgrounded: the moment dispatch returns
+        // the goAsync window closes and the OS may kill the process mid-refresh, so
+        // dispatch must hold the window open until the refresh job lands.
+        val refreshJob = launch { delay(3_000) }
+        every { mockServices.onMovementTriggerExit(any(), any(), any()) } returns refreshJob
+
+        receiver.handleGeofencingEvent(
+            buildGeofencingEvent(
+                transition = Geofence.GEOFENCE_TRANSITION_EXIT,
+                geofenceIds = listOf(GeofenceConstants.MOVEMENT_TRIGGER_ID),
+                location = realLocation(1.0, 2.0)
+            )
+        )
+
+        refreshJob.isCompleted shouldBeEqualTo true
+    }
+
+    @Test
+    fun handleGeofencingEvent_givenNoTriggeringLocation_expectTheCrossingCarriesNoCoordinates() = runTest {
+        val refreshJob = launch { }
+        every { mockServices.onMovementTriggerExit(any(), any(), any()) } returns refreshJob
+
+        receiver.handleGeofencingEvent(
+            buildGeofencingEvent(
+                transition = Geofence.GEOFENCE_TRANSITION_EXIT,
+                geofenceIds = listOf(GeofenceConstants.MOVEMENT_TRIGGER_ID),
+                location = null
+            )
+        )
+
+        verify { mockServices.onMovementTriggerExit(latitude = null, longitude = null, movementTriggerRadius = any()) }
     }
 
     private fun buildGeofencingEvent(

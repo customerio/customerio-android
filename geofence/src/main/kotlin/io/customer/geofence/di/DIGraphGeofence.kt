@@ -5,13 +5,16 @@ import com.google.android.gms.location.GeofencingClient
 import com.google.android.gms.location.LocationServices
 import io.customer.geofence.GeofenceBusinessTransitionProcessor
 import io.customer.geofence.GeofenceCooldownFilter
+import io.customer.geofence.GeofenceCrossingPipeline
 import io.customer.geofence.GeofenceDistanceFilter
 import io.customer.geofence.GeofenceJsonSerializer
 import io.customer.geofence.GeofenceLogger
 import io.customer.geofence.GeofenceManager
 import io.customer.geofence.GeofencePackageInfo
 import io.customer.geofence.GeofencePermissionChecker
+import io.customer.geofence.GeofencePermissionReporter
 import io.customer.geofence.GeofenceReceiverToggle
+import io.customer.geofence.GeofenceRegistrar
 import io.customer.geofence.GeofenceRepository
 import io.customer.geofence.GeofenceRepositoryImpl
 import io.customer.geofence.GeofenceServices
@@ -107,13 +110,26 @@ internal val AndroidSDKComponent.polygonBootSessionProvider: PolygonBootSessionP
 internal val AndroidSDKComponent.geofenceReceiverToggle: GeofenceReceiverToggle
     get() = newInstance { GeofenceReceiverToggle(applicationContext) }
 
-internal val AndroidSDKComponent.geofenceManager: GeofenceManager
-    get() = singleton {
+internal val AndroidSDKComponent.geofenceManager: GeofenceRegistrar
+    get() = singleton<GeofenceRegistrar> {
         GeofenceManager(
             context = applicationContext,
             client = geofencingClient,
             receiverToggle = geofenceReceiverToggle,
             permissionChecker = geofencePermissionChecker,
+            logger = SDKComponent.geofenceLogger
+        )
+    }
+
+// Singleton: the pipeline's transition mutex must outlive a single broadcast delivery.
+internal val AndroidSDKComponent.geofenceCrossingPipeline: GeofenceCrossingPipeline
+    get() = singleton {
+        GeofenceCrossingPipeline(
+            regionStore = geofenceRegionStore,
+            services = geofenceServices,
+            registrar = geofenceManager,
+            transitionProcessor = geofenceBusinessTransitionProcessor,
+            polygonController = polygonGeofenceServiceController,
             logger = SDKComponent.geofenceLogger
         )
     }
@@ -274,6 +290,16 @@ internal val AndroidSDKComponent.geofenceRepository: GeofenceRepository
             logger = SDKComponent.geofenceLogger,
             polygonController = polygonGeofenceServiceController,
             polygonSupport = SDKComponent.polygonSupport
+        )
+    }
+
+// Singleton: the "already reported this tier" memory has to outlive one caller, and the whole
+// point is that module init and foreground entry share it.
+internal val AndroidSDKComponent.geofencePermissionReporter: GeofencePermissionReporter
+    get() = singleton {
+        GeofencePermissionReporter(
+            permissionChecker = geofencePermissionChecker,
+            logger = SDKComponent.geofenceLogger
         )
     }
 

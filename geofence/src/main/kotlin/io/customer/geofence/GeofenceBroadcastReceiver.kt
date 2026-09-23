@@ -8,19 +8,14 @@ import androidx.annotation.VisibleForTesting
 import com.google.android.gms.location.Geofence
 import com.google.android.gms.location.GeofenceStatusCodes
 import com.google.android.gms.location.GeofencingEvent
-import io.customer.geofence.di.geofenceBusinessTransitionProcessor
+import io.customer.geofence.di.geofenceCrossingPipeline
 import io.customer.geofence.di.geofenceLogger
-import io.customer.geofence.di.geofenceManager
-import io.customer.geofence.di.geofenceRegionStore
-import io.customer.geofence.di.geofenceServices
 import io.customer.geofence.di.polygonGeofenceServiceController
-import io.customer.sdk.communication.Event
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.di.clock
 import io.customer.sdk.core.di.setupAndroidComponent
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
@@ -62,6 +57,7 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
         }
     }
 
+    /** Translates one GMS broadcast into a [GeofenceCrossing]; routing lives in [GeofenceCrossingPipeline]. */
     @VisibleForTesting
     internal suspend fun handleGeofencingEvent(geofencingEvent: GeofencingEvent?) {
         val logger = SDKComponent.geofenceLogger
@@ -87,12 +83,13 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
                 return
             }
         val location = geofencingEvent.triggeringLocation
+        val gmsTransition = geofencingEvent.geofenceTransition
         // Logged here, before any routing decision and before the Location is narrowed to a pair
         // of doubles. This is the only place the OS's own triggering fix — accuracy, age, mock
         // flag and all — still exists.
         logger.logCallbackReceived(
             geofenceIds = triggeringGeofenceIds,
-            transitionName = transitionName(geofencingEvent.geofenceTransition),
+            transitionName = transitionName(gmsTransition),
             location = location,
             source = if (location != null) GeofenceLogTail.FixSource.OS_TRIGGER else GeofenceLogTail.FixSource.NONE
         )
@@ -101,7 +98,7 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
         }
 
         dispatchTransition(
-            gmsTransitionType = geofencingEvent.geofenceTransition,
+            gmsTransitionType = gmsTransition,
             triggeringGeofenceIds = triggeringGeofenceIds,
             latitude = location?.latitude,
             longitude = location?.longitude,
@@ -109,6 +106,13 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
         )
     }
 
+    /**
+     * Builds the [GeofenceCrossing] and hands it to the pipeline.
+     *
+     * Kept as a named entry point, rather than inlined above, because it is the seam the receiver
+     * suite drives: a test that starts from a parsed transition does not have to construct a
+     * `GeofencingEvent`, which cannot be built without GMS internals.
+     */
     @VisibleForTesting
     internal suspend fun dispatchTransition(
         gmsTransitionType: Int,
@@ -117,156 +121,43 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
         longitude: Double?,
         triggeringLocation: Location? = null
     ) {
-        val logger = SDKComponent.geofenceLogger
-        val timestamp = SDKComponent.clock.currentTimeSeconds()
-        val dispatchStartUptimeMs = SDKComponent.clock.elapsedRealtime()
-        val androidComponent = SDKComponent.android()
-        // Cold-start callbacks can beat the posted launch initialization. Establish the persisted
-        // secure user's session synchronously; legacy installs without an owner are migrated by the
-        // store without discarding their already-live OS registrations.
-        androidComponent.polygonGeofenceServiceController.beginUserSessionForCurrentUser()
-        // A previous callback can have staged a transition before the file outbox was writable.
-        // Recover it before interpreting this edge so an ENTER followed by EXIT stays ordered.
-        androidComponent.geofenceBusinessTransitionProcessor.recoverPendingTransitions()
-        // Defense-in-depth against orphans (failed clearAll, app-data wipe, SDK
-        // ID-format changes): events for unregistered IDs are dropped and the OS-side
-        // registration is removed so it stops firing.
-        val userStateGeneration = androidComponent.geofenceRegionStore.userStateGeneration()
-        val routableIds = androidComponent.geofenceRegionStore.getRoutableRegisteredIds()
-        val (routableTriggeringIds, unroutableIds) = triggeringGeofenceIds.partition { it in routableIds }
-        // An identify clears routing and only the completing refresh re-arms it, so between the two
-        // a live registration is unroutable without being an orphan. Removing it there strands it:
-        // business fences register with INITIAL_TRIGGER_ENTER and routing arms only after the add,
-        // so a fence the refresh just added can report ENTER while routing still reads empty.
-        // Evicting on that would remove a fence the same pass then publishes registered AND
-        // routable, and every later refresh reads that as unchanged and never re-adds it. Only
-        // evict what the bookkeeping no longer claims, and drop the rest — routing is what
-        // authorizes a business event.
-        val unarmedTriggerIds = if (unroutableIds.isEmpty()) {
-            emptyList()
-        } else {
-            val registeredIds = androidComponent.geofenceRegionStore.getRegisteredIds()
-            val (unarmedIds, orphanIds) = unroutableIds.partition { it in registeredIds }
-            orphanIds.forEach { logger.logTransitionDroppedUnknownId(it) }
-            if (orphanIds.isNotEmpty()) {
-                // Result ignored — a failed removal self-heals on the next orphan event.
-                androidComponent.geofenceManager.removeGeofencesByIds(orphanIds)
-            }
-            // The movement trigger is SDK-owned and carries no business meaning — routing it only
-            // re-fetches. It is also the only refresh path that runs without the app being opened,
-            // so dropping its EXIT here would leave an unarmed session with nothing to re-arm it
-            // until the next launch. handleMovement waits for the slot and runs as the current user.
-            val (triggerIds, businessIds) = unarmedIds.partition { it == GeofenceConstants.MOVEMENT_TRIGGER_ID }
-            businessIds.forEach { logger.logTransitionDroppedUnarmedId(it) }
-            triggerIds
-        }
-        // Circles, then the movement trigger, then polygons, whatever order GMS delivered.
-        //
-        // The polygon group also SPENDS this budget: an undecided verdict awaits a precise fix for
-        // up to PolygonGeofenceServiceController.FRESH_FIX_TIMEOUT_MS, and that wait lands before
-        // the join below. Sizing lives on that constant; the arithmetic is against this one.
-        //
-        // Circles first because the refresh this batch starts can evict one under the monitoring
-        // cap, and its `requireRegistered` check would then drop an EXIT the OS had already
-        // delivered. The trigger next because the polygon handlers await GMS, so leaving it behind
-        // them spends the dispatch budget before the refresh job exists and the receiver finishes
-        // without holding the window open for it. Sorting is stable, so GMS order survives within
-        // each group.
-        val polygonIds = androidComponent.geofenceRegionStore.getCachedRegions()
-            .filter(GeofenceRegion::isPolygon)
-            .mapTo(mutableSetOf(), GeofenceRegion::id)
-        val knownIds = (routableTriggeringIds + unarmedTriggerIds).sortedBy { id ->
-            when {
-                id == GeofenceConstants.MOVEMENT_TRIGGER_ID -> 1
-                id in polygonIds -> 2
-                else -> 0
-            }
-        }
-
-        var movementRefreshJob: Job? = null
-        knownIds.forEach { geofenceId ->
-            if (geofenceId == GeofenceConstants.MOVEMENT_TRIGGER_ID) {
-                // ENTER fires on every re-registration and boot-restore can fire
-                // EXIT. Only EXIT drives a refresh.
-                if (gmsTransitionType == Geofence.GEOFENCE_TRANSITION_EXIT) {
-                    // Handed over unevaluated. It awaits GMS, and doing that here would spend the
-                    // broadcast budget before the refresh job exists.
-                    movementRefreshJob = androidComponent.geofenceServices.onMovementTriggerExit(
-                        latitude = latitude,
-                        longitude = longitude,
-                        movementTriggerRadius = {
-                            androidComponent.polygonGeofenceServiceController.onMovementTriggerExit(
-                                triggeringLocation = triggeringLocation,
-                                expectedUserStateGeneration = userStateGeneration
-                            )
-                        }
-                    )
-                } else {
-                    logger.logMovementTriggerIgnoredNonExit(transitionName(gmsTransitionType))
-                }
-                return@forEach
-            }
-
-            val region = androidComponent.geofenceRegionStore.getCachedRegion(geofenceId)
-            if (region == null && androidComponent.geofenceRegionStore.getRegisteredRegion(geofenceId) != null) {
-                // The server removed this region, but an earlier GMS removal failed. Its retained
-                // definition is a routing tombstone only; never manufacture business activity for
-                // a fence that no longer exists. Every orphan callback also retries OS cleanup.
-                logger.logTransitionDroppedRetiredId(geofenceId)
-                androidComponent.geofenceManager.removeGeofencesByIds(listOf(geofenceId))
-                return@forEach
-            }
-            if (region?.isPolygon == true) {
-                when (gmsTransitionType) {
-                    Geofence.GEOFENCE_TRANSITION_ENTER ->
-                        androidComponent.polygonGeofenceServiceController.activate(
-                            polygonId = geofenceId,
-                            triggeringLocation = triggeringLocation,
-                            expectedUserStateGeneration = userStateGeneration,
-                            expectedRegionRevision = region.transitionRevision()
-                        )
-                    Geofence.GEOFENCE_TRANSITION_EXIT ->
-                        androidComponent.polygonGeofenceServiceController.onCoarseExit(
-                            polygonId = geofenceId,
-                            triggeringLocation = triggeringLocation,
-                            expectedUserStateGeneration = userStateGeneration,
-                            expectedRegionRevision = region.transitionRevision()
-                        )
-                    else -> logger.logUnknownTransition(geofenceId, gmsTransitionType)
-                }
-                return@forEach
-            }
-
-            val transition = when (gmsTransitionType) {
-                Geofence.GEOFENCE_TRANSITION_ENTER -> Event.GeofenceTransition.ENTER
-                Geofence.GEOFENCE_TRANSITION_EXIT -> Event.GeofenceTransition.EXIT
-                else -> {
-                    logger.logUnknownTransition(geofenceId, gmsTransitionType)
-                    return@forEach
-                }
-            }
-
-            androidComponent.geofenceBusinessTransitionProcessor.process(
-                geofenceId = geofenceId,
-                transition = transition,
-                timestampSeconds = timestamp,
-                enforceConfiguredTransition = region != null,
-                expectedRegionRevision = region?.transitionRevision(),
-                expectedUserStateGeneration = userStateGeneration,
-                requireRegistered = true
+        dispatchCrossing(
+            GeofenceCrossing(
+                geofenceIds = triggeringGeofenceIds,
+                transition = crossingTransition(gmsTransitionType),
+                transitionName = transitionName(gmsTransitionType),
+                rawTransitionCode = gmsTransitionType,
+                latitude = latitude,
+                longitude = longitude,
+                triggeringLocation = triggeringLocation,
+                receivedAtSeconds = SDKComponent.clock.currentTimeSeconds()
             )
-        }
+        )
+    }
 
-        // Hold the goAsync window open until the refresh lands so the OS doesn't kill a
-        // backgrounded process mid-re-registration. Waits only for what's left of the
-        // dispatch budget — the persistence/GMS awaits above count against it. A timeout
-        // ends the wait only, not the refresh (it runs on the longer-lived services scope).
-        movementRefreshJob?.let { job ->
-            val remainingBudgetMs = DISPATCH_WAIT_BUDGET_MS - (SDKComponent.clock.elapsedRealtime() - dispatchStartUptimeMs)
+    /**
+     * Holds the goAsync window open until a movement refresh this crossing started has landed,
+     * within what is left of the dispatch budget. A timeout ends the wait only, not the refresh.
+     */
+    private suspend fun dispatchCrossing(crossing: GeofenceCrossing) {
+        val startedAtUptimeMs = SDKComponent.clock.elapsedRealtime()
+        // Resolved on its own line so the graph construction can be timed apart from the handling.
+        // On a cold process this is where the DI singleton — and the GMS client inside it — is built.
+        val pipeline = SDKComponent.android().geofenceCrossingPipeline
+        SDKComponent.geofenceLogger.logDispatchReady(SDKComponent.clock.elapsedRealtime() - startedAtUptimeMs)
+        val refreshJob = pipeline.handle(crossing)
+        refreshJob?.let { job ->
+            val remainingBudgetMs = DISPATCH_WAIT_BUDGET_MS - (SDKComponent.clock.elapsedRealtime() - startedAtUptimeMs)
             if (remainingBudgetMs > 0) {
                 withTimeoutOrNull(remainingBudgetMs) { job.join() }
             }
         }
+    }
+
+    private fun crossingTransition(gmsTransitionType: Int): GeofenceCrossingTransition = when (gmsTransitionType) {
+        Geofence.GEOFENCE_TRANSITION_ENTER -> GeofenceCrossingTransition.ENTER
+        Geofence.GEOFENCE_TRANSITION_EXIT -> GeofenceCrossingTransition.EXIT
+        else -> GeofenceCrossingTransition.UNSUPPORTED
     }
 
     private fun transitionName(gmsTransitionType: Int): String = when (gmsTransitionType) {

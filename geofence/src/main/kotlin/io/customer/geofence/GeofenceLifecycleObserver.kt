@@ -26,11 +26,16 @@ internal class GeofenceLifecycleObserver(
     private val deliveryFlusher: PendingDeliveryFlusher<PendingGeofenceDelivery>,
     private val eventBus: EventBus,
     private val regionStore: GeofenceRegionStore,
+    private val permissionReporter: GeofencePermissionReporter,
     private val logger: GeofenceLogger,
     private val onForeground: () -> Unit
 ) : DefaultLifecycleObserver {
 
     override fun onStart(owner: LifecycleOwner) {
+        // Before the flush and the refresh, both of which behave differently depending on it. The
+        // reporter is shared with module init, so a tier already reported at process start is not
+        // repeated here.
+        permissionReporter.reportIfChanged()
         flushPendingGeofenceDeliveries()
         onForeground()
     }

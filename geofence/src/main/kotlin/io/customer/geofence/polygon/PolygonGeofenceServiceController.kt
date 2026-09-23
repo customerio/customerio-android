@@ -8,8 +8,8 @@ import androidx.annotation.VisibleForTesting
 import io.customer.geofence.GeofenceConstants
 import io.customer.geofence.GeofenceLocation
 import io.customer.geofence.GeofenceLogger
-import io.customer.geofence.GeofenceManager
 import io.customer.geofence.GeofenceRegion
+import io.customer.geofence.GeofenceRegistrar
 import io.customer.geofence.GeofenceTransitionType
 import io.customer.geofence.PolygonArrivalExpiry
 import io.customer.geofence.PolygonCallbackDrop
@@ -29,7 +29,7 @@ internal class PolygonGeofenceServiceController(
     private val store: GeofenceRegionStore,
     private val engine: PolygonLocationEngine,
     private val approachMonitor: PolygonApproachMonitor,
-    private val manager: GeofenceManager,
+    private val manager: GeofenceRegistrar,
     private val secureUserStore: SecureUserStore,
     private val freshFixSource: PolygonFreshFixSource,
     private val recheckScheduler: PolygonRecheckScheduler,

@@ -129,7 +129,10 @@ class ReplayHarnessTest : RobolectricTest() {
         pipeline = SDKComponent.android().geofenceCrossingPipeline,
         services = SDKComponent.android().geofenceServices,
         foreground = foregroundCoordinator(),
-        identity = identity
+        identity = identity,
+        // These stimulus-handling tests do not drive the polygon fresh-fix path; a bare source
+        // satisfies the constructor without answering any request.
+        freshFix = ReplayPolygonFreshFixSource()
     )
 
     /**

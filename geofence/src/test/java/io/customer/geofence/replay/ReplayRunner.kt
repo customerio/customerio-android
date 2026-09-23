@@ -33,7 +33,8 @@ internal class ReplayRunner(
     private val pipeline: GeofenceCrossingPipeline,
     private val services: GeofenceServices,
     private val foreground: GeofenceForegroundCoordinator,
-    private val identity: MutableIdentity
+    private val identity: MutableIdentity,
+    private val freshFix: ReplayPolygonFreshFixSource
 ) {
     /** A stimulus the scenario carries that this composition has nowhere to put. */
     data class Unsupported(val ev: String, val at: Double)
@@ -169,6 +170,26 @@ internal class ReplayRunner(
                     // parks the runner on a boundary only the runner can open.
                     geofenceScope.launch { pipeline.handle(crossing) }
                 }
+
+                // The precise fix the polygon controller asked for mid-callback, handed to the
+                // waiting `awaitFreshFix`. `triggeringFix` stamps its `elapsedRealtimeNanos` from
+                // the recorded age, so a fix that is the same cached one the callback already
+                // carried re-enters the controller's duplicate-delivery dedup on an equal or older
+                // timestamp — reproducing the drop a stationary marginal arrival hit in the field.
+                // Only this event carries lat/lon; passive and re-check below do not.
+                "polygon.freshfix.received" ->
+                    record.triggeringFix(gate.clock.elapsedRealtime())?.let { freshFix.deliver(it) }
+
+                // A passive fix and a periodic re-check reach the SDK on a drive. The logger now
+                // stamps their position (`lat`/`lon`) alongside the outcome (`cand`/`n`), so a
+                // capture taken from a build carrying that change holds what a faithful replay of
+                // them would need — but consuming it is deferred, and a capture taken before it does
+                // not carry the position at all. In every recorded drive so far they ran with the
+                // device outside every polygon's wake circle (n=0): they changed no state, so
+                // accepting them as no-ops is behaviourally exact for the corpus. The day a drive
+                // activates a polygon through one of them, this no-op becomes a silent miss and this
+                // is the one branch to grow into a real delivery.
+                "polygon.passive.received", "polygon.recheck.ran" -> Unit
 
                 else -> unsupported.add(Unsupported(record.ev, record.at))
             }

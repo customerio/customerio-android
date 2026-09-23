@@ -77,7 +77,7 @@ internal fun crossingTransitionOf(token: String?): GeofenceCrossingTransition = 
  * was taken. It has to be monotonic across a drive as well as present, because the coarse dedupe
  * compares it against the previous crossing's.
  */
-private fun ScenarioRecord.triggeringFix(elapsedRealtimeMillis: Long): Location? {
+internal fun ScenarioRecord.triggeringFix(elapsedRealtimeMillis: Long): Location? {
     val lat = double("lat") ?: return null
     val lon = double("lon") ?: return null
     return Location("replay").also { fix ->

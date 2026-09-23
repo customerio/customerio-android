@@ -5,9 +5,12 @@ import io.customer.base.internal.InternalCustomerIOApi
 import io.customer.geofence.GeofenceLocation
 import io.customer.geofence.GeofenceRegion
 import io.customer.geofence.GeofenceRegistrar
+import io.customer.geofence.api.GeofenceApiEnclosingCircle
+import io.customer.geofence.api.GeofenceApiGeometry
 import io.customer.geofence.api.GeofenceApiRegion
 import io.customer.geofence.api.GeofenceApiResponse
 import io.customer.geofence.api.GeofenceApiService
+import io.customer.geofence.polygon.PolygonCoordinate
 import io.customer.location.LocationCoordinates
 import io.customer.location.LocationServices
 import io.customer.sdk.core.util.ScopeProvider
@@ -15,6 +18,8 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.TestCoroutineScheduler
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.serialization.json.add
+import kotlinx.serialization.json.buildJsonArray
 
 /**
  * The doubles a replay substitutes, and nothing else.
@@ -45,6 +50,68 @@ internal class ReplayScopeProvider : ScopeProvider {
     override val inAppLifecycleScope = scope()
     override val locationScope = scope()
     override val geofenceScope = scope()
+}
+
+/**
+ * The API region the server sent, rebuilt from a folded fixture fence.
+ *
+ * A fence carrying vertices is a polygon: the ring becomes the GeoJSON geometry and
+ * `latitude`/`longitude`/`radius` its enclosing wake circle, which is the pair the SDK's own
+ * mapper ([GeofenceApiRegion.toDomain]) needs to register it as a polygon rather than a circle.
+ * Without vertices it is the circle those three fields describe, exactly as before.
+ */
+private fun ScenarioFence.toApiRegion(): GeofenceApiRegion {
+    val ring = vertices
+    if (ring == null) {
+        return GeofenceApiRegion(
+            id = id,
+            name = name,
+            latitude = latitude,
+            longitude = longitude,
+            radius = radius,
+            // Absent means "both", which is what the SDK's own default already is. An empty list
+            // would instead register a fence that monitors nothing.
+            transitionTypes = transitionTypes.ifEmpty { null },
+            geosetIds = geosetIds
+        )
+    }
+    return GeofenceApiRegion(
+        id = id,
+        name = name,
+        shape = "polygon",
+        geometry = ring.toGeoJsonPolygon(),
+        enclosingCircle = GeofenceApiEnclosingCircle(
+            latitude = latitude,
+            longitude = longitude,
+            baseRadiusMeters = radius
+        ),
+        transitionTypes = transitionTypes.ifEmpty { null },
+        geosetIds = geosetIds
+    )
+}
+
+/**
+ * The ring as a GeoJSON `Polygon`: one outer ring of `[longitude, latitude]` positions.
+ *
+ * Passed open, in the transform's recorded order — the SDK's mapper re-closes and canonicalises it
+ * ([PolygonGeometry.from]), so a closing vertex here would only be collapsed back out.
+ */
+private fun List<PolygonCoordinate>.toGeoJsonPolygon(): GeofenceApiGeometry {
+    val coordinates = buildJsonArray {
+        add(
+            buildJsonArray {
+                this@toGeoJsonPolygon.forEach { vertex ->
+                    add(
+                        buildJsonArray {
+                            add(vertex.longitude)
+                            add(vertex.latitude)
+                        }
+                    )
+                }
+            }
+        )
+    }
+    return GeofenceApiGeometry(type = "Polygon", coordinates = coordinates)
 }
 
 /**
@@ -123,20 +190,7 @@ internal class ReplayApiService(private val gate: ReplayBoundaryGate) : Geofence
                 Result.success(
                     GeofenceApiResponse(
                         config = null,
-                        geofences = record.body.map { fence ->
-                            GeofenceApiRegion(
-                                id = fence.id,
-                                name = fence.name,
-                                latitude = fence.latitude,
-                                longitude = fence.longitude,
-                                radius = fence.radius,
-                                // Absent means "both", which is what the SDK's own default already
-                                // is. An empty list would instead register a fence that monitors
-                                // nothing.
-                                transitionTypes = fence.transitionTypes.ifEmpty { null },
-                                geosetIds = fence.geosetIds
-                            )
-                        }
+                        geofences = record.body.map { fence -> fence.toApiRegion() }
                     )
                 )
             )

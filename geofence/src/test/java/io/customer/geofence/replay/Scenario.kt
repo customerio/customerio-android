@@ -1,5 +1,6 @@
 package io.customer.geofence.replay
 
+import io.customer.geofence.polygon.PolygonCoordinate
 import java.io.File
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
@@ -96,7 +97,11 @@ internal data class ScenarioFence(
     val longitude: Double,
     val radius: Double,
     val geosetIds: List<String>,
-    val transitionTypes: List<String>
+    val transitionTypes: List<String>,
+    // Present only for a polygon: the outer ring the transform folded out of `fence.cataloged`. The
+    // runner registers the polygon from these and reads latitude/longitude/radius above as its
+    // enclosing wake circle; absent, the fence is the circle those three describe.
+    val vertices: List<PolygonCoordinate>? = null
 )
 
 internal object ScenarioLoader {
@@ -169,9 +174,23 @@ internal object ScenarioLoader {
                     ?: emptyList(),
                 transitionTypes = (o["transitionTypes"] as? JsonArray)
                     ?.mapNotNull { it.jsonPrimitive.contentOrNullSafe() }
-                    ?: emptyList()
+                    ?: emptyList(),
+                vertices = parseVertices(o["vertices"])
             )
         }
+    }
+
+    /** The outer ring, as `[latitude, longitude]` pairs. Absent or empty folds back to a circle. */
+    private fun parseVertices(element: kotlinx.serialization.json.JsonElement?): List<PolygonCoordinate>? {
+        val array = element as? JsonArray ?: return null
+        val vertices = array.mapNotNull { entry ->
+            val pair = entry as? JsonArray ?: return@mapNotNull null
+            if (pair.size < 2) return@mapNotNull null
+            val latitude = pair[0].jsonPrimitive.content.toDoubleOrNull() ?: return@mapNotNull null
+            val longitude = pair[1].jsonPrimitive.content.toDoubleOrNull() ?: return@mapNotNull null
+            PolygonCoordinate(latitude, longitude)
+        }
+        return vertices.ifEmpty { null }
     }
 
     /** Values arrive already coerced by the transform, so the type is whatever JSON says it is. */

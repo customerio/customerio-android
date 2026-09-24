@@ -189,8 +189,7 @@ internal class ReplayRunner(
                 // The precise fix the polygon controller asked for mid-callback, handed to the
                 // waiting `awaitFreshFix`. `triggeringFix` stamps its `elapsedRealtimeNanos` from
                 // the recorded age, so a fix that is the same cached one the callback already
-                // carried re-enters the controller's duplicate-delivery dedup on an equal or older
-                // timestamp — reproducing the drop a stationary marginal arrival hit in the field.
+                // carried reaches the route processor on the same timestamp, as it did in the field.
                 // Only this event carries lat/lon; passive and re-check below do not.
                 "polygon.freshfix.received" ->
                     record.triggeringFix(gate.clock.elapsedRealtime())?.let { fix ->

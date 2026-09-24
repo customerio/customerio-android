@@ -371,4 +371,82 @@ class PolygonCorroborationWindowTest {
         outcome.detections shouldBeEqualTo emptyList()
         outcome.records shouldBeEqualTo emptyList()
     }
+
+    @Test
+    fun process_givenThePreciseAnswerIsTheHeldFixItself_expectTheArrivalIsReportedUnconfirmed() {
+        // GMS answers a hold's precise-fix request with the fix it just delivered, stamp and all,
+        // when that fix is a fraction of a second old. Refused as not-newer, the hold waited for a
+        // fix minutes later and a real visit was lost in the field.
+        val processor = PolygonRouteProcessor()
+        processor.process(
+            fences = listOf(fence),
+            sample = sampleAt(insideFix),
+            elapsedRealtimeNanos = 50_000_000L,
+            fixAgeSeconds = 0.3,
+            committedStates = committedOutside
+        )
+
+        val outcome = processor.process(
+            fences = listOf(fence),
+            sample = sampleAt(insideFix),
+            elapsedRealtimeNanos = 50_000_000L,
+            fixAgeSeconds = 0.1,
+            committedStates = committedOutside,
+            answersHeldFixAt = 50_000_000L
+        )
+
+        outcome.detections.map { it.transition } shouldBeEqualTo listOf(PolygonTransition.ENTER)
+        outcome.records.filterIsInstance<PolygonRouteRecord.Decided>()
+            .single().uncorroboratedReason shouldBeEqualTo PolygonArrivalCommit.NOT_INDEPENDENT
+    }
+
+    @Test
+    fun process_givenThePreciseAnswerIsOlderThanTheHeldFix_expectTheStampDedupeStillRefusesIt() {
+        val processor = PolygonRouteProcessor()
+        processor.process(
+            fences = listOf(fence),
+            sample = sampleAt(insideFix),
+            elapsedRealtimeNanos = 50_000_000L,
+            fixAgeSeconds = 0.3,
+            committedStates = committedOutside
+        )
+
+        val outcome = processor.process(
+            fences = listOf(fence),
+            sample = sampleAt(insideFix),
+            elapsedRealtimeNanos = 49_999_999L,
+            fixAgeSeconds = 0.1,
+            committedStates = committedOutside,
+            answersHeldFixAt = 49_999_999L
+        )
+
+        outcome.detections shouldBeEqualTo emptyList()
+        outcome.records shouldBeEqualTo emptyList()
+    }
+
+    @Test
+    fun process_givenThePreciseAnswerRepeatsAFixWithNoHoldOpen_expectTheStampDedupeStillRefusesIt() {
+        // Decisive, so the first pass enters outright and opens no hold for the answer to settle.
+        val processor = PolygonRouteProcessor()
+        val decisive = PolygonLocationSample(insideFix, horizontalAccuracyMeters = 3.0)
+        processor.process(
+            fences = listOf(fence),
+            sample = decisive,
+            elapsedRealtimeNanos = 50_000_000L,
+            fixAgeSeconds = 0.3,
+            committedStates = committedOutside
+        ).detections.map { it.transition } shouldBeEqualTo listOf(PolygonTransition.ENTER)
+
+        val outcome = processor.process(
+            fences = listOf(fence),
+            sample = decisive,
+            elapsedRealtimeNanos = 50_000_000L,
+            fixAgeSeconds = 0.1,
+            committedStates = committedOutside,
+            answersHeldFixAt = 50_000_000L
+        )
+
+        outcome.detections shouldBeEqualTo emptyList()
+        outcome.records shouldBeEqualTo emptyList()
+    }
 }

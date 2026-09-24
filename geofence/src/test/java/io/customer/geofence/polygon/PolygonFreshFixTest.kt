@@ -207,6 +207,78 @@ class PolygonFreshFixTest : RobolectricTest() {
     }
 
     @Test
+    fun activate_givenThePreciseFixIsTheHeldFixAgain_expectTheArrivalCommits() = runTest {
+        // The 2026-09-24 field case: the triggering fix was 0.2 s old, so GMS answered the request
+        // with that same fix, stamp included, and the hold was lost.
+        val held = marginalFixInsideTheVenue()
+        val freshFix = AnswersOnceFreshFix(Location(held))
+        val controller = controller(freshFix)
+
+        controller.activate(VENUE_ID, held, store.userStateGeneration(), null)
+
+        freshFix.requests shouldBeEqualTo 1
+        store.getEnteredIds() shouldContain VENUE_ID
+    }
+
+    @Test
+    fun activate_givenTheHeldFixArrivesByAnotherPathWhileTheRequestIsOut_expectTheAnswerStillDecides() = runTest {
+        // The same fix reaching the fence through approach sampling while the request is still out
+        // is not the answer. Letting it settle the hold would commit the arrival before the newer
+        // answer below, which places the device outside, could break it.
+        val held = marginalFixInsideTheVenue()
+        lateinit var controller: PolygonGeofenceServiceController
+        val freshFix = object : PolygonFreshFixSource {
+            override suspend fun awaitFreshFix(timeoutMs: Long, priority: PolygonFixPriority): Location? {
+                controller.processApproachLocations(
+                    listOf(Location(held)),
+                    store.userStateGeneration(),
+                    sessionDeadlineElapsedRealtimeMs = Long.MAX_VALUE
+                )
+                return fixJustSouthOfTheVenue()
+            }
+        }
+        controller = controller(freshFix)
+
+        controller.activate(VENUE_ID, held, store.userStateGeneration(), null)
+
+        store.getEnteredIds() shouldNotContain VENUE_ID
+    }
+
+    @Test
+    fun activate_givenAReusedAnswerIsTheFixAHoldWasOpenedOn_expectItDoesNotSettleIt() = runTest {
+        // Only the answer to a request made from the held fix settles its hold. A reused answer from
+        // an earlier callback is a copy of that hold's fix here, not an answer to it. The answer is
+        // 1 s old so the reuse below sits well inside its 2 s window.
+        val freshFix = AnswersOnceFreshFix(
+            marginalFixInsideTheVenue().apply {
+                elapsedRealtimeNanos = SystemClock.elapsedRealtimeNanos() - 1_000_000_000L
+            }
+        )
+        val controller = controller(freshFix)
+        store.saveCachedRegions(listOf(venueRegion(), neighbourRegion()))
+        store.saveRegisteredIds(setOf(VENUE_ID, NEIGHBOUR_ID))
+        store.saveRoutableRegisteredIds(setOf(VENUE_ID, NEIGHBOUR_ID))
+
+        // The answer is marginal, so the venue holds on it.
+        controller.activate(
+            VENUE_ID,
+            coarseFixInsideTheVenue(SystemClock.elapsedRealtimeNanos() - 3_000_000_000L),
+            store.userStateGeneration(),
+            null
+        )
+        // Older than that answer, so the venue skips it; the neighbour is undecided and reuses it.
+        controller.activate(
+            NEIGHBOUR_ID,
+            coarseFixInsideTheVenue(SystemClock.elapsedRealtimeNanos() - 2_500_000_000L),
+            store.userStateGeneration(),
+            null
+        )
+
+        freshFix.requests shouldBeEqualTo 1
+        store.getEnteredIds() shouldNotContain VENUE_ID
+    }
+
+    @Test
     fun activate_givenTheDeliveredFixDecides_expectNoPreciseFixIsAskedFor() = runTest {
         // The cheap path must stay cheap. A fix that already decides must not spend the sensor, or
         // every ordinary drive-by crossing pays for a GPS request it did not need.
@@ -1134,6 +1206,15 @@ class PolygonFreshFixTest : RobolectricTest() {
         latitude = 37.7750 + metres / 111_320.0
         longitude = -122.4194
         accuracy = accuracyMeters
+        elapsedRealtimeNanos = SystemClock.elapsedRealtimeNanos()
+        time = 100_000L
+    }
+
+    /** 11 m south of the venue's southern edge at 3 m of uncertainty, so it reads outside. */
+    private fun fixJustSouthOfTheVenue() = Location("test").apply {
+        latitude = 37.7745 - 11.0 / 111_320.0
+        longitude = -122.4194
+        accuracy = 3f
         elapsedRealtimeNanos = SystemClock.elapsedRealtimeNanos()
         time = 100_000L
     }

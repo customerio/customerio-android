@@ -4,6 +4,7 @@ import android.os.SystemClock
 import io.customer.geofence.GeofenceCrossingPipeline
 import io.customer.geofence.GeofenceForegroundCoordinator
 import io.customer.geofence.GeofenceServices
+import io.customer.geofence.polygon.PolygonPassiveReceiver
 import java.time.Duration
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -196,16 +197,20 @@ internal class ReplayRunner(
                         if (!freshFix.deliver(fix)) unanswered.add(record.at)
                     }
 
-                // A passive fix and a periodic re-check reach the SDK on a drive. The logger now
-                // stamps their position (`lat`/`lon`) alongside the outcome (`cand`/`n`), so a
-                // capture taken from a build carrying that change holds what a faithful replay of
-                // them would need — but consuming it is deferred, and a capture taken before it does
-                // not carry the position at all. In every recorded drive so far they ran with the
-                // device outside every polygon's wake circle (n=0): they changed no state, so
-                // accepting them as no-ops is behaviourally exact for the corpus. The day a drive
-                // activates a polygon through one of them, this no-op becomes a silent miss and this
-                // is the one branch to grow into a real delivery.
-                "polygon.passive.received", "polygon.recheck.ran" -> Unit
+                // A fix another app paid for, fed through the SDK's own passive handler on the
+                // geofence scope, where `PolygonPassiveReceiver` runs it. It decides polygons from
+                // the ring before the covering circle is crossed, so a drive can exit or enter a
+                // polygon through this path alone. A capture from before the logger stamped the
+                // position carries none, and stays a no-op: there is nothing to deliver.
+                "polygon.passive.received" ->
+                    record.triggeringFix(gate.clock.elapsedRealtime())?.let { fix ->
+                        geofenceScope.launch { PolygonPassiveReceiver().handleFix(fix) }
+                    }
+
+                // The periodic re-check asks GMS for its own fresh fix, so the fix it logs is an
+                // answer, not a stimulus. Accepted as a no-op until a drive shows it deciding
+                // something the passive and OS paths did not.
+                "polygon.recheck.ran" -> Unit
 
                 else -> unsupported.add(Unsupported(record.ev, record.at))
             }

@@ -34,8 +34,13 @@ internal class ReplayPolygonFreshFixSource : PolygonFreshFixSource {
         }
     }
 
-    /** Hands the fix a `polygon.freshfix.received` stimulus carries to the oldest open request. */
-    fun deliver(fix: Location) {
-        waiters.removeFirstOrNull()?.complete(fix)
-    }
+    /**
+     * Hands the fix a `polygon.freshfix.received` stimulus carries to the oldest open request.
+     *
+     * Returns false when no request was waiting — the SDK stopped asking (a timeout that fired
+     * earlier than in the car, say) while the recording still has the answer. That is the replay
+     * diverging from the drive, so the caller reports it rather than dropping the fix.
+     */
+    fun deliver(fix: Location): Boolean =
+        waiters.removeFirstOrNull()?.complete(fix) ?: false
 }

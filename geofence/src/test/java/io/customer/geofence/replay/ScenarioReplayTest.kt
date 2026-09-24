@@ -237,6 +237,10 @@ class ScenarioReplayTest(
                 val evs = result.unsupported.map { it.ev }.distinct().sorted()
                 add("  inputs with no seam in this composition: $evs")
             }
+            if (result.unanswered.isNotEmpty()) {
+                val at = result.unanswered.joinToString { "@%.3f".format(it) }
+                add("  recorded fresh fixes no polygon request was waiting for: $at")
+            }
             // A scenario that asserts nothing passes trivially. Whether a capture is a real drive is
             // a human call, but "decided something at all" is the floor a machine can hold.
             if (report.expectedTotal == 0) add("  scenario carries no expectations")

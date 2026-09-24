@@ -42,7 +42,11 @@ internal class ReplayRunner(
     /** A stimulus the scenario carries that this composition has nowhere to put. */
     data class Unsupported(val ev: String, val at: Double)
 
-    data class Result(val unsupported: List<Unsupported>)
+    /**
+     * [unanswered]: recorded `polygon.freshfix.received` timestamps no open request was waiting for.
+     * Kept apart from [unsupported], which is a missing seam; this is a request the replay never made.
+     */
+    data class Result(val unsupported: List<Unsupported>, val unanswered: List<Double> = emptyList())
 
     /** Where the SDK's own view of "the last position" comes from, for identity-driven syncs. */
     private var lastFix: Pair<Double, Double>? = null
@@ -58,6 +62,7 @@ internal class ReplayRunner(
         syncSystemClock()
 
         val unsupported = mutableListOf<Unsupported>()
+        val unanswered = mutableListOf<Double>()
 
         // Fixtures are queued up front, in recorded order, rather than placed on the timeline.
         //
@@ -187,7 +192,9 @@ internal class ReplayRunner(
                 // timestamp — reproducing the drop a stationary marginal arrival hit in the field.
                 // Only this event carries lat/lon; passive and re-check below do not.
                 "polygon.freshfix.received" ->
-                    record.triggeringFix(gate.clock.elapsedRealtime())?.let { freshFix.deliver(it) }
+                    record.triggeringFix(gate.clock.elapsedRealtime())?.let { fix ->
+                        if (!freshFix.deliver(fix)) unanswered.add(record.at)
+                    }
 
                 // A passive fix and a periodic re-check reach the SDK on a drive. The logger now
                 // stamps their position (`lat`/`lon`) alongside the outcome (`cand`/`n`), so a
@@ -211,7 +218,7 @@ internal class ReplayRunner(
         // the outstanding boundaries answer so those decisions are graded rather than lost.
         gate.releaseAll { pump() }
         pump()
-        return Result(unsupported)
+        return Result(unsupported, unanswered)
     }
 
     /**

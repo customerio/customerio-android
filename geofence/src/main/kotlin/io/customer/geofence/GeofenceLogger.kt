@@ -1500,7 +1500,8 @@ internal class GeofenceLogger(private val logger: Logger) {
                         "ids" to list(admittedIds),
                         "ncleared" to int(clearedIds.size),
                         "cleared" to list(clearedIds)
-                    ) + GeofenceLogTail.fixQuality(location, GeofenceLogTail.FixSource.FRESH_REQUEST)
+                    ) + GeofenceLogTail.fixQuality(location, GeofenceLogTail.FixSource.FRESH_REQUEST) +
+                        GeofenceLogTail.position(location)
                 ),
             tag = TAG
         )
@@ -1545,7 +1546,8 @@ internal class GeofenceLogger(private val logger: Logger) {
                         "ids" to list(admittedIds),
                         "ncleared" to int(clearedIds.size),
                         "cleared" to list(clearedIds)
-                    ) + GeofenceLogTail.fixQuality(location, GeofenceLogTail.FixSource.CACHED)
+                    ) + GeofenceLogTail.fixQuality(location, GeofenceLogTail.FixSource.CACHED) +
+                        GeofenceLogTail.position(location)
                 ),
             tag = TAG
         )

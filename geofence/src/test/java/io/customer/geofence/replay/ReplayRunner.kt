@@ -1,12 +1,16 @@
 package io.customer.geofence.replay
 
+import android.os.SystemClock
 import io.customer.geofence.GeofenceCrossingPipeline
 import io.customer.geofence.GeofenceForegroundCoordinator
 import io.customer.geofence.GeofenceServices
+import io.customer.geofence.polygon.PolygonPassiveReceiver
+import java.time.Duration
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestCoroutineScheduler
+import org.robolectric.shadows.ShadowSystemClock
 
 /**
  * Feeds a scenario's inputs into a composed SDK, in recorded order, on a virtual clock.
@@ -33,12 +37,17 @@ internal class ReplayRunner(
     private val pipeline: GeofenceCrossingPipeline,
     private val services: GeofenceServices,
     private val foreground: GeofenceForegroundCoordinator,
-    private val identity: MutableIdentity
+    private val identity: MutableIdentity,
+    private val freshFix: ReplayPolygonFreshFixSource
 ) {
     /** A stimulus the scenario carries that this composition has nowhere to put. */
     data class Unsupported(val ev: String, val at: Double)
 
-    data class Result(val unsupported: List<Unsupported>)
+    /**
+     * [unanswered]: recorded `polygon.freshfix.received` timestamps no open request was waiting for.
+     * Kept apart from [unsupported], which is a missing seam; this is a request the replay never made.
+     */
+    data class Result(val unsupported: List<Unsupported>, val unanswered: List<Double> = emptyList())
 
     /** Where the SDK's own view of "the last position" comes from, for identity-driven syncs. */
     private var lastFix: Pair<Double, Double>? = null
@@ -47,7 +56,14 @@ internal class ReplayRunner(
     private var pumpedThrough: Double = 0.0
 
     suspend fun run(scenario: Scenario): Result {
+        // Start the drive's uptime line at (or above) Robolectric's SystemClock, so the clock the SDK
+        // ages fixes against and the clock a fix is stamped on share an origin before the first fix.
+        // SystemClock is monotonic across a run's drives, so a later drive lifts the base to it.
+        gate.clock.uptimeBaseMillis = maxOf(gate.clock.uptimeBaseMillis, SystemClock.elapsedRealtime())
+        syncSystemClock()
+
         val unsupported = mutableListOf<Unsupported>()
+        val unanswered = mutableListOf<Double>()
 
         // Fixtures are queued up front, in recorded order, rather than placed on the timeline.
         //
@@ -170,6 +186,32 @@ internal class ReplayRunner(
                     geofenceScope.launch { pipeline.handle(crossing) }
                 }
 
+                // The precise fix the polygon controller asked for mid-callback, handed to the
+                // waiting `awaitFreshFix`. `triggeringFix` stamps its `elapsedRealtimeNanos` from
+                // the recorded age, so a fix that is the same cached one the callback already
+                // carried re-enters the controller's duplicate-delivery dedup on an equal or older
+                // timestamp — reproducing the drop a stationary marginal arrival hit in the field.
+                // Only this event carries lat/lon; passive and re-check below do not.
+                "polygon.freshfix.received" ->
+                    record.triggeringFix(gate.clock.elapsedRealtime())?.let { fix ->
+                        if (!freshFix.deliver(fix)) unanswered.add(record.at)
+                    }
+
+                // A fix another app paid for, fed through the SDK's own passive handler on the
+                // geofence scope, where `PolygonPassiveReceiver` runs it. It decides polygons from
+                // the ring before the covering circle is crossed, so a drive can exit or enter a
+                // polygon through this path alone. A capture from before the logger stamped the
+                // position carries none, and stays a no-op: there is nothing to deliver.
+                "polygon.passive.received" ->
+                    record.triggeringFix(gate.clock.elapsedRealtime())?.let { fix ->
+                        geofenceScope.launch { PolygonPassiveReceiver().handleFix(fix) }
+                    }
+
+                // The periodic re-check asks GMS for its own fresh fix, so the fix it logs is an
+                // answer, not a stimulus. Accepted as a no-op until a drive shows it deciding
+                // something the passive and OS paths did not.
+                "polygon.recheck.ran" -> Unit
+
                 else -> unsupported.add(Unsupported(record.ev, record.at))
             }
             // Whatever the stimulus started runs as far as it can get; where it reaches a boundary
@@ -181,7 +223,7 @@ internal class ReplayRunner(
         // the outstanding boundaries answer so those decisions are graded rather than lost.
         gate.releaseAll { pump() }
         pump()
-        return Result(unsupported)
+        return Result(unsupported, unanswered)
     }
 
     /**
@@ -211,7 +253,25 @@ internal class ReplayRunner(
             scheduler.advanceTimeBy(advanceMillis)
             pumpedThrough += advanceMillis / 1000.0
         }
+        syncSystemClock()
         scheduler.runCurrent()
+    }
+
+    /**
+     * Robolectric's SystemClock, carried up to the drive's clock before the SDK runs.
+     *
+     * The SDK ages every fix (`GeofenceLogTail.fixAgeSeconds` → `SystemClock.elapsedRealtimeNanos`)
+     * and times every polygon-approach session (`PolygonApproachMonitor`) against SystemClock, not
+     * the injected [Clock] this harness advances. Left behind at Robolectric's base, SystemClock
+     * makes every polygon callback fix read hours old — its `elapsedRealtimeNanos` sits on the
+     * drive's uptime line — so the fix is dropped as `fix_too_old` and the whole polygon arrival path
+     * goes silent while circles, which never read SystemClock, replay regardless. Monotonic, so it
+     * only ever moves forward.
+     */
+    private fun syncSystemClock() {
+        val target = gate.clock.elapsedRealtime()
+        val now = SystemClock.elapsedRealtime()
+        if (target > now) ShadowSystemClock.advanceBy(Duration.ofMillis(target - now))
     }
 
     /** The identity the host app would have set. Held by the harness, read by the SDK. */

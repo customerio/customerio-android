@@ -21,6 +21,7 @@ import io.customer.geofence.di.geofencePermissionChecker
 import io.customer.geofence.di.geofenceRegionStore
 import io.customer.geofence.di.geofenceServices
 import io.customer.geofence.di.pendingGeofenceDeliveryStore
+import io.customer.geofence.polygon.PolygonFreshFixSource
 import io.customer.geofence.worker.GeofenceEventScheduler
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.di.clock
@@ -104,6 +105,10 @@ class ScenarioReplayTest(
         every { isBackgroundDeliveryAvailable() } returns true
     }
 
+    // The polygon controller's mid-callback precise-fix request, answered from the recording rather
+    // than GMS. A recorded `polygon.freshfix.received` is delivered to it by the runner.
+    private val replayFreshFix = ReplayPolygonFreshFixSource()
+
     override fun setup(testConfig: TestConfig) {
         super.setup(
             testConfigurationDefault {
@@ -120,6 +125,7 @@ class ScenarioReplayTest(
                         overrideDependency<GeofenceEventScheduler>(scheduler)
                         overrideDependency<GeofencePermissionChecker>(permissionChecker)
                         overrideDependency<SecureUserStore>(fakeSecureUserStore)
+                        overrideDependency<PolygonFreshFixSource>(replayFreshFix)
                     }
                 }
             }
@@ -181,7 +187,8 @@ class ScenarioReplayTest(
         pipeline = SDKComponent.android().geofenceCrossingPipeline,
         services = SDKComponent.android().geofenceServices,
         foreground = foregroundCoordinator(),
-        identity = identity
+        identity = identity,
+        freshFix = replayFreshFix
     )
 
     @Test
@@ -229,6 +236,10 @@ class ScenarioReplayTest(
             if (result.unsupported.isNotEmpty()) {
                 val evs = result.unsupported.map { it.ev }.distinct().sorted()
                 add("  inputs with no seam in this composition: $evs")
+            }
+            if (result.unanswered.isNotEmpty()) {
+                val at = result.unanswered.joinToString { "@%.3f".format(it) }
+                add("  recorded fresh fixes no polygon request was waiting for: $at")
             }
             // A scenario that asserts nothing passes trivially. Whether a capture is a real drive is
             // a human call, but "decided something at all" is the floor a machine can hold.

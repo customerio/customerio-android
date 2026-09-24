@@ -1,5 +1,6 @@
 package io.customer.geofence.replay
 
+import io.customer.geofence.polygon.PolygonCoordinate
 import java.io.File
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
@@ -96,7 +97,11 @@ internal data class ScenarioFence(
     val longitude: Double,
     val radius: Double,
     val geosetIds: List<String>,
-    val transitionTypes: List<String>
+    val transitionTypes: List<String>,
+    // Present only for a polygon: the outer ring the transform folded out of `fence.cataloged`. The
+    // runner registers the polygon from these and reads latitude/longitude/radius above as its
+    // enclosing wake circle; absent, the fence is the circle those three describe.
+    val vertices: List<PolygonCoordinate>? = null
 )
 
 internal object ScenarioLoader {
@@ -159,19 +164,42 @@ internal object ScenarioLoader {
         return array.mapNotNull { entry ->
             val o = entry as? JsonObject ?: return@mapNotNull null
             val id = o["id"]?.jsonPrimitive?.contentOrNullSafe() ?: return@mapNotNull null
+            // A polygon carries the same wire shape iOS decodes straight into the SDK model: a GeoJSON
+            // `geometry` and an `enclosingCircle`. Its wake circle comes from `enclosingCircle`, not
+            // the flat fields — those belong to a circle fence. Absent, this is that circle.
+            val geometry = o["geometry"] as? JsonObject
+            val enclosing = o["enclosingCircle"] as? JsonObject
+            val vertices = geometry?.let(::parseGeometry)
+            val circle = enclosing ?: o
+            val radiusKey = if (enclosing != null) "baseRadiusM" else "radius"
             ScenarioFence(
                 id = id,
                 name = o["name"]?.jsonPrimitive?.contentOrNullSafe(),
-                latitude = o["latitude"]?.jsonPrimitive?.content?.toDoubleOrNull() ?: return@mapNotNull null,
-                longitude = o["longitude"]?.jsonPrimitive?.content?.toDoubleOrNull() ?: return@mapNotNull null,
-                radius = o["radius"]?.jsonPrimitive?.content?.toDoubleOrNull() ?: return@mapNotNull null,
+                latitude = circle["latitude"]?.jsonPrimitive?.content?.toDoubleOrNull() ?: return@mapNotNull null,
+                longitude = circle["longitude"]?.jsonPrimitive?.content?.toDoubleOrNull() ?: return@mapNotNull null,
+                radius = circle[radiusKey]?.jsonPrimitive?.content?.toDoubleOrNull() ?: return@mapNotNull null,
                 geosetIds = (o["geosetIds"] as? JsonArray)?.mapNotNull { it.jsonPrimitive.contentOrNullSafe() }
                     ?: emptyList(),
                 transitionTypes = (o["transitionTypes"] as? JsonArray)
                     ?.mapNotNull { it.jsonPrimitive.contentOrNullSafe() }
-                    ?: emptyList()
+                    ?: emptyList(),
+                vertices = vertices
             )
         }
+    }
+
+    /** The outer ring of a GeoJSON `Polygon`: `coordinates[0]` as `[longitude, latitude]` positions. */
+    private fun parseGeometry(geometry: JsonObject): List<PolygonCoordinate>? {
+        val rings = geometry["coordinates"] as? JsonArray ?: return null
+        val outer = rings.firstOrNull() as? JsonArray ?: return null
+        val vertices = outer.mapNotNull { position ->
+            val pair = position as? JsonArray ?: return@mapNotNull null
+            if (pair.size < 2) return@mapNotNull null
+            val longitude = pair[0].jsonPrimitive.content.toDoubleOrNull() ?: return@mapNotNull null
+            val latitude = pair[1].jsonPrimitive.content.toDoubleOrNull() ?: return@mapNotNull null
+            PolygonCoordinate(latitude, longitude)
+        }
+        return vertices.ifEmpty { null }
     }
 
     /** Values arrive already coerced by the transform, so the type is whatever JSON says it is. */

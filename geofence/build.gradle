@@ -38,6 +38,31 @@ tasks.withType(KotlinCompile).all {
     }
 }
 
+// The replay tests read a private scenario corpus from outside this repo, found the way
+// `Scenarios.resolve` finds it: `CIO_GEOFENCE_SCENARIOS`, else `mobile-replay-harness/scenarios` in
+// this module or up to five directories above it. Gradle cannot see either on its own, so without
+// these inputs a changed corpus — or a different one, or none — reuses the previous run's results.
+tasks.withType(Test).configureEach {
+    def override = providers.environmentVariable("CIO_GEOFENCE_SCENARIOS").orNull
+    File corpus = null
+    if (override?.trim()) {
+        corpus = file(override)
+    } else {
+        def dir = projectDir
+        for (int i = 0; i < 6 && dir != null && corpus == null; i++) {
+            def candidate = new File(dir, "mobile-replay-harness/scenarios")
+            if (candidate.isDirectory()) corpus = candidate
+            dir = dir.parentFile
+        }
+    }
+    inputs.property("geofenceScenarioRoot", corpus?.absolutePath ?: "")
+    if (corpus?.isDirectory()) {
+        inputs.files(fileTree(corpus) { include "*.scenario.ndjson" })
+                .withPropertyName("geofenceScenarios")
+                .withPathSensitivity(PathSensitivity.RELATIVE)
+    }
+}
+
 dependencies {
     api project(":base")
     api project(":core")

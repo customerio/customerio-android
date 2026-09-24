@@ -50,8 +50,8 @@ def main(results_dir):
     replayed = [d for d in drives if d[1] != "skipped"]
     failed = [d for d in drives if d[1] == "failed"] + failed_others
     if not replayed:
-        print("::error::No recorded drive was replayed — every case skipped, so the corpus was "
-              "not found. That is a setup failure, not a pass.")
+        print("::error::No recorded drive was replayed: the corpus was not found, or holds no "
+              "scenarios for this platform. That is a setup failure, not a pass.")
         return 2
     if failed:
         print(f"::error::{len(failed)} geofence replay test(s) failed. Details stay out of this "

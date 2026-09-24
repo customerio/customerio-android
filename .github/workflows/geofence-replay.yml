@@ -110,13 +110,11 @@ jobs:
 
       # Output goes to a file, not the log: a test that throws while replaying can put corpus
       # content into Gradle's output. Only a build that could not run is shown, and only its tail.
-      # `--rerun`: the corpus path is an environment variable, which Gradle does not count as a
-      # test input, so a restored or cached test task would report the previous corpus's results.
       - name: Run replay tests
         env:
           CIO_GEOFENCE_SCENARIOS: ${{ github.workspace }}/.corpus/scenarios
         run: |
-          if ! ./gradlew :geofence:testDebugUnitTest --rerun --tests 'io.customer.geofence.replay.*' > "$RUNNER_TEMP/gradle.log" 2>&1; then
+          if ! ./gradlew :geofence:testDebugUnitTest --tests 'io.customer.geofence.replay.*' > "$RUNNER_TEMP/gradle.log" 2>&1; then
             grep -E '^(FAILURE|\* What went wrong|e: |> )' "$RUNNER_TEMP/gradle.log" | head -40
             echo "::error::The geofence module did not build or its tests could not run."
             exit 1

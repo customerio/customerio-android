@@ -174,9 +174,11 @@ class PolygonRouteIntegrationTest {
         // fix to postdate the last fix their resolver had delivered, not the fix being
         // corroborated. A pass answered from the location cache never records as delivered, so an
         // echo of the same fix cleared the guard and a marginal arrival confirmed itself from one
-        // observation. Ours is held off by the per-fence monotonic check ahead of every path, but
-        // nothing pinned it on the corroboration path, and the defect is invisible in a capture:
-        // an echo and a real second opinion produce identical records.
+        // observation. Ours is held off by the per-fence monotonic check, which every path goes
+        // through except a precise fix answering a hold with its own fix (settled as not
+        // independent, never corroborated). Nothing pinned the check on the corroboration path, and
+        // the defect is invisible in a capture: an echo and a real second opinion produce identical
+        // records.
         val processor = PolygonRouteProcessor()
         val marginal = PolygonLocationSample(point(37.77452, -122.4194), 30.0)
 

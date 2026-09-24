@@ -28,7 +28,10 @@ internal class VirtualClock(private val epochMillisAtStart: Long = 1_756_000_000
      * stored registration uptime greater than "now" is how the SDK detects a reboot, and starting
      * at zero would make every replay look like a fresh boot.
      */
-    private val uptimeBaseMillis = TimeUnit.HOURS.toMillis(6)
+    // A `var` so the runner can lift it to Robolectric's SystemClock at each drive's start: the two
+    // clocks must share an origin (see ReplayRunner.syncSystemClock), and SystemClock is monotonic
+    // across the drives in one run while this resets per drive.
+    var uptimeBaseMillis = TimeUnit.HOURS.toMillis(6)
 
     override fun currentTimeMillis(): Long = epochMillisAtStart + (elapsedSeconds * 1000).toLong()
 

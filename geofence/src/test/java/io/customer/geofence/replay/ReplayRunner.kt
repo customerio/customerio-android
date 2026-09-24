@@ -1,12 +1,15 @@
 package io.customer.geofence.replay
 
+import android.os.SystemClock
 import io.customer.geofence.GeofenceCrossingPipeline
 import io.customer.geofence.GeofenceForegroundCoordinator
 import io.customer.geofence.GeofenceServices
+import java.time.Duration
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestCoroutineScheduler
+import org.robolectric.shadows.ShadowSystemClock
 
 /**
  * Feeds a scenario's inputs into a composed SDK, in recorded order, on a virtual clock.
@@ -48,6 +51,12 @@ internal class ReplayRunner(
     private var pumpedThrough: Double = 0.0
 
     suspend fun run(scenario: Scenario): Result {
+        // Start the drive's uptime line at (or above) Robolectric's SystemClock, so the clock the SDK
+        // ages fixes against and the clock a fix is stamped on share an origin before the first fix.
+        // SystemClock is monotonic across a run's drives, so a later drive lifts the base to it.
+        gate.clock.uptimeBaseMillis = maxOf(gate.clock.uptimeBaseMillis, SystemClock.elapsedRealtime())
+        syncSystemClock()
+
         val unsupported = mutableListOf<Unsupported>()
 
         // Fixtures are queued up front, in recorded order, rather than placed on the timeline.
@@ -232,7 +241,25 @@ internal class ReplayRunner(
             scheduler.advanceTimeBy(advanceMillis)
             pumpedThrough += advanceMillis / 1000.0
         }
+        syncSystemClock()
         scheduler.runCurrent()
+    }
+
+    /**
+     * Robolectric's SystemClock, carried up to the drive's clock before the SDK runs.
+     *
+     * The SDK ages every fix (`GeofenceLogTail.fixAgeSeconds` → `SystemClock.elapsedRealtimeNanos`)
+     * and times every polygon-approach session (`PolygonApproachMonitor`) against SystemClock, not
+     * the injected [Clock] this harness advances. Left behind at Robolectric's base, SystemClock
+     * makes every polygon callback fix read hours old — its `elapsedRealtimeNanos` sits on the
+     * drive's uptime line — so the fix is dropped as `fix_too_old` and the whole polygon arrival path
+     * goes silent while circles, which never read SystemClock, replay regardless. Monotonic, so it
+     * only ever moves forward.
+     */
+    private fun syncSystemClock() {
+        val target = gate.clock.elapsedRealtime()
+        val now = SystemClock.elapsedRealtime()
+        if (target > now) ShadowSystemClock.advanceBy(Duration.ofMillis(target - now))
     }
 
     /** The identity the host app would have set. Held by the harness, read by the SDK. */

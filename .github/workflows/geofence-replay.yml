@@ -1,0 +1,126 @@
+name: Geofence corpus replay
+
+# Replays the private recorded-drive corpus (customerio/mobile-replay-harness) against the geofence
+# module. A check of its own, so a corpus or harness problem never reddens the main Tests run.
+#
+# Pilot: informative, not required. It skips cleanly when geofence code did not change, and when
+# the corpus key is unavailable (forks, bots, or before the secret is configured).
+#
+# The corpus is private and this repo's logs are public: nothing below prints scenario content,
+# failure messages or uploads reports. See .github/scripts/geofence_replay_gate.py.
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches: [main, 'feature/**']
+  push:
+    branches: [main, feature/geofence-polygons]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  detect:
+    name: Detect geofence changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      run: ${{ steps.decide.outputs.run }}
+    steps:
+      - name: Decide whether to replay
+        id: decide
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HAS_KEY: ${{ secrets.GEOFENCE_CORPUS_DEPLOY_KEY != '' }}
+          EVENT: ${{ github.event_name }}
+          PR: ${{ github.event.pull_request.number }}
+          BEFORE: ${{ github.event.before }}
+          AFTER: ${{ github.sha }}
+        run: |
+          if [ "$HAS_KEY" != "true" ]; then
+            echo "::notice::Corpus key unavailable (fork, bot, or secret not configured) — skipping replay."
+            echo "run=false" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          case "$EVENT" in
+            workflow_dispatch) echo "run=true" >> "$GITHUB_OUTPUT"; exit 0 ;;
+            pull_request) files=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR/files" --paginate --jq '.[].filename') ;;
+            push)
+              if [ "$BEFORE" = "0000000000000000000000000000000000000000" ]; then
+                echo "run=true" >> "$GITHUB_OUTPUT"; exit 0
+              fi
+              files=$(gh api "repos/$GITHUB_REPOSITORY/compare/$BEFORE...$AFTER" --jq '.files[].filename') ;;
+          esac
+          # The pin file is watched on purpose: bumping the corpus alone is a change worth replaying.
+          if printf '%s\n' "$files" | grep -Eq '^(geofence/|\.github/geofence-corpus\.ref$|\.github/workflows/geofence-replay\.yml$|\.github/scripts/geofence_replay_gate\.py$)'; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::No geofence changes — skipping replay."
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  replay:
+    name: Replay recorded drives
+    needs: detect
+    if: needs.detect.outputs.run == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Read corpus pin
+        id: pin
+        run: |
+          ref=$(tr -d '[:space:]' < .github/geofence-corpus.ref)
+          if ! printf '%s' "$ref" | grep -Eq '^[0-9a-f]{40}$'; then
+            echo "::error::Corpus setup failed: .github/geofence-corpus.ref must hold one full 40-character commit SHA, never a branch."
+            exit 1
+          fi
+          echo "sha=$ref" >> "$GITHUB_OUTPUT"
+
+      - name: Fetch corpus
+        id: corpus
+        continue-on-error: true
+        uses: actions/checkout@v4
+        with:
+          repository: customerio/mobile-replay-harness
+          ref: ${{ steps.pin.outputs.sha }}
+          ssh-key: ${{ secrets.GEOFENCE_CORPUS_DEPLOY_KEY }}
+          persist-credentials: false
+          path: .corpus
+
+      - name: Check corpus
+        run: |
+          if [ "${{ steps.corpus.outcome }}" != "success" ]; then
+            echo "::error::Corpus setup failed: could not fetch mobile-replay-harness@${{ steps.pin.outputs.sha }}. Check the deploy key and that the pinned SHA exists."
+            exit 1
+          fi
+          count=$(find .corpus/scenarios -maxdepth 1 -name '*.scenario.ndjson' 2>/dev/null | wc -l | tr -d ' ')
+          if [ "$count" -eq 0 ]; then
+            echo "::error::Corpus setup failed: mobile-replay-harness@${{ steps.pin.outputs.sha }} has no scenarios/*.scenario.ndjson."
+            exit 1
+          fi
+          echo "Corpus @ ${{ steps.pin.outputs.sha }}: $count scenario file(s)."
+
+      - uses: ./.github/actions/setup-android
+
+      # Output goes to a file, not the log: a test that throws while replaying can put corpus
+      # content into Gradle's output. Only a build that could not run is shown, and only its tail.
+      # `--rerun`: the corpus path is an environment variable, which Gradle does not count as a
+      # test input, so a restored or cached test task would report the previous corpus's results.
+      - name: Run replay tests
+        env:
+          CIO_GEOFENCE_SCENARIOS: ${{ github.workspace }}/.corpus/scenarios
+        run: |
+          if ! ./gradlew :geofence:testDebugUnitTest --rerun --tests 'io.customer.geofence.replay.*' > "$RUNNER_TEMP/gradle.log" 2>&1; then
+            grep -E '^(FAILURE|\* What went wrong|e: |> )' "$RUNNER_TEMP/gradle.log" | head -40
+            echo "::error::The geofence module did not build or its tests could not run."
+            exit 1
+          fi
+
+      - name: Grade replay
+        run: python3 .github/scripts/geofence_replay_gate.py geofence/build/test-results/testDebugUnitTest

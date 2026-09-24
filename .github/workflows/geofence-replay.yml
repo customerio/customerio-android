@@ -121,4 +121,4 @@ jobs:
           fi
 
       - name: Grade replay
-        run: python3 .github/scripts/geofence_replay_gate.py geofence/build/test-results/testDebugUnitTest
+        run: python3 .github/scripts/geofence_replay_gate.py geofence/build/test-results/testDebugUnitTest .corpus/scenarios

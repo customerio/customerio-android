@@ -880,8 +880,10 @@ internal class PolygonGeofenceServiceController(
         val delivered = evaluateAndRecentre(triggeringLocation, expectedUserStateGeneration)
         // A held arrival needs a fix for the opposite reason to an undecided one, and the same
         // request answers both. Batch reuse stays eligible: lastFreshFix only ever holds a previous
-        // request's answer, never the triggering fix, so it is a separate measurement; and if it is
-        // the very fix a hold is waiting on, the corroboration guard refuses it there instead.
+        // request's answer. GMS often answers with the fix the request was made from, because it is
+        // a fraction of a second old; when that fix is this callback's own and a hold was opened on
+        // it, the answer settles the hold as not independent. A reused answer does so only when one
+        // batch reported two fences from one fix and the first request came back as its echo.
         val needing = delivered.undecidedPolygonIds + delivered.pendingArrivalPolygonIds
         if (needing.isEmpty()) return
         val fresh = preciseFixForCallback(
@@ -890,7 +892,11 @@ internal class PolygonGeofenceServiceController(
             delivered.pendingArrivalPolygonIds,
             triggeringLocation
         ) ?: return
-        val after = evaluateAndRecentre(fresh.fix, expectedUserStateGeneration)
+        val after = evaluateAndRecentre(
+            fresh.fix,
+            expectedUserStateGeneration,
+            answersHeldFixAt = triggeringLocation.elapsedRealtimeNanos
+        )
         // Only a pass that actually evaluated says anything about this position. An aborted one
         // reports nothing undecided without having decided, and reading that as "decided" cleared
         // every memo and let the parked loop resume on the next wake.
@@ -907,9 +913,10 @@ internal class PolygonGeofenceServiceController(
 
     private suspend fun evaluateAndRecentre(
         fix: Location,
-        expectedUserStateGeneration: Long
+        expectedUserStateGeneration: Long,
+        answersHeldFixAt: Long? = null
     ): PolygonEvaluationOutcome {
-        val outcome = processTriggeredLocation(fix, expectedUserStateGeneration)
+        val outcome = processTriggeredLocation(fix, expectedUserStateGeneration, answersHeldFixAt)
         if (outcome.acceptedFix) {
             updateMovementTriggerFromAcceptedFix(fix, expectedUserStateGeneration)
         }
@@ -1170,9 +1177,10 @@ internal class PolygonGeofenceServiceController(
 
     private suspend fun processTriggeredLocation(
         location: Location,
-        expectedUserStateGeneration: Long
+        expectedUserStateGeneration: Long,
+        answersHeldFixAt: Long? = null
     ): PolygonEvaluationOutcome =
-        engine.processResponsiveLocation(location, expectedUserStateGeneration)
+        engine.processResponsiveLocation(location, expectedUserStateGeneration, answersHeldFixAt)
 
     // Reached only from a delivered GMS geofence callback, which the OS makes only for a
     // registration that already held the permission.

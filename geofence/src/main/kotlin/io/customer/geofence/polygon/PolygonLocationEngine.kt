@@ -34,7 +34,8 @@ import kotlinx.coroutines.sync.withLock
  * skipped, because the fix is not strictly newer than the one it last saw for it, appears in
  * neither this set nor [undecidedPolygonIds], so a caller cannot read absence from the undecided
  * set as a decision. [acceptedFix] cannot answer that: it is set once for the pass, before any
- * fence is judged.
+ * fence is judged. The one fix not skipped that way is a precise fix that answers a request with
+ * the very fix the request was made from, for a fence holding an arrival on that fix.
  */
 internal data class PolygonEvaluationOutcome(
     val acceptedFix: Boolean,
@@ -193,10 +194,12 @@ internal class PolygonLocationEngine(
      */
     suspend fun processResponsiveLocation(
         location: Location,
-        expectedUserStateGeneration: Long = store.userStateGeneration()
+        expectedUserStateGeneration: Long = store.userStateGeneration(),
+        answersHeldFixAt: Long? = null
     ): PolygonEvaluationOutcome = processLocations(
         locations = listOf(location),
-        expectedUserStateGeneration = expectedUserStateGeneration
+        expectedUserStateGeneration = expectedUserStateGeneration,
+        answersHeldFixAt = answersHeldFixAt
     )
 
     /**
@@ -206,7 +209,8 @@ internal class PolygonLocationEngine(
      */
     private suspend fun processLocations(
         locations: List<Location>,
-        expectedUserStateGeneration: Long
+        expectedUserStateGeneration: Long,
+        answersHeldFixAt: Long?
     ): PolygonEvaluationOutcome = processingMutex.withLock {
         if (locations.isEmpty()) return@withLock PolygonEvaluationOutcome.NOTHING
         if (store.userStateGeneration() != expectedUserStateGeneration) {
@@ -281,7 +285,8 @@ internal class PolygonLocationEngine(
                             sample = fix.sample,
                             elapsedRealtimeNanos = fix.elapsedRealtimeNanos,
                             fixAgeSeconds = GeofenceLogTail.fixAgeSeconds(fix.elapsedRealtimeNanos),
-                            committedStates = committedStates
+                            committedStates = committedStates,
+                            answersHeldFixAt = answersHeldFixAt
                         )
                     }
                 }

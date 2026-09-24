@@ -152,7 +152,8 @@ internal class PolygonRouteProcessor(
         sample: PolygonLocationSample,
         elapsedRealtimeNanos: Long,
         fixAgeSeconds: Double,
-        committedStates: Map<String, PolygonCommittedState>
+        committedStates: Map<String, PolygonCommittedState>,
+        answersHeldFixAt: Long? = null
     ): PolygonRouteOutcome {
         require(elapsedRealtimeNanos >= 0L) { "elapsed realtime must be non-negative" }
         require(fences.map(PolygonFence::id).distinct().size == fences.size) {
@@ -171,7 +172,8 @@ internal class PolygonRouteProcessor(
         val records = mutableListOf<PolygonRouteRecord>()
         val detections = fences.mapNotNull { fence ->
             val latest = latestElapsedRealtimeNanos[fence.id]
-            if (latest != null && elapsedRealtimeNanos <= latest) return@mapNotNull null
+            val answersHold = answersHeldFixAt == elapsedRealtimeNanos && isHeldFix(fence.id, elapsedRealtimeNanos)
+            if (latest != null && elapsedRealtimeNanos <= latest && !answersHold) return@mapNotNull null
             latestElapsedRealtimeNanos[fence.id] = elapsedRealtimeNanos
             val committedState = committedStates[fence.id] ?: PolygonCommittedState.OUTSIDE
             val result = accuracyEvaluator.decisiveEvidenceFor(fence.geometry, sample, committedState)
@@ -396,6 +398,20 @@ internal class PolygonRouteProcessor(
             heldFixAgeSeconds = held.fixAgeSeconds + heldForNanos.toDouble() / NANOS_PER_SECOND
         )
     }
+
+    /**
+     * Whether [elapsedRealtimeNanos] is the fix this fence's hold was opened on.
+     *
+     * GMS answers a hold's precise-fix request with that same fix when it is a fraction of a second
+     * old, even at a max update age of zero. Skipped as not-newer, the hold then waits for a fix
+     * minutes away and the visit is lost, so that answer settles it as not independent instead.
+     * Only that answer, which the caller marks by passing `answersHeldFixAt` as the stamp of the fix
+     * its request was made from. The same fix arriving by another path while the request is still
+     * out is refused as before, so it cannot commit the hold ahead of a newer answer that reads
+     * outside.
+     */
+    private fun isHeldFix(polygonId: String, elapsedRealtimeNanos: Long): Boolean =
+        heldArrivals[polygonId]?.observedAtElapsedRealtimeNanos == elapsedRealtimeNanos
 
     /** Opens a hold on a marginal arrival, recording the fix and the moment it is counted from. */
     private fun openHold(

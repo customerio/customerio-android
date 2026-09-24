@@ -14,9 +14,8 @@ import kotlinx.coroutines.withTimeoutOrNull
  * suspends on a deferred the runner completes when it reaches that record. Both the wait and the
  * timeout play out on the virtual clock, so a request the recording never answered
  * (`freshfix.skipped none_arrived`) simply times out to null, exactly as it did in the car — and a
- * request answered by the same cached fix the callback already carried re-enters the controller's
- * duplicate-delivery dedup on the same `elapsedRealtimeNanos`, which is the whole point of feeding
- * it back.
+ * request answered by the same cached fix the callback already carried reaches the route processor
+ * on the same `elapsedRealtimeNanos`, which is the whole point of feeding it back.
  *
  * Ordered: a drive can have more than one request open, so each `freshfix.received` goes to the
  * oldest waiter, matching the order the SDK asked.

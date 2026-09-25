@@ -1,5 +1,6 @@
 package io.customer.geofence.store
 
+import android.content.Context
 import io.customer.commontest.config.ApplicationArgument
 import io.customer.commontest.config.TestConfig
 import io.customer.commontest.config.testConfigurationDefault
@@ -7,6 +8,7 @@ import io.customer.commontest.core.RobolectricTest
 import io.customer.sdk.communication.Event
 import org.amshove.kluent.shouldBeEqualTo
 import org.amshove.kluent.shouldBeNull
+import org.amshove.kluent.shouldContainSame
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -101,6 +103,23 @@ class GeofenceCooldownStoreTest : RobolectricTest() {
         store.pruneOlderThan(500L)
 
         store.getLastEmitTimestamp("user-1", "biz_with_underscores", Event.GeofenceTransition.ENTER).shouldBeNull()
+    }
+
+    @Test
+    fun recordEmit_expectKeySpelledWithTheEnumConstantName() {
+        // Keys are written straight into SharedPreferences, so the spelling is persisted state:
+        // renaming a transition constant orphans every cooldown row on upgrade and each affected
+        // fence emits one suppressed event again. Nothing else here reads the key back literally.
+        // The prefs file name is spelled out for the same reason, not as a convenience: renaming
+        // it orphans the same rows, so it is pinned here too.
+        store.recordEmit("user-1", "biz-1", Event.GeofenceTransition.ENTER, 100L)
+        store.recordEmit("user-1", "biz-1", Event.GeofenceTransition.EXIT, 200L)
+
+        val keys = applicationMock
+            .getSharedPreferences("io.customer.sdk.geofence_cooldown.${applicationMock.packageName}", Context.MODE_PRIVATE)
+            .all.keys
+
+        keys shouldContainSame setOf("cio_cooldown_user-1:biz-1:ENTER", "cio_cooldown_user-1:biz-1:EXIT")
     }
 
     @Test

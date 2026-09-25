@@ -1,0 +1,324 @@
+package io.customer.geofence
+
+import io.customer.geofence.store.GeofenceRegionStore
+import io.customer.sdk.communication.Event
+import io.customer.sdk.data.store.SecureUserStore
+import io.mockk.coEvery
+import io.mockk.coVerify
+import io.mockk.every
+import io.mockk.mockk
+import io.mockk.verify
+import kotlinx.coroutines.test.runTest
+import org.junit.Before
+import org.junit.Test
+
+class GeofenceBusinessTransitionProcessorTest {
+    private val store: GeofenceRegionStore = mockk(relaxed = true)
+    private val secureUserStore: SecureUserStore = mockk(relaxed = true)
+    private val emitter: GeofenceTransitionEmitter = mockk(relaxed = true)
+    private val logger: GeofenceLogger = mockk(relaxed = true)
+    private val processor = GeofenceBusinessTransitionProcessor(store, secureUserStore, emitter, logger)
+
+    @Before
+    fun setUp() {
+        every { secureUserStore.getUserId() } returns "user-1"
+        every { store.getCachedRegion("polygon") } returns GeofenceRegion(
+            id = "polygon",
+            latitude = 0.0,
+            longitude = 0.0,
+            radius = 100f
+        )
+        every { store.getEnteredIds() } returns emptySet()
+        every { store.hasContainmentRecord() } returns true
+        every { store.activeUserSessionId() } returns "user-1"
+        every { store.commitBusinessTransition(any(), any(), any(), any(), any()) } returns true
+    }
+
+    @Test
+    fun process_givenContainmentSeededButNoEnterEverEmitted_expectExitIsNotDelivered() = runTest {
+        // Reproduces the 2026-09-19 field failure. A 1 km circle was registered while the device
+        // was already inside it, from a movement-trigger fix with acc=400. That fix was too coarse
+        // for initial-enter synthesis, so no ENTER was ever emitted -- but it still seeded
+        // containment, so five minutes later a real GMS EXIT read as *matched* and a false EXIT was
+        // delivered to the backend for a fence the user never entered.
+        //
+        // getEnteredIds tracks where the device IS. Whether the backend was ever told is
+        // hasEmittedEnter, and the EXIT path never consults it. The ENTER path already has the
+        // mirror of this guard (isRedundantEnter in GeofenceTransitionEmitter).
+        every { store.getEnteredIds() } returns setOf("polygon")
+        every { store.hasEmittedEnterRecord("user-1") } returns true
+        every { store.hasEmittedEnter("user-1", "polygon") } returns false
+
+        processor.process("polygon", Event.GeofenceTransition.EXIT, 100L)
+
+        coVerify(exactly = 0) {
+            emitter.emitWithRetainedAttempt(any(), any(), any(), any(), any(), any(), any(), any(), any(), any())
+        }
+    }
+
+    @Test
+    fun process_givenTheDeviceWasNeverInside_expectNoCommitSoASyncSeedSurvives() = runTest {
+        // Raised by Shahroz on #898. There is no departure to commit when containment is already
+        // empty, and committing one is not free: it bumps the fence's exit epoch, and
+        // reconcileEnteredIds drops any `stillInside` entry whose exit epoch postdates the caller's
+        // fix. A sync holding an earlier inside fix therefore loses its seed and initial-ENTER
+        // synthesis has nothing left to act on. Only the backend-was-never-told case describes a
+        // real departure, so only that one falls through.
+        every { store.getEnteredIds() } returns emptySet()
+        every { store.hasContainmentRecord() } returns true
+
+        processor.process("polygon", Event.GeofenceTransition.EXIT, 100L)
+
+        verify(exactly = 0) { store.commitBusinessTransition(any(), any(), any(), any(), any()) }
+    }
+
+    @Test
+    fun process_givenTheExitIsSuppressed_expectContainmentIsStillCommitted() = runTest {
+        // Raised by Shahroz on #898 with a reproduction. Suppressing delivery must not also skip
+        // the containment commit, which every other suppressed path does reach. A rapid revisit
+        // whose ENTER was cooldown-suppressed leaves no emitted-enter record for the fence, so this
+        // guard fires on the next departure; returning early left the fence in getEnteredIds()
+        // after the device had gone, and the redundant-ENTER guard then read every later visit as
+        // unchanged. The physical EXIT is not in doubt here, only whether the backend can be told.
+        every { store.getEnteredIds() } returns setOf("polygon")
+        every { store.hasEmittedEnterRecord("user-1") } returns true
+        every { store.hasEmittedEnter("user-1", "polygon") } returns false
+
+        processor.process("polygon", Event.GeofenceTransition.EXIT, 100L)
+
+        coVerify(exactly = 0) {
+            emitter.emitWithRetainedAttempt(any(), any(), any(), any(), any(), any(), any(), any(), any(), any())
+        }
+        verify {
+            store.commitBusinessTransition("polygon", Event.GeofenceTransition.EXIT, null, 0L, any())
+        }
+    }
+
+    @Test
+    fun process_givenTheEnterWasEmitted_expectTheExitIsStillDelivered() = runTest {
+        // The control that stops the guard above being written as "drop every EXIT". A fence the
+        // backend was told about must still be able to close.
+        every { store.getEnteredIds() } returns setOf("polygon")
+        every { store.hasEmittedEnterRecord("user-1") } returns true
+        every { store.hasEmittedEnter("user-1", "polygon") } returns true
+
+        processor.process("polygon", Event.GeofenceTransition.EXIT, 100L)
+
+        coVerify(exactly = 1) {
+            emitter.emitWithRetainedAttempt(any(), any(), any(), any(), any(), any(), any(), any(), any(), any())
+        }
+    }
+
+    @Test
+    fun process_givenNoEmittedEnterRecordAtAll_expectTheExitIsStillDelivered() = runTest {
+        // The upgrade control. A device coming from a build that predates these marks has no
+        // record, so every fence would read as never-reported and the first genuine EXIT for each
+        // would be dropped. The baseline check is what stops that, exactly as hasContainmentRecord
+        // does on the other clause.
+        every { store.getEnteredIds() } returns setOf("polygon")
+        every { store.hasEmittedEnterRecord("user-1") } returns false
+        every { store.hasEmittedEnter("user-1", "polygon") } returns false
+
+        processor.process("polygon", Event.GeofenceTransition.EXIT, 100L)
+
+        coVerify(exactly = 1) {
+            emitter.emitWithRetainedAttempt(any(), any(), any(), any(), any(), any(), any(), any(), any(), any())
+        }
+    }
+
+    @Test
+    fun process_givenAnExitOnlyFence_expectTheExitIsStillDelivered() = runTest {
+        // The second control, and the reason the existing ENTER-side guard carries `monitorsExit`.
+        // A fence that never reports ENTER can never have an emitted-enter mark, so requiring one
+        // would swallow every EXIT it ever produces.
+        every { store.getCachedRegion("exit-only") } returns GeofenceRegion(
+            id = "exit-only",
+            latitude = 0.0,
+            longitude = 0.0,
+            radius = 100f,
+            transitionTypes = listOf(GeofenceTransitionType.EXIT)
+        )
+        every { store.getEnteredIds() } returns setOf("exit-only")
+        every { store.hasEmittedEnterRecord("user-1") } returns true
+        every { store.hasEmittedEnter("user-1", "exit-only") } returns false
+
+        processor.process("exit-only", Event.GeofenceTransition.EXIT, 100L)
+
+        coVerify(exactly = 1) {
+            emitter.emitWithRetainedAttempt(any(), any(), any(), any(), any(), any(), any(), any(), any(), any())
+        }
+    }
+
+    @Test
+    fun process_givenOutboxPersistenceFailure_expectContainmentNotCommittedSoFixCanRetry() = runTest {
+        coEvery { emitter.emitWithRetainedAttempt(any(), any(), any(), any(), any(), any(), any(), any(), any(), any()) } returns
+            GeofenceTransitionEmitter.Result.PERSIST_FAILED
+
+        processor.process("polygon", Event.GeofenceTransition.ENTER, 100L)
+
+        verify(exactly = 0) { store.commitBusinessTransition(any(), any(), any(), any(), any()) }
+    }
+
+    @Test
+    fun process_givenOutboxFailureAfterDurableStage_expectProcessorLeavesAtomicStageUntouched() = runTest {
+        val staged = io.customer.geofence.store.PendingGeofenceDelivery(
+            geofenceId = "polygon",
+            transition = Event.GeofenceTransition.ENTER,
+            timestamp = 100L,
+            userId = "user-1",
+            transitionId = "transition-1"
+        )
+        coEvery { emitter.emitWithRetainedAttempt(any(), any(), any(), any(), any(), any(), any(), any(), any(), any()) } returns
+            GeofenceTransitionEmitter.Result.PERSIST_FAILED
+        every {
+            store.getPendingTransitionEntries("user-1", "polygon", Event.GeofenceTransition.ENTER)
+        } returns listOf(staged)
+
+        processor.process("polygon", Event.GeofenceTransition.ENTER, 100L)
+
+        verify(exactly = 0) { store.commitBusinessTransition(any(), any(), any(), any(), any()) }
+        verify(exactly = 0) { store.completePendingTransition(any()) }
+    }
+
+    @Test
+    fun process_givenPersistedAtomicStage_expectCommitsAndClearsSameAttempt() = runTest {
+        val staged = io.customer.geofence.store.PendingGeofenceDelivery(
+            geofenceId = "polygon",
+            transition = Event.GeofenceTransition.ENTER,
+            timestamp = 100L,
+            userId = "user-1",
+            transitionId = "transition-1"
+        )
+        coEvery { emitter.emitWithRetainedAttempt(any(), any(), any(), any(), any(), any(), any(), any(), any(), any()) } returns
+            GeofenceTransitionEmitter.Result.PERSISTED
+        every {
+            store.getPendingTransitionEntries("user-1", "polygon", Event.GeofenceTransition.ENTER)
+        } returns listOf(staged)
+
+        processor.process("polygon", Event.GeofenceTransition.ENTER, 100L)
+
+        verify {
+            store.commitBusinessTransition(
+                "polygon",
+                Event.GeofenceTransition.ENTER,
+                "transition-1",
+                0L,
+                any()
+            )
+        }
+    }
+
+    @Test
+    fun process_givenOlderSameDirectionStage_expectCommitsNewestPhysicalAttempt() = runTest {
+        val older = io.customer.geofence.store.PendingGeofenceDelivery(
+            geofenceId = "polygon",
+            transition = Event.GeofenceTransition.ENTER,
+            timestamp = 90L,
+            userId = "user-1",
+            transitionId = "transition-old"
+        )
+        val newest = older.copy(timestamp = 100L, transitionId = "transition-new")
+        coEvery {
+            emitter.emitWithRetainedAttempt(any(), any(), any(), any(), any(), any(), any(), any(), any(), any())
+        } returns GeofenceTransitionEmitter.Result.PERSISTED
+        every {
+            store.getPendingTransitionEntries("user-1", "polygon", Event.GeofenceTransition.ENTER)
+        } returns listOf(older, newest)
+
+        processor.process("polygon", Event.GeofenceTransition.ENTER, 100L)
+
+        verify {
+            store.commitBusinessTransition(
+                "polygon",
+                Event.GeofenceTransition.ENTER,
+                "transition-new",
+                0L,
+                any()
+            )
+        }
+    }
+
+    @Test
+    fun process_givenDetectionFromReplacedGeometry_expectDroppedBeforeEmission() = runTest {
+        val current = requireNotNull(store.getCachedRegion("polygon"))
+
+        processor.process(
+            geofenceId = "polygon",
+            transition = Event.GeofenceTransition.ENTER,
+            timestampSeconds = 100L,
+            enforceConfiguredTransition = true,
+            expectedRegionRevision = current.transitionRevision() + 1
+        )
+
+        coVerify(exactly = 0) {
+            emitter.emitWithRetainedAttempt(any(), any(), any(), any(), any(), any(), any(), any(), any(), any())
+        }
+        verify(exactly = 0) { store.commitBusinessTransition(any(), any(), any(), any(), any()) }
+    }
+
+    @Test
+    fun process_givenDuplicateSuppressedAfterRecovery_expectContainmentStillCommitted() = runTest {
+        coEvery { emitter.emitWithRetainedAttempt(any(), any(), any(), any(), any(), any(), any(), any(), any(), any()) } returns
+            GeofenceTransitionEmitter.Result.SUPPRESSED
+
+        processor.process("polygon", Event.GeofenceTransition.ENTER, 100L)
+
+        verify {
+            store.commitBusinessTransition("polygon", Event.GeofenceTransition.ENTER, null, 0L, any())
+        }
+    }
+
+    @Test
+    fun process_givenUnconfiguredPolygonEnter_expectTracksContainmentWithoutEmitting() = runTest {
+        every { store.getCachedRegion("polygon") } returns GeofenceRegion(
+            id = "polygon",
+            latitude = 0.0,
+            longitude = 0.0,
+            radius = 100f,
+            transitionTypes = listOf(GeofenceTransitionType.EXIT)
+        )
+
+        processor.process(
+            geofenceId = "polygon",
+            transition = Event.GeofenceTransition.ENTER,
+            timestampSeconds = 100L,
+            enforceConfiguredTransition = true
+        )
+
+        coVerify(exactly = 0) {
+            emitter.emitWithRetainedAttempt(any(), any(), any(), any(), any(), any(), any(), any(), any(), any())
+        }
+        verify {
+            store.commitBusinessTransition("polygon", Event.GeofenceTransition.ENTER, null, 0L, any())
+        }
+    }
+
+    @Test
+    fun process_givenUserSwitchAfterOldCallbackAdmission_expectDoesNotAttributeTransitionToNewUser() = runTest {
+        var generation = 1L
+        var currentUser = "user-1"
+        every { store.userStateGeneration() } answers { generation }
+        every { secureUserStore.getUserId() } answers { currentUser }
+        every { store.activeUserSessionId() } answers { currentUser }
+        every { store.getRoutableRegisteredIds() } answers {
+            // The old callback already observed its fence as routable. User B identifies before
+            // identity and durable staging, which must invalidate this attempt.
+            generation = 2L
+            currentUser = "user-2"
+            setOf("polygon")
+        }
+
+        processor.process(
+            geofenceId = "polygon",
+            transition = Event.GeofenceTransition.ENTER,
+            timestampSeconds = 100L,
+            expectedUserStateGeneration = 1L,
+            requireRegistered = true
+        )
+
+        coVerify(exactly = 0) {
+            emitter.emitWithRetainedAttempt(any(), any(), any(), any(), any(), any(), any(), any(), any(), any())
+        }
+        verify(exactly = 0) { store.commitBusinessTransition(any(), any(), any(), any(), any()) }
+    }
+}

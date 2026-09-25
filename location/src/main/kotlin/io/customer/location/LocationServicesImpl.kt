@@ -1,6 +1,7 @@
 package io.customer.location
 
 import android.location.Location
+import android.os.SystemClock
 import io.customer.base.internal.InternalCustomerIOApi
 import io.customer.sdk.core.util.Logger
 import kotlinx.coroutines.CoroutineScope
@@ -26,7 +27,22 @@ internal class LocationServicesImpl(
     @Volatile
     private var currentRequestIntent: LocationRequestIntent? = null
 
-    override fun setLastKnownLocation(latitude: Double, longitude: Double) {
+    override fun setLastKnownLocation(latitude: Double, longitude: Double) =
+        trackHostLocation(latitude, longitude)
+
+    override fun setLastKnownLocation(location: Location) =
+        // Unlike the coordinate overload, this one carries when the host's fix was taken.
+        trackHostLocation(
+            latitude = location.latitude,
+            longitude = location.longitude,
+            fixElapsedRealtimeMillis = location.fixElapsedRealtimeMillis()
+        )
+
+    private fun trackHostLocation(
+        latitude: Double,
+        longitude: Double,
+        fixElapsedRealtimeMillis: Long? = null
+    ) {
         if (!config.isEnabled) {
             logger.debug("Location tracking is disabled, ignoring setLastKnownLocation.")
             return
@@ -39,11 +55,7 @@ internal class LocationServicesImpl(
 
         logger.debug("Tracking location: lat=$latitude, lng=$longitude")
 
-        locationTracker.onLocationReceived(latitude, longitude)
-    }
-
-    override fun setLastKnownLocation(location: Location) {
-        setLastKnownLocation(location.latitude, location.longitude)
+        locationTracker.onLocationReceived(latitude, longitude, fixElapsedRealtimeMillis)
     }
 
     override fun requestLocationUpdate() {
@@ -96,3 +108,13 @@ internal class LocationServicesImpl(
         return true
     }
 }
+
+/**
+ * A host-built [Location] often stamps only wall-clock [Location.time]. Fall back to it, mapped onto
+ * the monotonic base, so an old host fix is still aged rather than trusted as current.
+ */
+private fun Location.fixElapsedRealtimeMillis(): Long? =
+    elapsedRealtimeNanos.takeIf { it > 0L }?.let { it / NANOS_PER_MILLI }
+        ?: time.takeIf { it > 0L }?.let { SystemClock.elapsedRealtime() - (System.currentTimeMillis() - it) }
+
+private const val NANOS_PER_MILLI = 1_000_000L

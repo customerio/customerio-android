@@ -1,18 +1,27 @@
 package io.customer.geofence.api
 
+import io.customer.geofence.GeofenceCatalogEntry
 import io.customer.geofence.GeofenceConfig
 import io.customer.geofence.GeofenceConstants
 import io.customer.geofence.GeofenceRegion
 import io.customer.geofence.GeofenceTransitionType
+import io.customer.geofence.PolygonDropReason
 import io.customer.geofence.di.geofenceLogger
+import io.customer.geofence.polygon.PolygonCoordinate
+import io.customer.geofence.polygon.PolygonGeometry
+import io.customer.geofence.polygon.PolygonSupport
+import io.customer.geofence.polygon.PolygonWakeCircle
+import io.customer.geofence.polygon.PolygonWakeCircleValidator
 import io.customer.location.LocationCoordinates
 import io.customer.sdk.core.di.SDKComponent
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.doubleOrNull
 
 /**
  * Wire shape of `POST /geofences/nearest`. `config` and the per-region
@@ -59,12 +68,18 @@ internal data class GeofenceApiRegion(
     @SerialName("name")
     val name: String? = null,
     @SerialName("latitude")
-    val latitude: Double,
+    val latitude: Double? = null,
     @SerialName("longitude")
-    val longitude: Double,
+    val longitude: Double? = null,
     // Double (not Int) so a fractional radius can't fail the whole response decode.
     @SerialName("radius")
-    val radius: Double,
+    val radius: Double? = null,
+    @SerialName("shape")
+    val shape: String? = null,
+    @SerialName("geometry")
+    val geometry: GeofenceApiGeometry? = null,
+    @SerialName("enclosing_circle")
+    val enclosingCircle: GeofenceApiEnclosingCircle? = null,
     @SerialName("external_id")
     val externalId: String? = null,
     @SerialName("transition_types")
@@ -80,19 +95,48 @@ internal data class GeofenceApiRegion(
     val metadata: JsonElement? = null
 )
 
+// Nullable throughout, for the same reason as `metadata` above: these decode before
+// [toDomainRegions] reaches its per-record try/catch, so a required field would let one partial
+// polygon reject the whole response — valid circles included. Absent fields drop their own record.
+@Serializable
+internal data class GeofenceApiGeometry(
+    @SerialName("type")
+    val type: String? = null,
+    @SerialName("coordinates")
+    val coordinates: JsonElement? = null
+)
+
+@Serializable
+internal data class GeofenceApiEnclosingCircle(
+    @SerialName("latitude")
+    val latitude: Double? = null,
+    @SerialName("longitude")
+    val longitude: Double? = null,
+    @SerialName("base_radius_m")
+    val baseRadiusMeters: Double? = null
+)
+
 /** Returns `null` when backend didn't send a `config` block — gates the cache save. */
 internal fun GeofenceApiResponse.toDomainConfig(): GeofenceConfig? =
     config?.toDomain()
 
 // One bad region costs itself (dropped + logged). A non-empty response whose regions ALL drop
-// is unusable — throw so the caller fails the refresh instead of clearing live state.
-internal fun GeofenceApiResponse.toDomainRegions(): List<GeofenceRegion> {
+// is unusable — throw so the caller fails the refresh instead of clearing live state. That holds
+// for a response this build can't use at all (e.g. every region a polygon while [polygonSupport] is
+// off): failing keeps whatever is already registered rather than replacing it with nothing.
+internal fun GeofenceApiResponse.toDomainRegions(
+    polygonSupport: PolygonSupport = PolygonSupport.Disabled
+): List<GeofenceRegion> {
     if (geofences.isEmpty()) return emptyList()
 
     val mapped = geofences.mapNotNull { region ->
         try {
-            region.toDomain() ?: run {
-                SDKComponent.geofenceLogger.logInvalidRegionDropped(region.id)
+            region.toDomain(polygonSupport) ?: run {
+                // A geometry-bearing record logs its own, more specific reason inside [toDomain];
+                // a blank id never reaches that branch, so it still reports here.
+                if (region.geometry == null || region.id.isBlank()) {
+                    SDKComponent.geofenceLogger.logInvalidRegionDropped(region.id)
+                }
                 null
             }
         } catch (e: Exception) {
@@ -147,9 +191,56 @@ private fun GeofenceApiConfig.toDomain(): GeofenceConfig {
     )
 }
 
-// Null when the region violates Geofence.Builder preconditions; one bad region must not cost the whole sync.
-internal fun GeofenceApiRegion.toDomain(): GeofenceRegion? {
-    if (radius <= 0 || !LocationCoordinates.isValid(latitude, longitude)) return null
+/**
+ * Null when the region violates Geofence.Builder preconditions, or when it carries geometry this
+ * build can't monitor; one bad region must not cost the whole sync.
+ *
+ * A record that carries a `geometry` block is a shape record and is mapped only as that shape. It
+ * never falls back to the flat `latitude`/`longitude`/`radius` fields: a shape the SDK can't honour
+ * would then quietly register — and report business ENTER/EXIT — for a circle the backend never
+ * asked to monitor.
+ */
+internal fun GeofenceApiRegion.toDomain(
+    polygonSupport: PolygonSupport = PolygonSupport.Disabled
+): GeofenceRegion? {
+    if (id.isBlank()) return null
+    // Surrounding whitespace is not a shape the backend meant to name, and neither is an empty
+    // string: both are the field carrying nothing, so they route as if it were absent rather than
+    // dropping the record as an unsupported shape.
+    return when (shape?.trim()?.lowercase()?.takeIf(String::isNotEmpty)) {
+        null, CIRCLE_SHAPE -> {
+            if (geometry != null || enclosingCircle != null) {
+                SDKComponent.geofenceLogger.logPolygonDropped(id, PolygonDropReason.UNDESCRIBED_SHAPE)
+                null
+            } else {
+                toCircleRegionOrNull()
+            }
+        }
+        POLYGON_SHAPE -> {
+            val polygonGeometry = geometry
+            val polygonWakeCircle = enclosingCircle
+            if (polygonGeometry == null || polygonWakeCircle == null) {
+                SDKComponent.geofenceLogger.logPolygonDropped(id, PolygonDropReason.UNUSABLE_POLYGON)
+                null
+            } else {
+                toPolygonRegionOrNull(polygonGeometry, polygonWakeCircle, polygonSupport)
+            }
+        }
+        else -> {
+            SDKComponent.geofenceLogger.logUnsupportedGeometryDropped(id, shape)
+            null
+        }
+    }
+}
+
+private fun GeofenceApiRegion.toCircleRegionOrNull(): GeofenceRegion? {
+    if (
+        radius == null || radius <= 0 ||
+        latitude == null || longitude == null ||
+        !LocationCoordinates.isValid(latitude, longitude)
+    ) {
+        return null
+    }
     return GeofenceRegion(
         id = id,
         name = name,
@@ -163,6 +254,140 @@ internal fun GeofenceApiRegion.toDomain(): GeofenceRegion? {
         metadata = sanitizeMetadata(metadata)
     )
 }
+
+/**
+ * The polygon live path, which fails closed at every step: an unknown shape, a build without polygon
+ * monitoring, a ring that doesn't validate and a trigger circle that's too large all drop the record
+ * with a reason. Each returns null alone, so the surrounding regions still map.
+ */
+private fun GeofenceApiRegion.toPolygonRegionOrNull(
+    geometry: GeofenceApiGeometry,
+    enclosingCircle: GeofenceApiEnclosingCircle,
+    polygonSupport: PolygonSupport
+): GeofenceRegion? {
+    val logger = SDKComponent.geofenceLogger
+    if (!geometry.isPolygonType) {
+        logger.logUnsupportedGeometryDropped(id, geometry.type ?: "absent")
+        return null
+    }
+    if (!polygonSupport.isPolygonMonitoringEnabled) {
+        logger.logPolygonDroppedUnsupportedRuntime(id)
+        return null
+    }
+    val polygon = geometry.toPolygonGeometryOrNull()
+    if (polygon == null) {
+        logger.logPolygonDropped(id, PolygonDropReason.RING_UNBUILDABLE)
+        return null
+    }
+    val baseRadiusMeters = enclosingCircle.baseRadiusMeters
+    val wakeLatitude = enclosingCircle.latitude
+    val wakeLongitude = enclosingCircle.longitude
+    val trigger = if (
+        wakeLatitude == null || wakeLongitude == null || baseRadiusMeters == null ||
+        // Not a geometry rule the backend owns — a platform precondition. Geofence.Builder throws on
+        // an out-of-range centre, and registration builds the whole business batch in one map, so a
+        // single bad record fails every fence in the sync and rolls the movement trigger back with
+        // it. Checking here isolates the record instead.
+        !LocationCoordinates.isValid(wakeLatitude, wakeLongitude)
+    ) {
+        null
+    } else {
+        PolygonWakeCircleValidator().prepareOrNull(
+            PolygonWakeCircle(PolygonCoordinate(wakeLatitude, wakeLongitude), baseRadiusMeters)
+        )
+    }
+    if (trigger == null) {
+        logger.logPolygonDropped(id, PolygonDropReason.UNUSABLE_CIRCLE)
+        return null
+    }
+    return GeofenceRegion(
+        id = id,
+        name = name,
+        externalId = externalId,
+        latitude = trigger.center.latitude,
+        longitude = trigger.center.longitude,
+        radius = trigger.radiusMeters,
+        // Equal to the base radius now that the circle is registered as sent. Both are still
+        // carried: `radius` is what GMS holds for any region, and `baseRadiusMeters` is what the
+        // backend said, which is what ranking asks for.
+        baseRadiusMeters = baseRadiusMeters,
+        transitionTypes = resolveTransitionTypes(transitionTypes),
+        lastUpdated = lastUpdated ?: 0L,
+        geosetIds = geosetIds,
+        metadata = sanitizeMetadata(metadata),
+        polygonVertices = polygon.vertices
+    )
+}
+
+/**
+ * Every fetched record, described as the server sent it and before any of them are dropped.
+ *
+ * Deliberately validation-free: the only thing resolved here is the ring, because a ring that does
+ * not build cannot be reported as vertices. Everything else is passed through, so a record the
+ * mapper rejects still produces a catalog row naming the shape it claimed.
+ */
+internal fun GeofenceApiResponse.toCatalogEntries(): List<GeofenceCatalogEntry> =
+    geofences.map { region -> region.toCatalogEntry() }
+
+private fun GeofenceApiRegion.toCatalogEntry(): GeofenceCatalogEntry {
+    val claimedShape = shape?.trim()?.lowercase()?.takeIf(String::isNotEmpty)
+    val isPolygonRecord = claimedShape == POLYGON_SHAPE
+    return GeofenceCatalogEntry(
+        id = id,
+        name = name,
+        geosetIds = geosetIds,
+        // An absent discriminator reads as a circle here for the same reason the mapper reads it
+        // that way, so a legacy response still catalogs as the circle it is.
+        shape = claimedShape ?: CIRCLE_SHAPE,
+        // A polygon's placeable centre is its enclosing circle, never the flat fields: a record
+        // carrying both means them for different shapes.
+        latitude = if (isPolygonRecord) enclosingCircle?.latitude else latitude,
+        longitude = if (isPolygonRecord) enclosingCircle?.longitude else longitude,
+        radiusMeters = if (isPolygonRecord) enclosingCircle?.baseRadiusMeters else radius,
+        vertices = geometry?.toPolygonGeometryOrNull()?.vertices,
+        transitionTypes = transitionTypesOrDefaults(transitionTypes).map { it.name.lowercase() }
+    )
+}
+
+private val GeofenceApiGeometry.isPolygonType: Boolean
+    get() = type.equals(POLYGON_GEOMETRY_TYPE, ignoreCase = true)
+
+/**
+ * Decodes a GeoJSON `Polygon` block into validated geometry, or `null` when it isn't one the SDK
+ * supports (wrong type, holes, malformed positions, out-of-range or degenerate ring).
+ *
+ * Wire contract only. Turning the result into a *monitored* region additionally requires
+ * [PolygonSupport] to be enabled at the caller's seam; decoding never implies monitoring.
+ */
+internal fun GeofenceApiGeometry.toPolygonGeometryOrNull(): PolygonGeometry? {
+    if (!isPolygonType) return null
+    val vertices = coordinates?.toPolygonVerticesOrNull() ?: return null
+    return PolygonGeometry.fromOrNull(vertices)
+}
+
+// GeoJSON positions are [longitude, latitude]; extra elements (elevation) are ignored. A ring count
+// other than one means holes, which V1 doesn't support.
+private fun JsonElement.toPolygonVerticesOrNull(): List<PolygonCoordinate>? {
+    val rings = this as? JsonArray ?: return null
+    if (rings.size != 1) return null
+    val outerRing = rings.singleOrNull() as? JsonArray ?: return null
+    return outerRing.map { rawPosition ->
+        val position = rawPosition as? JsonArray ?: return null
+        if (position.size < 2) return null
+        val longitude = (position[0] as? JsonPrimitive)?.doubleOrNull ?: return null
+        val latitude = (position[1] as? JsonPrimitive)?.doubleOrNull ?: return null
+        // Not a range rule — the backend owns those. A position is decoded as a JsonElement, so the
+        // literal "NaN" parses to a Double and then passes every geometry check, because each of
+        // them compares and every comparison against NaN is false. It only surfaces later, in the
+        // strict cache encoder, by which point the sync has already registered.
+        if (!longitude.isFinite() || !latitude.isFinite()) return null
+        PolygonCoordinate(latitude, longitude)
+    }
+}
+
+private const val POLYGON_GEOMETRY_TYPE = "Polygon"
+private const val CIRCLE_SHAPE = "circle"
+private const val POLYGON_SHAPE = "polygon"
 
 /**
  * Reduces the raw wire value to the scalar map the event can carry: anything that isn't a JSON object
@@ -191,15 +416,20 @@ private fun sanitizeMetadata(raw: JsonElement?): Map<String, JsonElement> {
  * valid + unknown keeps just the valid subset. Each unknown value is logged.
  */
 private fun resolveTransitionTypes(raw: List<String>?): List<GeofenceTransitionType> {
+    raw?.forEach { value ->
+        if (parseTransitionType(value) == null) SDKComponent.geofenceLogger.logUnknownApiTransitionType(value)
+    }
+    return transitionTypesOrDefaults(raw)
+}
+
+/**
+ * The resolution without the reporting, so the catalog can name the same transition types the
+ * mapper will without emitting a second `api.transition.unknown` for every unknown value.
+ */
+private fun transitionTypesOrDefaults(raw: List<String>?): List<GeofenceTransitionType> {
     val defaults = listOf(GeofenceTransitionType.ENTER, GeofenceTransitionType.EXIT)
     if (raw.isNullOrEmpty()) return defaults
-    val parsed = raw.mapNotNull { value ->
-        parseTransitionType(value) ?: run {
-            SDKComponent.geofenceLogger.logUnknownApiTransitionType(value)
-            null
-        }
-    }
-    return parsed.takeIf { it.isNotEmpty() } ?: defaults
+    return raw.mapNotNull(::parseTransitionType).takeIf { it.isNotEmpty() } ?: defaults
 }
 
 private fun parseTransitionType(value: String): GeofenceTransitionType? =

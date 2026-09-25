@@ -4,15 +4,55 @@ import android.view.ViewGroup
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.State
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import io.customer.messaginginapp.ModuleMessagingInApp
 import io.customer.messaginginapp.type.InAppMessage
 import io.customer.messaginginapp.type.InlineMessageActionListener
 import io.customer.messaginginapp.ui.InlineInAppMessageView
 import kotlinx.coroutines.android.awaitFrame
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flowOf
+
+/**
+ * Remembers whether an inline in-app message is currently available for [elementId].
+ *
+ * The state starts as `false` and updates with the current message queue, route, and message
+ * lifecycle. Reading it has no side effects: it does not fetch, display, or mark a message as shown.
+ * If the in-app messaging module has not been initialized, the state remains `false` rather than
+ * failing composition. Initialize Customer.io before composing this helper to receive later updates.
+ * This makes it suitable for conditionally adding an item to a lazy layout:
+ *
+ * ```
+ * val isAvailable by rememberInlineMessageAvailability("promotion")
+ * LazyColumn {
+ *     if (isAvailable) {
+ *         item { InlineInAppMessage(elementId = "promotion") }
+ *     }
+ * }
+ * ```
+ *
+ * @param elementId The element ID configured for the inline message in Customer.io.
+ */
+@Composable
+fun rememberInlineMessageAvailability(elementId: String): State<Boolean> {
+    val availability = remember(elementId) {
+        inlineMessageAvailabilityFlow(elementId)
+    }
+    return availability.collectAsStateWithLifecycle(initialValue = false)
+}
+
+internal fun inlineMessageAvailabilityFlow(elementId: String): Flow<Boolean> =
+    try {
+        ModuleMessagingInApp.instance().observeInlineMessageAvailability(elementId)
+    } catch (_: IllegalStateException) {
+        flowOf(false)
+    }
 
 /**
  * A Composable that displays an inline in-app message for a given element ID.

@@ -225,9 +225,12 @@ internal class EngineWebView @JvmOverloads constructor(
             it.settings.textZoom = 100
             it.setBackgroundColor(Color.TRANSPARENT)
 
+            // The renderer can start before the owning Activity reaches RESUMED, especially while
+            // a Compose tab transition is still settling. Attach the bridge before loadUrl so the
+            // first document can bootstrap instead of waiting for a later lifecycle callback.
+            engineWebViewInterface.attach(webView = it)
             viewLifecycleOwner?.addObserver(this) ?: run {
-                logger.error("Lifecycle owner not found, attaching interface to WebView manually")
-                onLifecycleResumed()
+                logger.debug("Lifecycle owner not found; keeping the renderer bridge attached")
             }
 
             it.webViewClient = object : WebViewClient() {

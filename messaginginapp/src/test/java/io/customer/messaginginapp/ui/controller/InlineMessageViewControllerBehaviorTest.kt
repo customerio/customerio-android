@@ -24,8 +24,10 @@ import io.customer.messaginginapp.gist.presentation.SseLifecycleManager
 import io.customer.messaginginapp.gist.utilities.ElapsedTimer
 import io.customer.messaginginapp.state.InAppMessagingAction
 import io.customer.messaginginapp.state.InAppMessagingManager
+import io.customer.messaginginapp.state.InlineMessageState
 import io.customer.messaginginapp.testutils.core.JUnitTest
 import io.customer.messaginginapp.testutils.extension.createInAppMessage
+import io.customer.messaginginapp.testutils.extension.pageRuleEquals
 import io.customer.messaginginapp.ui.bridge.EngineWebViewDelegate
 import io.customer.messaginginapp.ui.bridge.InAppHostViewDelegate
 import io.customer.messaginginapp.ui.bridge.InAppPlatformDelegate
@@ -40,6 +42,7 @@ import io.mockk.every
 import io.mockk.just
 import io.mockk.mockk
 import io.mockk.spyk
+import io.mockk.verify
 import io.mockk.verifyOrder
 import kotlin.math.roundToInt
 import org.amshove.kluent.shouldBeEqualTo
@@ -205,6 +208,117 @@ class InlineMessageViewControllerBehaviorTest : JUnitTest() {
     }
 
     @Test
+    fun handleMessageState_givenReadyMessageRemovedFromQueue_expectMessageHidden() {
+        val controller = setupGistAndCreateViewController()
+        val viewCallback = controller.initMockViewCallback()
+        val givenElementId = "test-element-id"
+        controller.elementId = givenElementId
+        val givenInAppMessage = createInAppMessage(queueId = "1", elementId = givenElementId)
+        messagingManager
+            .dispatch(InAppMessagingAction.EmbedMessages(listOf(givenInAppMessage)))
+            .flushCoroutines(scopeProviderStub.inAppLifecycleScope)
+
+        messagingManager
+            .dispatch(
+                InAppMessagingAction.ReconcileInlineMessages(
+                    messages = emptyList(),
+                    authoritativeMessages = emptyList()
+                )
+            )
+            .flushCoroutines(scopeProviderStub.inAppLifecycleScope)
+
+        assertMessageDismissedCalls(viewCallback = viewCallback)
+        controller.engineWebViewDelegate.shouldBeNull()
+        controller.currentMessage.shouldBeNull()
+    }
+
+    @Test
+    fun handleMessageState_givenRouteStopsMatching_expectMessageHidden() {
+        val controller = setupGistAndCreateViewController()
+        val viewCallback = controller.initMockViewCallback()
+        val givenElementId = "test-element-id"
+        controller.elementId = givenElementId
+        val givenInAppMessage = createInAppMessage(
+            queueId = "1",
+            elementId = givenElementId,
+            pageRule = pageRuleEquals("home")
+        )
+        messagingManager.dispatch(InAppMessagingAction.SetPageRoute("home"))
+        messagingManager
+            .dispatch(InAppMessagingAction.ProcessMessageQueue(listOf(givenInAppMessage)))
+            .flushCoroutines(scopeProviderStub.inAppLifecycleScope)
+
+        messagingManager
+            .dispatch(InAppMessagingAction.SetPageRoute("settings"))
+            .flushCoroutines(scopeProviderStub.inAppLifecycleScope)
+
+        assertMessageDismissedCalls(viewCallback = viewCallback)
+        controller.engineWebViewDelegate.shouldBeNull()
+        controller.currentMessage.shouldBeNull()
+
+        clearMocks(
+            viewDelegate,
+            engineWebViewDelegate,
+            platformDelegate,
+            viewCallback,
+            answers = false
+        )
+        messagingManager
+            .dispatch(InAppMessagingAction.SetPageRoute("home"))
+            .flushCoroutines(scopeProviderStub.inAppLifecycleScope)
+
+        assertMessageLoadingCalls(
+            controller = controller,
+            viewCallback = viewCallback,
+            expectedMessage = givenInAppMessage
+        )
+        controller.currentMessage shouldBeEqualTo givenInAppMessage
+    }
+
+    @Test
+    fun handleMessageState_givenRouteReturnsDuringHideAnimation_expectMessageRestored() {
+        val controller = setupGistAndCreateViewController()
+        controller.initMockViewCallback()
+        val givenElementId = "test-element-id"
+        controller.elementId = givenElementId
+        val givenInAppMessage = createInAppMessage(
+            queueId = "1",
+            elementId = givenElementId,
+            pageRule = pageRuleEquals("home")
+        )
+        messagingManager.dispatch(InAppMessagingAction.SetPageRoute("home"))
+        messagingManager
+            .dispatch(InAppMessagingAction.ProcessMessageQueue(listOf(givenInAppMessage)))
+            .flushCoroutines(scopeProviderStub.inAppLifecycleScope)
+        var onDismissFinished: (() -> Unit)? = null
+        every {
+            platformDelegate.animateViewSize(
+                widthInDp = any(),
+                heightInDp = 0.0,
+                duration = any(),
+                onStart = any(),
+                onEnd = any()
+            )
+        } answers {
+            onDismissFinished = arg(4)
+        }
+
+        messagingManager
+            .dispatch(InAppMessagingAction.SetPageRoute("settings"))
+            .flushCoroutines(scopeProviderStub.inAppLifecycleScope)
+        messagingManager
+            .dispatch(InAppMessagingAction.SetPageRoute("home"))
+            .flushCoroutines(scopeProviderStub.inAppLifecycleScope)
+        requireNotNull(onDismissFinished).invoke()
+
+        verify(exactly = 2) {
+            viewDelegate.createEngineWebViewInstance()
+        }
+        controller.engineWebViewDelegate.shouldNotBeNull()
+        controller.currentMessage shouldBeEqualTo givenInAppMessage
+    }
+
+    @Test
     fun handleMessageState_givenElementIdChanged_expectPreviousDismissedAndNewMessageShown() {
         val controller = setupGistAndCreateViewController()
         val viewCallback = controller.initMockViewCallback()
@@ -262,6 +376,280 @@ class InlineMessageViewControllerBehaviorTest : JUnitTest() {
         controller.viewCallback.shouldNotBeNull()
         controller.engineWebViewDelegate.shouldNotBeNull()
         controller.currentMessage shouldBeEqualTo givenInAppMessage
+
+        clearMocks(messagingManager, answers = false)
+        controller.routeLoaded(String.random)
+
+        verify(exactly = 0) {
+            messagingManager.dispatch(InAppMessagingAction.DisplayMessage(givenInAppMessage))
+        }
+    }
+
+    @Test
+    fun onViewDetached_givenEmbeddedMessage_expectResourcesReleasedWithoutDismissingMessage() {
+        val controller = setupGistAndCreateViewController()
+        val viewCallback = controller.initMockViewCallback()
+        val givenElementId = "test-element-id"
+        val givenInAppMessage = createInAppMessage(queueId = "1", elementId = givenElementId)
+        controller.elementId = givenElementId
+        messagingManager.dispatch(
+            InAppMessagingAction.EmbedMessages(listOf(givenInAppMessage))
+        ).flushCoroutines(scopeProviderStub.inAppLifecycleScope)
+        controller.routeLoaded(String.random)
+        flushCoroutines(scopeProviderStub.inAppLifecycleScope)
+        clearMocks(
+            messagingManager,
+            viewDelegate,
+            engineWebViewDelegate,
+            platformDelegate,
+            viewCallback,
+            answers = false
+        )
+
+        controller.onViewDetached()
+
+        verify(exactly = 0) {
+            messagingManager.dispatch(match { it is InAppMessagingAction.DismissMessage })
+        }
+        verify(exactly = 1) {
+            messagingManager.dispatch(
+                InAppMessagingAction.SetInlineMessageViewAttached(
+                    message = givenInAppMessage,
+                    isAttached = false
+                )
+            )
+        }
+        verifyOrder {
+            engineWebViewDelegate.stopLoading()
+            viewDelegate.isVisible = false
+            engineWebViewDelegate.listener = null
+            viewDelegate.removeView(engineWebViewDelegate)
+            engineWebViewDelegate.releaseResources()
+            viewCallback.onNoMessageToDisplay()
+        }
+        val inlineState = messagingManager.getCurrentState().queuedInlineMessagesState
+            .getMessage(givenElementId) as InlineMessageState.Embedded
+        inlineState.message shouldBeEqualTo givenInAppMessage
+        inlineState.isViewAttached shouldBeEqualTo false
+        inlineState.shouldRetainWhenDetached shouldBeEqualTo true
+        controller.engineWebViewDelegate.shouldBeNull()
+        controller.currentMessage.shouldBeNull()
+    }
+
+    @Test
+    fun onViewReattached_givenQueuedStateFromPreviousSubscription_expectStaleStateIgnored() {
+        val controller = setupGistAndCreateViewController()
+        controller.initMockViewCallback()
+        val givenElementId = "test-element-id"
+        val givenInAppMessage = createInAppMessage(queueId = "1", elementId = givenElementId)
+        controller.elementId = givenElementId
+        flushCoroutines(scopeProviderStub.inAppLifecycleScope)
+        clearMocks(viewDelegate, engineWebViewDelegate, platformDelegate, answers = false)
+        val pendingPosts = mutableListOf<() -> Unit>()
+        every { viewDelegate.post(any()) } answers {
+            pendingPosts += firstArg<() -> Unit>()
+        }
+
+        messagingManager
+            .dispatch(InAppMessagingAction.EmbedMessages(listOf(givenInAppMessage)))
+            .flushCoroutines(scopeProviderStub.inAppLifecycleScope)
+        val stalePost = pendingPosts.single()
+        controller.onViewDetached()
+        messagingManager.dispatch(
+            InAppMessagingAction.ReconcileInlineMessages(
+                messages = emptyList(),
+                authoritativeMessages = emptyList()
+            )
+        )
+        controller.onViewOwnerCreated()
+        flushCoroutines(scopeProviderStub.inAppLifecycleScope)
+
+        stalePost()
+
+        verify(exactly = 0) { viewDelegate.createEngineWebViewInstance() }
+        controller.currentMessage.shouldBeNull()
+    }
+
+    @Test
+    fun onViewDetached_givenShownMessageMissingFromServer_expectAvailabilityRetained() {
+        val controller = setupGistAndCreateViewController()
+        controller.initMockViewCallback()
+        val givenElementId = "test-element-id"
+        val givenInAppMessage = createInAppMessage(queueId = "1", elementId = givenElementId)
+        controller.elementId = givenElementId
+        messagingManager.dispatch(
+            InAppMessagingAction.EmbedMessages(listOf(givenInAppMessage))
+        ).flushCoroutines(scopeProviderStub.inAppLifecycleScope)
+        controller.routeLoaded(String.random)
+        flushCoroutines(scopeProviderStub.inAppLifecycleScope)
+
+        controller.onViewDetached()
+        messagingManager.dispatch(InAppMessagingAction.ProcessMessageQueue(emptyList()))
+        flushCoroutines(scopeProviderStub.inAppLifecycleScope)
+
+        messagingManager.getCurrentState().queuedInlineMessagesState
+            .getMessage(givenElementId).shouldNotBeNull()
+    }
+
+    @Test
+    fun onViewDetached_givenShownMessageAlreadyMissingFromServer_expectAvailabilityRetained() {
+        val controller = setupGistAndCreateViewController()
+        controller.initMockViewCallback()
+        val givenElementId = "test-element-id"
+        val givenInAppMessage = createInAppMessage(queueId = "1", elementId = givenElementId)
+        controller.elementId = givenElementId
+        messagingManager.dispatch(
+            InAppMessagingAction.EmbedMessages(listOf(givenInAppMessage))
+        ).flushCoroutines(scopeProviderStub.inAppLifecycleScope)
+        controller.routeLoaded(String.random)
+        flushCoroutines(scopeProviderStub.inAppLifecycleScope)
+
+        messagingManager.dispatch(InAppMessagingAction.ProcessMessageQueue(emptyList()))
+        flushCoroutines(scopeProviderStub.inAppLifecycleScope)
+        controller.onViewDetached()
+
+        messagingManager.getCurrentState().queuedInlineMessagesState
+            .getMessage(givenElementId).shouldNotBeNull()
+    }
+
+    @Test
+    fun onViewDetached_givenUnshownPersistentMessageWithdrawn_expectAvailabilityRemoved() {
+        val controller = setupGistAndCreateViewController()
+        controller.initMockViewCallback()
+        val givenElementId = "test-element-id"
+        val givenInAppMessage = createInAppMessage(
+            queueId = "1",
+            elementId = givenElementId,
+            persistent = true
+        )
+        controller.elementId = givenElementId
+        messagingManager.dispatch(
+            InAppMessagingAction.EmbedMessages(listOf(givenInAppMessage))
+        ).flushCoroutines(scopeProviderStub.inAppLifecycleScope)
+        controller.routeLoaded(String.random)
+        flushCoroutines(scopeProviderStub.inAppLifecycleScope)
+        controller.onViewDetached()
+
+        messagingManager.dispatch(InAppMessagingAction.ProcessMessageQueue(emptyList()))
+        flushCoroutines(scopeProviderStub.inAppLifecycleScope)
+
+        messagingManager.getCurrentState().queuedInlineMessagesState
+            .getMessage(givenElementId).shouldBeNull()
+    }
+
+    @Test
+    fun onViewOwnerDestroyed_givenConfigurationChangeAndWithdrawnPersistentMessage_expectMessageRestored() {
+        every { platformDelegate.shouldDestroyWithOwner() } returns false
+        val controller = setupGistAndCreateViewController()
+        controller.initMockViewCallback()
+        val givenElementId = "test-element-id"
+        val givenInAppMessage = createInAppMessage(
+            queueId = "1",
+            elementId = givenElementId,
+            persistent = true
+        )
+        controller.elementId = givenElementId
+        messagingManager.dispatch(
+            InAppMessagingAction.EmbedMessages(listOf(givenInAppMessage))
+        ).flushCoroutines(scopeProviderStub.inAppLifecycleScope)
+        controller.routeLoaded(String.random)
+        flushCoroutines(scopeProviderStub.inAppLifecycleScope)
+        messagingManager
+            .dispatch(InAppMessagingAction.ProcessMessageQueue(emptyList()))
+            .flushCoroutines(scopeProviderStub.inAppLifecycleScope)
+        clearMocks(messagingManager, answers = false)
+
+        controller.onViewOwnerDestroyed()
+
+        verify(exactly = 0) {
+            messagingManager.dispatch(any())
+        }
+        val retainedState = messagingManager.getCurrentState().queuedInlineMessagesState
+            .getMessage(givenElementId) as InlineMessageState.Embedded
+        retainedState.isViewAttached shouldBeEqualTo true
+
+        val recreatedController = createViewController()
+        recreatedController.initMockViewCallback()
+        recreatedController.elementId = givenElementId
+        flushCoroutines(scopeProviderStub.inAppLifecycleScope)
+        recreatedController.routeLoaded(String.random)
+
+        verify(exactly = 0) {
+            messagingManager.dispatch(InAppMessagingAction.DisplayMessage(givenInAppMessage))
+        }
+        recreatedController.engineWebViewDelegate.shouldNotBeNull()
+        recreatedController.currentMessage shouldBeEqualTo givenInAppMessage
+    }
+
+    @Test
+    fun onViewReattached_givenMessageStillInQueue_expectMessageRestoredWithoutDisplayEvent() {
+        val controller = setupGistAndCreateViewController()
+        controller.initMockViewCallback()
+        val givenElementId = "test-element-id"
+        val givenInAppMessage = createInAppMessage(queueId = "1", elementId = givenElementId)
+        controller.elementId = givenElementId
+        messagingManager.dispatch(
+            InAppMessagingAction.EmbedMessages(listOf(givenInAppMessage))
+        ).flushCoroutines(scopeProviderStub.inAppLifecycleScope)
+        controller.routeLoaded(String.random)
+        flushCoroutines(scopeProviderStub.inAppLifecycleScope)
+        controller.onViewDetached()
+        messagingManager
+            .dispatch(InAppMessagingAction.ProcessMessageQueue(listOf(givenInAppMessage)))
+            .flushCoroutines(scopeProviderStub.inAppLifecycleScope)
+        clearMocks(messagingManager, answers = false)
+
+        controller.onViewOwnerCreated()
+        flushCoroutines(scopeProviderStub.inAppLifecycleScope)
+        controller.routeLoaded(String.random)
+
+        verify(exactly = 0) {
+            messagingManager.dispatch(InAppMessagingAction.DisplayMessage(givenInAppMessage))
+        }
+        val inlineState = messagingManager.getCurrentState().queuedInlineMessagesState
+            .getMessage(givenElementId) as InlineMessageState.Embedded
+        inlineState.isViewAttached shouldBeEqualTo true
+        controller.engineWebViewDelegate.shouldNotBeNull()
+        controller.currentMessage shouldBeEqualTo givenInAppMessage
+    }
+
+    @Test
+    fun handleMessageState_givenOverlappingDismissals_expectNewMessageNotReleased() {
+        val controller = setupGistAndCreateViewController()
+        controller.initMockViewCallback()
+        val givenElementId = "test-element-id"
+        val oldMessage = createInAppMessage(queueId = "1", elementId = givenElementId)
+        val newMessage = createInAppMessage(queueId = "2", elementId = givenElementId)
+        controller.elementId = givenElementId
+        messagingManager.dispatch(
+            InAppMessagingAction.EmbedMessages(listOf(oldMessage))
+        ).flushCoroutines(scopeProviderStub.inAppLifecycleScope)
+        controller.routeLoaded(String.random)
+        flushCoroutines(scopeProviderStub.inAppLifecycleScope)
+        val dismissCallbacks = mutableListOf<() -> Unit>()
+        every {
+            platformDelegate.animateViewSize(
+                widthInDp = any(),
+                heightInDp = 0.0,
+                duration = any(),
+                onStart = any(),
+                onEnd = any()
+            )
+        } answers {
+            arg<(() -> Unit)?>(4)?.let(dismissCallbacks::add)
+        }
+
+        messagingManager
+            .dispatch(InAppMessagingAction.DismissMessage(oldMessage))
+            .flushCoroutines(scopeProviderStub.inAppLifecycleScope)
+        messagingManager
+            .dispatch(InAppMessagingAction.ProcessMessageQueue(listOf(newMessage)))
+            .flushCoroutines(scopeProviderStub.inAppLifecycleScope)
+        dismissCallbacks[1].invoke()
+        dismissCallbacks[0].invoke()
+
+        controller.engineWebViewDelegate.shouldNotBeNull()
+        controller.currentMessage shouldBeEqualTo newMessage
     }
 
     @Test

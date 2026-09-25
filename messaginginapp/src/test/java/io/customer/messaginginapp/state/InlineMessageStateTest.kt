@@ -64,6 +64,78 @@ class InlineMessageStateTest : JUnitTest() {
     }
 
     @Test
+    fun reconcileInlineMessages_givenReadyMessageMissingFromQueue_expectStateRemoved() {
+        val elementId = String.random
+        val message = createMessage(elementId = elementId)
+        val initialState = InAppMessagingState(
+            queuedInlineMessagesState = QueuedInlineMessagesState().addMessage(message, elementId)
+        )
+
+        val resultState = inAppMessagingReducer(
+            initialState,
+            InAppMessagingAction.ReconcileInlineMessages(
+                messages = emptyList(),
+                authoritativeMessages = emptyList()
+            )
+        )
+
+        assertEquals(null, resultState.queuedInlineMessagesState.getMessage(elementId))
+    }
+
+    @Test
+    fun reconcileInlineMessages_givenEmbeddedMessageMissingFromQueue_expectStateRetained() {
+        val elementId = String.random
+        val message = createMessage(elementId = elementId, routeRule = "home/.*")
+        val queuedState = QueuedInlineMessagesState()
+            .addMessage(message, elementId)
+            .updateMessageState(message.queueId!!, InlineMessageState.Embedded(message, elementId))
+        val initialState = InAppMessagingState(
+            currentRoute = "home/feed",
+            queuedInlineMessagesState = queuedState
+        )
+
+        val resultState = inAppMessagingReducer(
+            initialState,
+            InAppMessagingAction.ReconcileInlineMessages(
+                messages = emptyList(),
+                authoritativeMessages = emptyList()
+            )
+        )
+
+        val inlineState = resultState.queuedInlineMessagesState
+            .getMessage(elementId) as InlineMessageState.Embedded
+        assertTrue(inlineState.isViewAttached)
+        assertEquals(false, inlineState.shouldRetainWhenDetached)
+    }
+
+    @Test
+    fun reconcileInlineMessages_givenDetachedEmbeddedMessageMissingFromQueue_expectStateRemoved() {
+        val elementId = String.random
+        val message = createMessage(elementId = elementId)
+        val queuedState = QueuedInlineMessagesState()
+            .addMessage(message, elementId)
+            .updateMessageState(
+                message.queueId!!,
+                InlineMessageState.Embedded(
+                    message = message,
+                    elementId = elementId,
+                    isViewAttached = false
+                )
+            )
+        val initialState = InAppMessagingState(queuedInlineMessagesState = queuedState)
+
+        val resultState = inAppMessagingReducer(
+            initialState,
+            InAppMessagingAction.ReconcileInlineMessages(
+                messages = emptyList(),
+                authoritativeMessages = emptyList()
+            )
+        )
+
+        assertEquals(null, resultState.queuedInlineMessagesState.getMessage(elementId))
+    }
+
+    @Test
     fun displayMessage_givenInlineMessage_expectStateUpdatedToEmbedded() {
         val elementId = String.random
         val message = createMessage(elementId = elementId)

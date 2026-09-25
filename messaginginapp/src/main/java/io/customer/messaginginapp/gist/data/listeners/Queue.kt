@@ -66,7 +66,9 @@ internal interface GistQueue {
     val baseUrl: String
 }
 
-internal class Queue : GistQueue {
+internal class Queue(
+    private val queueServiceOverride: GistQueueService? = null
+) : GistQueue {
 
     private val inAppMessagingManager = SDKComponent.inAppMessagingManager
     private val state: InAppMessagingState
@@ -96,7 +98,7 @@ internal class Queue : GistQueue {
         get() = state.environment.getGistQueueApiUrl()
 
     private val gistQueueService by lazy {
-        createGistQueueService()
+        queueServiceOverride ?: createGistQueueService()
     }
 
     private fun createHttpClient(): OkHttpClient {
@@ -184,8 +186,14 @@ internal class Queue : GistQueue {
     }
 
     private fun handleNoContent(responseCode: Int) {
-        logger.debug("No messages found for user with response code: $responseCode")
-        inAppMessagingManager.dispatch(InAppMessagingAction.ClearMessageQueue(isContentEmpty = true))
+        if (responseCode == 204) {
+            logger.debug("No messages found for user with response code: $responseCode")
+        } else {
+            logger.debug("Queue not modified without a cached response; retaining last-known inline and inbox messages")
+        }
+        inAppMessagingManager.dispatch(
+            InAppMessagingAction.ClearMessageQueue(isContentEmpty = responseCode == 204)
+        )
     }
 
     // For cached responses (304), apply locally cached opened status to preserve user's changes.

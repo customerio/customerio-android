@@ -2,6 +2,10 @@ package io.customer.messaginginapp.gist.presentation.engine
 
 import android.content.Context
 import android.webkit.WebView
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.LifecycleRegistry
+import androidx.lifecycle.setViewTreeLifecycleOwner
 import androidx.test.core.app.ApplicationProvider
 import io.customer.commontest.config.TestConfig
 import io.customer.commontest.config.testConfigurationDefault
@@ -13,9 +17,11 @@ import io.customer.messaginginapp.testutils.core.IntegrationTest
 import io.mockk.every
 import io.mockk.mockk
 import org.amshove.kluent.shouldBeEqualTo
+import org.junit.Assert.assertNotNull
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.Shadows
 
 /**
  * Guards the security hardening that disables file:// and content:// access in the in-app
@@ -69,6 +75,36 @@ class EngineWebViewSettingsTest : IntegrationTest() {
         // Required by the renderer: must remain enabled.
         settings.javaScriptEnabled shouldBeEqualTo true
         settings.domStorageEnabled shouldBeEqualTo true
+
+        engineWebView.releaseResources()
+    }
+
+    @Test
+    fun setup_givenStartedLifecycle_expectBridgeAttachedBeforeRendererLoads() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val engineWebView = EngineWebView(context)
+        val lifecycleOwner = object : LifecycleOwner {
+            val registry = LifecycleRegistry(this)
+            override val lifecycle: Lifecycle = registry
+        }
+        lifecycleOwner.registry.currentState = Lifecycle.State.STARTED
+        engineWebView.setViewTreeLifecycleOwner(lifecycleOwner)
+
+        engineWebView.setup(
+            EngineWebConfiguration(
+                siteId = String.random,
+                dataCenter = String.random,
+                messageId = String.random,
+                instanceId = String.random,
+                endpoint = "https://${String.random}"
+            )
+        )
+
+        val webView = engineWebView.getChildAt(0) as WebView
+        assertNotNull(
+            Shadows.shadowOf(webView)
+                .getJavascriptInterface(EngineWebViewInterface.JAVASCRIPT_INTERFACE_NAME)
+        )
 
         engineWebView.releaseResources()
     }

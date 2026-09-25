@@ -4,7 +4,10 @@ object Versions {
     // Android SDK versions
     const val COMPILE_SDK = 36
     const val TARGET_SDK = 36
-    const val MIN_SDK = 21
+
+    // firebase-messaging 25.1+ (required for FID based registration) raised its minimum to API 23,
+    // matching the Firebase wide minSdk bump from June 2025.
+    const val MIN_SDK = 23
 
     // Repository default. CI's gradle-compatibility-builds job in snapshot-release.yml
     // overrides this and gradle-wrapper.properties to the compatibility floor:
@@ -26,7 +29,7 @@ object Versions {
     internal const val DOKKA = "1.9.20"
     internal const val JUNIT_BOM = "5.9.3"
     internal const val ESPRESSO = "3.7.0"
-    internal const val FIREBASE_MESSAGING = "24.1.2"
+    internal const val FIREBASE_MESSAGING = "25.1.2"
     internal const val GRADLE_NEXUS_PUBLISH_PLUGIN = "2.0.0"
     internal const val ANDROID_PUBLISH_PLUGIN = "0.1.0"
     internal const val GOOGLE_PLAY_SERVICES_BASE = "18.7.2"

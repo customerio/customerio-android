@@ -1,3 +1,9 @@
+## [4.22.0](https://github.com/customerio/customerio-android/compare/4.21.1...4.22.0) (2026-09-25)
+
+### Features
+
+* **geofence:** add support for polygon geofences ([#905](https://github.com/customerio/customerio-android/issues/905)) ([87d28ce](https://github.com/customerio/customerio-android/commit/87d28ce8c907bb2e80c561b921c2207788882144))
+
 ## [4.21.1](https://github.com/customerio/customerio-android/compare/4.21.0...4.21.1) (2026-09-09)
 
 ### Bug Fixes

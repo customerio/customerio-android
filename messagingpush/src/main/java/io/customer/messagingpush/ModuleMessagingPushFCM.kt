@@ -9,9 +9,11 @@ import androidx.lifecycle.ProcessLifecycleOwner
 import io.customer.messagingpush.di.fcmTokenProvider
 import io.customer.messagingpush.di.liveNotificationManager
 import io.customer.messagingpush.di.liveNotificationRegistrar
+import io.customer.messagingpush.di.liveNotificationStore
 import io.customer.messagingpush.di.pushDeliveryFlusher
 import io.customer.messagingpush.di.pushLogger
 import io.customer.messagingpush.di.pushTrackingUtil
+import io.customer.messagingpush.livenotification.LiveNotificationBrandingSerializer
 import io.customer.messagingpush.livenotification.LiveNotificationData
 import io.customer.messagingpush.livenotification.ULID
 import io.customer.messagingpush.logger.PushNotificationLogger
@@ -42,6 +44,7 @@ class ModuleMessagingPushFCM @JvmOverloads constructor(
         get() = MODULE_NAME
 
     override fun initialize() {
+        persistLiveNotificationConfig()
         // Live notifications are opt-in; start before requesting the token so the
         // registrar observes the resulting RegisterDeviceTokenEvent.
         if (moduleConfig.liveNotificationTypes.isNotEmpty()) {
@@ -50,6 +53,34 @@ class ModuleMessagingPushFCM @JvmOverloads constructor(
         getCurrentFcmToken()
         subscribeToLifecycleEvents()
         observeProcessForeground()
+    }
+
+    /**
+     * Mirrors the live-notification opt-in (enabled types + branding) into persistent storage so a
+     * cold process can render.
+     *
+     * Android starts a process solely to deliver an FCM message; no app code runs there, so
+     * `CustomerIO.initialize` never executes and the push module is never registered. The render
+     * gate then reads an empty enabled-types set from the default module config, which is ambiguous
+     * — "never opted in" and "opted in, not loaded yet" look identical — and every live notification
+     * delivered after ordinary process death is dropped. Worse, a dropped `end` strands an ongoing
+     * notification that isn't user-dismissible before Android 14.
+     *
+     * Written on *every* initialization, including when nothing is enabled: that is how un-enabling
+     * a type, or the feature, propagates to the next cold process. Deliberately outside the
+     * registrar's non-empty guard below for the same reason.
+     */
+    private fun persistLiveNotificationConfig() {
+        val store = SDKComponent.liveNotificationStore
+        store.setEnabledActivityTypes(moduleConfig.liveNotificationTypes)
+        store.setBrandingJson(
+            moduleConfig.liveNotificationBranding?.let { branding ->
+                LiveNotificationBrandingSerializer.encode(
+                    context = SDKComponent.android().applicationContext,
+                    branding = branding
+                )
+            }
+        )
     }
 
     /**

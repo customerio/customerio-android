@@ -50,10 +50,11 @@ class GeofenceRegionTest : RobolectricTest() {
     fun toGmsTransitionTypes_givenCircleDwell_expectNativeDwellBitmask() {
         val region = buildRegion(transitionTypes = emptyList(), dwellThresholdSeconds = 300)
 
-        region.toGmsTransitionTypes() shouldBeEqualTo
-            (Geofence.GEOFENCE_TRANSITION_ENTER or
+        region.toGmsTransitionTypes() shouldBeEqualTo (
+            Geofence.GEOFENCE_TRANSITION_ENTER or
                 Geofence.GEOFENCE_TRANSITION_DWELL or
-                Geofence.GEOFENCE_TRANSITION_EXIT)
+                Geofence.GEOFENCE_TRANSITION_EXIT
+            )
     }
 
     @Test

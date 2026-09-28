@@ -334,14 +334,20 @@ class GeofenceRegionStoreTest : RobolectricTest() {
         store.saveDwellVisit(oldVisit).shouldBeTrue()
 
         store.removeDwellVisitAfterCommittedExit(
-            "biz-1", 150L, generation, region.transitionRevision()
+            "biz-1",
+            150L,
+            generation,
+            region.transitionRevision()
         ).shouldBeTrue()
         store.getDwellVisit("biz-1").shouldBeNull()
 
         val newVisit = oldVisit.copy(visitId = "new", enteredAtSeconds = 200L)
         store.saveDwellVisit(newVisit).shouldBeTrue()
         store.removeDwellVisitAfterCommittedExit(
-            "biz-1", 150L, generation, region.transitionRevision()
+            "biz-1",
+            150L,
+            generation,
+            region.transitionRevision()
         ).shouldBeTrue()
         store.getDwellVisit("biz-1") shouldBeEqualTo newVisit
     }

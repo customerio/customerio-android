@@ -104,6 +104,7 @@ internal interface GeofenceRegionStore {
         expectedUserStateGeneration: Long,
         expectedRegionRevision: Int?
     ): Boolean
+
     /** Ordered exact-location batches used by responsive polygon evaluation. */
     fun appendPendingPolygonApproachBatches(entries: List<PendingPolygonApproachBatch>): Boolean
     fun getPendingPolygonApproachBatches(): List<PendingPolygonApproachBatch>
@@ -451,8 +452,11 @@ internal class GeofenceRegionStoreImpl(
                 (region.dwellThresholdSeconds > 0 || region.transitionTypes.contains(GeofenceTransitionType.EXIT)) &&
                 region.transitionRevision() == visit.regionRevision
         }
-        if (visits.isEmpty()) prefs.edit { remove(KEY_DWELL_VISITS) }
-        else writeJson(KEY_DWELL_VISITS, DWELL_VISITS_SERIALIZER, visits)
+        if (visits.isEmpty()) {
+            prefs.edit { remove(KEY_DWELL_VISITS) }
+        } else {
+            writeJson(KEY_DWELL_VISITS, DWELL_VISITS_SERIALIZER, visits)
+        }
     }
 
     override fun getCachedRegions(): List<GeofenceRegion> =
@@ -808,7 +812,9 @@ internal class GeofenceRegionStoreImpl(
         if (
             region.transitionRevision() != visit.regionRevision ||
             (region.dwellThresholdSeconds <= 0 && !region.transitionTypes.contains(GeofenceTransitionType.EXIT))
-        ) return@synchronized false
+        ) {
+            return@synchronized false
+        }
         // A circle visit belongs to one OS registration. A write prepared before a re-registration
         // or an invalidation landed must not carry the old visit into the new monitoring session.
         val registeredAt = readIncarnations()[visit.geofenceId]?.registeredAtElapsedMs
@@ -822,8 +828,11 @@ internal class GeofenceRegionStoreImpl(
 
     override fun removeDwellVisit(geofenceId: String) = synchronized(enteredLock) {
         val visits = readDwellVisits().filterNot { it.geofenceId == geofenceId }
-        if (visits.isEmpty()) prefs.edit { remove(KEY_DWELL_VISITS) }
-        else writeJson(KEY_DWELL_VISITS, DWELL_VISITS_SERIALIZER, visits)
+        if (visits.isEmpty()) {
+            prefs.edit { remove(KEY_DWELL_VISITS) }
+        } else {
+            writeJson(KEY_DWELL_VISITS, DWELL_VISITS_SERIALIZER, visits)
+        }
     }
 
     override fun clearDwellVisits() = synchronized(enteredLock) {
@@ -880,7 +889,9 @@ internal class GeofenceRegionStoreImpl(
         if (
             expectedRegionRevision != null &&
             getCachedRegion(geofenceId)?.transitionRevision() != expectedRegionRevision
-        ) return@synchronized false
+        ) {
+            return@synchronized false
+        }
         val visits = readDwellVisits()
         val retained = visits.filterNot {
             it.geofenceId == geofenceId && it.enteredAtSeconds <= exitedAtSeconds
@@ -888,8 +899,11 @@ internal class GeofenceRegionStoreImpl(
         if (retained.size == visits.size) return@synchronized true
         @Suppress("UseKtx")
         val editor = prefs.edit()
-        if (retained.isEmpty()) editor.remove(KEY_DWELL_VISITS)
-        else editor.putString(KEY_DWELL_VISITS, jsonSerializer.encode(DWELL_VISITS_SERIALIZER, retained))
+        if (retained.isEmpty()) {
+            editor.remove(KEY_DWELL_VISITS)
+        } else {
+            editor.putString(KEY_DWELL_VISITS, jsonSerializer.encode(DWELL_VISITS_SERIALIZER, retained))
+        }
         editor.commit()
     }
 

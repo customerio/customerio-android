@@ -2761,6 +2761,52 @@ class GeofenceRepositoryTest : RobolectricTest() {
     }
 
     @Test
+    fun refreshFromLiveFix_givenFirstRegistrationAlreadyInside_expectCandidateVisit() = runTest {
+        // Registration sees containment, not the crossing that began the stay.
+        val cached = listOf(GeofenceRegion("biz-1", 0.0, 0.0, 100f, dwellThresholdSeconds = 60))
+        statefulStore(cached)
+
+        repository.refreshFromLiveFix(latitude = 0.0, longitude = 0.0)
+
+        coVerify(exactly = 1) {
+            dwellCoordinator.onEnter("biz-1", any(), any(), beginsNewVisit = false)
+        }
+    }
+
+    @Test
+    fun refreshFromLiveFix_givenFirstRegistrationOutside_expectOutsideProofRecorded() = runTest {
+        // A live fix outside the fence is what lets its next ENTER count as an observed crossing.
+        val cached = listOf(GeofenceRegion("biz-1", 1.0, 0.0, 100f, dwellThresholdSeconds = 60))
+        statefulStore(cached)
+
+        repository.refreshFromLiveFix(latitude = 0.0, longitude = 0.0)
+
+        verify(exactly = 1) { store.recordRegistrationIncarnations(cached, 10_000L, setOf("biz-1")) }
+    }
+
+    @Test
+    fun refreshFromLiveFix_givenFirstRegistrationInside_expectNoOutsideProof() = runTest {
+        val cached = listOf(GeofenceRegion("biz-1", 0.0, 0.0, 100f, dwellThresholdSeconds = 60))
+        statefulStore(cached)
+
+        repository.refreshFromLiveFix(latitude = 0.0, longitude = 0.0)
+
+        verify(exactly = 1) { store.recordRegistrationIncarnations(cached, 10_000L, emptySet()) }
+    }
+
+    @Test
+    fun refresh_givenAnchorPassOutsideTheFence_expectNoOutsideProof() = runTest {
+        // An anchor says nothing about where the device is now, so GMS's initial ENTER after this
+        // registration must stay a discovered visit rather than an observed entry.
+        val cached = listOf(GeofenceRegion("biz-1", 1.0, 0.0, 100f, dwellThresholdSeconds = 60))
+        statefulStore(cached)
+
+        repository.refresh(latitude = 0.0, longitude = 0.0)
+
+        verify(exactly = 1) { store.recordRegistrationIncarnations(cached, 10_000L, emptySet()) }
+    }
+
+    @Test
     fun refresh_givenExitOnlyFenceDeviceInside_expectNoInitialEnter() = runTest {
         // A fence that doesn't monitor ENTER gets no synthesized enter, even sitting inside it.
         val cached = listOf(

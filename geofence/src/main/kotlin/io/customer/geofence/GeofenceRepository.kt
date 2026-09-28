@@ -727,9 +727,17 @@ internal class GeofenceRepositoryImpl(
                 // triggers may establish a new visit, but the old entry cannot span this gap.
                 store.clearDwellVisits()
             }
+            // An anchor inside a fence proves nothing about where the device is now, so a record
+            // carried across a geometry edit must not become a fresh arrival. After a wipe a
+            // requested fix may also describe a stretch we never observed, so synthesis defers to
+            // the re-registration's own INITIAL_TRIGGER_ENTER — but only for a fix we asked for. A
+            // movement fix is the OS's own, produced because the device just moved, so no wipe can
+            // have made it stale, and suppressing it here would drop the backstop on the one path
+            // that exists because that callback gets missed.
+            val maySynthesize = fixSource.trustsGeometry &&
+                (fixSource.isOsObserved || !osStateWasWiped)
             // Registered before this pass but not cache-equal: the ID survived a geometry edit.
             val previouslyRegistered = store.getRegisteredIds()
-            val previouslyEntered = store.getEnteredIds()
             val cachedById = store.getCachedRegions().associateBy(GeofenceRegion::id)
             val nearestById = nearest.associateBy(GeofenceRegion::id)
             val retainedById = store.getRetainedRegisteredRegions().associateBy(GeofenceRegion::id)
@@ -746,11 +754,17 @@ internal class GeofenceRepositoryImpl(
                 // callback the replaced registration produced must carry an older triggering fix.
                 // Same selection the business diff sends to GMS; a wipe re-sends everything.
                 val reAddedIds = if (osStateWasWiped) newIds else newIds - unchangedRegistered
+                val reAddedCircles = regionsToRegister.filter {
+                    it.id in reAddedIds && it.id != GeofenceConstants.MOVEMENT_TRIGGER_ID && !it.isPolygon
+                }
                 store.recordRegistrationIncarnations(
-                    regions = regionsToRegister.filter {
-                        it.id in reAddedIds && it.id != GeofenceConstants.MOVEMENT_TRIGGER_ID && !it.isPolygon
-                    },
-                    registeredAtElapsedMs = clock.elapsedRealtime()
+                    regions = reAddedCircles,
+                    registeredAtElapsedMs = clock.elapsedRealtime(),
+                    // Only a fix synthesis would trust can prove the device was outside, and so let
+                    // the registration's next ENTER count as an observed entry.
+                    outsideIds = reAddedCircles
+                        .filter { maySynthesize && it.distanceTo(latitude, longitude) > it.radius }
+                        .mapTo(mutableSetOf(), GeofenceRegion::id)
                 )
                 if (!sessionStillCurrent()) {
                     retainCleanupOnly(newIds)
@@ -912,15 +926,6 @@ internal class GeofenceRepositoryImpl(
                     return@withLock registrationResult
                 }
             }
-            // An anchor inside a fence proves nothing about where the device is now, so a record
-            // carried across a geometry edit must not become a fresh arrival. After a wipe a
-            // requested fix may also describe a stretch we never observed, so synthesis defers to
-            // the re-registration's own INITIAL_TRIGGER_ENTER — but only for a fix we asked for. A
-            // movement fix is the OS's own, produced because the device just moved, so no wipe can
-            // have made it stale, and suppressing it here would drop the backstop on the one path
-            // that exists because that callback gets missed.
-            val maySynthesize = fixSource.trustsGeometry &&
-                (fixSource.isOsObserved || !osStateWasWiped)
             if (registrationResult.isSuccess && maySynthesize) {
                 // Identity can change during the awaited GMS call, and reset doesn't clear pending
                 // delivery rows — never queue a synthetic ENTER for a signed-out/switched user.
@@ -931,8 +936,7 @@ internal class GeofenceRepositoryImpl(
                         userId,
                         latitude,
                         longitude,
-                        syncUserStateGeneration,
-                        previouslyEntered
+                        syncUserStateGeneration
                     )
                 } else {
                     logger.logSyncSkipped("user changed during refresh — initial-enter synthesis skipped")
@@ -1007,8 +1011,7 @@ internal class GeofenceRepositoryImpl(
         userId: String,
         latitude: Double,
         longitude: Double,
-        expectedUserStateGeneration: Long,
-        previouslyEnteredIds: Set<String>
+        expectedUserStateGeneration: Long
     ) {
         val timestamp = clock.currentTimeSeconds()
         val contained = store.getEnteredIds()
@@ -1041,11 +1044,13 @@ internal class GeofenceRepositoryImpl(
                 )
             }
             if (region.tracksVisit()) {
+                // Registration found the device already inside, so this is a candidate visit whose
+                // entry time is unknown, never an observed crossing.
                 dwellCoordinator?.onEnter(
                     region.id,
                     timestamp,
                     expectedUserStateGeneration,
-                    beginsNewVisit = region.id !in previouslyEnteredIds
+                    beginsNewVisit = false
                 )
             }
         }

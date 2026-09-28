@@ -178,6 +178,56 @@ class PolygonLocationEngineTest : RobolectricTest() {
     }
 
     @Test
+    fun processResponsiveLocation_givenFirstFixAlreadyInside_expectDiscoveredVisitNotObservedEntry() = runTest {
+        // No record reads as OUTSIDE, so a device already inside when the polygon activated reports
+        // ENTER without any crossing. Public ENTER is unchanged; the visit has no observed entry.
+        val dwellEngine = engineWithRealDwell()
+
+        dwellEngine.processResponsiveLocation(insideFix())
+
+        store.getEnteredIds() shouldContainSame setOf(POLYGON_ID)
+        store.getDwellVisit(POLYGON_ID)?.entryWasObserved shouldBeEqualTo false
+    }
+
+    @Test
+    fun processResponsiveLocation_givenDecisiveOutsideThenInside_expectObservedEntry() = runTest {
+        val dwellEngine = engineWithRealDwell()
+        val now = SystemClock.elapsedRealtimeNanos()
+
+        dwellEngine.processResponsiveLocation(outsideFix(elapsedRealtimeNanos = now - 3_000_000_000L))
+        dwellEngine.processResponsiveLocation(insideFix(elapsedRealtimeNanos = now - 2_000_000_000L))
+
+        store.getDwellVisit(POLYGON_ID)?.entryWasObserved shouldBeEqualTo true
+        store.getDwellVisit(POLYGON_ID)?.enteredAtSeconds shouldBeEqualTo 100L
+    }
+
+    @Test
+    fun processResponsiveLocation_givenOutsideProofResetBeforeInside_expectNoObservedEntry() = runTest {
+        // Deactivation, a geometry change or re-activation ends the continuity the outside fix proved.
+        val dwellEngine = engineWithRealDwell()
+        val now = SystemClock.elapsedRealtimeNanos()
+
+        dwellEngine.processResponsiveLocation(outsideFix(elapsedRealtimeNanos = now - 3_000_000_000L))
+        dwellEngine.resetEvidence(POLYGON_ID)
+        dwellEngine.processResponsiveLocation(insideFix(elapsedRealtimeNanos = now - 2_000_000_000L))
+
+        store.getEnteredIds() shouldContainSame setOf(POLYGON_ID)
+        store.getDwellVisit(POLYGON_ID)?.entryWasObserved shouldBeEqualTo false
+    }
+
+    private fun engineWithRealDwell(): PolygonLocationEngine {
+        store.saveCachedRegions(listOf(polygonRegion().copy(dwellThresholdSeconds = 60)))
+        val processor = GeofenceBusinessTransitionProcessor(store, secureUserStore, emitter, logger)
+        return PolygonLocationEngine(
+            store = store,
+            transitionProcessor = processor,
+            clock = clock,
+            logger = logger,
+            dwellCoordinator = GeofenceDwellCoordinator(store, processor)
+        )
+    }
+
+    @Test
     fun processResponsiveLocation_givenConcurrentDeliveriesOfSameFix_expectSerializedSingleEnter() = runTest {
         val fix = insideFix()
 

@@ -21,12 +21,23 @@ internal class GeofenceDwellCoordinator(
     private val store: GeofenceRegionStore,
     private val transitionProcessor: GeofenceBusinessTransitionProcessor
 ) {
+    /**
+     * Starts or keeps the visit an ENTER describes.
+     *
+     * @param beginsNewVisit containment did not already hold this fence, so the ENTER may replace a
+     * visit that continuity lost. It is not proof the entry was observed: a fence registered, or a
+     * polygon activated, around a device already inside reports ENTER without any crossing.
+     * @param polygonOutsideObserved polygons only. The evaluator decisively saw the device outside
+     * earlier in the same activation, so this ENTER is the crossing itself. Circles derive the same
+     * proof from their registration instead (see [observedCircleEntry]).
+     */
     suspend fun onEnter(
         geofenceId: String,
         enteredAtSeconds: Long,
         expectedUserStateGeneration: Long = store.userStateGeneration(),
         beginsNewVisit: Boolean = false,
-        entryFixElapsedMs: Long? = null
+        entryFixElapsedMs: Long? = null,
+        polygonOutsideObserved: Boolean = false
     ) = mutex.withLock {
         if (store.userStateGeneration() != expectedUserStateGeneration) return@withLock
         val region = store.getCachedRegion(geofenceId) ?: return@withLock
@@ -50,10 +61,14 @@ internal class GeofenceDwellCoordinator(
                 enteredAtSeconds = enteredAtSeconds,
                 regionRevision = revision,
                 userStateGeneration = generation,
-                // Containment already held this fence, so this ENTER rebuilds a visit whose
-                // continuity was lost (re-registration, reboot, revision change). The device
-                // arrived at some unknown earlier time; this timestamp is not its entry.
-                entryWasObserved = beginsNewVisit,
+                // Otherwise the device arrived at some unknown earlier time (already inside at
+                // registration or activation, or continuity was lost), and this timestamp is only
+                // when we learned of it.
+                entryWasObserved = beginsNewVisit && if (region.isPolygon) {
+                    polygonOutsideObserved
+                } else {
+                    observedCircleEntry(incarnation, entryFixElapsedMs)
+                },
                 registrationElapsedMs = incarnation?.registeredAtElapsedMs,
                 entryFixElapsedMs = entryFixElapsedMs
             )
@@ -174,6 +189,19 @@ internal class GeofenceDwellCoordinator(
             return@withLock
         }
         store.removeDwellVisit(geofenceId)
+    }
+
+    /**
+     * Whether a circle ENTER is the crossing itself: its triggering fix came after this registration
+     * last proved the device outside. GMS's initial trigger for a device registered already inside
+     * has no such proof before it, and neither does an ENTER without a triggering fix.
+     */
+    private fun observedCircleEntry(
+        incarnation: GeofenceRegistrationIncarnation?,
+        entryFixElapsedMs: Long?
+    ): Boolean {
+        val outsideProvenAt = incarnation?.outsideProvenAtElapsedMs ?: return false
+        return entryFixElapsedMs != null && entryFixElapsedMs > outsideProvenAt
     }
 
     private fun currentIncarnation(region: GeofenceRegion): GeofenceRegistrationIncarnation? =

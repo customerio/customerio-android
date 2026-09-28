@@ -670,6 +670,164 @@ class GeofenceDwellCoordinatorTest {
         verify(exactly = 0) { store.saveDwellVisit(any()) }
     }
 
+    @Test
+    fun nativeEnterWithoutOutsideProof_replacesTheVisitButReportsNoObservedEntry() = runTest {
+        // GMS's initial trigger for a fence registered around a device already inside (boot restore,
+        // anchor refresh, or a delayed ENTER after containment was cleared) carries a fresh fix but
+        // no crossing. The DWELL it leads to keeps its visit ID and omits entry time and duration.
+        val region = circle()
+        var visit: GeofenceDwellVisit? = GeofenceDwellVisit(
+            geofenceId = "circle",
+            visitId = "stale-candidate",
+            enteredAtSeconds = 50L,
+            regionRevision = region.transitionRevision(),
+            userStateGeneration = 7L,
+            entryWasObserved = false,
+            registrationElapsedMs = REGISTERED_AT_MS
+        )
+        every { store.getCachedRegion("circle") } returns region
+        every { store.getRegistrationIncarnation("circle") } returns liveRegistration(region)
+        every { store.userStateGeneration() } returns 7L
+        every { store.getDwellVisit("circle") } answers { visit }
+        every { store.saveDwellVisit(any()) } answers {
+            visit = firstArg()
+            true
+        }
+        coEvery { processor.process(any(), any(), any(), any(), any(), any(), any(), any(), any()) } returns
+            GeofenceTransitionEmitter.Result.PERSISTED
+        val context = slot<GeofenceTransitionEmitter.VisitContext.Dwell>()
+        val coordinator = GeofenceDwellCoordinator(store, processor)
+
+        coordinator.onEnter("circle", enteredAtSeconds = 100L, beginsNewVisit = true, entryFixElapsedMs = FRESH_FIX_MS)
+        coordinator.onNativeDwell("circle", observedAtSeconds = 200L, triggeringFixElapsedMs = FRESH_FIX_MS + 60_000L)
+
+        (visit?.visitId == "stale-candidate") shouldBeEqualTo false
+        visit?.entryWasObserved shouldBeEqualTo false
+        coVerify(exactly = 1) {
+            processor.process(
+                geofenceId = "circle",
+                transition = Event.GeofenceTransition.DWELL,
+                timestampSeconds = 200L,
+                enforceConfiguredTransition = true,
+                expectedRegionRevision = region.transitionRevision(),
+                expectedUserStateGeneration = 7L,
+                requireRegistered = true,
+                visitContext = capture(context),
+                endsVisitByTimestamp = any()
+            )
+        }
+        context.captured.visitId shouldBeEqualTo visit?.visitId
+        context.captured.enteredAt.shouldBeNull()
+        context.captured.durationSeconds.shouldBeNull()
+    }
+
+    @Test
+    fun enterAfterRegistrationProvedOutside_reportsObservedEntryAndDuration() = runTest {
+        val region = circle()
+        var visit: GeofenceDwellVisit? = null
+        every { store.getCachedRegion("circle") } returns region
+        every { store.getRegistrationIncarnation("circle") } returns
+            liveRegistration(region).copy(outsideProvenAtElapsedMs = REGISTERED_AT_MS)
+        every { store.userStateGeneration() } returns 7L
+        every { store.getDwellVisit("circle") } answers { visit }
+        every { store.saveDwellVisit(any()) } answers {
+            visit = firstArg()
+            true
+        }
+        coEvery { processor.process(any(), any(), any(), any(), any(), any(), any(), any(), any()) } returns
+            GeofenceTransitionEmitter.Result.PERSISTED
+        val context = slot<GeofenceTransitionEmitter.VisitContext.Dwell>()
+        val coordinator = GeofenceDwellCoordinator(store, processor)
+
+        coordinator.onEnter("circle", enteredAtSeconds = 100L, beginsNewVisit = true, entryFixElapsedMs = FRESH_FIX_MS)
+        coordinator.onNativeDwell("circle", observedAtSeconds = 170L, triggeringFixElapsedMs = FRESH_FIX_MS + 60_000L)
+
+        coVerify(exactly = 1) {
+            processor.process(any(), any(), any(), any(), any(), any(), any(), capture(context), any())
+        }
+        context.captured.enteredAt shouldBeEqualTo 100L
+        context.captured.durationSeconds shouldBeEqualTo 70L
+    }
+
+    @Test
+    fun enterWhoseFixDoesNotPostdateTheOutsideProof_isNotAnObservedEntry() = runTest {
+        // An ENTER decided at or before the fix of an attributed EXIT describes an earlier stay.
+        assertEntryObserved(outsideProvenAt = FRESH_FIX_MS, entryFix = FRESH_FIX_MS, expected = false)
+        assertEntryObserved(outsideProvenAt = FRESH_FIX_MS, entryFix = FRESH_FIX_MS - 1L, expected = false)
+    }
+
+    @Test
+    fun enterWithoutATriggeringFix_isNotAnObservedEntry() = runTest {
+        assertEntryObserved(outsideProvenAt = REGISTERED_AT_MS, entryFix = null, expected = false)
+    }
+
+    @Test
+    fun enterAfterAnAttributedExit_isAnObservedEntry() = runTest {
+        // Registered with the device inside, so only the attributed EXIT proves it left. The next
+        // ENTER is then a genuine crossing.
+        val region = circle()
+        var incarnation = liveRegistration(region)
+        var visit: GeofenceDwellVisit? = null
+        every { store.getCachedRegion("circle") } returns region
+        every { store.getRegistrationIncarnation("circle") } answers { incarnation }
+        every { store.recordNativeExitFix("circle", REGISTERED_AT_MS, any()) } answers {
+            incarnation = incarnation.copy(lastExitFixElapsedMs = thirdArg(), outsideProvenAtElapsedMs = thirdArg())
+        }
+        every { store.userStateGeneration() } returns 7L
+        every { store.getDwellVisit("circle") } answers { visit }
+        every { store.saveDwellVisit(any()) } answers {
+            visit = firstArg()
+            true
+        }
+        every { store.removeDwellVisit("circle") } answers { visit = null }
+        val coordinator = GeofenceDwellCoordinator(store, processor)
+
+        coordinator.onEnter("circle", enteredAtSeconds = 100L)
+        visit?.entryWasObserved shouldBeEqualTo false
+        coordinator.onNativeExit("circle", exitedAtSeconds = 400L, triggeringFixElapsedMs = FRESH_FIX_MS)
+        coordinator.onEnter("circle", enteredAtSeconds = 900L, beginsNewVisit = true, entryFixElapsedMs = FRESH_FIX_MS + 1L)
+
+        visit?.enteredAtSeconds shouldBeEqualTo 900L
+        visit?.entryWasObserved shouldBeEqualTo true
+    }
+
+    @Test
+    fun polygonEnter_isObservedOnlyWhenTheEvaluatorSawTheDeviceOutside() = runTest {
+        val region = polygon()
+        var visit: GeofenceDwellVisit? = null
+        every { store.getCachedRegion("polygon") } returns region
+        every { store.userStateGeneration() } returns 2L
+        every { store.getDwellVisit("polygon") } answers { visit }
+        every { store.saveDwellVisit(any()) } answers {
+            visit = firstArg()
+            true
+        }
+        val coordinator = GeofenceDwellCoordinator(store, processor)
+
+        coordinator.onEnter("polygon", enteredAtSeconds = 100L, beginsNewVisit = true)
+        visit?.entryWasObserved shouldBeEqualTo false
+
+        coordinator.onEnter("polygon", enteredAtSeconds = 200L, beginsNewVisit = true, polygonOutsideObserved = true)
+        visit?.entryWasObserved shouldBeEqualTo true
+    }
+
+    private suspend fun assertEntryObserved(outsideProvenAt: Long, entryFix: Long?, expected: Boolean) {
+        val region = circle()
+        var visit: GeofenceDwellVisit? = null
+        every { store.getCachedRegion("circle") } returns region
+        every { store.getRegistrationIncarnation("circle") } returns
+            liveRegistration(region).copy(outsideProvenAtElapsedMs = outsideProvenAt)
+        every { store.userStateGeneration() } returns 7L
+        every { store.getDwellVisit("circle") } answers { visit }
+        every { store.saveDwellVisit(any()) } answers {
+            visit = firstArg()
+            true
+        }
+        GeofenceDwellCoordinator(store, processor)
+            .onEnter("circle", enteredAtSeconds = 100L, beginsNewVisit = true, entryFixElapsedMs = entryFix)
+        visit?.entryWasObserved shouldBeEqualTo expected
+    }
+
     private fun liveRegistration(region: GeofenceRegion) = GeofenceRegistrationIncarnation(
         geofenceId = region.id,
         regionRevision = region.transitionRevision(),

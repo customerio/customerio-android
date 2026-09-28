@@ -402,7 +402,9 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
         )
 
         val dwell = scheduled.single { it.transition == Event.GeofenceTransition.DWELL }
-        dwell.enteredAt shouldBeEqualTo 105L
+        // Neither a triggering fix nor a proven-outside registration backs the ENTER, so it may be
+        // GMS's initial trigger for a device already inside: the entry time stays unknown.
+        dwell.enteredAt.shouldBeNull()
         dwell.dwellThresholdSeconds shouldBeEqualTo 60
         dwell.dwellDurationSeconds.shouldBeNull()
         visit?.enteredAtSeconds shouldBeEqualTo 105L

@@ -27,11 +27,15 @@ internal interface GeofenceServices {
      * receiver can hold its goAsync window open until the refresh lands — the
      * movement trigger usually fires with the app backgrounded, where the process
      * is fair game for the OS the moment the receiver finishes.
+     *
+     * @param fixQuality when the triggering fix was taken and how accurate it was, which decides
+     * whether it can prove the device outside the fences this pass registers.
      */
     fun onMovementTriggerExit(
         latitude: Double?,
         longitude: Double?,
-        movementTriggerRadius: suspend () -> Float? = { null }
+        movementTriggerRadius: suspend () -> Float? = { null },
+        fixQuality: GeofenceFixQuality = GeofenceFixQuality.UNKNOWN
     ): Job?
 
     /** Honours the freshness threshold — repeated identify within the window is a no-op. */
@@ -118,7 +122,8 @@ internal class GeofenceServicesImpl(
     override fun onMovementTriggerExit(
         latitude: Double?,
         longitude: Double?,
-        movementTriggerRadius: suspend () -> Float?
+        movementTriggerRadius: suspend () -> Float?,
+        fixQuality: GeofenceFixQuality
     ): Job? {
         // Same guard as the launch in triggerSync: permission is checked there before this runs.
         @SuppressLint("MissingPermission")
@@ -126,7 +131,8 @@ internal class GeofenceServicesImpl(
             repository.handleMovement(
                 latitude = lat,
                 longitude = lng,
-                movementTriggerRadius = movementTriggerRadius
+                movementTriggerRadius = movementTriggerRadius,
+                fixQuality = fixQuality
             )
         }
         return triggerSync(

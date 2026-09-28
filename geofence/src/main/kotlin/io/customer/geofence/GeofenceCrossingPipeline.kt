@@ -182,15 +182,22 @@ internal class GeofenceCrossingPipeline(
         }
         // Handed over unevaluated. The polygon radius callback awaits GMS, and doing that here
         // would spend the broadcast budget before the refresh job exists.
+        val triggeringLocation = crossing.triggeringLocation
         return services.onMovementTriggerExit(
             latitude = crossing.latitude,
             longitude = crossing.longitude,
             movementTriggerRadius = {
                 polygonController.onMovementTriggerExit(
-                    triggeringLocation = crossing.triggeringLocation,
+                    triggeringLocation = triggeringLocation,
                     expectedUserStateGeneration = userStateGeneration
                 )
-            }
+            },
+            fixQuality = GeofenceFixQuality(
+                fixElapsedRealtimeMillis = triggeringLocation?.elapsedRealtimeNanos
+                    ?.takeIf { it > 0L }
+                    ?.let { it / NANOS_PER_MILLI },
+                horizontalAccuracyMeters = triggeringLocation?.takeIf { it.hasAccuracy() }?.accuracy
+            )
         )
     }
 

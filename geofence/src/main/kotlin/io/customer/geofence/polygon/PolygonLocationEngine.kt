@@ -4,6 +4,7 @@ import android.location.Location
 import android.os.SystemClock
 import androidx.annotation.VisibleForTesting
 import io.customer.geofence.GeofenceBusinessTransitionProcessor
+import io.customer.geofence.GeofenceConstants
 import io.customer.geofence.GeofenceDwellCoordinator
 import io.customer.geofence.GeofenceLogTail
 import io.customer.geofence.GeofenceLogger
@@ -98,8 +99,9 @@ internal class PolygonLocationEngine(
 
     /**
      * The latest fix, per polygon, that decisively placed the device outside it during the current
-     * activation. Only an ENTER after one is the crossing itself: without a record, committed state
-     * reads OUTSIDE, so a device already inside when the polygon activated also reports ENTER.
+     * activation. Only an ENTER soon after one is the crossing itself: without a record, committed
+     * state reads OUTSIDE, so a device already inside when the polygon activated also reports ENTER,
+     * and after a long gap without fixes the device may have arrived at any point in it.
      * In memory, so process death forgets it and the next ENTER reports no observed entry.
      */
     private val provenOutside = mutableMapOf<String, ProvenOutside>()
@@ -367,7 +369,8 @@ internal class PolygonLocationEngine(
                         provenOutside[detection.polygonId]?.let {
                             it.regionRevision == detection.regionRevision &&
                                 it.userStateGeneration == expectedUserStateGeneration &&
-                                it.elapsedRealtimeNanos < fix.elapsedRealtimeNanos
+                                it.elapsedRealtimeNanos < fix.elapsedRealtimeNanos &&
+                                fix.elapsedRealtimeNanos - it.elapsedRealtimeNanos <= MAX_OUTSIDE_PROOF_AGE_NANOS
                         } == true
                     }
                 transitionProcessor.process(
@@ -515,6 +518,7 @@ internal class PolygonLocationEngine(
         const val MAX_SOURCE_CLOCK_DRIFT_MILLIS = 5 * 60 * 1_000L
         const val TRIGGER_LOCATION_GRACE_NANOS = 30_000_000_000L
         const val MAXIMUM_FIX_AGE_NANOS = 120_000_000_000L
+        const val MAX_OUTSIDE_PROOF_AGE_NANOS = GeofenceConstants.MAX_OUTSIDE_PROOF_AGE_MS * NANOS_PER_MILLISECOND
         const val FUTURE_FIX_TOLERANCE_NANOS = 5_000_000_000L
     }
 

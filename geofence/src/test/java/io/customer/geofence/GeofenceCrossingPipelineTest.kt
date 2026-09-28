@@ -258,7 +258,7 @@ class GeofenceCrossingPipelineTest : RobolectricTest() {
             longitude = -122.4194
         )
 
-        verify { mockServices.onMovementTriggerExit(37.7749, -122.4194, any()) }
+        verify { mockServices.onMovementTriggerExit(37.7749, -122.4194, any(), any()) }
         coVerify(exactly = 0) { mockScheduler.schedule(any()) }
         pendingStore.loadAll() shouldBeEqualTo emptyList()
     }
@@ -272,7 +272,7 @@ class GeofenceCrossingPipelineTest : RobolectricTest() {
             longitude = 0.0
         )
 
-        verify(exactly = 0) { mockServices.onMovementTriggerExit(any(), any(), any()) }
+        verify(exactly = 0) { mockServices.onMovementTriggerExit(any(), any(), any(), any()) }
         coVerify(exactly = 0) { mockScheduler.schedule(any()) }
         pendingStore.loadAll() shouldBeEqualTo emptyList()
     }
@@ -634,7 +634,7 @@ class GeofenceCrossingPipelineTest : RobolectricTest() {
         )
 
         verify(exactly = 0) { mockStore.claimExit(any()) }
-        verify { mockServices.onMovementTriggerExit(any(), any(), any()) }
+        verify { mockServices.onMovementTriggerExit(any(), any(), any(), any()) }
     }
 
     @Test
@@ -665,7 +665,7 @@ class GeofenceCrossingPipelineTest : RobolectricTest() {
             longitude = 0.0
         )
 
-        verify(exactly = 0) { mockServices.onMovementTriggerExit(any(), any(), any()) }
+        verify(exactly = 0) { mockServices.onMovementTriggerExit(any(), any(), any(), any()) }
         coVerify { mockManager.removeGeofencesByIds(listOf(GeofenceConstants.MOVEMENT_TRIGGER_ID)) }
     }
 

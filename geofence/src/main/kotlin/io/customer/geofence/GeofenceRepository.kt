@@ -50,7 +50,8 @@ internal interface GeofenceRepository {
     suspend fun handleMovement(
         latitude: Double,
         longitude: Double,
-        movementTriggerRadius: suspend () -> Float? = { null }
+        movementTriggerRadius: suspend () -> Float? = { null },
+        fixQuality: GeofenceFixQuality = GeofenceFixQuality.UNKNOWN
     ): Result<Unit>
 
     /**
@@ -326,7 +327,8 @@ internal class GeofenceRepositoryImpl(
     override suspend fun handleMovement(
         latitude: Double,
         longitude: Double,
-        movementTriggerRadius: suspend () -> Float?
+        movementTriggerRadius: suspend () -> Float?,
+        fixQuality: GeofenceFixQuality
     ): Result<Unit> {
         // Before the slot wait, as in [refreshFromLiveFix].
         val containmentEpoch = store.containmentEpoch()
@@ -364,7 +366,8 @@ internal class GeofenceRepositoryImpl(
                     longitude,
                     containmentEpoch,
                     FixSource.MOVEMENT,
-                    movementTriggerRadiusMeters = movementTriggerRadiusMeters
+                    movementTriggerRadiusMeters = movementTriggerRadiusMeters,
+                    fixQuality = fixQuality
                 )
                 if (remote.isFailure) {
                     // The trigger already fired, and a failed pass never re-centres it — leaving it
@@ -377,7 +380,8 @@ internal class GeofenceRepositoryImpl(
                         config,
                         containmentEpoch,
                         FixSource.MOVEMENT,
-                        movementTriggerRadiusMeters = movementTriggerRadiusMeters
+                        movementTriggerRadiusMeters = movementTriggerRadiusMeters,
+                        fixQuality = fixQuality
                     )
                 }
                 remote
@@ -389,7 +393,8 @@ internal class GeofenceRepositoryImpl(
                     config,
                     containmentEpoch,
                     FixSource.MOVEMENT,
-                    movementTriggerRadiusMeters = movementTriggerRadiusMeters
+                    movementTriggerRadiusMeters = movementTriggerRadiusMeters,
+                    fixQuality = fixQuality
                 )
             }
         } finally {
@@ -449,7 +454,8 @@ internal class GeofenceRepositoryImpl(
         longitude: Double,
         containmentEpoch: Long,
         fixSource: FixSource,
-        movementTriggerRadiusMeters: Float? = null
+        movementTriggerRadiusMeters: Float? = null,
+        fixQuality: GeofenceFixQuality = GeofenceFixQuality.UNKNOWN
     ): Result<Unit> {
         // The device location lets the backend return the nearby set; the request carries no user
         // identity, so it isn't attributable to a user.
@@ -491,6 +497,7 @@ internal class GeofenceRepositoryImpl(
                     fixSource = fixSource,
                     syncStartedAt = syncStartedAt,
                     movementTriggerRadiusMeters = movementTriggerRadiusMeters,
+                    fixQuality = fixQuality,
                     // Cache only on remote fetch; Tier A reuses it. Skip the config save when
                     // backend didn't ship one this response — a null parse must not clobber a
                     // previously cached value.
@@ -530,7 +537,8 @@ internal class GeofenceRepositoryImpl(
         containmentEpoch: Long,
         fixSource: FixSource,
         register: suspend (List<GeofenceRegion>) -> Result<Unit> = ::registerWithBusinessDiff,
-        movementTriggerRadiusMeters: Float? = null
+        movementTriggerRadiusMeters: Float? = null,
+        fixQuality: GeofenceFixQuality = GeofenceFixQuality.UNKNOWN
     ): Result<Unit> = registerNearestAndPersist(
         userId = userId,
         latitude = latitude,
@@ -540,7 +548,8 @@ internal class GeofenceRepositoryImpl(
         containmentEpoch = containmentEpoch,
         register = register,
         fixSource = fixSource,
-        movementTriggerRadiusMeters = movementTriggerRadiusMeters
+        movementTriggerRadiusMeters = movementTriggerRadiusMeters,
+        fixQuality = fixQuality
     )
 
     /**
@@ -638,6 +647,11 @@ internal class GeofenceRepositoryImpl(
         /** Marks the cache fresh, but only for the session that actually fetched it. */
         onSyncStamped: (userStateGeneration: Long) -> Unit = {},
         movementTriggerRadiusMeters: Float? = null,
+        /**
+         * Time and accuracy of the pass's fix. Only a movement fix reports both, so only it can
+         * prove the device outside a circle; see [GeofenceFixQuality.provesOutside].
+         */
+        fixQuality: GeofenceFixQuality = GeofenceFixQuality.UNKNOWN,
         // Measured from the caller's entry so `ms=` spans the same work iOS reports.
         syncStartedAt: Long = clock.elapsedRealtime()
     ): Result<Unit> {
@@ -757,15 +771,37 @@ internal class GeofenceRepositoryImpl(
                 val reAddedCircles = regionsToRegister.filter {
                     it.id in reAddedIds && it.id != GeofenceConstants.MOVEMENT_TRIGGER_ID && !it.isPolygon
                 }
+                val registeredAtElapsedMs = clock.elapsedRealtime()
+                fun beyondEdge(region: GeofenceRegion) = region.distanceTo(latitude, longitude) - region.radius
                 store.recordRegistrationIncarnations(
                     regions = reAddedCircles,
-                    registeredAtElapsedMs = clock.elapsedRealtime(),
-                    // Only a fix synthesis would trust can prove the device was outside, and so let
-                    // the registration's next ENTER count as an observed entry.
+                    registeredAtElapsedMs = registeredAtElapsedMs,
+                    // Only a recent fix clear of the edge by more than its accuracy proves the
+                    // device outside, and so lets the next ENTER count as an observed entry. A
+                    // point check would not: GMS reports INITIAL_TRIGGER_ENTER from its own
+                    // estimate, so a coarse fix just past the edge of a fence the device is already
+                    // inside becomes a claimed crossing. Dated to the registration, since a
+                    // callback from the replaced one carries an earlier triggering fix.
                     outsideIds = reAddedCircles
-                        .filter { maySynthesize && it.distanceTo(latitude, longitude) > it.radius }
+                        .filter {
+                            maySynthesize &&
+                                fixQuality.provesOutside(beyondEdge(it), nowElapsedRealtimeMillis = registeredAtElapsedMs)
+                        }
                         .mapTo(mutableSetOf(), GeofenceRegion::id)
                 )
+                // A circle kept from an earlier registration was monitored before this fix was
+                // taken, so its proof dates from the fix itself and needs no age bound: GMS covers
+                // the time since. Dating it to the registration instead would demote a crossing
+                // GMS decided while this pass was still fetching.
+                val fixTakenAt = fixQuality.fixElapsedRealtimeMillis
+                if (maySynthesize && fixTakenAt != null && fixTakenAt <= registeredAtElapsedMs) {
+                    store.raiseOutsideProof(
+                        ids = nearest
+                            .filter { !it.isPolygon && it.id in newIds && it.id !in reAddedIds && fixQuality.clearsEdge(beyondEdge(it)) }
+                            .mapTo(mutableSetOf(), GeofenceRegion::id),
+                        provenAtElapsedMs = fixTakenAt
+                    )
+                }
                 if (!sessionStillCurrent()) {
                     retainCleanupOnly(newIds)
                     logger.logSyncSkipped("user changed during registration")

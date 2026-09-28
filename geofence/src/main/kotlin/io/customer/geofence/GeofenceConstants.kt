@@ -49,6 +49,16 @@ internal object GeofenceConstants {
     // returns the same fix for up to ~124s.
     const val MAX_LIVE_FIX_AGE_MS = 5L * 60 * 1_000L
 
+    // How long an outside fix may precede the ENTER it vouches for as an observed crossing. The
+    // crossing happened somewhere in that gap, so it bounds how early the real entry could be. An
+    // approach session samples every 15 s, so its crossings fit; a passive sample minutes apart
+    // does not, and its entry time is honestly unknown to within minutes.
+    const val MAX_OUTSIDE_PROOF_AGE_MS = 2L * 60 * 1_000L
+
+    // Clearance, beyond a fix's own accuracy, before it proves the device outside a fence. The
+    // same value the polygon evaluator requires of a departure.
+    const val OUTSIDE_PROOF_MARGIN_METERS = 20f
+
     // Duplicate-transition suppression window used by GeofenceCooldownFilter.
     // Doubles as the fallback for `duplicateEventsExpiry` from the API config
     // when the field is missing or non-positive.

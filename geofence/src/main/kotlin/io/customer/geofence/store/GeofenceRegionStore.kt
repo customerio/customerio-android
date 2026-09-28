@@ -102,14 +102,22 @@ internal interface GeofenceRegionStore {
     fun getRegistrationIncarnation(geofenceId: String): GeofenceRegistrationIncarnation?
 
     /**
-     * @param outsideIds the fences this registration's fresh fix placed the device outside. Empty
-     * when the fix cannot judge geometry, so no ENTER is then read as an observed entry.
+     * @param outsideIds the fences this registration's fresh fix proved the device outside. Empty
+     * when the fix cannot prove it, so no ENTER is then read as an observed entry.
      */
     fun recordRegistrationIncarnations(
         regions: List<GeofenceRegion>,
         registeredAtElapsedMs: Long,
         outsideIds: Set<String> = emptySet()
     )
+
+    /**
+     * Raises the outside proof of live registrations this pass kept, to [provenAtElapsedMs]: the
+     * fix that proved the device outside. Only a registration made before that fix qualifies: GMS
+     * then monitored it throughout, so any ENTER decided after the fix is a crossing. Never lowers
+     * a later proof, such as an attributed EXIT.
+     */
+    fun raiseOutsideProof(ids: Set<String>, provenAtElapsedMs: Long)
 
     /** Raises the incarnation's last EXIT fix, only while [registeredAtElapsedMs] is still live. */
     fun recordNativeExitFix(geofenceId: String, registeredAtElapsedMs: Long, exitFixElapsedMs: Long)
@@ -885,6 +893,20 @@ internal class GeofenceRegionStoreImpl(
             )
         }
         writeJson(KEY_REGISTRATION_INCARNATIONS, INCARNATIONS_SERIALIZER, incarnations.values.toList())
+    }
+
+    override fun raiseOutsideProof(ids: Set<String>, provenAtElapsedMs: Long) = synchronized(enteredLock) {
+        if (ids.isEmpty()) return@synchronized
+        val incarnations = readIncarnations()
+        val raised = incarnations.filterKeys { it in ids && it in getRegisteredIds() }
+            // A registration made after the fix (by a pass that held the slot while this one
+            // waited) was not watching when it was taken, and a callback from the one it replaced
+            // could otherwise count.
+            .filterValues { it.registeredAtElapsedMs <= provenAtElapsedMs }
+            .filterValues { (it.outsideProvenAtElapsedMs ?: Long.MIN_VALUE) < provenAtElapsedMs }
+            .mapValues { (_, incarnation) -> incarnation.copy(outsideProvenAtElapsedMs = provenAtElapsedMs) }
+        if (raised.isEmpty()) return@synchronized
+        writeJson(KEY_REGISTRATION_INCARNATIONS, INCARNATIONS_SERIALIZER, (incarnations + raised).values.toList())
     }
 
     override fun recordNativeExitFix(

@@ -7,6 +7,7 @@ import io.customer.commontest.config.TestConfig
 import io.customer.commontest.config.testConfigurationDefault
 import io.customer.commontest.core.RobolectricTest
 import io.customer.geofence.GeofenceBusinessTransitionProcessor
+import io.customer.geofence.GeofenceConstants
 import io.customer.geofence.GeofenceDwellCoordinator
 import io.customer.geofence.GeofenceJsonSerializer
 import io.customer.geofence.GeofenceLogger
@@ -199,6 +200,32 @@ class PolygonLocationEngineTest : RobolectricTest() {
 
         store.getDwellVisit(POLYGON_ID)?.entryWasObserved shouldBeEqualTo true
         store.getDwellVisit(POLYGON_ID)?.enteredAtSeconds shouldBeEqualTo 100L
+    }
+
+    @Test
+    fun processResponsiveLocation_givenOutsideProofOlderThanTheWindow_expectNoObservedEntry() = runTest {
+        // A long stretch without fixes: the device arrived somewhere in it, so the inside fix's time
+        // is not its entry. Public ENTER still fires; the visit just claims no observed start.
+        val dwellEngine = engineWithRealDwell()
+
+        dwellEngine.processResponsiveLocation(outsideFix(elapsedRealtimeNanos = SystemClock.elapsedRealtimeNanos()))
+        ShadowSystemClock.advanceBy(Duration.ofMillis(GeofenceConstants.MAX_OUTSIDE_PROOF_AGE_MS + 1))
+        dwellEngine.processResponsiveLocation(insideFix(elapsedRealtimeNanos = SystemClock.elapsedRealtimeNanos()))
+
+        store.getEnteredIds() shouldContainSame setOf(POLYGON_ID)
+        store.getDwellVisit(POLYGON_ID)?.entryWasObserved shouldBeEqualTo false
+    }
+
+    @Test
+    fun processResponsiveLocation_givenOutsideProofAtTheWindowEdge_expectObservedEntry() = runTest {
+        val dwellEngine = engineWithRealDwell()
+
+        dwellEngine.processResponsiveLocation(outsideFix(elapsedRealtimeNanos = SystemClock.elapsedRealtimeNanos()))
+        ShadowSystemClock.advanceBy(Duration.ofMillis(GeofenceConstants.MAX_OUTSIDE_PROOF_AGE_MS))
+        dwellEngine.processResponsiveLocation(insideFix(elapsedRealtimeNanos = SystemClock.elapsedRealtimeNanos()))
+
+        store.getEnteredIds() shouldContainSame setOf(POLYGON_ID)
+        store.getDwellVisit(POLYGON_ID)?.entryWasObserved shouldBeEqualTo true
     }
 
     @Test

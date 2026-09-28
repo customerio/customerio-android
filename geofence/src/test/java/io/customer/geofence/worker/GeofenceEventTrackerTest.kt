@@ -95,8 +95,8 @@ class GeofenceEventTrackerTest : RobolectricTest() {
 
     @Test
     fun trackEvent_givenNullUserIdEntry_expectFailureWithoutHttpCall() = runTest {
-        // Precondition guard: anonymous entries belong on the foreground-flush path.
-        // Callers must filter these out; if one slips through, fail loud rather than POST a userId-less event.
+        // Callers filter anonymous entries out; one that slips through must fail rather than POST a
+        // userId-less event.
         val result = tracker.trackEvent(entry(userId = null))
 
         result.isFailure shouldBeEqualTo true

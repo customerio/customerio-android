@@ -24,17 +24,13 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 
 /**
- * The live path end to end, with the real mapper and the real distance filter, run twice: once with
- * the opt-in absent and once with the production opt-in the graph actually wires.
+ * The live path end to end with the real mapper and distance filter (the two gates a polygon must
+ * pass to be registered; [GeofenceRepositoryTest] mocks the filter), run without and with the
+ * polygon opt-in.
  *
- * Without it, a polygon the backend sends must not reach OS registration or produce a business
- * transition — every seam defaults to [io.customer.geofence.polygon.PolygonSupport.Disabled], so a
- * path that forgets the wiring fails closed. With it, the *same* response registers the polygon,
- * which is what proves the drops below are the opt-in and not a missing capability.
- *
- * The repository's other behaviour is covered by [GeofenceRepositoryTest], which mocks the distance
- * filter. This class deliberately uses the real one, because mapping and ranking are the two gates a
- * polygon has to pass to become a registered fence.
+ * Every seam defaults to [PolygonSupport.Disabled], so without the opt-in a polygon must not reach
+ * OS registration or produce a transition. With it, the same response registers the polygon, which
+ * proves the drops are the opt-in and not a missing capability.
  */
 @RunWith(RobolectricTestRunner::class)
 class GeofencePolygonLivePathTest : RobolectricTest() {

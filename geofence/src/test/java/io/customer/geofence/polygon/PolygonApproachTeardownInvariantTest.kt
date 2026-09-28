@@ -20,31 +20,18 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
 
 /**
- * Exhaustive interleavings of the approach session's lifecycle, checked against invariants rather
- * than expected outputs.
+ * Every sequence of three approach-session lifecycle operations, drained and then checked against
+ * invariants rather than expected outputs. For one monitor instance that armed everything it can
+ * remove:
  *
- * Five review rounds on this seam each found the *next* case: a delayed removal listener writing a
- * shared memo back, a cold-process teardown with no local accounting entry, a re-arm that reported
- * an ending the memo never learned about. Every one of them was a path nobody had picked by hand,
- * which is the argument against picking paths by hand. This enumerates every sequence of the
- * lifecycle operations up to length three, drains whatever is left live, and asserts properties
- * that must hold for all of them.
- *
- * The invariants, for a single monitor instance that armed everything it could remove:
- *
- *  1. **No ending is reported without a count.** An absent `n` means "a session ended and this
- *     process cannot say what it received", which is only true across a process boundary. One
- *     instance that armed its own sessions always has the entry, so absent here is a bug — that is
- *     Bugbot's duplicate, which reported a second ending for a session `start` had already
- *     reported with its count.
+ *  1. **No ending is reported without a count.** An absent `n` is only true across a process
+ *     boundary; one instance always has the entry for a session it armed.
  *  2. **No count is reported twice.** Each session is fed a distinct number of samples, so a
- *     repeated count is a session reported twice however it was reached.
+ *     repeated count is a session reported twice.
  *  3. **Endings never outnumber starts.** `polygon.approach.started` is logged only when a request
- *     actually registers, so more endings than starts means an ending was invented.
+ *     actually registers.
  *
- * What this cannot see: anything needing two instances, since the whole point of invariant 1 is
- * that one instance can attribute its own sessions. The cross-process cases are named tests in
- * [PolygonApproachMonitorTest].
+ * Cross-process cases need two instances and are named tests in [PolygonApproachMonitorTest].
  */
 @RunWith(RobolectricTestRunner::class)
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -63,7 +50,7 @@ class PolygonApproachTeardownInvariantTest : RobolectricTest() {
         /** `stop()` naming the live session. */
         STOP_NAMED_CURRENT,
 
-        /** `stop()` naming a session that has already gone, which is how the duplicate appeared. */
+        /** `stop()` naming the first session, which may already have ended. */
         STOP_NAMED_STALE,
 
         /** Permission revoked mid-session: the request fails and nothing is ever registered. */
@@ -75,13 +62,12 @@ class PolygonApproachTeardownInvariantTest : RobolectricTest() {
         /** The cold-process order: a batch is recorded, then the session it belongs to is adopted. */
         ADOPT_AFTER_SAMPLE,
 
-        /** A stale batch for an earlier generation, which is the second route to a repeat removal. */
+        /** A stale batch for an earlier generation, another route to a repeat removal. */
         REMOVE_STALE_GENERATION,
 
         /**
-         * A removal GMS rejects once and accepts on the retry. The retried call is the only place
-         * the session's two keys can be dropped, and dropping either makes the retry's success
-         * look like a first teardown.
+         * A removal GMS rejects once and accepts on the retry. The retry must carry both session
+         * keys, or its success looks like a first teardown.
          */
         REMOVAL_FAILS_ONCE
     }
@@ -109,8 +95,7 @@ class PolygonApproachTeardownInvariantTest : RobolectricTest() {
 
     @Test
     fun theKnownDefectSequences_expectThemCovered() {
-        // The two shapes review found, pinned by name so a future reader can see they are in the
-        // enumeration above rather than having to trust that they are.
+        // Named so these sequences are visibly part of the enumeration above.
         val rearmThenStaleStop = listOf(Op.ARM, Op.SECURITY_FAILURE, Op.STOP_NAMED_STALE)
         val rearmThenBareStop = listOf(Op.ARM, Op.STOP_BARE, Op.STOP_NAMED_STALE)
 
@@ -134,9 +119,9 @@ class PolygonApproachTeardownInvariantTest : RobolectricTest() {
         }
         every { logger.logPolygonApproachMonitoringStarted() } answers { starts += 1 }
 
-        // Scheduler-backed rather than unconfined: every job this class launches opens with a
-        // delay, so nothing runs until time is advanced, and only REMOVAL_FAILS_ONCE advances it.
-        // The session timeout sits a minute out and so stays unreached.
+        // Scheduler-backed rather than unconfined: every job the monitor launches opens with a
+        // delay, and only REMOVAL_FAILS_ONCE advances time. The session timeout, a minute out,
+        // stays unreached.
         val scheduler = TestCoroutineScheduler()
         var requestFails = false
         var removalFailsOnce = false
@@ -174,11 +159,9 @@ class PolygonApproachTeardownInvariantTest : RobolectricTest() {
             val startsBefore = starts
             monitor.start(generation, deadline)
             idle()
-            // Only a session that actually registered gets samples and a place in `deadlines`.
-            // start() refuses a re-arm while a live session has budget left, and a request that
-            // fails never registers; feeding either of those a sample would seed an accounting
-            // entry for a session that never existed, which is the harness inventing the defect it
-            // is looking for.
+            // Only a session that actually registered gets samples and a place in `deadlines`:
+            // start() refuses a re-arm while a live session has budget left, and a failed request
+            // never registers. Sampling either would seed an entry for a nonexistent session.
             if (starts > startsBefore) {
                 armed += 1
                 deadlines += deadline

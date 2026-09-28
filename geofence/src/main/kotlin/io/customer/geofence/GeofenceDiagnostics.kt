@@ -6,9 +6,9 @@ import io.customer.sdk.core.di.SDKComponent
 /**
  * Whether the SDK emits the diagnostic tail.
  *
- * Read from the host app's manifest, deliberately not from an API. Anything reachable — even
- * behind an opt-in annotation — is something a customer app can switch on, and the tail is the
- * only thing keeping coordinates out of a production log.
+ * Read from the host app's manifest, not an API: anything reachable from code, even behind an
+ * opt-in annotation, is something a customer app can switch on, and this gate is what keeps
+ * coordinates out of production logs.
  *
  * Enable with, in the app's `AndroidManifest.xml`:
  * ```xml
@@ -28,8 +28,8 @@ internal object GeofenceDiagnostics {
         get() {
             override?.let { return it }
             cached?.let { return it }
-            // Null means the context was not reachable yet — leave it uncached so a later read,
-            // once the SDK is initialized, still gets the real answer.
+            // Null means the context is not reachable yet; left uncached so a read after SDK init
+            // gets the real answer.
             val value = readManifest() ?: return false
             cached = value
             return value

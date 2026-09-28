@@ -50,9 +50,8 @@ class GeofenceApiResponseTest : RobolectricTest() {
 
     @Test
     fun parseAndMap_givenPolygonAndNoOptIn_expectDroppedAndCirclesKept() {
-        // The default at the seam — what the repository calls today. The record decodes, but this
-        // build can't evaluate a polygon, and its enclosing circle is a proximity trigger rather
-        // than the fence, so the region must not survive into the registerable set.
+        // The seam's default. The record decodes, but without the opt-in its enclosing circle is only
+        // a proximity trigger, not the fence, so the region must not become registerable.
         val regions = parseRegions(polygonAndCircleJson())
 
         regions.map(GeofenceRegion::id) shouldBeEqualTo listOf("circle")
@@ -373,8 +372,8 @@ class GeofenceApiResponseTest : RobolectricTest() {
             PolygonSupport.Enabled
         )
 
-        // The backend admits concave rings and the ray cast handles them, so re-checking convexity
-        // here only put the SDK out of step with the payload it was sent.
+        // The backend admits concave rings and the ray cast handles them, so the SDK must not
+        // reject them.
         regions.map(GeofenceRegion::id) shouldBeEqualTo listOf("concave", "circle")
     }
 
@@ -424,7 +423,7 @@ class GeofenceApiResponseTest : RobolectricTest() {
 
     @Test
     fun parseAndMap_givenNullGeometryType_expectRegionDecodesAsCircle() {
-        // Absent geometry is the circle contract and must stay byte-for-byte the old behaviour.
+        // Null geometry is the circle contract.
         val regions = parseRegions(
             """{ "geofences": [ { "id": "circle", "latitude": 1.5, "longitude": 2.5, "radius": 100, "geometry": null } ] }"""
         )
@@ -670,9 +669,8 @@ class GeofenceApiResponseTest : RobolectricTest() {
 
     @Test
     fun parse_givenNaNOrInfinityValues_expectDecodeFails() {
-        // Pins the assumption that lets toDomain skip isFinite checks: the serializer has
-        // no allowSpecialFloatingPointValues, so NaN/Infinity can never reach mapping —
-        // even via lenient-mode quoted strings. Decode failure -> Result.failure upstream.
+        // toDomain relies on this instead of isFinite checks: without allowSpecialFloatingPointValues,
+        // NaN/Infinity in typed fields fail decode even as lenient quoted strings.
         val nanRadius = """{ "geofences": [ { "id": 1, "latitude": 0.0, "longitude": 0.0, "radius": "NaN" } ] }"""
         val infLatitude = """{ "geofences": [ { "id": 1, "latitude": "Infinity", "longitude": 0.0, "radius": 100 } ] }"""
 
@@ -1222,7 +1220,7 @@ class GeofenceApiResponseTest : RobolectricTest() {
         val entry = parseResponse(polygonOnlyJson()).toCatalogEntries().single()
 
         entry.shape shouldBeEqualTo "polygon"
-        // The backend's circle, not the padded radius the SDK would register.
+        // The backend's enclosing circle, not the flat fields.
         entry.latitude shouldBeEqualTo 37.775
         entry.longitude shouldBeEqualTo -122.4194
         entry.radiusMeters shouldBeEqualTo 100.0
@@ -1232,8 +1230,8 @@ class GeofenceApiResponseTest : RobolectricTest() {
 
     @Test
     fun toCatalogEntries_givenUnbuildableRing_expectRowKeptWithoutVertices() {
-        // The case the catalog exists for: the mapper drops this record entirely, so before this
-        // change the capture had no row naming it at all.
+        // The case the catalog exists for: the mapper drops this record entirely, so the catalog is
+        // the only row naming it.
         val response = parseResponse(
             """
             {
@@ -1384,7 +1382,7 @@ class GeofenceApiResponseTest : RobolectricTest() {
     private fun parseResponse(raw: String): GeofenceApiResponse =
         jsonSerializer.decode(GeofenceApiResponse.serializer(), raw, lenient = true)
 
-    // Defaults to the seam's fail-closed value, which is what the repository passes today.
+    // Defaults to the seam's fail-closed value.
     private fun parseRegions(
         raw: String,
         polygonSupport: PolygonSupport = PolygonSupport.Disabled

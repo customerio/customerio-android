@@ -6,13 +6,9 @@ import android.os.SystemClock
 import java.util.Locale
 
 /**
- * Whether a record is something the SDK was told, decided, or neither.
- *
- * An environment fault the SDK reacts to counts as [INPUT], not [OBSERVATION]: replay has to be fed
- * the fault to reproduce the decision taken because of it.
- *
- * Stated explicitly rather than inferred from the event name: replay feeds the `in` records back
- * and compares the `out` records, so a naming convention getting this wrong invalidates a run.
+ * Whether a record is something the SDK was told, decided, or neither. Replay feeds `in` records
+ * back and compares `out` records, so this is explicit rather than inferred from the event name.
+ * An environment fault the SDK reacts to is [INPUT]: replay must be fed it to reproduce the decision.
  */
 internal enum class GeofenceLogIo(val wire: String) {
     INPUT("in"),
@@ -43,15 +39,14 @@ internal object GeofenceLogTail {
         io: GeofenceLogIo,
         fields: List<Pair<String, String?>> = emptyList()
     ): String {
-        // The single gate for every diagnostic value. Prose is emitted by the caller either way.
+        // Gates every tail value; whether the prose is emitted is the caller's decision.
         if (!GeofenceDiagnostics.isEnabled) return ""
 
         val parts = StringBuilder(DELIMITER).append("ev=").append(ev).append(" io=").append(io.wire)
         for ((key, value) in fields) {
             if (value == null) continue
-            // Sanitize by default and let the few composed keys opt out, rather than the reverse.
-            // A new field is then safe without anyone remembering to wrap it, which is how 20
-            // `id` call sites ended up unprotected the last time this was the other way round.
+            // Sanitize by default and let the few composed keys opt out, so a new field is safe
+            // without anyone remembering to wrap it.
             val safe = if (key in COMPOSED_KEYS) foldWhitespace(value) else sanitize(value)
             parts.append(' ').append(key).append('=').append(safe)
         }
@@ -59,25 +54,16 @@ internal object GeofenceLogTail {
     }
 
     /**
-     * Every character the format itself uses to separate things. Applied to *untrusted tokens*
-     * only — a workspace-authored id containing one of these would otherwise split a field: `=` a
-     * pair, `,` a list, `:` an `id:distance` entry in `ranked`, `|` the tail delimiter.
-     *
-     * Deliberately not applied to a finished value: `list` and `ranked` compose their separators
-     * on purpose, and folding those turns `a,b` into `a_b`.
+     * Characters the format uses as separators: `=` a pair, `,` a list, `:` an `id:distance` entry,
+     * `|` the tail delimiter. Replaced in untrusted tokens only, never in a composed value, where
+     * folding would turn `a,b` into `a_b`.
      */
     private val SEPARATORS = charArrayOf('=', ',', ':', '|')
 
-    /**
-     * The only values that compose the format's separators on purpose. Everything else is treated
-     * as an untrusted token: geofence identifiers are workspace-authored and can hold anything.
-     */
+    /** Keys whose values compose separators on purpose; every other value is an untrusted token. */
     private val COMPOSED_KEYS = setOf("ranked", "evicted", "ids", "gs", "tt", "ring")
 
-    /**
-     * Applied to every finished value. Only whitespace, which is what separates one `key=value`
-     * from the next — the value's own structure is already the caller's business.
-     */
+    /** For [COMPOSED_KEYS] values: folds only whitespace, which separates one `key=value` from the next. */
     fun foldWhitespace(value: String): String {
         if (value.isEmpty()) return "_"
         return buildString(value.length) {
@@ -85,7 +71,7 @@ internal object GeofenceLogTail {
         }
     }
 
-    /** The parser splits on whitespace, and workspace-authored ids can contain anything. */
+    /** Folds whitespace and [SEPARATORS]; workspace-authored ids can contain anything. */
     fun sanitize(value: String): String {
         if (value.isEmpty()) return "_"
         return buildString(value.length) {
@@ -109,8 +95,8 @@ internal object GeofenceLogTail {
     fun bool(value: Boolean): String = if (value) "true" else "false"
 
     /**
-     * For elements the caller has already composed, like `id:distance` — their structure is
-     * deliberate, so the untrusted part must be sanitized before composing, not after.
+     * For elements the caller has already composed, like `id:distance`. Not sanitized here, so the
+     * untrusted part must be sanitized before composing.
      */
     fun composedList(values: List<String>, limit: Int = 25): String? {
         if (values.isEmpty()) return null
@@ -121,8 +107,7 @@ internal object GeofenceLogTail {
     /** Comma-separated, capped; the count travels separately so truncation stays honest. */
     fun list(values: List<String>, limit: Int = 25): String? {
         if (values.isEmpty()) return null
-        // `take` throws on a negative count; no caller passes one, but a log must not be
-        // the thing that takes the process down.
+        // `take` throws on a negative count, and a log must never crash the process.
         val head = values.take(maxOf(0, limit)).joinToString(",") { sanitize(it) }
         return if (values.size > limit) "$head,+${values.size - limit}" else head
     }
@@ -147,10 +132,8 @@ internal object GeofenceLogTail {
     // MARK: - Fix quality and provenance
 
     /**
-     * Where a fix came from; the log previously said only that *a* position existed.
-     *
-     * Android is better placed than iOS: `triggeringLocation` is a real fix the OS computed for
-     * this crossing, where CoreLocation supplies none and the SDK falls back to its own cache.
+     * Where a fix came from. Unlike iOS, Android's `triggeringLocation` is a real fix the OS
+     * computed for the crossing.
      */
     enum class FixSource(val wire: String) {
         /** The OS's own triggering fix, attached to the crossing it reported. */
@@ -173,7 +156,7 @@ internal object GeofenceLogTail {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && location.hasVerticalAccuracy()) {
             fields.add("vacc" to num(location.verticalAccuracyMeters))
         }
-        // Without this a bench run and a real drive are indistinguishable once files are pooled.
+        // Keeps simulated runs distinguishable from real ones once captures are pooled.
         fields.add("sim" to bool(isMock(location)))
         return fields
     }

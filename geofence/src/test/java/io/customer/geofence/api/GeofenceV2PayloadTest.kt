@@ -18,10 +18,9 @@ import org.robolectric.RobolectricTestRunner
 /**
  * A `POST /v2/geofences/nearest` payload decoded by the shipping path.
  *
- * Synthetic coordinates, names and addresses. The wire SHAPE is what these tests are for and is
- * copied from a real 2026-09-11 v2 response: numeric `id` and `geoset_ids`, `enclosing_circle` on
- * polygons only, a repeated closing vertex, absent `transition_types` and `last_updated`, and the
- * `metadata` keys the backend actually sends. Do not restore a real capture here.
+ * Coordinates, names and addresses are synthetic; the wire shape matches a real v2 response: numeric
+ * `id` and `geoset_ids`, `enclosing_circle` on polygons only, a repeated closing vertex, absent
+ * `transition_types` and `last_updated`, and the real `metadata` keys. Keep real captures out of it.
  */
 @RunWith(RobolectricTestRunner::class)
 class GeofenceV2PayloadTest : RobolectricTest() {
@@ -98,7 +97,7 @@ class GeofenceV2PayloadTest : RobolectricTest() {
         decode().geofences.forEach { assertNull(it.lastUpdated) }
     }
 
-    /** This build has no polygon runtime, so every polygon must drop and every circle survive. */
+    /** Without the polygon opt-in (the mapper's default), every polygon drops and every circle survives. */
     @Test
     fun v2Payload_mapsCirclesAndDropsPolygonsWithoutPolygonRuntime() {
         val regions = decode().toDomainRegions()
@@ -116,7 +115,7 @@ class GeofenceV2PayloadTest : RobolectricTest() {
         assertEquals(9, catalog.size)
         assertEquals(4, catalog.count { it.shape == "polygon" })
         assertEquals(5, catalog.count { it.shape == "circle" })
-        // A polygon's catalog radius is the backend's enclosing circle, never a padded one.
+        // A polygon's catalog radius is the backend's enclosing circle.
         catalog.first { it.id == "18" }.radiusMeters shouldBeEqualTo 101.0
     }
 

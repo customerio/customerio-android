@@ -56,14 +56,9 @@ internal val SDKComponent.geofenceLogger: GeofenceLogger
     get() = singleton { GeofenceLogger(logger) }
 
 /**
- * The build's single polygon opt-in, handed to every seam that turns wire data into monitored state:
- * the request builder ([geofenceApiService]), the mapper ([GeofenceRepositoryImpl]) and the ranker
- * ([geofenceDistanceFilter]).
- *
- * One value, three seams, no partial path — a build cannot ask the backend for polygons it would drop,
- * nor rank a polygon it never asked for. [PolygonSupport.Enabled] here because this build ships the
- * responsive runtime in `io.customer.geofence.polygon`; the seams themselves still default to
- * [PolygonSupport.Disabled], so a future seam that forgets this wiring fails closed.
+ * The build's polygon opt-in, shared by the mapper ([GeofenceRepositoryImpl]) and the ranker
+ * ([geofenceDistanceFilter]) so they can't disagree. Those seams default to
+ * [PolygonSupport.Disabled], so one that misses this wiring fails closed.
  */
 internal val SDKComponent.polygonSupport: PolygonSupport
     get() = singleton { PolygonSupport.Enabled }
@@ -84,15 +79,12 @@ internal val AndroidSDKComponent.polygonApproachWorkScheduler: PolygonApproachWo
     }
 
 internal val AndroidSDKComponent.polygonRecheckScheduler: PolygonRecheckScheduler
-    // Keyed by the interface for the reason the sibling seams are: without the explicit type the
-    // singleton keys on the implementation, and a host override would resolve to a second instance.
+    // Keyed by the interface type, so an override registered for the interface takes effect.
     get() = singleton<PolygonRecheckScheduler> {
         WorkManagerPolygonRecheckScheduler(workManagerProvider = SDKComponent.workManagerProvider)
     }
 
 internal val AndroidSDKComponent.polygonPassiveMonitor: PolygonPassiveMonitor
-    // Keyed by the interface, like its siblings: an implementation key would let a host override
-    // resolve to a second instance holding a second GMS registration.
     get() = singleton<PolygonPassiveMonitor> {
         GmsPolygonPassiveMonitor(
             context = applicationContext,
@@ -102,9 +94,6 @@ internal val AndroidSDKComponent.polygonPassiveMonitor: PolygonPassiveMonitor
     }
 
 internal val AndroidSDKComponent.polygonBootSessionProvider: PolygonBootSessionProvider
-    // Keyed by the interface, like every other seam here: without the explicit type the singleton
-    // is registered under AndroidPolygonBootSessionProvider, and a test overriding the interface
-    // silently gets the real one instead.
     get() = singleton<PolygonBootSessionProvider> { AndroidPolygonBootSessionProvider(applicationContext) }
 
 internal val AndroidSDKComponent.geofenceReceiverToggle: GeofenceReceiverToggle
@@ -139,9 +128,8 @@ internal val AndroidSDKComponent.geofenceEventTracker: GeofenceEventTracker
         GeofenceEventTrackerImpl(SDKComponent.httpClient, geofenceRegionStore)
     }
 
-// Shared by the WorkManager worker, the async fallback, and the foreground flush
-// so all three coordinate delivery over one lock/file (at-least-once, deduped
-// downstream by transitionId).
+// One instance so every writer and delivery channel shares one lock and file (at-least-once,
+// deduped downstream by transitionId).
 internal val AndroidSDKComponent.pendingGeofenceDeliveryStore: PendingDeliveryStore<PendingGeofenceDelivery>
     get() = singleton {
         PendingDeliveryStore(
@@ -293,8 +281,7 @@ internal val AndroidSDKComponent.geofenceRepository: GeofenceRepository
         )
     }
 
-// Singleton: the "already reported this tier" memory has to outlive one caller, and the whole
-// point is that module init and foreground entry share it.
+// Singleton: module init and foreground entry share its "already reported this tier" memory.
 internal val AndroidSDKComponent.geofencePermissionReporter: GeofencePermissionReporter
     get() = singleton {
         GeofencePermissionReporter(

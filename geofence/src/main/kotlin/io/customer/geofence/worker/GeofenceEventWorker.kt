@@ -42,9 +42,8 @@ internal class GeofenceEventScheduler(
             .addTag(WORK_MANAGER_TAG_GEOFENCE)
             .build()
 
-        // Every transition joins one durable continuation chain. This prevents a later EXIT from
-        // overtaking an earlier ENTER when WorkManager has multiple workers eligible at once.
-        // APPEND_OR_REPLACE also creates a fresh chain if a prior terminal failure cancelled it.
+        // One durable chain so a later EXIT can't overtake an earlier ENTER. APPEND_OR_REPLACE starts
+        // a fresh chain if a terminal failure cancelled the previous one.
         val workManager = workManagerProvider.getWorkManager()
         if (workManager != null) {
             // Await persistence so the BroadcastReceiver doesn't finish() before WM commits the work spec.
@@ -75,43 +74,35 @@ internal class GeofenceEventWorker(
         // initialized the SDK yet; without this, SDKComponent.android() would throw.
         SDKComponent.setupAndroidComponent(context = applicationContext)
         val logger = SDKComponent.geofenceLogger
-        // Every node drains the oldest durable row, not the row that happened to schedule it. This
-        // preserves transition order even after retries, foreground handoff, or process death.
+        // Each node drains the oldest row, not the one that scheduled it, so order survives retries,
+        // foreground handoff and process death.
         val store = SDKComponent.android().pendingGeofenceDeliveryStore
         var sawEntry = false
         while (true) {
             val queued = store.loadAllOrNull() ?: run {
-                // Unreadable is not empty: nothing was sent, so success would claim a drain.
-                // failure() is safe here where the paths below avoid it — every dependent would
-                // fail this same read, and the rows behind are untouched on disk.
+                // Unreadable is not empty, so not success. failure() is safe here, unlike below:
+                // every dependent would fail the same read, and the rows stay on disk.
                 val willRetry = runAttemptCount < GeofenceConstants.MAX_WORKER_RUN_ATTEMPTS
                 logger.logEventWorkerQueueUnreadable(runAttemptCount, willRetry)
                 return if (willRetry) Result.retry() else Result.failure()
             }
             val entry = queued.firstOrNull() ?: run {
-                // Only when the wake found nothing at all. Draining the queue empty is the normal
-                // success path, and recording that as an already-delivered skip would report a
-                // flush overtaking us on every successful delivery.
+                // Logged only when this wake found nothing; draining the queue empty is normal.
                 if (!sawEntry) logger.logEventWorkerEntryMissing()
                 return Result.success()
             }
             sawEntry = true
 
-            // Shouldn't happen — the receiver drops anonymous transitions before persisting. It is
-            // also unrecoverable: the userId was snapshotted at queue time and no later attempt can
-            // supply one, so the row is undeliverable forever. Leaving it in place would strand the
-            // head of an ordered queue and with it every transition queued behind it, so drop it and
-            // carry on. A failed removal falls through to a backed-off retry rather than spinning.
+            // Anonymous rows shouldn't exist and can't gain a userId later, so drop the
+            // row rather than block the ordered queue. A failed removal retries with backoff.
             if (entry.userId.isNullOrEmpty()) {
                 logger.logEventDeliveryDeferredAnonymous(entry.geofenceId, entry.transition.name)
                 if (store.remove(entry.key)) continue
                 return Result.retry()
             }
 
-            // At-least-once delivery: keep the row until the send is confirmed, so a process death
-            // mid-request leaves it for a WorkManager retry or the foreground flush rather than
-            // dropping it. The duplicate this can produce (overlap with the flush, or a retry after
-            // an ambiguous success) is deduped backend-side via the stable transitionId.
+            // At-least-once: the row stays until the send is confirmed. Duplicates (flush overlap, a
+            // retry after an ambiguous success) are deduped backend-side on transitionId.
             when (
                 val outcome = store.sendRemoveOnSuccess(entry, ::isRetryableDeliveryFailure) {
                     SDKComponent.android().geofenceEventTracker.trackEvent(entry)
@@ -125,10 +116,8 @@ internal class GeofenceEventWorker(
                 PendingDeliveryResult.Delivered ->
                     logger.logEventDelivered(entry.geofenceId, entry.transition.name)
                 PendingDeliveryResult.DeliveredNotRemoved -> {
-                    // Sent, but the row that proves it is still on disk. Continuing the loop would
-                    // re-read this same head entry and resend it, and again, without bound. Hand the
-                    // problem to WorkManager's backoff: at worst one delayed duplicate, deduped
-                    // backend-side on transitionId, instead of an unbounded burst of them.
+                    // Sent but still on disk. Looping would resend the same head row without bound;
+                    // a backed-off retry costs at most one deduped duplicate.
                     logger.logEventDeliveredButNotRemoved(entry.geofenceId, entry.transition.name)
                     return Result.retry()
                 }
@@ -141,11 +130,8 @@ internal class GeofenceEventWorker(
                     return Result.retry()
                 }
                 is PendingDeliveryResult.Failed -> {
-                    // A refused payload is refused identically next time, so retrying only holds the
-                    // head of an ordered queue and every transition behind it. Same disposal as the
-                    // anonymous row above: drop it and carry on. Narrow on purpose — only a terminal
-                    // HTTP status is known-permanent. Anything else (a bad state, a serialization
-                    // slip) may well succeed on the next attempt, so it keeps the row and retries.
+                    // Only a terminal HTTP status is known-permanent: drop that row so it doesn't
+                    // block the ordered queue. Any other failure keeps the row and retries.
                     val cause = outcome.cause
                     val dropped = cause is HttpRequestFailure && !cause.isRetryable && store.remove(entry.key)
                     logger.logEventDeliveryFailed(
@@ -157,10 +143,8 @@ internal class GeofenceEventWorker(
                     if (dropped) {
                         continue
                     }
-                    // Still not Result.failure(): a terminal node cancels every existing dependent in
-                    // a WorkManager chain, discarding the transitions queued behind this one. Not
-                    // Result.success() either — this node may be the last in the chain, and then
-                    // nothing would come back for the row, stranding the head of an ordered queue.
+                    // Not failure(): it cancels every dependent in the chain. Not success(): if this
+                    // is the last node, nothing would come back for the row.
                     return Result.retry()
                 }
             }
@@ -169,12 +153,9 @@ internal class GeofenceEventWorker(
 }
 
 /**
- * A delivery failure worth attempting again.
- *
- * Every non-2xx arrives as an [HttpRequestFailure], so without this the default `it is IOException`
- * predicate classifies a 400 or 401 as retryable and the row is re-sent forever. Transport failures
- * stay retryable; anything that is not an [IOException] at all is a bug rather than a network
- * condition, and repeating it would not help.
+ * A delivery failure worth attempting again. Every non-2xx is an [HttpRequestFailure], which is an
+ * [IOException], so the default `it is IOException` predicate would retry a 400 or 401 forever.
+ * Other transport failures stay retryable; non-IO failures are not.
  */
 internal fun isRetryableDeliveryFailure(cause: Throwable?): Boolean = when (cause) {
     is HttpRequestFailure -> cause.isRetryable

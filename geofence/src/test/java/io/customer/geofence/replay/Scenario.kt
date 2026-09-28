@@ -12,25 +12,17 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 
 /**
- * One recorded drive, as the `capture2scenario.py` transform emits it.
- *
- * The format is deliberately dumb: NDJSON, one header line then one record per line, each tagged
- * `given` / `when` / `then` / `note`. The tagging comes from the SDK's own `io=` classification, so
- * a record cannot be logged as one thing and graded as another — which is the property the whole
- * exercise rests on.
+ * One recorded drive, as the `capture2scenario.py` transform emits it: NDJSON, a header line then
+ * one record per line tagged `given` / `when` / `then` / `note`. The tags come from the SDK's own
+ * `io=` classification, so a record cannot be logged as one thing and graded as another.
  */
 internal data class Scenario(
     val name: String,
     val platform: String,
     /**
-     * `recorded` for a drive taken off a phone, `authored` for a scenario somebody wrote. Read
-     * from `source.kind`, which every header carries, rather than from the directory the file sits
-     * in — the corpus is one flat directory and provenance has to travel inside the file.
-     *
-     * Absent or unrecognised becomes `unknown` and discovery rejects it, mirroring how `platform`
-     * is handled. It must not default to `recorded`: that let an authored scenario with no
-     * `source` stand in for a phone capture and satisfy the guard that asks whether any drive was
-     * found at all.
+     * `recorded` (taken off a phone) or `authored`, from the header's `source.kind` because the
+     * corpus is one flat directory. Absent or unrecognised becomes `unknown`, which discovery
+     * rejects: defaulting to `recorded` would let an authored file satisfy the "found any drives" guard.
      */
     val sourceKind: String,
     val sdkVersion: String?,
@@ -38,10 +30,8 @@ internal data class Scenario(
     val records: List<ScenarioRecord>
 ) {
     /**
-     * Whether this came off a phone. Only used to keep the "did discovery find any drives" guard
-     * honest: a corpus of authored scenarios alone must not satisfy it.
-     *
-     * Deliberately NOT what decides where a scenario runs. That is [platform] alone.
+     * Whether this came off a phone. Feeds only the "found any drives" guard; where a scenario runs
+     * is decided by [platform] alone.
      */
     val isRecorded: Boolean get() = sourceKind == "recorded"
 
@@ -76,12 +66,7 @@ internal data class ScenarioRecord(
 
     fun boolean(key: String): Boolean? = fields[key] as? Boolean
 
-    /**
-     * The fences a record names.
-     *
-     * Android batches — one GMS broadcast can carry several fences under `ids` — where iOS reports
-     * one `id` per callback. Reading both keeps one loader honest about two platforms.
-     */
+    /** The fences a record names: `ids` (one GMS broadcast can carry several) or a single `id` (iOS). */
     fun geofenceIds(): List<String> {
         string("ids")?.let { raw ->
             return raw.split(",").map { it.trim() }.filter { it.isNotEmpty() }
@@ -98,9 +83,8 @@ internal data class ScenarioFence(
     val radius: Double,
     val geosetIds: List<String>,
     val transitionTypes: List<String>,
-    // Present only for a polygon: the outer ring the transform folded out of `fence.cataloged`. The
-    // runner registers the polygon from these and reads latitude/longitude/radius above as its
-    // enclosing wake circle; absent, the fence is the circle those three describe.
+    // Polygon only: the outer ring, with latitude/longitude/radius above as its enclosing wake
+    // circle. Absent, the fence is the circle those three describe.
     val vertices: List<PolygonCoordinate>? = null
 )
 
@@ -140,9 +124,7 @@ internal object ScenarioLoader {
             "when" -> Scenario.Kind.WHEN
             "then" -> Scenario.Kind.THEN
             "note" -> Scenario.Kind.NOTE
-            // Rejected, not dropped. Returning null here left the file readable while a record
-            // vanished from the replay — a misspelled `k` would take its input or its assertion
-            // with it and the drive would still report green. iOS throws on the same input.
+            // Rejected, not dropped: a misspelled `k` would silently remove an input or assertion.
             else -> throw IllegalArgumentException("$fileName: line $lineNumber has unknown k '$k'")
         }
         val ev = obj["ev"]?.jsonPrimitive?.content
@@ -164,9 +146,8 @@ internal object ScenarioLoader {
         return array.mapNotNull { entry ->
             val o = entry as? JsonObject ?: return@mapNotNull null
             val id = o["id"]?.jsonPrimitive?.contentOrNullSafe() ?: return@mapNotNull null
-            // A polygon carries the same wire shape iOS decodes straight into the SDK model: a GeoJSON
-            // `geometry` and an `enclosingCircle`. Its wake circle comes from `enclosingCircle`, not
-            // the flat fields — those belong to a circle fence. Absent, this is that circle.
+            // A polygon carries a GeoJSON `geometry` and an `enclosingCircle` (its wake circle);
+            // without them the flat fields describe a circle fence.
             val geometry = o["geometry"] as? JsonObject
             val enclosing = o["enclosingCircle"] as? JsonObject
             val vertices = geometry?.let(::parseGeometry)

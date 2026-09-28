@@ -25,9 +25,8 @@ internal enum class PolygonEvidence {
 }
 
 /**
- * Why a fix could not be classified. Only set when the fix was genuinely undecidable: a decisive
- * fix that agrees with the committed state is not undecided, and reporting it would emit a record
- * per fix for a device sitting still inside a polygon.
+ * Why a fix could not be classified. Not set for a decisive fix that agrees with the committed
+ * state, or a device sitting still inside a polygon would emit a record per fix.
  */
 internal enum class PolygonUndecidedReason(val wire: String) {
     ACCURACY_TOO_LOW("accuracy_too_low"),
@@ -38,11 +37,7 @@ internal enum class PolygonUndecidedReason(val wire: String) {
 internal data class PolygonEvidenceResult(
     val evidence: PolygonEvidence,
     val undecidedReason: PolygonUndecidedReason? = null,
-    /**
-     * Positive inside, negative outside, as iOS reports it. Set on every evaluated result, decided,
-     * undecided and agreeing alike, so a capture can compare the fixes a margin accepted against the
-     * ones it refused. Null only where the geometry was never consulted.
-     */
+    /** Positive inside, negative outside. Null only where the geometry was never consulted. */
     val signedBoundaryDistanceMeters: Double? = null,
     /**
      * The fix decided, but its own uncertainty reaches the ring, so it cannot rule out having been
@@ -50,9 +45,8 @@ internal data class PolygonEvidenceResult(
      */
     val requiresCorroboration: Boolean = false,
     /**
-     * The fix was decisive and found the device on the side the committed state already claims, so
-     * there is nothing to report. Recorded anyway: these are the fixes the margins let through, and
-     * a capture of only the ones they refused cannot say where a margin should sit.
+     * Decisive, on the side already committed, so nothing to report. Still recorded so the fixes the
+     * margins accepted can be compared with the ones they refused.
      */
     val agreedWithCommittedState: Boolean = false
 )
@@ -60,20 +54,11 @@ internal data class PolygonEvidenceResult(
 /** Classifies a location fix without mutating committed polygon state. */
 internal class PolygonAccuracyEvaluator {
     /**
-     * Classifies a sparse background fix, asymmetrically.
-     *
-     * Arrival and departure are not equally costly. A missed arrival loses the visit outright,
-     * because polygons are excluded from initial-ENTER synthesis and nothing re-derives it; a
-     * spurious one costs a transition that the next decisive fix corrects. Departure is the
-     * opposite: leaving early on a noisy fix ends a visit that is still happening.
-     *
-     * So arrival asks only that the fix itself lies inside the ring, and departure keeps the
-     * clearance margin. The symmetric rule this replaces required `edge > accuracy + margin` in
-     * both directions, which at median background accuracy leaves no decidable point anywhere
-     * inside a 24 m fence — and three of our four real polygons are 24-42 m across.
-     *
-     * The three questions are asked in the order they can be answered: geometry, then clearance,
-     * then precision. Precision is only ever a question about an arrival.
+     * Classifies a sparse background fix, asymmetrically. A missed arrival loses the visit (polygons
+     * get no synthesized initial ENTER), while a spurious one is corrected by the next decisive fix;
+     * an early departure ends a visit still in progress. So arrival only needs the fix inside the
+     * ring, and departure also needs a clearance margin. A symmetric margin would leave no decidable
+     * point inside a ring shallower than the fix's accuracy plus that margin.
      */
     fun decisiveEvidenceFor(
         geometry: PolygonGeometry,
@@ -89,12 +74,9 @@ internal class PolygonAccuracyEvaluator {
         }
         val boundaryDistanceMeters = geometry.boundaryDistanceMeters(sample.coordinate)
         val signedBoundaryDistanceMeters = signedBoundaryDistance(boundaryDistanceMeters, relation)
-        // Clearance before accuracy. A fix clear of the ring by more than its own accuracy plus the
-        // margin has settled which side of it the device is on, however coarse the fix is: a device
-        // 988 m outside a ring is not ambiguous at 122 m accuracy. Reading the accuracy ceiling
-        // first, as this did until 2026-09-18, discarded such a fix for being imprecise about a
-        // distance nothing doubted, and a discarded departure leaves the visit open and then
-        // suppresses the next arrival at that venue through the redundant-ENTER guard.
+        // Clearance before the accuracy ceiling: a fix clear of the ring by more than its accuracy
+        // plus the margin has settled the side however coarse it is. Discarding it would leave the
+        // visit open, and the redundant-ENTER guard would then suppress the next arrival.
         if (
             relation == PolygonPointRelation.OUTSIDE &&
             boundaryDistanceMeters > sample.horizontalAccuracyMeters + DEPARTURE_BOUNDARY_MARGIN_METERS
@@ -112,23 +94,10 @@ internal class PolygonAccuracyEvaluator {
                 )
             }
         }
-        // Only an arrival still needs the fix to be precise enough to mean anything. Departure has
-        // already been answered above, so from here the ceiling governs arrivals alone.
-        //
-        // Per fence, and never stricter than the flat 50 m it replaces. The old constant refused a
-        // 122 m fix 16 m inside a 254 m-deep venue, which is the one visit the field captures lost
-        // outright, so the ceiling rises with the venue's own depth.
-        //
-        // It does not fall below 50 m, which is a deliberate departure from iOS. Scaling all the
-        // way down makes a 24 m shop undecidable at the 20 m accuracy the background routinely
-        // delivers, and that is the defect this module already fixed once: requiring the accuracy
-        // circle to clear the ring made a retail unit permanently undetectable. Refusing a real
-        // arrival is the expensive error, and the captures give no reason to pay it here — across
-        // 20 evaluations of the two rings shallower than this floor, not one fix ever read inside,
-        // so the band the floor keeps open has never yet admitted anything at all.
-        //
-        // A marginal fix admitted by the floor is not reported blindly: it opens a hold, and any
-        // later fix that can judge the venue and reads outside discards it.
+        // From here the ceiling governs arrivals only. It scales with venue depth so a coarse fix
+        // well inside a large venue still counts, and has a floor so a shallow ring still admits a
+        // coarse fix. A marginal fix opens a hold that any later judged fix
+        // reading outside discards.
         val arrivalCeilingMeters = max(MINIMUM_ARRIVAL_CEILING_METERS, geometry.venueScaleMeters)
         if (sample.horizontalAccuracyMeters >= arrivalCeilingMeters) {
             return undecided(
@@ -141,18 +110,15 @@ internal class PolygonAccuracyEvaluator {
                 PolygonEvidenceResult(
                     PolygonEvidence.ENTER,
                     signedBoundaryDistanceMeters = signedBoundaryDistanceMeters,
-                    // Arrival carries no clearance margin, so nothing else bounds accuracy against
-                    // the boundary. Measured on our own rings, the exterior band a single
-                    // inside-reading fix can have come from is over twice the area of the polygon
-                    // itself — that band is exactly this condition, seen from the other side.
+                    // Arrival carries no clearance margin, so this is the only accuracy bound
+                    // against the boundary.
                     requiresCorroboration =
                     boundaryDistanceMeters <= sample.horizontalAccuracyMeters
                 )
             // Outside, and not clear of the ring by enough to have ruled out the other side.
             committedState == PolygonCommittedState.INSIDE && relation == PolygonPointRelation.OUTSIDE ->
                 undecided(PolygonUndecidedReason.WITHIN_ACCURACY, signedBoundaryDistanceMeters)
-            // Decisive, and it agrees with the committed state. Nothing to decide, so no reason and
-            // no transition, but the fix quality is still worth recording.
+            // Decisive and agrees with the committed state: no transition, but still recorded.
             else -> PolygonEvidenceResult(
                 PolygonEvidence.AMBIGUOUS,
                 signedBoundaryDistanceMeters = signedBoundaryDistanceMeters,
@@ -170,11 +136,7 @@ internal class PolygonAccuracyEvaluator {
         signedBoundaryDistanceMeters = signedBoundaryDistanceMeters
     )
 
-    /**
-     * The decisions above all compare an unsigned distance, so the sign is only ever attached on
-     * the way out to the record. Unsigned, a row cannot tell a fix refused 26 m inside the polygon
-     * from one refused 26 m outside it, which is the question the margins are calibrated against.
-     */
+    /** Decisions use unsigned distance; the sign is for the record, to tell inside from outside. */
     private fun PolygonGeometry.signedBoundaryDistanceMeters(point: PolygonCoordinate): Double =
         signedBoundaryDistance(boundaryDistanceMeters(point), relationTo(point))
 
@@ -186,18 +148,12 @@ internal class PolygonAccuracyEvaluator {
 
     private companion object {
         /**
-         * The arrival ceiling never falls below this, however shallow the ring.
-         *
-         * Carried over as the old flat ceiling's value so this change cannot refuse an arrival that
-         * the previous rule accepted. It is the one place Android is deliberately looser than iOS,
+         * The arrival ceiling never falls below this, however shallow the ring. Looser than iOS,
          * whose ceiling is the venue depth alone.
          */
         const val MINIMUM_ARRIVAL_CEILING_METERS = 50.0
 
-        /**
-         * Clearance a departure needs beyond the fix's own accuracy. Arrival has no equivalent by
-         * design. v1 value.
-         */
+        /** Clearance a departure needs beyond the fix's own accuracy. Arrival has none. */
         const val DEPARTURE_BOUNDARY_MARGIN_METERS = 20.0
     }
 }

@@ -22,17 +22,12 @@ internal class GeofenceForegroundCoordinator(
 ) {
 
     /**
-     * Suspending, and the caller owns the scope: the identity read is a Keystore decrypt that can
+     * Hops to the background dispatcher itself: the identity read is a Keystore decrypt that can
      * block for hundreds of milliseconds, and lifecycle callbacks arrive on the main thread.
-     *
-     * The hop is enforced here rather than left to the caller. Without it this function had no
-     * suspension point at all, so it ran wherever it was called from and the guarantee above was
-     * documentation only — and a main-thread Keystore decrypt is an ANR that no CI job can catch.
      */
     suspend fun onForeground() = withContext(dispatchers.background) {
-        // Guarded separately from the retry below, which is the point: the self-heal needs no
-        // identity, and it used to be skipped entirely when the identity read threw on its way to
-        // deciding whether to take a fix.
+        // Guarded separately so a throwing identity read can't skip the retry below, which needs
+        // no identity.
         val tookFix = try {
             takeFixForRefresh()
         } catch (e: CancellationException) {

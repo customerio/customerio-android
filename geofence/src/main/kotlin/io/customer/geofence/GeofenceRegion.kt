@@ -43,10 +43,8 @@ internal data class GeofenceRegion(
     @SerialName("polygonVertices")
     val polygonVertices: List<PolygonCoordinate>? = null,
     /**
-     * The backend's own wake-circle radius for a polygon. Equal to [radius] now that the circle is
-     * registered as sent, and kept distinct because they answer different questions: [radius] is
-     * whatever GMS holds for a region, this is what the backend said the enclosing circle is. Null
-     * for circles, whose [radius] is already the backend's.
+     * The backend's wake-circle radius for a polygon; null for circles. Currently equal to [radius],
+     * but kept distinct: [radius] is what GMS holds, this is what the backend sent.
      */
     @SerialName("baseRadiusMeters")
     val baseRadiusMeters: Double? = null
@@ -91,18 +89,12 @@ internal fun GeofenceRegion.distanceTo(lat: Double, lng: Double): Float {
 
 /**
  * Straight-line distance in meters from this region's *boundary* to the given coordinates, `0` when
- * they fall inside the region; `null` when the region is a polygon whose geometry is unusable.
+ * inside. `null` for a polygon with unusable geometry: its circle fields describe the coarse trigger,
+ * not the fence, so the caller drops it.
  *
- * Relevance for monitoring is proximity to the boundary, not to the center: ranking on center
- * distance evicts a region the device currently occupies once enough regions have nearer centers,
- * and an unmonitored region can never report its exit.
- *
- * A polygon with no usable geometry has no boundary to measure to, and its circle fields describe
- * the coarse trigger rather than the fence — so it reports no distance at all and the caller drops
- * it, instead of ranking (and then registering) an area the backend never sent.
- *
- * [polygonGeometry] lets a caller that already validated this region's ring pass it back in; the
- * default re-derives it.
+ * Boundary rather than center, so nearer centers can't evict a region the device occupies (an
+ * unmonitored region never reports its exit). [polygonGeometry] lets a caller pass an
+ * already-validated ring.
  */
 internal fun GeofenceRegion.edgeDistanceToOrNull(
     lat: Double,
@@ -141,9 +133,10 @@ internal fun GeofenceRegion.toGmsTransitionTypes(): Int {
 }
 
 /**
- * True when two regions match on the fields GMS registers (id, coordinates, radius, transition types).
- * A change to only the event/bookkeeping fields (name, geosets, metadata, etc.) skips a re-register
- * that would otherwise fire a spurious `INITIAL_TRIGGER_ENTER`.
+ * True when two regions match on the fields GMS registers: id, coordinates, radius, shape, and
+ * transition types for circles (a polygon's wake circle always registers ENTER and EXIT). Any other
+ * change (name, geosets, metadata, etc.) skips a re-register that would otherwise fire a spurious
+ * `INITIAL_TRIGGER_ENTER`.
  */
 internal fun GeofenceRegion.equalsForRegistration(other: GeofenceRegion): Boolean =
     id == other.id &&

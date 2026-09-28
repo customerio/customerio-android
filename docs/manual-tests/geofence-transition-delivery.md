@@ -1,11 +1,12 @@
 # Manual Test Plan — Geofence Transition Delivery (Android)
 
 Covers geofence transition delivery: a transition is recorded in a disk-backed
-`PendingDeliveryStore` and delivered **at-least-once** by one of two channels —
+`PendingDeliveryStore` and delivered **at-least-once** by one of two channels:
 the **WorkManager worker** (direct HTTP `/track`, survives process death) or
-the **foreground flush** (analytics pipeline). The worker keeps the row until a
-send is confirmed (send-then-remove); the flush publishes, removes the row,
-then best-effort cancels the worker.
+the **foreground flush** (analytics pipeline). All transitions share one ordered
+WorkManager chain; the worker drains the oldest row and removes it only after a
+confirmed send. The flush publishes, then removes the row; it does not cancel the
+chain, so a queued worker later finds the row gone and sends nothing.
 
 > **Core invariant for every case:** each geofence transition reaches
 > Customer.io **at least once** — never zero. The rare duplicate (a crash after
@@ -16,7 +17,7 @@ then best-effort cancels the worker.
 > `transitionId`).
 
 > **Identified users only:** transitions observed while no user is identified
-> are dropped at the receiver — they are never queued or delivered.
+> are dropped before queuing and never delivered.
 
 ---
 
@@ -43,7 +44,7 @@ The delivery arbitration logic itself is also covered by automated tests:
 | Package | `io.customer.android.sample.java_layout` |
 | Emulator | Google **APIs** image (GMS present), location enabled |
 | SDK log level | **DEBUG** (Settings → Log level = Debug) |
-| Precondition | Profile identified; workspace has ≥1 geofence configured; `ModuleLocation` registered with background-location permission granted so transitions fire in the background |
+| Precondition | Profile identified; workspace has ≥1 geofence configured; `ModuleLocation` and `ModuleGeofence` registered (the sample does both); background-location permission granted so transitions fire in the background |
 
 ### Helper commands
 
@@ -76,8 +77,8 @@ adb shell am force-stop $PKG                                # kill process
 
 Workspace → **Data & Integrations → Activity Logs**, filter for the
 `Geofence Transition` event and check its `transition` property (`enter` /
-`exit`) plus `geofence_id` to count deliveries for a given crossing. A fence in
-N geosets produces N events per crossing — all sharing one `transitionId`.
+`exit`) plus `geofenceId` to count deliveries for a given crossing. A fence in
+N geosets produces N events per crossing, all sharing one `transitionId`.
 
 ### Log hallmarks (message text after the `[Geofence]` prefix)
 
@@ -86,11 +87,10 @@ N geosets produces N events per crossing — all sharing one `transitionId`.
 | Transition recorded | `Geofence '<id>' ENTER: queued for at-least-once delivery (WorkManager now, analytics pipeline on next foreground)` |
 | Worker delivered | `Geofence '<id>' ENTER: delivered via WorkManager (direct HTTP); removed from pending store` |
 | Worker backed off | `Geofence '<id>' ENTER: worker skipped — entry no longer in store (already delivered via the analytics pipeline)` |
-| Worker found no row | `Geofence event worker skipped: no pending entry for '<key>' (already delivered via the analytics pipeline)` |
+| Worker found no row | `Geofence event worker woke with nothing to send: an earlier node in the delivery chain drained the queue, or the foreground flush did` |
 | Worker will retry | `Geofence '<id>' ENTER: HTTP delivery hit network error (...); WorkManager will retry` |
 | Flush start | `Geofence foreground flush: N pending transition(s) to hand off to the analytics pipeline` |
 | Flush published | `Geofence '<id>' ENTER: published to analytics pipeline via foreground flush` |
-| Flush cancel WM | `Geofence '<id>' ENTER: cancelled pending WorkManager delivery before flush` |
 | Flush done | `Geofence foreground flush complete: N transition(s) handed off this run` |
 
 ---
@@ -121,8 +121,8 @@ _(No `published to analytics pipeline via foreground flush` for this transition 
 ## TC2 — Foreground flush: offline at transition, then online + foreground
 
 **Objective:** When the worker can't send (offline), the transition is
-delivered via the analytics-pipeline flush on next foreground, and the worker's
-pending work is cancelled afterward so it normally never also sends.
+delivered via the analytics-pipeline flush on next foreground, and the queued
+worker then finds nothing to send.
 
 **Preconditions:** **Offline** (airplane mode on); app **backgrounded**;
 background-location granted (so the transition still fires offline).
@@ -140,29 +140,29 @@ background-location granted (so the transition still fires offline).
 ```
 _(no `delivered via WorkManager` — the worker's CONNECTED constraint is unmet while offline.)_
 
-**Expected store after step 3** (one row per geoset; **no coordinates** are persisted):
+**Expected store after step 3** (one row per geoset; **no coordinates** are persisted; fields at their default value are omitted):
 ```
-[{"geofenceId":"<id>","transition":"ENTER","timestamp":...,"userId":"<userId>","transitionId":"<uuid>","geofenceName":"...","geosetId":"...","metadata":{...}}]
+[{"geofenceId":"<id>","transition":"ENTER","timestamp":...,"userId":"<userId>","transitionId":"<uuid>","geofenceName":"...","geosetId":"...","metadata":{...},"stateGeneration":...,...}]
 ```
 
 **Expected logs (step 4 — on foreground):**
 ```
 [Geofence] Geofence foreground flush: 1 pending transition(s) ...
 [Geofence] Geofence '<id>' ENTER: published to analytics pipeline via foreground flush
-[Geofence] Geofence '<id>' ENTER: cancelled pending WorkManager delivery before flush
 [Geofence] Geofence foreground flush complete: 1 transition(s) handed off this run
 ```
+_(If WorkManager sends first after reconnecting, you see `delivered via WorkManager ...` and the flush logs `0 pending`. Either way the event arrives once.)_
 
 **Expected store after step 5:** `[]`
 
 **Expected portal:** ✅ `Geofence Transition` (`transition: enter`) = **1 per geoset**
-for `<id>`, via the analytics pipeline — **not** the worker.
+for `<id>`, normally via the analytics pipeline.
 
 ---
 
 ## TC3 — No duplicate in the normal path (cross-check of TC2)
 
-**Objective:** Confirm the cancelled worker doesn't *also* deliver after the flush
+**Objective:** Confirm the queued worker doesn't *also* deliver after the flush
 in the normal (no-crash) path.
 
 **Preconditions:** Run TC2; stay online + foreground for ~2–3 min afterward.
@@ -172,14 +172,15 @@ in the normal (no-crash) path.
 2. Re-check the portal.
 
 **Expected logs:** **No** `delivered via WorkManager ...` for that transition
-after the flush. If the worker does race in first, it logs
-`worker skipped — entry no longer in store` instead of sending.
+after the flush. The worker logs `Geofence event worker woke with nothing to send ...`
+(or `worker skipped — entry no longer in store` if the flush removed the row
+mid-run) instead of sending.
 
 **Expected store:** `[]` (stays empty).
 
 **Expected portal:** ✅ `Geofence Transition` (`transition: enter`) = **1 per geoset**
 for `<id>`. A duplicate here is a bug **unless** it shares the previous event's
-`transitionId` (the at-least-once crash window) — same-id duplicates are the
+`transitionId` (the at-least-once crash window): same-id duplicates are the
 backend dedupe's job, different-id duplicates are an SDK regression.
 
 ---
@@ -228,7 +229,7 @@ _(Or, if WorkManager runs first on relaunch: `delivered via WorkManager ...` and
 ```
 [Geofence] Geofence foreground flush: 0 pending transition(s) ...
 ```
-_(no `cancelled`, no `published`, no `flush complete`.)_
+_(no `published`, no `flush complete`.)_
 
 **Expected store:** absent / `[]`.
 
@@ -252,8 +253,8 @@ _(no `cancelled`, no `published`, no `flush complete`.)_
 | TC | Network @ transition | App state | Delivery channel | Logs hallmark | Portal (per geoset) |
 |----|----------------------|-----------|------------------|---------------|---------------------|
 | TC1 | Online | Foreground | WorkManager | `delivered via WorkManager` | **1** |
-| TC2 | Offline → Online | Bg → Fg | Pipeline flush | `published to analytics pipeline` + `cancelled ...` | **1** |
-| TC3 | (after TC2) | Foreground | — | **no** late `delivered via WorkManager` | **1** (same-`transitionId` dupes = backend dedupe) |
+| TC2 | Offline → Online | Bg → Fg | Pipeline flush | `published to analytics pipeline` | **1** |
+| TC3 | (after TC2) | Foreground | none | **no** late `delivered via WorkManager` | **1** (same-`transitionId` dupes = backend dedupe) |
 | TC4 | Offline → Online | killed → Fg | Pipeline flush (or WM) | store survives `force-stop` | **1** |
 | TC5 | Online | Bg → Fg | none | `flush: 0 pending` | **0** |
 | TC6 | any | any | one channel | `EXIT` variants | **1** |

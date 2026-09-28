@@ -12,9 +12,9 @@ import kotlinx.serialization.json.Json
  * - [decodeOrNull] — swallow parse failures (cached state; failure → `null` and the
  *   key gets wiped by the caller).
  *
- * Opt-in `lenient` flag accepts loose wire types (e.g. `"id": 123` or `"id": "abc-123"`)
- * without committing the SDK to a specific shape. Cache reads stay strict — we wrote
- * that JSON ourselves, so loose parsing would only mask corruption.
+ * The opt-in `lenient` flag (API responses) accepts loose wire types, e.g. an unquoted
+ * `"id": 123` for a String field. Cache reads stay strict: we wrote that JSON ourselves,
+ * so loose parsing would only mask corruption.
  */
 internal class GeofenceJsonSerializer {
 

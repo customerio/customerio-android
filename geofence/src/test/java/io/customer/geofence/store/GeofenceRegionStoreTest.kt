@@ -46,7 +46,7 @@ class GeofenceRegionStoreTest : RobolectricTest() {
         store.clearAll()
     }
 
-    // --- Cached regions (full backend response) ---
+    // --- Pending polygon approach batches ---
 
     @Test
     fun polygonApproachBatches_givenMultipleAppends_expectOrderedRoundTrip() {
@@ -148,6 +148,8 @@ class GeofenceRegionStoreTest : RobolectricTest() {
 
         readRaw("pending_polygon_approach_batches") shouldBeEqualTo ""
     }
+
+    // --- Cached regions (full backend response) ---
 
     @Test
     fun getCachedRegions_givenNothingStored_expectEmpty() {
@@ -424,10 +426,9 @@ class GeofenceRegionStoreTest : RobolectricTest() {
 
     @Test
     fun beginUserSession_givenLegacyRegistrationsWithoutOwner_expectRegistrationsKeptAndSessionReopened() {
-        // Nothing records who the persisted state belongs to, so it opens as a switch rather than
-        // being adopted on the assumption that the caller names its owner. Registrations survive,
-        // so the live fences keep firing; routing and containment do not, so nothing is attributed
-        // to this user until a refresh re-arms them.
+        // No owner is recorded, so the generation moves as for a switch. Registrations survive, so
+        // live fences keep firing; routing and containment do not, so nothing is attributed to this
+        // user until a refresh re-arms them.
         store.saveRegisteredIds(setOf("biz-1"))
         store.recordEntered("biz-1")
         val recreated = GeofenceRegionStoreImpl(
@@ -458,8 +459,8 @@ class GeofenceRegionStoreTest : RobolectricTest() {
 
     @Test
     fun beginUserSessionIfAbsent_givenADifferentOwner_expectSessionUntouched() {
-        // The whole point of the variant: a caller that read its user earlier must not undo a
-        // session opened since, so routing armed for the current owner survives.
+        // A caller that read its user earlier must not undo a session opened since, so routing
+        // armed for the current owner survives.
         store.beginUserSession("user-2")
         val generation = store.userStateGeneration()
         store.saveRoutableRegisteredIdsIfCurrent(setOf("biz-1"), generation).shouldBeTrue()
@@ -759,7 +760,7 @@ class GeofenceRegionStoreTest : RobolectricTest() {
         // A sync captures the epoch with its fix, then awaits GMS for seconds.
         val epochAtFix = store.containmentEpoch()
 
-        // Mid-flight the OS reports the departure and the receiver consumes the record.
+        // Mid-flight the departure is claimed.
         store.claimExit("biz-1").shouldBeTrue()
 
         // The sync now writes back geometry from the older fix, which still contained the fence.
@@ -1056,10 +1057,8 @@ class GeofenceRegionStoreTest : RobolectricTest() {
 
     @Test
     fun saveApiFetchStateIfCurrent_givenNewStoreInstance_expectAnchorDecryptedCorrectly() {
-        // Cross-instance round trip. Location snapshots are encrypted via
-        // [PreferenceCrypto] (Android Keystore); a fresh store must be able to
-        // decrypt what a prior store wrote — otherwise process restarts would
-        // wipe the anchor and break the Tier-B distance check.
+        // Location snapshots are encrypted via PreferenceCrypto (Android Keystore); a fresh store
+        // must decrypt what a prior one wrote, or a process restart loses the anchor.
         val location = GeofenceLocation(latitude = 37.7749, longitude = -122.4194)
         store.saveApiFetchStateIfCurrent(location, 1L, store.userStateGeneration())
 
@@ -1153,7 +1152,6 @@ class GeofenceRegionStoreTest : RobolectricTest() {
 
     @Test
     fun saveLastMovementTriggerLocation_givenSubsequentSave_expectOverwrite() {
-        // Each successful registration overwrites — we only ever need the latest.
         store.saveLastMovementTriggerLocation(GeofenceLocation(1.0, 2.0), 1_000f)
         store.saveLastMovementTriggerLocation(GeofenceLocation(3.0, 4.0), 1_000f)
 
@@ -1188,8 +1186,7 @@ class GeofenceRegionStoreTest : RobolectricTest() {
 
     @Test
     fun clearLastMovementTriggerLocation_givenPriorSave_expectNull() {
-        // Called when a refresh succeeds with an empty business set (no movement
-        // trigger registered → the cached location is now stale).
+        // Cleared on sign-out and when a refresh registers nothing (kill switch).
         store.saveLastMovementTriggerLocation(GeofenceLocation(1.0, 2.0), 1_000f)
 
         store.clearLastMovementTriggerLocation()
@@ -1379,9 +1376,8 @@ class GeofenceRegionStoreTest : RobolectricTest() {
 
     @Test
     fun getCachedRegions_givenAnUnusualPolygonVertex_expectEveryRegionSurvives() {
-        // Range checks used to live in PolygonCoordinate's init, which is the deserializer's
-        // constructor: one bad stored vertex threw mid-list, readJson wiped the key, and every
-        // valid cached region went with it. The bad ring must cost only itself.
+        // A throw while decoding one stored vertex would make readJson wipe the key, taking every
+        // valid cached region with it. An odd ring must cost at most itself.
         writeRaw(
             "cached_regions",
             """[
@@ -1409,8 +1405,7 @@ class GeofenceRegionStoreTest : RobolectricTest() {
         val cached = store.getCachedRegions()
 
         cached.map { it.id } shouldContain "good-circle"
-        // The coordinate is no longer judged here — the backend admitted the ring — but the point
-        // of the test stands: one odd stored region must not take the whole cache down with it.
+        // Vertex ranges are not judged on read: the backend admitted the ring.
         cached.map { it.id } shouldContain "bad-polygon"
     }
 

@@ -31,30 +31,12 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.shadows.ShadowSystemClock
 
 /**
- * The 2026-09-17 lost arrival, and what actually caused it.
+ * One fix delivered through several callbacks, and a marginal arrival through the controller.
  *
- * The fence was **not** dropped. It was evaluated, decided ENTER, and then withheld pending a
- * second agreeing fix, and that branch emitted nothing at all — the only path in the pipeline that
- * consumes a fix, decides something, and stays silent. In a capture it is indistinguishable from a
- * callback that never arrived, which is why three reproduction attempts went looking in the
- * delivery path.
- *
- * ```
- * 18:09:37.364  ids=16,cio_movement_trigger  exit   acc=18.0 age=0.2  -> evaluated 16, 27, 17
- * 18:09:37.549  ids=27,17,25                 enter  acc=18.0 age=0.4  -> silent; fence 25 held here
- * ```
- *
- * The fix was ~10 m inside the ring at 18 m accuracy, so its own uncertainty reached the boundary
- * and [PolygonAccuracyEvaluator] set `requiresCorroboration`. An iOS device logged the same venue
- * at `edge=+10 acc=5.1`, which is what pins this as a real arrival rather than an inferred one.
- *
- * Fences 27 and 17 were silent in that same callback for an unrelated and benign reason: the
- * per-fence replay guard in [PolygonRouteProcessor] had already seen this fix's nanos. Three silent
- * ids looked like one blackout and were two different things.
- *
- * The first three tests are the delivery-path orderings that were suspected and cleared. They are
- * kept as regression cover, not as evidence for this change: each one passes with or without it.
- * Only `activate_givenAMarginalFieldFix...` fails if the instrumentation is reverted.
+ * A marginal ENTER is held for corroboration and must log `arrival.pending`; otherwise a capture
+ * cannot tell it from a callback that never arrived. A fence may also stay silent because the
+ * per-fence replay guard in [PolygonRouteProcessor] already saw the fix's timestamp, which is
+ * benign.
  */
 @RunWith(RobolectricTestRunner::class)
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -93,8 +75,7 @@ class PolygonFieldArrivalTest : RobolectricTest() {
         store.saveRegisteredIds(setOf(NEIGHBOUR_ID, VENUE_ID))
         store.saveRoutableRegisteredIds(setOf(NEIGHBOUR_ID, VENUE_ID))
 
-        // The neighbour is the fence whose callback arrives first: already inside its wake circle
-        // and already being evaluated, exactly as fences 16, 27 and 17 were on the drive.
+        // The neighbour's callback arrives first: already inside its wake circle and active.
         store.activatePolygon(NEIGHBOUR_ID)
         store.recordPolygonCoarseInside(NEIGHBOUR_ID)
 
@@ -135,8 +116,8 @@ class PolygonFieldArrivalTest : RobolectricTest() {
             expectedRegionRevision = null
         )
 
-        // Second delivery, same fix object and the same elapsedRealtimeNanos, naming the venue for
-        // the first time. The device is 52 m inside a 5 m fix, so this is decisive on its own.
+        // Second delivery, same fix and elapsedRealtimeNanos, naming the venue for the first time.
+        // 52 m inside at 5 m accuracy, so decisive on its own.
         controller.activate(
             polygonId = VENUE_ID,
             triggeringLocation = fix,
@@ -148,9 +129,8 @@ class PolygonFieldArrivalTest : RobolectricTest() {
     }
 
     /**
-     * The control. Identical to the test above with the first delivery removed, which is the only
-     * difference between them. If this fails too, the fixture never could have produced the arrival
-     * and the test above proves nothing about duplicate delivery.
+     * Control: the test above without the first delivery. If this fails too, the fixture cannot
+     * produce the arrival at all.
      */
     @Test
     fun activate_givenNoEarlierDeliveryOfTheFix_expectTheFenceEnters() = runTest {
@@ -165,15 +145,9 @@ class PolygonFieldArrivalTest : RobolectricTest() {
     }
 
     /**
-     * The field sequence, faithfully: the EXIT broadcast carried `ids=16,cio_movement_trigger`.
-     *
-     * The receiver sorts the movement trigger ahead of polygons and hands it off as a Job, so the
-     * neighbour's coarse EXIT runs first and consumes the fix. The movement trigger's own body then
-     * activates every routable polygon whose wake circle the fix reaches, which on the drive
-     * included the venue at edge distance 0, and evaluates the same fix again.
-     *
-     * The venue is activated by a path that runs after the fix was already consumed for the fences
-     * active at the time. This is the ordering the two tests above do not have.
+     * An EXIT batch naming a polygon and the movement trigger. The trigger is handed off as a Job,
+     * so the neighbour's coarse EXIT consumes the fix first; the trigger then activates every
+     * routable polygon whose wake circle the fix reaches and evaluates the same fix again.
      */
     @Test
     fun movementTriggerExit_givenTheFixAlreadyConsumedByACoarseExit_expectTheVenueStillEnters() = runTest {
@@ -195,16 +169,9 @@ class PolygonFieldArrivalTest : RobolectricTest() {
     }
 
     /**
-     * The real cause of the 2026-09-17 lost arrival, and it is not a dropped callback.
-     *
-     * At the field's own geometry the fix is 10 m inside the ring with 18 m accuracy, so its own
-     * uncertainty reaches the boundary and [PolygonAccuracyEvaluator] sets `requiresCorroboration`.
-     * The arrival is decided and then held for a second agreeing fix. Correct by design; the defect
-     * was that the branch emitted nothing, so a held arrival and a callback that never arrived
-     * looked identical in a capture.
-     *
-     * The three tests above pass because their fix sits 52 m inside a 5 m circle, which corroborates
-     * on its own. That comfortable fixture is why three reproduction attempts came back green.
+     * 10 m inside the ring at 18 m accuracy, so [PolygonAccuracyEvaluator] sets
+     * `requiresCorroboration` and the arrival is held. The tests above use a 52 m-inside fix,
+     * which commits on its own.
      */
     @Test
     fun activate_givenAMarginalFieldFix_expectTheArrivalIsHeldAndTheHoldIsLogged() = runTest {
@@ -222,9 +189,8 @@ class PolygonFieldArrivalTest : RobolectricTest() {
     }
 
     /**
-     * The control for the test above: the hold is real evidence, not a discard. A second agreeing
-     * fix inside the corroboration window completes the arrival, which is only possible if the
-     * first fix reached the evaluator.
+     * Control for the test above: a second agreeing fix inside the window completes the arrival,
+     * which is only possible if the first fix was held rather than discarded.
      */
     @Test
     fun activate_givenASecondAgreeingMarginalFix_expectTheArrivalCompletes() = runTest {
@@ -248,16 +214,9 @@ class PolygonFieldArrivalTest : RobolectricTest() {
     }
 
     /**
-     * The field case this policy exists for, end to end.
-     *
      * A stationary device indoors cannot produce a second measurement: the fused provider re-emits
-     * the coordinate it already carried under a fresh stamp, so the fix a hold asks for comes back
-     * as the same observation. Requiring agreement discarded the arrival here, which is how the
-     * 2026-09-18 Passport Office visit was lost — a fix 16.4 m inside a 254 m-deep venue, followed
-     * by nothing that could corroborate it.
-     *
-     * A repeat is not evidence the device is elsewhere, so the arrival is now reported and the
-     * verdict carries the reason it rests on no second opinion.
+     * the held coordinate under a fresh stamp. A repeat is not evidence the device is elsewhere, so
+     * the arrival is reported, marked not independent.
      */
     @Test
     fun activate_givenTheHeldPositionDeliveredAgain_expectTheArrivalIsReportedUnconfirmed() = runTest {
@@ -291,13 +250,10 @@ class PolygonFieldArrivalTest : RobolectricTest() {
         }
     }
 
-    // ~10 m north of the ring's southern edge, at the accuracy GMS actually reported on the drive.
+    // ~10 m inside the ring's southern edge at 18 m accuracy, so the arrival needs corroboration.
     private fun fieldFix(
         elapsedRealtimeNanos: Long = SystemClock.elapsedRealtimeNanos() - 2_000_000_000L,
-        /**
-         * About 2 m north when set. A stationary device's next fix differs by its own jitter, and
-         * that is what makes it a second measurement rather than the held one delivered again.
-         */
+        /** About 2 m north when set, so the fix is independent rather than a re-delivery. */
         latitudeDelta: Double = 0.0
     ) = Location("test").apply {
         latitude = 37.77459 + latitudeDelta

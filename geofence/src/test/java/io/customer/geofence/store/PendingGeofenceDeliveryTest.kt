@@ -63,11 +63,9 @@ class PendingGeofenceDeliveryTest {
 
     @Test
     fun serialization_givenRowWrittenByAnEarlierVersion_expectItStillDecodes() {
-        // Event.GeofenceTransition carries no @SerialName, so the constant name IS the on-disk
-        // value. A round trip cannot see a change to it, because it re-encodes with the new
-        // spelling; only a literal row can. Anything that moves this spelling orphans every
-        // delivery an older version already queued, and the event-property tests stay green
-        // because those read name.lowercase() rather than the serializer.
+        // Event.GeofenceTransition has no @SerialName, so the constant name is the on-disk value.
+        // Only a literal row catches a rename, which would orphan every delivery an older version
+        // queued; a round trip re-encodes with the new spelling and passes.
         val legacyRow = """{"geofenceId":"biz-w","transition":"ENTER","timestamp":1,"userId":"user-A","transitionId":"tid-w"}"""
 
         val restored = Json.decodeFromString(PendingGeofenceDelivery.serializer(), legacyRow)
@@ -87,7 +85,7 @@ class PendingGeofenceDeliveryTest {
 
     @Test
     fun serialization_givenNullUserId_expectRoundTripPreservesNull() {
-        // Anonymous entries are queued by the receiver for the foreground flush.
+        // userId is nullable on disk, so a null must round-trip.
         val entry = PendingGeofenceDelivery("biz-anon", Event.GeofenceTransition.ENTER, 5L, userId = null, transitionId = "tid-anon")
 
         val json = Json.encodeToString(PendingGeofenceDelivery.serializer(), entry)
@@ -287,9 +285,8 @@ class PendingGeofenceDeliveryTest {
 
     @Test
     fun toGeofenceTransitionEvent_givenSecondsTimestamp_expectEventTimestampInMillis() {
-        // `timestamp` is unix seconds; `Event.timestamp` is a `Date` (millis).
-        // The conversion lives on the data class so no caller can hand-roll
-        // `Date(entry.timestamp)` and silently produce a January 1970 instant.
+        // `timestamp` is unix seconds; `Event.timestamp` is a millis `Date`. A hand-rolled
+        // `Date(entry.timestamp)` would land in January 1970.
         val entry = PendingGeofenceDelivery("biz-t", Event.GeofenceTransition.ENTER, 1_700_000_000L, "user-A", transitionId = "tid-t")
 
         val event = entry.toGeofenceTransitionEvent()

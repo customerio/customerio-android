@@ -16,18 +16,11 @@ internal data class GeofenceCrossing(
     /** The fix the OS attached to this crossing. Null when the OS supplied none. */
     val latitude: Double?,
     val longitude: Double?,
-    /**
-     * The OS fix object itself, which the polygon resolver needs beyond the coordinates — it reads
-     * accuracy and the fix's own elapsed-realtime stamp to decide whether a verdict can be trusted.
-     * Null when the OS supplied none, exactly as [latitude]/[longitude] are.
-     */
+    /** The OS fix itself; polygon evaluation needs its accuracy and elapsed-realtime stamp. */
     val triggeringLocation: Location?,
     /**
-     * When the SDK received the broadcast, in unix seconds — the value that ships on the delivered
-     * event. Stamped where the crossing is built, before any dispatch work, because everything
-     * after that point is the SDK's own latency: resolving the pipeline on a cold process builds
-     * the whole geofence graph, and a stamp taken past it dates the crossing to when we got
-     * around to it rather than when the OS said it happened.
+     * Unix seconds when the broadcast arrived; ships on the delivered event. Stamped before any
+     * dispatch work, because building the geofence graph on a cold process would otherwise skew it.
      */
     val receivedAtSeconds: Long
 )

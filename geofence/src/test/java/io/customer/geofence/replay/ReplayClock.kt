@@ -5,32 +5,18 @@ import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.CompletableDeferred
 
 /**
- * Wall time and the async boundaries a replay controls.
- *
- * Both exist so a scenario can say when something happens. Without them a replay could only assert
- * what fits inside one wall-clock second, and every boundary would resolve instantly — which is
- * exactly the window several SDK rules are about.
- */
-
-/**
- * Wall time, under the scenario's control.
- *
- * The recorded drive supplies elapsed seconds; everything time-dependent in the SDK — the cooldown
- * window, the freshness window, the reboot check — reads them through this. Without it a replay
- * could only assert things that happen inside one wall-clock second.
+ * Wall time under the scenario's control. The SDK's time-dependent rules (cooldown, freshness, the
+ * reboot check) read the recorded drive's elapsed seconds through this.
  */
 internal class VirtualClock(private val epochMillisAtStart: Long = 1_756_000_000_000L) : Clock {
     /** Seconds since the scenario's `t0`. */
     var elapsedSeconds: Double = 0.0
 
     /**
-     * Uptime starts well above zero so the reboot check behaves as it would on a running device: a
-     * stored registration uptime greater than "now" is how the SDK detects a reboot, and starting
-     * at zero would make every replay look like a fresh boot.
+     * Starts well above zero: the SDK detects a reboot as a stored registration uptime above "now",
+     * so zero would make every replay look like a fresh boot. A `var` so [ReplayRunner] can lift it
+     * to Robolectric's SystemClock at a drive's start, keeping both clocks on one origin.
      */
-    // A `var` so the runner can lift it to Robolectric's SystemClock at each drive's start: the two
-    // clocks must share an origin (see ReplayRunner.syncSystemClock), and SystemClock is monotonic
-    // across the drives in one run while this resets per drive.
     var uptimeBaseMillis = TimeUnit.HOURS.toMillis(6)
 
     override fun currentTimeMillis(): Long = epochMillisAtStart + (elapsedSeconds * 1000).toLong()
@@ -41,32 +27,13 @@ internal class VirtualClock(private val epochMillisAtStart: Long = 1_756_000_000
 }
 
 /**
- * Holds a coroutine until the drive's clock reaches the moment the real boundary answered.
+ * Holds a coroutine until the drive's clock reaches the moment the real boundary (network, Play
+ * Services) answered.
  *
- * The doubles below stand where the network and Play Services stand. Until now they were faithful
- * in *value* and instantaneous in *time*; the real ones were neither, and the difference is not
- * cosmetic. On the 2026-09-10 S24 drive the fetch took 749 ms and the registrar round trip about
- * 40 ms, and the OS delivered an enter for one fence **inside** that window:
- *
- * ```
- * when  8.155  location.fix prov=bus          ← sync starts
- * given 8.919  fixture.api.fetch              ← network answers, 764 ms later
- * note  8.943  registration.removed
- * when  8.968  os.callback enter              ← lands mid-sync
- * then  8.969  transition.dropped why=unknown_id
- * note  8.981  registration.added
- * then  9.002  registration.applied
- * then  9.007  transition.synthesized why=initial_enter_inside
- * ```
- *
- * A double that answers instantly closes that window before the callback can land in it, so the
- * replay met a fully-registered world and dropped the same crossing as `already_reported` instead.
- * Every input that arrives while the SDK is mid-reaction is unreachable that way — and on a
- * geofencing SDK that is most of the interesting behaviour.
- *
- * **Nothing sleeps.** Release is driven by [VirtualClock], which only moves when the runner reaches
- * the next recorded record, so the outcome depends on the recording rather than on how fast the
- * machine runs. That is the difference between this and replaying the gaps in real time.
+ * A double that answers instantly closes the window in which the OS can deliver a callback
+ * mid-sync, so no input that arrives while the SDK is mid-reaction could be replayed. Nothing
+ * sleeps: [VirtualClock] moves only as the runner reaches recorded records, so the outcome depends
+ * on the recording, not on machine speed.
  */
 internal class ReplayBoundaryGate(val clock: VirtualClock) {
 
@@ -92,19 +59,12 @@ internal class ReplayBoundaryGate(val clock: VirtualClock) {
     }
 
     /**
-     * Runs the clock forward to [target], answering each boundary **at its own moment** on the way.
+     * Runs the clock forward to [target], releasing each boundary at its own recorded moment.
      *
-     * Advancing straight to the target and releasing everything there would date all the work a
-     * boundary unblocks to whenever the next stimulus happened to be. On the 2026-09-10 Pixel drive
-     * the network answered at 12.121 and the next recorded input was at 12.334: releasing at the
-     * target put 213 ms of the SDK's reaction — ranking, the whole registration round trip — into
-     * the same instant as the input it was supposed to precede, and the input met a world that had
-     * not registered anything yet.
-     *
-     * So each release steps the clock to the moment that boundary actually answered, and the
-     * coroutine it resumes reads that time. Releasing one usually reaches the next straight away —
-     * a fetch resuming into a registration — so the list is re-examined rather than snapshotted,
-     * and [pump] runs whatever the release made runnable before the next one is considered.
+     * Releasing everything at [target] would date the work a boundary unblocks to the next input,
+     * which would then meet a world that had not reacted yet. The list is re-examined after each
+     * release because one often parks the next (a fetch resuming into a registration), and [pump]
+     * runs what a release made runnable before the next is considered.
      */
     fun advanceTo(target: Double, pump: () -> Unit) {
         var guard = 0
@@ -124,11 +84,10 @@ internal class ReplayBoundaryGate(val clock: VirtualClock) {
     }
 
     /**
-     * Ends the drive: answers whatever is still outstanding so the run finishes rather than hangs.
+     * Ends the drive, answering whatever is still outstanding so the run finishes rather than hangs.
      *
-     * A capture can legitimately end mid-sync — the recording simply stops — so this is not an
-     * error. It is recorded because "the replay ended with three boundaries in flight" explains a
-     * class of missing expectation that the matcher can only report as "never arrived".
+     * A capture can legitimately end mid-sync. The abandoned boundaries are kept in [abandonedAtEnd]
+     * because they explain expectations the matcher can only report as "never happened".
      */
     fun releaseAll(pump: () -> Unit) {
         var guard = 0
@@ -157,15 +116,9 @@ internal class ReplayBoundaryGate(val clock: VirtualClock) {
 
     companion object {
         /**
-         * Fallback for a Play Services round trip the recording does not cover.
-         *
-         * A modelled constant was the first attempt and it is not good enough: the drives disagree
-         * by far more than any single figure absorbs. On the 2026-09-10 S24 the OS delivered an
-         * enter 25 ms into a 59 ms registration and the SDK dropped it as `unknown_id`; on the
-         * Pixel the same drive delivered one 41 ms *after* a 155 ms registration had landed and the
-         * SDK accepted it. A constant places the input on the wrong side of one of them whichever
-         * value it takes, so [ReplayRegistrar] reads the moment out of the capture and only falls
-         * back here when a call has no recorded answer left to match.
+         * Fallback for a Play Services round trip the recording does not cover. Real round trips
+         * vary too much for any constant to put a callback on the right side of a registration, so
+         * [ReplayRegistrar] uses the capture's answer times and falls back here only when none is left.
          */
         const val REGISTRAR_LATENCY_SECONDS: Double = 0.040
 

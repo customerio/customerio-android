@@ -82,10 +82,8 @@ class PolygonPassiveTest : RobolectricTest() {
 
     @Test
     fun receiver_givenTheRegistrationWasStopped_expectNoActivation() = runTest {
-        // Raised by Shahroz on #897. A fix the OS dispatched before teardown completed still
-        // arrives afterwards, and teardown leaves the routable ids and the user generation in
-        // place on purpose, so neither check activate() already makes can refuse it. The
-        // registration is the one thing that did change.
+        // A fix the OS dispatched before teardown still arrives afterwards. Teardown keeps the
+        // routable ids and user generation, so only the cancelled registration can refuse it.
         every { mockStore.getRoutableRegisteredIds() } returns setOf(VENUE_ID)
         every { mockStore.getCachedRegions() } returns listOf(venueRegion())
         recordingPassiveMonitor.stop()
@@ -126,10 +124,8 @@ class PolygonPassiveTest : RobolectricTest() {
 
     @Test
     fun receiver_givenNothingRegistered_expectTheListenerRetiresItself() = runTest {
-        // reconcile is the only other caller of stop(), and it runs from the registration paths
-        // alone, so a sign-out or the kill switch leaves this request live with GMS across process
-        // death and no later registration ever arrives to remove it. Without self-healing here,
-        // every other app's fix wakes our process forever to read the store and return.
+        // A request left live with GMS (for example across process death) must retire itself
+        // rather than wake the process for every other app's fix.
         every { mockStore.getRoutableRegisteredIds() } returns emptySet()
         every { mockStore.getCachedRegions() } returns emptyList()
 
@@ -179,10 +175,7 @@ class PolygonPassiveTest : RobolectricTest() {
 
     @Test
     fun receiver_expectAdmissionIsPinnedToTheWakeCircleRadius() = runTest {
-        // Replaces a fixture that put the fix at the exact centre and its negative case ~111 km
-        // away, which asserted nothing about the radius: a mutant narrowing the circle to half its
-        // size passed all of these tests. The venue circle is 120 m, so 110 m admits, 130 m does
-        // not.
+        // The venue circle is 120 m, so 110 m admits and 130 m does not.
         every { mockStore.getRoutableRegisteredIds() } returns setOf(VENUE_ID)
         every { mockStore.getCachedRegions() } returns listOf(venueRegion())
         every { mockStore.getActivePolygonIds() } returns emptySet()
@@ -198,10 +191,9 @@ class PolygonPassiveTest : RobolectricTest() {
 
     @Test
     fun receiver_expectTheGenerationIsReadBeforeAnythingIsDispatched() = runTest {
-        // A constant stub let the read move after the admission work and nothing noticed. The
-        // window is real: logPolygonPassiveReceived forwards to the host's log dispatcher, which
-        // is customer code, so an identify can land between the read and the dispatch. Moving the
-        // store read later would attribute this fix to whoever is current when it lands.
+        // logPolygonPassiveReceived runs the host's log dispatcher (customer code), so an identify
+        // can land before dispatch. The stub bumps the generation mid-handler, so only a read on
+        // entry passes 7.
         var generation = 7L
         every { mockStore.userStateGeneration() } answers { generation }
         every { mockStore.getRoutableRegisteredIds() } returns setOf(VENUE_ID)
@@ -242,10 +234,8 @@ class PolygonPassiveTest : RobolectricTest() {
 
     @Test
     fun receiver_expectTheDepartureThresholdIsPinnedToTheRadius() = runTest {
-        // The decisively-outside test alone left the threshold unpinned: 300 m out with 20 m error
-        // clears a 120 m circle and would equally clear a 240 m one, so a mutant that doubled the
-        // radius survived it. Ten metres either side of the boundary pins the subtraction:
-        // 150 - 20 = 130 clears 120, and 130 - 20 = 110 does not.
+        // Ten metres either side of the boundary: 150 - 20 = 130 clears the 120 m circle, and
+        // 130 - 20 = 110 does not.
         every { mockStore.getRoutableRegisteredIds() } returns setOf(VENUE_ID)
         every { mockStore.getCachedRegions() } returns listOf(venueRegion())
         every { mockStore.getActivePolygonIds() } returns setOf(VENUE_ID)
@@ -283,9 +273,8 @@ class PolygonPassiveTest : RobolectricTest() {
 
     @Test
     fun receiver_givenTheOutsideFixIsTooCoarseToDecide_expectNoClear() = runTest {
-        // The phantom-EXIT guard. 300 m out with 250 m of error establishes nothing, and tearing a
-        // live session down on a fix like that is the failure this component already paid for three
-        // times.
+        // 300 m out with 250 m of error establishes nothing, so it must not tear a live session
+        // down.
         every { mockStore.getRoutableRegisteredIds() } returns setOf(VENUE_ID)
         every { mockStore.getCachedRegions() } returns listOf(venueRegion())
         every { mockStore.getActivePolygonIds() } returns setOf(VENUE_ID)
@@ -341,9 +330,8 @@ class PolygonPassiveTest : RobolectricTest() {
 
     @Test
     fun teardown_expectEveryPathThatDisablesGeofencingStopsTheListener() = runTest {
-        // The listener reached one stop call site, inside reconcileRegisteredPolygons, so a
-        // sign-out or the kill switch left the GMS request live across process death and every
-        // other app's fix woke this process to read the store and return.
+        // Otherwise a sign-out or the kill switch leaves the GMS request live across process death,
+        // and every other app's fix wakes this process.
         val paths = listOf<Pair<String, (PolygonGeofenceServiceController) -> Unit>>(
             "invalidateOsRegistrationState" to { it.invalidateOsRegistrationState() },
             "stopAll" to { it.stopAll() },
@@ -365,14 +353,9 @@ class PolygonPassiveTest : RobolectricTest() {
 
     @Test
     fun receiver_expectTheTeardownTokenIsTheOneReadOnEntryNotAtDispatch() = runTest {
-        // Raised by Shahroz and Bugbot on #897. isArmed() answers for one instant: a teardown
-        // landing after it returns true but before the activation below leaves a delivery that
-        // passed every check on its way to re-arming what was just torn down.
-        //
-        // The token only closes that window if it is the value read on entry. A stub that moves
-        // the way a teardown would, part way through the handler, is what pins it: re-read at
-        // dispatch it would hand over the current value and the controller would accept a fix
-        // whose session had ended.
+        // isArmed() answers for one instant, so a teardown between it and the activation is caught
+        // only by the token, and only if it is the value read on entry. The stub moves it the way a
+        // teardown would, part way through the handler.
         every { mockStore.getRoutableRegisteredIds() } returns setOf(VENUE_ID)
         every { mockStore.getCachedRegions() } returns listOf(venueRegion())
         var teardowns = 3L
@@ -425,19 +408,11 @@ class PolygonPassiveTest : RobolectricTest() {
 
     @Test
     fun teardown_givenADeliveryLandsDuringTheStop_expectItIsNotLeftActive() = runTest {
-        // Raised by Shahroz on #897 with a reproduction: stopAll() returned with active ids
-        // [venue]. Teardown bumped the teardown generation first and cancelled the passive
-        // registration last, which is the worst order. A delivery in between captured the
-        // already-bumped token, so the token agreed with the teardown that had just happened,
-        // while isArmed() still answered yes because the intent was not cancelled. It passed both
-        // checks and armed the polygon with the store wipe already behind it.
-        //
-        // The delivery is driven from inside the monitor's stop(), which IS the cancel, so this
-        // pins the ordering rather than a timing window: reversed, the wipe runs after the cancel
-        // and clears whatever slipped through; unreversed, nothing runs after it.
-        //
-        // A stateful store, because the assertion is the state left behind. A fixed stub would
-        // report the same set whichever order ran.
+        // A delivery that reads the token after it is bumped but before the intent is cancelled
+        // passes both checks. The listener must be stopped before the wipe so the wipe clears
+        // whatever slipped through. The delivery runs inside stop() (the cancel), so this pins the
+        // ordering, not a timing window. Stateful store: a fixed stub reports the same set either
+        // way.
         val active = mutableSetOf(VENUE_ID)
         every { mockStore.getActivePolygonIds() } answers { active.toSet() }
         every { mockStore.activatePolygon(any()) } answers { active += firstArg<String>() }
@@ -474,11 +449,8 @@ class PolygonPassiveTest : RobolectricTest() {
 
     @Test
     fun teardown_expectTheListenerIsStoppedBeforeAnyStateIsWiped() = runTest {
-        // The ordering above, for every teardown path rather than just stopAll. The concrete
-        // outcome is only observable at this level for the two paths that clear the active set
-        // themselves; the other three delegate the wipe to the store, so what is asserted here is
-        // the order itself: the listener stop must come before the first state wipe, so the gate is
-        // shut before the token moves.
+        // The ordering above for every teardown path. Three of them delegate the wipe to the store,
+        // so the order itself is asserted: listener stop before the first state wipe.
         val paths = listOf<Pair<String, (PolygonGeofenceServiceController) -> Unit>>(
             "invalidateOsRegistrationState" to { it.invalidateOsRegistrationState() },
             "stopAll" to { it.stopAll() },
@@ -538,9 +510,8 @@ class PolygonPassiveTest : RobolectricTest() {
     )
 
     /**
-     * A fix [metres] due north of the venue centre. Derived from a fixed metres-per-degree, ~0.4%
-     * off at this latitude, so it is sub-metre accurate over these distances but not exact: the
-     * tests stay ten metres clear of the boundary for that reason.
+     * A fix [metres] due north of the venue centre. The fixed metres-per-degree is ~0.4% off at this
+     * latitude, so tests stay ten metres clear of the boundary.
      */
     private fun fixNorthOfVenue(metres: Double, accuracyMeters: Float) = Location("test").apply {
         latitude = VENUE_LAT + metres / METRES_PER_DEGREE_LATITUDE

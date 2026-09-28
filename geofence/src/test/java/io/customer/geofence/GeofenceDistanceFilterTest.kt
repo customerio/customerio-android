@@ -456,11 +456,9 @@ class GeofenceDistanceFilterTest : RobolectricTest() {
 
     @Test
     fun nearest_givenUnpinnedPolygonsContainingTheFix_expectTheCapStillBoundsDiscovery() {
-        // Pins exist to preserve an outstanding EXIT, which only a registered region can have. A
-        // polygon the OS has never been given cannot owe one, so it competes for the cap like any
-        // other candidate. Otherwise two of them displace a circle the device is standing in, and
-        // that circle's ENTER is lost outright: initial-ENTER synthesis only runs over what this
-        // returns.
+        // Only a registered region can owe an EXIT, so an unpinned polygon competes for the cap.
+        // Otherwise it would displace a circle the device is standing in, whose ENTER is then lost:
+        // initial-ENTER synthesis only runs over what this returns.
         val enabled = GeofenceDistanceFilter(polygonSupport = PolygonSupport.Enabled)
 
         val result = enabled.nearest(
@@ -480,7 +478,7 @@ class GeofenceDistanceFilterTest : RobolectricTest() {
 
     @Test
     fun nearest_givenAPinnedPolygonContainingTheFix_expectStillRetainedPastTheCap() {
-        // Positive control: once the caller pins it, the exemption works exactly as before.
+        // Control: once the caller pins it, the polygon is exempt from the cap.
         val enabled = GeofenceDistanceFilter(polygonSupport = PolygonSupport.Enabled)
 
         val result = enabled.nearest(

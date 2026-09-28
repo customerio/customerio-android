@@ -12,18 +12,12 @@ import io.customer.geofence.GeofenceLogger
 /**
  * Listens for fixes other apps are already paying for, while any polygon is registered.
  *
- * `PRIORITY_PASSIVE` never turns a sensor on. It asks the OS to hand over location that some other
- * app requested anyway, so it costs nothing beyond the delivery, and it guarantees nothing: on a
- * device where no other app asks for location, no fix ever arrives. That asymmetry is the whole
- * argument for it. The periodic re-check is bounded below by WorkManager's 15 minute floor, and a
- * passive fix can land at any moment inside that window, so it can only narrow the gap.
+ * `PRIORITY_PASSIVE` never turns a sensor on and guarantees nothing: with no other app requesting
+ * location, no fix arrives. It can only narrow the gap between periodic re-checks, which
+ * WorkManager floors at 15 minutes.
  *
- * Deliberately far simpler than [PolygonApproachMonitor], and the difference is worth stating
- * because that class cost six defects. There is no session here: no deadline, no sample count, no
- * per-session identity. The registration's lifetime is "some polygon is registered", which is a
- * single long-lived request, so nothing needs to tell two generations of it apart. The delivering
- * receiver reads the live generation from the store instead, and a delivery that arrives after a
- * user change is refused by the controller's own generation check rather than by bookkeeping here.
+ * No session state, unlike [PolygonApproachMonitor]: one long-lived request while any polygon is
+ * registered. A delivery after a user change is refused by the controller's generation check.
  */
 internal interface PolygonPassiveMonitor {
     /**
@@ -70,12 +64,9 @@ internal class GmsPolygonPassiveMonitor(
     }
 
     /**
-     * Whether this registration is still live, which is the only thing a delivered fix can check.
-     *
-     * Read at delivery rather than captured beforehand, deliberately. A passive fix is dispatched
-     * by the OS before the receiver runs, so a token taken when the receiver starts is already the
-     * post-teardown value. The system owns the intent, so this survives process death too, and a
-     * cold-process delivery under a live registration is still admitted.
+     * Whether this registration is still live. Read at delivery: the OS dispatches a passive fix
+     * before the receiver runs, so there is no earlier point to capture a token. The system owns the
+     * intent, so a cold-process delivery under a live registration is still admitted.
      */
     override fun isArmed(): Boolean = pendingIntent(FLAG_NO_CREATE) != null
 
@@ -88,11 +79,8 @@ internal class GmsPolygonPassiveMonitor(
 
     internal companion object {
         /**
-         * Distinct from [PolygonApproachMonitor]'s by convention with it, not because equality
-         * depends on it: `filterEquals` compares the component among other things, and these two
-         * intents target different receivers, so they could never be equal even sharing a code.
-         * Kept distinct anyway, since `PendingIntent` identity does include the request code and a
-         * future intent that stopped differing by component would then still be safe.
+         * Distinct from [PolygonApproachMonitor]'s. Not required while the intents target different
+         * receivers, but keeps the two `PendingIntent`s apart if that ever changes.
          */
         private const val PENDING_INTENT_REQUEST_CODE = 47303
 
@@ -100,19 +88,12 @@ internal class GmsPolygonPassiveMonitor(
         private val FLAG_NO_CREATE = PendingIntent.FLAG_NO_CREATE or PendingIntent.FLAG_MUTABLE
 
         /**
-         * The interval is a ceiling on what we accept, not a request for anything: passive delivers
-         * only what another app already asked for. [MINIMUM_INTERVAL_MS] is the one number that
-         * matters, because a maps app in navigation requests fixes every second and every one of
-         * them would otherwise reach the evaluator.
+         * Throttles process wakes: a navigating maps app requests a fix every second, and each would
+         * otherwise reach the evaluator. Sensor cost is already bounded by the controller's 30 s
+         * fresh-fix cooldown.
          *
-         * 60 s is **unmeasured**, a starting number. It throttles process wakes rather than sensor
-         * use: the sensor cost of a delivery is bounded already, since an undecided verdict can
-         * only buy a precise fix once per the controller's 30 s cooldown. Revisit it with a capture
-         * that shows the delivery rate, not by reasoning.
-         *
-         * A passive request with a `PendingIntent` does not survive a reboot, unlike a geofence.
-         * Boot restore re-registers and reconcile starts this again, so a capture will show
-         * `polygon.passive.started` after every boot and that is expected, not a restart loop.
+         * A passive `PendingIntent` request does not survive reboot; boot restore starts it again, so
+         * `polygon.passive.started` after every boot is expected.
          */
         internal const val MINIMUM_INTERVAL_MS = 60_000L
         private const val NOMINAL_INTERVAL_MS = 5 * 60_000L

@@ -27,8 +27,8 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 
 /**
- * The trade made by opening an unowned session as a switch, against the real store rather than a
- * stub: registrations survive it and a refresh re-arms them. Both halves matter, so both are here.
+ * Opening an unowned session (an upgraded install), against the real store. It behaves as a user
+ * switch, but registrations and location anchors survive it and a refresh re-arms routing.
  */
 @RunWith(RobolectricTestRunner::class)
 class GeofenceUnownedSessionRealStoreTest : RobolectricTest() {
@@ -90,9 +90,8 @@ class GeofenceUnownedSessionRealStoreTest : RobolectricTest() {
 
         store.beginUserSession(USER)
 
-        // Opened as a switch, not adopted: the generation moves, so a pass that began before this
-        // cannot arm routing for it. The cost is registered but unarmed, so the OS keeps reporting
-        // and nothing is attributed to this user yet.
+        // The generation moves as for a switch, so a pass that began before this cannot arm routing
+        // for it. Fences stay registered but unarmed: nothing is attributed to this user yet.
         store.userStateGeneration() shouldBeEqualTo generationBefore + 1L
         store.getRegisteredIds() shouldContain fence.id
         store.getRoutableRegisteredIds().shouldBeEmpty()

@@ -82,9 +82,8 @@ class PolygonGeometryTest {
 
     @Test
     fun from_whenSimpleRingIsWrittenWithNegativeSeamLongitudes_thenAcceptsGeometry() {
-        // Same shape as the ring below, but with the seam vertex written -180 instead of 180 — both
-        // are legal GeoJSON. Judged on raw longitudes that edge reads as a ~359-degree chord across
-        // the ring and the polygon is rejected as self-intersecting.
+        // The seam vertex is written -180 rather than 180, both legal GeoJSON. Judged on raw
+        // longitudes that edge reads as a ~359-degree chord and the ring as self-intersecting.
         PolygonGeometry.from(
             listOf(point(-2.0, 179.0), point(-2.0, 179.5), point(-1.0, -180.0), point(-1.0, 179.0))
         ).vertices.size shouldBeEqualTo 4
@@ -129,7 +128,7 @@ class PolygonGeometryTest {
 
     @Test
     fun from_whenRingCrossingTheSeamIsSelfIntersecting_thenStillRejectsGeometry() {
-        // The guard above must not become a blanket exemption for seam-crossing rings.
+        // Seam unwrapping must not exempt a seam-crossing ring from the self-intersection check.
         invoking {
             PolygonGeometry.from(
                 listOf(point(0.0, 179.5), point(1.0, -179.5), point(1.0, 179.5), point(0.0, -179.5))
@@ -186,8 +185,7 @@ class PolygonGeometryTest {
 
     @Test
     fun from_whenPolygonApproachesGeographicPole_thenAccepted() {
-        // Circles at the pole were always registerable; rejecting a polygon there was the SDK
-        // holding the payload to a stricter rule than the backend or the rest of the module.
+        // Circles at the pole are registerable, so a polygon there is not held to a stricter rule.
         val nearPole = PolygonGeometry.from(
             listOf(
                 point(89.92, 10.0),
@@ -232,11 +230,9 @@ class PolygonGeometryTest {
         PolygonCoordinate(latitude = latitude, longitude = longitude)
 
     /**
-     * Pins the projection's scale, which is the earth radius the module chose. One degree of
-     * latitude measures 111,195 m at R=6,371,000 and 111,320 m at the WGS84 equatorial radius, so
-     * swapping the constant moves every distance by ~0.11%. That is the difference that decides
-     * whether a polygon fitting tightly inside its enclosing circle validates or is dropped, and
-     * iOS projects with the same radius, so a change here is a cross-platform divergence.
+     * Pins the earth radius: one degree of latitude is 111,195 m at R=6,371,000 and 111,320 m at the
+     * WGS84 equatorial radius. That ~0.11% decides whether a tightly fitting polygon validates, and
+     * iOS uses the same radius.
      */
     @Test
     fun boundaryDistanceMeters_givenOneDegreeOfLatitude_expectTheSphericalRadiusScale() {

@@ -30,10 +30,9 @@ private const val MODULE_NAME = "Geofence"
  *
  * Registering this module enables on-device geofence monitoring: server-defined
  * geofences are registered with the OS, transitions are persisted and forwarded
- * to the CDP, and the local set is refreshed when the user moves far enough. A polygon or shared
- * movement-trigger callback may open a bounded, balanced-power location session when its triggering
- * fix is not decisive. Merely registering polygons does not start sampling, and V1 does not start a
- * foreground service.
+ * to the CDP, and the local set is refreshed when the user moves far enough. A polygon or
+ * movement-trigger callback whose fix is not decisive may open a bounded, balanced-power location
+ * session. Registering polygons alone does not start sampling, and no foreground service is started.
  *
  * Requires [ModuleLocation] to be registered alongside it — geofencing uses its
  * location provider regardless of the location tracking mode, and works even when
@@ -58,10 +57,8 @@ class ModuleGeofence @JvmOverloads constructor(
     override fun initialize() {
         val logger = SDKComponent.geofenceLogger
 
-        // Geofencing is meaningless without the location module: there is no path
-        // for fixes to reach the SDK, so nearby-sync and movement triggers would
-        // never fire. Surface the misconfiguration as an error and bail before
-        // installing subscriptions that would silently never deliver.
+        // Without the location module no fix can reach the SDK, so nothing would ever sync. Log the
+        // misconfiguration and bail before installing subscriptions that would never deliver.
         val locationModule = runCatching { ModuleLocation.instance() }.getOrNull()
         if (locationModule == null) {
             runCatching { SDKComponent.android().polygonGeofenceServiceController.stopAll() }
@@ -69,17 +66,15 @@ class ModuleGeofence @JvmOverloads constructor(
             return
         }
 
-        // A cold background wake and a user opening the app run different entry points and behave
-        // very differently, but produced identical logs. This marks the app-start path; the boot
-        // receiver marks its own, and a geofence wake announces itself via os.callback.received.
+        // Tells the app-start path apart in logs; the boot receiver marks its own, and a geofence
+        // wake announces itself via os.callback.received.
         logger.logModuleInitialized(GeofenceLaunchReason.APP_START)
 
         val eventBus = SDKComponent.eventBus
         val sdkAndroid = SDKComponent.android()
 
-        // Here rather than only on foreground entry: a cold background wake never foregrounds, and
-        // that is the session a drive records. Deduped against the foreground report by the shared
-        // reporter, so opening the app does not log the same tier twice.
+        // Here as well as on foreground entry, since a cold background wake never foregrounds. The
+        // shared reporter dedupes the two.
         sdkAndroid.geofencePermissionReporter.reportIfChanged()
 
         subscribeToEvents(eventBus, sdkAndroid, locationModule)
@@ -146,14 +141,12 @@ class ModuleGeofence @JvmOverloads constructor(
         }
 
         // On identify, prime the geofence pipeline so the new user's session has its
-        // nearby set fetched, anchored at the current registration center.
+        // nearby set fetched, anchored at the last registration center or cached location.
         eventBus.subscribe<Event.UserChangedEvent> {
             val userId = it.userId
             if (!userId.isNullOrEmpty()) {
-                // Guarded in the same shape as the two blocks doing this same work below. A handler
-                // that throws does not just lose one identify: `EventBusImpl.subscribe` collects
-                // inside a bare `launch`, so the throw cancels the collection and this subscription
-                // is gone for the rest of the process, silently.
+                // A throw would cancel this subscription for the rest of the process:
+                // `EventBusImpl.subscribe` collects inside a bare `launch`.
                 try {
                     SDKComponent.geofenceLogger.logIdentityChanged(identified = true)
                     sdkAndroid.polygonGeofenceServiceController.beginUserSession(userId)
@@ -172,11 +165,9 @@ class ModuleGeofence @JvmOverloads constructor(
             }
         }
 
-        // Sign-out: clear geofence state (and, inside the repository's guarded reset,
-        // the cooldown history) so the next user (or anonymous session) doesn't inherit
-        // anything from the previous identity. ResetEvent fires from `clearIdentify()`
-        // before `UserChangedEvent(null)`, so it's the explicit "wipe user state"
-        // signal — analogous to analytics.reset().
+        // Sign-out: clear user-scoped geofence state so the next identity inherits nothing.
+        // ResetEvent fires from `clearIdentify()` before `UserChangedEvent(null)`, so it is the
+        // explicit "wipe user state" signal.
         eventBus.subscribe<Event.ResetEvent> {
             // Not on the UserChangedEvent(null) that follows: one sign-out, one record.
             SDKComponent.geofenceLogger.logIdentityChanged(identified = false)
@@ -185,13 +176,9 @@ class ModuleGeofence @JvmOverloads constructor(
     }
 
     /**
-     * Register foreground-driven geofence work on the main thread. Posting defers
-     * this until after the SDK's synchronous module-init loop: all modules are
-     * placed in SDKComponent.modules before any initialize() runs, so reading
-     * location synchronously here would hit the not-yet-initialized location
-     * services when geofence is registered ahead of location. Posting guarantees
-     * ModuleLocation has initialized (and ProcessLifecycleOwner registration must
-     * happen on the main thread regardless).
+     * Registers foreground-driven geofence work on the main thread. Posting defers it past the
+     * SDK's synchronous module-init loop, so ModuleLocation has initialized even when geofence is
+     * registered ahead of it. ProcessLifecycleOwner registration needs the main thread anyway.
      */
     private fun scheduleForegroundWork(
         eventBus: EventBus,
@@ -231,12 +218,9 @@ class ModuleGeofence @JvmOverloads constructor(
                 )
             )
 
-            // Defensive sync at launch: if a user identified in a previous session is still
-            // persisted, kick off a geofence refresh now (anchored at the registration center).
-            // The repository's freshness threshold makes this a cheap no-op when identify also
-            // fires shortly after init (the common case). Runs off the main thread — the reads
-            // below hit SharedPreferences plus a Keystore decrypt, which can block for hundreds
-            // of ms on some OEMs; only the observer registration above needs the main thread.
+            // Defensive sync for a user persisted from a previous session; the freshness threshold
+            // makes it a cheap no-op when identify follows. Off the main thread: the reads below
+            // include a Keystore decrypt that can block for hundreds of ms on some OEMs.
             val launchScope = SDKComponent.scopeProvider.geofenceScope
             launchScope.launch {
                 try {

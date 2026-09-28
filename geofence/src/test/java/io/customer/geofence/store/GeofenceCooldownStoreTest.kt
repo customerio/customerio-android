@@ -96,8 +96,8 @@ class GeofenceCooldownStoreTest : RobolectricTest() {
 
     @Test
     fun pruneOlderThan_givenIdWithUnderscores_expectPruned() {
-        // Keys embed the geofenceId between fixed prefix/suffix; underscores in the
-        // id must not confuse the prefix scan.
+        // Keys embed the geofenceId after an underscore-bearing prefix; underscores in the id must
+        // not confuse the prefix scan.
         store.recordEmit("user-1", "biz_with_underscores", Event.GeofenceTransition.ENTER, 100L)
 
         store.pruneOlderThan(500L)
@@ -107,11 +107,8 @@ class GeofenceCooldownStoreTest : RobolectricTest() {
 
     @Test
     fun recordEmit_expectKeySpelledWithTheEnumConstantName() {
-        // Keys are written straight into SharedPreferences, so the spelling is persisted state:
-        // renaming a transition constant orphans every cooldown row on upgrade and each affected
-        // fence emits one suppressed event again. Nothing else here reads the key back literally.
-        // The prefs file name is spelled out for the same reason, not as a convenience: renaming
-        // it orphans the same rows, so it is pinned here too.
+        // Key spelling and the prefs file name are persisted state: renaming either orphans every
+        // cooldown row on upgrade, letting a suppressed duplicate fire again. Both are pinned here.
         store.recordEmit("user-1", "biz-1", Event.GeofenceTransition.ENTER, 100L)
         store.recordEmit("user-1", "biz-1", Event.GeofenceTransition.EXIT, 200L)
 

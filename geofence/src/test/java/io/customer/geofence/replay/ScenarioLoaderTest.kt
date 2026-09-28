@@ -5,12 +5,7 @@ import org.amshove.kluent.shouldBeFalse
 import org.amshove.kluent.shouldBeTrue
 import org.junit.Test
 
-/**
- * The NDJSON reader, on scenarios written here rather than recorded.
- *
- * Pure parsing: no Android, no SDK, no harness. These run everywhere, including where the recorded
- * drives are absent, which is most places.
- */
+/** The NDJSON reader on hand-written scenarios. Pure parsing, so these run without the corpus. */
 class ScenarioLoaderTest {
 
     @Test
@@ -29,18 +24,14 @@ class ScenarioLoaderTest {
         scenario.given.size shouldBeEqualTo 1
         scenario.stimuli.size shouldBeEqualTo 1
         scenario.expectations.size shouldBeEqualTo 1
-        // A note is carried but never graded — the whole point of the third classification.
+        // A note is carried but never graded.
         scenario.records.size shouldBeEqualTo 4
         scenario.given.single().body.single().name shouldBeEqualTo "Here"
     }
 
     /**
-     * Provenance must not default to `recorded`.
-     *
-     * It did, and an authored scenario whose header omitted `source` was then counted as a phone
-     * capture — enough on its own to satisfy the "did discovery find any drives?" guard, which is
-     * the emptiness check inverted. Reproduced by deleting `source` from an authored scenario and
-     * running a one-file corpus: discovery and replay both passed over zero drives.
+     * Provenance must not default to `recorded`, or an authored file without `source` would count
+     * as a phone capture and satisfy the "found any drives" guard.
      */
     @Test
     fun load_givenHeaderWithoutSource_expectUnknownProvenance() {
@@ -89,8 +80,7 @@ class ScenarioLoaderTest {
 
     @Test
     fun load_givenUnknownKind_expectRejected() {
-        // Dropping the record instead left the file readable with an input or an assertion missing
-        // from it, and the drive still reported green. iOS throws on the same line.
+        // Dropping it would silently remove an input or assertion and still report green.
         val error = runCatching {
             ScenarioLoader.load(
                 scenarioFile(

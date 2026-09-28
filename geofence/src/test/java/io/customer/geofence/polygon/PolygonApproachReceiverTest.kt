@@ -34,8 +34,7 @@ class PolygonApproachReceiverTest : RobolectricTest() {
         )
 
         verify { controller.beginUserSessionForCurrentUser() }
-        // Pinned, not any(): the deadline is what identifies the delivering session, and the
-        // sample count is attributed with it. A wildcard here would not notice it going missing.
+        // Pinned, not any(): the deadline identifies the delivering session.
         coVerify { controller.processApproachLocations(locations, 7L, Long.MAX_VALUE) }
         verify { monitor.start(7L, Long.MAX_VALUE) }
         verify(exactly = 0) { monitor.removeStaleGeneration(any()) }
@@ -43,10 +42,8 @@ class PolygonApproachReceiverTest : RobolectricTest() {
 
     @Test
     fun handleLocations_givenIdentifiedUser_expectSessionOpenedAgainstStoreNotTheReadValue() = runTest {
-        // This receiver is an OS callback acting on an identity it did not establish, so the read
-        // and the session open must not be two steps: an identify landing between them would
-        // reopen the prior user, bumping the generation and wiping the routing the new profile
-        // just armed. Opening by value is what makes that reachable.
+        // An identify landing between reading the user and opening the session would reopen the
+        // prior user, so the session opens against the store's identity, not the value read here.
         val locations = listOf(location())
         coEvery {
             controller.processApproachLocations(locations, 7L, any())

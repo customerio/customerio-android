@@ -2,11 +2,7 @@ package io.customer.geofence.polygon
 
 import android.location.Location
 
-/**
- * A source that never answers, which is how the pipeline behaved before an on-demand fix existed.
- * The default for tests about something else, so that adding the on-demand path does not quietly
- * change what they measure.
- */
+/** Never answers. The default for tests about something else, so the on-demand fix stays out. */
 internal object NeverAnswersFreshFix : PolygonFreshFixSource {
     override suspend fun awaitFreshFix(timeoutMs: Long, priority: PolygonFixPriority): Location? = null
 }
@@ -23,11 +19,8 @@ internal class AnswersOnceFreshFix(private val location: Location) : PolygonFres
 }
 
 /**
- * Records what the controller asked of the periodic re-check without scheduling anything.
- *
- * A fake rather than a mock because the interesting assertion is the *last* thing asked for: a
- * reconcile that schedules and then cancels leaves the re-check off, and a call-count check would
- * pass either way.
+ * Records re-check calls in order. A fake rather than a mock because the last call is what
+ * matters: schedule-then-cancel leaves the re-check off, and a call count would pass either way.
  */
 internal class RecordingRecheckScheduler : PolygonRecheckScheduler {
     val calls = mutableListOf<String>()
@@ -50,18 +43,13 @@ internal object NoopRecheckScheduler : PolygonRecheckScheduler {
 }
 
 /**
- * Records the passive listener's lifecycle without touching GMS.
- *
- * The interesting property is the ORDER: a reconcile that starts and then stops leaves the listener
- * off, and a call-count assertion would pass either way.
+ * Records passive listener calls in order: start-then-stop leaves it off, and a call-count check
+ * would pass either way.
  */
 internal class RecordingPassiveMonitor : PolygonPassiveMonitor {
     val calls = mutableListOf<String>()
 
-    /**
-     * Armed until something stops it. Receiver tests are about what a delivered fix does, and a
-     * fake that started disarmed would refuse all of them at the arming check.
-     */
+    /** Starts armed so receiver tests are not refused at the arming check. */
     private var armed = true
 
     override fun start() {

@@ -109,8 +109,7 @@ class AsyncGeofenceEventTrackerTest : RobolectricTest() {
 
     @Test
     fun trackEvent_givenNullUserId_expectNoLoadAndNoSend() = runTest {
-        // Anonymous session: HTTP needs a userId, so we leave the entry in
-        // the store for the foreground flush to publish via anonymousId.
+        // HTTP needs a userId, so the entry is left for the foreground flush.
         val entry = PendingGeofenceDelivery("biz-anon", Event.GeofenceTransition.ENTER, 11L, userId = null, transitionId = "tid-anon")
 
         asyncTracker.trackEvent(entry)

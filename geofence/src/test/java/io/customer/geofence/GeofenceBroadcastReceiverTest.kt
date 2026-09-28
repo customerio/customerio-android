@@ -98,11 +98,6 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
         GeofenceDiagnostics.setEnabledForTesting(null)
     }
 
-    /**
-     * A broadcast the SDK woke for and could make nothing of must leave a trace, or the capture is
-     * byte-identical to a process the OS never talked to. Asserted on the emitted tail, so deleting
-     * the log line fails the test.
-     */
     private fun recordFor(ev: String): String? =
         capturingLogger.messages.firstOrNull { "ev=$ev" in it }
 
@@ -138,8 +133,7 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
                 }
             }
         )
-        // The tail is gated, and these tests assert on `ev=` — the machine key a parser reads,
-        // not the prose, which is what makes deleting a log line fail rather than just reword it.
+        // The tail is gated, and these tests assert on `ev=` rather than the prose.
         GeofenceDiagnostics.setEnabledForTesting(true)
         // Default: cooldown allows emission. Tests override this to test suppression.
         every { mockCooldownFilter.suppressedForSeconds(any(), any(), any()) } returns null
@@ -148,8 +142,8 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
         // Default: an identified user is the common case; the snapshot lands on the entry.
         // Tests that need an anonymous-at-queue-time scenario override this to null.
         every { mockSecureUserStore.getUserId() } returns "user-42"
-        // Default: all geofence IDs the tests reference are "registered" so the
-        // dispatchTransition store filter is a no-op. Tests for the filter override.
+        // Default: every id the tests reference is registered and routable, so the routing filter
+        // is a no-op. Tests for the filter override.
         every { mockStore.getRegisteredIds() } returns setOf(
             GeofenceConstants.MOVEMENT_TRIGGER_ID,
             "biz-1",
@@ -166,8 +160,8 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
         every { mockStore.userStateGeneration() } returns 0L
         every { mockStore.activeUserSessionId() } returns "user-42"
         coEvery { mockPolygonController.onMovementTriggerExit(any(), any()) } returns null
-        // Default: the device counts as inside every fence, so the EXIT guard is a no-op.
-        // Tests for the guard override.
+        // Default: the device counts as inside every business fence (see getEnteredIds), so the
+        // EXIT guard is a no-op. Tests for the guard override.
         every { mockStore.claimExit(any()) } returns true
         // Default: containment has been recorded, i.e. not a freshly-upgraded install.
         every { mockStore.hasContainmentRecord() } returns true
@@ -428,8 +422,8 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
         scheduled.transitionId.shouldNotBeBlank()
         scheduled.toEventProperties()["transitionId"] shouldBeEqualTo scheduled.transitionId
 
-        // Durably recorded for the foreground flush, and not published inline:
-        // exactly-once is now arbitrated by the store, not a double-send.
+        // Queued in the pending store, not published inline: delivery goes through the worker or
+        // the foreground flush.
         pendingStore.loadAll() shouldBeEqualTo listOf(scheduled)
         verify(exactly = 0) { mockEventBus.publish(any<Event.GeofenceTransitionEvent>()) }
     }
@@ -540,11 +534,9 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
 
     @Test
     fun dispatchTransition_givenSlowPolygonEvaluation_expectTheRefreshJobCreatedFirst() = runTest {
-        // The polygon evaluation awaits GMS, twice at up to five seconds each, against a broadcast
-        // budget of roughly ten. Doing that BEFORE the refresh job exists means a process killed in
-        // that window loses the refresh entirely: the movement EXIT has already fired and nothing
-        // re-centres the trigger, so the device goes deaf until a foreground or an unrelated EXIT.
-        // The job has to be created first; the evaluation's GMS time is then charged to the job.
+        // The polygon radius callback awaits GMS. Run before the refresh job exists, it spends the
+        // broadcast budget first, and a process killed meanwhile loses the refresh: nothing
+        // re-centres the already-fired trigger. It must be handed to the job unevaluated.
         coEvery { mockPolygonController.onMovementTriggerExit(any(), any()) } coAnswers {
             awaitCancellation()
         }
@@ -561,11 +553,9 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
 
     @Test
     fun dispatchTransition_givenPolygonCircleAndMovementExit_expectCircleBeforeRefreshBeforePolygon() = runTest {
-        // Three guarantees in one batch, and the order is the only thing that holds all of them.
-        // The circle goes first because the refresh this batch starts can evict it under the
-        // monitoring cap, and its requireRegistered check would then drop an EXIT the OS already
-        // delivered. The trigger goes before the polygon because the polygon handler awaits GMS,
-        // and the refresh job has to exist before the budget is spent on that wait.
+        // Circle first: the refresh can evict it under the monitoring cap, and its
+        // requireRegistered check would then drop a delivered EXIT. Trigger before polygon: the
+        // polygon handler awaits GMS, and the refresh job must exist before that spends the budget.
         val order = mutableListOf<String>()
         val circle = GeofenceRegion("biz-1", 37.7749, -122.4194, 100f)
         every { mockStore.getCachedRegion("polygon") } returns polygonRegion()
@@ -596,10 +586,8 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
 
     @Test
     fun dispatchTransition_givenMixedExitBatchWithPolygonsFirst_expectRefreshCreatedBeforeTheAwaits() = runTest {
-        // GMS delivers one batch and picks its own order. The polygon handlers await, so with a
-        // polygon ahead of the trigger the refresh job was created only after those waits, by which
-        // point the dispatch budget is spent and the receiver finishes without holding the window
-        // open for it. The trigger has already fired, so nothing re-centres it.
+        // GMS picks the batch order. Handled in that order, the polygon's await would spend the
+        // dispatch budget before the refresh job exists, and nothing would re-centre the trigger.
         val order = mutableListOf<String>()
         every { mockStore.getCachedRegion("polygon") } returns polygonRegion()
         coEvery { mockPolygonController.onCoarseExit(any(), any(), any(), any()) } coAnswers {
@@ -682,9 +670,6 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
 
     @Test
     fun dispatchTransition_givenMovementTriggerNonExit_expectServicesNotNotified() = runTest {
-        // Movement trigger fires ENTER expectedly (INITIAL_TRIGGER_ENTER on re-registration)
-        // and may also fire DWELL/ENTER on boot. Only EXIT drives a refresh — verify the
-        // receiver ignores non-EXIT cases.
         receiver.dispatchTransition(
             gmsTransitionType = Geofence.GEOFENCE_TRANSITION_ENTER,
             triggeringGeofenceIds = listOf(GeofenceConstants.MOVEMENT_TRIGGER_ID),
@@ -847,8 +832,8 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
 
     @Test
     fun dispatchTransition_givenRegionWithNoGeosets_expectSingleEventWithoutGeoset() = runTest {
-        // Default relaxed store returns a null region => no geosets => a single event is still emitted
-        // so a real OS transition is never dropped.
+        // The default cached region has no geosets; a single event is still emitted so a real OS
+        // transition is never dropped.
         val entrySlot = slot<PendingGeofenceDelivery>()
 
         receiver.dispatchTransition(
@@ -1063,10 +1048,8 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
 
     @Test
     fun dispatchTransition_givenConcurrentBroadcastsForSameFence_expectBookkeepingSerialized() = runTest {
-        // Each broadcast is handled on its own scope, so without the lock an ENTER and an EXIT for
-        // the same fence interleave their read-decide-persist: the ENTER reads the mark the EXIT is
-        // about to clear and is dropped, then the EXIT drops containment, leaving the device inside
-        // with no record and its next EXIT dropped too.
+        // Each broadcast runs on its own scope; without the processor's lock an ENTER and an EXIT
+        // for one fence interleave their read-decide-persist and corrupt containment.
         val inFlight = AtomicInteger()
         val peakInFlight = AtomicInteger()
         coEvery { mockScheduler.schedule(any()) } coAnswers {
@@ -1201,17 +1184,15 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
             mockPolygonController.activate(any<String>(), any<Location>(), any<Long>(), any<Int>())
         }
         coVerify(exactly = 0) { mockScheduler.schedule(any()) }
-        // Registration kept. Business fences register with INITIAL_TRIGGER_ENTER and routing arms
-        // only after the add, so an initial ENTER for a fence the refresh just added can arrive
-        // while routing still reads empty. Evicting here would remove it, and the refresh would
-        // then publish it registered AND routable, which every later refresh reads as unchanged.
+        // Kept: routing arms only after the add, so an initial ENTER can arrive while routing is
+        // empty. Evicting it would strand a fence later refreshes read as unchanged.
         coVerify(exactly = 0) { mockManager.removeGeofencesByIds(any()) }
     }
 
     @Test
     fun dispatchTransition_givenMovementTriggerNotInStore_expectMovementHandlerNotCalledAndRemoved() = runTest {
-        // Movement trigger is only registered when business set is non-empty. If it
-        // fires while not in the store, treat it as an orphan: drop + remove.
+        // A movement trigger missing from the registered set is an orphan like any other: drop it
+        // and remove it from the OS.
         every { mockStore.getRegisteredIds() } returns setOf("biz-known")
 
         receiver.dispatchTransition(
@@ -1241,7 +1222,6 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
         )
 
         scheduled.map { it.geofenceId } shouldBeEqualTo listOf("biz-known")
-        // Single batched removal call carrying both orphans.
         coVerify(exactly = 1) {
             mockManager.removeGeofencesByIds(listOf("biz-orphan-1", "biz-orphan-2"))
         }
@@ -1249,11 +1229,9 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
 
     @Test
     fun dispatchTransition_givenRegisteredIdWhileRoutingUnarmed_expectDroppedButOsRegistrationKept() = runTest {
-        // The window between an identify clearing routing and the refresh that re-arms it. Removing
-        // it here strands it, but not by the skip-as-unchanged path: unchangedRegisteredIds also
-        // requires routable membership, so an unroutable id is re-added. The strand is the race —
-        // an initial ENTER arriving between the add and the arming would evict a fence the refresh
-        // then publishes as routable, and that one IS skipped as unchanged from then on.
+        // Between an identify clearing routing and the refresh re-arming it, a registered fence is
+        // unarmed, not orphaned. Evicting it on an initial ENTER in that window loses a fence the
+        // refresh then publishes as routable and skips as unchanged from then on.
         every { mockStore.getRegisteredIds() } returns setOf("biz-known")
         every { mockStore.getRoutableRegisteredIds() } returns emptySet()
 
@@ -1306,8 +1284,6 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
 
     @Test
     fun dispatchTransition_givenAllIdsKnown_expectNoRemoveCall() = runTest {
-        // Normal (no-orphan) path: removeGeofencesByIds must NOT be called when all
-        // incoming IDs are tracked.
         receiver.dispatchTransition(
             gmsTransitionType = Geofence.GEOFENCE_TRANSITION_ENTER,
             triggeringGeofenceIds = listOf("biz-1"),
@@ -1319,12 +1295,8 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
     }
 
     /**
-     * The delivered event is dated when the broadcast arrived, not when the SDK got round to it.
-     *
-     * This inverted once already: before the crossing pipeline became a DI singleton the receiver
-     * read `currentTimeSeconds()` first and resolved the object graph after, and the refactor
-     * swapped them — so on a cold process the whole geofence graph, GMS client included, was built
-     * between the OS reporting the crossing and the stamp that ships with it.
+     * The delivered event is dated when the broadcast arrived, not after resolving the pipeline,
+     * which on a cold process builds the whole geofence graph (GMS client included).
      */
     @Test
     fun handleGeofencingEvent_expectTheCrossingStampedBeforeAnyDispatchWork() = runTest {
@@ -1346,13 +1318,8 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
     }
 
     /**
-     * The dispatch path had no timing record at all, so no capture could say what resolving the
-     * crossing pipeline costs — and that is the open question about making it an eagerly-injected
-     * DI singleton, which builds the geofence object graph, GMS client included, inside the
-     * broadcast's own budget on a cold process.
-     *
-     * This asserts only that the measurement is taken and emitted. What the number means needs a
-     * device; the point of the record is that the next drive can answer it without a second trip.
+     * Resolving the pipeline builds the geofence graph inside the broadcast's budget on a cold
+     * process; `dispatch.ready` records what that costs. Asserts only that it is emitted.
      */
     @Test
     fun handleGeofencingEvent_givenACrossing_expectTheDispatchReadyMeasurementRecorded() = runTest {
@@ -1370,13 +1337,8 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
     }
 
     /**
-     * Pins the one DTO field with no other coverage: the crossing's coordinates come from
-     * `GeofencingEvent.triggeringLocation`, in that order.
-     *
-     * Asymmetric values on purpose. Every other test in this file uses a location whose latitude
-     * and longitude are distinguishable but small, and none of them reads them back — a transposed
-     * mapping would sail through all of them, then re-rank and re-register roughly twenty fences
-     * around a point on the wrong side of the planet.
+     * Asymmetric coordinates so a transposed mapping from `GeofencingEvent.triggeringLocation`
+     * fails; no other test reads them back from a parsed event.
      */
     @Test
     fun handleGeofencingEvent_givenATriggeringLocation_expectTheCrossingCarriesItUntransposed() = runTest {
@@ -1416,7 +1378,7 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
         refreshJob.cancel()
     }
 
-    /** Pins the GMS-code → [GeofenceCrossingTransition] translation, the receiver's one remaining decision. */
+    /** Pins the GMS-code to [GeofenceCrossingTransition] translation, the receiver's only decision. */
     @Test
     fun handleGeofencingEvent_givenEachGmsTransitionCode_expectCorrectlyInterpreted() = runTest {
         val cases = listOf(

@@ -22,9 +22,8 @@ internal data class PolygonTransitionDetection(
 /**
  * A record decided during [PolygonRouteProcessor.process] and emitted by the caller.
  *
- * Returned rather than logged because every caller of `process` holds a lock, and
- * `GeofenceLogger` forwards to the host `Logger`, whose dispatcher is customer-supplied code. A
- * slow dispatcher would then stall polygon evaluation for as long as it ran.
+ * Returned rather than logged because every caller of `process` holds a lock, and `GeofenceLogger`
+ * forwards to the host `Logger`, whose customer-supplied dispatcher could stall evaluation.
  */
 internal sealed interface PolygonRouteRecord {
     val geofenceId: String
@@ -80,12 +79,8 @@ internal sealed interface HeldArrivalOutcome {
     /**
      * Reported now. [reason] is null when the fix positively agreed, set when nothing did.
      *
-     * [heldSignedBoundaryDistanceMeters], [heldHorizontalAccuracyMeters] and [heldFixAgeSeconds]
-     * describe the fix the arrival rests on, not whichever later fix released it.
-     *
-     * [heldFixAgeSeconds] is that fix's age at the moment the verdict is emitted, so it counts the
-     * time the hold waited. Reporting the age captured when the hold opened made a fix held for
-     * 15 s read as `age=0.4`, which is a capture claiming fresher evidence than the verdict used.
+     * The `held*` fields describe the fix the arrival rests on, not the later fix that released it.
+     * [heldFixAgeSeconds] is that fix's age when the verdict is emitted, so it includes the wait.
      */
     data class Committed(
         val reason: PolygonArrivalCommit?,
@@ -95,13 +90,8 @@ internal sealed interface HeldArrivalOutcome {
     ) : HeldArrivalOutcome
 
     /**
-     * No arrival to report from the hold, for any of four reasons the records distinguish: none was
-     * open, the fix contradicted it, it went stale, or the fence is already committed inside.
-     *
-     * One case rather than four because the caller does the same thing in all of them — judge the
-     * fix on its own merits. Returning early instead swallowed a departure: a fix that positively
-     * places the device outside is exactly the fix that should emit EXIT when the fence is
-     * committed inside, and the hold being open is no reason to drop it.
+     * No arrival to report from the hold: none was open, the fix contradicted it, or it went stale.
+     * The caller judges the fix on its own merits in every case, since it may still be a departure.
      */
     data object NotCommitted : HeldArrivalOutcome
 }
@@ -116,11 +106,8 @@ internal data class PolygonRouteOutcome(
 internal class PolygonRouteProcessor(
     private val accuracyEvaluator: PolygonAccuracyEvaluator = PolygonAccuracyEvaluator(),
     /**
-     * Marks which fences are holding a marginal arrival.
-     *
-     * Two confirmations, so opening a hold yields no transition and [resolveHeldArrival] owns what
-     * the next fix means. Raising it would put a second fix back in charge of whether an arrival is
-     * reported at all, which is the rule this deliberately abandoned.
+     * Marks which fences are holding a marginal arrival. Two confirmations (the minimum), so opening
+     * a hold yields no transition and [resolveHeldArrival] decides what the next fix means.
      */
     private val arrivalConfirmations: PolygonTransitionStateMachine =
         PolygonTransitionStateMachine(requiredConfirmations = 2)
@@ -128,15 +115,9 @@ internal class PolygonRouteProcessor(
     private val latestElapsedRealtimeNanos = mutableMapOf<String, Long>()
 
     /**
-     * What each held arrival is counting: the fix that decided it, and when it was counted from.
-     *
-     * Carries the measurements so the committed verdict can report the fix the arrival rests on
-     * rather than whichever later fix released it. Reporting the releasing fix put a negative
-     * `edge` on a `polygon.decided ENTER`, which is a record that contradicts itself.
-     *
-     * Derived rather than maintained alongside the state machine: [resolveHeldArrival] drops the
-     * entry whenever no hold is pending, so a write site that skips a removal costs one pass
-     * rather than a wrong verdict.
+     * The fix each held arrival rests on and when the hold opened, so the committed verdict reports
+     * that fix rather than the one that released it. [resolveHeldArrival] drops the entry whenever
+     * no hold is pending, so a missed removal costs one pass rather than a wrong verdict.
      */
     private val heldArrivals = mutableMapOf<String, HeldArrival>()
 
@@ -196,10 +177,8 @@ internal class PolygonRouteProcessor(
                     fixAgeSeconds = fixAgeSeconds
                 )
             }
-            // A held arrival is settled here, before anything else this fix might say is read.
-            // It commits unless the fix positively places the device outside, so the only fix that
-            // can lose a visit is one that argues against it — a fix that merely cannot judge adds
-            // nothing to the one being held, which is not the same as contradicting it.
+            // Settle a held arrival first. It commits unless this fix positively places the device
+            // outside; a fix that cannot judge does not contradict it.
             when (
                 val held = resolveHeldArrival(
                     fence.id,
@@ -213,9 +192,7 @@ internal class PolygonRouteProcessor(
                     records += PolygonRouteRecord.Decided(
                         geofenceId = fence.id,
                         transitionName = PolygonTransition.ENTER.name,
-                        // The held fix, not this one: the arrival rests on the measurement that
-                        // decided it, and reporting the releasing fix put a negative edge on an
-                        // ENTER.
+                        // The held fix, not this one: the arrival rests on the fix that decided it.
                         signedBoundaryDistanceMeters = held.heldSignedBoundaryDistanceMeters,
                         horizontalAccuracyMeters = held.heldHorizontalAccuracyMeters,
                         fixAgeSeconds = held.heldFixAgeSeconds,
@@ -290,9 +267,8 @@ internal class PolygonRouteProcessor(
     }
 
     /**
-     * Returns the ids that were still holding an arrival, so the caller can report them once it is
-     * outside its lock. The record cannot be emitted here: every caller holds one, and the host's
-     * log dispatcher is customer code.
+     * Returns the ids that were still holding an arrival, for the caller to report outside its lock
+     * (the host's log dispatcher is customer code).
      */
     fun clear(): Set<String> {
         val discarded = arrivalConfirmations.pendingPolygonIds()
@@ -316,27 +292,14 @@ internal class PolygonRouteProcessor(
     /**
      * Settles a held arrival against the next fix to reach its fence.
      *
-     * The rule is iOS's, and the asymmetry is the whole point: a marginal arrival is reported
-     * unless a fix positively places the device outside. Requiring a second fix to AGREE was never
-     * once satisfied in four field captures — `cor=true` appears in none of them — because a
-     * stationary device is exactly the case that cannot supply one: the fused provider re-emits the
-     * coordinate it already carried, and no number of those is a second observation. A fix that
-     * merely cannot judge adds nothing to the one being held, which is not evidence against it.
+     * A marginal arrival commits unless a judged fix places the device outside (the iOS rule).
+     * Requiring a second agreeing fix is unsatisfiable for a stationary device: the fused provider
+     * re-emits the same coordinate, which is not an independent observation.
      *
-     * Stated carefully, because the captures do not show this rule losing a real visit. The two
-     * holds it ever refused were both false, and the one real arrival the field lost never reached
-     * a hold at all: the flat accuracy ceiling refused it first. What the captures show is that the
-     * requirement is unsatisfiable here, not that it has already cost a visit.
-     *
-     * A hold is only ever open while the fence is committed outside, so nothing here rechecks
-     * that: no production route commits a polygon inside behind this processor. Both
-     * `reconcileEnteredIds` call sites filter polygons out of `inside`, `commitBusinessTransition`
-     * is reached only through the single engine that owns this processor, and every ENTER it
-     * decides clears the hold in the same pass.
-     *
-     * Ordered so the incoming fix is judged before the clock is consulted. The staleness bound
-     * below would otherwise let the arbitrary 60 s boundary decide what a contradicting fix means:
-     * the same fix reading 47 m outside broke the arrival at 59 s and committed it at 61 s.
+     * A hold is only open while the fence is committed outside, so that is not rechecked: polygons
+     * are committed inside only by the engine that owns this processor, and every ENTER it decides
+     * clears the hold. The fix is judged before the staleness window so a contradicting fix means
+     * the same on either side of that boundary.
      */
     private fun resolveHeldArrival(
         polygonId: String,
@@ -350,11 +313,8 @@ internal class PolygonRouteProcessor(
             clearHold(polygonId)
             return HeldArrivalOutcome.NotCommitted
         }
-        // iOS's predicate exactly: any fix that could judge this venue and read outside blocks the
-        // arrival. Not the departure rule, which also demands clearance beyond the accuracy plus a
-        // 20 m margin — that is far looser, and at indoor accuracy it is looser by a lot. A fix
-        // reading 8 m outside at 15 m accuracy would commit the arrival under it, and the false
-        // visit would then stay open until something cleared the ring by 120 m.
+        // Any judged fix reading outside blocks the arrival. Not the departure rule: its clearance
+        // margin would let a fix 8 m outside at 15 m accuracy commit a false visit.
         val judged = result.undecidedReason == null
         val readsOutside = (result.signedBoundaryDistanceMeters ?: 0.0) < 0.0
         if (judged && readsOutside) {
@@ -366,11 +326,8 @@ internal class PolygonRouteProcessor(
             return HeldArrivalOutcome.NotCommitted
         }
         val heldForNanos = elapsedRealtimeNanos - held.observedAtElapsedRealtimeNanos
-        // A pending arrival is evidence about a visit happening now. Past the window it no longer
-        // describes where the device is, so it is dropped rather than reported at a time we cannot
-        // defend — the one branch here that still loses a visit. Reaching it needs the precise fix
-        // the callback asks for to go missing, which it did in none of the 406 requests the field
-        // captures recorded.
+        // Past the window the hold no longer describes where the device is, so it is dropped: the
+        // one branch here that loses a visit, reached only if the requested precise fix never came.
         if (heldForNanos > MAX_CORROBORATION_GAP_NANOS) {
             clearHold(polygonId)
             records += PolygonRouteRecord.ArrivalExpired(
@@ -380,9 +337,8 @@ internal class PolygonRouteProcessor(
             )
             return HeldArrivalOutcome.NotCommitted
         }
-        // Position alone, because position is the part the provider carries forward while it
-        // substitutes the accuracy: the re-emission arrives with accuracy replaced by a placeholder
-        // and the coordinate identical to 6 dp.
+        // Position alone: the provider's re-emission keeps the coordinate but replaces the accuracy
+        // with a placeholder.
         val reason = when {
             held.sample.coordinate == sample.coordinate -> PolygonArrivalCommit.NOT_INDEPENDENT
             result.evidence == PolygonEvidence.ENTER -> null
@@ -402,13 +358,10 @@ internal class PolygonRouteProcessor(
     /**
      * Whether [elapsedRealtimeNanos] is the fix this fence's hold was opened on.
      *
-     * GMS answers a hold's precise-fix request with that same fix when it is a fraction of a second
-     * old, even at a max update age of zero. Skipped as not-newer, the hold then waits for a fix
-     * minutes away and the visit is lost, so that answer settles it as not independent instead.
-     * Only that answer, which the caller marks by passing `answersHeldFixAt` as the stamp of the fix
-     * its request was made from. The same fix arriving by another path while the request is still
-     * out is refused as before, so it cannot commit the hold ahead of a newer answer that reads
-     * outside.
+     * GMS can answer the hold's precise-fix request with that same fix, even at max update age 0.
+     * Skipping it as not-newer would leave the hold waiting for a fix minutes away, so that answer
+     * (marked by the caller via `answersHeldFixAt`) settles the hold as not independent. The same fix
+     * by any other path is still refused, so it cannot commit ahead of a newer outside reading.
      */
     private fun isHeldFix(polygonId: String, elapsedRealtimeNanos: Long): Boolean =
         heldArrivals[polygonId]?.observedAtElapsedRealtimeNanos == elapsedRealtimeNanos

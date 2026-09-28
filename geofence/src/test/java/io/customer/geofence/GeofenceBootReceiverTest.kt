@@ -40,7 +40,6 @@ class GeofenceBootReceiverTest : RobolectricTest() {
                 }
             }
         )
-        // Default: permissions granted. Suppression tests override this.
         every { mockPermissionChecker.hasRequiredLocationPermissions() } returns true
         every { mockSecureUserStore.getUserId() } returns "user-1"
         receiver = GeofenceBootReceiver()
@@ -66,8 +65,8 @@ class GeofenceBootReceiverTest : RobolectricTest() {
 
     @Test
     fun restore_givenPermissionsRevoked_expectRepositoryNotCalled() = runTest {
-        // Permissions can be revoked while the device is powered off; the boot
-        // receiver must fail fast rather than relying on the manager's deeper guard.
+        // Permissions can be revoked while the device is off; the receiver must check them
+        // itself rather than rely on the manager's deeper guard.
         every { mockPermissionChecker.hasRequiredLocationPermissions() } returns false
 
         receiver.restore()

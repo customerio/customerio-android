@@ -24,10 +24,9 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 
 /**
- * Physical containment and durable delivery are two different facts, and storage can fail for either
- * one independently. These tests pin what the device is believed to be *inside* across a full
- * ENTER → EXIT visit while the durable outbox is unavailable — the case where getting containment
- * wrong silently corrupts every later transition for that fence.
+ * Physical containment and durable delivery can fail independently. These tests pin containment
+ * across an ENTER then EXIT while the outbox is unavailable, where a wrong answer silently corrupts
+ * every later transition for the fence.
  */
 @RunWith(RobolectricTestRunner::class)
 class GeofenceTransitionStagingContainmentTest : RobolectricTest() {
@@ -114,9 +113,8 @@ class GeofenceTransitionStagingContainmentTest : RobolectricTest() {
         every { outbox.appendAll(any()) } returns false
         processor.process(GEOFENCE_ID, Event.GeofenceTransition.ENTER, timestampSeconds = 100L)
 
-        // The EXIT's append succeeds. Emission drains older staged attempts before appending its
-        // own, so the ENTER is restored ahead of the EXIT rather than being queued behind it — the
-        // queue can never hold the later edge alone while an earlier one is still staged.
+        // The EXIT's append succeeds. Emission drains older staged attempts first, so the ENTER is
+        // queued ahead of the EXIT.
         every { outbox.appendAll(any()) } answers { callOriginal() }
         processor.process(GEOFENCE_ID, Event.GeofenceTransition.EXIT, timestampSeconds = 200L)
         outbox.loadAll().map { it.transition } shouldBeEqualTo

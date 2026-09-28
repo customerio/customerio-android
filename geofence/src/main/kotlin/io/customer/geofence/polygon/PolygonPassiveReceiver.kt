@@ -18,12 +18,10 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
 /**
- * Receives fixes another app paid for and feeds the useful ones through the ordinary path.
+ * Receives passive location fixes (ones other apps requested) for polygon monitoring.
  *
- * Same shape as [PolygonRecheckWorker] on purpose: admit the polygons whose wake circle contains
- * the fix, then hand each to the [PolygonGeofenceServiceController.activate] a GMS callback uses.
- * A passive fix is an extra trigger, never a second set of rules, so dedupe, the accuracy decision,
- * the on-demand precise fix and emission all stay where they already are.
+ * A passive fix is only an extra trigger: it goes through the same path as a GMS geofence callback,
+ * so dedupe, accuracy decisions and emission are unchanged.
  */
 class PolygonPassiveReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
@@ -63,18 +61,10 @@ class PolygonPassiveReceiver : BroadcastReceiver() {
         val routableIds = store.getRoutableRegisteredIds()
         val polygons = store.getCachedRegions().filter { it.id in routableIds && it.isPolygon }
         if (polygons.isEmpty()) {
-            // Retires itself, the way the re-check worker cancels its own work. reconcile is the
-            // only caller of stop(), and it runs from the registration paths alone, so a sign-out
-            // or the kill switch leaves this request live with GMS across process death — and for
-            // a signed-out user no later registration ever arrives to tear it down. Every other
-            // app's fix would then wake our process to read the store and return, indefinitely.
-            // Self-healing here bounds that at one wake rather than relying on every reset path
-            // remembering.
-            //
-            // One narrow race this creates: a delivery between a session opening and that sync's
-            // reconcile stops the listener asynchronously, and if GMS executes the removal after
-            // reconcile's request, the listener is off until the next registration change. Bounded
-            // by the next sync that has additions, and cheaper than the unbounded wake it replaces.
+            // Retires itself, like the re-check worker, so a request left live with GMS costs one
+            // wake rather than every other app's fix waking this process indefinitely. Race: a
+            // delivery just before a new session's reconcile can leave the listener off until the
+            // next registration change.
             logger.logPolygonPassiveSkipped(PolygonPassiveSkip.NOTHING_REGISTERED)
             SDKComponent.android().polygonPassiveMonitor.stop()
             return
@@ -82,46 +72,26 @@ class PolygonPassiveReceiver : BroadcastReceiver() {
         // Read before anything is dispatched, so a user change mid-dispatch is refused by the
         // controller rather than attributed to whoever is current when it lands.
         val expectedUserStateGeneration = store.userStateGeneration()
-        // Captured before the registration check below, because the two cover different windows
-        // and neither covers the other.
-        //
-        // isArmed() is the outer gate. Teardown cancels the registration before it wipes any
-        // state, so once that cancel lands the gate is shut synchronously and for good, and every
-        // later delivery is refused here whatever the token says, including one the OS had already
-        // dispatched. That is the case no in-process token can see.
-        //
-        // The token covers what gets past it: a delivery admitted a moment before the cancel,
-        // whose activation then runs after teardown has wiped the state. Its token was read before
-        // teardown bumped the generation, so the activation is refused at the write rather than
-        // re-arming what was just removed. Read on entry for that reason, never at dispatch, or it
-        // would be the post-teardown value and agree with whatever is current.
+        // Read on entry, before the isArmed() check. That check refuses any delivery after
+        // teardown's cancel; this token covers one admitted just before it, whose activation would
+        // otherwise run after teardown's wipe and re-arm what was just removed.
         val expectedTeardownGeneration =
             SDKComponent.android().polygonGeofenceServiceController.teardownGeneration()
-        // A fix the OS dispatched before teardown completed still arrives afterwards, and
-        // teardown leaves the routable ids and the user generation in place on purpose, so neither
-        // of the checks activate() already makes can refuse it. The registration itself is the one
-        // thing that did change: stop() removes the request and cancels the intent, so a delivery
-        // under a dead registration is exactly the case to drop. Checked here rather than captured
-        // earlier, because by the time this receiver runs any teardown has already happened.
+        // Teardown keeps routable ids and the user generation, so activate()'s own checks cannot
+        // refuse a fix the OS dispatched before it; the cancelled registration is what changed.
         if (!SDKComponent.android().polygonPassiveMonitor.isArmed()) {
             logger.logPolygonPassiveSkipped(PolygonPassiveSkip.NOTHING_REGISTERED)
             return
         }
         val admitted = polygons.filter { it.distanceTo(fix.latitude, fix.longitude) <= it.radius }
-        // The departure half, and the reason activating from here is safe. activate() records the
-        // polygon coarse-inside and only a GMS coarse EXIT clears it, so a polygon this listener
-        // activated from an ENTER GMS never issued could stay active for the life of the install.
-        //
-        // The accuracy is subtracted rather than gated on the arrival ceiling: that ceiling is for
-        // ring-level decisions where the margin is the venue's own depth, while here the margin is
-        // the whole accuracy value plus the circle's slack over the ring. A passive fix is whatever
-        // another app asked for, so requiring the ceiling would leave this unreachable.
+        // The departure half, which makes activating from here safe: activate() records the polygon
+        // coarse-inside and only a coarse EXIT clears it, so a polygon activated on an ENTER GMS
+        // never issued could otherwise stay active indefinitely. Accuracy is subtracted rather than
+        // gated on the arrival ceiling, which a passive fix would rarely meet.
         val activeIds = store.getActivePolygonIds()
         val departed = polygons.filter { region ->
             region.id in activeIds &&
-                // Location.accuracy reports 0 when unset, which would turn the margin off and
-                // clear on a fix with unknown error. GMS fixes carry it; this keeps "decisively"
-                // true of the predicate rather than of the provider.
+                // Location.accuracy is 0 when unset, which would turn the margin off.
                 fix.hasAccuracy() &&
                 region.distanceTo(fix.latitude, fix.longitude) - fix.accuracy > region.radius
         }

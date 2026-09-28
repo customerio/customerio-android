@@ -57,8 +57,8 @@ class PolygonApproachMonitorTest : RobolectricTest() {
         request.captured.priority shouldBeEqualTo Priority.PRIORITY_BALANCED_POWER_ACCURACY
         request.captured.intervalMillis shouldBeEqualTo 15_000L
         request.captured.minUpdateIntervalMillis shouldBeEqualTo 5_000L
-        // No displacement gate. The case this session exists to judge is an arrival that has
-        // already stopped moving, and a 25 m gate let such a device be sampled once per session.
+        // No displacement gate: an arrival that has stopped moving would otherwise be sampled
+        // once per session.
         request.captured.minUpdateDistanceMeters shouldBeEqualTo 0f
         // The OS has to hold the bound too. Our timer and the deadline extra both die with the
         // process, while this PendingIntent registration survives it.
@@ -106,9 +106,8 @@ class PolygonApproachMonitorTest : RobolectricTest() {
     @Test
     fun start_givenAnOlderGeneration_expectTheNewerRequestKept() {
         // A receiver preempted after deciding CONTINUE resumes holding the generation it captured
-        // before suspending. By then an identify and a fresh polygon wake can have armed a newer
-        // session, and arming the older one would replace that request. Its own timeout removes the
-        // replacement later but does not restore what it displaced.
+        // before suspending. By then an identify can have armed a newer session, and arming the
+        // older one would replace that request.
         every {
             client.requestLocationUpdates(any<LocationRequest>(), any<PendingIntent>())
         } returns Tasks.forResult(null)
@@ -143,7 +142,7 @@ class PolygonApproachMonitorTest : RobolectricTest() {
         shadowOf(Looper.getMainLooper()).idle()
         monitor.start(7L)
 
-        // The 8L registration and its teardown only; 7L never armed.
+        // Only the 8L registration; 7L never armed.
         verify(exactly = 1) {
             client.requestLocationUpdates(any<LocationRequest>(), any<PendingIntent>())
         }
@@ -151,11 +150,9 @@ class PolygonApproachMonitorTest : RobolectricTest() {
 
     @Test
     fun start_givenSignOutEndedTheGeneration_expectNoSessionForTheSignedOutUser() {
-        // Sign-out ends a generation without arming a newer one, so nothing this monitor holds
-        // says it is over: `stop` clears the live generation, and the generation that replaced it
-        // exists only in the store. A receiver preempted between deciding to sample and arriving
-        // here resumes with the old one still in hand, and an equal-generation restart would open
-        // a fine-location session for a user who has signed out.
+        // Sign-out moves the store's generation without arming a newer session, so only the store
+        // says 8 is over. A receiver resuming with 8 in hand must not open a location session for
+        // a user who has signed out.
         every {
             client.requestLocationUpdates(any<LocationRequest>(), any<PendingIntent>())
         } returns Tasks.forResult(null)
@@ -241,10 +238,9 @@ class PolygonApproachMonitorTest : RobolectricTest() {
 
     @Test
     fun stop_givenAColdProcessNamesADeadlineItNeverArmed_expectTheEndingIsStillReported() {
-        // The cross-process case with a deadline attached, which is reachable: an expired batch
-        // with no identified user calls stop naming the deadline it recorded, and the registration
-        // outlives the process that armed it. This process has no accounting entry for that
-        // deadline, so it cannot count the session — but the ending is real and must not vanish.
+        // Reachable: an expired batch with no identified user stops by the deadline it recorded,
+        // and the registration outlives the process that armed it. This process cannot count the
+        // session, but the ending is real and must still be reported.
         every {
             client.requestLocationUpdates(any<LocationRequest>(), any<PendingIntent>())
         } returns Tasks.forResult(null)
@@ -266,8 +262,8 @@ class PolygonApproachMonitorTest : RobolectricTest() {
 
     @Test
     fun stop_givenAGenerationNeverRegistered_expectNothingRemovedAndNoStopReported() {
-        // Asking the OS to remove a request that was never made used to MINT the PendingIntent,
-        // because FLAG_UPDATE_CURRENT creates when none exists, and then report a teardown for it.
+        // FLAG_UPDATE_CURRENT would mint the PendingIntent being removed and then report a
+        // teardown for it, so removal must look it up without creating one.
         every { client.removeLocationUpdates(any<PendingIntent>()) } returns Tasks.forResult(null)
 
         monitor().stop(expectedUserStateGeneration = 4_242L)
@@ -279,11 +275,8 @@ class PolygonApproachMonitorTest : RobolectricTest() {
 
     @Test
     fun stop_givenRepeatedStopsAfterTheSessionEnded_expectOneRecordNotOnePerPass() {
-        // The 2026-09-18 field case. Once any session has built a PendingIntent for the live
-        // generation, nothing cancels it, so every later sync pass that calls stop gets a success
-        // back from GMS for a request no longer attached. That filled the capture with fourteen
-        // teardowns against two real sessions, at two per pass, which is the record we rely on to
-        // tell whether the approach session ever sampled.
+        // Nothing cancels the PendingIntent, so GMS answers success to every later stop for a
+        // request no longer attached. Only the first removal is a real teardown.
         every {
             client.requestLocationUpdates(any<LocationRequest>(), any<PendingIntent>())
         } returns Tasks.forResult(null)
@@ -571,9 +564,7 @@ class PolygonApproachMonitorTest : RobolectricTest() {
         removal.setResult(null)
         shadowOf(Looper.getMainLooper()).idle()
 
-        // Three: the first start, the restart, and the one the late removal success issues because
-        // the session is wanted again under the same PendingIntent. Without that third the session
-        // stays wanted but unregistered.
+        // Three: the first start, the restart, and the re-request the late removal success issues.
         verify(exactly = 3) {
             client.requestLocationUpdates(any<LocationRequest>(), any<PendingIntent>())
         }
@@ -581,14 +572,9 @@ class PolygonApproachMonitorTest : RobolectricTest() {
 
     @Test
     fun stop_givenTheEarlierRemovalLandsAfterAReArm_expectTheNewSessionStillReportsItsOwnCount() {
-        // The ABA across a re-arm. D1 is stopped, D2 arms on the same generation before D1's
-        // removal listener runs, and the two sessions build equal PendingIntents. While a
-        // one-slot memo of the last removed intent gated every teardown, D1's late listener wrote
-        // that intent back after D2 had armed, so D2's real teardown was suppressed as a repeat
-        // and its sample count was never reported.
-        //
-        // The counts are what name the sessions here: D2 delivered a sample and D1 did not, so
-        // one record of each is the only outcome that attributes both correctly.
+        // D1 is stopped and D2 arms on the same generation (an equal PendingIntent) before D1's
+        // removal listener runs. That late listener must not make D2's real teardown look like a
+        // repeat. D2 delivered a sample and D1 did not, so one record of each attributes both.
         val firstDeadline = SystemClock.elapsedRealtime() + 60_000L
         val secondDeadline = SystemClock.elapsedRealtime() + 120_000L
         val firstRemoval = TaskCompletionSource<Void>()
@@ -626,10 +612,9 @@ class PolygonApproachMonitorTest : RobolectricTest() {
 
     @Test
     fun removeUpdates_givenTheSessionIsRestartedByTheSameSuccess_expectNoEndingReported() {
-        // PROBE for a peer review finding, asserting the record rather than the request count.
-        // A removal that lands while the request is still wanted re-requests it, so the session
-        // continues. Reporting an ending there both claims a stop that did not happen and consumes
-        // the live session's count, so its real ending would later report a partial one.
+        // A removal that lands while the request is wanted again re-requests it, so the session
+        // continues. Reporting an ending there would claim a stop that did not happen and consume
+        // the live session's count.
         val removal = TaskCompletionSource<Void>()
         every {
             client.requestLocationUpdates(any<LocationRequest>(), any<PendingIntent>())
@@ -655,11 +640,9 @@ class PolygonApproachMonitorTest : RobolectricTest() {
 
     @Test
     fun recordSampleDelivered_givenTheBatchArrivesBeforeTheSessionIsAdopted_expectItIsStillCounted() {
-        // PROBE for a Bugbot finding, and the ordering is production's: a PendingIntent can
-        // cold-start the process, and PolygonApproachReceiver records the delivering batch through
-        // processApproachLocations BEFORE calling monitor.start to adopt the session. A count that
-        // only incremented pre-existing entries lost that batch and reported n=0 for a session that
-        // had delivered, which is the exact reading this field exists to make.
+        // Production's order: a PendingIntent can cold-start the process, and
+        // PolygonApproachReceiver records the batch through processApproachLocations before
+        // monitor.start adopts the session. That batch must still be counted.
         every {
             client.requestLocationUpdates(any<LocationRequest>(), any<PendingIntent>())
         } returns Tasks.forResult(null)
@@ -678,9 +661,8 @@ class PolygonApproachMonitorTest : RobolectricTest() {
 
     @Test
     fun recordSampleDelivered_givenTheSessionAlreadyEnded_expectItCannotBuyASecondEnding() {
-        // PROBE for a peer review finding. putIfAbsent had no liveness check, so a batch arriving
-        // after a teardown re-created the entry for a dead deadline, and a later removal naming it
-        // reported a second counted ending for one session.
+        // A batch arriving after the teardown must not let a later removal naming the same dead
+        // session report a second ending.
         every {
             client.requestLocationUpdates(any<LocationRequest>(), any<PendingIntent>())
         } returns Tasks.forResult(null)
@@ -724,10 +706,9 @@ class PolygonApproachMonitorTest : RobolectricTest() {
 
     @Test
     fun start_givenTheSameGenerationAfterItsDeadlinePassed_expectOneRegistrationAndNoFalseStop() {
-        // Identity is the generation alone, so a re-arm for the same generation builds an EQUAL
-        // PendingIntent. Removing "the previous one" therefore cancels the request this very call
-        // is about to make, and the removal's success listener re-requests it and logs a teardown
-        // that never happened — a tail a replay grading on polygon.approach.* reads as real.
+        // Identity is the generation alone, so this re-arm builds an equal PendingIntent. Removing
+        // it as "the previous one" would cancel the request about to be made, and the removal's
+        // success listener would log a teardown that never happened.
         every {
             client.requestLocationUpdates(any<LocationRequest>(), any<PendingIntent>())
         } returns Tasks.forResult(null)
@@ -752,19 +733,15 @@ class PolygonApproachMonitorTest : RobolectricTest() {
             client.requestLocationUpdates(any<LocationRequest>(), any<PendingIntent>())
         }
         verify(exactly = 0) { client.removeLocationUpdates(any<PendingIntent>()) }
-        // The first session did end, so its tally is owed exactly one record, and it is pinned to
-        // zero rather than any(): the count is the whole point of the record, and nothing was
-        // delivered against that deadline. Skipping the removal above is what used to strand it,
-        // leaving the entry in the map and the finding unreported.
+        // The first session did end, so it owes exactly one record, pinned to zero rather than
+        // any(): nothing was delivered against its deadline.
         verify(exactly = 1) { logger.logPolygonApproachMonitoringStopped(0) }
     }
 
     @Test
     fun stop_givenRemovalRetriedThenStaleStop_expectOnlyOneEndingReported() {
-        // The retry re-issues the removal, and it used to re-issue it without the generation it
-        // was removing. The success path then could not tell a repeat teardown from a first one,
-        // so the ending was reported and never recorded, and the next stale stop reported it
-        // again. This is the 14-records-for-two-sessions shape reached through a flaky remove.
+        // The retried removal must carry the generation it removes, or its success cannot tell a
+        // repeat teardown from a first one and the next stale stop reports the ending again.
         var removals = 0
         every {
             client.requestLocationUpdates(any<LocationRequest>(), any<PendingIntent>())

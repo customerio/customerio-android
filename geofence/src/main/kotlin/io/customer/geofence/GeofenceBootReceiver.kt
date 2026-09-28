@@ -15,20 +15,15 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 
-/**
- * Re-registers persisted geofences after device reboot — the OS drops all
- * registrations across a reboot, so we restore from our cache the first time
- * the device comes back up.
- */
+/** Re-registers cached geofences after a reboot, which drops every OS geofence registration. */
 class GeofenceBootReceiver : BroadcastReceiver() {
 
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action != Intent.ACTION_BOOT_COMPLETED) return
 
         val logger = SDKComponent.geofenceLogger
-        // goAsync keeps the process alive until the restore call resolves;
-        // without it the OS may kill us between launching the coroutine and
-        // GMS committing the new registration.
+        // goAsync keeps the process alive until the restore resolves; without it the OS may kill
+        // us before GMS commits the registration.
         val pendingResult = goAsync()
         try {
             SDKComponent.setupAndroidComponent(context = context)

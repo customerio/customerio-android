@@ -40,8 +40,8 @@ class GeofencePolygonSupportWiringTest : RobolectricTest() {
 
     @Test
     fun geofenceDistanceFilter_givenProductionGraph_expectPolygonRanked() {
-        // Behavioural check on the other half of the coupling: the ranker the graph builds must accept
-        // the shape the request above asks for, or every returned polygon is fetched and then dropped.
+        // The graph's ranker must accept polygons too, or every polygon the request asks for is
+        // fetched and then dropped.
         val ranked = SDKComponent.geofenceDistanceFilter.nearest(
             regions = listOf(polygonRegion()),
             latitude = 37.7750,

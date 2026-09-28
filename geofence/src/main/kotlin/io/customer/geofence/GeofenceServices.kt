@@ -20,13 +20,12 @@ import kotlinx.coroutines.launch
  */
 internal interface GeofenceServices {
     /**
-     * Movement-trigger EXIT routes to the tier-dispatch path: re-rank cached regions
-     * when within the API anchor's threshold, otherwise fetch fresh.
+     * Movement-trigger EXIT: re-rank cached regions when within the API anchor's threshold,
+     * otherwise fetch fresh.
      *
-     * Returns the refresh [Job] (null when the sync was skipped) so the broadcast
-     * receiver can hold its goAsync window open until the refresh lands — the
-     * movement trigger usually fires with the app backgrounded, where the process
-     * is fair game for the OS the moment the receiver finishes.
+     * Returns the refresh [Job] (null when skipped) so the broadcast receiver can hold its goAsync
+     * window open: the trigger usually fires backgrounded, where the OS may kill the process as
+     * soon as the receiver finishes.
      */
     fun onMovementTriggerExit(
         latitude: Double?,
@@ -46,10 +45,9 @@ internal interface GeofenceServices {
     fun onAppLaunch(latitude: Double?, longitude: Double?)
 
     /**
-     * Clears all geofence state so a subsequent user doesn't inherit the previous user's geofences.
-     * Fired from the [Event.ResetEvent] subscriber. Whether to actually wipe is decided in
-     * [GeofenceRepository.reset], which compares the now-signed-out identity against the user that
-     * owns the live registration.
+     * Clears user-scoped geofence state so a subsequent user doesn't inherit it. Fired from the
+     * [io.customer.sdk.communication.Event.ResetEvent] subscriber. [GeofenceRepository.reset] skips
+     * the OS wipe if a user has signed in again by the time it runs.
      */
     fun onUserSignedOut()
 
@@ -62,11 +60,8 @@ internal interface GeofenceServices {
     fun onRefreshRequested()
 
     /**
-     * Re-attempts a refresh when a fresh GPS fix arrives after a prior sync was
-     * skipped for not-yet-available location, or after a host-initiated
-     * [onRefreshRequested]. On fresh install identify can race ahead of the first
-     * fix; without this hook the SDK would self-heal only on sign-out / next cold
-     * launch.
+     * Re-attempts a refresh when a fresh fix arrives after a sync skipped for no location, or after
+     * [onRefreshRequested]. On a fresh install identify can race ahead of the first fix.
      */
     fun onLocationAcquired(
         latitude: Double,
@@ -138,11 +133,10 @@ internal class GeofenceServicesImpl(
     }
 
     override fun onUserIdentified(latitude: Double?, longitude: Double?) {
-        // Establish the session boundary here, not on the first OS callback. beginUserSession clears
-        // routing and the last-sync stamp, so opening it now sends the refresh below down the REMOTE
-        // path and arms routing for the new user before any transition can arrive. Left to the
-        // receiver, the identify would SKIP as fresh, and the first callback would then open the
-        // session, read the empty routable set it had just written, and remove every live fence.
+        // Open the session here, not on the first OS callback: beginUserSession clears routing and
+        // the last-sync stamp, so the refresh below goes REMOTE and arms routing before any
+        // transition arrives. Otherwise the first callback would find an empty routable set and
+        // remove every live fence.
         secureUserStore.getUserId()?.takeIf { it.isNotEmpty() }?.let(regionStore::beginUserSession)
         triggerSync(
             reason = REASON_USER_IDENTIFIED,
@@ -176,11 +170,9 @@ internal class GeofenceServicesImpl(
         quality: GeofenceFixQuality
     ) {
         if (!isAwaitingLocation()) return
-        // The only freshness gate: the repository trusts every fix it gets here as live. A fix too
-        // old to judge containment runs nothing and keeps the intent, since spending it would leave
-        // nothing to drive the pass that seeds containment and fires the initial-ENTER backstop. A
-        // later fix discharges it, and foreground entry falls through to the awaiting-location
-        // retry if none arrives.
+        // The only freshness gate: the repository trusts every fix it gets here as live. A stale fix
+        // keeps the intent armed for a later fix (or the foreground retry), since spending it would
+        // leave nothing to seed containment and fire the initial-ENTER backstop.
         if (!quality.isFresh(clock.elapsedRealtime())) {
             logger.logSyncSkipped("fix too old to judge containment — live-fix intent kept")
             return
@@ -194,8 +186,8 @@ internal class GeofenceServicesImpl(
         val userId = secureUserStore.getUserId()
         // No user yet: skip; a later identify re-triggers.
         if (userId.isNullOrEmpty()) return
-        // Not onUserIdentified: the flags above are already consumed, so a pass dropped for a
-        // collision spends this fix without using it and nothing requests another.
+        // refreshFromLiveFix, not refresh: the flags above are already consumed, so a pass dropped on
+        // a slot collision would waste this fix with nothing to request another.
         triggerSync(
             reason = REASON_LOCATION_ACQUIRED,
             latitude = latitude,
@@ -225,14 +217,11 @@ internal class GeofenceServicesImpl(
         lastSkippedForNoLocation.set(false)
         cooldownFilter.clearAll()
         // SecureUserStore is already anonymous when ResetEvent arrives. Fence the old generation
-        // and stop FLP/FGS synchronously, before a stalled GMS registration or repository lock can
-        // delay the eventual OS cleanup.
+        // and stop location requests now: the OS cleanup in repository.reset() can be held up by a
+        // stalled GMS call or the repository lock.
         polygonController.clearUserSessionRetainingOsRegistrations()
-        // Clear the registration-center anchor synchronously: repository.reset() also
-        // clears it but runs on `scope`, so an in-process re-login (ResetEvent then
-        // UserChangedEvent) would read the previous user's center and rank the new
-        // user's geofences around it. Clearing it now makes the next identify fall
-        // back to a no-location skip and acquire a fresh fix instead.
+        // Synchronously, not only in repository.reset() on `scope`: an in-process re-login would
+        // otherwise rank the new user's geofences around the previous user's center.
         regionStore.clearLastMovementTriggerLocation()
         logger.logGeofenceStateResetOnSignOut()
         scope.launch {

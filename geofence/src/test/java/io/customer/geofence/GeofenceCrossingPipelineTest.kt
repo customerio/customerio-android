@@ -86,7 +86,6 @@ class GeofenceCrossingPipelineTest : RobolectricTest() {
         }
     }
 
-    // Real time by default; the dispatch-budget test re-stubs elapsedRealtime.
     private val mockClock: Clock = mockk(relaxed = true) {
         every { currentTimeSeconds() } answers { System.currentTimeMillis() / 1000 }
         every { currentTimeMillis() } answers { System.currentTimeMillis() }
@@ -143,7 +142,7 @@ class GeofenceCrossingPipelineTest : RobolectricTest() {
             }
         )
         GeofenceDiagnostics.setEnabledForTesting(true)
-        // Default: cooldown allows emission. Tests override this to test suppression.
+        // Default: cooldown allows emission.
         every { mockCooldownFilter.suppressedForSeconds(any(), any(), any()) } returns null
         // The business processor stages then commits through the store; relaxed answers false,
         // which reads as a refused write and drops the delivery before the scheduler sees it.
@@ -151,7 +150,6 @@ class GeofenceCrossingPipelineTest : RobolectricTest() {
         every { mockStore.commitBusinessTransition(any(), any(), any(), any(), any()) } returns true
         every { mockStore.userStateGeneration() } returns 0L
         every { mockStore.activeUserSessionId() } returns "user-42"
-        // Default: an identified user.
         every { mockSecureUserStore.getUserId() } returns "user-42"
         // Default: every id the tests reference is registered, so the orphan filter is a no-op.
         every { mockStore.getRegisteredIds() } returns setOf(
@@ -162,14 +160,13 @@ class GeofenceCrossingPipelineTest : RobolectricTest() {
             "biz-geofence-1",
             "biz-geofence-2"
         )
-        // Polygon gates business routing on this second set; mirror it so a registered fence
-        // is routable unless a test says otherwise.
+        // Routing is gated on this second set; mirror it so a registered fence is routable unless
+        // a test says otherwise.
         every { mockStore.getRoutableRegisteredIds() } answers { mockStore.getRegisteredIds() }
-        // Relaxed answers empty for both, which reads as "the device is inside nothing" and
-        // "no fence is a polygon" — the first drops every EXIT, the second is merely wrong.
+        // Relaxed would answer empty, which reads as "inside nothing" and drops every EXIT.
         every { mockStore.getEnteredIds() } answers { mockStore.getRegisteredIds() }
         every { mockStore.getCachedRegions() } returns emptyList()
-        // Default: the device counts as inside every fence, so the EXIT guard is a no-op.
+        // Not read by the EXIT guard, which uses getEnteredIds.
         every { mockStore.claimExit(any()) } returns true
         // Default: containment has been recorded, i.e. not a freshly-upgraded install.
         every { mockStore.hasContainmentRecord() } returns true
@@ -382,8 +379,7 @@ class GeofenceCrossingPipelineTest : RobolectricTest() {
         )
 
         coVerify(exactly = 0) { mockScheduler.schedule(any()) }
-        // The filter is a check plus a separate `record`, so a failed persist has nothing to roll
-        // back — it must simply never have recorded the emit, or the retry would be suppressed.
+        // Recording the emit on a failed persist would suppress the retry.
         verify(exactly = 0) { mockCooldownFilter.record("user-42", "biz-geofence", Event.GeofenceTransition.ENTER) }
     }
 
@@ -515,8 +511,7 @@ class GeofenceCrossingPipelineTest : RobolectricTest() {
 
     @Test
     fun handle_givenUnmatchedExitForExitOnlyFence_expectDeliveredNotDropped() = runTest {
-        // The setup default makes every registered fence read as entered, which would deliver this
-        // EXIT for the ordinary reason and never reach the fallback under test.
+        // Override the entered-everywhere default so this EXIT reads as unmatched.
         every { mockStore.getEnteredIds() } returns emptySet()
         every { mockStore.claimExit("biz-geofence-2") } returns false
         every { mockStore.getCachedRegion("biz-geofence-2") } returns GeofenceRegion(
@@ -539,8 +534,7 @@ class GeofenceCrossingPipelineTest : RobolectricTest() {
 
     @Test
     fun handle_givenUnmatchedExitOnUpgradedInstall_expectDeliveredNotDropped() = runTest {
-        // The setup default makes every registered fence read as entered, which would deliver this
-        // EXIT for the ordinary reason and never reach the fallback under test.
+        // Override the entered-everywhere default so this EXIT reads as unmatched.
         every { mockStore.getEnteredIds() } returns emptySet()
         every { mockStore.claimExit("biz-geofence-2") } returns false
         every { mockStore.hasContainmentRecord() } returns false
@@ -706,22 +700,4 @@ class GeofenceCrossingPipelineTest : RobolectricTest() {
             longitude = lng
             time = System.currentTimeMillis()
         }
-
-    // Five delivery cases used to live here, asserting `recordEntered` and `scheduler.schedule`.
-    // Business delivery now belongs to `GeofenceBusinessTransitionProcessor`, which commits through
-    // `commitBusinessTransition` and does not schedule at all, so those assertions described a
-    // contract this class no longer has. Each is covered against the real contract in
-    // `GeofenceBusinessTransitionProcessorTest`:
-    //   handle_givenIdentifiedUser_expectUserIdSnapshottedOnEntry
-    //     -> process_givenUserSwitchAfterOldCallbackAdmission_expectDoesNotAttributeTransitionToNewUser
-    //   handle_givenExitForFenceNeverEntered_expectDroppedAndOsRegistrationKept
-    //     -> process_givenTheDeviceWasNeverInside_expectNoCommitSoASyncSeedSurvives
-    //   handle_givenAnonymousEnter_expectContainmentStillRecorded
-    //     -> process_givenUnconfiguredPolygonEnter_expectTracksContainmentWithoutEmitting
-    //   handle_givenEnterTransition_expectContainmentRecorded
-    //     -> process_givenTheExitIsSuppressed_expectContainmentIsStillCommitted
-    //   handle_givenUnmatchedExitForUncachedFence_expectDeliveredNotDropped
-    //     -> process_givenNoEmittedEnterRecordAtAll_expectTheExitIsStillDelivered
-    // What stays here is what the pipeline still owns: admission, orphan eviction, ordering,
-    // and the movement trigger.
 }

@@ -35,12 +35,8 @@ import org.robolectric.shadows.ShadowSystemClock
 /**
  * Asking for a precise fix when the delivered one decided nothing.
  *
- * The case is the ordinary indoor one, which is also the one the pipeline is worst at. A ~110 m
- * venue has an arrival ceiling of 50 m, and the fixes we get to judge it with are GMS's own
- * geofence triggering fixes, which on a parked device measure 100 m and upwards. So the delivered
- * fix decides nothing, and nothing better follows it: the approach sampling session has never
- * contributed a distinct fix to an evaluation in four field captures. Waiting is not a strategy,
- * so the fix has to be asked for while the process is still awake.
+ * The venue here has an arrival ceiling of ~54 m, so a coarse triggering fix (122 m in these
+ * fixtures) decides nothing, and the precise fix is asked for while the process is still awake.
  */
 @RunWith(RobolectricTestRunner::class)
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -93,8 +89,7 @@ class PolygonFreshFixTest : RobolectricTest() {
 
         freshFix.requests shouldBeEqualTo 1
         store.getEnteredIds() shouldContain VENUE_ID
-        // Confirmed, not guessed. That is the whole value of asking: the delivered fix could not
-        // decide at all, and this one is clear of the ring by six times its own uncertainty.
+        // Confirmed, not held: the precise fix is clear of the ring by six times its uncertainty.
         verify(exactly = 1) {
             mockLogger.logPolygonDecided(VENUE_ID, "ENTER", any(), any(), any(), corroborated = any())
         }
@@ -102,9 +97,8 @@ class PolygonFreshFixTest : RobolectricTest() {
 
     @Test
     fun activate_givenNoFixOnTheCallbackAtAll_expectItAsksRatherThanEvaluatingNothing() = runTest {
-        // GMS sometimes delivers a transition with no location attached. Before this the callback
-        // evaluated nothing whatsoever, which is the one case where a request is the entire pass
-        // rather than a second opinion.
+        // GMS sometimes delivers a transition with no location attached, so the request is the
+        // entire pass rather than a second opinion.
         val freshFix = AnswersOnceFreshFix(preciseFixInsideTheVenue())
         val controller = controller(freshFix)
 
@@ -146,8 +140,7 @@ class PolygonFreshFixTest : RobolectricTest() {
         )
 
         freshFix.requests shouldBeEqualTo 1
-        // The reused fix is a real evaluation, not a skipped one: it decided the venue both times
-        // it was consulted, and the second callback recorded no rate-limit refusal.
+        // Reuse bypasses the rate limit, so the second callback records no cooldown refusal.
         verify(exactly = 0) { mockLogger.logPolygonFreshFixSkipped(PolygonFreshFixSkip.WITHIN_COOLDOWN) }
     }
 
@@ -186,10 +179,9 @@ class PolygonFreshFixTest : RobolectricTest() {
 
     @Test
     fun activate_givenTheFixDecidesButOnlyMarginally_expectAPreciseFixIsAskedForToCorroborate() = runTest {
-        // cor=true appears in no capture: nothing in the background ever supplied the second
-        // measurement a held arrival waits for, so every marginal arrival expired. The fix that
-        // held it is also the only fix the batch has, so the request is the one thing that can
-        // answer it.
+        // A held marginal arrival waits for a second measurement that background delivery may
+        // never supply. The fix that opened the hold is the only one in the batch, so the request
+        // is what can answer it.
         val freshFix = AnswersOnceFreshFix(preciseFixInsideTheVenue())
         val controller = controller(freshFix)
 
@@ -202,14 +194,14 @@ class PolygonFreshFixTest : RobolectricTest() {
 
         freshFix.requests shouldBeEqualTo 1
         // The precise fix clears the ring on its own, so the hold ends as an arrival rather than
-        // by expiring. This is the field case the branch exists for, end to end.
+        // by expiring.
         store.getEnteredIds() shouldContain VENUE_ID
     }
 
     @Test
     fun activate_givenThePreciseFixIsTheHeldFixAgain_expectTheArrivalCommits() = runTest {
-        // The 2026-09-24 field case: the triggering fix was 0.2 s old, so GMS answered the request
-        // with that same fix, stamp included, and the hold was lost.
+        // A very young triggering fix can come back from GMS as the answer, stamp included, and
+        // must still settle its hold.
         val held = marginalFixInsideTheVenue()
         val freshFix = AnswersOnceFreshFix(Location(held))
         val controller = controller(freshFix)
@@ -298,9 +290,8 @@ class PolygonFreshFixTest : RobolectricTest() {
 
     @Test
     fun activate_givenNoPreciseFixArrives_expectTheDeliveredVerdictStandsAndIsRecorded() = runTest {
-        // A GPS fix indoors is exactly the case most likely not to arrive, so this is the common
-        // path rather than an edge. The delivered verdict is unchanged and the capture says why,
-        // which is what separates "we asked and got nothing" from "we never asked".
+        // A requested fix may never arrive (no GPS signal, say). The delivered verdict is unchanged
+        // and the capture says why, separating "asked and got nothing" from "never asked".
         val controller = controller(NeverAnswersFreshFix)
 
         controller.activate(
@@ -317,13 +308,9 @@ class PolygonFreshFixTest : RobolectricTest() {
 
     @Test
     fun activate_givenTheBatchWindowHasPassed_expectTheObtainedFixIsNotReused() = runTest {
-        // The reuse window is sized to one GMS batch, measured at 0.07 s to 0.36 s. Three seconds
-        // later is a different moment, and a fix from a different moment must not answer for this
-        // one: the engine's own fix-age ceiling is 120 s, so nothing downstream would catch it.
-        //
-        // What happens instead is the rate limit, which is still armed, so the callback decides on
-        // what it was given. That refusal is the observable difference between a window of seconds
-        // and a window of half a minute.
+        // The 2 s reuse window covers one GMS batch. Three seconds later the fix must not be
+        // reused, since the engine accepts fixes up to 120 s old and nothing downstream would catch
+        // it. The still-armed rate limit refuses instead, and that refusal is what this observes.
         val freshFix = AnswersOnceFreshFix(
             coarseFixInsideTheVenue(elapsedRealtimeNanos = SystemClock.elapsedRealtimeNanos())
         )
@@ -351,10 +338,9 @@ class PolygonFreshFixTest : RobolectricTest() {
 
     @Test
     fun activate_givenASecondUndecidedFixInsideTheCooldown_expectOnlyOneRequest() = runTest {
-        // The sampling session delivers every 15 s and a device sitting indoors is undecided on
-        // every one of them, so without the cooldown this holds the GPS open for the whole
-        // session. The refusal is recorded rather than silent, because a capture otherwise cannot
-        // tell a rate limit from a fix that never came.
+        // The sampling session delivers every 15 s and a coarse fix is undecided each time, so
+        // without the cooldown the GPS stays open all session. The refusal is recorded so a rate
+        // limit can be told from a fix that never came.
         val freshFix = CountingNeverAnswersFreshFix()
         val controller = controller(freshFix)
 
@@ -414,10 +400,8 @@ class PolygonFreshFixTest : RobolectricTest() {
 
     @Test
     fun activate_givenAnyUserScopeResetInsideTheCooldown_expectTheNextCallbackMayAskAgain() = runTest {
-        // The test above covers one reset entry point out of six, and review found that removing
-        // the reset from two of the others changed nothing any test could see. The rate limit is
-        // keyed globally and scoped by lifetime, so every entry point that ends a user's scope has
-        // to lift it; enumerating them is the only way to keep that true as they are added.
+        // The rate limit is keyed globally but scoped by lifetime, so every entry point that ends
+        // a user's scope must lift it. Enumerated so a new entry point cannot be missed.
         val entryPoints: List<Pair<String, (PolygonGeofenceServiceController) -> Unit>> = listOf(
             "clearUserScopedState" to { it.clearUserScopedState() },
             "clearUserSessionRetainingOsRegistrations" to {
@@ -473,13 +457,9 @@ class PolygonFreshFixTest : RobolectricTest() {
 
     @Test
     fun activate_givenTheCooldownHasElapsed_expectItAsksAgain() = runTest {
-        // The control for the test above: a rate limit that never lifts is an off switch, and the
-        // session is two minutes long, so it has to allow more than one attempt.
-        //
-        // The second callback comes from 150 m away on purpose. A stationary repeat is now
-        // suppressed by the futile-escalation check, which would confound this: the assertion
-        // would fail for a reason that has nothing to do with the cooldown. Moving the device
-        // leaves the cooldown as the only thing under test, which is what this test is for.
+        // Control for the cooldown tests: the session is two minutes long, so the rate limit must
+        // allow more than one attempt. The second callback is 150 m away so the futile-escalation
+        // check, which suppresses a stationary repeat, stays out of it.
         val freshFix = CountingNeverAnswersFreshFix()
         val controller = controller(freshFix)
 
@@ -502,15 +482,14 @@ class PolygonFreshFixTest : RobolectricTest() {
 
     @Test
     fun activate_givenAPreciseFixAlreadyFailedFromHere_expectItDoesNotAskAgain() = runTest {
-        // Measured 2026-09-20: a device parked inside one polygon's wake circle asked 190 times in
-        // a day, median 6 minutes apart, and every answer was undecided. The 30 s cooldown is far
-        // shorter than the wake cadence, so nothing stopped it.
+        // A device parked inside a wake circle would ask on every wake and get an undecided answer
+        // each time. The 30 s cooldown is far shorter than the wake cadence, so it cannot stop that.
         val freshFix = CountingCoarseFreshFix { coarseFixInsideTheVenue(SystemClock.elapsedRealtimeNanos()) }
         val controller = controller(freshFix)
 
         controller.activate(VENUE_ID, coarseFixInsideTheVenue(), store.userStateGeneration(), null)
         // Past the cooldown, so a suppression here is the position check rather than the rate
-        // limit. Without this the test would pass on the old code.
+        // limit.
         ShadowSystemClock.advanceBy(Duration.ofSeconds(31))
         controller.activate(
             VENUE_ID,
@@ -547,9 +526,8 @@ class PolygonFreshFixTest : RobolectricTest() {
 
     @Test
     fun activate_givenTheRetryWindowElapsed_expectItAsksAgainEvenParked() = runTest {
-        // Accuracy at a fixed position is bimodal on this hardware, either about 1 m or exactly
-        // 100 m, so a parked device does occasionally get a fix that would decide. A suppression
-        // that never lifted would be an off switch.
+        // A parked device can still get a fix precise enough to decide, so a suppression that
+        // never lifted would be an off switch.
         val freshFix = CountingCoarseFreshFix { coarseFixInsideTheVenue(SystemClock.elapsedRealtimeNanos()) }
         val controller = controller(freshFix)
 
@@ -567,12 +545,10 @@ class PolygonFreshFixTest : RobolectricTest() {
 
     @Test
     fun activate_givenAPassAbortedAfterTheFix_expectAnEarlierSuppressionSurvives() = runTest {
-        // Found by Bugbot on #899. recordEscalationOutcomes read "absent from stillUndecided" as
-        // "decided" and dropped the memo, but an aborted pass reports nothing undecided without
-        // having decided anything. Here the device parks, escalates futilely, moves 150 m so the
-        // next wake is allowed to ask, and that request aborts because its fix is too old for the
-        // session. Returning to the parked position must still be suppressed: nothing has shown
-        // that position is answerable, and the abort said nothing about it either way.
+        // An aborted pass reports nothing undecided without having decided anything, so it must
+        // not drop the memo. The device parks and escalates futilely, moves 150 m so the next wake
+        // may ask, and that request aborts because its fix is too old. Returning to the parked
+        // position must still be suppressed.
         var requestCount = 0
         val freshFix = CountingCoarseFreshFix {
             requestCount++
@@ -605,19 +581,14 @@ class PolygonFreshFixTest : RobolectricTest() {
 
     @Test
     fun activate_givenTheRequestedFixIsOneTheFenceAlreadySaw_expectAnEarlierSuppressionSurvives() = runTest {
-        // Raised by Shahroz on #899, and not the aborted-pass case above: this pass is accepted, so
-        // the acceptedFix guard cannot catch it. The route processor skips a fence whose fix is not
-        // strictly newer than the one it last saw for it, leaving no record for that fence at all.
-        // Reading that silence as "decided" dropped a memo the pass had said nothing about, and the
-        // parked loop resumed on the next wake.
+        // Unlike the aborted pass above, this pass is accepted. The route processor skips a fence
+        // whose fix is not strictly newer than the last it saw, leaving no record, and that silence
+        // must not drop the memo. Park and escalate futilely, move 150 m so the next wake may ask,
+        // and answer with the stamp that wake's triggering fix already recorded. Returning to the
+        // parked spot must still be suppressed.
         //
-        // Park and escalate futilely so a memo exists, move 150 m so the next wake is allowed to
-        // ask, and let that request answer with the stamp its own triggering fix already recorded
-        // for the fence. Returning to the parked spot must still be suppressed.
-        //
-        // The single lambda serves both passes because the triggering fixes differ in age: the
-        // parked fix is 2 s old so the answer is newer and gets judged, while the 150 m fix carries
-        // the current stamp so the answer ties with it and the fence is skipped.
+        // One lambda serves both passes: the parked fix is 2 s old so the answer is newer and
+        // judged, while the 150 m fix carries the current stamp so the answer ties and is skipped.
         val freshFix = CountingCoarseFreshFix { coarseFixInsideTheVenue(SystemClock.elapsedRealtimeNanos()) }
         val controller = controller(freshFix)
 
@@ -645,11 +616,9 @@ class PolygonFreshFixTest : RobolectricTest() {
 
     @Test
     fun activate_givenAResetWhileSuspendedAndNoFix_expectNoMemoFromTheOldRequest() = runTest {
-        // Raised by Shahroz on #899. The memo is written after awaitFreshFix suspended, and a
-        // teardown in that window clears futileEscalations. This is the path the aborted-pass guard
-        // cannot cover: when no fix arrives there is no evaluation to abort, so the continuation
-        // wrote the cleared memo straight back from the triggering fix. The next session's first
-        // callback at that position then skipped its own request for the whole retry window.
+        // A teardown while awaitFreshFix is suspended clears the memo. With no fix there is no
+        // evaluation to abort, so the no-fix path must not write the memo back from the triggering
+        // fix, or the next session's first callback here would skip its own request.
         var resetDuringRequest: (() -> Unit)? = null
         val freshFix = object : PolygonFreshFixSource {
             var requests: Int = 0
@@ -681,15 +650,9 @@ class PolygonFreshFixTest : RobolectricTest() {
 
     @Test
     fun activate_givenAReusedFixWasAlsoUndecided_expectItSuppressesThatFencesNextRequest() = runTest {
-        // The half of the reuse contract the reset test cannot pin. Refusing to record a reused fix
-        // would also keep a teardown from restoring an old memo, so "no stale memo" passes either
-        // way; what only the token delivers is that a reused fix still counts as a futile
-        // escalation for the fence it was judged against. One request answers the whole batch, so
-        // dropping that would leave every fence after the first asking again on its own next wake.
-        //
-        // The neighbour is registered after the first callback so its memo can only come from the
-        // reused fix: had it been active earlier, the first pass would have recorded it directly
-        // and this would pass without the token.
+        // One request answers the whole batch, so a reused fix still counts as a futile escalation
+        // for the fence it was judged against. The neighbour is registered after the first
+        // callback, so its memo can only come from the reused fix.
         val base = SystemClock.elapsedRealtimeNanos()
         val freshFix = CountingCoarseFreshFix { coarseFixInsideTheVenue(elapsedRealtimeNanos = base) }
         val controller = controller(freshFix)
@@ -728,14 +691,10 @@ class PolygonFreshFixTest : RobolectricTest() {
 
     @Test
     fun activate_givenADecisiveFixThatOnlyAgreed_expectTheSuppressionIsStillCleared() = runTest {
-        // evaluatedPolygonIds is derived from every record, not only the deciding ones, and this is
-        // what that breadth buys. A fix clear of the ring while the fence is already committed
-        // OUTSIDE decides the position without producing a transition: it writes Unchanged. That
-        // still proves the position is answerable, so the memo has to go.
-        //
-        // Park and escalate futilely, move 150 m so the next wake may ask, answer that one with a
-        // precise fix that reads decisively outside, then come back. The return must be allowed to
-        // ask again, because the position was shown to be answerable in between.
+        // A fix clear of the ring while the fence is committed OUTSIDE decides without a
+        // transition (Unchanged), which still proves the position answerable and clears the memo.
+        // Park and escalate futilely, move 150 m so the next wake may ask, answer with a precise
+        // fix decisively outside, then come back: the return may ask again.
         var requestCount = 0
         val freshFix = CountingCoarseFreshFix {
             requestCount++
@@ -772,17 +731,13 @@ class PolygonFreshFixTest : RobolectricTest() {
 
     @Test
     fun activate_givenAResetWhileAReusedFixIsEvaluated_expectNoMemoFromTheOldSession() = runTest {
-        // Raised by Shahroz on #899. A reused fix carried no request token, so the memo written
-        // after its evaluation could not be checked against a teardown: the continuation wrote the
-        // previous session's suppression straight back, and the next session's first callback at
-        // that position skipped its own precise request for the whole retry window.
+        // A teardown during a reused fix's evaluation must stop its memo being written back, or
+        // the next session's first callback at that position skips its own request.
         //
-        // The interleaving is built explicitly because it does not fall out of an ordinary batch. A
-        // reused fix is normally skipped by every fence, since the triggering fix of the pass that
-        // reuses it is newer and the processor only judges a strictly newer stamp. The exception is
-        // a fence that became active during this pass, whose stamp is unset: a callback carrying a
-        // fix older than the last requested one then leaves the reused fix newer for that fence
-        // alone, so it is judged and recorded.
+        // Built explicitly: a reused fix is normally skipped by every fence, since the reusing
+        // pass's triggering fix is newer and the processor only judges a strictly newer stamp. A
+        // fence newly active in this pass has no stamp, so a callback carrying a fix older than
+        // the requested one leaves the reused fix newer for that fence alone.
         val base = SystemClock.elapsedRealtimeNanos()
         val freshFix = CountingCoarseFreshFix { coarseFixInsideTheVenue(elapsedRealtimeNanos = base) }
         val controller = controller(freshFix)
@@ -864,11 +819,10 @@ class PolygonFreshFixTest : RobolectricTest() {
 
     @Test
     fun activate_givenEveryFenceTheRequestServesIsSuppressed_expectNoRequest() = runTest {
-        // The gate used to read the callback's own fence, which is often not one the request would
-        // serve at all. A fix that decides the callback's fence clears its memo, so the callback
-        // arrives carrying none, while the only fence still needing a fix is already suppressed.
-        // The request was funded anyway, once per wake, which is the loop this path exists to stop.
-        // Raised by Bugbot twice and reproduced by Shahroz with two active polygons.
+        // The gate reads every fence the request would serve, not the callback's own: here the
+        // callback's fence decides and carries no memo, while the only fence still needing a fix
+        // is suppressed.
+        //
         // A second of the request's own wait, so the answer is strictly newer than the fix that
         // triggered it. Without it the processor skips every fence as not-newer, the pass records
         // nothing, and no memo is ever set for the test to exercise.
@@ -899,11 +853,8 @@ class PolygonFreshFixTest : RobolectricTest() {
 
     @Test
     fun activate_givenARequestTimedOut_expectTheUndecidedFenceIsStillMemoised() = runTest {
-        // The complement of the held-arrival case below, and unpinned until now: a request that
-        // answers with nothing still has to memoise the fences it was asked for, or a device whose
-        // precise fix never arrives goes on asking on every wake, which is the same waste by
-        // another route. Deleting the timeout recording altogether passed the whole suite before
-        // this existed.
+        // A request that answers with nothing still memoises the fences it was asked for, or a
+        // device whose precise fix never arrives asks on every wake.
         val freshFix = CountingNeverAnswersFreshFix()
         val controller = controller(freshFix)
 
@@ -924,14 +875,9 @@ class PolygonFreshFixTest : RobolectricTest() {
 
     @Test
     fun activate_givenASuppressedFenceThatIsNowHoldingAnArrival_expectItStillAsks() = runTest {
-        // The memo records that a precise fix from this position could not decide this fence, which
-        // is what made asking again pointless. Once that fence is holding an arrival the premise is
-        // gone: a fix at the counted position now settles the hold by committing it, rather than
-        // deciding nothing. So the memo no longer covers this case and the request goes ahead.
-        //
-        // Without the bypass the request is refused, nothing reaches the fence, and the hold is
-        // dropped when it goes stale. Field gaps between two fixes for one fence ran 300 s and up
-        // against a 60 s window, so the refusal loses the visit rather than delaying it.
+        // A memo says a fix from here could not decide the fence, but once the fence holds an
+        // arrival a fix here settles it. Refusing the request would let the hold expire (60 s) and
+        // lose the visit.
         val freshFix = CountingNeverAnswersFreshFix()
         val controller = controller(freshFix)
         store.saveCachedRegions(listOf(venueRegion()))
@@ -947,8 +893,7 @@ class PolygonFreshFixTest : RobolectricTest() {
         ShadowSystemClock.advanceBy(Duration.ofSeconds(31))
 
         // The same position, inside the ceiling this time, so it reads a marginal arrival and holds
-        // it. The fence is the only one the request would serve and it is memoised, which before
-        // the bypass was exactly the shape that withheld the fix.
+        // it. The fence is the only one the request would serve, and it is memoised.
         controller.activate(
             VENUE_ID,
             marginalFixAtTheVenueCentre(SystemClock.elapsedRealtimeNanos()),
@@ -964,14 +909,10 @@ class PolygonFreshFixTest : RobolectricTest() {
 
     @Test
     fun activate_givenAHeldArrivalAndATimedOutRequest_expectTheNextCallbackStillAsks() = runTest {
-        // Raised by Shahroz on #901, and a regression the set-wide gate introduced. On the
-        // NONE_ARRIVED path nothing was evaluated, so the recording took the whole requested set as
-        // still undecided, which handed a futile memo to a fence whose arrival was merely being
-        // held. The memo is good for 30 minutes and the hold expires in 60 seconds, so the next
-        // callback suppressed the one measurement that could still have saved the arrival.
-        //
-        // The later fix is coarse on purpose: that is the ordinary case, and it is what puts the
-        // held fence back in the request set as undecided rather than resolving its hold.
+        // On the NONE_ARRIVED path a held arrival must not be memoised as futile: the memo lasts
+        // 30 minutes and the hold 60 seconds, so it would suppress the one measurement that could
+        // still save the arrival. The later fix is coarse, the ordinary case, which puts the held
+        // fence back in the request set as undecided rather than resolving its hold.
         val freshFix = CountingNeverAnswersFreshFix()
         val controller = controller(freshFix)
         store.saveCachedRegions(
@@ -981,11 +922,10 @@ class PolygonFreshFixTest : RobolectricTest() {
         store.saveRoutableRegisteredIds(setOf(VENUE_ID, NEIGHBOUR_ID))
         store.recordEntered(NEIGHBOUR_ID)
 
-        // The co-tenant has to be activated to be judged at all: the engine evaluates the active
-        // fences and activate() admits only the one it is called for. Activated with a decisive fix
-        // of its own so this pass asks for nothing, which keeps the cooldown free and leaves no memo
-        // behind. Stamped older than the marginal fix below, or the processor would skip it as
-        // not-newer when that one arrives.
+        // The co-tenant must be active to be judged, and activate() admits only the fence it is
+        // called for. Its own decisive fix asks for nothing, so the cooldown stays free and no memo
+        // is left. Stamped older than the marginal fix below, or that one would be skipped as
+        // not-newer.
         controller.activate(
             NEIGHBOUR_ID,
             decisiveFixInsideTheShiftedFence(),
@@ -1004,10 +944,8 @@ class PolygonFreshFixTest : RobolectricTest() {
             null
         )
 
-        // The held fence carries no memo, so the set is not wholly suppressed and the hold still
-        // gets its request. Memoising it would have refused this one, which is the regression: the
-        // co-tenant IS memoised by the same timed-out request, so a whole-set recording leaves
-        // nothing in the set unsuppressed.
+        // The held fence carries no memo, so the set is not wholly suppressed and the hold gets
+        // its request, even though the same timed-out request memoised the co-tenant.
         freshFix.requests shouldBeEqualTo 2
         verify(exactly = 0) {
             mockLogger.logPolygonFreshFixSkipped(PolygonFreshFixSkip.UNCHANGED_POSITION)
@@ -1016,13 +954,10 @@ class PolygonFreshFixTest : RobolectricTest() {
 
     @Test
     fun activate_givenOneFenceInTheSetIsStillAnswerable_expectItStillAsks() = runTest {
-        // The other half of the contract, and the reason the check is `all` and not `any`. One
-        // fence that could still be answered is worth the fix, so a suppressed co-tenant must not
-        // withhold it. Suppressing on `any` here is how this turns into a delayed arrival, which
-        // is the whole reason the stack exists.
+        // Suppression needs `all` fences memoised, not `any`: one fence that could still be
+        // answered is worth the fix. The second neighbour is registered only after the first
+        // request, so it carries no memo while the first neighbour does.
         //
-        // The second neighbour is registered only after the first request, so it carries no memo of
-        // its own while the first neighbour does.
         // A second of the request's own wait, so the answer is strictly newer than the fix that
         // triggered it. Without it the processor skips every fence as not-newer, the pass records
         // nothing, and no memo is ever set for the test to exercise.
@@ -1062,14 +997,9 @@ class PolygonFreshFixTest : RobolectricTest() {
 
     @Test
     fun activate_givenTheMoveIsInsideTheOlderFixError_expectItDoesNotAskAgain() = runTest {
-        // Pins the tolerance to the LOOSER of the two errors. The first fix was +/-122 m, the
-        // second is +/-60 m and reads 100 m away. That displacement is entirely explainable by the
-        // first fix's own error, so the device has not been shown to move and asking again would
-        // repeat a request that already failed. Taking the tighter error instead would treat
-        // measurement noise as movement and re-open the loop.
-        //
-        // 60 m is above the decisive ceiling on purpose: a tighter fix decides outright and never
-        // reaches the escalation, so the tolerance could not be observed at all.
+        // Tolerance is the looser of the two errors. The first fix was +/-122 m, the second is
+        // +/-60 m and 100 m away, which the first fix's error explains, so the device has not been
+        // shown to move. 60 m is above the ceiling so the fix reaches the escalation at all.
         val freshFix = CountingCoarseFreshFix { coarseFixInsideTheVenue(SystemClock.elapsedRealtimeNanos()) }
         val controller = controller(freshFix)
 
@@ -1145,8 +1075,7 @@ class PolygonFreshFixTest : RobolectricTest() {
 
     /**
      * Inside, but only 5.6 m past the southern edge, so at 20 m of uncertainty the fix decides
-     * ENTER and the evaluator still asks for a second measurement. Both arrivals lost in the field
-     * were this shape: one read 6.7 m inside its ring at 10.9 m accuracy.
+     * ENTER and the evaluator still asks for a second measurement.
      */
     private fun marginalFixInsideTheVenue() = Location("test").apply {
         latitude = 37.77455
@@ -1157,16 +1086,10 @@ class PolygonFreshFixTest : RobolectricTest() {
     }
 
     /**
-     * At the venue centre, 52 m from the nearest edge, carrying 53 m of error.
-     *
-     * Marginal rather than decisive, because the error reaches the ring, and still under the
-     * fence's own 54 m ceiling so it is admitted. The admissible-yet-marginal window here is only
-     * 52.7 m to 54.1 m wide, so this accuracy is pinned: move it either way and the fix decides
-     * outright or is refused, and the test stops exercising a hold.
-     *
-     * Deliberately at the SAME position as [coarseFixInsideTheVenue]: a futile-escalation memo is
-     * keyed on position, so this is the only way one fix can open a hold on a fence that an
-     * earlier fix already memoised.
+     * At the venue centre, 52 m from the nearest edge, with 53 m of error: marginal because the
+     * error reaches the ring, admitted because it is under the fence's ~54 m ceiling. That window
+     * is only 52.7 m to 54.1 m, so the accuracy is pinned. Same position as
+     * [coarseFixInsideTheVenue], since a futile-escalation memo is keyed on position.
      */
     private fun marginalFixAtTheVenueCentre(
         elapsedRealtimeNanos: Long = SystemClock.elapsedRealtimeNanos() - 2_000_000_000L
@@ -1179,10 +1102,8 @@ class PolygonFreshFixTest : RobolectricTest() {
     }
 
     /**
-     * The fix the parked phone actually produces: 122 m of accuracy, dead centre of a venue ~110 m
-     * across. It reads inside, and it decides nothing, because 122 m of uncertainty against a
-     * venue this size carries no information about containment — the accuracy circle covers the
-     * venue and most of the street around it. This is the ordinary indoor case, not an edge.
+     * A coarse fix: 122 m of accuracy at the venue centre. It reads inside but
+     * decides nothing, being over the fence's ~54 m arrival ceiling.
      */
     private fun coarseFixInsideTheVenue(
         elapsedRealtimeNanos: Long = SystemClock.elapsedRealtimeNanos() - 2_000_000_000L
@@ -1195,9 +1116,8 @@ class PolygonFreshFixTest : RobolectricTest() {
     }
 
     /**
-     * [metres] due north of the venue centre, carrying the same 122 m error. Far enough that the
-     * move is larger than either fix's error, close enough that the verdict is still undecided, so
-     * the only thing that changes between this and [coarseFixInsideTheVenue] is the position.
+     * [metres] due north of the venue centre, by default with the same 122 m error, so the verdict
+     * stays undecided and only the position differs from [coarseFixInsideTheVenue].
      */
     private fun fixMetresNorthOfTheVenue(
         metres: Double,
@@ -1229,9 +1149,8 @@ class PolygonFreshFixTest : RobolectricTest() {
     }
 
     // Roughly 111 m x 106 m, so a fix at its centre sits ~52 m from the nearest edge. Its
-    // `2 x area / perimeter` scale is ~54 m, just above the 50 m floor, so this fence is governed by
-    // its own depth rather than the floor. The earlier "~27 m" here halved it, which put the fence
-    // on the wrong side of that boundary.
+    // `2 x area / perimeter` scale is ~54 m, just above the 50 m floor, so its own depth sets the
+    // arrival ceiling.
     private fun venueRegion() = GeofenceRegion(
         id = VENUE_ID,
         latitude = 37.7750,
@@ -1252,10 +1171,9 @@ class PolygonFreshFixTest : RobolectricTest() {
      * A polygon shifted ~60 m north, so a fix at the venue's centre sits about 4 m OUTSIDE its
      * southern edge while sitting ~52 m inside the venue's.
      *
-     * That is what lets one precise fix reach two different verdicts: decisive for the venue, and,
-     * for this one committed INSIDE, outside its ring but not clear of it, which is
-     * WITHIN_ACCURACY. Needed because both rings are the same shape, so they share an accuracy
-     * ceiling and cannot diverge on fix quality alone.
+     * So one precise fix reaches two verdicts: decisive for the venue, and WITHIN_ACCURACY for this
+     * one committed INSIDE. Both rings share a shape and so a ceiling, and cannot diverge on fix
+     * quality alone.
      */
     private fun regionJustNorthOfTheVenue(id: String) =
         regionShiftedNorth(id, NORTH_SHIFT_DEGREES)

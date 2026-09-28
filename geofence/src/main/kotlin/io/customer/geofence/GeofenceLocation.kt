@@ -3,7 +3,7 @@ package io.customer.geofence
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
-/** Minimal lat/lng holder used to persist anchor points for tiered refresh. */
+/** Lat/lng holder for persisted anchor points (last API fetch, last registration center). */
 @Serializable
 internal data class GeofenceLocation(
     @SerialName("latitude") val latitude: Double,

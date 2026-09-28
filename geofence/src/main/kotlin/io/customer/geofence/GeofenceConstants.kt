@@ -2,8 +2,8 @@ package io.customer.geofence
 
 /** Configurable thresholds and identifiers for geofence monitoring. */
 internal object GeofenceConstants {
-    // Sentinel ID for the movement-trigger geofence so we can distinguish it from
-    // business geofences when applying separate INITIAL_TRIGGER strategies.
+    // Request id of the SDK-owned movement-trigger geofence, which is registered and routed apart
+    // from business geofences.
     const val MOVEMENT_TRIGGER_ID = "cio_movement_trigger"
 
     // Fallback for `localRefreshTriggerRadius` when the API config omits it. Matches the
@@ -14,8 +14,7 @@ internal object GeofenceConstants {
     // server default and iOS.
     const val FALLBACK_REMOTE_FETCH_RADIUS_METERS = 5_000f
 
-    // Fallback for `maxBusinessGeofences`. Matches the historical cap so customers
-    // aren't punished by a misconfigured backend.
+    // Fallback for `maxBusinessGeofences` when the API config omits it or sends a value outside 0..99.
     const val FALLBACK_MAX_BUSINESS_GEOFENCES = 19
 
     // Fallback for `maxMonitoringDistance`. Finite so a far-away geofence (e.g. another
@@ -33,21 +32,16 @@ internal object GeofenceConstants {
     const val MIN_DUPLICATE_EVENTS_EXPIRY_MS = 60_000L // 1 minute
     const val MAX_DUPLICATE_EVENTS_EXPIRY_MS = 24L * 60 * 60 * 1_000L // 24 hours
 
-    // Minimum interval between server fetches. Non-forced refresh calls (identify,
-    // app launch) skip the API call when a successful sync happened within this
-    // window. Movement-trigger EXIT bypasses this so the loop can update the
-    // trigger's center. Doubles as the fallback for `remoteFetchRefreshExpiry`
-    // when the API config field is missing or non-positive.
+    // Fallback for `remoteFetchRefreshExpiry`: non-forced refreshes (identify, app launch) reuse a
+    // successful sync within this window. Movement-trigger EXIT bypasses it so the trigger can
+    // re-centre.
     const val STALE_THRESHOLD_MS = 24 * 60 * 60 * 1_000L
 
-    // How old a requested fix may be and still judge containment; `getCurrentLocation` can answer
-    // from cache. Sized against the cache rather than delivery latency: indoors the provider
-    // returns the same fix for up to ~124s.
+    // How old a requested fix may be and still judge containment. `getCurrentLocation` can answer
+    // from its cache, so this bounds the cached fix's age, not delivery latency.
     const val MAX_LIVE_FIX_AGE_MS = 5L * 60 * 1_000L
 
-    // Duplicate-transition suppression window used by GeofenceCooldownFilter.
-    // Doubles as the fallback for `duplicateEventsExpiry` from the API config
-    // when the field is missing or non-positive.
+    // Fallback for `duplicateEventsExpiry`, the window GeofenceCooldownFilter suppresses repeats in.
     const val DEDUPE_COOLDOWN_MS = 60 * 60 * 1_000L
 
     // Backstop on workspace `metadata` so a runaway payload can't bloat a background request; set
@@ -55,29 +49,23 @@ internal object GeofenceConstants {
     const val MAX_METADATA_COUNT = 100
     const val MAX_METADATA_PAYLOAD_BYTES = 100 * 1024 // 100 KB
 
-    // Total attempts this work request gets before an unreadable queue gives up the wake. It is
-    // WorkManager's own count, so delivery retries spend from the same budget: a read failure
-    // arriving after five network retries gives up at once. Acceptable because the rows are
-    // untouched on disk and a later enqueue or foreground flush recovers them, and because no
-    // number of retries fixes a broken file.
+    // Attempts before an unreadable queue gives up the wake. This is WorkManager's run count, so
+    // network retries spend the same budget; acceptable because the rows stay on disk for a later
+    // enqueue or foreground flush, and retrying never fixes a broken file.
     const val MAX_WORKER_RUN_ATTEMPTS = 5
 
-    // Hard platform limit: Google Play services rejects an `addGeofences` request that would take an
-    // app past 100 simultaneously registered geofences. Not configurable, not negotiable — the SDK
-    // must arrive under it, because GMS fails the whole batch rather than trimming it.
+    // Google Play services limit on simultaneously registered geofences per app. GMS fails the whole
+    // `addGeofences` batch that would exceed it rather than trimming it.
     const val MAX_OS_GEOFENCES = 100
 
-    // Business geofences the SDK may attempt at once. One OS slot is always spent on the movement
-    // trigger, which has to stay registered for the local re-rank / remote refresh loop to keep
-    // working. Server config (`maxBusinessGeofences`, coerced to 0..99) can only lower this.
+    // Max business geofences at once: one OS slot is reserved for the movement trigger, which
+    // drives the re-rank / refresh loop. Server config (`maxBusinessGeofences`) can only lower this.
     const val MAX_OS_BUSINESS_GEOFENCE_SLOTS = MAX_OS_GEOFENCES - 1
 
-    // GMS `Geofence.Builder().setExpirationDuration()` flag for "never expires".
-    // Our geofences are managed at the application level (we remove explicitly)
-    // so OS-side expiration is disabled.
+    // GMS `setExpirationDuration()` value for "never expires"; the SDK removes geofences itself.
     const val GEOFENCE_EXPIRATION_NEVER = -1L
 
-    // Unique request code for the `PendingIntent` we hand to GMS so it doesn't
-    // collide with other PendingIntents in the host app's process.
+    // Request code for the geofencing `PendingIntent` handed to GMS; distinctive so it doesn't
+    // collide with the host app's own PendingIntents.
     const val PENDING_INTENT_REQUEST_CODE = 0x4765_6F10
 }

@@ -4,12 +4,7 @@ import org.amshove.kluent.shouldBeEqualTo
 import org.amshove.kluent.shouldBeTrue
 import org.junit.Test
 
-/**
- * The matcher, graded against hand-built emissions.
- *
- * Each case breaks one thing and asserts the matcher notices *that* thing — a green matcher is
- * worthless until it has been shown to go red for the right reason.
- */
+/** The matcher, graded against hand-built emissions. */
 class ReplayMatcherTest {
 
     @Test
@@ -22,7 +17,6 @@ class ReplayMatcherTest {
         )
         val emitted = listOf(
             EmittedRecord("transition.accepted", "out", mapOf("id" to "A", "t" to "enter", "n" to "1")),
-            // Internal steps must not affect the verdict, no matter how many the SDK emits.
             EmittedRecord("sync.completed", "obs", mapOf("n" to "3")),
             EmittedRecord("rank.evaluated", "obs", mapOf("n" to "2"))
         )
@@ -48,9 +42,8 @@ class ReplayMatcherTest {
 
     @Test
     fun compare_givenInternalDecisionExpectations_expectThemIgnored() {
-        // A scenario generated before 2026-09-11 can still carry `then` records for the SDK's
-        // decisions about its own inputs. They are not outputs, so they grade nothing — an SDK that
-        // deduplicates somewhere else entirely must still pass a drive.
+        // A scenario can carry `then` records for decisions about inputs; they are not outputs, so
+        // they grade nothing.
         val scenario = ScenarioLoader.load(
             scenarioFile(
                 header("why"),

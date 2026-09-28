@@ -8,12 +8,11 @@ internal data class GeofenceFixQuality(
     val fixElapsedRealtimeMillis: Long? = null
 ) {
     /**
-     * Whether the fix still describes where the device is. Both sides monotonic since boot, so our
-     * own fixes can never be stamped ahead of now; one that is came from a host-supplied time that
-     * cannot be trusted to judge geometry.
+     * Whether the fix still describes where the device is. Both clocks are monotonic since boot, so
+     * a fix stamped ahead of now came from an untrusted host-supplied time.
      *
-     * A fix that fails this drives no pass at all: [io.customer.geofence.GeofenceServices] declines
-     * it and leaves the live-fix intent armed, so a later fix still gets to seed containment.
+     * A stale fix drives no pass: [GeofenceServices] declines it and keeps the live-fix intent armed
+     * so a later fix can still seed containment.
      */
     fun isFresh(nowElapsedRealtimeMillis: Long): Boolean {
         val takenAt = fixElapsedRealtimeMillis ?: return true

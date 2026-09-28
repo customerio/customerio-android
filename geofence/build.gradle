@@ -38,10 +38,9 @@ tasks.withType(KotlinCompile).all {
     }
 }
 
-// The replay tests read a private scenario corpus from outside this repo, found the way
-// `Scenarios.resolve` finds it: `CIO_GEOFENCE_SCENARIOS`, else `mobile-replay-harness/scenarios` in
-// this module or up to five directories above it. Gradle cannot see either on its own, so without
-// these inputs a changed corpus — or a different one, or none — reuses the previous run's results.
+// Declares the replay corpus (outside this repo) as a test input, so a changed or missing corpus
+// does not reuse cached results. Resolved like `Scenarios.resolve`: `CIO_GEOFENCE_SCENARIOS`, else
+// `mobile-replay-harness/scenarios` in this module or up to five directories above it.
 tasks.withType(Test).configureEach {
     def override = providers.environmentVariable("CIO_GEOFENCE_SCENARIOS").orNull
     File corpus = null

@@ -38,8 +38,7 @@ internal class GeofenceApiServiceImpl(
             apiVersion = ENDPOINT_API_VERSION
         )
         return httpClient.request(params).mapCatching { responseBody ->
-            // Lenient at the wire boundary so the SDK doesn't pin a specific
-            // type for `id` — accepts either numeric or quoted-string form.
+            // Lenient so `id` decodes whether sent as a number or a string.
             jsonSerializer.decode(GeofenceApiResponse.serializer(), responseBody, lenient = true)
         }
     }

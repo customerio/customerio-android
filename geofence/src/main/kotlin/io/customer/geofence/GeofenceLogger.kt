@@ -12,10 +12,7 @@ import io.customer.geofence.polygon.PolygonUndecidedReason
 import io.customer.sdk.core.util.Logger
 
 /**
- * How the SDK came to be running.
- *
- * Nothing marks a cold background wake today, which makes it impossible to tell "the SDK was never
- * running" apart from "the SDK ran and decided not to act" when reading a drive afterwards.
+ * How the SDK came to be running, so a capture can tell "never ran" from "ran and chose not to act".
  */
 internal enum class GeofenceLaunchReason(val wire: String) {
     APP_START("app_start"),
@@ -25,10 +22,8 @@ internal enum class GeofenceLaunchReason(val wire: String) {
 /**
  * Why a polygon record never became a monitored fence.
  *
- * [wire] is the machine token and is fixed; [detail] is the sentence. Kept apart deliberately —
- * deriving the token from the sentence, as the older records do, means a reword silently moves the
- * bucket analysis groups on. Every token here is emitted by iOS too, so a reword would move it on
- * one platform only.
+ * [wire] is the fixed machine token and [detail] the prose, kept apart so a reword never moves the
+ * bucket analysis groups on. iOS emits the same tokens.
  */
 internal enum class PolygonDropReason(val wire: String, val detail: String) {
     UNDESCRIBED_SHAPE("undescribed_shape", "shape discriminator is missing or inconsistent"),
@@ -43,9 +38,8 @@ internal enum class PolygonDropReason(val wire: String, val detail: String) {
 /**
  * Why a cached polygon was left out of a ranking pass, and so out of the registration batch.
  *
- * Android-only: iOS ranks too but records the whole pass in one `rank.evaluated`, and neither token
- * here exists there. `ring_unbuildable` is shared with [PolygonDropReason] on purpose — same
- * condition, and the `ev` says which phase refused the region.
+ * Android-only tokens. `ring_unbuildable` is shared with [PolygonDropReason] because it is the same
+ * condition; the `ev` says which phase refused the region.
  */
 internal enum class PolygonNotRankedReason(val wire: String, val detail: String) {
     RUNTIME_UNSUPPORTED("runtime_unsupported", "polygon monitoring is not enabled in this build"),
@@ -64,10 +58,8 @@ internal enum class PolygonFixRejection(val wire: String, val detail: String) {
 }
 
 /**
- * Why a delivered OS geofence callback was discarded before anything was evaluated.
- *
- * Added after the 2026-09-17 drive, where an arrival was lost and left no record at all. These are
- * the controller's own refusals, each one netting against an `os.callback.received` receipt.
+ * Why a delivered OS geofence callback was discarded before anything was evaluated. Each nets
+ * against an `os.callback.received` receipt.
  */
 internal enum class PolygonCallbackDrop(val wire: String, val detail: String) {
     NOT_ROUTABLE("not_routable", "the fence is not a current routable registration"),
@@ -86,13 +78,10 @@ internal enum class PolygonArrivalExpiry(val wire: String, val detail: String) {
 /**
  * Why a marginal arrival was reported without a second fix agreeing with it.
  *
- * A held arrival is only ever blocked by a fix that positively reads outside; everything else
- * commits, because refusing an arrival loses the visit outright while a spurious one is corrected
- * by the next decisive fix. The reason rides on the verdict so a capture never reads one of these
- * as decisive.
- *
- * [NOT_INDEPENDENT] carries iOS's token verbatim. [UNJUDGEABLE] has no iOS counterpart because iOS
- * folds it into `accuracy_too_low`, which here is already a reason of its own.
+ * Only a fix that positively reads outside blocks a held arrival: refusing one loses the visit,
+ * while a spurious one is corrected by the next decisive fix. The reason rides on the verdict so a
+ * capture never reads it as decisive. [NOT_INDEPENDENT] matches iOS; iOS folds [UNJUDGEABLE] into
+ * `accuracy_too_low`.
  */
 internal enum class PolygonArrivalCommit(val wire: String, val detail: String) {
     NOT_INDEPENDENT(
@@ -127,10 +116,7 @@ internal enum class PolygonRecheckSkip(val wire: String, val detail: String) {
     NO_PERMISSION("no_permission", "location permission is not granted, so nothing was asked for")
 }
 
-/**
- * A stop that was declined. The session is still live afterwards, so these are deliberately NOT
- * endings: counting them as such would over-count sessions that ended in any capture.
- */
+/** A stop that was declined. The session stays live, so these are not endings. */
 internal enum class PolygonApproachStopRefusal(val wire: String, val detail: String) {
     NOT_CURRENT_SESSION("not_current_session", "the live session belongs to a later generation"),
     DEADLINE_MISMATCH("deadline_mismatch", "it named a different session deadline")
@@ -138,10 +124,7 @@ internal enum class PolygonApproachStopRefusal(val wire: String, val detail: Str
 
 /**
  * Why the bounded approach session discarded one of its own samples, or stopped.
- *
- * The open half of the 2026-09-17 investigation: a held arrival starved because sampling went
- * quiet for five minutes and nothing recorded why. [NOT_CURRENT_SESSION] is the one that ends
- * sampling outright; the rest discard a single fix and keep going.
+ * [NOT_CURRENT_SESSION] ends sampling; the rest discard a single fix and keep going.
  */
 internal enum class PolygonSamplingSkip(val wire: String, val detail: String) {
     NOT_CURRENT_SESSION("not_current_session", "it belongs to a user or state generation that is no longer current"),
@@ -153,10 +136,8 @@ internal enum class PolygonSamplingSkip(val wire: String, val detail: String) {
 /**
  * Why a fix reached the engine but no polygon was evaluated against it.
  *
- * Deliberately NOT `os.callback.dropped`. The engine is reached from the bounded approach session
- * as well as from a callback, so these records have no receipt to net against, and one blocked
- * batch can emit several of them for zero callbacks. They are evaluation refusals, not callback
- * drops, and a capture that conflated the two would over-count dropped callbacks.
+ * Not `os.callback.dropped`: the approach session reaches the engine too, so these have no
+ * callback receipt to net against and would over-count dropped callbacks.
  */
 internal enum class PolygonEvaluationSkip(val wire: String, val detail: String) {
     USER_STATE_CHANGED("user_state_changed", "user state changed while the fix was in flight"),
@@ -167,24 +148,13 @@ internal enum class PolygonEvaluationSkip(val wire: String, val detail: String) 
 /**
  * Structured logger for geofence operations, tagged for logcat filtering.
  *
- * Every record carries a ` || key=value` tail after its human-readable prose: `ev=` is a stable
- * machine key (prose is what gets reworded; `ev` is the contract) and `io=` classifies the record
- * for replay. The nine prose lines `docs/manual-tests` greps for are unchanged; three of them are
- * pinned by `documentedProse_expectExactStringsManualTestsGrepFor`, the rest by nothing but care; other prose may be improved (the
- * unsupported-transition line gained the fence id, since one record per fence naming none of them
- * was useless). Records added by this work emit their prose whether or not diagnostics are on —
- * only the tail is gated.
+ * Every record is prose plus a ` || key=value` tail: `ev=` is the stable machine key (prose may be
+ * reworded, `ev` may not) and `io=` classifies the record for replay. Only the tail is gated by
+ * [GeofenceDiagnostics], except for records gated whole. Lines `docs/manual-tests` greps for must
+ * not change; some are pinned by `documentedProse_expectExactStringsManualTestsGrepFor`.
  *
- * Reason tokens are **derived** from the existing prose rather than replacing it with an enum.
- * That keeps every `reason: String` signature exactly as it was — `logSyncSkipped` alone has 20
- * test references — while still yielding a stable `why=` for tooling. The specific tokens are
- * pinned by `GeofenceLogTailTest` so a reworded sentence fails loudly instead of silently changing
- * what analysis groups on.
- *
- * The polygon records are the exception: [PolygonDropReason], [PolygonNotRankedReason] and
- * [PolygonFixRejection] carry their tokens instead of deriving them, because a reword would
- * otherwise split a bucket in two with nothing failing. Which of them iOS also emits is recorded
- * on each enum — not all do, and an Android-only token must not be defended as a parity constraint.
+ * Most `why=` tokens are derived from the `reason` prose via [GeofenceLogTail.token] and pinned by
+ * `GeofenceLogTailTest`, so a reword fails loudly. The `Polygon*` enums carry fixed tokens instead.
  */
 internal class GeofenceLogger(private val logger: Logger) {
 
@@ -206,12 +176,8 @@ internal class GeofenceLogger(private val logger: Logger) {
     }
 
     /**
-     * Which regions the OS is actually monitoring, by identifier.
-     *
-     * Counts alone cannot answer the first question anyone asks of a drive that missed a crossing —
-     * "was this geofence even being monitored when I drove through it?" — so the identifiers travel
-     * too. A separate method rather than widening [logSyncSucceeded], whose five `verify` blocks
-     * would all need updating for no benefit.
+     * Which regions the OS is monitoring, by id, so a missed crossing can be checked against what
+     * was actually registered.
      */
     fun logRegionsRegisteredIds(ids: List<String>, movementTriggerId: String?) {
         logger.debug(
@@ -307,12 +273,9 @@ internal class GeofenceLogger(private val logger: Logger) {
     }
 
     /**
-     * The N-of-M selection, which happens silently today: a geofence never registered because it
-     * ranked past the cap is indistinguishable from one registered that simply never fired.
-     *
-     * [selected], [evicted] and [edgeDistances] are lambdas: producing them costs a distance
-     * computation per region plus a filter over every candidate, on a background wake path, and
-     * none of it is wanted unless the tail will carry it.
+     * The N-of-M selection, so a fence ranked past the cap is distinguishable from one that was
+     * registered and never fired. The lists are lambdas so their per-region cost is paid only
+     * when diagnostics are on.
      */
     fun logRankEvaluated(
         candidates: Int,
@@ -360,12 +323,8 @@ internal class GeofenceLogger(private val logger: Logger) {
     // MARK: - Permissions and lifecycle
 
     /**
-     * A registration refused because the tier is not granted.
-     *
-     * `perm` carries the tier, not the Android permission constant it used to. Every other writer
-     * of this record puts a tier there — `denied`, `when_in_use`, `always` — and a reader mapping
-     * the key could make nothing of `ACCESS_FINE_LOCATION`. The constant is still worth having, so
-     * it moves to `ctx`, which `logBackgroundDeliveryUnavailable` already uses for the same job.
+     * A registration refused because the tier is not granted. `perm` carries the tier, like every
+     * other writer of this key; the permission constant goes in `ctx`.
      */
     fun logMissingPermission(permission: String) {
         logger.error(
@@ -381,13 +340,8 @@ internal class GeofenceLogger(private val logger: Logger) {
 
     /**
      * The granted location tier, reported at process start and on foreground entry when it changes.
-     * `perm` uses iOS's vocabulary so one parser reads both platforms.
-     *
-     * `ok` means **background delivery is available**, which is the only reading that matches iOS:
-     * there the flag is written solely when Always is granted, and WhenInUse carries
-     * `why=foreground_only` instead. It used to mean "some permission was granted" here, so the one
-     * tier where the platforms disagree — WhenInUse, where geofences fire in the foreground and
-     * nowhere else — reported `ok=true` on Android and no `ok` at all on iOS.
+     * `perm` uses iOS's vocabulary so one parser reads both platforms, and `ok` means background
+     * delivery is available (Always), matching iOS.
      */
     fun logPermissionTier(tier: String) {
         logger.info(
@@ -413,10 +367,9 @@ internal class GeofenceLogger(private val logger: Logger) {
         )
     }
 
-    /** Process start and why. A background wake and a user opening the app look identical today. */
     /**
-     * The module came up. A cold wake announces itself separately via [logModuleWoke] rather than
-     * racing this one for a single record — the OS decides their order, not us.
+     * The module came up. A cold wake is announced separately via [logModuleWoke] because the OS,
+     * not the SDK, decides the order of the two.
      */
     fun logModuleInitialized(launchReason: GeofenceLaunchReason) {
         logger.info(
@@ -426,7 +379,7 @@ internal class GeofenceLogger(private val logger: Logger) {
         )
     }
 
-    /** The process was started *by* something — a boot restore today. */
+    /** The process was started by something other than the app, e.g. a boot restore. */
     fun logModuleWoke(launchReason: GeofenceLaunchReason) {
         logger.info(
             "Geofence module woken (${launchReason.wire})" +
@@ -478,7 +431,7 @@ internal class GeofenceLogger(private val logger: Logger) {
         )
     }
 
-    /** A reset that deliberately did not clear because another user is signed in. */
+    /** A reset that did not clear because another user is signed in. */
     fun logResetSuperseded() {
         logger.debug(
             "Reset skipped: another user is signed in" +
@@ -506,12 +459,8 @@ internal class GeofenceLogger(private val logger: Logger) {
     // MARK: - OS callbacks
 
     /**
-     * A crossing as the OS reported it, with the fix the OS computed for it.
-     *
-     * Android is better placed than iOS here: `GeofencingEvent.triggeringLocation` is a real fix
-     * attached to the crossing, where CoreLocation supplies no position with a geofence event at
-     * all. Logged at the receiver, before any routing decision, and before the whole `Location` is
-     * narrowed to a latitude and longitude pair.
+     * A crossing as the OS reported it, with the fix the OS computed for it. Logged at the receiver,
+     * before routing and before the `Location` is narrowed to lat/lng.
      */
     fun logCallbackReceived(
         geofenceIds: List<String>,
@@ -561,20 +510,9 @@ internal class GeofenceLogger(private val logger: Logger) {
     }
 
     /**
-     * Something worth reading in a log, deliberately outside the asserted vocabulary.
-     *
-     * `ev=info` is the bucket for records a human wants when explaining a capture but a scenario
-     * must never assert on. Two reasons it exists rather than reusing a semantic key:
-     *
-     * - Unexpected cases do not deserve invented semantics. Minting a new `ev` for every oddity
-     *   grows the vocabulary faster than anyone can keep it aligned across platforms.
-     * - More importantly, the obvious reuse is actively wrong. Filing these under
-     *   `os.callback.dropped` would inflate the received-vs-dropped count — the count that
-     *   separates "the OS never reported it" from "we discarded it", which is the question a
-     *   paired drive exists to answer. Every real `os.callback.dropped` nets against an
-     *   `os.callback.received`; a broadcast we could not read has no receipt to net against.
-     *
-     * `io=obs`, so the off-device transform drops the whole family rather than replaying it.
+     * A human-readable note outside the asserted vocabulary (`ev=info`, `io=obs`); scenarios never
+     * assert on it. Not `os.callback.dropped`: an unreadable broadcast has no `os.callback.received`
+     * receipt to net against, and would inflate the dropped count.
      */
     fun logInfo(reason: String, fields: List<Pair<String, String?>> = emptyList()) {
         logger.debug(
@@ -584,8 +522,7 @@ internal class GeofenceLogger(private val logger: Logger) {
         )
     }
 
-    /** [geofenceId] because this is called per fence inside the broadcast loop — without it a
-     *  DWELL over three fences produces three identical records naming none of them. */
+    /** Called per fence, so [geofenceId] keeps a multi-fence DWELL from logging identical records. */
     fun logUnknownTransition(geofenceId: String, transitionType: Int) {
         logger.debug(
             "Ignoring geofence transition type=$transitionType for '$geofenceId' (only ENTER and EXIT are tracked)" +
@@ -633,28 +570,11 @@ internal class GeofenceLogger(private val logger: Logger) {
     // MARK: - Transitions
 
     /**
-     * The SDK judged this crossing real and wrote it down — the record replay asserts on.
+     * The SDK judged this crossing real and persisted it; the record replay asserts on (name matches
+     * iOS). Call only once the pending rows are on disk. What happens next is `delivery.*`.
      *
-     * It promises nothing about what happens to the row next: that is the `delivery.*` family's
-     * business and is out of the harness's scope.
-     *
-     * Emitted *after* the pending rows are on disk, not before. Logging it earlier claimed an
-     * acceptance the persist could still roll back, and left the log saying a crossing had been
-     * taken when the cooldown had just been released for a retry.
-     *
-     * Named to match iOS. `delivery.*` covers what happens afterwards and is out of replay's
-     * scope; the two families must not be confused, because a device that is merely offline still
-     * accepts crossings correctly.
-     *
-     * The position for this crossing is **not** repeated here. It lives on the
-     * `os.callback.received` record the receiver writes for the whole broadcast, which carries the
-     * OS's triggering fix and the ids it applied to — find this crossing's `id` in that record's
-     * `ids` list (a comma-separated list, not an `id` field; iOS is the one that emits `id` here).
-     *
-     * [rows] is the per-geoset fan-out size and rides in the tail as `n`, so one crossing reads as
-     * one acceptance. It is deliberately **not** added to the prose: this message predates the
-     * instrumentation, and the file's contract is that pre-existing prose is unchanged so a
-     * customer build with debug logging on sees exactly what it saw before.
+     * The position is on the broadcast's `os.callback.received` record, whose `ids` list names this
+     * crossing. [rows] is the per-geoset fan-out, in the tail as `n` only: the prose is pinned.
      */
     fun logTransitionAccepted(geofenceId: String, transitionName: String, rows: Int) {
         logger.debug(
@@ -752,21 +672,10 @@ internal class GeofenceLogger(private val logger: Logger) {
     // MARK: - Sync
 
     /**
-     * How long the SDK took to be ready to handle one broadcast, in ms.
-     *
-     * The crossing pipeline is a DI singleton with eager constructor injection, so resolving it
-     * builds the geofence object graph — the GMS client included — and on a cold process that
-     * happens inside the broadcast's own budget, where each branch used to resolve only what it
-     * needed. Whether that is material is a question about a real device, and the dispatch path had
-     * no timing record at all, so no capture could answer it. This is that record.
-     *
-     * Expect a large first value per process and roughly zero afterwards: the singleton is built
-     * once. Which broadcast is the first is readable from the surrounding `module.init`.
-     *
-     * Gated whole, not just in its tail. This fires on every broadcast — 72 times in nine hours on
-     * the 2026-09-14 drive — and with diagnostics off `tail` returns nothing, so the line that
-     * survived would carry a duration and no way to tell what it timed. Volume with nothing in it,
-     * in every customer's Logcat, on a record that exists purely to answer a diagnostic question.
+     * Time in ms to resolve the crossing pipeline for one broadcast. On a cold process this builds
+     * the geofence graph (GMS client included) inside the broadcast budget; expect a large first
+     * value per process and about zero afterwards. Gated whole: it fires on every broadcast and is
+     * meaningless without its tail.
      */
     fun logDispatchReady(elapsedMs: Long) {
         if (!GeofenceDiagnostics.isEnabled) return
@@ -871,11 +780,9 @@ internal class GeofenceLogger(private val logger: Logger) {
         )
     }
 
-    /** Outcome of a nearby-geofence fetch. An **input**: replay feeds the response back. */
     /**
-     * [catalog] is a lambda for the same reason [logRankEvaluated]'s lists are: building it decodes
-     * and validates every polygon ring a second time, on a background fetch path, and none of that
-     * is wanted unless the rows will actually be written.
+     * Outcome of a nearby-geofence fetch; an input, since replay feeds the response back. [catalog]
+     * is a lambda because building it decodes every polygon ring again, wanted only with diagnostics on.
      */
     fun logApiFetchResult(
         returnedCount: Int,
@@ -899,17 +806,9 @@ internal class GeofenceLogger(private val logger: Logger) {
     }
 
     /**
-     * One record per fetched fence, describing the shape the server sent.
-     *
-     * Built from the wire before validation runs, so a record the mapper drops still earns a row.
-     *
-     * Without this a capture names fences only by opaque id: a replay cannot place them, and nobody
-     * reading the log can tell which geoset a crossing belonged to. Re-fetching the geometry from
-     * the workspace later is not equivalent — fences move, and a drive replayed months on would
-     * silently get today's circles instead of the ones it actually ran against.
-     *
-     * Gated whole rather than relying on `tail()` returning empty, because these records carry no
-     * prose worth emitting on their own — with diagnostics off they should not exist at all.
+     * One record per fetched fence, as the server sent it before validation, so a dropped record
+     * still gets a row. Lets a replay place fences as they were at capture time, since workspace
+     * geometry changes later. Gated whole: the prose alone is worthless.
      */
     private fun logFenceCatalog(catalog: () -> List<GeofenceCatalogEntry>) {
         if (!GeofenceDiagnostics.isEnabled) return
@@ -923,19 +822,13 @@ internal class GeofenceLogger(private val logger: Logger) {
                         GeofenceLogIo.INPUT,
                         listOf(
                             "id" to entry.id,
-                            // Sanitized like any other value: a workspace-authored name can contain
-                            // spaces, commas and `=`, all of which would break the parser's split.
                             "name" to entry.name,
                             "gs" to composedList(entry.geosetIds),
-                            // Without this a polygon reads as an ordinary circle, and a replay
-                            // places the trigger circle as though it were the fence.
+                            // Without it a replay would treat a polygon's wake circle as the fence.
                             "sh" to entry.shape,
                             "lat" to num(entry.latitude, 5),
                             "lon" to num(entry.longitude, 5),
-                            // A polygon reports the backend's circle, never the one we register:
-                            // that carries our platform margin and would overstate the fence by a
-                            // kilometre. Absent rather than substituted, so a polygon that somehow
-                            // reaches here without one omits the field instead of lying about it.
+                            // Omitted, never substituted, when the record has no radius.
                             "rad" to num(entry.radiusMeters, 0),
                             "nv" to int(entry.vertices?.size),
                             "ring" to entry.vertices?.let(::ringPairs)?.let(::composedList),
@@ -948,11 +841,8 @@ internal class GeofenceLogger(private val logger: Logger) {
     }
 
     /**
-     * Outer ring as `lat_lon` pairs in the SDK's order, not the wire's GeoJSON order.
-     *
-     * Capped like any list, so `nv` is the authoritative count and a consumer finding fewer pairs
-     * than vertices must refuse rather than use what it got: a truncated ring is still a
-     * valid-looking polygon, so it answers a membership question confidently and wrongly.
+     * Outer ring as `lat_lon` pairs (SDK order, not GeoJSON's). Capped like any list, so a consumer
+     * finding fewer pairs than `nv` must reject the ring: a truncated ring still looks valid.
      */
     private fun ringPairs(vertices: List<PolygonCoordinate>): List<String> =
         vertices.mapNotNull { vertex ->
@@ -995,11 +885,9 @@ internal class GeofenceLogger(private val logger: Logger) {
 
     // MARK: - Storage
 
-    /** What survived a cold start. Answers whether a background wake had anything to work from. */
     /**
-     * Diagnostics-only, and the gate lives here rather than at the call sites: the count is in the
-     * prose, and producing it costs a deserialization of the cached region list on a background
-     * wake. A lambda keeps that read off the path entirely when nothing will read the record.
+     * What survived a cold start, i.e. whether a background wake had anything to work from. Gated
+     * whole, and [regionCount] is a lambda, so the cached list is only deserialized with diagnostics on.
      */
     fun logStorageLoaded(regionCount: () -> Int, hasAnchor: Boolean) {
         if (!GeofenceDiagnostics.isEnabled) return
@@ -1029,8 +917,8 @@ internal class GeofenceLogger(private val logger: Logger) {
 
     // MARK: - Delivery
     //
-    // Classified `out` and namespaced under `delivery.` so replay can drop the whole family: what
-    // replay checks is that the SDK *emitted* a transition, not that it reached the backend.
+    // Classified `obs` and namespaced under `delivery.` so replay can drop the whole family: replay
+    // checks that the SDK accepted a transition, not that it reached the backend.
 
     fun logEventDeliveryRetryable(geofenceId: String, transitionName: String, message: String?) {
         logger.debug(
@@ -1280,10 +1168,8 @@ internal class GeofenceLogger(private val logger: Logger) {
     fun logEventDeliveredButNotRemoved(geofenceId: String, transitionName: String) {
         logger.error(
             "Geofence '$geofenceId' $transitionName: delivered, but removing it from the pending store failed, so it is still queued. Retrying on a backoff; the backend deduplicates the repeat send on transitionId." +
-                // ok=true: the send reached the backend, only the cleanup failed, so a consumer
-                // counting deliveries must not read this as a loss. It must also skip
-                // why=not_removed when counting, because the retry files its own delivery.sent and
-                // one delivery would otherwise be counted twice.
+                // ok=true: the send reached the backend, only cleanup failed. Delivery counts must
+                // skip why=not_removed, since the retry logs its own delivery.sent.
                 tail(
                     "delivery.sent",
                     GeofenceLogIo.OBSERVATION,
@@ -1349,12 +1235,8 @@ internal class GeofenceLogger(private val logger: Logger) {
     }
 
     /**
-     * An arrival that was decided but is being held for a second agreeing fix.
-     *
-     * This branch consumed a fix and emitted nothing at all, which is how the 2026-09-17 arrival
-     * looked identical to a callback that never arrived. It is the only path in the pipeline that
-     * decides something and stays silent, so it needs its own record rather than a drop reason:
-     * the fence IS arriving, and a capture that calls it a refusal would mis-calibrate the margins.
+     * An arrival decided but held for a second agreeing fix. Its own record, not a drop reason: the
+     * fence is arriving, and without it a hold looks like a callback that never came.
      */
     fun logPolygonArrivalPending(
         geofenceId: String,
@@ -1380,16 +1262,8 @@ internal class GeofenceLogger(private val logger: Logger) {
     }
 
     /**
-     * One record per discarded callback, keyed `os.callback.dropped` so it nets against the
-     * `os.callback.received` receipt exactly like every other drop on this path.
-     */
-    /**
-     * A fix the engine accepted but evaluated nothing against. Separate from a callback drop
-     * because the approach session reaches this path too; see [PolygonEvaluationSkip].
-     */
-    /**
-     * One record per discarded approach sample. Sampling is what supplies a corroborating fix, so
-     * a silent gap here is indistinguishable from the session never having run.
+     * One record per discarded approach sample. Sampling supplies corroborating fixes, so a silent
+     * gap here would look like the session never ran.
      */
     fun logPolygonSamplingSkipped(reason: PolygonSamplingSkip) {
         logger.debug(
@@ -1403,6 +1277,10 @@ internal class GeofenceLogger(private val logger: Logger) {
         )
     }
 
+    /**
+     * A fix the engine accepted but evaluated nothing against. Not a callback drop, because the
+     * approach session reaches this path too; see [PolygonEvaluationSkip].
+     */
     fun logPolygonEvaluationSkipped(reason: PolygonEvaluationSkip) {
         logger.debug(
             "Polygon evaluation skipped — ${reason.detail}. No polygon was judged against this fix." +
@@ -1416,11 +1294,8 @@ internal class GeofenceLogger(private val logger: Logger) {
     }
 
     /**
-     * A held arrival discarded because no corroborating fix arrived in time.
-     *
-     * The counterpart to [logPolygonArrivalPending], and the record that makes a capture readable:
-     * without it a trace shows N holds and M decisions and cannot say which holds completed and
-     * which died. That is the question the field has to answer.
+     * A held arrival discarded without being reported. Counterpart to [logPolygonArrivalPending],
+     * so a capture can tell which holds completed and which died.
      */
     fun logPolygonArrivalExpired(
         geofenceId: String,
@@ -1444,11 +1319,9 @@ internal class GeofenceLogger(private val logger: Logger) {
     }
 
     /**
-     * A precise fix asked for because the delivered one decided nothing.
-     *
-     * Paired with exactly one of [logPolygonFreshFixReceived] or [logPolygonFreshFixSkipped], so a
-     * capture can tell a request that was never answered from one that was never made. Nothing is
-     * recorded when the delivered fix decided, which is the ordinary drive-by case.
+     * A precise fix asked for because the delivered one decided nothing. Followed by exactly one of
+     * [logPolygonFreshFixReceived] or [logPolygonFreshFixSkipped], so an unanswered request is
+     * distinguishable from one never made.
      */
     fun logPolygonFreshFixRequested(geofenceIds: List<String>) {
         logger.debug(
@@ -1477,10 +1350,9 @@ internal class GeofenceLogger(private val logger: Logger) {
     }
 
     /**
-     * [candidateCount] is every registered polygon and [admittedIds] the ones whose wake circle
-     * contains the fix. Both, because a wake that admits nothing is the expected case and has to be
-     * distinguishable from one that never ran: a capture with no re-check records at all means the
-     * work is not scheduled, which is a different fault.
+     * [candidateCount] is every registered polygon and [admittedIds] those whose wake circle holds
+     * the fix. Logged even when nothing is admitted, so "ran, admitted nothing" is distinguishable
+     * from "not scheduled".
      */
     fun logPolygonRecheckRan(
         location: Location,
@@ -1508,9 +1380,8 @@ internal class GeofenceLogger(private val logger: Logger) {
     }
 
     /**
-     * The passive listener is registered, which is the half that can be verified without another
-     * app cooperating. A capture with a start and no [logPolygonPassiveReceived] means no other app
-     * asked for location while this ran, and that is the measurement, not a fault.
+     * The passive listener is registered. A start with no [logPolygonPassiveReceived] means no other
+     * app asked for location meanwhile, which is not a fault.
      */
     fun logPolygonPassiveStarted() {
         logger.debug(
@@ -1593,15 +1464,14 @@ internal class GeofenceLogger(private val logger: Logger) {
         )
     }
 
+    /** One record per discarded callback; nets against its `os.callback.received` receipt. */
     fun logPolygonCallbackDropped(reason: PolygonCallbackDrop, geofenceId: String? = null) {
         logger.debug(
             "Polygon callback discarded — ${reason.detail}. Nothing was evaluated for it." +
                 tail(
                     "os.callback.dropped",
-                    // `obs`, like the other three writers of this key. The drop is the SDK's own
-                    // decision, not something it was handed, and `io` is what the replay transform
-                    // routes on — one writer at `in` would feed this key back while three are
-                    // compared.
+                    // `obs`, like every other writer of this key: replay routes on `io`, so the key
+                    // must not mix classifications.
                     GeofenceLogIo.OBSERVATION,
                     listOf(
                         "why" to reason.wire,
@@ -1663,17 +1533,11 @@ internal class GeofenceLogger(private val logger: Logger) {
     }
 
     /**
-     * The evidence behind a transition the evaluator claimed. Its counterpart `polygon.undecided`
-     * records only refusals, and a capture of refusals alone cannot say where a margin should sit:
-     * it shows which fixes were turned away and none of the ones that were let through.
+     * The evidence behind a transition the evaluator claimed; `polygon.undecided` covers refusals.
      *
-     * Claimed, not delivered. This is written before the business processor's own guards, so a
-     * decision it drops still appears here, and the same transition is claimed again on each
-     * following fix until something commits it. Count these as evaluator verdicts, not as events.
-     *
-     * `cor` describes this fix, not the arrival. A marginal fix that waited for a second one is
-     * recorded on the fix that completed it, and if that fix is itself clear of the ring it decides
-     * alone and reports `cor=false`.
+     * Claimed, not delivered: written before the business processor's guards, and repeated on each
+     * fix until something commits, so count these as verdicts, not events. `cor` describes this
+     * fix, not the arrival: a completing fix clear of the ring decides alone and reports `cor=false`.
      */
     fun logPolygonDecided(
         geofenceId: String,
@@ -1706,11 +1570,8 @@ internal class GeofenceLogger(private val logger: Logger) {
     }
 
     /**
-     * A fix that was decisive and simply agreed with what we already believe. No transition, and
-     * nothing to fix, but it is the population a margin is calibrated against: `polygon.undecided`
-     * shows what was refused and `polygon.decided` what changed a belief, and neither shows the
-     * ordinary good fix in between. Bounded by the sampling session, so this is a handful of rows
-     * per wake rather than a stream.
+     * A decisive fix that agreed with the committed state: the ordinary good fix margins are
+     * calibrated against. Bounded by the sampling session, so a handful of rows per wake.
      */
     fun logPolygonUnchanged(
         geofenceId: String,
@@ -1796,15 +1657,9 @@ internal class GeofenceLogger(private val logger: Logger) {
     }
 
     /**
-     * The sampler armed and then discarded the request it had just made, because the session went
-     * stale between asking and being granted.
-     *
-     * Its own key, not `polygon.approach.stopped`. This is a teardown *initiation*: the removal it
-     * triggers emits the ending itself, so sharing the key would make one stale teardown look like
-     * two endings and break started-versus-stopped counting on the exact path this exists to catch.
-     *
-     * `gen` is carried because this can fire while a NEWER session is live, and without it a reader
-     * cannot tell whether sampling is still running afterwards.
+     * The sampler discarded its own request because the session went stale before it was granted.
+     * Not `polygon.approach.stopped`: the removal it triggers logs that ending itself. `gen` shows
+     * whether a newer session is still live.
      */
     fun logPolygonApproachRequestDiscarded(userStateGeneration: Long?) {
         logger.debug(
@@ -1819,8 +1674,8 @@ internal class GeofenceLogger(private val logger: Logger) {
     }
 
     /**
-     * A stop that was declined, leaving sampling running. Separate event from
-     * [logPolygonApproachSessionEnded] so a capture counting endings cannot count these as one.
+     * A stop that was declined, leaving sampling running. Separate from
+     * [logPolygonApproachMonitoringStopped] so these are not counted as endings.
      */
     fun logPolygonApproachStopRefused(reason: PolygonApproachStopRefusal) {
         logger.debug(
@@ -1868,8 +1723,8 @@ internal class GeofenceLogger(private val logger: Logger) {
     }
 
     /**
-     * Our own handling of a delivered batch threw, so the locations in it are lost. An output: the
-     * OS did its part. [operation] separates the broadcast from the worker.
+     * Our own handling of a delivered batch threw, so its locations are lost. An observation, not an
+     * input: the OS did its part. [operation] separates the broadcast from the worker.
      */
     fun logPolygonApproachProcessingFailed(message: String?, operation: String) {
         logger.error(

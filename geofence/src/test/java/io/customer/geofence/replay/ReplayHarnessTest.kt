@@ -39,23 +39,18 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 
 /**
- * Drives the real SDK through the replay composition, on scenarios written here rather than
- * recorded.
+ * Drives the real SDK through the replay composition on hand-written scenarios.
  *
- * The recorded drives live outside the repo, so without this the composition would be untested on
- * CI — and a harness that silently stops driving the SDK reports every scenario as a clean pass.
- * These synthetic drives are small, and their expectations come from the contract rather than from
- * observing what the SDK happened to do. Coordinates are synthetic; the distances between them are
- * what the cases turn on.
+ * The recorded corpus lives outside the repo, so this is what covers the composition on CI: a
+ * harness that silently stops driving the SDK would report every scenario as a pass. Expectations
+ * come from the contract, not from observed output; only the distances between coordinates matter.
  */
 @RunWith(RobolectricTestRunner::class)
 class ReplayHarnessTest : RobolectricTest() {
 
     private val virtualClock = VirtualClock()
 
-    // The same execution model the recorded suite runs under. Kept in step deliberately: a harness
-    // self-test that settled between stimuli while the real suite did not would be green about a
-    // harness nobody runs.
+    // Same execution model as ScenarioReplayTest, so this self-test covers the harness that suite runs.
     private val boundaryGate = ReplayBoundaryGate(virtualClock)
     private val api = ReplayApiService(boundaryGate)
     private val registrar = ReplayRegistrar(boundaryGate)
@@ -100,16 +95,13 @@ class ReplayHarnessTest : RobolectricTest() {
             "Clock" to (SDKComponent.clock to virtualClock),
             "Logger" to (SDKComponent.logger to replayLogger),
             "GeofenceRegistrar" to (SDKComponent.android().geofenceManager to registrar),
-            // The remaining three overrides. `api` is the most consequential double in the whole
-            // composition — it feeds the entire fence catalogue — and it was the one not checked.
             "GeofenceApiService" to (SDKComponent.geofenceApiService to api),
             "GeofenceEventScheduler" to (SDKComponent.android().geofenceEventScheduler to scheduler),
             "GeofencePermissionChecker" to (SDKComponent.android().geofencePermissionChecker to permissionChecker)
         )
         SDKComponent.android().geofenceRegionStore.clearAll()
-        // A separate store, and the region store's clearAll does not touch it. Left over, a
-        // previous drive's cooldown suppresses this one's first crossing at every shared fence —
-        // which reads as an SDK behaviour difference rather than the test-isolation bug it is.
+        // Separate from the region store; a leftover cooldown would suppress the first crossing at
+        // any fence an earlier drive crossed.
         SDKComponent.android().geofenceCooldownStore.clearAll()
         SDKComponent.android().pendingGeofenceDeliveryStore.removeAll()
         replayLogger.clear()
@@ -130,15 +122,13 @@ class ReplayHarnessTest : RobolectricTest() {
         services = SDKComponent.android().geofenceServices,
         foreground = foregroundCoordinator(),
         identity = identity,
-        // These stimulus-handling tests do not drive the polygon fresh-fix path; a bare source
-        // satisfies the constructor without answering any request.
+        // Not wired into the graph: these scenarios never drive the polygon fresh-fix path.
         freshFix = ReplayPolygonFreshFixSource()
     )
 
     /**
-     * The real foreground coordinator, built from the same doubles the rest of the composition
-     * uses. Not a stand-in for its decisions — replay says the app came forward, the SDK decides
-     * what that means.
+     * The real foreground coordinator on the composition's doubles: replay says the app came
+     * forward, the SDK decides what that means.
      */
     private fun foregroundCoordinator() = GeofenceForegroundCoordinator(
         services = SDKComponent.android().geofenceServices,
@@ -148,26 +138,21 @@ class ReplayHarnessTest : RobolectricTest() {
         lastKnownLocation = { fakeLocationServices.lastKnown },
         locationMode = GeofenceLocationMode.AUTOMATIC,
         logger = SDKComponent.geofenceLogger,
-        // Unconfined, so `onForeground`'s dispatcher hop resolves on the test scheduler rather
-        // than parking work on a real IO thread the replay would run straight past.
+        // Unconfined, so `onForeground`'s dispatcher hop runs inline rather than on a real IO
+        // thread the replay would run straight past.
         dispatchers = DispatchersProviderStub()
     )
 
-    // MARK: - End to end, against the real SDK
-
     @Test
     fun replay_givenFetchAndIdentify_expectTheFetchedSetRegistered() = runTest {
-        // The contract: a fetch that returns two fences, with a user identified and a position
-        // known, registers both plus the movement trigger. Nothing here predicts SDK internals —
-        // it asserts the outward call the SDK makes to the OS.
+        // Asserts the outward OS call, not SDK internals: both fences plus the movement trigger.
         val scenario = ScenarioLoader.load(
             scenarioFile(
                 header("cold-start"),
                 """{"k":"when","at":0.0,"ev":"process.start"}""",
                 """{"k":"when","at":0.1,"ev":"module.init","launch":"app_start"}""",
-                // Identify FIRST, then the fix — the order every capture records. Production has
-                // no position at identify (`sync.skipped why=no_location ctx=user_identified`), so
-                // it arms and the arriving `prov=bus` fix drives the sync.
+                // Identify before the fix, as captures record it: identify carries no position, so
+                // the SDK arms and the `prov=bus` fix drives the sync.
                 """{"k":"when","at":1.0,"ev":"identity.changed","ok":true}""",
                 """{"k":"when","at":1.5,"ev":"location.fix","lat":10.00000,"lon":20.00000,"prov":"bus"}""",
                 """{"k":"given","at":2.0,"ev":"fixture.api.fetch","ok":true,"n":2,"body":[${fenceAtDevice("A")},${fenceFarAway("B")}]}"""
@@ -180,7 +165,6 @@ class ReplayHarnessTest : RobolectricTest() {
         api.fetchCount shouldBeEqualTo 1
         api.starvedFetchCount shouldBeEqualTo 0
         registrar.registeredIds shouldBeEqualTo linkedSetOf("A", "B", "cio_movement_trigger")
-        // The SDK reported what it registered, and the record names the fences.
         val applied = replayLogger.emitted().single { it.ev == "registration.applied" }
         applied.geofenceIds() shouldBeEqualTo listOf("A", "B")
     }
@@ -211,11 +195,8 @@ class ReplayHarnessTest : RobolectricTest() {
         val scenario = ScenarioLoader.load(
             scenarioFile(
                 header("anonymous"),
-                // Identify first, then the fix — the order the crossing case uses. Inverted, this
-                // scenario never reached a registration at all: identify carries no position, so
-                // `onLocationAcquired` exits with no user set, the sync never runs, the fixture goes
-                // unused and B is never registered. The drop below then passed on `unknown_id`
-                // without exercising sign-out, which is the behaviour this case is named for.
+                // Identify before the fix: in the other order no sync runs, B is never registered,
+                // and the drop below would pass on `unknown_id` without exercising sign-out.
                 """{"k":"when","at":1.0,"ev":"identity.changed","ok":true}""",
                 """{"k":"when","at":1.5,"ev":"location.fix","lat":10.00000,"lon":20.00000,"prov":"bus"}""",
                 """{"k":"given","at":2.0,"ev":"fixture.api.fetch","ok":true,"n":1,"body":[${fenceFarAway("B")}]}""",
@@ -227,24 +208,18 @@ class ReplayHarnessTest : RobolectricTest() {
         runner().run(scenario)
 
         val emitted = replayLogger.emitted()
-        // The precondition the case is named for. Without it the refusal below cannot be told apart
-        // from a drive that never registered anything to refuse.
+        // Precondition: B was registered, so the refusal below is not an empty store refusing everything.
         api.fetchCount shouldBeEqualTo 1
         api.unusedFixtureCount shouldBeEqualTo 0
         emitted.count { it.ev == "registration.applied" } shouldBeEqualTo 1
         registrar.calls.any { it.startsWith("replace(") }.shouldBeTrue()
 
         emitted.none { it.ev == "transition.accepted" }.shouldBeTrue()
-        // Sign-out clears the registered set, so the crossing is refused as an orphan before it can
-        // reach the identity check. Either refusal is a `transition.dropped`; both are the SDK
-        // declining to attribute a crossing to nobody. Pinned to the fence this drive registered,
-        // so a drop for some *other* reason — a starved fixture leaving nothing registered at all —
-        // cannot stand in for the refusal this case is named for.
+        // Sign-out clears the registered set, so the crossing is refused as an orphan before the
+        // identity check. Pinned to B so a drop for another reason cannot stand in for it.
         emitted.any { it.ev == "transition.dropped" && it.fields["id"] == "B" }.shouldBeTrue()
 
-        // `module.reset` is the third asserted record, and until now it was graded only by the
-        // private corpus — so on CI the matcher's newest key had no coverage at all. Sign-out is
-        // what emits it, and this is the one CI-visible test that signs out.
+        // The only CI-visible coverage of the asserted `module.reset` record, which sign-out emits.
         emitted.count { it.ev == "module.reset" } shouldBeEqualTo 1
         registrar.calls.any { it == "clearAll" }.shouldBeTrue()
     }
@@ -254,9 +229,8 @@ class ReplayHarnessTest : RobolectricTest() {
         val scenario = ScenarioLoader.load(
             scenarioFile(
                 header("orphan"),
-                // Identify before the fix, for the reason the anonymous case spells out: the other
-                // order registers nothing, and "GHOST is unknown" is not a discrimination when the
-                // store is empty and every id is unknown.
+                // Identify before the fix, as in the anonymous case: the other order registers
+                // nothing, and every id would be unknown.
                 """{"k":"when","at":1.0,"ev":"identity.changed","ok":true}""",
                 """{"k":"when","at":1.5,"ev":"location.fix","lat":10.00000,"lon":20.00000,"prov":"bus"}""",
                 """{"k":"given","at":2.0,"ev":"fixture.api.fetch","ok":true,"n":1,"body":[${fenceAtDevice("A")}]}""",
@@ -266,8 +240,7 @@ class ReplayHarnessTest : RobolectricTest() {
 
         runner().run(scenario)
 
-        // A is registered and GHOST is not, so the refusal below is the SDK telling them apart
-        // rather than an empty store refusing everything put to it.
+        // A is registered, so rejecting GHOST is the SDK telling them apart, not an empty store.
         api.fetchCount shouldBeEqualTo 1
         registrar.registeredIds.contains("A").shouldBeTrue()
 

@@ -3,10 +3,7 @@ package io.customer.geofence
 import android.Manifest
 import androidx.annotation.RequiresPermission
 
-/**
- * What the SDK can ask the OS to monitor: the humble half of registration, so a test can
- * substitute GMS without also substituting the batch policy in [GeofenceManager].
- */
+/** The OS side of registration ([GeofenceManager]), so callers can be tested without GMS. */
 internal interface GeofenceRegistrar {
     /**
      * Ids in [existingBusinessIds] are not re-sent: re-upserting a same-id geofence makes GMS
@@ -23,13 +20,11 @@ internal interface GeofenceRegistrar {
     suspend fun replaceGeofencesForBootRestore(regions: List<GeofenceRegion>): Result<Unit>
 
     /**
-     * No `@RequiresPermission`: `GeofencingClient.removeGeofences` needs no location permission,
-     * and declaring one made lint refuse the two callers that legitimately have none — an orphan
-     * cleanup on a broadcast and the sign-out clear.
+     * No `@RequiresPermission`: `GeofencingClient.removeGeofences` needs no location permission, and
+     * the broadcast-path cleanups that call this may run without one.
      */
     suspend fun removeGeofencesByIds(ids: List<String>): Result<Unit>
 
-    /** Needs no location permission, for the same reason as [removeGeofencesByIds]. */
     /**
      * Replaces just the movement trigger, leaving business registrations untouched. Separate from
      * [replaceGeofences] because the polygon controller re-sizes the trigger on its own, on the
@@ -37,5 +32,6 @@ internal interface GeofenceRegistrar {
      */
     suspend fun replaceMovementTrigger(region: GeofenceRegion): Result<Unit>
 
+    /** Needs no location permission, for the same reason as [removeGeofencesByIds]. */
     suspend fun clearAll(): Result<Unit>
 }

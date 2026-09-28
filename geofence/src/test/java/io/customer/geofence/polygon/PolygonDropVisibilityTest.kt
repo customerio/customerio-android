@@ -34,26 +34,14 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.shadows.ShadowSystemClock
 
 /**
- * One test per instrumented path, because instrumentation whose whole value is being present on a
- * specific branch is not covered by a test that only proves the log method works.
+ * One test per instrumented drop/skip path: a record is only useful on its own branch, which a test
+ * of the log method alone does not cover. [PolygonFieldArrivalTest] covers more of them.
  *
- * A peer review found 8 of 11 call sites surviving individual deletion with the suite still green;
- * re-measuring after more sites were added put it at 14 of 17. Instrumentation whose whole value is
- * being on one branch is not covered by a test that only proves the log method works, so there is a
- * test per site here.
- *
- * Of 23 sites, 16 are killed by these tests and by [PolygonFieldArrivalTest]. The other 7 are
- * **expected to be unreachable**, and that is the point of listing them rather than an apology for
- * not testing them. Each is a mid-pass re-check of a condition an outer gate already held: the
- * user-state re-checks inside [PolygonLocationEngine.processLocations]' per-location loop, the two
- * inside [PolygonGeofenceServiceController.processApproachLocations]' loop, and the inner
- * registration re-checks in `activate` and `onCoarseExit`. Reaching one in a test means building a
- * concurrency harness per site to prove a log line, and a stubbed version would mostly prove the
- * stub can be made to lie.
- *
- * So the field is the instrument for these: a capture containing `why=user_state_changed` from
- * inside the per-location loop means an identify landed mid-pass, which is a real finding rather
- * than noise. Treat each of the 7 as an assertion the field can falsify.
+ * Not covered: mid-pass re-checks of a condition an outer gate already checked (the user-state
+ * re-checks inside the engine's per-location loop, the stale-session checks inside
+ * [PolygonGeofenceServiceController.processApproachLocations]' loop, and the locked registration
+ * re-checks in `activate` and `onCoarseExit`). They need a race to reach, so one appearing in a
+ * field capture means a real mid-pass identify or teardown.
  */
 @RunWith(RobolectricTestRunner::class)
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -142,7 +130,7 @@ class PolygonDropVisibilityTest : RobolectricTest() {
 
     @Test
     fun engine_givenNoActivePolygon_expectTheSkipIsLogged() = runTest {
-        // Nothing was ever activated, so the fix is accepted and judged against nothing.
+        // Activated then deactivated: the session is armed but no polygon is active.
         engine.activate(VENUE_ID)
         store.deactivatePolygon(VENUE_ID)
 
@@ -153,8 +141,7 @@ class PolygonDropVisibilityTest : RobolectricTest() {
 
     @Test
     fun engine_givenAnActivePolygonWhoseRingCannotBeBuilt_expectTheSkipNamesEvaluability() = runTest {
-        // The reason this is NO_EVALUABLE_FENCES and not "no active polygon": the fence is active,
-        // its ring just does not validate, and claiming nothing was active would be false.
+        // The fence is active but its ring does not validate, so "no active polygon" would be false.
         store.saveCachedRegions(listOf(venueRegion().copy(polygonVertices = degenerateRing())))
         store.activatePolygon(VENUE_ID)
         store.recordPolygonCoarseInside(VENUE_ID)
@@ -210,8 +197,7 @@ class PolygonDropVisibilityTest : RobolectricTest() {
 
     @Test
     fun onMovementTriggerExit_givenNoPolygonWithinReach_expectTheDropIsLogged() = runTest {
-        // The movement-trigger path that was live during the field event. It reported nothing when
-        // it declined, so a capture could not tell a declined refresh from one that never ran.
+        // Without this record a declined refresh is indistinguishable from one that never ran.
         controller.onMovementTriggerExit(
             triggeringLocation = farAwayFix(),
             expectedUserStateGeneration = store.userStateGeneration()
@@ -233,9 +219,8 @@ class PolygonDropVisibilityTest : RobolectricTest() {
 
     @Test
     fun sampling_givenAStaleSession_expectTheSkipNamesTheSessionAndStops() = runTest {
-        // The only sampling reason that ends the session rather than dropping one sample. If
-        // sampling stops for this reason and says nothing, the silence looks like the session
-        // never ran at all, which is what the 2026-09-17 capture could not distinguish.
+        // The only sampling reason that ends the session rather than dropping one sample. Silent,
+        // it would look like the session never ran.
         val decision = controller.processApproachLocations(
             listOf(insideFix()),
             store.userStateGeneration() - 1,
@@ -272,8 +257,7 @@ class PolygonDropVisibilityTest : RobolectricTest() {
 
     @Test
     fun route_givenAHeldArrivalAndNoCorroborationInTime_expectTheExpiryIsRecorded() {
-        // The counterpart to the pending record. Without this a capture shows holds and decisions
-        // and cannot say which holds died, which is the question the field has to answer.
+        // Counterpart to the pending record, so a capture can tell which holds died.
         val processor = PolygonRouteProcessor()
         val fence = PolygonFence(VENUE_ID, PolygonGeometry.from(venueVertices()))
         val marginal = PolygonLocationSample(PolygonCoordinate(37.77455, -122.4194), 18.0)
@@ -289,11 +273,7 @@ class PolygonDropVisibilityTest : RobolectricTest() {
 
     @Test
     fun route_givenAFenceThatNeverHeldAnArrival_expectNoExpiryIsRecorded() {
-        // Found on the 2026-09-17 evening drive: 11 expiry records fired and zero holds preceded
-        // them. Every quiet fence was being stamped as a pending arrival, because the same helper
-        // is reached to break a run of agreeing fixes, so a minute later each one reported an
-        // arrival that had never existed. A record that fires when nothing happened is worse than
-        // no record.
+        // A quiet fence must not report the expiry of an arrival that never existed.
         val processor = PolygonRouteProcessor()
         val fence = PolygonFence(VENUE_ID, PolygonGeometry.from(venueVertices()))
         // Far outside the ring, so every pass agrees with the committed OUTSIDE state.
@@ -308,9 +288,7 @@ class PolygonDropVisibilityTest : RobolectricTest() {
 
     @Test
     fun route_givenAHoldThatWasHonouredByADecisiveFix_expectNoExpiryIsRecorded() {
-        // The stamp is written by confirmArrival but cleared by two other call sites that do not
-        // know about it, so a hold that COMPLETED left its timestamp behind and reported an expiry
-        // for an arrival that succeeded.
+        // A completed hold must leave nothing behind that later reports an expiry.
         val processor = PolygonRouteProcessor()
         val fence = PolygonFence(VENUE_ID, PolygonGeometry.from(venueVertices()))
         val marginal = PolygonLocationSample(PolygonCoordinate(37.77455, -122.4194), 18.0)
@@ -333,18 +311,15 @@ class PolygonDropVisibilityTest : RobolectricTest() {
 
     @Test
     fun engine_givenTheSessionEndsWhileAnArrivalIsHeld_expectTheDiscardIsLogged() = runTest {
-        // The field case the pending record exists to explain: sampling goes quiet, the session is
-        // torn down, and the hold disappears. The window-elapsed record cannot cover it because
-        // that one only fires when another fix arrives, and here no further fix ever does.
+        // The window-elapsed record needs another fix to fire, so a teardown with no further fix
+        // must report the discarded hold itself.
         store.activatePolygon(VENUE_ID)
         store.recordPolygonCoarseInside(VENUE_ID)
         engine.activate(VENUE_ID)
         engine.processResponsiveLocation(marginalFix())
 
-        // Torn down through the controller, not by calling engine.stop() directly. The engine
-        // returns the discarded ids and the controller emits them once controllerLock is released,
-        // so only this route proves the record actually reaches the log. Calling the engine here
-        // would assert on a logger the engine no longer talks to, and pass for the wrong reason.
+        // Through the controller, not engine.stop(): the engine returns the discarded ids and the
+        // controller logs them after releasing controllerLock.
         controller.stopAll()
 
         verify {
@@ -356,7 +331,7 @@ class PolygonDropVisibilityTest : RobolectricTest() {
         }
     }
 
-    // ~10 m inside the ring at the accuracy the drive reported, so the arrival is held not committed.
+    // ~10 m inside the ring at 18 m accuracy, so the arrival is held rather than committed.
     private fun marginalFix() = Location("test").apply {
         latitude = 37.77459
         longitude = -122.4194
@@ -367,11 +342,9 @@ class PolygonDropVisibilityTest : RobolectricTest() {
 
     @Test
     fun route_givenAHoldEndedByACoarseFix_expectTheCommitIsRecordedWithItsReason() {
-        // A marginal ENTER holds; the next fix is too coarse to judge a 54 m venue. It adds nothing
-        // to the fix being held, which is not evidence against it, so the arrival is reported and
-        // the record carries the reason it rests on no second opinion. Every hold still leaves a
-        // counterpart, which is what this class exists to pin: a capture must never show an
-        // arrival.pending with nothing after it.
+        // The next fix is too coarse to judge a 54 m venue, so it is not evidence against the
+        // hold: the arrival is reported with its uncorroborated reason. Every hold must end in a
+        // record.
         val processor = PolygonRouteProcessor()
         val fence = PolygonFence(VENUE_ID, PolygonGeometry.from(venueVertices()))
         val marginal = PolygonLocationSample(PolygonCoordinate(37.77455, -122.4194), 18.0)
@@ -389,9 +362,7 @@ class PolygonDropVisibilityTest : RobolectricTest() {
 
     @Test
     fun route_givenAHoldBrokenByAFixPositivelyOutside_expectTheBreakIsRecorded() {
-        // The one fix that still loses an arrival, and the only one that should. 40 m clear of the
-        // ring at 5 m accuracy is beyond its own uncertainty plus the departure margin, so it
-        // positively places the device outside rather than merely failing to judge.
+        // 40 m outside at 5 m accuracy: a judged fix reading outside breaks the hold.
         val processor = PolygonRouteProcessor()
         val fence = PolygonFence(VENUE_ID, PolygonGeometry.from(venueVertices()))
         val marginal = PolygonLocationSample(PolygonCoordinate(37.77455, -122.4194), 18.0)

@@ -13,20 +13,15 @@ import kotlinx.serialization.json.doubleOrNull
 import kotlinx.serialization.json.longOrNull
 
 /**
- * A geofence transition observed locally but not yet confirmed as tracked by
- * the Customer.io backend. Appended when a transition fires, removed when one
- * of the two delivery channels — the [GeofenceEventWorker] (durable, direct
- * HTTP) or the foreground flush (analytics pipeline) — delivers it.
- *
- * The shared [PendingDeliveryStore] requires a stable `key`; ours doubles as
- * the WorkManager unique-work name, so the foreground flush can cancel the
- * pending worker by the same key before publishing.
+ * A geofence transition observed locally but not yet confirmed as tracked by the Customer.io
+ * backend. Appended when a transition fires, removed when a delivery channel delivers it: the
+ * WorkManager worker or async fallback (direct HTTP), or the foreground flush (analytics pipeline).
  */
 @Serializable
 internal data class PendingGeofenceDelivery(
     val geofenceId: String,
     val transition: Event.GeofenceTransition,
-    /** Unix epoch **seconds** at receiver time. Use [toGeofenceTransitionEvent] when a [Date] is needed. */
+    /** Unix epoch **seconds** of the crossing. Use [toGeofenceTransitionEvent] when a [Date] is needed. */
     val timestamp: Long,
     val userId: String?,
     /**
@@ -51,10 +46,8 @@ internal data class PendingGeofenceDelivery(
         get() = "${geofenceId}_${transition.name}_${transitionId}_${geosetId ?: "none"}"
 
     /**
-     * Properties carried on the tracked "Geofence Transition" event. Kept here
-     * so the worker's direct-HTTP send and the foreground flush build an
-     * identical property set. Timestamp is not a property — each delivery path
-     * sets it on the event envelope from [timestamp].
+     * Properties of the tracked "Geofence Transition" event, shared so every delivery path sends the
+     * same set. Timestamp is not a property; each path sets it on the envelope from [timestamp].
      */
     fun toEventProperties(): Map<String, Any> = buildMap {
         put("transition", transition.name.lowercase())
@@ -67,10 +60,8 @@ internal data class PendingGeofenceDelivery(
     }
 
     /**
-     * Builds the EventBus event the foreground flush publishes for this row.
-     * Owns the seconds→milliseconds conversion on [timestamp] so no caller has
-     * to construct a [Date] from the raw [Long] (which would silently produce
-     * a date in January 1970 if passed seconds).
+     * The EventBus event the foreground flush publishes for this row. Owns the seconds-to-millis
+     * conversion of [timestamp]; a [Date] built from raw seconds would land in January 1970.
      */
     fun toGeofenceTransitionEvent(): Event.GeofenceTransitionEvent =
         Event.GeofenceTransitionEvent(
@@ -87,9 +78,8 @@ internal data class PendingGeofenceDelivery(
 }
 
 /**
- * Prefers the fence's current cached name + metadata, falling back to the crossing-time snapshot when
- * it has left the cache. Both fields move together so they never mix points in time. Applied by every
- * delivery path so all send an identical, consistently-sourced set.
+ * Prefers the fence's current cached name and metadata, falling back to the crossing-time snapshot
+ * when it has left the cache. Both fields come from one source so they never mix points in time.
  */
 internal fun PendingGeofenceDelivery.withFreshestEventData(cachedRegion: GeofenceRegion?): PendingGeofenceDelivery {
     if (cachedRegion == null) {

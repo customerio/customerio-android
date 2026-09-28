@@ -3,12 +3,8 @@ package io.customer.geofence.replay
 import java.io.File
 
 /**
- * Fixtures shared by the replay tests.
- *
- * The geometry here is synthetic on purpose. The SDK decides on distances, not places — replaying
- * the corpus with every longitude shifted produces byte-identical outcomes — so a scenario written
- * by hand has no reason to carry a real position. Latitude 10 / longitude 20 matches the convention
- * the authored scenarios use.
+ * Writes a temporary scenario file. Fixture geometry in this file is synthetic (around latitude 10,
+ * longitude 20): the SDK decides on distances, not places.
  */
 internal fun scenarioFile(vararg lines: String): File {
     val file = File.createTempFile("scenario", ".scenario.ndjson")

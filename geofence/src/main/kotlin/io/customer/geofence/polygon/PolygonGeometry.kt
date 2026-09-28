@@ -25,46 +25,22 @@ internal enum class PolygonPointRelation {
 /** Canonical polygon outer ring. V1 does not support holes. */
 internal class PolygonGeometry private constructor(
     val vertices: List<PolygonCoordinate>,
-    /** @see ringLongitudes */
+    /**
+     * The ring made contiguous: each vertex a short arc from the previous, so an antimeridian ring
+     * runs 179.5 -> 180.5, not 179.5 -> -179.5. Queries are mapped onto the same line by
+     * [onRingLine]; wrapping each longitude against the query instead would split the ring apart
+     * for a query roughly antipodal to it.
+     */
     private val ringLongitudes: DoubleArray
 ) {
-    /*
-     * ringLongitudes holds the ring made contiguous: each vertex advances from the previous one by
-     * the short arc, so a ring crossing the antimeridian runs 179.5 -> 180.5 rather than
-     * 179.5 -> -179.5. Every query is mapped onto that same line by onRingLine before it is
-     * compared, and admission validates on it too, so what `from` accepts and what this evaluates
-     * are the same shape.
-     *
-     * Wrapping each longitude independently against the query point instead would break the ring
-     * apart whenever the wrap boundary fell between two of its vertices — a point roughly antipodal
-     * to the ring — turning a two-degree seam edge into a 358-degree chord.
-     */
-
     /**
-     * Roughly how deep this venue is: `2 x area / perimeter`, in metres.
+     * Roughly how deep this venue is: `2 x area / perimeter`, in metres. Scales the arrival
+     * ceiling in [PolygonAccuracyEvaluator]: once the accuracy circle is as wide as the venue is
+     * deep, `inside` carries no information.
      *
-     * Answers "can a fix of accuracy A say anything about being inside this shape at all?". Once
-     * the accuracy circle is as wide as the venue is deep it can contain the whole ring, so
-     * `inside` stops carrying information and no second fix repairs that. Used as the arrival
-     * ceiling by [PolygonAccuracyEvaluator], per fence rather than as one constant because the
-     * monitored rings differ by more than an order of magnitude: the twelve in the field captures
-     * measure 24 m to 371 m.
-     *
-     * An approximation of the maximum inradius, deliberately: it is O(n) from the ring already
-     * held, where a true inradius needs a search. It reads exact for a circle
-     * (`2 pi r^2 / 2 pi r = r`) and measured 1.00x and 1.07x the grid-computed inradius on the two
-     * real rings in the test workspace, 24.19 m against 24.16 m and 112.99 m against 105.93 m.
-     *
-     * It errs high on a convex ring, which widens the accuracy accepted rather than narrowing it,
-     * and that is the safe direction because refusing a real arrival loses the visit outright. It
-     * is NOT a bound: a ring with a thin appendage reads low, since the spike adds perimeter
-     * without area, and a 100 m square with a 5 m by 300 m spike measures 23 m against a 50 m
-     * inradius. All twelve rings seen in the field are convex enough to err high, and nothing
-     * downstream reads this as a distance, but a strongly concave fence would be gated more
-     * tightly than its shape deserves.
-     *
-     * Computed on the contiguous ring against its own mean position, which is the projection iOS
-     * uses for the same value, so both platforms put the ceiling in the same place.
+     * An O(n) approximation of the maximum inradius, exact for a circle. It errs high on convex
+     * rings (the safe direction) but is not a bound: a thin appendage adds perimeter without area
+     * and reads low. Projected around the ring's mean position, as iOS does.
      */
     val venueScaleMeters: Double by lazy {
         val meanLatitude = vertices.sumOf(PolygonCoordinate::latitude) / vertices.size
@@ -205,29 +181,18 @@ internal class PolygonGeometry private constructor(
         // Half the globe. The flat projection the evaluator uses cannot describe more.
         private const val MAXIMUM_LONGITUDE_SPAN = 180.0
 
-        /**
-         * The one earth radius in this module, owned here because this is where the projection is
-         * defined. Shared with [PolygonAccuracyEvaluator] rather than copied: the value decides
-         * whether a tight-fitting polygon validates, so two copies free to drift would silently
-         * change which fences are monitored. iOS uses this same value, so changing it breaks
-         * cross-platform agreement on tight fits, not just our own results.
-         */
+        /** Earth radius for the local flat projection. Matches iOS so both measure the same distances. */
         internal const val EARTH_RADIUS_METERS = 6_371_000.0
 
         fun from(vertices: List<PolygonCoordinate>): PolygonGeometry {
             require(vertices.isNotEmpty()) { "polygon requires at least one position" }
 
-            // Canonicalisation happens on the unwrapped line, so 180 and -180 are recognised as one
-            // position. A ring closed with the opposite sign to the one it opened with — both legal
-            // GeoJSON — would otherwise survive unclosing and then be rejected for the zero-length
-            // edge that closure left behind.
+            // Canonicalised on the unwrapped line so 180 and -180 are one position; otherwise a ring
+            // closed with the opposite sign (legal GeoJSON) would be rejected for a zero-length edge.
             val longitudes = unwrapLongitudes(vertices)
 
-            // Compared on the source positions, not the accumulated line: unwrapping sums a short
-            // arc per vertex, and on decimal coordinates that leaves a closing position ~1e-13 from
-            // the one it repeats. Exact equality there misses the closure and keeps a spurious edge,
-            // which then reads as a self-intersection. Normalising the difference keeps 180 and -180
-            // equal without inheriting any drift.
+            // Compared on source positions: the unwrapped line accumulates float drift (~1e-13), so
+            // exact equality there would miss the closure and keep a spurious edge.
             fun samePosition(first: Int, second: Int): Boolean =
                 vertices[first].latitude == vertices[second].latitude &&
                     normalizeLongitude(vertices[first].longitude - vertices[second].longitude) == 0.0
@@ -243,13 +208,9 @@ internal class PolygonGeometry private constructor(
 
             require(canonical.size >= 3) { "polygon requires at least three vertices" }
             require(canonical.distinct().size >= 3) { "polygon requires at least three distinct vertices" }
-            // The evaluator projects the ring onto one flat frame, which only describes a shape
-            // narrower than a hemisphere. A ring winding around a pole unwraps past that — it is
-            // simple and non-degenerate, so nothing below rejects it, and it would then be evaluated
-            // against a closing chord most of the way round the earth. The only real fence this can
-            // refuse sits within ~55 km of a pole, where a degree of longitude is a couple of hundred
-            // metres and an ordinary radius outruns a hemisphere; a flat frame says nothing useful
-            // there either.
+            // One flat frame only describes a shape narrower than a hemisphere. A ring winding
+            // around a pole unwraps past that and nothing below rejects it. Only fences within
+            // ~55 km of a pole are refused.
             require(ringLongitudes.max() - ringLongitudes.min() < MAXIMUM_LONGITUDE_SPAN) {
                 "polygon spans too much longitude to evaluate on one frame"
             }
@@ -267,13 +228,7 @@ internal class PolygonGeometry private constructor(
             return PolygonGeometry(canonical, ringLongitudes)
         }
 
-        /**
-         * [from] without the throw, for the callers that must isolate one unusable ring rather than
-         * fail around it: wire mapping (one bad record costs itself) and ranking (a region whose
-         * stored ring no longer validates is skipped, not ranked as its enclosing circle).
-         *
-         * Validation is identical — only the failure signal differs.
-         */
+        /** [from] without the throw, for callers that skip one unusable ring rather than fail. */
         fun fromOrNull(vertices: List<PolygonCoordinate>): PolygonGeometry? = try {
             from(vertices)
         } catch (_: IllegalArgumentException) {

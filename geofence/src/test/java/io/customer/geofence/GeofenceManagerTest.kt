@@ -56,9 +56,8 @@ class GeofenceManagerTest : RobolectricTest() {
 
     @Test
     fun replaceGeofences_givenEmptyList_expectReceiverDisabledAndNoClientCall() = runTest {
-        // Account with no geofences => receiver must be disabled so the SDK doesn't
-        // burn resources listening for events that can't fire. Covers both fresh
-        // accounts and accounts that transitioned to 0 after a refresh.
+        // Nothing to monitor, so the receiver is disabled rather than listening for events that
+        // can't fire.
         val result = manager.replaceGeofences(emptyList())
 
         result.isSuccess.shouldBeTrue()
@@ -78,9 +77,8 @@ class GeofenceManagerTest : RobolectricTest() {
 
     @Test
     fun replaceGeofences_givenFineLocationGrantedNoBackground_expectRegistrationProceeds() = runTest {
-        // GMS only requires FINE to register; BACKGROUND only gates whether
-        // transitions are delivered while the app is backgrounded. The host gets a
-        // foreground-only degraded mode rather than silent zero-registration.
+        // GMS only requires FINE to register; BACKGROUND only gates delivery while the app is
+        // backgrounded, so the host gets foreground-only monitoring rather than none.
         grantPermission(Manifest.permission.ACCESS_FINE_LOCATION)
         denyPermission(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
         stubClientAddSuccess()
@@ -128,8 +126,8 @@ class GeofenceManagerTest : RobolectricTest() {
     @Test
     fun replaceGeofences_givenMovementTrigger_expectInitialTriggerExit() = runTest {
         // The trigger evaluates position at register time, so a stale center fires EXIT immediately
-        // and handleMovement re-centers. Device-verified: adding ENTER alongside stops GMS
-        // delivering the trigger's later EXIT entirely.
+        // and handleMovement re-centers. Adding ENTER alongside stops GMS delivering the trigger's
+        // later EXIT entirely.
         grantAllPermissions()
 
         val requestSlot = slot<GeofencingRequest>()
@@ -145,9 +143,8 @@ class GeofenceManagerTest : RobolectricTest() {
 
     @Test
     fun replaceGeofences_givenMovementTrigger_expectPriorRegistrationRemovedFirst() = runTest {
-        // GMS caches per-ID transition state across same-ID addGeofences. Removing
-        // the prior registration first forces a truly fresh state machine so the
-        // next EXIT will fire.
+        // GMS caches per-ID transition state across same-ID addGeofences. Removing first forces a
+        // fresh state machine so the next EXIT fires.
         grantAllPermissions()
         stubClientAddSuccess()
         stubClientRemoveByIdsSuccess()
@@ -178,10 +175,9 @@ class GeofenceManagerTest : RobolectricTest() {
 
     @Test
     fun replaceMovementTrigger_givenTheRegistrationFails_expectTheLiveTriggerLeftAlone() = runTest {
-        // Re-centring must never be able to end with no trigger at all. A same-id add replaces the
-        // registration in place, so removing first only opens a window where a failed or timed-out
-        // add leaves the device with nothing to wake it: updateMovementTriggerFromAcceptedFix
-        // returns null, and no other path re-arms until a foreground or an unrelated EXIT.
+        // A same-id add replaces the registration in place, so removing first would let a failed or
+        // timed-out add leave the device with no trigger, and nothing re-arms it until a foreground
+        // or an unrelated EXIT.
         grantAllPermissions()
         stubClientAddFailure(IllegalStateException("GMS unavailable"))
         stubClientRemoveByIdsSuccess()
@@ -211,8 +207,6 @@ class GeofenceManagerTest : RobolectricTest() {
 
     @Test
     fun replaceGeofencesForBootRestore_givenBusinessGeofences_expectInitialTriggerEnterUnchanged() = runTest {
-        // Only the movement trigger differs between variants; business batch
-        // still uses INITIAL_TRIGGER_ENTER.
         grantAllPermissions()
 
         val requestSlot = slot<GeofencingRequest>()
@@ -248,11 +242,7 @@ class GeofenceManagerTest : RobolectricTest() {
 
     @Test
     fun replaceGeofences_givenMixedBatchWithBusinessFailure_expectMovementTriggerRolledBack() = runTest {
-        // Business-batch failure is a rare edge case (transient OS / GMS issue).
-        // Rather than leave a stand-alone movement trigger in the OS, we roll it
-        // back so we don't carry safety-net state we can't act on. Recovery
-        // happens on the next identify/app-launch trigger past the freshness
-        // threshold — see `GeofenceConstants.STALE_THRESHOLD_MS`.
+        // A lone movement trigger with no business fences is rolled back rather than left in the OS.
         grantAllPermissions()
 
         var callCount = 0
@@ -375,9 +365,8 @@ class GeofenceManagerTest : RobolectricTest() {
 
     @Test
     fun removeGeofencesByIds_givenClientThrowsSecurityException_expectFailureResultNotPropagated() = runTest {
-        // Synchronous SecurityException (e.g., permission revoked) must be converted
-        // to Result.failure — matches the registerBatch contract so callers can rely
-        // on "manager methods always return Result, never throw."
+        // A synchronous SecurityException (e.g. permission revoked) must become a failure: manager
+        // methods return Result, never throw.
         val securityException = SecurityException("permission revoked")
         every { client.removeGeofences(any<List<String>>()) } throws securityException
 
@@ -408,7 +397,7 @@ class GeofenceManagerTest : RobolectricTest() {
 
     @Test
     fun replaceGeofences_givenGmsTaskNeverCallsBack_expectTimeoutFailureInsteadOfIndefiniteSuspend() = runTest {
-        // A Task that never resolves previously suspended the await for the life of the process.
+        // A Task can never call back (e.g. Play Services mid-update); the await must not hang.
         grantAllPermissions()
         every { client.addGeofences(any<GeofencingRequest>(), any()) } returns silentTask()
 

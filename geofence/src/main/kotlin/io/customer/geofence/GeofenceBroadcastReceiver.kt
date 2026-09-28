@@ -24,15 +24,15 @@ import kotlinx.coroutines.withTimeoutOrNull
 class GeofenceBroadcastReceiver : BroadcastReceiver() {
 
     override fun onReceive(context: Context, intent: Intent) {
-        // goAsync keeps the process alive until WorkManager has committed the work spec;
-        // without it the OS may kill us between enqueue and persist.
+        // goAsync keeps the process alive until the crossing is persisted and its delivery
+        // scheduled; without it the OS may kill us mid-dispatch.
         val pendingResult = goAsync()
         try {
             SDKComponent.setupAndroidComponent(context = context)
             val scope = SDKComponent.scopeProvider.geofenceScope
             launchTransitionHandler(scope, intent, pendingResult)
         } catch (e: Throwable) {
-            // Setup threw before the coroutine could register its finally — release the PendingResult here.
+            // Setup threw before the coroutine's finally existed, so release the PendingResult here.
             SDKComponent.geofenceLogger.logSyncFailed("BroadcastReceiver setup failed: ${e.message}")
             pendingResult.finish()
         }
@@ -84,9 +84,8 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
             }
         val location = geofencingEvent.triggeringLocation
         val gmsTransition = geofencingEvent.geofenceTransition
-        // Logged here, before any routing decision and before the Location is narrowed to a pair
-        // of doubles. This is the only place the OS's own triggering fix — accuracy, age, mock
-        // flag and all — still exists.
+        // Logged before routing and before the Location is narrowed to lat/lng: the only place the
+        // OS's full triggering fix (accuracy, age, mock flag) is still available.
         logger.logCallbackReceived(
             geofenceIds = triggeringGeofenceIds,
             transitionName = transitionName(gmsTransition),
@@ -107,11 +106,8 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
     }
 
     /**
-     * Builds the [GeofenceCrossing] and hands it to the pipeline.
-     *
-     * Kept as a named entry point, rather than inlined above, because it is the seam the receiver
-     * suite drives: a test that starts from a parsed transition does not have to construct a
-     * `GeofencingEvent`, which cannot be built without GMS internals.
+     * Builds the [GeofenceCrossing] and hands it to the pipeline. A separate test seam because a
+     * `GeofencingEvent` cannot be built without GMS internals.
      */
     @VisibleForTesting
     internal suspend fun dispatchTransition(
@@ -141,8 +137,8 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
      */
     private suspend fun dispatchCrossing(crossing: GeofenceCrossing) {
         val startedAtUptimeMs = SDKComponent.clock.elapsedRealtime()
-        // Resolved on its own line so the graph construction can be timed apart from the handling.
-        // On a cold process this is where the DI singleton — and the GMS client inside it — is built.
+        // Resolved apart from handling so it can be timed: on a cold process this builds the DI
+        // singleton, GMS client included.
         val pipeline = SDKComponent.android().geofenceCrossingPipeline
         SDKComponent.geofenceLogger.logDispatchReady(SDKComponent.clock.elapsedRealtime() - startedAtUptimeMs)
         val refreshJob = pipeline.handle(crossing)

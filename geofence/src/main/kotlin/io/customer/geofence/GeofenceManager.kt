@@ -41,13 +41,10 @@ internal class GeofenceManager(
     }
 
     /**
-     * Replaces currently-registered geofences with [regions]; empty list
-     * disables the broadcast receiver. Business IDs in [existingBusinessIds]
-     * are left alone — only additions (regions − existing) are sent to GMS.
-     *
-     * Re-upserting a same-ID geofence triggers GMS state reconciliation that
-     * can fire spurious EXIT events; skipping the overlap avoids that.
-     * An empty set means "OS state unknown, register everything".
+     * Replaces currently-registered geofences with [regions]; an empty list disables the broadcast
+     * receiver. Business IDs in [existingBusinessIds] are not re-sent: re-upserting a same-ID
+     * geofence makes GMS reconcile state and can fire spurious EXITs. An empty set means "OS state
+     * unknown, register everything".
      */
     @RequiresPermission(Manifest.permission.ACCESS_FINE_LOCATION)
     override suspend fun replaceGeofences(
@@ -69,12 +66,11 @@ internal class GeofenceManager(
         replaceGeofences(regions)
 
     /**
-     * Re-centres the SDK's single shared movement trigger without touching business regions.
+     * Re-centres the shared movement trigger without touching business regions.
      *
-     * A same-id add replaces the registration in place, which is how every other path here
-     * re-registers it, so there is no prior removal: removing first would mean a failed or
-     * timed-out add leaves the device with no trigger at all and nothing to re-arm it. It also
-     * keeps the worst case to one GMS call, which matters on the broadcast path.
+     * A same-id add replaces the registration in place, so there is no prior removal: removing
+     * first would mean a failed or timed-out add leaves no trigger and nothing to re-arm it. It
+     * also keeps the worst case to one GMS call on the broadcast path.
      */
     @RequiresPermission(Manifest.permission.ACCESS_FINE_LOCATION)
     override suspend fun replaceMovementTrigger(region: GeofenceRegion): Result<Unit> {
@@ -98,10 +94,8 @@ internal class GeofenceManager(
         existingBusinessIds: Set<String> = emptySet()
     ): Result<Unit> {
         if (regions.isEmpty()) {
-            // No geofences to register => disable the receiver so we don't burn
-            // resources listening for events that can't fire. Covers both the
-            // fresh-account-with-no-geofences case and the account-transitioned-to-0
-            // case (where stale cleanup just removed the previous registrations).
+            // Only when monitoring is off (the movement trigger is otherwise always included), so
+            // disable the receiver rather than listen for events that can't fire.
             receiverToggle.setEnabled(false)
             logger.logGeofencesRegistered(0)
             return Result.success(Unit)
@@ -248,9 +242,9 @@ internal class GeofenceManager(
     }
 
     private companion object {
-        // Per call, generous against the millisecond norm. A pass chains up to four (remove and
-        // re-add movement, add business, roll back), so a wedged GMS can still outlast the
-        // receiver's 8s goAsync budget — the join there is best-effort and the refresh continues.
+        // Per call, generous against the millisecond norm. replaceGeofences chains up to four
+        // (remove and re-add movement, add business, roll back), so a wedged GMS can still outlast
+        // the receiver's 8s goAsync budget; the join there is best-effort and the refresh continues.
         val GMS_CALL_TIMEOUT = 5.seconds
     }
 }

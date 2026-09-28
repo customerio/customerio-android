@@ -8,35 +8,26 @@ import io.customer.sdk.core.di.SDKComponent
 import kotlin.math.round
 
 /**
- * Selects the geofence regions closest to a reference location, capped at a maximum count and
- * (optionally) a maximum distance.
+ * Selects the geofence regions closest to a reference location, capped at a maximum count and a
+ * maximum distance, because the OS limits how many geofences an app can register. Regions beyond
+ * `maxDistanceMeters` are excluded; local re-ranking re-includes them as the device approaches.
  *
- * The OS limits the number of geofences an app can register simultaneously; this filter
- * picks the most relevant subset based on straight-line distance from the device's
- * current location. Regions whose boundary is beyond [maxDistanceMeters] are excluded entirely;
- * local re-ranking re-includes them as the device approaches.
+ * Ranking and the cap measure to the region's *boundary* ([edgeDistanceToOrNull]), so a region the
+ * device is inside sorts first and survives both limits.
  *
- * Ranking and the cap both measure to the region's *boundary* ([edgeDistanceToOrNull]), so a region
- * the device is inside always sorts first and survives both the count limit and the distance cap.
+ * Ties break on ascending [GeofenceRegion.id], after rounding distances to whole meters:
+ * `Location.distanceBetween` can vary sub-meter for the same inputs, which would defeat the
+ * tiebreak. Matches iOS so both platforms pick the same set at the cap.
  *
- * Ties break on ascending [GeofenceRegion.id], and distances round to whole meters first:
- * `Location.distanceBetween` can return sub-meter-varying results for the same inputs, which would
- * otherwise defeat the tiebreak and leave equidistant regions ordered by the server's response
- * order. Matches iOS so both platforms pick the same set at the cap.
- *
- * This is the last gate before registration, so it is also where a polygon that has no business
- * being monitored is dropped — see [polygonSupport].
+ * As the last gate before registration, this is also where an unmonitorable polygon is dropped
+ * (see [polygonSupport]).
  */
 internal class GeofenceDistanceFilter(
     private val polygonSupport: PolygonSupport = PolygonSupport.Disabled,
     /**
-     * Hard ceiling on how many regions any [nearest] call may return.
-     *
-     * Play services rejects an entire `addGeofences` batch once the app would pass
-     * [GeofenceConstants.MAX_OS_GEOFENCES], and one of those slots is always spent on the movement
-     * trigger that [GeofenceRepository] prepends — so this filter, which only ever ranks *business*
-     * regions, may never hand back more than [GeofenceConstants.MAX_OS_BUSINESS_GEOFENCE_SLOTS].
-     * Server config can lower the count further via `max`; nothing can raise it past this.
+     * Hard ceiling on how many regions any [nearest] call may return. Play services rejects an
+     * entire `addGeofences` batch past [GeofenceConstants.MAX_OS_GEOFENCES], and one slot always
+     * goes to the movement trigger [GeofenceRepository] prepends. Server config can only lower it.
      */
     private val maxOsBusinessSlots: Int = GeofenceConstants.MAX_OS_BUSINESS_GEOFENCE_SLOTS,
     private val logger: GeofenceLogger = SDKComponent.geofenceLogger
@@ -59,19 +50,13 @@ internal class GeofenceDistanceFilter(
     )
 
     /**
-     * @param max server-configured discovery cap. Bounds how many *new* regions this pass may pick
-     * up; `0` is the explicit kill switch. Pinned regions are exempt (see below).
-     * @param pinnedIds regions that must survive discovery caps because a business EXIT is still
-     * outstanding for them — a polygon with an active fine session, a committed INSIDE state, or a
-     * registered wake circle containing this fix. Evicting one guarantees its EXIT is never
-     * observed, so pinning outranks [max]. Deciding that needs registration state, which this class
-     * does not have, so every pin comes from the caller.
+     * @param max server-configured discovery cap; `0` is the explicit kill switch. Pinned regions
+     * count toward it but are never evicted by it or by `maxDistanceMeters`.
+     * @param pinnedIds regions with a business EXIT still outstanding (decided by the caller, which
+     * holds registration state). Evicting one means its EXIT is never observed.
      *
-     * Pinning cannot outrank the platform, though: [maxOsBusinessSlots] still bounds the result,
-     * because over-pinning would make Play services reject the whole batch and lose *every* fence
-     * rather than the farthest one. When more regions are pinned than there are slots, the nearest
-     * pinned regions are kept — the farthest are least likely to produce an imminent EXIT — and each
-     * released region is logged.
+     * [maxOsBusinessSlots] still bounds pins: over-pinning would make Play services reject the whole
+     * batch. When pins exceed the slots, the nearest are kept and each dropped one is logged.
      */
     fun nearest(
         regions: List<GeofenceRegion>,
@@ -83,7 +68,6 @@ internal class GeofenceDistanceFilter(
     ): List<GeofenceRegion> {
         val availableSlots = maxOsBusinessSlots.coerceAtLeast(0)
         if (max <= 0 || availableSlots == 0 || regions.isEmpty()) return emptyList()
-        // Same body for both overloads, so a caller that passes no pins is bounded identically.
         pruneGeometryCache(regions)
         val allPinnedIds = pinnedIds
         val sorted = regions
@@ -97,15 +81,10 @@ internal class GeofenceDistanceFilter(
                     .thenBy { (region, _) -> region.id }
             )
         val (pinned, candidates) = sorted.partition { (region, _) -> region.id in allPinnedIds }
-        // A positive server cap controls discovery, but it must not evict a polygon whose fine
-        // session or committed INSIDE state is already active. Such an eviction can never observe
-        // the matching EXIT. max=0 remains the explicit kill switch above.
         val retainedPinned = pinned.take(availableSlots)
         pinned.drop(availableSlots).forEach { (region, _) ->
             logger.logPinnedRegionDroppedAtOsLimit(region.id, availableSlots)
         }
-        // Discovery gets whatever the *lower* of the two ceilings leaves over: the server cap it was
-        // configured with, and the OS slots the pinned set didn't already consume.
         val discoveryBudget = minOf(
             (max - retainedPinned.size).coerceAtLeast(0),
             availableSlots - retainedPinned.size
@@ -115,12 +94,9 @@ internal class GeofenceDistanceFilter(
     }
 
     /**
-     * Distance this region ranks by, or `null` when it must not be registered at all.
-     *
-     * A polygon is unrankable — and so unregisterable — when this build can't monitor polygons, or
-     * when its cached ring no longer validates. Both drop only that region: the rest of the cached
-     * catalog still ranks and re-registers, and neither case falls back to the region's circle
-     * fields, which describe the coarse enclosing trigger rather than the fence itself.
+     * Distance this region ranks by, or `null` when it must not be registered: a polygon when this
+     * build can't monitor polygons or its ring doesn't validate. Never falls back to the circle
+     * fields, which describe the coarse enclosing trigger rather than the fence.
      */
     private fun rankingDistanceOrNull(
         region: GeofenceRegion,
@@ -140,12 +116,9 @@ internal class GeofenceDistanceFilter(
     }
 
     /**
-     * Validated geometry for [region], memoized per id + ring.
-     *
-     * Validation is O(V²) (self-intersection), and ranking re-runs on every movement trigger over an
-     * unchanged catalog, so the outcome is cached — including the `null` outcome, or a ring that can
-     * never validate would pay the full check on every pass. Wire validation is untouched: this
-     * caches the result of the same [PolygonGeometry.fromOrNull] call, it doesn't skip it.
+     * Validated geometry for [region], memoized per id + ring. Validation is O(V²) and ranking
+     * re-runs on every movement trigger over an unchanged catalog, so the `null` outcome is cached
+     * too.
      */
     @Synchronized
     private fun cachedGeometry(region: GeofenceRegion): PolygonGeometry? {

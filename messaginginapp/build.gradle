@@ -62,7 +62,28 @@ dependencies {
     implementation Dependencies.coroutinesAndroid
     implementation Dependencies.androidxAppCompat
     implementation Dependencies.retrofit
-    implementation Dependencies.okhttpLoggingInterceptor
-    implementation Dependencies.okhttpSse
+    implementation Dependencies.okhttp
     implementation Dependencies.androidxProcessLifecycle
+}
+
+// Allows CI to compile and run the SSE compatibility tests against the OkHttp versions commonly
+// selected by host applications, without changing the SDK's published dependency version.
+def okhttpCompatibilityVersion = providers.gradleProperty("okhttpCompatibilityVersion").orNull
+if (okhttpCompatibilityVersion != null) {
+    def okhttpCompatibilityArtifact =
+            providers.gradleProperty("okhttpCompatibilityArtifact").getOrElse("okhttp")
+    configurations.configureEach {
+        resolutionStrategy.eachDependency { details ->
+            if (details.requested.group == "com.squareup.okhttp3") {
+                if (details.requested.name == "okhttp" && okhttpCompatibilityArtifact != "okhttp") {
+                    details.useTarget(
+                            "com.squareup.okhttp3:${okhttpCompatibilityArtifact}:${okhttpCompatibilityVersion}"
+                    )
+                } else {
+                    details.useVersion(okhttpCompatibilityVersion)
+                }
+                details.because("verify the SDK against the host application's OkHttp version")
+            }
+        }
+    }
 }

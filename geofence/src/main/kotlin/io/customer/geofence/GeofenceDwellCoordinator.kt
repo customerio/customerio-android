@@ -22,7 +22,8 @@ internal class GeofenceDwellCoordinator(
     private val transitionProcessor: GeofenceBusinessTransitionProcessor
 ) {
     /**
-     * Starts or keeps the visit an ENTER describes.
+     * Starts or keeps the visit an ENTER describes. A repeated ENTER keeps the current visit unless
+     * it provably follows a lost EXIT (see [departedSince]).
      *
      * @param beginsNewVisit containment did not already hold this fence, so the ENTER may replace a
      * visit that continuity lost. It is not proof the entry was observed: a fence registered, or a
@@ -51,8 +52,17 @@ internal class GeofenceDwellCoordinator(
         val revision = region.transitionRevision()
         val generation = expectedUserStateGeneration
         val existing = currentVisit(region)
+        var departed = false
         if (existing?.regionRevision == revision && existing.userStateGeneration == generation) {
-            if (!beginsNewVisit || enteredAtSeconds < existing.enteredAtSeconds) return@withLock
+            if (enteredAtSeconds < existing.enteredAtSeconds) return@withLock
+            // Decided no later than a fix already attributed to this visit, so it describes this
+            // stay or an earlier one, such as an ENTER delivered after the DWELL that recovered it.
+            val lastInsideFix = existing.lastInsideFixElapsedMs
+            if (entryFixElapsedMs != null && lastInsideFix != null && entryFixElapsedMs <= lastInsideFix) {
+                return@withLock
+            }
+            departed = !beginsNewVisit && departedSince(existing, incarnation, entryFixElapsedMs)
+            if (!beginsNewVisit && !departed) return@withLock
         }
         store.saveDwellVisit(
             GeofenceDwellVisit(
@@ -64,7 +74,7 @@ internal class GeofenceDwellCoordinator(
                 // Otherwise the device arrived at some unknown earlier time (already inside at
                 // registration or activation, or continuity was lost), and this timestamp is only
                 // when we learned of it.
-                entryWasObserved = beginsNewVisit && if (region.isPolygon) {
+                entryWasObserved = (beginsNewVisit || departed) && if (region.isPolygon) {
                     polygonOutsideObserved
                 } else {
                     observedCircleEntry(incarnation, entryFixElapsedMs)
@@ -111,7 +121,8 @@ internal class GeofenceDwellCoordinator(
                 regionRevision = region.transitionRevision(),
                 userStateGeneration = expectedUserStateGeneration,
                 entryWasObserved = false,
-                registrationElapsedMs = incarnation.registeredAtElapsedMs
+                registrationElapsedMs = incarnation.registeredAtElapsedMs,
+                lastInsideFixElapsedMs = triggeringFixElapsedMs
             )
             if (!store.saveDwellVisit(visit)) return@withLock
         }
@@ -119,6 +130,13 @@ internal class GeofenceDwellCoordinator(
         // does not: an unattributed EXIT deliberately leaves the visit in place, so the device may
         // have left long ago.
         if (!belongsTo(visit, triggeringFixElapsedMs)) return@withLock
+        // belongsTo guarantees a fix. Recorded even once emitted: an outside proof older than this
+        // fix was overruled by GMS still placing the device inside (see [departedSince]).
+        val insideFix = triggeringFixElapsedMs ?: return@withLock
+        if (insideFix > (visit.lastInsideFixElapsedMs ?: Long.MIN_VALUE)) {
+            visit = visit.copy(lastInsideFixElapsedMs = insideFix)
+            if (!store.saveDwellVisit(visit)) return@withLock
+        }
         emitIfDue(
             region = region,
             visit = visit,
@@ -189,6 +207,27 @@ internal class GeofenceDwellCoordinator(
             return@withLock
         }
         store.removeDwellVisit(geofenceId)
+    }
+
+    /**
+     * Whether a repeated circle ENTER, arriving while containment still holds the fence, follows a
+     * departure whose EXIT was lost. A second ENTER alone proves nothing: GMS can re-report one
+     * without the device ever leaving. It needs this registration to have proved the device outside
+     * after the visit's latest inside fix, and the ENTER's own fix to come after that proof. A visit
+     * with no inside fix (an ENTER without one, or a recovered DWELL that predates this field) gives
+     * no anchor to order the proof against, so it is kept.
+     */
+    private fun departedSince(
+        visit: GeofenceDwellVisit,
+        incarnation: GeofenceRegistrationIncarnation?,
+        entryFixElapsedMs: Long?
+    ): Boolean {
+        val insideAt = maxOf(
+            visit.entryFixElapsedMs ?: Long.MIN_VALUE,
+            visit.lastInsideFixElapsedMs ?: Long.MIN_VALUE
+        ).takeIf { it != Long.MIN_VALUE } ?: return false
+        val outsideProvenAt = incarnation?.outsideProvenAtElapsedMs ?: return false
+        return outsideProvenAt > insideAt && entryFixElapsedMs != null && entryFixElapsedMs > outsideProvenAt
     }
 
     /**

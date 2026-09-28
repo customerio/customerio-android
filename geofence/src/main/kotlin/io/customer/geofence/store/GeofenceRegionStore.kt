@@ -30,7 +30,9 @@ internal data class GeofenceDwellVisit(
     /** [GeofenceRegistrationIncarnation.registeredAtElapsedMs] of the circle registration it was observed under. */
     val registrationElapsedMs: Long? = null,
     /** Boot-relative time of the fix that reported entry, when the OS supplied one. */
-    val entryFixElapsedMs: Long? = null
+    val entryFixElapsedMs: Long? = null,
+    /** Latest triggering fix, on the same clock, of a native DWELL attributed to this visit. */
+    val lastInsideFixElapsedMs: Long? = null
 )
 
 /**

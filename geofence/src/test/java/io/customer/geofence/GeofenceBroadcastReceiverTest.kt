@@ -293,7 +293,7 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
 
     @Test
     fun handleGeofencingEvent_givenRedeliveredEnterWhileInside_expectVisitPreserved() = runTest {
-        val region = GeofenceRegion("biz-1", 0.0, 0.0, 100f, dwellThresholdSeconds = 60)
+        val region = GeofenceRegion("biz-1", 0.0, 0.0, 100f)
         val enteredAt = mockClock.currentTimeSeconds() - 100L
         val currentVisit = GeofenceDwellVisit(
             geofenceId = "biz-1",
@@ -317,7 +317,7 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
 
     @Test
     fun handleGeofencingEvent_givenEnterAfterContainmentWasLost_expectVisitRestarted() = runTest {
-        val region = GeofenceRegion("biz-1", 0.0, 0.0, 100f, dwellThresholdSeconds = 60)
+        val region = GeofenceRegion("biz-1", 0.0, 0.0, 100f)
         val enteredAt = mockClock.currentTimeSeconds() - 100L
         val staleVisit = GeofenceDwellVisit(
             geofenceId = "biz-1",
@@ -449,6 +449,7 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
         verify(exactly = 0) { mockStore.removeDwellVisitAfterCommittedExit(any(), any(), any(), any()) }
         val exit = scheduled.single { it.transition == Event.GeofenceTransition.EXIT }
         exit.visitId.shouldBeNull()
+        exit.visitDurationSeconds.shouldBeNull()
     }
 
     @Test

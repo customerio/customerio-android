@@ -338,6 +338,16 @@ internal class PolygonLocationEngine(
                 val observedAtSeconds = observedTimestampSeconds(fix)
                 val wasInside = detection.transition == PolygonTransition.ENTER &&
                     detection.polygonId in store.getEnteredIds()
+                val visitContext = if (detection.transition == PolygonTransition.EXIT) {
+                    dwellCoordinator?.onExit(
+                        geofenceId = detection.polygonId,
+                        exitedAtSeconds = observedAtSeconds,
+                        detectionSource = "location_evidence",
+                        expectedUserStateGeneration = expectedUserStateGeneration
+                    )
+                } else {
+                    null
+                }
                 transitionProcessor.process(
                     geofenceId = detection.polygonId,
                     transition = transition,
@@ -345,7 +355,8 @@ internal class PolygonLocationEngine(
                     enforceConfiguredTransition = true,
                     expectedRegionRevision = detection.regionRevision,
                     expectedUserStateGeneration = expectedUserStateGeneration,
-                    requireRegistered = true
+                    requireRegistered = true,
+                    visitContext = visitContext
                 )
                 if (store.userStateGeneration() != expectedUserStateGeneration) {
                     return@withLock PolygonEvaluationOutcome.NOTHING

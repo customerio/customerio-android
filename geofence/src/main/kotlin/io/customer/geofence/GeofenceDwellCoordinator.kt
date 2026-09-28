@@ -15,7 +15,7 @@ import kotlinx.coroutines.sync.withLock
  * so GMS can deliver an EXIT or DWELL from a replaced registration, or from an earlier visit, after
  * a newer visit began. Such a callback is attributed to a visit only when its triggering fix was
  * taken after that visit's registration and entry (see [belongsTo]). An unattributed callback never
- * ends or emits a dwell for a visit.
+ * ends, describes, or emits a dwell for a visit.
  */
 internal class GeofenceDwellCoordinator(
     private val store: GeofenceRegionStore,
@@ -145,7 +145,34 @@ internal class GeofenceDwellCoordinator(
     }
 
     /**
-     * Ends the visit a native EXIT provably belongs to.
+     * Captures a candidate exit context for a polygon exit, whose timestamp is the deciding fix's.
+     * The transition processor clears the visit after admission. Native exits use [onNativeExit].
+     */
+    suspend fun onExit(
+        geofenceId: String,
+        exitedAtSeconds: Long,
+        detectionSource: String,
+        expectedUserStateGeneration: Long = store.userStateGeneration()
+    ): GeofenceTransitionEmitter.VisitContext.Exit? = mutex.withLock {
+        if (store.userStateGeneration() != expectedUserStateGeneration) return@withLock null
+        val region = store.getCachedRegion(geofenceId) ?: return@withLock null
+        val visit = currentVisit(region) ?: return@withLock null
+        // A delayed exit from an older visit must not clear a newer visit.
+        if (exitedAtSeconds < visit.enteredAtSeconds) return@withLock null
+        if (!region.transitionTypes.contains(GeofenceTransitionType.EXIT)) return@withLock null
+        // A native DWELL callback can recover a visit after a lost ENTER, but its back-dated start
+        // is only a lower bound. Do not present that estimate as an observed exit duration.
+        if (!visit.entryWasObserved) return@withLock null
+        GeofenceTransitionEmitter.VisitContext.Exit(
+            visitId = visit.visitId,
+            enteredAt = visit.enteredAtSeconds,
+            durationSeconds = exitedAtSeconds - visit.enteredAtSeconds,
+            detectionSource = detectionSource
+        )
+    }
+
+    /**
+     * Ends the visit a native EXIT provably belongs to, and describes it when EXIT is configured.
      *
      * An EXIT that cannot be attributed leaves the visit alone. It may belong to a replaced
      * registration or an earlier visit, and a genuine departure is followed by a fresh ENTER, which
@@ -156,9 +183,9 @@ internal class GeofenceDwellCoordinator(
         exitedAtSeconds: Long,
         triggeringFixElapsedMs: Long?,
         expectedUserStateGeneration: Long = store.userStateGeneration()
-    ) = mutex.withLock {
-        if (store.userStateGeneration() != expectedUserStateGeneration) return@withLock
-        val region = store.getCachedRegion(geofenceId) ?: return@withLock
+    ): GeofenceTransitionEmitter.VisitContext.Exit? = mutex.withLock {
+        if (store.userStateGeneration() != expectedUserStateGeneration) return@withLock null
+        val region = store.getCachedRegion(geofenceId) ?: return@withLock null
         val incarnation = currentIncarnation(region)
         if (
             incarnation != null &&
@@ -169,11 +196,20 @@ internal class GeofenceDwellCoordinator(
             // before the exit cannot later recover the ended stay. See [onNativeDwell].
             store.recordNativeExitFix(geofenceId, incarnation.registeredAtElapsedMs, triggeringFixElapsedMs)
         }
-        val visit = currentVisit(region) ?: return@withLock
+        val visit = currentVisit(region) ?: return@withLock null
         if (exitedAtSeconds < visit.enteredAtSeconds || !belongsTo(visit, triggeringFixElapsedMs)) {
-            return@withLock
+            return@withLock null
         }
         store.removeDwellVisit(geofenceId)
+        if (!region.transitionTypes.contains(GeofenceTransitionType.EXIT)) return@withLock null
+        // A visit recovered from native DWELL has only a lower-bound start; see [onExit].
+        if (!visit.entryWasObserved) return@withLock null
+        GeofenceTransitionEmitter.VisitContext.Exit(
+            visitId = visit.visitId,
+            enteredAt = visit.enteredAtSeconds,
+            durationSeconds = exitedAtSeconds - visit.enteredAtSeconds,
+            detectionSource = "native"
+        )
     }
 
     private fun currentIncarnation(region: GeofenceRegion): GeofenceRegistrationIncarnation? =
@@ -255,4 +291,5 @@ internal class GeofenceDwellCoordinator(
     }
 }
 
-internal fun GeofenceRegion.tracksVisit(): Boolean = dwellThresholdSeconds > 0
+internal fun GeofenceRegion.tracksVisit(): Boolean =
+    dwellThresholdSeconds > 0 || transitionTypes.contains(GeofenceTransitionType.EXIT)

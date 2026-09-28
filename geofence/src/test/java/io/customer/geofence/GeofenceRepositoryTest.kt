@@ -2761,8 +2761,9 @@ class GeofenceRepositoryTest : RobolectricTest() {
     }
 
     @Test
-    fun refresh_givenExitOnlyFenceDeviceInside_expectNoInitialEnter() = runTest {
-        // A fence that doesn't monitor ENTER gets no synthesized enter, even sitting inside it.
+    fun refresh_givenExitOnlyFenceDeviceInside_expectVisitObservedWithoutInitialEnterEvent() = runTest {
+        // The backend does not receive ENTER, but duration tracking still needs the stationary
+        // registration-time observation so the first EXIT can carry the visit duration.
         val cached = listOf(
             GeofenceRegion("biz-1", 0.0, 0.0, 100f, transitionTypes = listOf(GeofenceTransitionType.EXIT))
         )
@@ -2771,12 +2772,14 @@ class GeofenceRepositoryTest : RobolectricTest() {
         every { store.getCachedRegions() } returns cached
         every { store.getRegisteredIds() } returns emptySet()
         every { store.getCachedConfig() } returns sampleConfig()
+        every { store.getEnteredIds() } returns setOf("biz-1")
         every { distanceFilter.nearest(cached, any(), any(), any(), any()) } returns cached
         coEvery { manager.replaceGeofences(any(), any()) } returns Result.success(Unit)
 
-        repository.refresh(latitude = 0.0, longitude = 0.0)
+        repository.refreshFromLiveFix(latitude = 0.0, longitude = 0.0)
 
         coVerify(exactly = 0) { transitionEmitter.emit(any(), any(), any(), any(), any(), any(), any(), any()) }
+        coVerify(exactly = 1) { dwellCoordinator.onEnter("biz-1", any(), any(), beginsNewVisit = false) }
     }
 
     @Test

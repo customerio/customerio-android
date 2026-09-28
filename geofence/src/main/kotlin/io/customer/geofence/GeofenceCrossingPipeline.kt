@@ -139,13 +139,15 @@ internal class GeofenceCrossingPipeline(
             } else {
                 val wasInside = transition == Event.GeofenceTransition.ENTER &&
                     geofenceId in regionStore.getEnteredIds()
-                if (transition == Event.GeofenceTransition.EXIT) {
+                val visitContext = if (transition == Event.GeofenceTransition.EXIT) {
                     dwellCoordinator.onNativeExit(
                         geofenceId = geofenceId,
                         exitedAtSeconds = timestamp,
                         triggeringFixElapsedMs = triggeringFixElapsedMs,
                         expectedUserStateGeneration = userStateGeneration
                     )
+                } else {
+                    null
                 }
                 transitionProcessor.process(
                     geofenceId = geofenceId,
@@ -155,6 +157,7 @@ internal class GeofenceCrossingPipeline(
                     expectedRegionRevision = region?.transitionRevision(),
                     expectedUserStateGeneration = userStateGeneration,
                     requireRegistered = true,
+                    visitContext = visitContext,
                     endsVisitByTimestamp = false
                 )
                 if (

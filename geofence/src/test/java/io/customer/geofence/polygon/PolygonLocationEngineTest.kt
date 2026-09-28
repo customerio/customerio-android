@@ -76,6 +76,7 @@ class PolygonLocationEngineTest : RobolectricTest() {
         coEvery { emitter.emitWithRetainedAttempt(any(), any(), any(), any(), any(), any(), any(), any(), any(), any()) } returns
             GeofenceTransitionEmitter.Result.PERSISTED
         coEvery { emitter.recoverPendingTransitions() } returns true
+        coEvery { dwellCoordinator.onExit(any(), any(), any(), any()) } returns null
         engine = PolygonLocationEngine(
             store = store,
             transitionProcessor = GeofenceBusinessTransitionProcessor(

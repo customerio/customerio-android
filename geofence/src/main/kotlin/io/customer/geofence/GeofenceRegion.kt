@@ -140,7 +140,7 @@ internal fun GeofenceRegion.toGmsTransitionTypes(): Int {
     }
     var mask = 0
     transitionTypes.forEach { mask = mask or it.gmsValue }
-    if (dwellThresholdSeconds > 0) {
+    if (dwellThresholdSeconds > 0 || transitionTypes.contains(GeofenceTransitionType.EXIT)) {
         mask = mask or Geofence.GEOFENCE_TRANSITION_ENTER or Geofence.GEOFENCE_TRANSITION_EXIT
     }
     if (dwellThresholdSeconds in 1..GeofenceConstants.MAX_DWELL_THRESHOLD_SECONDS) {

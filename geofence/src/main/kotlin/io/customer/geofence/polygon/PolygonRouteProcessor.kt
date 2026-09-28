@@ -109,7 +109,9 @@ internal sealed interface HeldArrivalOutcome {
 /** What one pass over the active polygons decided, and what it owes the log. */
 internal data class PolygonRouteOutcome(
     val detections: List<PolygonTransitionDetection>,
-    val records: List<PolygonRouteRecord>
+    val records: List<PolygonRouteRecord>,
+    /** Fences this fix decisively placed the device outside of. See [PolygonEvidenceResult.provesOutside]. */
+    val provenOutsideIds: Set<String> = emptySet()
 )
 
 /** Evaluates one ordered location stream against the currently active polygons. */
@@ -170,6 +172,7 @@ internal class PolygonRouteProcessor(
         trackedFenceIds.addAll(activeIds)
 
         val records = mutableListOf<PolygonRouteRecord>()
+        val provenOutsideIds = mutableSetOf<String>()
         val detections = fences.mapNotNull { fence ->
             val latest = latestElapsedRealtimeNanos[fence.id]
             val answersHold = answersHeldFixAt == elapsedRealtimeNanos && isHeldFix(fence.id, elapsedRealtimeNanos)
@@ -178,6 +181,7 @@ internal class PolygonRouteProcessor(
             val committedState = committedStates[fence.id] ?: PolygonCommittedState.OUTSIDE
             val result = accuracyEvaluator.decisiveEvidenceFor(fence.geometry, sample, committedState)
             val evidence = result.evidence
+            if (result.provesOutside) provenOutsideIds += fence.id
             result.undecidedReason?.let { reason ->
                 records += PolygonRouteRecord.Undecided(
                     geofenceId = fence.id,
@@ -286,7 +290,7 @@ internal class PolygonRouteProcessor(
             )
             PolygonTransitionDetection(fence.id, transition, fence.regionRevision)
         }
-        return PolygonRouteOutcome(detections, records)
+        return PolygonRouteOutcome(detections, records, provenOutsideIds)
     }
 
     /**

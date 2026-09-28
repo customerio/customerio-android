@@ -97,12 +97,27 @@ internal class PolygonLocationEngine(
     private var cachedFences: List<PolygonFence> = emptyList()
 
     /**
+     * The latest fix, per polygon, that decisively placed the device outside it during the current
+     * activation. Only an ENTER after one is the crossing itself: without a record, committed state
+     * reads OUTSIDE, so a device already inside when the polygon activated also reports ENTER.
+     * In memory, so process death forgets it and the next ENTER reports no observed entry.
+     */
+    private val provenOutside = mutableMapOf<String, ProvenOutside>()
+
+    private data class ProvenOutside(
+        val regionRevision: Int,
+        val userStateGeneration: Long,
+        val elapsedRealtimeNanos: Long
+    )
+
+    /**
      * Discards the current evaluation session. Called when no polygon is active any more, or when
      * user-scoped state is invalidated, so a later fix cannot be judged against a stale session.
      */
     fun stop(): Set<String> = synchronized(stateLock) {
         routeProcessor.clear().also {
             geometryCache.clear()
+            provenOutside.clear()
             invalidateFenceCacheLocked()
             sessionStartElapsedRealtimeNanos = null
         }
@@ -182,6 +197,7 @@ internal class PolygonLocationEngine(
     private fun resetEvidenceLocked(polygonId: String): Set<String> {
         val wasPending = routeProcessor.clear(polygonId)
         geometryCache.remove(polygonId)
+        provenOutside.remove(polygonId)
         invalidateFenceCacheLocked()
         return if (wasPending) setOf(polygonId) else emptySet()
     }
@@ -289,7 +305,15 @@ internal class PolygonLocationEngine(
                             fixAgeSeconds = GeofenceLogTail.fixAgeSeconds(fix.elapsedRealtimeNanos),
                             committedStates = committedStates,
                             answersHeldFixAt = answersHeldFixAt
-                        )
+                        ).also { routed ->
+                            fences.filter { it.id in routed.provenOutsideIds }.forEach { fence ->
+                                provenOutside[fence.id] = ProvenOutside(
+                                    regionRevision = fence.regionRevision,
+                                    userStateGeneration = expectedUserStateGeneration,
+                                    elapsedRealtimeNanos = fix.elapsedRealtimeNanos
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -348,6 +372,14 @@ internal class PolygonLocationEngine(
                 } else {
                     null
                 }
+                val outsideObserved = detection.transition == PolygonTransition.ENTER &&
+                    synchronized(stateLock) {
+                        provenOutside[detection.polygonId]?.let {
+                            it.regionRevision == detection.regionRevision &&
+                                it.userStateGeneration == expectedUserStateGeneration &&
+                                it.elapsedRealtimeNanos < fix.elapsedRealtimeNanos
+                        } == true
+                    }
                 transitionProcessor.process(
                     geofenceId = detection.polygonId,
                     transition = transition,
@@ -369,7 +401,8 @@ internal class PolygonLocationEngine(
                         detection.polygonId,
                         observedAtSeconds,
                         expectedUserStateGeneration,
-                        beginsNewVisit = !wasInside
+                        beginsNewVisit = !wasInside,
+                        polygonOutsideObserved = outsideObserved
                     )
                 }
                 if (store.userStateGeneration() != expectedUserStateGeneration) return@withLock PolygonEvaluationOutcome.NOTHING

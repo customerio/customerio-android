@@ -534,6 +534,31 @@ class GeofenceRegionStoreTest : RobolectricTest() {
     }
 
     @Test
+    fun outsideProof_givenRegistrationExitAndGap_expectRecordedRaisedAndCleared() {
+        val outside = GeofenceRegion("biz-1", 37.7749, -122.4194, 100f, dwellThresholdSeconds = 60)
+        val inside = outside.copy(id = "biz-2")
+        store.saveCachedRegions(listOf(outside, inside))
+
+        store.recordRegistrationIncarnations(listOf(outside, inside), registeredAtElapsedMs = 10L, outsideIds = setOf("biz-1"))
+
+        store.getRegistrationIncarnation("biz-1")?.outsideProvenAtElapsedMs shouldBeEqualTo 10L
+        store.getRegistrationIncarnation("biz-2")?.outsideProvenAtElapsedMs.shouldBeNull()
+
+        // An attributed EXIT proves the device left, even a fence registered with it inside.
+        store.recordNativeExitFix("biz-2", registeredAtElapsedMs = 10L, exitFixElapsedMs = 500L)
+        store.getRegistrationIncarnation("biz-2")?.outsideProvenAtElapsedMs shouldBeEqualTo 500L
+
+        // A monitoring gap (reboot, permission loss) ends the proof but keeps the registration and
+        // its EXIT mark, which still rejects a DWELL decided before that exit.
+        store.clearDwellVisits()
+
+        store.getRegistrationIncarnation("biz-1")?.outsideProvenAtElapsedMs.shouldBeNull()
+        store.getRegistrationIncarnation("biz-2")?.outsideProvenAtElapsedMs.shouldBeNull()
+        store.getRegistrationIncarnation("biz-2")?.registeredAtElapsedMs shouldBeEqualTo 10L
+        store.getRegistrationIncarnation("biz-2")?.lastExitFixElapsedMs shouldBeEqualTo 500L
+    }
+
+    @Test
     fun invalidateDwellContinuity_givenMonitoringGap_expectVisitsAndRegistrationsEndedButOutboxKept() {
         val region = GeofenceRegion("biz-1", 37.7749, -122.4194, 100f, dwellThresholdSeconds = 60)
         store.saveCachedRegions(listOf(region))

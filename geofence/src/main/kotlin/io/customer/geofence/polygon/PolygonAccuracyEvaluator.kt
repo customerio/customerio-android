@@ -54,7 +54,12 @@ internal data class PolygonEvidenceResult(
      * there is nothing to report. Recorded anyway: these are the fixes the margins let through, and
      * a capture of only the ones they refused cannot say where a margin should sit.
      */
-    val agreedWithCommittedState: Boolean = false
+    val agreedWithCommittedState: Boolean = false,
+    /**
+     * The fix is clear of the ring by more than its accuracy plus the departure margin, outside it.
+     * Only this proves the device was outside; a committed OUTSIDE may mean no record at all.
+     */
+    val provesOutside: Boolean = false
 )
 
 /** Classifies a location fix without mutating committed polygon state. */
@@ -102,13 +107,15 @@ internal class PolygonAccuracyEvaluator {
             return if (committedState == PolygonCommittedState.INSIDE) {
                 PolygonEvidenceResult(
                     PolygonEvidence.EXIT,
-                    signedBoundaryDistanceMeters = signedBoundaryDistanceMeters
+                    signedBoundaryDistanceMeters = signedBoundaryDistanceMeters,
+                    provesOutside = true
                 )
             } else {
                 PolygonEvidenceResult(
                     PolygonEvidence.AMBIGUOUS,
                     signedBoundaryDistanceMeters = signedBoundaryDistanceMeters,
-                    agreedWithCommittedState = true
+                    agreedWithCommittedState = true,
+                    provesOutside = true
                 )
             }
         }

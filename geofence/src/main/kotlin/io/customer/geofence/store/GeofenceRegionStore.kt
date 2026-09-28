@@ -45,7 +45,15 @@ internal data class GeofenceRegistrationIncarnation(
     val regionRevision: Int,
     val registeredAtElapsedMs: Long,
     /** Latest triggering fix of a native EXIT this registration reported, on the same clock. */
-    val lastExitFixElapsedMs: Long? = null
+    val lastExitFixElapsedMs: Long? = null,
+    /**
+     * Latest time, on the same clock, at which this registration proved the device outside: the
+     * registration itself when its fresh fix placed the device outside, then each attributed
+     * native EXIT. Only an ENTER whose triggering fix is later than this observed the entry. Null
+     * means no such proof, so an ENTER may be GMS's initial trigger for a device already inside.
+     * Cleared by a monitoring gap, during which the device may have arrived unobserved.
+     */
+    val outsideProvenAtElapsedMs: Long? = null
 )
 
 /**
@@ -89,9 +97,20 @@ internal interface GeofenceRegionStore {
     fun getDwellVisit(geofenceId: String): GeofenceDwellVisit?
     fun saveDwellVisit(visit: GeofenceDwellVisit): Boolean
     fun removeDwellVisit(geofenceId: String)
+
+    /** Ends every visit and every incarnation's outside proof: monitoring had an unobserved gap. */
     fun clearDwellVisits()
     fun getRegistrationIncarnation(geofenceId: String): GeofenceRegistrationIncarnation?
-    fun recordRegistrationIncarnations(regions: List<GeofenceRegion>, registeredAtElapsedMs: Long)
+
+    /**
+     * @param outsideIds the fences this registration's fresh fix placed the device outside. Empty
+     * when the fix cannot judge geometry, so no ENTER is then read as an observed entry.
+     */
+    fun recordRegistrationIncarnations(
+        regions: List<GeofenceRegion>,
+        registeredAtElapsedMs: Long,
+        outsideIds: Set<String> = emptySet()
+    )
 
     /** Raises the incarnation's last EXIT fix, only while [registeredAtElapsedMs] is still live. */
     fun recordNativeExitFix(geofenceId: String, registeredAtElapsedMs: Long, exitFixElapsedMs: Long)
@@ -837,6 +856,16 @@ internal class GeofenceRegionStoreImpl(
 
     override fun clearDwellVisits() = synchronized(enteredLock) {
         prefs.edit { remove(KEY_DWELL_VISITS) }
+        // The same gap ends the outside proof: the device may have arrived while unobserved, and
+        // the next ENTER must not be read as the moment it did.
+        val incarnations = readIncarnations()
+        if (incarnations.values.any { it.outsideProvenAtElapsedMs != null }) {
+            writeJson(
+                KEY_REGISTRATION_INCARNATIONS,
+                INCARNATIONS_SERIALIZER,
+                incarnations.values.map { it.copy(outsideProvenAtElapsedMs = null) }
+            )
+        }
     }
 
     override fun getRegistrationIncarnation(geofenceId: String): GeofenceRegistrationIncarnation? =
@@ -844,11 +873,17 @@ internal class GeofenceRegionStoreImpl(
 
     override fun recordRegistrationIncarnations(
         regions: List<GeofenceRegion>,
-        registeredAtElapsedMs: Long
+        registeredAtElapsedMs: Long,
+        outsideIds: Set<String>
     ) = synchronized(enteredLock) {
         val live = getRegisteredIds() + regions.map(GeofenceRegion::id)
         val incarnations = readIncarnations().filterKeys { it in live } + regions.associate { region ->
-            region.id to GeofenceRegistrationIncarnation(region.id, region.transitionRevision(), registeredAtElapsedMs)
+            region.id to GeofenceRegistrationIncarnation(
+                geofenceId = region.id,
+                regionRevision = region.transitionRevision(),
+                registeredAtElapsedMs = registeredAtElapsedMs,
+                outsideProvenAtElapsedMs = registeredAtElapsedMs.takeIf { region.id in outsideIds }
+            )
         }
         writeJson(KEY_REGISTRATION_INCARNATIONS, INCARNATIONS_SERIALIZER, incarnations.values.toList())
     }
@@ -863,7 +898,8 @@ internal class GeofenceRegionStoreImpl(
             ?.takeIf { it.registeredAtElapsedMs == registeredAtElapsedMs }
             ?: return@synchronized
         if ((current.lastExitFixElapsedMs ?: Long.MIN_VALUE) >= exitFixElapsedMs) return@synchronized
-        val updated = incarnations + (geofenceId to current.copy(lastExitFixElapsedMs = exitFixElapsedMs))
+        val exited = current.copy(lastExitFixElapsedMs = exitFixElapsedMs, outsideProvenAtElapsedMs = exitFixElapsedMs)
+        val updated = incarnations + (geofenceId to exited)
         writeJson(KEY_REGISTRATION_INCARNATIONS, INCARNATIONS_SERIALIZER, updated.values.toList())
     }
 

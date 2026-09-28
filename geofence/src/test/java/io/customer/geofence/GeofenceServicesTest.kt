@@ -336,6 +336,7 @@ class GeofenceServicesTest : RobolectricTest() {
         job.shouldBeNull()
         coVerify(exactly = 0) { repository.handleMovement(any(), any(), any()) }
         coVerify(exactly = 0) { repository.refresh(any(), any()) }
+        verify { regionStore.clearDwellVisits() }
         verify { logger.logSyncSkippedNoPermission(any()) }
     }
 

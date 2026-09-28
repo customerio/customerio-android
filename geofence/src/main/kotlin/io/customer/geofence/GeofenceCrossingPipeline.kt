@@ -18,6 +18,7 @@ internal class GeofenceCrossingPipeline(
     private val services: GeofenceServices,
     private val registrar: GeofenceRegistrar,
     private val transitionProcessor: GeofenceBusinessTransitionProcessor,
+    private val dwellCoordinator: GeofenceDwellCoordinator,
     private val polygonController: PolygonGeofenceServiceController,
     private val logger: GeofenceLogger
 ) {
@@ -26,6 +27,11 @@ internal class GeofenceCrossingPipeline(
         // The receiver's stamp, not a fresh read: this runs after the caller resolved this
         // singleton, which on a cold process builds the geofence graph including the GMS client.
         val timestamp = crossing.receivedAtSeconds
+        // The only provenance a GMS callback carries: its fix cannot postdate the transition it
+        // triggered, so dwell attribution compares it with the registration's stamp.
+        val triggeringFixElapsedMs = crossing.triggeringLocation?.elapsedRealtimeNanos
+            ?.takeIf { it > 0L }
+            ?.let { it / NANOS_PER_MILLI }
 
         // Cold-start callbacks can beat the posted launch initialization. Establish the persisted
         // secure user's session synchronously; legacy installs without an owner are migrated by the
@@ -110,6 +116,8 @@ internal class GeofenceCrossingPipeline(
                         expectedUserStateGeneration = userStateGeneration,
                         expectedRegionRevision = region.transitionRevision()
                     )
+                    GeofenceCrossingTransition.DWELL ->
+                        logger.logUnknownTransition(geofenceId, crossing.rawTransitionCode)
                     GeofenceCrossingTransition.UNSUPPORTED ->
                         logger.logUnknownTransition(geofenceId, crossing.rawTransitionCode)
                 }
@@ -118,6 +126,7 @@ internal class GeofenceCrossingPipeline(
 
             val transition = when (crossing.transition) {
                 GeofenceCrossingTransition.ENTER -> Event.GeofenceTransition.ENTER
+                GeofenceCrossingTransition.DWELL -> Event.GeofenceTransition.DWELL
                 GeofenceCrossingTransition.EXIT -> Event.GeofenceTransition.EXIT
                 GeofenceCrossingTransition.UNSUPPORTED -> {
                     logger.logUnknownTransition(geofenceId, crossing.rawTransitionCode)
@@ -125,15 +134,45 @@ internal class GeofenceCrossingPipeline(
                 }
             }
 
-            transitionProcessor.process(
-                geofenceId = geofenceId,
-                transition = transition,
-                timestampSeconds = timestamp,
-                enforceConfiguredTransition = region != null,
-                expectedRegionRevision = region?.transitionRevision(),
-                expectedUserStateGeneration = userStateGeneration,
-                requireRegistered = true
-            )
+            if (transition == Event.GeofenceTransition.DWELL) {
+                dwellCoordinator.onNativeDwell(geofenceId, timestamp, triggeringFixElapsedMs, userStateGeneration)
+            } else {
+                val wasInside = transition == Event.GeofenceTransition.ENTER &&
+                    geofenceId in regionStore.getEnteredIds()
+                val visitContext = if (transition == Event.GeofenceTransition.EXIT) {
+                    dwellCoordinator.onNativeExit(
+                        geofenceId = geofenceId,
+                        exitedAtSeconds = timestamp,
+                        triggeringFixElapsedMs = triggeringFixElapsedMs,
+                        expectedUserStateGeneration = userStateGeneration
+                    )
+                } else {
+                    null
+                }
+                transitionProcessor.process(
+                    geofenceId = geofenceId,
+                    transition = transition,
+                    timestampSeconds = timestamp,
+                    enforceConfiguredTransition = region != null,
+                    expectedRegionRevision = region?.transitionRevision(),
+                    expectedUserStateGeneration = userStateGeneration,
+                    requireRegistered = true,
+                    visitContext = visitContext,
+                    endsVisitByTimestamp = false
+                )
+                if (
+                    transition == Event.GeofenceTransition.ENTER &&
+                    geofenceId in regionStore.getEnteredIds()
+                ) {
+                    dwellCoordinator.onEnter(
+                        geofenceId,
+                        timestamp,
+                        userStateGeneration,
+                        beginsNewVisit = !wasInside,
+                        entryFixElapsedMs = triggeringFixElapsedMs
+                    )
+                }
+            }
         }
         return movementRefreshJob
     }
@@ -156,5 +195,9 @@ internal class GeofenceCrossingPipeline(
                 )
             }
         )
+    }
+
+    private companion object {
+        const val NANOS_PER_MILLI = 1_000_000L
     }
 }

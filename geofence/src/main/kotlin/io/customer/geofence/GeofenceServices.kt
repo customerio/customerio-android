@@ -259,6 +259,9 @@ internal class GeofenceServicesImpl(
             return null
         }
         if (!permissionChecker.hasRequiredLocationPermissions()) {
+            // Without permission the OS cannot preserve a trustworthy monitoring interval. Keep
+            // queued events, but discard live visit state so a later fix cannot invent duration.
+            regionStore.clearDwellVisits()
             logger.logSyncSkippedNoPermission(reason)
             return null
         }

@@ -156,6 +156,7 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
 
     private fun crossingTransition(gmsTransitionType: Int): GeofenceCrossingTransition = when (gmsTransitionType) {
         Geofence.GEOFENCE_TRANSITION_ENTER -> GeofenceCrossingTransition.ENTER
+        Geofence.GEOFENCE_TRANSITION_DWELL -> GeofenceCrossingTransition.DWELL
         Geofence.GEOFENCE_TRANSITION_EXIT -> GeofenceCrossingTransition.EXIT
         else -> GeofenceCrossingTransition.UNSUPPORTED
     }

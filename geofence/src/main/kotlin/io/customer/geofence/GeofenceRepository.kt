@@ -85,6 +85,7 @@ internal class GeofenceRepositoryImpl(
     private val packageInfo: GeofencePackageInfo,
     private val logger: GeofenceLogger,
     private val polygonController: PolygonGeofenceServiceController? = null,
+    private val dwellCoordinator: GeofenceDwellCoordinator? = null,
     // Same instance the request builder and the ranker hold, so a polygon that is asked for is also
     // mapped, ranked and registered — or none of the three. Defaults off with every other seam.
     private val polygonSupport: PolygonSupport = PolygonSupport.Disabled
@@ -721,8 +722,14 @@ internal class GeofenceRepositoryImpl(
             // Snapshotted for the same reason: a successful registration stamps uptime and package
             // update time, which is what clears the wipe signals this reads.
             val osStateWasWiped = osStateWiped()
+            if (osStateWasWiped) {
+                // A reboot or package replacement ended the prior OS monitoring session. Initial
+                // triggers may establish a new visit, but the old entry cannot span this gap.
+                store.clearDwellVisits()
+            }
             // Registered before this pass but not cache-equal: the ID survived a geometry edit.
             val previouslyRegistered = store.getRegisteredIds()
+            val previouslyEntered = store.getEnteredIds()
             val cachedById = store.getCachedRegions().associateBy(GeofenceRegion::id)
             val nearestById = nearest.associateBy(GeofenceRegion::id)
             val retainedById = store.getRetainedRegisteredRegions().associateBy(GeofenceRegion::id)
@@ -735,6 +742,16 @@ internal class GeofenceRepositoryImpl(
             val registrationResult = register(regionsToRegister)
             if (registrationResult.isSuccess) {
                 val newIds = regionsToRegister.map { it.id }.toSet()
+                // Stamped only now that GMS has confirmed the add, and whoever owns the session: a
+                // callback the replaced registration produced must carry an older triggering fix.
+                // Same selection the business diff sends to GMS; a wipe re-sends everything.
+                val reAddedIds = if (osStateWasWiped) newIds else newIds - unchangedRegistered
+                store.recordRegistrationIncarnations(
+                    regions = regionsToRegister.filter {
+                        it.id in reAddedIds && it.id != GeofenceConstants.MOVEMENT_TRIGGER_ID && !it.isPolygon
+                    },
+                    registeredAtElapsedMs = clock.elapsedRealtime()
+                )
                 if (!sessionStillCurrent()) {
                     retainCleanupOnly(newIds)
                     logger.logSyncSkipped("user changed during registration")
@@ -914,7 +931,8 @@ internal class GeofenceRepositoryImpl(
                         userId,
                         latitude,
                         longitude,
-                        syncUserStateGeneration
+                        syncUserStateGeneration,
+                        previouslyEntered
                     )
                 } else {
                     logger.logSyncSkipped("user changed during refresh — initial-enter synthesis skipped")
@@ -989,7 +1007,8 @@ internal class GeofenceRepositoryImpl(
         userId: String,
         latitude: Double,
         longitude: Double,
-        expectedUserStateGeneration: Long
+        expectedUserStateGeneration: Long,
+        previouslyEnteredIds: Set<String>
     ) {
         val timestamp = clock.currentTimeSeconds()
         val contained = store.getEnteredIds()
@@ -1005,20 +1024,30 @@ internal class GeofenceRepositoryImpl(
             // Both: a carried-forward record can outlive the visit, and geometry alone ignores an
             // EXIT reported while GMS was awaited.
             val insideNow = region.contains(latitude, longitude)
-            if (!newlyRegistered || !monitorsEnter || region.id !in contained || !insideNow) continue
-            logger.logInitialEnterInside(region.id)
-            transitionEmitter.emitWithExpectedState(
-                geofenceId = region.id,
-                transition = Event.GeofenceTransition.ENTER,
-                userId = userId,
-                timestampSeconds = timestamp,
-                geofenceName = region.name,
-                metadata = region.metadata,
-                geosetIds = region.geosetIds,
-                monitorsExit = GeofenceTransitionType.EXIT in region.transitionTypes,
-                expectedUserStateGeneration = expectedUserStateGeneration,
-                expectedRegionRevision = region.transitionRevision()
-            )
+            if (!newlyRegistered || region.id !in contained || !insideNow) continue
+            if (monitorsEnter) {
+                logger.logInitialEnterInside(region.id)
+                transitionEmitter.emitWithExpectedState(
+                    geofenceId = region.id,
+                    transition = Event.GeofenceTransition.ENTER,
+                    userId = userId,
+                    timestampSeconds = timestamp,
+                    geofenceName = region.name,
+                    metadata = region.metadata,
+                    geosetIds = region.geosetIds,
+                    monitorsExit = GeofenceTransitionType.EXIT in region.transitionTypes,
+                    expectedUserStateGeneration = expectedUserStateGeneration,
+                    expectedRegionRevision = region.transitionRevision()
+                )
+            }
+            if (region.tracksVisit()) {
+                dwellCoordinator?.onEnter(
+                    region.id,
+                    timestamp,
+                    expectedUserStateGeneration,
+                    beginsNewVisit = region.id !in previouslyEnteredIds
+                )
+            }
         }
     }
 

@@ -289,6 +289,8 @@ class PolygonGeofenceServiceControllerTest {
             store.saveRegisteredIds(emptySet())
             store.saveRoutableRegisteredIds(emptySet())
             store.saveRetainedRegisteredRegions(emptyList())
+            // No visit may span the unobserved monitoring gap; the outbox is left alone.
+            store.invalidateDwellContinuity()
             store.clearActivePolygonIds()
             store.retainCoarseInsidePolygonIds(emptySet())
             engine.stop()

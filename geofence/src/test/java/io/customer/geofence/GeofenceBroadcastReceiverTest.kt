@@ -11,7 +11,9 @@ import io.customer.commontest.core.RobolectricTest
 import io.customer.geofence.di.pendingGeofenceDeliveryStore
 import io.customer.geofence.polygon.PolygonCoordinate
 import io.customer.geofence.polygon.PolygonGeofenceServiceController
+import io.customer.geofence.store.GeofenceDwellVisit
 import io.customer.geofence.store.GeofenceRegionStore
+import io.customer.geofence.store.GeofenceRegistrationIncarnation
 import io.customer.geofence.store.PendingGeofenceDelivery
 import io.customer.geofence.worker.GeofenceEventScheduler
 import io.customer.sdk.communication.Event
@@ -287,6 +289,208 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
         val entry = pendingStore.loadAll().single()
         entry.geofenceId shouldBeEqualTo "biz-1"
         entry.transition shouldBeEqualTo Event.GeofenceTransition.ENTER
+    }
+
+    @Test
+    fun handleGeofencingEvent_givenRedeliveredEnterWhileInside_expectVisitPreserved() = runTest {
+        val region = GeofenceRegion("biz-1", 0.0, 0.0, 100f)
+        val enteredAt = mockClock.currentTimeSeconds() - 100L
+        val currentVisit = GeofenceDwellVisit(
+            geofenceId = "biz-1",
+            visitId = "current-visit",
+            enteredAtSeconds = enteredAt,
+            regionRevision = region.transitionRevision(),
+            userStateGeneration = 0L
+        )
+        every { mockStore.getCachedRegion("biz-1") } returns region
+        every { mockStore.getDwellVisit("biz-1") } returns currentVisit
+        val event = buildGeofencingEvent(
+            transition = Geofence.GEOFENCE_TRANSITION_ENTER,
+            geofenceIds = listOf("biz-1"),
+            location = realLocation(37.7749, -122.4194)
+        )
+
+        receiver.handleGeofencingEvent(event)
+
+        verify(exactly = 0) { mockStore.saveDwellVisit(any()) }
+    }
+
+    @Test
+    fun handleGeofencingEvent_givenEnterAfterContainmentWasLost_expectVisitRestarted() = runTest {
+        val region = GeofenceRegion("biz-1", 0.0, 0.0, 100f)
+        val enteredAt = mockClock.currentTimeSeconds() - 100L
+        val staleVisit = GeofenceDwellVisit(
+            geofenceId = "biz-1",
+            visitId = "stale-visit",
+            enteredAtSeconds = enteredAt,
+            regionRevision = region.transitionRevision(),
+            userStateGeneration = 0L,
+            registrationElapsedMs = REGISTERED_AT_MS
+        )
+        var enteredIds = emptySet<String>()
+        every { mockStore.getCachedRegion("biz-1") } returns region
+        every { mockStore.getRegistrationIncarnation("biz-1") } returns liveRegistration(region)
+        every { mockStore.getEnteredIds() } answers { enteredIds }
+        every { mockStore.getDwellVisit("biz-1") } returns staleVisit
+        every { mockStore.saveDwellVisit(any()) } returns true
+        every {
+            mockStore.commitBusinessTransition("biz-1", Event.GeofenceTransition.ENTER, any(), 0L, any())
+        } answers {
+            enteredIds = setOf("biz-1")
+            true
+        }
+        val restarted = slot<GeofenceDwellVisit>()
+        val event = buildGeofencingEvent(
+            transition = Geofence.GEOFENCE_TRANSITION_ENTER,
+            geofenceIds = listOf("biz-1"),
+            location = realLocation(37.7749, -122.4194)
+        )
+
+        receiver.handleGeofencingEvent(event)
+
+        verify { mockStore.saveDwellVisit(capture(restarted)) }
+        (restarted.captured.visitId == staleVisit.visitId) shouldBeEqualTo false
+    }
+
+    @Test
+    fun dispatchTransition_givenColdStartDelayedEnter_expectNativeDwellStillQueued() = runTest {
+        val region = GeofenceRegion(
+            id = "biz-1",
+            latitude = 0.0,
+            longitude = 0.0,
+            radius = 100f,
+            transitionTypes = listOf(
+                GeofenceTransitionType.ENTER,
+                GeofenceTransitionType.EXIT
+            ),
+            dwellThresholdSeconds = 60
+        )
+        var enteredIds = emptySet<String>()
+        var visit: GeofenceDwellVisit? = null
+        every { mockClock.currentTimeSeconds() } returnsMany listOf(105L, 160L)
+        every { mockStore.getCachedRegion("biz-1") } returns region
+        every { mockStore.getRegistrationIncarnation("biz-1") } returns liveRegistration(region)
+        every { mockStore.getEnteredIds() } answers { enteredIds }
+        every { mockStore.getDwellVisit("biz-1") } answers { visit }
+        every { mockStore.saveDwellVisit(any()) } answers {
+            visit = firstArg()
+            true
+        }
+        every {
+            mockStore.commitBusinessTransition("biz-1", any(), any(), 0L, any())
+        } answers {
+            if (secondArg<Event.GeofenceTransition>() == Event.GeofenceTransition.ENTER) {
+                enteredIds = setOf("biz-1")
+            }
+            true
+        }
+        val scheduled = mutableListOf<PendingGeofenceDelivery>()
+        coEvery { mockScheduler.schedule(capture(scheduled)) } returns Unit
+
+        receiver.dispatchTransition(
+            gmsTransitionType = Geofence.GEOFENCE_TRANSITION_ENTER,
+            triggeringGeofenceIds = listOf("biz-1"),
+            latitude = 0.0,
+            longitude = 0.0
+        )
+        receiver.dispatchTransition(
+            gmsTransitionType = Geofence.GEOFENCE_TRANSITION_DWELL,
+            triggeringGeofenceIds = listOf("biz-1"),
+            latitude = 0.0,
+            longitude = 0.0,
+            triggeringLocation = fixAtElapsed(REGISTERED_AT_MS + 60_000L)
+        )
+
+        val dwell = scheduled.single { it.transition == Event.GeofenceTransition.DWELL }
+        dwell.enteredAt shouldBeEqualTo 105L
+        dwell.dwellThresholdSeconds shouldBeEqualTo 60
+        dwell.dwellDurationSeconds.shouldBeNull()
+        visit?.enteredAtSeconds shouldBeEqualTo 105L
+        visit?.emitted shouldBeEqualTo true
+    }
+
+    @Test
+    fun dispatchTransition_givenDelayedExitFromReplacedRegistration_expectNewerVisitKept() = runTest {
+        val region = GeofenceRegion(
+            id = "biz-1",
+            latitude = 0.0,
+            longitude = 0.0,
+            radius = 100f,
+            transitionTypes = listOf(GeofenceTransitionType.ENTER, GeofenceTransitionType.EXIT),
+            dwellThresholdSeconds = 60
+        )
+        val newerVisit = GeofenceDwellVisit(
+            geofenceId = "biz-1",
+            visitId = "newer-visit",
+            enteredAtSeconds = 1_000L,
+            regionRevision = region.transitionRevision(),
+            userStateGeneration = 0L,
+            registrationElapsedMs = REGISTERED_AT_MS
+        )
+        every { mockClock.currentTimeSeconds() } returns 1_500L
+        every { mockStore.getCachedRegion("biz-1") } returns region
+        every { mockStore.getRegistrationIncarnation("biz-1") } returns liveRegistration(region)
+        every { mockStore.getEnteredIds() } returns setOf("biz-1")
+        every { mockStore.getDwellVisit("biz-1") } returns newerVisit
+        every { mockStore.commitBusinessTransition("biz-1", any(), any(), 0L, any()) } returns true
+        val scheduled = mutableListOf<PendingGeofenceDelivery>()
+        coEvery { mockScheduler.schedule(capture(scheduled)) } returns Unit
+
+        // GMS decided this EXIT from a fix taken before the fence was re-registered.
+        receiver.dispatchTransition(
+            gmsTransitionType = Geofence.GEOFENCE_TRANSITION_EXIT,
+            triggeringGeofenceIds = listOf("biz-1"),
+            latitude = 0.0,
+            longitude = 0.0,
+            triggeringLocation = fixAtElapsed(REGISTERED_AT_MS - 1L)
+        )
+
+        verify(exactly = 0) { mockStore.removeDwellVisit("biz-1") }
+        verify(exactly = 0) { mockStore.removeDwellVisitAfterCommittedExit(any(), any(), any(), any()) }
+        val exit = scheduled.single { it.transition == Event.GeofenceTransition.EXIT }
+        exit.visitId.shouldBeNull()
+        exit.visitDurationSeconds.shouldBeNull()
+    }
+
+    @Test
+    fun dispatchTransition_givenDwellFromReplacedRegistration_expectNoDwellUnderTheNewThreshold() = runTest {
+        // Re-registered from a 60 s loitering delay to 900 s; the old registration's DWELL is late.
+        val region = GeofenceRegion(
+            id = "biz-1",
+            latitude = 0.0,
+            longitude = 0.0,
+            radius = 100f,
+            transitionTypes = listOf(GeofenceTransitionType.ENTER, GeofenceTransitionType.EXIT),
+            dwellThresholdSeconds = 900
+        )
+        var visit: GeofenceDwellVisit? = GeofenceDwellVisit(
+            geofenceId = "biz-1",
+            visitId = "visit",
+            enteredAtSeconds = 1_000L,
+            regionRevision = region.transitionRevision(),
+            userStateGeneration = 0L,
+            registrationElapsedMs = REGISTERED_AT_MS
+        )
+        every { mockClock.currentTimeSeconds() } returns 1_100L
+        every { mockStore.getCachedRegion("biz-1") } returns region
+        every { mockStore.getRegistrationIncarnation("biz-1") } returns liveRegistration(region)
+        every { mockStore.getEnteredIds() } returns setOf("biz-1")
+        every { mockStore.getDwellVisit("biz-1") } answers { visit }
+        every { mockStore.saveDwellVisit(any()) } answers {
+            visit = firstArg()
+            true
+        }
+
+        receiver.dispatchTransition(
+            gmsTransitionType = Geofence.GEOFENCE_TRANSITION_DWELL,
+            triggeringGeofenceIds = listOf("biz-1"),
+            latitude = 0.0,
+            longitude = 0.0,
+            triggeringLocation = fixAtElapsed(REGISTERED_AT_MS - 1L)
+        )
+
+        coVerify(exactly = 0) { mockScheduler.schedule(any()) }
+        visit?.emitted shouldBeEqualTo false
     }
 
     @Test
@@ -1445,10 +1649,7 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
             )
         )
         pendingStore.loadAll() shouldBeEqualTo emptyList()
-        expectRecorded("os.callback.dropped", "unsupported_transition_type")
-        capturingLogger.messages.any {
-            it.contains("ev=os.callback.dropped") && it.contains("gms=${Geofence.GEOFENCE_TRANSITION_DWELL}")
-        } shouldBeEqualTo true
+        recordFor("os.callback.dropped").shouldBeNull()
     }
 
     @Test
@@ -1522,6 +1723,15 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
         }
     }
 
+    private fun liveRegistration(region: GeofenceRegion) = GeofenceRegistrationIncarnation(
+        geofenceId = region.id,
+        regionRevision = region.transitionRevision(),
+        registeredAtElapsedMs = REGISTERED_AT_MS
+    )
+
+    private fun fixAtElapsed(elapsedMs: Long): Location =
+        realLocation(0.0, 0.0).apply { elapsedRealtimeNanos = elapsedMs * 1_000_000L }
+
     private fun realLocation(lat: Double, lng: Double): Location =
         Location("test-provider").apply {
             latitude = lat
@@ -1541,4 +1751,8 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
             PolygonCoordinate(37.7755, -122.4200)
         )
     )
+
+    private companion object {
+        const val REGISTERED_AT_MS = 10_000L
+    }
 }

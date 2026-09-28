@@ -6,6 +6,7 @@ import io.customer.commontest.config.TestConfig
 import io.customer.commontest.config.testConfigurationDefault
 import io.customer.commontest.core.RobolectricTest
 import io.customer.geofence.GeofenceConfig
+import io.customer.geofence.GeofenceDwellCoordinator
 import io.customer.geofence.GeofenceJsonSerializer
 import io.customer.geofence.GeofenceLocation
 import io.customer.geofence.GeofenceRegion
@@ -16,6 +17,7 @@ import io.customer.sdk.communication.Event
 import io.mockk.mockk
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
+import kotlinx.coroutines.test.runTest
 import org.amshove.kluent.shouldBeEmpty
 import org.amshove.kluent.shouldBeEqualTo
 import org.amshove.kluent.shouldBeFalse
@@ -556,6 +558,65 @@ class GeofenceRegionStoreTest : RobolectricTest() {
         store.getRegistrationIncarnation("biz-2")?.outsideProvenAtElapsedMs.shouldBeNull()
         store.getRegistrationIncarnation("biz-2")?.registeredAtElapsedMs shouldBeEqualTo 10L
         store.getRegistrationIncarnation("biz-2")?.lastExitFixElapsedMs shouldBeEqualTo 500L
+    }
+
+    @Test
+    fun raiseOutsideProof_givenKeptRegistration_expectProofDatedToTheFixNotReregistered() {
+        val region = GeofenceRegion("biz-1", 37.7749, -122.4194, 100f, dwellThresholdSeconds = 60)
+        store.saveCachedRegions(listOf(region))
+        store.recordRegistrationIncarnations(listOf(region), registeredAtElapsedMs = 1_000L)
+        store.saveRegisteredIds(setOf("biz-1"))
+
+        store.raiseOutsideProof(setOf("biz-1", "unregistered"), provenAtElapsedMs = 9_000L)
+
+        // Still the original registration, so callbacks it already produced stay attributable.
+        store.getRegistrationIncarnation("biz-1")?.registeredAtElapsedMs shouldBeEqualTo 1_000L
+        store.getRegistrationIncarnation("biz-1")?.outsideProvenAtElapsedMs shouldBeEqualTo 9_000L
+        store.getRegistrationIncarnation("unregistered").shouldBeNull()
+    }
+
+    @Test
+    fun raiseOutsideProof_givenLaterExitProof_expectNeverLowered() {
+        val region = GeofenceRegion("biz-1", 37.7749, -122.4194, 100f, dwellThresholdSeconds = 60)
+        store.saveCachedRegions(listOf(region))
+        store.recordRegistrationIncarnations(listOf(region), registeredAtElapsedMs = 1_000L)
+        store.saveRegisteredIds(setOf("biz-1"))
+        // GMS decided this EXIT after the movement fix, and delivered it before the pass finished.
+        store.recordNativeExitFix("biz-1", registeredAtElapsedMs = 1_000L, exitFixElapsedMs = 9_500L)
+
+        store.raiseOutsideProof(setOf("biz-1"), provenAtElapsedMs = 9_000L)
+
+        store.getRegistrationIncarnation("biz-1")?.outsideProvenAtElapsedMs shouldBeEqualTo 9_500L
+    }
+
+    @Test
+    fun raiseOutsideProof_givenRegistrationMadeAfterTheFix_expectNoProof() {
+        // A pass holding the slot while this one waited re-added the fence after the fix was taken.
+        // Dating proof before that registration would let a callback from the one it replaced count.
+        val region = GeofenceRegion("biz-1", 37.7749, -122.4194, 100f, dwellThresholdSeconds = 60)
+        store.saveCachedRegions(listOf(region))
+        store.recordRegistrationIncarnations(listOf(region), registeredAtElapsedMs = 9_500L)
+        store.saveRegisteredIds(setOf("biz-1"))
+
+        store.raiseOutsideProof(setOf("biz-1"), provenAtElapsedMs = 9_000L)
+
+        store.getRegistrationIncarnation("biz-1")?.outsideProvenAtElapsedMs.shouldBeNull()
+    }
+
+    @Test
+    fun raiseOutsideProof_givenEnterDecidedAfterTheFixButBeforeThePassFinished_expectObservedEntry() = runTest {
+        // The pass finishes at 10 000, but the device crossed at 9 500, after the 9 000 movement fix
+        // proved it outside. GMS monitored the kept fence throughout, so this is a real crossing.
+        val region = GeofenceRegion("biz-1", 37.7749, -122.4194, 100f, dwellThresholdSeconds = 60)
+        store.saveCachedRegions(listOf(region))
+        store.recordRegistrationIncarnations(listOf(region), registeredAtElapsedMs = 1_000L)
+        store.saveRegisteredIds(setOf("biz-1"))
+        store.raiseOutsideProof(setOf("biz-1"), provenAtElapsedMs = 9_000L)
+        val coordinator = GeofenceDwellCoordinator(store, mockk(relaxed = true))
+
+        coordinator.onEnter("biz-1", enteredAtSeconds = 200L, beginsNewVisit = true, entryFixElapsedMs = 9_500L)
+
+        store.getDwellVisit("biz-1")?.entryWasObserved shouldBeEqualTo true
     }
 
     @Test

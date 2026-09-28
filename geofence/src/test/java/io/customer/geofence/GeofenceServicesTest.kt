@@ -124,13 +124,13 @@ class GeofenceServicesTest : RobolectricTest() {
 
     @Test
     fun onMovementTriggerExit_expectHandleMovementCalled() = runTest(StandardTestDispatcher()) {
-        coEvery { repository.handleMovement(any(), any(), any()) } returns Result.success(Unit)
+        coEvery { repository.handleMovement(any(), any(), any(), any()) } returns Result.success(Unit)
         val services = servicesWith(this)
 
         services.onMovementTriggerExit(latitude = 12.34, longitude = 56.78)
         advanceUntilIdle()
 
-        coVerify { repository.handleMovement(eq(12.34), eq(56.78), any()) }
+        coVerify { repository.handleMovement(eq(12.34), eq(56.78), any(), any()) }
         coVerify(exactly = 0) { repository.refresh(any(), any()) }
         verify { logger.logSyncTriggered("movement-trigger-exit") }
     }
@@ -138,7 +138,7 @@ class GeofenceServicesTest : RobolectricTest() {
     @Test
     fun onMovementTriggerExit_givenAdaptiveRadius_expectForwardsItToRegistrationPass() =
         runTest(StandardTestDispatcher()) {
-            coEvery { repository.handleMovement(any(), any(), any()) } returns Result.success(Unit)
+            coEvery { repository.handleMovement(any(), any(), any(), any()) } returns Result.success(Unit)
             val services = servicesWith(this)
 
             services.onMovementTriggerExit(
@@ -151,9 +151,21 @@ class GeofenceServicesTest : RobolectricTest() {
             // The evaluation is forwarded unevaluated, so the assertion is that the radius it
             // yields is what the registration pass sees.
             val forwarded = slot<suspend () -> Float?>()
-            coVerify { repository.handleMovement(12.34, 56.78, capture(forwarded)) }
+            coVerify { repository.handleMovement(12.34, 56.78, capture(forwarded), any()) }
             forwarded.captured.invoke() shouldBeEqualTo 725f
         }
+
+    @Test
+    fun onMovementTriggerExit_givenFixQuality_expectForwardsItToRegistrationPass() = runTest(StandardTestDispatcher()) {
+        coEvery { repository.handleMovement(any(), any(), any(), any()) } returns Result.success(Unit)
+        val services = servicesWith(this)
+        val quality = GeofenceFixQuality(fixElapsedRealtimeMillis = NOW, horizontalAccuracyMeters = 12f)
+
+        services.onMovementTriggerExit(latitude = 12.34, longitude = 56.78, fixQuality = quality)
+        advanceUntilIdle()
+
+        coVerify { repository.handleMovement(12.34, 56.78, any(), quality) }
+    }
 
     @Test
     fun onUserIdentified_expectRefreshCalled() = runTest(StandardTestDispatcher()) {
@@ -164,7 +176,7 @@ class GeofenceServicesTest : RobolectricTest() {
         advanceUntilIdle()
 
         coVerify { repository.refresh(1.0, 2.0) }
-        coVerify(exactly = 0) { repository.handleMovement(any(), any(), any()) }
+        coVerify(exactly = 0) { repository.handleMovement(any(), any(), any(), any()) }
         verify { logger.logSyncTriggered("user-identified") }
     }
 
@@ -239,7 +251,7 @@ class GeofenceServicesTest : RobolectricTest() {
         advanceUntilIdle()
 
         coVerify { repository.refresh(1.0, 2.0) }
-        coVerify(exactly = 0) { repository.handleMovement(any(), any(), any()) }
+        coVerify(exactly = 0) { repository.handleMovement(any(), any(), any(), any()) }
         verify { logger.logSyncTriggered("app-launch") }
     }
 
@@ -248,7 +260,7 @@ class GeofenceServicesTest : RobolectricTest() {
         // The receiver holds its goAsync window open by joining this job; a job that
         // completes before the refresh finishes would let the OS kill the process
         // mid-fetch/mid-re-registration.
-        coEvery { repository.handleMovement(any(), any(), any()) } coAnswers {
+        coEvery { repository.handleMovement(any(), any(), any(), any()) } coAnswers {
             delay(1_000)
             Result.success(Unit)
         }
@@ -269,7 +281,7 @@ class GeofenceServicesTest : RobolectricTest() {
         advanceUntilIdle()
 
         job.shouldBeNull()
-        coVerify(exactly = 0) { repository.handleMovement(any(), any(), any()) }
+        coVerify(exactly = 0) { repository.handleMovement(any(), any(), any(), any()) }
         coVerify(exactly = 0) { repository.refresh(any(), any()) }
         verify { logger.logSyncSkippedNoLocation(any()) }
     }
@@ -292,7 +304,7 @@ class GeofenceServicesTest : RobolectricTest() {
         }
         advanceUntilIdle()
 
-        coVerify(exactly = 0) { repository.handleMovement(any(), any(), any()) }
+        coVerify(exactly = 0) { repository.handleMovement(any(), any(), any(), any()) }
         coVerify(exactly = 0) { repository.refresh(any(), any()) }
         verify(exactly = unusable.size) { logger.logSyncSkippedInvalidLocation(any(), any(), any()) }
         // Armed like a missing fix, so the next usable one drives a sync.
@@ -303,7 +315,7 @@ class GeofenceServicesTest : RobolectricTest() {
     fun onMovementTriggerExit_givenRepositoryThrows_expectLoggedAndNotRethrown() = runTest(StandardTestDispatcher()) {
         // The services scope carries a SupervisorJob and no exception handler, so anything escaping
         // here would reach the thread's default handler and take the host app down.
-        coEvery { repository.handleMovement(any(), any(), any()) } throws IllegalStateException("boom")
+        coEvery { repository.handleMovement(any(), any(), any(), any()) } throws IllegalStateException("boom")
         val services = servicesWith(this)
 
         val job = services.onMovementTriggerExit(latitude = 1.0, longitude = 2.0)
@@ -334,7 +346,7 @@ class GeofenceServicesTest : RobolectricTest() {
         advanceUntilIdle()
 
         job.shouldBeNull()
-        coVerify(exactly = 0) { repository.handleMovement(any(), any(), any()) }
+        coVerify(exactly = 0) { repository.handleMovement(any(), any(), any(), any()) }
         coVerify(exactly = 0) { repository.refresh(any(), any()) }
         verify { regionStore.clearDwellVisits() }
         verify { logger.logSyncSkippedNoPermission(any()) }
@@ -343,13 +355,13 @@ class GeofenceServicesTest : RobolectricTest() {
     @Test
     fun onMovementTriggerExit_givenBackgroundLocationMissing_expectProceedAndWarn() = runTest(StandardTestDispatcher()) {
         every { permissionChecker.isBackgroundDeliveryAvailable() } returns false
-        coEvery { repository.handleMovement(any(), any(), any()) } returns Result.success(Unit)
+        coEvery { repository.handleMovement(any(), any(), any(), any()) } returns Result.success(Unit)
         val services = servicesWith(this)
 
         services.onMovementTriggerExit(latitude = 1.0, longitude = 2.0)
         advanceUntilIdle()
 
-        coVerify { repository.handleMovement(eq(1.0), eq(2.0), any()) }
+        coVerify { repository.handleMovement(eq(1.0), eq(2.0), any(), any()) }
         verify { logger.logBackgroundDeliveryUnavailable("movement-trigger-exit") }
         verify { logger.logSyncTriggered("movement-trigger-exit") }
     }
@@ -443,7 +455,7 @@ class GeofenceServicesTest : RobolectricTest() {
         advanceUntilIdle()
 
         coVerify(exactly = 0) { repository.refreshFromLiveFix(any(), any()) }
-        coVerify(exactly = 0) { repository.handleMovement(any(), any(), any()) }
+        coVerify(exactly = 0) { repository.handleMovement(any(), any(), any(), any()) }
     }
 
     @Test

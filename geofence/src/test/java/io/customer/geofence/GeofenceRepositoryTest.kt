@@ -2774,14 +2774,120 @@ class GeofenceRepositoryTest : RobolectricTest() {
     }
 
     @Test
-    fun refreshFromLiveFix_givenFirstRegistrationOutside_expectOutsideProofRecorded() = runTest {
-        // A live fix outside the fence is what lets its next ENTER count as an observed crossing.
+    fun refreshFromLiveFix_givenFirstRegistrationOutside_expectNoOutsideProofWithoutAccuracy() = runTest {
+        // A requested fix reaches the repository without its accuracy, so it cannot tell a device
+        // clearly outside from one inside a fence whose edge the fix merely lands past. GMS's
+        // INITIAL_TRIGGER_ENTER for the latter must stay a discovered visit, not an observed entry.
         val cached = listOf(GeofenceRegion("biz-1", 1.0, 0.0, 100f, dwellThresholdSeconds = 60))
         statefulStore(cached)
 
         repository.refreshFromLiveFix(latitude = 0.0, longitude = 0.0)
 
+        verify(exactly = 1) { store.recordRegistrationIncarnations(cached, 10_000L, emptySet()) }
+    }
+
+    @Test
+    fun handleMovement_givenFreshAccurateFixClearOfTheFence_expectOutsideProofRecorded() = runTest {
+        val cached = listOf(GeofenceRegion("biz-1", 1.0, 0.0, 100f, dwellThresholdSeconds = 60))
+        statefulStore(cached)
+        every { store.getLastApiFetchLocation() } returns GeofenceLocation(0.0, 0.0)
+
+        repository.handleMovement(latitude = 0.0, longitude = 0.0, fixQuality = movementFix(accuracy = 30f))
+
         verify(exactly = 1) { store.recordRegistrationIncarnations(cached, 10_000L, setOf("biz-1")) }
+    }
+
+    @Test
+    fun handleMovement_givenFixPastTheEdgeByLessThanItsAccuracy_expectNoOutsideProof() = runTest {
+        // ~167 m from the centre, so ~67 m past a 100 m edge: outside by a point check, but a 50 m
+        // fix plus the margin cannot rule out a device already inside, which GMS then reports as an
+        // initial ENTER with no crossing behind it.
+        val cached = listOf(GeofenceRegion("biz-1", 0.0, 0.0015, 100f, dwellThresholdSeconds = 60))
+        statefulStore(cached)
+        every { store.getLastApiFetchLocation() } returns GeofenceLocation(0.0, 0.0)
+
+        repository.handleMovement(latitude = 0.0, longitude = 0.0, fixQuality = movementFix(accuracy = 50f))
+
+        verify(exactly = 1) { store.recordRegistrationIncarnations(cached, 10_000L, emptySet()) }
+    }
+
+    @Test
+    fun handleMovement_givenSameEdgeDistanceWithTighterFix_expectOutsideProofRecorded() = runTest {
+        val cached = listOf(GeofenceRegion("biz-1", 0.0, 0.0015, 100f, dwellThresholdSeconds = 60))
+        statefulStore(cached)
+        every { store.getLastApiFetchLocation() } returns GeofenceLocation(0.0, 0.0)
+
+        repository.handleMovement(latitude = 0.0, longitude = 0.0, fixQuality = movementFix(accuracy = 30f))
+
+        verify(exactly = 1) { store.recordRegistrationIncarnations(cached, 10_000L, setOf("biz-1")) }
+    }
+
+    @Test
+    fun handleMovement_givenFixOlderThanTheProofWindow_expectNoOutsideProof() = runTest {
+        // The device may have arrived after the fix and before GMS began monitoring, so the initial
+        // ENTER would carry an entry time later than the real one by an unbounded amount.
+        val cached = listOf(GeofenceRegion("biz-1", 1.0, 0.0, 100f, dwellThresholdSeconds = 60))
+        statefulStore(cached)
+        every { store.getLastApiFetchLocation() } returns GeofenceLocation(0.0, 0.0)
+        val stale = GeofenceFixQuality(
+            fixElapsedRealtimeMillis = 10_000L - GeofenceConstants.MAX_OUTSIDE_PROOF_AGE_MS - 1,
+            horizontalAccuracyMeters = 10f
+        )
+
+        repository.handleMovement(latitude = 0.0, longitude = 0.0, fixQuality = stale)
+
+        verify(exactly = 1) { store.recordRegistrationIncarnations(cached, 10_000L, emptySet()) }
+    }
+
+    @Test
+    fun handleMovement_givenCircleKeptFromEarlierRegistration_expectOutsideProofDatedToTheFix() = runTest {
+        // GMS has monitored the kept registration without a gap, so a movement fix clear of it
+        // proves the next ENTER a crossing even though this pass re-adds nothing. Dated to the fix,
+        // not the pass: GMS may decide a crossing while the pass is still fetching.
+        val cached = listOf(GeofenceRegion("biz-1", 1.0, 0.0, 100f, dwellThresholdSeconds = 60))
+        statefulStore(cached, preRegistered = setOf("biz-1"))
+        every { store.getLastApiFetchLocation() } returns GeofenceLocation(0.0, 0.0)
+
+        repository.handleMovement(latitude = 0.0, longitude = 0.0, fixQuality = movementFix(accuracy = 30f))
+
+        verify(exactly = 1) { store.recordRegistrationIncarnations(emptyList(), 10_000L, emptySet()) }
+        verify(exactly = 1) { store.raiseOutsideProof(setOf("biz-1"), 9_000L) }
+    }
+
+    @Test
+    fun handleMovement_givenKeptCircleAndOldFix_expectProofStillDatedToTheFix() = runTest {
+        // Age bounds only a new registration, which GMS was not watching before this pass. A kept
+        // one was watched throughout, so an old fix still proves where the device was when taken.
+        val cached = listOf(GeofenceRegion("biz-1", 1.0, 0.0, 100f, dwellThresholdSeconds = 60))
+        statefulStore(cached, preRegistered = setOf("biz-1"))
+        every { store.getLastApiFetchLocation() } returns GeofenceLocation(0.0, 0.0)
+        val takenAt = 10_000L - GeofenceConstants.MAX_OUTSIDE_PROOF_AGE_MS - 1
+        val old = GeofenceFixQuality(fixElapsedRealtimeMillis = takenAt, horizontalAccuracyMeters = 10f)
+
+        repository.handleMovement(latitude = 0.0, longitude = 0.0, fixQuality = old)
+
+        verify(exactly = 1) { store.raiseOutsideProof(setOf("biz-1"), takenAt) }
+    }
+
+    @Test
+    fun handleMovement_givenKeptCircleAndCoarseFixNearTheEdge_expectNoProofRaised() = runTest {
+        val cached = listOf(GeofenceRegion("biz-1", 0.0, 0.0015, 100f, dwellThresholdSeconds = 60))
+        statefulStore(cached, preRegistered = setOf("biz-1"))
+        every { store.getLastApiFetchLocation() } returns GeofenceLocation(0.0, 0.0)
+
+        repository.handleMovement(latitude = 0.0, longitude = 0.0, fixQuality = movementFix(accuracy = 50f))
+
+        verify(exactly = 0) { store.raiseOutsideProof(match { it.isNotEmpty() }, any()) }
+    }
+
+    @Test
+    fun refreshFromLiveFix_givenKeptCircle_expectNoProofRaised() = runTest {
+        val cached = listOf(GeofenceRegion("biz-1", 1.0, 0.0, 100f, dwellThresholdSeconds = 60))
+        statefulStore(cached, preRegistered = setOf("biz-1"))
+
+        repository.refreshFromLiveFix(latitude = 0.0, longitude = 0.0)
+
+        verify(exactly = 0) { store.raiseOutsideProof(any(), any()) }
     }
 
     @Test
@@ -2902,6 +3008,9 @@ class GeofenceRepositoryTest : RobolectricTest() {
         reconciledInside.last() shouldBeEqualTo setOf("biz-1")
         store.getEnteredIds() shouldContainSame setOf("biz-1")
     }
+
+    private fun movementFix(accuracy: Float) =
+        GeofenceFixQuality(fixElapsedRealtimeMillis = 9_000L, horizontalAccuracyMeters = accuracy)
 
     private fun statefulStore(
         cached: List<GeofenceRegion>,

@@ -54,6 +54,7 @@ class GeofenceRepositoryTest : RobolectricTest() {
     private val secureUserStore: SecureUserStore = mockk(relaxed = true)
     private val cooldownFilter: GeofenceCooldownFilter = mockk(relaxed = true)
     private val transitionEmitter: GeofenceTransitionEmitter = mockk(relaxed = true)
+    private val dwellCoordinator: GeofenceDwellCoordinator = mockk(relaxed = true)
     private val clock: Clock = mockk(relaxed = true)
     private val packageInfo: GeofencePackageInfo = mockk {
         every { lastUpdateTimeMs() } returns null
@@ -105,6 +106,7 @@ class GeofenceRepositoryTest : RobolectricTest() {
         packageInfo = packageInfo,
         logger = logger,
         polygonController = polygonController,
+        dwellCoordinator = dwellCoordinator,
         // The production graph wires the enabled opt-in; without it every polygon test below would
         // exercise the fail-closed path instead of the runtime this PR adds.
         polygonSupport = PolygonSupport.Enabled
@@ -1145,6 +1147,30 @@ class GeofenceRepositoryTest : RobolectricTest() {
         repository.refresh(latitude = 0.0, longitude = 0.0)
 
         existingSlot.captured shouldContainSame setOf("biz-1")
+    }
+
+    @Test
+    fun refresh_givenOneCircleReRegistered_expectOnlyItStartsANewRegistrationIncarnation() = runTest {
+        // biz-2's loitering delay changed, so GMS replaces its registration; biz-1 is kept as is.
+        // Only the replaced one may reject callbacks its previous registration produced.
+        val kept = GeofenceRegion("biz-1", 0.0, 0.0, 100f, dwellThresholdSeconds = 60)
+        val cachedChanged = GeofenceRegion("biz-2", 0.0, 0.0, 100f, dwellThresholdSeconds = 60)
+        val incomingChanged = cachedChanged.copy(dwellThresholdSeconds = 900)
+        every { secureUserStore.getUserId() } returns "user-42"
+        every { store.getRegisteredIds() } returns setOf(GeofenceConstants.MOVEMENT_TRIGGER_ID, "biz-1", "biz-2")
+        every { store.getCachedRegions() } returns listOf(kept, cachedChanged)
+        every { store.getLastRegistrationUptime() } returns 5_000L
+        every { clock.elapsedRealtime() } returns 10_000L
+        coEvery { apiService.fetchGeofences(any()) } returns
+            Result.success(sampleResponse(maxBusinessGeofences = 5))
+        every { distanceFilter.nearest(any(), any(), any(), any(), any()) } returns listOf(kept, incomingChanged)
+        coEvery { manager.replaceGeofences(any(), any()) } returns Result.success(Unit)
+
+        repository.refresh(latitude = 0.0, longitude = 0.0)
+
+        verify(exactly = 1) {
+            store.recordRegistrationIncarnations(listOf(incomingChanged), registeredAtElapsedMs = 10_000L)
+        }
     }
 
     @Test

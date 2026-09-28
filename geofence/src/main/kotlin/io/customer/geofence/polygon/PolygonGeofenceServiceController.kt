@@ -673,6 +673,9 @@ internal class PolygonGeofenceServiceController(
             store.saveRegisteredIds(emptySet())
             store.saveRoutableRegisteredIds(emptySet())
             store.saveRetainedRegisteredRegions(emptyList())
+            // GMS stopped monitoring without reporting what happened meanwhile, so no visit can
+            // span the gap. Queued deliveries are outbound facts and stay as they are.
+            store.invalidateDwellContinuity()
             store.clearActivePolygonIds()
             store.retainCoarseInsidePolygonIds(emptySet())
             val holds = engine.stop()

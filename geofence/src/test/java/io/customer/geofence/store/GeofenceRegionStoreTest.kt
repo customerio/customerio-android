@@ -312,6 +312,48 @@ class GeofenceRegionStoreTest : RobolectricTest() {
     }
 
     @Test
+    fun removeDwellVisitAfterCommittedExit_preservesANewerVisitAndRemovesTheExitedOne() {
+        val region = GeofenceRegion(
+            id = "biz-1",
+            latitude = 1.0,
+            longitude = 2.0,
+            radius = 100f,
+            transitionTypes = listOf(GeofenceTransitionType.EXIT),
+            dwellThresholdSeconds = 60
+        )
+        store.saveCachedRegions(listOf(region))
+        store.recordRegistrationIncarnations(listOf(region), registeredAtElapsedMs = 10L)
+        val generation = store.userStateGeneration()
+        val oldVisit = GeofenceDwellVisit(
+            geofenceId = "biz-1",
+            visitId = "old",
+            enteredAtSeconds = 100L,
+            regionRevision = region.transitionRevision(),
+            userStateGeneration = generation,
+            registrationElapsedMs = 10L
+        )
+        store.saveDwellVisit(oldVisit).shouldBeTrue()
+
+        store.removeDwellVisitAfterCommittedExit(
+            "biz-1",
+            150L,
+            generation,
+            region.transitionRevision()
+        ).shouldBeTrue()
+        store.getDwellVisit("biz-1").shouldBeNull()
+
+        val newVisit = oldVisit.copy(visitId = "new", enteredAtSeconds = 200L)
+        store.saveDwellVisit(newVisit).shouldBeTrue()
+        store.removeDwellVisitAfterCommittedExit(
+            "biz-1",
+            150L,
+            generation,
+            region.transitionRevision()
+        ).shouldBeTrue()
+        store.getDwellVisit("biz-1") shouldBeEqualTo newVisit
+    }
+
+    @Test
     fun commitBusinessTransition_givenStagedEnterThatMarksReported_expectContainmentAndMarkCommittedTogether() {
         val generation = store.userStateGeneration()
         val staged = PendingGeofenceDelivery(
@@ -420,6 +462,109 @@ class GeofenceRegionStoreTest : RobolectricTest() {
         recreated.getRegisteredIds() shouldBeEqualTo setOf("biz-1")
         recreated.getRoutableRegisteredIds().shouldBeEmpty()
         recreated.getActivePolygonIds().shouldBeEmpty()
+    }
+
+    @Test
+    fun beginUserSession_givenIdentityChange_expectDwellContinuityCleared() {
+        store.beginUserSession("user-1")
+        val region = GeofenceRegion(
+            "biz-1",
+            37.7749,
+            -122.4194,
+            100f,
+            dwellThresholdSeconds = 60
+        )
+        store.saveCachedRegions(listOf(region))
+        store.recordRegistrationIncarnations(listOf(region), registeredAtElapsedMs = 10L)
+        store.saveDwellVisit(
+            GeofenceDwellVisit(
+                geofenceId = region.id,
+                visitId = "visit-1",
+                enteredAtSeconds = 100,
+                regionRevision = region.transitionRevision(),
+                userStateGeneration = store.userStateGeneration(),
+                registrationElapsedMs = 10L
+            )
+        ).shouldBeTrue()
+
+        store.beginUserSession("user-2")
+
+        store.getDwellVisit(region.id).shouldBeNull()
+    }
+
+    @Test
+    fun saveDwellVisit_givenCircleVisitFromAReplacedRegistration_expectRejected() {
+        val region = GeofenceRegion("biz-1", 37.7749, -122.4194, 100f, dwellThresholdSeconds = 60)
+        store.saveCachedRegions(listOf(region))
+        store.recordRegistrationIncarnations(listOf(region), registeredAtElapsedMs = 10L)
+        val visit = GeofenceDwellVisit(
+            geofenceId = region.id,
+            visitId = "visit-1",
+            enteredAtSeconds = 100,
+            regionRevision = region.transitionRevision(),
+            userStateGeneration = store.userStateGeneration(),
+            registrationElapsedMs = 10L
+        )
+
+        // Re-registered while an emission prepared against the old registration was in flight.
+        store.recordRegistrationIncarnations(listOf(region), registeredAtElapsedMs = 20L)
+
+        store.saveDwellVisit(visit.copy(emitted = true)).shouldBeFalse()
+        store.saveDwellVisit(visit.copy(registrationElapsedMs = null)).shouldBeFalse()
+        store.getDwellVisit(region.id).shouldBeNull()
+        store.saveDwellVisit(visit.copy(registrationElapsedMs = 20L)).shouldBeTrue()
+    }
+
+    @Test
+    fun recordNativeExitFix_givenLiveRegistration_expectOnlyRaisedAndResetByReRegistration() {
+        val region = GeofenceRegion("biz-1", 37.7749, -122.4194, 100f, dwellThresholdSeconds = 60)
+        store.saveCachedRegions(listOf(region))
+        store.recordRegistrationIncarnations(listOf(region), registeredAtElapsedMs = 10L)
+
+        store.recordNativeExitFix(region.id, registeredAtElapsedMs = 10L, exitFixElapsedMs = 500L)
+        // A delayed EXIT from earlier in the same registration must not lower the mark.
+        store.recordNativeExitFix(region.id, registeredAtElapsedMs = 10L, exitFixElapsedMs = 300L)
+        // A write prepared against a replaced registration must not touch the live one.
+        store.recordNativeExitFix(region.id, registeredAtElapsedMs = 9L, exitFixElapsedMs = 900L)
+
+        store.getRegistrationIncarnation(region.id)?.lastExitFixElapsedMs shouldBeEqualTo 500L
+
+        store.recordRegistrationIncarnations(listOf(region), registeredAtElapsedMs = 20L)
+
+        store.getRegistrationIncarnation(region.id)?.lastExitFixElapsedMs.shouldBeNull()
+    }
+
+    @Test
+    fun invalidateDwellContinuity_givenMonitoringGap_expectVisitsAndRegistrationsEndedButOutboxKept() {
+        val region = GeofenceRegion("biz-1", 37.7749, -122.4194, 100f, dwellThresholdSeconds = 60)
+        store.saveCachedRegions(listOf(region))
+        store.recordRegistrationIncarnations(listOf(region), registeredAtElapsedMs = 10L)
+        val generation = store.userStateGeneration()
+        val visit = GeofenceDwellVisit(
+            geofenceId = region.id,
+            visitId = "visit-1",
+            enteredAtSeconds = 100,
+            regionRevision = region.transitionRevision(),
+            userStateGeneration = generation,
+            registrationElapsedMs = 10L
+        )
+        store.saveDwellVisit(visit).shouldBeTrue()
+        val queuedDwell = PendingGeofenceDelivery(
+            geofenceId = region.id,
+            transition = Event.GeofenceTransition.DWELL,
+            timestamp = 160L,
+            userId = "user-1",
+            transitionId = "visit-1"
+        )
+        store.savePendingTransitionEntries(listOf(queuedDwell), generation).shouldBeTrue()
+
+        store.invalidateDwellContinuity()
+
+        store.getDwellVisit(region.id).shouldBeNull()
+        store.getRegistrationIncarnation(region.id).shouldBeNull()
+        // An emission that raced the invalidation cannot resurrect the pre-gap visit.
+        store.saveDwellVisit(visit.copy(emitted = true)).shouldBeFalse()
+        store.getAllPendingTransitionEntries() shouldBeEqualTo listOf(queuedDwell)
     }
 
     @Test

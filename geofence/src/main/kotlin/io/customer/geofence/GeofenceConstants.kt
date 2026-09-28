@@ -33,6 +33,10 @@ internal object GeofenceConstants {
     const val MIN_DUPLICATE_EVENTS_EXPIRY_MS = 60_000L // 1 minute
     const val MAX_DUPLICATE_EVENTS_EXPIRY_MS = 24L * 60 * 60 * 1_000L // 24 hours
 
+    // GMS accepts its loitering delay as signed 32-bit milliseconds. This is the largest whole
+    // second threshold that can be represented without changing the configured duration.
+    const val MAX_DWELL_THRESHOLD_SECONDS = Int.MAX_VALUE / 1_000
+
     // Minimum interval between server fetches. Non-forced refresh calls (identify,
     // app launch) skip the API call when a successful sync happened within this
     // window. Movement-trigger EXIT bypasses this so the loop can update the

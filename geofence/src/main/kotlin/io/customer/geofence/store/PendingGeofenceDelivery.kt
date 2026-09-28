@@ -45,7 +45,12 @@ internal data class PendingGeofenceDelivery(
     /** Geometry revision used to reject a transition computed from a replaced polygon. */
     val regionRevision: Int? = null,
     /** Whether committing this staged ENTER must atomically set the reboot dedupe marker. */
-    val marksEnterReported: Boolean = false
+    val marksEnterReported: Boolean = false,
+    val visitId: String? = null,
+    val enteredAt: Long? = null,
+    val dwellThresholdSeconds: Int? = null,
+    val dwellDurationSeconds: Long? = null,
+    val detectionSource: String? = null
 ) : PendingDeliveryStore.PendingDeliveryEntry {
     override val key: String
         get() = "${geofenceId}_${transition.name}_${transitionId}_${geosetId ?: "none"}"
@@ -62,6 +67,11 @@ internal data class PendingGeofenceDelivery(
         put("transitionId", transitionId)
         geosetId?.let { put("geosetId", it) }
         geofenceName?.let { put("geofenceName", it) }
+        visitId?.let { put("visitId", it) }
+        enteredAt?.let { put("enteredAt", it) }
+        dwellThresholdSeconds?.let { put("dwellThresholdSeconds", it) }
+        dwellDurationSeconds?.let { put("dwellDurationSeconds", it) }
+        detectionSource?.let { put("detectionSource", it) }
         // Always present (empty when the fence has none), unlike the optional fields above.
         put("metadata", metadata.toEventMetadata())
     }

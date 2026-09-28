@@ -70,6 +70,57 @@ class GeofenceBusinessTransitionProcessorTest {
         processor.process("polygon", Event.GeofenceTransition.EXIT, 100L)
 
         verify(exactly = 0) { store.commitBusinessTransition(any(), any(), any(), any(), any()) }
+        verify(exactly = 0) { store.removeDwellVisitAfterCommittedExit(any(), any(), any(), any()) }
+    }
+
+    @Test
+    fun process_givenExitIsNotRoutable_expectPhysicalExitCommittedAndVisitEnded() = runTest {
+        every { store.getEnteredIds() } returns setOf("polygon")
+        every { store.getRoutableRegisteredIds() } returns emptySet()
+
+        processor.process(
+            "polygon",
+            Event.GeofenceTransition.EXIT,
+            100L,
+            requireRegistered = true
+        )
+
+        verify {
+            store.commitBusinessTransition("polygon", Event.GeofenceTransition.EXIT, null, 0L, any())
+            store.removeDwellVisitAfterCommittedExit("polygon", 100L, 0L, any())
+        }
+    }
+
+    @Test
+    fun process_givenUnroutableExitWithoutContainment_expectVisitEndedWithoutExitEpoch() = runTest {
+        every { store.getEnteredIds() } returns emptySet()
+        every { store.getRoutableRegisteredIds() } returns emptySet()
+
+        processor.process(
+            "polygon",
+            Event.GeofenceTransition.EXIT,
+            100L,
+            requireRegistered = true
+        )
+
+        verify(exactly = 0) { store.commitBusinessTransition(any(), any(), any(), any(), any()) }
+        verify { store.removeDwellVisitAfterCommittedExit("polygon", 100L, 0L, any()) }
+    }
+
+    @Test
+    fun process_givenExitIsCommitted_expectVisitIsEnded() = runTest {
+        every { store.getEnteredIds() } returns setOf("polygon")
+        every { store.hasEmittedEnterRecord("user-1") } returns true
+        every { store.hasEmittedEnter("user-1", "polygon") } returns true
+        coEvery {
+            emitter.emitWithRetainedAttempt(any(), any(), any(), any(), any(), any(), any(), any(), any(), any())
+        } returns GeofenceTransitionEmitter.Result.PERSISTED
+
+        processor.process("polygon", Event.GeofenceTransition.EXIT, 100L)
+
+        verify {
+            store.removeDwellVisitAfterCommittedExit("polygon", 100L, 0L, any())
+        }
     }
 
     @Test

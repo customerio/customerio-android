@@ -13,9 +13,39 @@ import io.customer.sdk.data.store.PreferenceCrypto
 import io.customer.sdk.data.store.PreferenceStore
 import io.customer.sdk.data.store.read
 import kotlinx.serialization.KSerializer
+import kotlinx.serialization.Serializable
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.builtins.SetSerializer
 import kotlinx.serialization.builtins.serializer
+
+@Serializable
+internal data class GeofenceDwellVisit(
+    val geofenceId: String,
+    val visitId: String,
+    val enteredAtSeconds: Long,
+    val regionRevision: Int,
+    val userStateGeneration: Long,
+    val emitted: Boolean = false,
+    val entryWasObserved: Boolean = true,
+    /** [GeofenceRegistrationIncarnation.registeredAtElapsedMs] of the circle registration it was observed under. */
+    val registrationElapsedMs: Long? = null,
+    /** Boot-relative time of the fix that reported entry, when the OS supplied one. */
+    val entryFixElapsedMs: Long? = null
+)
+
+/**
+ * One GMS registration of a circle. GeofencingEvent carries no occurrence time or registration
+ * identity, so a callback is attributed to this incarnation only when its triggering fix was taken
+ * after [registeredAtElapsedMs] (stamped once GMS confirmed the add, on the elapsedRealtime clock).
+ */
+@Serializable
+internal data class GeofenceRegistrationIncarnation(
+    val geofenceId: String,
+    val regionRevision: Int,
+    val registeredAtElapsedMs: Long,
+    /** Latest triggering fix of a native EXIT this registration reported, on the same clock. */
+    val lastExitFixElapsedMs: Long? = null
+)
 
 /**
  * State for the geofence sync pipeline. Keys split by sign-out lifecycle
@@ -55,6 +85,25 @@ import kotlinx.serialization.builtins.serializer
  * via [PreferenceCrypto] (AES-256-GCM, Android Keystore) and cleared on sign-out.
  */
 internal interface GeofenceRegionStore {
+    fun getDwellVisit(geofenceId: String): GeofenceDwellVisit?
+    fun saveDwellVisit(visit: GeofenceDwellVisit): Boolean
+    fun removeDwellVisit(geofenceId: String)
+    fun clearDwellVisits()
+    fun getRegistrationIncarnation(geofenceId: String): GeofenceRegistrationIncarnation?
+    fun recordRegistrationIncarnations(regions: List<GeofenceRegion>, registeredAtElapsedMs: Long)
+
+    /** Raises the incarnation's last EXIT fix, only while [registeredAtElapsedMs] is still live. */
+    fun recordNativeExitFix(geofenceId: String, registeredAtElapsedMs: Long, exitFixElapsedMs: Long)
+
+    /** Ends every visit and forgets every incarnation: OS monitoring had an unobserved gap. */
+    fun invalidateDwellContinuity()
+    fun removeDwellVisitAfterCommittedExit(
+        geofenceId: String,
+        exitedAtSeconds: Long,
+        expectedUserStateGeneration: Long,
+        expectedRegionRevision: Int?
+    ): Boolean
+
     /** Ordered exact-location batches used by responsive polygon evaluation. */
     fun appendPendingPolygonApproachBatches(entries: List<PendingPolygonApproachBatch>): Boolean
     fun getPendingPolygonApproachBatches(): List<PendingPolygonApproachBatch>
@@ -395,6 +444,18 @@ internal class GeofenceRegionStoreImpl(
 
     override fun saveCachedRegions(regions: List<GeofenceRegion>) = synchronized(enteredLock) {
         writeJson(KEY_CACHED_REGIONS, REGIONS_SERIALIZER, regions)
+        val current = regions.associateBy(GeofenceRegion::id)
+        val visits = readDwellVisits().filter { visit ->
+            val region = current[visit.geofenceId]
+            region != null &&
+                region.dwellThresholdSeconds > 0 &&
+                region.transitionRevision() == visit.regionRevision
+        }
+        if (visits.isEmpty()) {
+            prefs.edit { remove(KEY_DWELL_VISITS) }
+        } else {
+            writeJson(KEY_DWELL_VISITS, DWELL_VISITS_SERIALIZER, visits)
+        }
     }
 
     override fun getCachedRegions(): List<GeofenceRegion> =
@@ -450,6 +511,7 @@ internal class GeofenceRegionStoreImpl(
         }
         val updatedEntered = when (first.transition) {
             Event.GeofenceTransition.ENTER -> getEnteredIds() + first.geofenceId
+            Event.GeofenceTransition.DWELL -> getEnteredIds()
             Event.GeofenceTransition.EXIT -> getEnteredIds() - first.geofenceId
         }
         val emittedOwner = readEmittedEnterOwner()
@@ -478,6 +540,7 @@ internal class GeofenceRegionStoreImpl(
         epoch += 1
         when (first.transition) {
             Event.GeofenceTransition.ENTER -> enterEpochByGeofenceId[first.geofenceId] = epoch
+            Event.GeofenceTransition.DWELL -> Unit
             Event.GeofenceTransition.EXIT -> exitEpochByGeofenceId[first.geofenceId] = epoch
         }
         true
@@ -600,6 +663,7 @@ internal class GeofenceRegionStoreImpl(
         val currentEntered = getEnteredIds()
         val updatedEntered = when (transition) {
             Event.GeofenceTransition.ENTER -> currentEntered + geofenceId
+            Event.GeofenceTransition.DWELL -> currentEntered
             Event.GeofenceTransition.EXIT -> currentEntered - geofenceId
         }
         val allPending = readPendingTransitionEntries()
@@ -637,6 +701,7 @@ internal class GeofenceRegionStoreImpl(
         epoch += 1
         when (transition) {
             Event.GeofenceTransition.ENTER -> enterEpochByGeofenceId[geofenceId] = epoch
+            Event.GeofenceTransition.DWELL -> Unit
             Event.GeofenceTransition.EXIT -> exitEpochByGeofenceId[geofenceId] = epoch
         }
         true
@@ -735,6 +800,114 @@ internal class GeofenceRegionStoreImpl(
 
     override fun getEnteredIds(): Set<String> =
         readJson(KEY_ENTERED_IDS, ID_SET_SERIALIZER) ?: emptySet()
+
+    override fun getDwellVisit(geofenceId: String): GeofenceDwellVisit? = synchronized(enteredLock) {
+        readDwellVisits().firstOrNull { it.geofenceId == geofenceId }
+    }
+
+    override fun saveDwellVisit(visit: GeofenceDwellVisit): Boolean = synchronized(enteredLock) {
+        if (visit.userStateGeneration != currentUserStateGenerationLocked()) return@synchronized false
+        val region = getCachedRegion(visit.geofenceId) ?: return@synchronized false
+        if (
+            region.transitionRevision() != visit.regionRevision ||
+            region.dwellThresholdSeconds <= 0
+        ) {
+            return@synchronized false
+        }
+        // A circle visit belongs to one OS registration. A write prepared before a re-registration
+        // or an invalidation landed must not carry the old visit into the new monitoring session.
+        val registeredAt = readIncarnations()[visit.geofenceId]?.registeredAtElapsedMs
+        if (!region.isPolygon && (registeredAt == null || visit.registrationElapsedMs != registeredAt)) {
+            return@synchronized false
+        }
+        val visits = readDwellVisits().filterNot { it.geofenceId == visit.geofenceId } + visit
+        @Suppress("UseKtx")
+        prefs.edit().putString(KEY_DWELL_VISITS, jsonSerializer.encode(DWELL_VISITS_SERIALIZER, visits)).commit()
+    }
+
+    override fun removeDwellVisit(geofenceId: String) = synchronized(enteredLock) {
+        val visits = readDwellVisits().filterNot { it.geofenceId == geofenceId }
+        if (visits.isEmpty()) {
+            prefs.edit { remove(KEY_DWELL_VISITS) }
+        } else {
+            writeJson(KEY_DWELL_VISITS, DWELL_VISITS_SERIALIZER, visits)
+        }
+    }
+
+    override fun clearDwellVisits() = synchronized(enteredLock) {
+        prefs.edit { remove(KEY_DWELL_VISITS) }
+    }
+
+    override fun getRegistrationIncarnation(geofenceId: String): GeofenceRegistrationIncarnation? =
+        synchronized(enteredLock) { readIncarnations()[geofenceId] }
+
+    override fun recordRegistrationIncarnations(
+        regions: List<GeofenceRegion>,
+        registeredAtElapsedMs: Long
+    ) = synchronized(enteredLock) {
+        val live = getRegisteredIds() + regions.map(GeofenceRegion::id)
+        val incarnations = readIncarnations().filterKeys { it in live } + regions.associate { region ->
+            region.id to GeofenceRegistrationIncarnation(region.id, region.transitionRevision(), registeredAtElapsedMs)
+        }
+        writeJson(KEY_REGISTRATION_INCARNATIONS, INCARNATIONS_SERIALIZER, incarnations.values.toList())
+    }
+
+    override fun recordNativeExitFix(
+        geofenceId: String,
+        registeredAtElapsedMs: Long,
+        exitFixElapsedMs: Long
+    ) = synchronized(enteredLock) {
+        val incarnations = readIncarnations()
+        val current = incarnations[geofenceId]
+            ?.takeIf { it.registeredAtElapsedMs == registeredAtElapsedMs }
+            ?: return@synchronized
+        if ((current.lastExitFixElapsedMs ?: Long.MIN_VALUE) >= exitFixElapsedMs) return@synchronized
+        val updated = incarnations + (geofenceId to current.copy(lastExitFixElapsedMs = exitFixElapsedMs))
+        writeJson(KEY_REGISTRATION_INCARNATIONS, INCARNATIONS_SERIALIZER, updated.values.toList())
+    }
+
+    override fun invalidateDwellContinuity() = synchronized(enteredLock) {
+        prefs.edit(commit = true) {
+            remove(KEY_DWELL_VISITS)
+            remove(KEY_REGISTRATION_INCARNATIONS)
+        }
+    }
+
+    private fun readIncarnations(): Map<String, GeofenceRegistrationIncarnation> =
+        readJson(KEY_REGISTRATION_INCARNATIONS, INCARNATIONS_SERIALIZER)
+            ?.associateBy(GeofenceRegistrationIncarnation::geofenceId)
+            ?: emptyMap()
+
+    override fun removeDwellVisitAfterCommittedExit(
+        geofenceId: String,
+        exitedAtSeconds: Long,
+        expectedUserStateGeneration: Long,
+        expectedRegionRevision: Int?
+    ): Boolean = synchronized(enteredLock) {
+        if (expectedUserStateGeneration != currentUserStateGenerationLocked()) return@synchronized false
+        if (
+            expectedRegionRevision != null &&
+            getCachedRegion(geofenceId)?.transitionRevision() != expectedRegionRevision
+        ) {
+            return@synchronized false
+        }
+        val visits = readDwellVisits()
+        val retained = visits.filterNot {
+            it.geofenceId == geofenceId && it.enteredAtSeconds <= exitedAtSeconds
+        }
+        if (retained.size == visits.size) return@synchronized true
+        @Suppress("UseKtx")
+        val editor = prefs.edit()
+        if (retained.isEmpty()) {
+            editor.remove(KEY_DWELL_VISITS)
+        } else {
+            editor.putString(KEY_DWELL_VISITS, jsonSerializer.encode(DWELL_VISITS_SERIALIZER, retained))
+        }
+        editor.commit()
+    }
+
+    private fun readDwellVisits(): List<GeofenceDwellVisit> =
+        readJson(KEY_DWELL_VISITS, DWELL_VISITS_SERIALIZER) ?: emptyList()
 
     override fun hasContainmentRecord(): Boolean = prefs.read { contains(KEY_ENTERED_IDS) } ?: false
 
@@ -940,6 +1113,7 @@ internal class GeofenceRegionStoreImpl(
             remove(KEY_ACTIVE_POLYGON_IDS)
             remove(KEY_COARSE_INSIDE_POLYGON_IDS)
             remove(KEY_ENTERED_IDS)
+            remove(KEY_DWELL_VISITS)
             remove(KEY_EMITTED_ENTER_IDS)
             remove(KEY_EMITTED_ENTER_OWNER)
             remove(KEY_LAST_SYNC)
@@ -947,6 +1121,7 @@ internal class GeofenceRegionStoreImpl(
                 remove(KEY_REGISTERED_IDS)
                 remove(KEY_ROUTABLE_REGISTERED_IDS)
                 remove(KEY_RETAINED_REGISTERED_REGIONS)
+                remove(KEY_REGISTRATION_INCARNATIONS)
                 remove(KEY_LAST_REGISTRATION_UPTIME)
                 remove(KEY_LAST_REGISTRATION_PACKAGE_UPDATE_TIME)
             } else {
@@ -1043,6 +1218,8 @@ internal class GeofenceRegionStoreImpl(
         const val KEY_ACTIVE_POLYGON_IDS = "active_polygon_ids"
         const val KEY_COARSE_INSIDE_POLYGON_IDS = "coarse_inside_polygon_ids"
         const val KEY_ENTERED_IDS = "entered_ids"
+        const val KEY_DWELL_VISITS = "dwell_visits"
+        const val KEY_REGISTRATION_INCARNATIONS = "registration_incarnations"
         const val KEY_EMITTED_ENTER_IDS = "emitted_enter_ids"
         const val KEY_EMITTED_ENTER_OWNER = "emitted_enter_owner"
         const val KEY_CACHED_CONFIG = "cached_config"
@@ -1061,6 +1238,7 @@ internal class GeofenceRegionStoreImpl(
             KEY_ACTIVE_POLYGON_IDS,
             KEY_COARSE_INSIDE_POLYGON_IDS,
             KEY_ENTERED_IDS,
+            KEY_DWELL_VISITS,
             KEY_EMITTED_ENTER_IDS,
             KEY_EMITTED_ENTER_OWNER,
             KEY_LAST_SYNC
@@ -1080,6 +1258,8 @@ internal class GeofenceRegionStoreImpl(
         val PENDING_TRANSITIONS_SERIALIZER = ListSerializer(PendingGeofenceDelivery.serializer())
         val PENDING_APPROACH_BATCHES_SERIALIZER =
             ListSerializer(PendingPolygonApproachBatch.serializer())
+        val DWELL_VISITS_SERIALIZER = ListSerializer(GeofenceDwellVisit.serializer())
+        val INCARNATIONS_SERIALIZER = ListSerializer(GeofenceRegistrationIncarnation.serializer())
         val ID_SET_SERIALIZER = SetSerializer(String.serializer())
     }
 }

@@ -17,6 +17,7 @@ public final class io/customer/sdk/communication/Event$DeleteDeviceTokenEvent : 
 }
 
 public final class io/customer/sdk/communication/Event$GeofenceTransition : java/lang/Enum {
+	public static final field DWELL Lio/customer/sdk/communication/Event$GeofenceTransition;
 	public static final field ENTER Lio/customer/sdk/communication/Event$GeofenceTransition;
 	public static final field EXIT Lio/customer/sdk/communication/Event$GeofenceTransition;
 	public static fun getEntries ()Lkotlin/enums/EnumEntries;

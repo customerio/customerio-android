@@ -32,9 +32,10 @@ internal data class GeofenceCrossing(
     val receivedAtSeconds: Long
 )
 
-/** GMS also reports DWELL, which is never registered for and must not read as an arrival. */
+/** GMS reports DWELL only for circles configured with a loitering delay. */
 internal enum class GeofenceCrossingTransition {
     ENTER,
+    DWELL,
     EXIT,
     UNSUPPORTED
 }

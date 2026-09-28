@@ -4,6 +4,7 @@ import android.location.Location
 import android.os.SystemClock
 import androidx.annotation.VisibleForTesting
 import io.customer.geofence.GeofenceBusinessTransitionProcessor
+import io.customer.geofence.GeofenceDwellCoordinator
 import io.customer.geofence.GeofenceLogTail
 import io.customer.geofence.GeofenceLogger
 import io.customer.geofence.PolygonEvaluationSkip
@@ -80,7 +81,8 @@ internal class PolygonLocationEngine(
     private val store: GeofenceRegionStore,
     private val transitionProcessor: GeofenceBusinessTransitionProcessor,
     private val clock: Clock,
-    private val logger: GeofenceLogger
+    private val logger: GeofenceLogger,
+    private val dwellCoordinator: GeofenceDwellCoordinator? = null
 ) {
     private val routeProcessor = PolygonRouteProcessor()
     private var sessionStartElapsedRealtimeNanos: Long? = null
@@ -316,7 +318,12 @@ internal class PolygonLocationEngine(
                 .mapTo(pendingArrivalPolygonIds, PolygonRouteRecord.ArrivalPending::geofenceId)
             // Every record names the fence it judged, so the records are the pass's own statement
             // of what it looked at. A skipped fence produces none.
-            routeOutcome.records.mapTo(evaluatedPolygonIds, PolygonRouteRecord::geofenceId)
+            val evaluatedThisFix = routeOutcome.records.mapTo(mutableSetOf(), PolygonRouteRecord::geofenceId)
+            val decisivelyInsideThisFix = routeOutcome.records
+                .filterIsInstance<PolygonRouteRecord.Unchanged>()
+                .filter { it.membership == PolygonCommittedState.INSIDE.name }
+                .mapTo(mutableSetOf(), PolygonRouteRecord::geofenceId)
+            evaluatedPolygonIds.addAll(evaluatedThisFix)
             routeOutcome.records.forEach(::emitRouteRecord)
             routeOutcome.detections.forEach { detection ->
                 if (store.userStateGeneration() != expectedUserStateGeneration) {
@@ -328,15 +335,32 @@ internal class PolygonLocationEngine(
                     PolygonTransition.ENTER -> Event.GeofenceTransition.ENTER
                     PolygonTransition.EXIT -> Event.GeofenceTransition.EXIT
                 }
+                val observedAtSeconds = observedTimestampSeconds(fix)
+                val wasInside = detection.transition == PolygonTransition.ENTER &&
+                    detection.polygonId in store.getEnteredIds()
                 transitionProcessor.process(
                     geofenceId = detection.polygonId,
                     transition = transition,
-                    timestampSeconds = observedTimestampSeconds(fix),
+                    timestampSeconds = observedAtSeconds,
                     enforceConfiguredTransition = true,
                     expectedRegionRevision = detection.regionRevision,
                     expectedUserStateGeneration = expectedUserStateGeneration,
                     requireRegistered = true
                 )
+                if (store.userStateGeneration() != expectedUserStateGeneration) {
+                    return@withLock PolygonEvaluationOutcome.NOTHING
+                }
+                if (
+                    detection.transition == PolygonTransition.ENTER &&
+                    detection.polygonId in store.getEnteredIds()
+                ) {
+                    dwellCoordinator?.onEnter(
+                        detection.polygonId,
+                        observedAtSeconds,
+                        expectedUserStateGeneration,
+                        beginsNewVisit = !wasInside
+                    )
+                }
                 if (store.userStateGeneration() != expectedUserStateGeneration) return@withLock PolygonEvaluationOutcome.NOTHING
                 if (detection.transition == PolygonTransition.EXIT) {
                     synchronized(stateLock) {
@@ -355,6 +379,15 @@ internal class PolygonLocationEngine(
                         }
                     }
                 }
+            }
+            val observedAtSeconds = observedTimestampSeconds(fix)
+            val enteredIds = store.getEnteredIds()
+            decisivelyInsideThisFix.filter { it in enteredIds }.forEach { geofenceId ->
+                dwellCoordinator?.onInsideEvidence(
+                    geofenceId,
+                    observedAtSeconds,
+                    expectedUserStateGeneration
+                )
             }
         }
         PolygonEvaluationOutcome(

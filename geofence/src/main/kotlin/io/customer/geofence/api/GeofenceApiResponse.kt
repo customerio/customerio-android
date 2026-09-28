@@ -92,7 +92,9 @@ internal data class GeofenceApiRegion(
     // or bad values inside — can never fail the region/response decode; [sanitizeMetadata] reduces
     // anything that isn't a scalar object to empty.
     @SerialName("metadata")
-    val metadata: JsonElement? = null
+    val metadata: JsonElement? = null,
+    @SerialName("dwell_threshold_seconds")
+    val dwellThresholdSeconds: Long? = null
 )
 
 // Nullable throughout, for the same reason as `metadata` above: these decode before
@@ -251,7 +253,8 @@ private fun GeofenceApiRegion.toCircleRegionOrNull(): GeofenceRegion? {
         transitionTypes = resolveTransitionTypes(transitionTypes),
         lastUpdated = lastUpdated ?: 0L,
         geosetIds = geosetIds,
-        metadata = sanitizeMetadata(metadata)
+        metadata = sanitizeMetadata(metadata),
+        dwellThresholdSeconds = sanitizeDwellThreshold(dwellThresholdSeconds)
     )
 }
 
@@ -315,7 +318,8 @@ private fun GeofenceApiRegion.toPolygonRegionOrNull(
         lastUpdated = lastUpdated ?: 0L,
         geosetIds = geosetIds,
         metadata = sanitizeMetadata(metadata),
-        polygonVertices = polygon.vertices
+        polygonVertices = polygon.vertices,
+        dwellThresholdSeconds = sanitizeDwellThreshold(dwellThresholdSeconds)
     )
 }
 
@@ -388,6 +392,12 @@ private fun JsonElement.toPolygonVerticesOrNull(): List<PolygonCoordinate>? {
 private const val POLYGON_GEOMETRY_TYPE = "Polygon"
 private const val CIRCLE_SHAPE = "circle"
 private const val POLYGON_SHAPE = "polygon"
+
+private fun sanitizeDwellThreshold(seconds: Long?): Int =
+    seconds
+        ?.takeIf { it in 1L..GeofenceConstants.MAX_DWELL_THRESHOLD_SECONDS.toLong() }
+        ?.toInt()
+        ?: 0
 
 /**
  * Reduces the raw wire value to the scalar map the event can carry: anything that isn't a JSON object

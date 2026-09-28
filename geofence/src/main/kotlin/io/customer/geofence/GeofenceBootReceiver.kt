@@ -7,6 +7,7 @@ import android.content.Intent
 import androidx.annotation.VisibleForTesting
 import io.customer.geofence.di.geofenceLogger
 import io.customer.geofence.di.geofencePermissionChecker
+import io.customer.geofence.di.geofenceRegionStore
 import io.customer.geofence.di.geofenceRepository
 import io.customer.geofence.di.polygonGeofenceServiceController
 import io.customer.sdk.core.di.SDKComponent
@@ -56,6 +57,9 @@ class GeofenceBootReceiver : BroadcastReceiver() {
     @VisibleForTesting
     internal suspend fun restore() {
         val android = SDKComponent.android()
+        // Reboot destroys the GMS monitoring session. A persisted entry can no longer prove
+        // continuous presence across that gap, even when registration is restored successfully.
+        android.geofenceRegionStore.clearDwellVisits()
         if (!android.geofencePermissionChecker.hasRequiredLocationPermissions()) {
             SDKComponent.geofenceLogger.logSyncSkippedNoPermission(REASON_BOOT_RESTORE)
             return

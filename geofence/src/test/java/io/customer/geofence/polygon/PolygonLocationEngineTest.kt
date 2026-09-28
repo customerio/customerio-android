@@ -7,6 +7,7 @@ import io.customer.commontest.config.TestConfig
 import io.customer.commontest.config.testConfigurationDefault
 import io.customer.commontest.core.RobolectricTest
 import io.customer.geofence.GeofenceBusinessTransitionProcessor
+import io.customer.geofence.GeofenceDwellCoordinator
 import io.customer.geofence.GeofenceJsonSerializer
 import io.customer.geofence.GeofenceLogger
 import io.customer.geofence.GeofenceRegion
@@ -47,6 +48,7 @@ class PolygonLocationEngineTest : RobolectricTest() {
     private val secureUserStore: SecureUserStore = mockk(relaxed = true)
     private val logger: GeofenceLogger = mockk(relaxed = true)
     private val clock: Clock = mockk(relaxed = true)
+    private val dwellCoordinator: GeofenceDwellCoordinator = mockk(relaxed = true)
     private lateinit var store: GeofenceRegionStoreImpl
     private lateinit var engine: PolygonLocationEngine
 
@@ -83,7 +85,8 @@ class PolygonLocationEngineTest : RobolectricTest() {
                 logger
             ),
             clock = clock,
-            logger = logger
+            logger = logger,
+            dwellCoordinator = dwellCoordinator
         )
     }
 
@@ -159,6 +162,18 @@ class PolygonLocationEngineTest : RobolectricTest() {
                 any(),
                 any()
             )
+        }
+    }
+
+    @Test
+    fun processResponsiveLocation_givenFreshDecisiveInsideFixForEnteredFence_expectDwellEvidence() = runTest {
+        engine.processResponsiveLocation(insideFix())
+        engine.processResponsiveLocation(
+            insideFix(elapsedRealtimeNanos = SystemClock.elapsedRealtimeNanos())
+        )
+
+        coVerify(exactly = 1) {
+            dwellCoordinator.onInsideEvidence(POLYGON_ID, 100L, any())
         }
     }
 
@@ -247,6 +262,7 @@ class PolygonLocationEngineTest : RobolectricTest() {
         engine.processResponsiveLocation(fix(37.7750, -122.41865, accuracyMeters = 45f))
 
         store.getEnteredIds() shouldBeEqualTo setOf(POLYGON_ID)
+        coVerify(exactly = 0) { dwellCoordinator.onInsideEvidence(any(), any(), any()) }
     }
 
     @Test

@@ -30,14 +30,7 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.shadows.ShadowSystemClock
 
-/**
- * One fix delivered through several callbacks, and a marginal arrival through the controller.
- *
- * A marginal ENTER is held for corroboration and must log `arrival.pending`; otherwise a capture
- * cannot tell it from a callback that never arrived. A fence may also stay silent because the
- * per-fence replay guard in [PolygonRouteProcessor] already saw the fix's timestamp, which is
- * benign.
- */
+/** One fix delivered through several callbacks, and a marginal arrival through the controller. */
 @RunWith(RobolectricTestRunner::class)
 @OptIn(ExperimentalCoroutinesApi::class)
 class PolygonFieldArrivalTest : RobolectricTest() {
@@ -75,7 +68,7 @@ class PolygonFieldArrivalTest : RobolectricTest() {
         store.saveRegisteredIds(setOf(NEIGHBOUR_ID, VENUE_ID))
         store.saveRoutableRegisteredIds(setOf(NEIGHBOUR_ID, VENUE_ID))
 
-        // The neighbour's callback arrives first: already inside its wake circle and active.
+        // The neighbour is already active and inside its wake circle.
         store.activatePolygon(NEIGHBOUR_ID)
         store.recordPolygonCoarseInside(NEIGHBOUR_ID)
 
@@ -107,8 +100,6 @@ class PolygonFieldArrivalTest : RobolectricTest() {
     fun activate_givenTheSameFixAlreadyDeliveredForAnotherFence_expectTheNewFenceStillEnters() = runTest {
         val fix = fixInsideTheVenue()
 
-        // First delivery: the neighbour's coarse EXIT. The venue is not named here and is not yet
-        // active, so this callback cannot decide anything about it.
         controller.onCoarseExit(
             polygonId = NEIGHBOUR_ID,
             triggeringLocation = fix,
@@ -116,8 +107,7 @@ class PolygonFieldArrivalTest : RobolectricTest() {
             expectedRegionRevision = null
         )
 
-        // Second delivery, same fix and elapsedRealtimeNanos, naming the venue for the first time.
-        // 52 m inside at 5 m accuracy, so decisive on its own.
+        // Same fix and elapsedRealtimeNanos, naming the venue for the first time.
         controller.activate(
             polygonId = VENUE_ID,
             triggeringLocation = fix,
@@ -128,10 +118,6 @@ class PolygonFieldArrivalTest : RobolectricTest() {
         store.getEnteredIds() shouldContain VENUE_ID
     }
 
-    /**
-     * Control: the test above without the first delivery. If this fails too, the fixture cannot
-     * produce the arrival at all.
-     */
     @Test
     fun activate_givenNoEarlierDeliveryOfTheFix_expectTheFenceEnters() = runTest {
         controller.activate(
@@ -146,8 +132,7 @@ class PolygonFieldArrivalTest : RobolectricTest() {
 
     /**
      * An EXIT batch naming a polygon and the movement trigger. The trigger is handed off as a Job,
-     * so the neighbour's coarse EXIT consumes the fix first; the trigger then activates every
-     * routable polygon whose wake circle the fix reaches and evaluates the same fix again.
+     * so the coarse EXIT consumes the fix first and the trigger re-evaluates the same fix.
      */
     @Test
     fun movementTriggerExit_givenTheFixAlreadyConsumedByACoarseExit_expectTheVenueStillEnters() = runTest {
@@ -168,11 +153,6 @@ class PolygonFieldArrivalTest : RobolectricTest() {
         store.getEnteredIds() shouldContain VENUE_ID
     }
 
-    /**
-     * 10 m inside the ring at 18 m accuracy, so [PolygonAccuracyEvaluator] sets
-     * `requiresCorroboration` and the arrival is held. The tests above use a 52 m-inside fix,
-     * which commits on its own.
-     */
     @Test
     fun activate_givenAMarginalFieldFix_expectTheArrivalIsHeldAndTheHoldIsLogged() = runTest {
         controller.activate(
@@ -188,10 +168,6 @@ class PolygonFieldArrivalTest : RobolectricTest() {
         }
     }
 
-    /**
-     * Control for the test above: a second agreeing fix inside the window completes the arrival,
-     * which is only possible if the first fix was held rather than discarded.
-     */
     @Test
     fun activate_givenASecondAgreeingMarginalFix_expectTheArrivalCompletes() = runTest {
         controller.activate(
@@ -214,9 +190,8 @@ class PolygonFieldArrivalTest : RobolectricTest() {
     }
 
     /**
-     * A stationary device indoors cannot produce a second measurement: the fused provider re-emits
-     * the held coordinate under a fresh stamp. A repeat is not evidence the device is elsewhere, so
-     * the arrival is reported, marked not independent.
+     * A stationary device's provider re-emits the held coordinate under a fresh stamp: not a second
+     * measurement, but not evidence against the arrival either.
      */
     @Test
     fun activate_givenTheHeldPositionDeliveredAgain_expectTheArrivalIsReportedUnconfirmed() = runTest {
@@ -228,7 +203,6 @@ class PolygonFieldArrivalTest : RobolectricTest() {
         )
         store.getEnteredIds() shouldNotContain VENUE_ID
 
-        // Same coordinate, newer stamp: the re-emission, not a second measurement.
         controller.activate(
             polygonId = VENUE_ID,
             triggeringLocation = fieldFix(elapsedRealtimeNanos = SystemClock.elapsedRealtimeNanos()),

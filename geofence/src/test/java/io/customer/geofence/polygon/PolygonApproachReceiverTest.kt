@@ -42,8 +42,7 @@ class PolygonApproachReceiverTest : RobolectricTest() {
 
     @Test
     fun handleLocations_givenIdentifiedUser_expectSessionOpenedAgainstStoreNotTheReadValue() = runTest {
-        // An identify landing between reading the user and opening the session would reopen the
-        // prior user, so the session opens against the store's identity, not the value read here.
+        // An identify between the read and the open would otherwise reopen the prior user.
         val locations = listOf(location())
         coEvery {
             controller.processApproachLocations(locations, 7L, any())

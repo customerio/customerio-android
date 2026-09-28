@@ -19,8 +19,7 @@
             android:exported="false" />
 
         <!--
-            Receives polygon approach fixes. Always enabled, unlike the toggled geofence and boot
-            receivers: its GMS PendingIntent outlives the process and the kill switch, and a
+            Always enabled: its GMS PendingIntent outlives the process and the kill switch, and a
             delivery is what removes a stale request.
         -->
         <receiver

@@ -47,7 +47,6 @@ class GeofenceBootReceiverTest : RobolectricTest() {
 
     @Test
     fun onReceive_givenNonBootIntent_expectRestoreNotCalled() = runTest {
-        // Stray intents on a re-enabled receiver must not trigger a restore.
         receiver.onReceive(applicationMock, Intent("com.example.OTHER_ACTION"))
 
         coVerify(exactly = 0) { mockRepository.restoreFromCache() }
@@ -65,8 +64,7 @@ class GeofenceBootReceiverTest : RobolectricTest() {
 
     @Test
     fun restore_givenPermissionsRevoked_expectRepositoryNotCalled() = runTest {
-        // Permissions can be revoked while the device is off; the receiver must check them
-        // itself rather than rely on the manager's deeper guard.
+        // The receiver must check permissions itself, not rely on the manager's guard.
         every { mockPermissionChecker.hasRequiredLocationPermissions() } returns false
 
         receiver.restore()

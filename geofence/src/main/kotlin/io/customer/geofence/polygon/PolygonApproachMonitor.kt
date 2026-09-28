@@ -22,9 +22,8 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /**
- * Runs a bounded location session after an OS polygon or shared-movement wake cannot establish a
- * safely passive state. Merely registering polygons never starts this request. Exact polygon
- * decisions remain in [PolygonLocationEngine].
+ * Runs a bounded location session after a polygon or movement wake cannot reach a safely passive
+ * state. Registering polygons never starts it.
  */
 internal class PolygonApproachMonitor(
     context: Context,
@@ -33,6 +32,7 @@ internal class PolygonApproachMonitor(
     private val logger: GeofenceLogger,
     backgroundContext: CoroutineContext
 ) {
+    /** Never log while holding this: the host log dispatcher is customer code. */
     private val lock = Any()
     private var desired = false
     private var userStateGeneration: Long? = null
@@ -47,24 +47,11 @@ internal class PolygonApproachMonitor(
     private val removalRetryJobs = mutableMapOf<PendingIntent, Job>()
 
     /**
-     * Generations whose registration already had its ending reported, so a later removal of the
-     * same registration is not reported again.
-     *
-     * Keyed by generation because that identifies a registration: the deadline is an extra, which
-     * `Intent.filterEquals` ignores, so every session in a generation shares one GMS registration.
-     * Never evicted, because nothing cancels the PendingIntent and a stale stop can succeed at any
-     * later time; growth is bounded by identify and sign-out. A new process starts empty, so it may
-     * report one inherited ending again.
+     * Generations whose registration's ending was already reported, so a repeat removal is not
+     * reported again. Never evicted: GMS reports success for a stale stop at any later time.
      */
     private val reportedEndingGenerations = mutableSetOf<Long>()
 
-    /**
-     * Asks Play services for approach fixes, best-effort.
-     *
-     * Not `@RequiresPermission`: permission can be revoked between any check and this call, so a
-     * missing permission is a handled outcome instead. The request fails with [SecurityException],
-     * and [retryRegistration] logs it and clears `desired` so nothing is retried.
-     */
     fun start(
         expectedUserStateGeneration: Long,
         sessionDeadlineElapsedRealtimeMs: Long = newSessionDeadlineElapsedRealtimeMs()
@@ -74,10 +61,8 @@ internal class PolygonApproachMonitor(
             return
         }
         val registration = synchronized(lock) {
-            // Checked against the store: a caller can resume holding a generation that an identify
-            // has since replaced or a sign-out has ended, and this monitor's own state shows
-            // neither. Under this lock, the sign-out teardown either bumps the generation first or
-            // removes the request armed here.
+            // Checked against the store, since the caller's generation may be stale. Under this
+            // lock, a sign-out either bumps the generation first or removes the request armed here.
             if (expectedUserStateGeneration != store.userStateGeneration()) {
                 return
             }
@@ -88,12 +73,12 @@ internal class PolygonApproachMonitor(
             ) {
                 return
             }
-            // Returned from this block rather than stored on the instance: a concurrent start()
-            // would overwrite it before this caller reached removeUpdates.
+            // Returned from this block, not kept on the instance: a concurrent start() would
+            // overwrite it.
             val previous = activePendingIntent
             val outgoingDeadline = this.sessionDeadlineElapsedRealtimeMs
-            // The generation of the request being replaced, not the one arming, so its ending is
-            // recorded against the right registration.
+            // The replaced request's generation, not the arming one, so its ending is recorded
+            // correctly.
             val outgoingGeneration = this.userStateGeneration
             desired = true
             userStateGeneration = expectedUserStateGeneration
@@ -118,29 +103,25 @@ internal class PolygonApproachMonitor(
             }
             removalRetryJobs.remove(current)?.cancel()
             removalRetryAttempts.remove(current)
-            // Seeded at zero, not left absent: a session armed here that receives nothing reports
-            // n=0. An existing entry holds a batch that cold-started this process before the
-            // session was adopted, so it is kept and claimed rather than replaced.
+            // Seeded so a session that receives nothing reports n=0. An existing entry holds a batch
+            // that cold-started the process before this adopt, so it is claimed, not replaced.
             val existingCount = samplesByDeadline[sessionDeadlineElapsedRealtimeMs]
             if (existingCount == null) {
                 samplesByDeadline[sessionDeadlineElapsedRealtimeMs] = SessionSamples(armedHere = true)
             } else {
                 existingCount.armedHere = true
             }
-            // An equal PendingIntent ends the outgoing session without a removal. This call reports
-            // that ending and claims the generation, so a later stop naming the outgoing deadline
-            // is not reported as a first ending.
+            // An equal PendingIntent ends the outgoing session without a removal, so its ending is
+            // reported here and the generation claimed against a second report.
             val endingToReport = outgoingDeadline
                 ?.takeIf { previous != null && previous == current && it != sessionDeadlineElapsedRealtimeMs }
                 ?.also { reportedEndingGenerations += expectedUserStateGeneration }
             Rearm(previous, current, outgoingDeadline, outgoingGeneration, endingToReport)
         }
-        // Only for a different request: a re-arm for the same generation builds an equal
-        // PendingIntent, and removing it would cancel the request made just below.
+        // Not for an equal intent: removing it would cancel the request made below.
         registration.previous?.takeIf { it != registration.current }?.let {
             removeUpdates(it, registration.outgoingDeadline, registration.outgoingGeneration)
         }
-        // Outside the lock: the host's log dispatcher is customer code.
         registration.endingToReport?.let { outgoing ->
             logger.logPolygonApproachMonitoringStopped(
                 samplesReceived = consumeSessionCount(outgoing)?.samplesReceived
@@ -150,47 +131,32 @@ internal class PolygonApproachMonitor(
     }
 
     /**
-     * Sample batches counted per session deadline, the only value that identifies a session.
-     *
-     * Not per [PendingIntent]: sessions in one generation share an equal intent (the deadline is an
-     * extra), and same-generation overlap is the common case. Not one shared counter: the next
-     * session arming would reset it before the previous one's removal completes. The receiver reads
-     * the deadline from the delivering intent, so each batch names its own session.
+     * Batch counts per session deadline, the only value that identifies a session: a generation's
+     * sessions share one intent, and one shared counter would be reset by the next session's arm
+     * before the previous removal completes.
      */
     private val samplesByDeadline =
         java.util.concurrent.ConcurrentHashMap<Long, SessionSamples>()
 
     /**
-     * One session's batch count, held until its ending is reported.
-     *
-     * [armedHere] marks a session this process armed, for which n=0 is evidence rather than a
-     * guess. Settable because a batch can create the entry before the arm claims it.
+     * [armedHere] marks a session this process armed, where n=0 is evidence. Settable because a
+     * batch can create the entry before the arm claims it.
      */
     private class SessionSamples(var armedHere: Boolean) {
         val samples = java.util.concurrent.atomic.AtomicInteger(0)
     }
 
-    /**
-     * Takes the count for the session named by [deadline], if this process has one. Removing it
-     * keeps the map bounded by unreported sessions, which is what makes the age-based prune safe.
-     */
+    /** Removes the entry, so the map holds only unreported sessions and the age prune stays safe. */
     private fun consumeSessionCount(deadline: Long): ClaimedCount? {
         val entry = samplesByDeadline.remove(deadline) ?: return null
         val samples = entry.samples.get()
         return ClaimedCount(
-            // An unarmed zero would claim n=0 for a session nothing is known about, so it is
-            // reported as unknown. Unreachable today: the batch that creates an unarmed entry
-            // also increments it.
+            // An unarmed zero says nothing about the session, so it is reported as unknown.
             samplesReceived = samples.takeIf { entry.armedHere || it > 0 },
             armedHere = entry.armedHere
         )
     }
 
-    /**
-     * A count taken from an entry, with whether this process armed its session. An unarmed entry
-     * can be created by a batch arriving after that session's ending was already reported, so
-     * reporting it could record one ending twice.
-     */
     private class ClaimedCount(val samplesReceived: Int?, val armedHere: Boolean)
 
     /** Records an ending as accounted for without reporting one, for a session that never began. */
@@ -200,12 +166,8 @@ internal class PolygonApproachMonitor(
     }
 
     /**
-     * Drops counts for sessions that can no longer be torn down.
-     *
-     * Evicting by size would delete a live session's entry while its removal callback is still in
-     * flight, and the teardown would then read absent and report nothing for a session that did
-     * deliver. A session deadline is at most [MAXIMUM_SESSION_DURATION_MS] ahead of its start, so
-     * anything this far in the past belongs to no session that can still report.
+     * By age, not size: evicting by size could drop a live session's entry while its removal is in
+     * flight, so its teardown would report nothing for a session that did deliver.
      */
     private fun pruneAbandonedSessionCounts() {
         if (samplesByDeadline.size <= MAX_TRACKED_SESSIONS) return
@@ -214,11 +176,9 @@ internal class PolygonApproachMonitor(
     }
 
     /**
-     * Called by the controller for each delivered batch, naming the session that delivered it.
-     *
-     * Creates the entry when missing, because a PendingIntent can cold-start the process and the
-     * receiver records that batch before it adopts the session. A late batch for a session already
-     * reported creates an unarmed entry, which [removeUpdates] does not report a second time.
+     * Creates the entry when missing: a PendingIntent can cold-start the process, and its batch is
+     * recorded before the session is adopted. A late batch for a reported session creates an
+     * unarmed entry, which [removeUpdates] does not report again.
      */
     fun recordSampleDelivered(sessionDeadlineElapsedRealtimeMs: Long) {
         // putIfAbsent rather than merge or compute: those are API 24 and minSdk here is 21.
@@ -238,8 +198,7 @@ internal class PolygonApproachMonitor(
         var deadlineBeingTornDown: Long? = null
         var generationBeingTornDown: Long? = null
         val pendingIntent = synchronized(lock) {
-            // A caller naming a generation stops only its own session: an identify can land between
-            // its read of the generation and here. A bare stop() stops whatever is live.
+            // A named generation stops only its own session; a bare stop() stops whatever is live.
             if (
                 desired &&
                 expectedUserStateGeneration != null &&
@@ -271,8 +230,6 @@ internal class PolygonApproachMonitor(
             activePendingIntent.also { activePendingIntent = null }
                 ?: generationToRemove?.let { existingPendingIntentOrNull(applicationContext, it) }
         }
-        // Logged outside the lock: the host log dispatcher is customer code. The refusal is
-        // checked first because a refusal and an absent pending intent both yield null above.
         refusal?.let {
             logger.logPolygonApproachStopRefused(it)
             return
@@ -306,8 +263,6 @@ internal class PolygonApproachMonitor(
                             activePendingIntent != pendingIntent
                     }
                     if (stale) {
-                        // The request just made is already stale. The removal below reports the
-                        // ending; this records why.
                         logger.logPolygonApproachRequestDiscarded(
                             synchronized(lock) { userStateGeneration }
                         )
@@ -329,14 +284,12 @@ internal class PolygonApproachMonitor(
     }
 
     /**
-     * The one call in this class that can throw [SecurityException]. Suppressed here only: both
-     * the synchronous throw and the async failure route to [retryRegistration], which fails closed
-     * on it, and suppressing at the callers of [start] would hide a genuine unchecked use.
+     * Suppressed here, not at [start]'s callers where it would hide a genuine unchecked use. A
+     * [SecurityException], thrown or async, reaches [retryRegistration], which fails closed on it.
      */
     @SuppressLint("MissingPermission")
     private fun requestApproachUpdates(pendingIntent: PendingIntent): Task<Void> {
-        // Read at request time, not at start: a retry or a post-removal restart is the same session
-        // continuing, so it asks the OS for what is left rather than renewing the bound.
+        // Read at request time: a retry or restart continues the session, asking only for what is left.
         val deadline = synchronized(lock) { sessionDeadlineElapsedRealtimeMs }
         val remaining = deadline?.minus(SystemClock.elapsedRealtime())?.coerceAtLeast(0L)
             ?: MAXIMUM_SESSION_DURATION_MS
@@ -356,17 +309,14 @@ internal class PolygonApproachMonitor(
                     desired = false
                     userStateGeneration = null
                     activePendingIntent = null
-                    // Nothing is registered now, so leaving this armed would later "stop" a request
-                    // that never existed and log a removal that did not happen.
                     abandonedDeadline = sessionDeadlineElapsedRealtimeMs
                     sessionDeadlineElapsedRealtimeMs = null
                     sessionTimeoutJob?.cancel()
                     sessionTimeoutJob = null
                 }
             }
-            // The PendingIntent was minted before the failure, so a later stop still finds it and
-            // GMS reports success for a request never attached. Marking the ending as accounted
-            // for keeps that removal from reporting one.
+            // The PendingIntent already exists, so a later stop finds it and GMS reports success;
+            // this keeps that removal from reporting an ending for a request never attached.
             abandonedDeadline?.let { suppressEnding(it, requestGeneration) }
             return
         }
@@ -397,8 +347,8 @@ internal class PolygonApproachMonitor(
     }
 
     /**
-     * What one [start] call has to finish outside the lock: the request it replaced, the one it
-     * armed, and the ending it has taken responsibility for reporting.
+     * What one [start] finishes outside the lock. Returned rather than stored on the instance, so
+     * a concurrent [start] cannot overwrite it first.
      */
     private data class Rearm(
         val previous: PendingIntent?,
@@ -409,9 +359,8 @@ internal class PolygonApproachMonitor(
     )
 
     /**
-     * [namedDeadline] is the session this removal is for, which is not always the live one: equal
-     * intents share a registration, so a removal can name an older session while a newer one runs.
-     * Named so it does not shadow the `sessionDeadlineElapsedRealtimeMs` field.
+     * [namedDeadline] is the session this removal is for, which may be older than the live one
+     * sharing its registration. Named so it does not shadow the deadline field.
      */
     private fun removeUpdates(
         pendingIntent: PendingIntent,
@@ -433,15 +382,8 @@ internal class PolygonApproachMonitor(
                             desired && activePendingIntent == pendingIntent
                         }
                     }
-                    // GMS reports success whether or not a request is attached, and nothing cancels
-                    // the PendingIntent, so a stop naming an already-removed generation succeeds
-                    // again; [reportedEndingGenerations] keeps that from reading as another ending.
-                    //
-                    // The ending belongs to the session this removal names. One naming the live
-                    // deadline ended nothing (the request is re-issued below); one naming an older
-                    // deadline ended that session though the registration continues. A first
-                    // removal with no count entry is a real ending this process cannot count, so
-                    // it is reported without one.
+                    // A removal naming the live deadline ended nothing, as the request is re-issued
+                    // below; one naming an older deadline ended that session.
                     val endedSession = when {
                         namedDeadline != null ->
                             namedDeadline != liveDeadline
@@ -450,14 +392,11 @@ internal class PolygonApproachMonitor(
                     if (endedSession) {
                         val claimed = namedDeadline?.let(::consumeSessionCount)
                         val reportedAnEnding = when {
-                            // Armed here: reported on its own count, so sessions sharing one
-                            // registration each report their own ending.
+                            // Armed here: each session sharing a registration reports its own ending.
                             claimed != null && claimed.armedHere -> {
                                 logger.logPolygonApproachMonitoringStopped(claimed.samplesReceived)
                                 true
                             }
-                            // Unarmed or no entry: not attributable to a session opened here, so
-                            // reported only if the registration's ending is not already on record.
                             !registrationAlreadyReported -> {
                                 logger.logPolygonApproachMonitoringStopped(claimed?.samplesReceived)
                                 true
@@ -484,10 +423,7 @@ internal class PolygonApproachMonitor(
         }
     }
 
-    /**
-     * Carries both keys the retried removal needs, so its success path can still tell a repeat
-     * teardown from a first one.
-     */
+    /** Forwards both keys, so the retried removal can still tell a repeat teardown from a first. */
     private fun retryRemoval(
         pendingIntent: PendingIntent,
         cause: Throwable,
@@ -497,8 +433,7 @@ internal class PolygonApproachMonitor(
         logger.logPolygonApproachRequestFailed(cause.message, operation = "remove_updates")
         synchronized(lock) {
             if (desired && activePendingIntent == pendingIntent) {
-                // Wanted again, so drop its retry state; these maps would otherwise keep one entry
-                // per generation's PendingIntent.
+                // Wanted again: drop its retry state, or the maps keep an entry per generation.
                 removalRetryAttempts.remove(pendingIntent)
                 removalRetryJobs.remove(pendingIntent)?.cancel()
                 return
@@ -521,9 +456,8 @@ internal class PolygonApproachMonitor(
         private const val MAX_TRACKED_SESSIONS = 16
 
         /**
-         * How far past its deadline a session's count is kept. Well beyond
-         * [MAXIMUM_SESSION_DURATION_MS] plus any removal retry, so pruning cannot reach a session
-         * whose teardown has not happened yet.
+         * How far past its deadline a count is kept: beyond any removal retry, so pruning cannot
+         * reach a session whose teardown is still pending.
          */
         private const val ABANDONED_SESSION_COUNT_AGE_MS = 10 * 60_000L
 
@@ -540,21 +474,15 @@ internal class PolygonApproachMonitor(
         private const val MAXIMUM_RETRY_MS = 300_000L
 
         /**
-         * The session budget goes on the request itself, not only on our timer.
-         *
-         * [sessionTimeoutJob] and the deadline extra both die with the process, while a
-         * `PendingIntent` registration outlives it. Deliveries to a stationary device are too
-         * sparse to rely on for noticing the deadline has passed, so without this the request can
-         * stay live indefinitely.
+         * The budget goes on the request too: our timer dies with the process but the registration
+         * outlives it, and a stationary device gets too few deliveries to notice the deadline.
          */
         internal fun locationRequest(durationMs: Long): LocationRequest = LocationRequest.Builder(
             Priority.PRIORITY_BALANCED_POWER_ACCURACY,
             UPDATE_INTERVAL_MS
         )
             .setMinUpdateIntervalMillis(FASTEST_UPDATE_INTERVAL_MS)
-            // No displacement filter. The case this session exists to judge is someone who has
-            // arrived and stopped, and the filter drops consecutive fixes within the gate: such a
-            // device is sampled once and then not again for the rest of the session.
+            // No displacement filter: it would sample an arrived, stopped device only once.
             .setWaitForAccurateLocation(false)
             .setDurationMillis(durationMs)
             .build()
@@ -563,12 +491,8 @@ internal class PolygonApproachMonitor(
             SystemClock.elapsedRealtime() + MAXIMUM_SESSION_DURATION_MS
 
         /**
-         * The registration for [userStateGeneration] if one exists, and null otherwise.
-         *
-         * Removal paths ask for this rather than [pendingIntent]: `FLAG_UPDATE_CURRENT` CREATES a
-         * `PendingIntent` when none is present, so removing a generation that was never registered
-         * would mint one and leave it behind. A registration made before this process started is
-         * still found, which is what the cold-process teardown depends on.
+         * For removal paths: [pendingIntent] would mint one for a generation never registered.
+         * Still finds a registration from an earlier process, which cold-process teardown needs.
          */
         internal fun existingPendingIntentOrNull(
             context: Context,
@@ -589,10 +513,9 @@ internal class PolygonApproachMonitor(
         }
 
         /**
-         * Identity is the generation in the data URI only: `PendingIntent` equality ignores extras,
-         * so a different deadline is the same intent and `FLAG_UPDATE_CURRENT` rewrites its extras.
-         * Keep the deadline out of the URI: a cold process stops a session by rebuilding the
-         * intent for its generation, and the `PendingIntent`-keyed maps rely on it staying equal.
+         * Identity is the generation in the URI; the deadline is an extra, so a generation's
+         * sessions share one intent. Keep the deadline out of the URI: a cold process rebuilds the
+         * intent from the generation to stop it, and the PendingIntent-keyed maps need it equal.
          */
         internal fun pendingIntent(
             context: Context,

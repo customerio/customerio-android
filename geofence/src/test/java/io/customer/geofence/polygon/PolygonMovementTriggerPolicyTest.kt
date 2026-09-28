@@ -128,8 +128,6 @@ class PolygonMovementTriggerPolicyTest {
 
     @Test
     fun safeRadiusMeters_givenDepartureClearanceWiderThanTheCatalogRadius_expectTheCatalogRadius() {
-        // The same ring under the default 1000 m catalog radius. The clearance is wider than the
-        // catalog allows, so the catalog wins: a departure never widens the trigger past it.
         policy.safeRadiusMeters(
             regions = listOf(
                 rectangle(
@@ -148,8 +146,8 @@ class PolygonMovementTriggerPolicyTest {
 
     @Test
     fun safeRadiusMeters_givenDepartureOnlyAndASubClampRefreshRadius_expectNoRefusal() {
-        // The config clamp forbids a radius below 100 m, so only a direct caller reaches this. A
-        // pure departure is still armed: the refusal protects an arrival and there is none here.
+        // Below the config clamp's 100 m minimum. A pure departure is still armed: the refusal
+        // protects an arrival and there is none here.
         policy.safeRadiusMeters(
             regions = listOf(
                 rectangle(
@@ -188,9 +186,8 @@ class PolygonMovementTriggerPolicyTest {
 
     @Test
     fun safeRadiusMeters_givenInsideOnePolygonAndApproachingAnother_expectNoSafeBubble() {
-        // Inside an 80 m shop with another 60 m away, a 250 m departure trigger would let sampling
-        // stop, and the second shop is entered without crossing it. Being inside one fence must not
-        // cancel the approach clearance of another.
+        // A 250 m departure trigger would let sampling stop, and the second shop 60 m away is
+        // entered without crossing it.
         policy.safeRadiusMeters(
             regions = listOf(
                 rectangle(id = "inside", westMeters = -40.0, eastMeters = 40.0, southMeters = -40.0, northMeters = 40.0),
@@ -204,8 +201,6 @@ class PolygonMovementTriggerPolicyTest {
 
     @Test
     fun safeRadiusMeters_givenInsideOnePolygonAndTheOtherFarEnoughAway_expectTheDepartureFloor() {
-        // The same shape with room to satisfy both: the approaching ring is far enough that a
-        // departure-sized trigger is still crossed well before it.
         policy.safeRadiusMeters(
             regions = listOf(
                 rectangle(id = "inside", westMeters = -40.0, eastMeters = 40.0, southMeters = -40.0, northMeters = 40.0),
@@ -219,8 +214,7 @@ class PolygonMovementTriggerPolicyTest {
 
     @Test
     fun safeRadiusMeters_givenApproachClearanceTighterThanTheDepartureFloor_expectTheClearanceWins() {
-        // Between the two: the approach is satisfiable but only below the departure floor, so the
-        // trigger takes the clearance rather than widening past the ring being approached.
+        // Widening to the departure floor would reach past the ring being approached.
         val radius = policy.safeRadiusMeters(
             regions = listOf(
                 rectangle(id = "inside", westMeters = -40.0, eastMeters = 40.0, southMeters = -40.0, northMeters = 40.0),

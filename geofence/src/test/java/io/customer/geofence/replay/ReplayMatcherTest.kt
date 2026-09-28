@@ -4,7 +4,6 @@ import org.amshove.kluent.shouldBeEqualTo
 import org.amshove.kluent.shouldBeTrue
 import org.junit.Test
 
-/** The matcher, graded against hand-built emissions. */
 class ReplayMatcherTest {
 
     @Test
@@ -42,8 +41,6 @@ class ReplayMatcherTest {
 
     @Test
     fun compare_givenInternalDecisionExpectations_expectThemIgnored() {
-        // A scenario can carry `then` records for decisions about inputs; they are not outputs, so
-        // they grade nothing.
         val scenario = ScenarioLoader.load(
             scenarioFile(
                 header("why"),

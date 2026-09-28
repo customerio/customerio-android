@@ -2,10 +2,7 @@ package io.customer.geofence.replay
 
 import io.customer.geofence.GeofenceLogTail
 
-/**
- * One machine-readable record parsed from a log line: the actual side of a comparison, graded
- * against [ScenarioRecord]'s expected side.
- */
+/** A record parsed from a log line's machine tail: the actual side graded against [ScenarioRecord]. */
 internal data class EmittedRecord(val ev: String, val io: String, val fields: Map<String, String>) {
     fun geofenceIds(): List<String> =
         fields["ids"]?.split(",")?.filter { it.isNotEmpty() } ?: listOfNotNull(fields["id"])

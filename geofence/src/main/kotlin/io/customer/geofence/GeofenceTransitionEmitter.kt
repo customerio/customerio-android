@@ -12,12 +12,8 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.json.JsonElement
 
 /**
- * Gated, per-geoset fan-out for one crossing: persist the batch, then schedule delivery.
- * Shared by the OS broadcast path ([GeofenceBusinessTransitionProcessor]) and the synthesized
- * initial-enter path ([GeofenceRepository]) so both produce identical rows and pass the same gates.
- *
- * Two gates, in order: an ENTER already reported and not yet balanced by an EXIT is dropped, then
- * the time-based cooldown dedupes the rest.
+ * Shared by the broadcast and synthesized initial-enter paths so both produce identical rows and
+ * pass the same gates.
  */
 internal class GeofenceTransitionEmitter(
     private val cooldownFilter: GeofenceCooldownFilter,
@@ -32,10 +28,7 @@ internal class GeofenceTransitionEmitter(
         PERSIST_FAILED
     }
 
-    /**
-     * @return false when the ENTER was already reported, the cooldown suppressed it, or the durable
-     * outbox append failed. A failed append keeps its synchronous staging row for recovery.
-     */
+    /** A failed outbox append keeps its staging row for recovery. */
     suspend fun emit(
         geofenceId: String,
         transition: Event.GeofenceTransition,
@@ -151,9 +144,8 @@ internal class GeofenceTransitionEmitter(
                     logger.logSchedulerFailed(entry.geofenceId, entry.transition.name, e.message)
                 }
             }
-            // Physical containment was committed atomically with the stage. Recovery only
-            // completes the durable delivery handoff; replaying old containment here could
-            // overwrite a newer opposite transition.
+            // Containment was committed with the stage; replaying it here could overwrite a newer
+            // opposite transition.
             if (!regionStore.completePendingTransition(first.transitionId)) return false
         }
         return true
@@ -175,19 +167,16 @@ internal class GeofenceTransitionEmitter(
         // Drain older attempts first. If storage is still unavailable, the new edge is staged below
         // but not appended, preserving delivery order for recovery.
         val olderAttemptsDrained = recoverPendingTransitionsLocked()
-        // A business transition is a newly-confirmed physical edge, even when an older edge in the
-        // same direction is still staged behind a failed outbox append (ENTER → EXIT → ENTER). Only
-        // the direct synthetic path may reuse an existing stage for the same visit.
+        // A business transition is a new edge even if an older same-direction one is still staged
+        // (ENTER, EXIT, ENTER), so only the synthetic path reuses a stage.
         val stagedEntries = if (retainAttempt) {
             emptyList()
         } else {
             regionStore.getPendingTransitionEntries(userId, geofenceId, transition)
         }
         val isRecovery = stagedEntries.isNotEmpty()
-        // Reboot and app update both re-register with INITIAL_TRIGGER_ENTER, so the OS re-reports
-        // ENTER for a fence the device never left. Ahead of the cooldown so the drop doesn't spend
-        // the fence's slot, and only where an EXIT can clear the mark — an enter-only fence never
-        // reports one, so the mark would swallow every later arrival.
+        // Reboot and app update re-report ENTER for a fence never left. Before the cooldown so the
+        // drop spends no slot; needs monitorsExit, or no EXIT would ever clear the mark.
         val isRedundantEnter = transition == Event.GeofenceTransition.ENTER &&
             monitorsExit &&
             regionStore.hasEmittedEnter(userId, geofenceId)
@@ -204,8 +193,7 @@ internal class GeofenceTransitionEmitter(
             // One transitionId shared across the per-geoset fan-out.
             val transitionId = UUID.randomUUID().toString()
             val name = geofenceName?.takeIf { it.isNotEmpty() }
-            // One event per geoset; no geosets → one null-geoset event. Blank and duplicate ids are
-            // dropped, matching iOS.
+            // Blank and duplicate geoset ids are dropped, matching iOS.
             val geosets: List<String?> = geosetIds.filter { it.isNotEmpty() }.distinct()
                 .takeIf { it.isNotEmpty() } ?: listOf(null)
             geosets.map { geosetId ->
@@ -238,8 +226,7 @@ internal class GeofenceTransitionEmitter(
             logger.logPersistFailed(geofenceId, transition.name)
             return@withLock Result.PERSIST_FAILED
         }
-        // Only after the write succeeds, so the log never claims an acceptance the write failed to
-        // make and a failed write cannot record a cooldown that suppresses its own retry.
+        // After the write, so a failed write can't record a cooldown that suppresses its own retry.
         logger.logTransitionAccepted(geofenceId, transition.name, entries.size)
         cooldownFilter.record(userId, geofenceId, transition)
         entries.forEach { entry ->

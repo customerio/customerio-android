@@ -5,16 +5,11 @@ import org.amshove.kluent.shouldBeInRange
 import org.junit.Test
 
 /**
- * Characterizes corroboration on two fence shapes taken from real venues (24 m and 106 m maximum
- * clearance) at coarse background accuracies.
- *
- * Coordinates are relocated to another latitude band with longitude deltas rescaled by the cosine
- * ratio, so edge lengths and clearances match the originals but the real positions cannot be
- * recovered from a constant offset.
+ * Two real venue shapes, relocated with longitude rescaled by the cosine ratio: clearances match
+ * the originals but a constant offset cannot recover the real positions.
  */
 class PolygonCorroborationOnRealFencesTest {
 
-    // Fence A: a triangle whose best interior point is 24.2 m from the nearest edge.
     private val fenceA = PolygonGeometry.from(
         listOf(
             PolygonCoordinate(-8.911641, 22.430034),
@@ -23,7 +18,6 @@ class PolygonCorroborationOnRealFencesTest {
         )
     )
 
-    // Fence B: a quadrilateral with 106 m maximum clearance.
     private val fenceB = PolygonGeometry.from(
         listOf(
             PolygonCoordinate(-8.908793, 22.430434),
@@ -39,16 +33,14 @@ class PolygonCorroborationOnRealFencesTest {
     /** Fence B's point of maximum clearance, 105.93 m from the nearest edge. */
     private val fenceBBestPoint = PolygonCoordinate(-8.909946, 22.431416)
 
-    /** A fix 8.4 m inside Fence B, relocated with the rings. */
+    /** A fix 8.4 m inside Fence B. */
     private val fenceBDriveFix = PolygonCoordinate(-8.910190, 22.430533)
 
     private val evaluator = PolygonAccuracyEvaluator()
 
     @Test
     fun fenceA_givenAccuracyAboveItsMaximumClearance_expectEvenTheBestPointIsHeld() {
-        // 25 m exceeds the fence's 24.2 m best clearance, so no single fix inside it commits. The
-        // 50 m ceiling floor still admits the fix and holds it; a ceiling at venue depth would
-        // refuse any fix coarser than the venue's ~24 m depth.
+        // 25 m exceeds every point's clearance; the 50 m ceiling floor still admits and holds it.
         val result = evaluator.decisiveEvidenceFor(
             geometry = fenceA,
             sample = PolygonLocationSample(fenceABestPoint, horizontalAccuracyMeters = 25.0),
@@ -74,19 +66,15 @@ class PolygonCorroborationOnRealFencesTest {
 
     @Test
     fun venueScale_givenTheRealRings_expectItTracksTheirMeasuredClearance() {
-        // venueScaleMeters approximates the maximum inradius; it must err high (wider accepted
-        // accuracy) rather than refuse real arrivals.
+        // Approximates the maximum inradius; must err high, never below the grid-computed values.
         fenceA.venueScaleMeters shouldBeInRange 24.0..24.5
         fenceB.venueScaleMeters shouldBeInRange 112.0..113.5
-        // Grid-computed maximum clearances.
         (fenceA.venueScaleMeters >= 24.16) shouldBeEqualTo true
         (fenceB.venueScaleMeters >= 105.93) shouldBeEqualTo true
     }
 
     @Test
     fun fenceA_givenDriveAccuracy_expectOnlyTheBestPointCommitsAndOnlyJust() {
-        // At 23.7 m only the best point clears the ring, by under half a metre; everywhere else is
-        // held.
         val best = evaluator.decisiveEvidenceFor(
             geometry = fenceA,
             sample = PolygonLocationSample(fenceABestPoint, horizontalAccuracyMeters = 23.7),
@@ -108,7 +96,6 @@ class PolygonCorroborationOnRealFencesTest {
 
     @Test
     fun fenceB_givenTheActualDriveFix_expectHeldNotCommitted() {
-        // 8.4 m clearance at 18 m accuracy.
         val result = evaluator.decisiveEvidenceFor(
             geometry = fenceB,
             sample = PolygonLocationSample(fenceBDriveFix, horizontalAccuracyMeters = 18.0),
@@ -121,7 +108,6 @@ class PolygonCorroborationOnRealFencesTest {
 
     @Test
     fun fenceB_givenAFixWellInsideTheSameRing_expectCommitsOnOneFix() {
-        // Control for the test above: same fence and accuracy, 106 m of clearance instead of 8.
         val result = evaluator.decisiveEvidenceFor(
             geometry = fenceB,
             sample = PolygonLocationSample(fenceBBestPoint, horizontalAccuracyMeters = 18.0),
@@ -146,9 +132,8 @@ class PolygonCorroborationOnRealFencesTest {
             committedStates = emptyMap()
         )
         val second = processor.process(
-            // About 2 m north, so it counts as an independent fix rather than the held one
-            // re-delivered.
             fences = listOf(fence),
+            // About 2 m north, so it is an independent fix, not a re-delivery.
             sample = PolygonLocationSample(
                 fenceBDriveFix.copy(latitude = fenceBDriveFix.latitude + 0.000018),
                 18.0
@@ -166,8 +151,7 @@ class PolygonCorroborationOnRealFencesTest {
 
     @Test
     fun route_givenTheSecondFixArrivesAfterTheWindow_expectTheArrivalIsLost() {
-        // A 300 s gap exceeds the 60 s window, so the stale hold is dropped and this fix opens a
-        // new one instead of committing.
+        // 300 s exceeds the 60 s window: the stale hold is dropped and this fix opens a new one.
         val processor = PolygonRouteProcessor()
         val fence = PolygonFence("fence-b", fenceB)
 

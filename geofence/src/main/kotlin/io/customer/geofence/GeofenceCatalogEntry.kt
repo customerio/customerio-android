@@ -3,9 +3,8 @@ package io.customer.geofence
 import io.customer.geofence.polygon.PolygonCoordinate
 
 /**
- * One fetched record as the server described it, built before validation. Not the mapped region,
- * because a malformed record never becomes one and is the one a capture most needs named; fields
- * are nullable so a row carries whatever survived.
+ * A fetched record as the server sent it, built before validation because a malformed record never
+ * becomes a mapped region. Fields are nullable so a row carries whatever survived.
  */
 internal data class GeofenceCatalogEntry(
     val id: String,
@@ -17,7 +16,7 @@ internal data class GeofenceCatalogEntry(
     val longitude: Double?,
     /** The backend's radius; for a polygon, its enclosing circle's. */
     val radiusMeters: Double?,
-    /** Canonical ring, or null when the ring does not build; absent beats a ring we cannot trust. */
+    /** Canonical ring, or null when it does not build; never a ring we cannot trust. */
     val vertices: List<PolygonCoordinate>?,
     val transitionTypes: List<String>
 )

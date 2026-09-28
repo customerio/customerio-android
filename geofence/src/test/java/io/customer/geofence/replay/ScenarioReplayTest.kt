@@ -40,11 +40,8 @@ import org.junit.runner.RunWith
 import org.robolectric.ParameterizedRobolectricTestRunner
 
 /**
- * Replays recorded drives against the real SDK.
- *
- * The doubles stand where Play Services, the network, the clock and event delivery stand; ranking,
- * registration, containment, cooldown, the anonymous drop and movement routing run for real. The
- * drives live in a separate private checkout (see [Scenarios]); these tests skip when it is absent.
+ * Replays recorded drives against the real SDK, with doubles only for Play Services, the network, the
+ * clock and event delivery. Skips when the corpus (see [Scenarios]) is absent.
  */
 @RunWith(ParameterizedRobolectricTestRunner::class)
 class ScenarioReplayTest(
@@ -54,9 +51,8 @@ class ScenarioReplayTest(
 
     companion object {
         /**
-         * One test case per drive, so each drive passes or fails on its own. An absent corpus
-         * yields one placeholder case that skips: JUnit errors on a parameterised class with no
-         * parameters, which would look like a broken suite.
+         * An absent corpus yields one skipping placeholder: JUnit errors on a parameterised class with
+         * no parameters, which would look like a broken suite.
          */
         @JvmStatic
         @ParameterizedRobolectricTestRunner.Parameters(name = "{0}")
@@ -69,8 +65,6 @@ class ScenarioReplayTest(
 
     private val virtualClock = VirtualClock()
 
-    // The network and Play Services answer on the drive's clock rather than instantly, so an input
-    // recorded mid-sync is replayed mid-sync. See `ReplayBoundaryGate`.
     private val boundaryGate = ReplayBoundaryGate(virtualClock)
     private val api = ReplayApiService(boundaryGate)
     private val registrar = ReplayRegistrar(boundaryGate)
@@ -85,8 +79,8 @@ class ScenarioReplayTest(
         every { getUserId() } answers { identity.userId }
     }
 
-    // Delivery is out of scope: the harness asserts the SDK detected and accepted a crossing, not
-    // that a row reached the backend. A drive can be fully correct on an offline phone.
+    // Delivery is out of scope: the harness grades detection and acceptance, not rows reaching the
+    // backend.
     private val scheduler: GeofenceEventScheduler = mockk(relaxed = true)
 
     // Permission is an OS fact, and every recorded drive was captured with it granted.
@@ -95,7 +89,6 @@ class ScenarioReplayTest(
         every { isBackgroundDeliveryAvailable() } returns true
     }
 
-    // Answers the polygon controller's precise-fix requests from the recording instead of GMS.
     private val replayFreshFix = ReplayPolygonFreshFixSource()
 
     override fun setup(testConfig: TestConfig) {
@@ -130,11 +123,9 @@ class ScenarioReplayTest(
             "GeofenceEventScheduler" to (SDKComponent.android().geofenceEventScheduler to scheduler),
             "GeofencePermissionChecker" to (SDKComponent.android().geofencePermissionChecker to permissionChecker)
         )
-        // A real, disk-backed store carried over from an earlier test in this JVM would hand the
-        // replay a catalogue and a containment set the drive never established.
+        // Disk-backed: a store left by an earlier test in this JVM would seed state the drive never had.
         SDKComponent.android().geofenceRegionStore.clearAll()
-        // Separate from the region store; a leftover cooldown would suppress the first crossing at
-        // any fence an earlier drive crossed.
+        // Separate from the region store; a leftover cooldown would suppress a fence's first crossing.
         SDKComponent.android().geofenceCooldownStore.clearAll()
         SDKComponent.android().pendingGeofenceDeliveryStore.removeAll()
         replayLogger.clear()
@@ -145,10 +136,6 @@ class ScenarioReplayTest(
         GeofenceDiagnostics.setEnabledForTesting(null)
     }
 
-    /**
-     * The real foreground coordinator on the composition's doubles: replay says the app came
-     * forward, the SDK decides what that means.
-     */
     private fun foregroundCoordinator() = GeofenceForegroundCoordinator(
         services = SDKComponent.android().geofenceServices,
         secureUserStore = fakeSecureUserStore,
@@ -157,8 +144,8 @@ class ScenarioReplayTest(
         lastKnownLocation = { fakeLocationServices.lastKnown },
         locationMode = GeofenceLocationMode.AUTOMATIC,
         logger = SDKComponent.geofenceLogger,
-        // Unconfined, so `onForeground`'s dispatcher hop runs inline rather than on a real IO
-        // thread the replay would run straight past.
+        // Unconfined, so `onForeground`'s dispatcher hop runs inline, not on an IO thread the
+        // replay outruns.
         dispatchers = DispatchersProviderStub()
     )
 
@@ -179,8 +166,7 @@ class ScenarioReplayTest(
     fun replay_givenRecordedDrive_expectSameDecisions() = runTest {
         val file = scenarioFile
         assumeTrue("geofence-scenarios checkout not present", file != null)
-        // A throw (the gate's release-round guard, or anything the SDK lets escape) is reported
-        // like any other mismatch, naming this drive.
+        // A throw (the gate's release-round guard, say) is reported like a mismatch, naming this drive.
         val outcome = try {
             replayOne(file!!)
         } catch (error: Throwable) {
@@ -219,8 +205,8 @@ class ScenarioReplayTest(
             api.fetchAccounting()?.let { add("  $it") }
             if (!report.isMatch) {
                 add(report.describe().prependIndent("  "))
-                // Nothing matching usually means the replay never got as far as deciding; the
-                // internal records show where it stopped.
+                // Nothing matching usually means the replay stopped before deciding; the trace
+                // shows where.
                 if (report.matched == 0) {
                     val trace = replayLogger.emitted()
                         .groupingBy { "${it.ev}${it.fields["why"]?.let { w -> " why=$w" } ?: ""}" }

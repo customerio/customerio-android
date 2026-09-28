@@ -11,11 +11,8 @@ internal data class PolygonTriggerCircle(
 )
 
 /**
- * Validates the backend's canonical wake circle; the only SDK-side check is a platform radius bound.
- *
- * The circle is registered exactly as sent, with no floor or padding: it already encloses the ring,
- * so padding only moves the wake further from the venue. Polygons get no synthesized initial ENTER,
- * so a wake that never fires is recovered only by [PolygonRecheckWorker].
+ * The backend's wake circle is registered as sent, with no floor or padding: it already encloses
+ * the ring, so padding only moves the wake further from the venue.
  */
 internal class PolygonWakeCircleValidator {
     fun prepare(wakeCircle: PolygonWakeCircle): PolygonTriggerCircle {

@@ -8,26 +8,15 @@ import io.customer.sdk.core.di.SDKComponent
 import kotlin.math.round
 
 /**
- * Selects the geofence regions closest to a reference location, capped at a maximum count and a
- * maximum distance, because the OS limits how many geofences an app can register. Regions beyond
- * `maxDistanceMeters` are excluded; local re-ranking re-includes them as the device approaches.
- *
- * Ranking and the cap measure to the region's *boundary* ([edgeDistanceToOrNull]), so a region the
- * device is inside sorts first and survives both limits.
- *
- * Ties break on ascending [GeofenceRegion.id], after rounding distances to whole meters:
- * `Location.distanceBetween` can vary sub-meter for the same inputs, which would defeat the
- * tiebreak. Matches iOS so both platforms pick the same set at the cap.
- *
- * As the last gate before registration, this is also where an unmonitorable polygon is dropped
- * (see [polygonSupport]).
+ * Ties break on id after rounding to whole meters: `distanceBetween` varies sub-meter for the same
+ * inputs, and iOS does the same so both pick the same set at the cap. Also the last gate before
+ * registration, so unmonitorable polygons are dropped here.
  */
 internal class GeofenceDistanceFilter(
     private val polygonSupport: PolygonSupport = PolygonSupport.Disabled,
     /**
-     * Hard ceiling on how many regions any [nearest] call may return. Play services rejects an
-     * entire `addGeofences` batch past [GeofenceConstants.MAX_OS_GEOFENCES], and one slot always
-     * goes to the movement trigger [GeofenceRepository] prepends. Server config can only lower it.
+     * Play services rejects a whole batch past [GeofenceConstants.MAX_OS_GEOFENCES], and the movement
+     * trigger takes one slot. Server config can only lower it.
      */
     private val maxOsBusinessSlots: Int = GeofenceConstants.MAX_OS_BUSINESS_GEOFENCE_SLOTS,
     private val logger: GeofenceLogger = SDKComponent.geofenceLogger
@@ -50,13 +39,9 @@ internal class GeofenceDistanceFilter(
     )
 
     /**
-     * @param max server-configured discovery cap; `0` is the explicit kill switch. Pinned regions
-     * count toward it but are never evicted by it or by `maxDistanceMeters`.
-     * @param pinnedIds regions with a business EXIT still outstanding (decided by the caller, which
-     * holds registration state). Evicting one means its EXIT is never observed.
-     *
-     * [maxOsBusinessSlots] still bounds pins: over-pinning would make Play services reject the whole
-     * batch. When pins exceed the slots, the nearest are kept and each dropped one is logged.
+     * @param max server cap, `0` is the kill switch. Pins count toward it, but neither it nor
+     * `maxDistanceMeters` evicts them. [maxOsBusinessSlots] still does: over-pinning fails the batch.
+     * @param pinnedIds regions with a business EXIT outstanding; evicting one loses that EXIT.
      */
     fun nearest(
         regions: List<GeofenceRegion>,
@@ -93,11 +78,7 @@ internal class GeofenceDistanceFilter(
             .map { (region, _) -> region }
     }
 
-    /**
-     * Distance this region ranks by, or `null` when it must not be registered: a polygon when this
-     * build can't monitor polygons or its ring doesn't validate. Never falls back to the circle
-     * fields, which describe the coarse enclosing trigger rather than the fence.
-     */
+    /** `null` means the region must not be registered. */
     private fun rankingDistanceOrNull(
         region: GeofenceRegion,
         latitude: Double,
@@ -115,11 +96,7 @@ internal class GeofenceDistanceFilter(
         return round(distance)
     }
 
-    /**
-     * Validated geometry for [region], memoized per id + ring. Validation is O(V²) and ranking
-     * re-runs on every movement trigger over an unchanged catalog, so the `null` outcome is cached
-     * too.
-     */
+    /** Validation is O(V²) and ranking re-runs on every movement trigger, so `null` is cached too. */
     @Synchronized
     private fun cachedGeometry(region: GeofenceRegion): PolygonGeometry? {
         val vertices = region.polygonVertices ?: return null

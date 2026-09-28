@@ -20,18 +20,9 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
 
 /**
- * Every sequence of three approach-session lifecycle operations, drained and then checked against
- * invariants rather than expected outputs. For one monitor instance that armed everything it can
- * remove:
- *
- *  1. **No ending is reported without a count.** An absent `n` is only true across a process
- *     boundary; one instance always has the entry for a session it armed.
- *  2. **No count is reported twice.** Each session is fed a distinct number of samples, so a
- *     repeated count is a session reported twice.
- *  3. **Endings never outnumber starts.** `polygon.approach.started` is logged only when a request
- *     actually registers.
- *
- * Cross-process cases need two instances and are named tests in [PolygonApproachMonitorTest].
+ * Runs every three-op approach-session sequence on one monitor and checks invariants: no ending
+ * without a count, no count reported twice, no more endings than starts. Cross-process cases are
+ * in [PolygonApproachMonitorTest].
  */
 @RunWith(RobolectricTestRunner::class)
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -44,31 +35,21 @@ class PolygonApproachTeardownInvariantTest : RobolectricTest() {
         /** Arm a later generation, which builds a distinct PendingIntent. */
         ARM_NEW_GENERATION,
 
-        /** `stop()` naming nothing, as a teardown from a path that lost its context does. */
         STOP_BARE,
 
-        /** `stop()` naming the live session. */
         STOP_NAMED_CURRENT,
 
-        /** `stop()` naming the first session, which may already have ended. */
         STOP_NAMED_STALE,
 
-        /** Permission revoked mid-session: the request fails and nothing is ever registered. */
         SECURITY_FAILURE,
 
-        /** A batch for the first session, which may by now have ended. */
         LATE_SAMPLE,
 
-        /** The cold-process order: a batch is recorded, then the session it belongs to is adopted. */
+        /** The cold-process order: a batch is recorded, then its session is adopted. */
         ADOPT_AFTER_SAMPLE,
 
-        /** A stale batch for an earlier generation, another route to a repeat removal. */
         REMOVE_STALE_GENERATION,
 
-        /**
-         * A removal GMS rejects once and accepts on the retry. The retry must carry both session
-         * keys, or its success looks like a first teardown.
-         */
         REMOVAL_FAILS_ONCE
     }
 
@@ -81,8 +62,7 @@ class PolygonApproachTeardownInvariantTest : RobolectricTest() {
         sequences.forEach { sequence ->
             runSequence(sequence)?.let { failures += it }
         }
-        // Reported together rather than on the first failure: which sequences fail is the useful
-        // output, since one defect usually breaks a family of them.
+        // Collected, not failed fast: one defect usually breaks a family of sequences.
         check(failures.isEmpty()) {
             "invariant violated by ${failures.size} of ${sequences.size} sequences:\n" +
                 failures.take(12).joinToString("\n") { "  $it" }
@@ -95,7 +75,6 @@ class PolygonApproachTeardownInvariantTest : RobolectricTest() {
 
     @Test
     fun theKnownDefectSequences_expectThemCovered() {
-        // Named so these sequences are visibly part of the enumeration above.
         val rearmThenStaleStop = listOf(Op.ARM, Op.SECURITY_FAILURE, Op.STOP_NAMED_STALE)
         val rearmThenBareStop = listOf(Op.ARM, Op.STOP_BARE, Op.STOP_NAMED_STALE)
 
@@ -119,9 +98,8 @@ class PolygonApproachTeardownInvariantTest : RobolectricTest() {
         }
         every { logger.logPolygonApproachMonitoringStarted() } answers { starts += 1 }
 
-        // Scheduler-backed rather than unconfined: every job the monitor launches opens with a
-        // delay, and only REMOVAL_FAILS_ONCE advances time. The session timeout, a minute out,
-        // stays unreached.
+        // Scheduler-backed, not unconfined: monitor jobs open with a delay and only
+        // REMOVAL_FAILS_ONCE advances time, so the one-minute session timeout never fires.
         val scheduler = TestCoroutineScheduler()
         var requestFails = false
         var removalFailsOnce = false
@@ -159,9 +137,8 @@ class PolygonApproachTeardownInvariantTest : RobolectricTest() {
             val startsBefore = starts
             monitor.start(generation, deadline)
             idle()
-            // Only a session that actually registered gets samples and a place in `deadlines`:
-            // start() refuses a re-arm while a live session has budget left, and a failed request
-            // never registers. Sampling either would seed an entry for a nonexistent session.
+            // start() refuses a re-arm with budget left and a failed request never registers;
+            // sampling either would seed an entry for a nonexistent session.
             if (starts > startsBefore) {
                 armed += 1
                 deadlines += deadline
@@ -171,7 +148,6 @@ class PolygonApproachTeardownInvariantTest : RobolectricTest() {
             }
         }
 
-        // Every sequence starts from a live session; the operations are what happens to it.
         arm()
         sequence.forEach { op ->
             when (op) {
@@ -235,10 +211,7 @@ class PolygonApproachTeardownInvariantTest : RobolectricTest() {
     private fun idle() = shadowOf(Looper.getMainLooper()).idle()
 
     private companion object {
-        /**
-         * Samples per session, in tens, so a late batch landing in one session's count cannot make
-         * it collide with another session's and read as a duplicate report.
-         */
+        /** Tens apart, so a late batch in one session's count can't collide with another's. */
         const val SAMPLES_PER_SESSION = 10
 
         /** The monitor's first removal-retry delay, which the retry op has to step over. */

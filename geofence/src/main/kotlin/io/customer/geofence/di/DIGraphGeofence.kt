@@ -56,9 +56,8 @@ internal val SDKComponent.geofenceLogger: GeofenceLogger
     get() = singleton { GeofenceLogger(logger) }
 
 /**
- * The build's polygon opt-in, shared by the mapper ([GeofenceRepositoryImpl]) and the ranker
- * ([geofenceDistanceFilter]) so they can't disagree. Those seams default to
- * [PolygonSupport.Disabled], so one that misses this wiring fails closed.
+ * Shared by the mapper and the ranker so they can't disagree. Both default to
+ * [PolygonSupport.Disabled], so a seam that misses this wiring fails closed.
  */
 internal val SDKComponent.polygonSupport: PolygonSupport
     get() = singleton { PolygonSupport.Enabled }
@@ -146,9 +145,8 @@ internal val AndroidSDKComponent.geofenceDeliveryFlusher: PendingDeliveryFlusher
             store = pendingGeofenceDeliveryStore,
             workManagerProvider = SDKComponent.workManagerProvider,
             dispatchersProvider = SDKComponent.dispatchersProvider,
-            // Geofence workers form one ordered continuation chain. A foreground flush removes
-            // rows from the shared outbox; queued workers then observe the miss and finish safely.
-            // Cancelling the shared chain for one row could strand a transition appended mid-flush.
+            // Null skips cancelling: the workers are one shared ordered chain, and cancelling it for
+            // one row could strand a transition appended mid-flush. A worker whose row is gone no-ops.
             uniqueWorkName = { null },
             stopOnFailure = true
         )

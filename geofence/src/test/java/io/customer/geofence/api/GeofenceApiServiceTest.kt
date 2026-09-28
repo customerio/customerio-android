@@ -29,8 +29,7 @@ class GeofenceApiServiceTest {
 
         capturedParams.captured.method shouldBeEqualTo HttpMethod.POST
         capturedParams.captured.path shouldBeEqualTo "/geofences/nearest"
-        // The version travels separately, so the client replaces the one the region host carries
-        // instead of composing /v1/v2/geofences/nearest off it.
+        // Sent separately so the client replaces the host's version instead of appending to it.
         capturedParams.captured.apiVersion shouldBeEqualTo "v2"
     }
 
@@ -44,7 +43,6 @@ class GeofenceApiServiceTest {
         val body = capturedParams.captured.body.shouldNotBeNull()
         body shouldContain "\"latitude\":37.7749295"
         body shouldContain "\"longitude\":-122.4194155"
-        // radius is optional on the endpoint and not sent.
         body shouldNotContain "radius"
         capturedParams.captured.headers["Content-Type"] shouldBeEqualTo "application/json"
     }

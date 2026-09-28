@@ -6,9 +6,8 @@ import io.customer.sdk.communication.Event
 import io.customer.sdk.core.util.Clock
 
 /**
- * Suppresses duplicate geofence events within the server-configured cooldown window.
- * Windows are user-scoped (matching iOS): after an account switch, the previous
- * user's window never masks the new user's transition on the same fence.
+ * Suppresses duplicate geofence events within the cooldown window. Windows are user-scoped, so a
+ * previous user's window never masks the new user's transition on the same fence.
  */
 internal class GeofenceCooldownFilter(
     private val store: GeofenceCooldownStore,
@@ -16,8 +15,8 @@ internal class GeofenceCooldownFilter(
     private val clock: Clock
 ) {
     /**
-     * `null` when the caller should emit, otherwise the seconds left on the window (returned so
-     * logging a suppression needs no second store read). Read-only; [record] is the write.
+     * `null` when the caller should emit, otherwise the seconds left. Read-only; [record] is the
+     * write.
      */
     @Synchronized
     fun suppressedForSeconds(

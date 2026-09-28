@@ -26,9 +26,8 @@ internal class GeofenceBusinessTransitionProcessor(
         expectedUserStateGeneration: Long? = null,
         requireRegistered: Boolean = false
     ) = transitionMutex.withLock {
-        // Capture admission before consulting routability. A user switch clears routability and
-        // increments this generation; whichever side of that boundary this callback observes, it
-        // cannot be attributed to the next identified user.
+        // Read the generation before routability: a user switch clears one and bumps the other, so
+        // this callback can never be attributed to the next identified user.
         val userStateGeneration = expectedUserStateGeneration ?: store.userStateGeneration()
         if (store.userStateGeneration() != userStateGeneration) return@withLock
         if (requireRegistered && geofenceId !in store.getRoutableRegisteredIds()) return@withLock
@@ -37,15 +36,14 @@ internal class GeofenceBusinessTransitionProcessor(
         if (expectedRegionRevision != null && currentRegionRevision != expectedRegionRevision) {
             return@withLock
         }
-        // Both clauses answer "should this EXIT exist", from different records, and a fence that
-        // never reports ENTER is excluded from both: it can satisfy neither, so requiring either
-        // would swallow every EXIT it produces. Mirrors isRedundantEnter in the emitter.
+        // A fence that never reports ENTER is exempt from both clauses below: it can satisfy
+        // neither, so requiring either would swallow every EXIT it produces. Mirrors
+        // isRedundantEnter in the emitter.
         val monitorsEnter = cachedRegion?.transitionTypes?.contains(GeofenceTransitionType.ENTER) == true
         val exitingUserId = secureUserStore.getUserId()?.takeIf { it.isNotEmpty() }
-        // Where the device IS: nothing recorded us inside, so there is nothing to leave.
         val deviceWasNeverInside = geofenceId !in store.getEnteredIds() && store.hasContainmentRecord()
-        // What the BACKEND believes: a sync can seed containment from a fix too coarse to
-        // synthesise the matching ENTER, so the EXIT reads as matched for an arrival never reported.
+        // A sync can seed containment from a fix too coarse to synthesise the matching ENTER, so the
+        // EXIT would read as matched for an arrival the backend was never told about.
         val backendWasNeverTold = exitingUserId != null &&
             store.hasEmittedEnterRecord(exitingUserId) &&
             !store.hasEmittedEnter(exitingUserId, geofenceId)
@@ -55,9 +53,8 @@ internal class GeofenceBusinessTransitionProcessor(
         if (isUnmatchedExit) {
             logger.logExitDroppedNeverEntered(geofenceId)
         }
-        // `backendWasNeverTold` is a real departure we cannot report, so it still commits
-        // containment below. `deviceWasNeverInside` has no departure, and committing one would bump
-        // the exit epoch, making reconcileEnteredIds drop an in-flight sync's inside seed.
+        // Only `deviceWasNeverInside` skips the commit: it has no departure, and committing one would
+        // bump the exit epoch, making reconcileEnteredIds drop an in-flight sync's inside seed.
         if (transition == Event.GeofenceTransition.EXIT && monitorsEnter && deviceWasNeverInside) {
             return@withLock
         }
@@ -66,9 +63,8 @@ internal class GeofenceBusinessTransitionProcessor(
             Event.GeofenceTransition.ENTER -> GeofenceTransitionType.ENTER
             Event.GeofenceTransition.EXIT -> GeofenceTransitionType.EXIT
         }
-        // Suppresses delivery only; the containment commit below still runs. Skipping it would leave
-        // the fence in getEnteredIds() after the device left, so the redundant-ENTER guard would
-        // read every later visit as unchanged.
+        // Suppresses delivery only; the containment commit below must still run, or the fence stays in
+        // getEnteredIds() and the redundant-ENTER guard reads every later visit as unchanged.
         val shouldEmit = !isUnmatchedExit &&
             (
                 !enforceConfiguredTransition ||

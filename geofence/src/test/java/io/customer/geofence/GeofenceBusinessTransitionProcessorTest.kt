@@ -36,9 +36,7 @@ class GeofenceBusinessTransitionProcessorTest {
 
     @Test
     fun process_givenContainmentSeededButNoEnterEverEmitted_expectExitIsNotDelivered() = runTest {
-        // A sync can seed containment from a fix too coarse to synthesise the ENTER. The EXIT then
-        // reads as matched in getEnteredIds, but the backend was never told of the arrival
-        // (hasEmittedEnter is false), so it must not be delivered.
+        // A sync can seed containment without an ENTER, so the backend never heard of the arrival.
         every { store.getEnteredIds() } returns setOf("polygon")
         every { store.hasEmittedEnterRecord("user-1") } returns true
         every { store.hasEmittedEnter("user-1", "polygon") } returns false
@@ -52,8 +50,6 @@ class GeofenceBusinessTransitionProcessorTest {
 
     @Test
     fun process_givenTheDeviceWasNeverInside_expectNoCommitSoASyncSeedSurvives() = runTest {
-        // Committing an EXIT here would bump the fence's exit epoch, and reconcileEnteredIds then
-        // drops the `stillInside` seed of a sync holding an earlier inside fix.
         every { store.getEnteredIds() } returns emptySet()
         every { store.hasContainmentRecord() } returns true
 
@@ -64,9 +60,7 @@ class GeofenceBusinessTransitionProcessorTest {
 
     @Test
     fun process_givenTheExitIsSuppressed_expectContainmentIsStillCommitted() = runTest {
-        // Only delivery is suppressed; the departure is real. Skipping the commit would leave the
-        // fence in getEnteredIds(), and the redundant-ENTER guard would read every later visit as
-        // unchanged.
+        // The departure is real; skipping the commit would make later ENTERs read as redundant.
         every { store.getEnteredIds() } returns setOf("polygon")
         every { store.hasEmittedEnterRecord("user-1") } returns true
         every { store.hasEmittedEnter("user-1", "polygon") } returns false
@@ -96,8 +90,7 @@ class GeofenceBusinessTransitionProcessorTest {
 
     @Test
     fun process_givenNoEmittedEnterRecordAtAll_expectTheExitIsStillDelivered() = runTest {
-        // Upgrade case: a build that predates emitted-enter marks has no record, so the guard must
-        // not read every fence as never-reported.
+        // Upgrade case: builds that predate emitted-enter marks have no record.
         every { store.getEnteredIds() } returns setOf("polygon")
         every { store.hasEmittedEnterRecord("user-1") } returns false
         every { store.hasEmittedEnter("user-1", "polygon") } returns false
@@ -111,8 +104,7 @@ class GeofenceBusinessTransitionProcessorTest {
 
     @Test
     fun process_givenAnExitOnlyFence_expectTheExitIsStillDelivered() = runTest {
-        // A fence that never reports ENTER can never have an emitted-enter mark, so requiring one
-        // would swallow every EXIT it produces.
+        // An EXIT-only fence never gets an emitted-enter mark.
         every { store.getCachedRegion("exit-only") } returns GeofenceRegion(
             id = "exit-only",
             latitude = 0.0,
@@ -283,8 +275,7 @@ class GeofenceBusinessTransitionProcessorTest {
         every { secureUserStore.getUserId() } answers { currentUser }
         every { store.activeUserSessionId() } answers { currentUser }
         every { store.getRoutableRegisteredIds() } answers {
-            // The old callback has already seen its fence as routable; user B identifies before
-            // staging, which must invalidate this attempt.
+            // User B identifies after the old callback saw its fence as routable.
             generation = 2L
             currentUser = "user-2"
             setOf("polygon")

@@ -30,7 +30,6 @@ internal data class GeofenceConfig(
     val maxMonitoringDistance: Float
 ) {
     internal companion object {
-        // Used when no server config is cached, e.g. before the first successful fetch.
         fun fallback(): GeofenceConfig = GeofenceConfig(
             localRefreshTriggerRadius = GeofenceConstants.FALLBACK_LOCAL_REFRESH_RADIUS_METERS,
             remoteFetchRefreshTriggerRadius = GeofenceConstants.FALLBACK_REMOTE_FETCH_RADIUS_METERS,

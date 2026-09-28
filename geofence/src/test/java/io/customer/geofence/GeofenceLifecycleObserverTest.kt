@@ -23,7 +23,6 @@ class GeofenceLifecycleObserverTest {
     private val mockRegionStore: GeofenceRegionStore = mockk(relaxed = true)
     private val mockLogger: GeofenceLogger = mockk(relaxed = true)
 
-    // Granted-and-always by default.
     private val mockPermissionChecker: GeofencePermissionChecker = mockk(relaxed = true) {
         every { hasFineLocationPermission() } returns true
         every { isBackgroundDeliveryAvailable() } returns true
@@ -31,7 +30,7 @@ class GeofenceLifecycleObserverTest {
 
     private var foregroundHookRuns = 0
 
-    /** The real reporter: the dedup under test lives in it, and it is shared with module init. */
+    /** Real, because the dedup under test lives in it. */
     private val permissionReporter = GeofencePermissionReporter(
         permissionChecker = mockPermissionChecker,
         logger = mockLogger
@@ -48,8 +47,6 @@ class GeofenceLifecycleObserverTest {
 
     @Test
     fun reportIfChanged_givenAProcessThatNeverForegrounds_expectTheTierStillReported() {
-        // Cold background wake: a geofence broadcast starts the process and `onStart` never
-        // fires, so module init's report is the only one.
         permissionReporter.reportIfChanged()
 
         verify(exactly = 1) { mockLogger.logPermissionTier(GeofenceLogger.PERMISSION_ALWAYS) }
@@ -101,7 +98,6 @@ class GeofenceLifecycleObserverTest {
 
     @Test
     fun onStart_givenUnreadableQueue_expectTheFailureRecorded() {
-        // The only path that runs without a new transition, so silence here means no record at all.
         val callbacksSlot = slot<PendingDeliveryFlusher.Callbacks<PendingGeofenceDelivery>>()
         every { mockDeliveryFlusher.flush(capture(callbacksSlot), any(), any()) } returns Unit
 
@@ -121,8 +117,6 @@ class GeofenceLifecycleObserverTest {
 
     @Test
     fun onStart_expectPublishedEventUsesFreshCachedNameAndMetadata() {
-        // The flush path must apply the same cache-preferred hybrid as the worker path, so a fence
-        // still in cache publishes its current name/metadata over the row's crossing-time snapshot.
         every { mockRegionStore.getCachedRegion("g1") } returns GeofenceRegion(
             id = "g1",
             latitude = 1.0,

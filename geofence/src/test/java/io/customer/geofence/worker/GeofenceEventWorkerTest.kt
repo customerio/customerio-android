@@ -79,8 +79,7 @@ class GeofenceEventWorkerTest : RobolectricTest() {
     }
 
     private fun deliveryFailedTail(): String {
-        // Match the machine key plus the field, not prose: logEventDeliveryRetryable also emits
-        // ev=delivery.failed.
+        // Match key plus field: logEventDeliveryRetryable also emits ev=delivery.failed.
         val matches = capturing.messages.filter { "ev=delivery.failed" in it && "retry=" in it }
         matches.size shouldBeEqualTo 1
         return matches.first()
@@ -114,7 +113,6 @@ class GeofenceEventWorkerTest : RobolectricTest() {
 
     @Test
     fun doWork_givenStoredEntryWithSnapshot_expectDeliveredFromStoreSnapshot() = runTest {
-        // The worker delivers the persisted row verbatim, including name, geoset and metadata.
         val entry = seed(
             "biz-1",
             Event.GeofenceTransition.ENTER,
@@ -144,7 +142,6 @@ class GeofenceEventWorkerTest : RobolectricTest() {
 
     @Test
     fun doWork_givenEntryAlreadyDelivered_expectSuccessWithoutTracking() = runTest {
-        // The foreground flush already delivered and removed the row, so nothing may be resent.
         val result = createWorker(inputDataFor("biz-already-delivered_ENTER_tid-missing_none")).doWork()
 
         result shouldBeEqualTo ListenableWorker.Result.success()
@@ -187,15 +184,12 @@ class GeofenceEventWorkerTest : RobolectricTest() {
 
         val result = createWorker(Data.EMPTY).doWork()
 
-        // Retried, not reported drained: the row is still on disk and nothing was sent.
         result shouldBeEqualTo ListenableWorker.Result.retry()
         coVerify(exactly = 0) { tracker.trackEvent(any()) }
-        // queue_empty names a cause never established for a file we could not read.
         emptyQueueRecords().shouldBeEmpty()
         unreadableRecords().size shouldBeEqualTo 1
         unreadableRecords().single() shouldContain "why=read_failed"
         unreadableRecords().single() shouldContain "retry=true"
-        // The wake path, not the foreground flush, which files the same ev.
         unreadableRecords().single() shouldContain "via=work_manager"
     }
 
@@ -211,7 +205,6 @@ class GeofenceEventWorkerTest : RobolectricTest() {
             .setRunAttemptCount(GeofenceConstants.MAX_WORKER_RUN_ATTEMPTS)
             .build()
 
-        // Retrying forever recovers nothing; the rows survive because nothing overwrites them.
         worker.doWork() shouldBeEqualTo ListenableWorker.Result.failure()
         unreadableRecords().single() shouldContain "retry=false"
         store.loadAll().map { it.geofenceId } shouldBeEqualTo listOf("biz-1")
@@ -219,8 +212,7 @@ class GeofenceEventWorkerTest : RobolectricTest() {
 
     @Test
     fun doWork_givenAttemptsAlreadySpentOnDeliveryRetries_expectFirstUnreadableReadToGiveUp() = runTest {
-        // The cap is WorkManager's run count for the whole request, not a per-cause counter, so
-        // delivery retries spend the same budget and this first failed read still gives up.
+        // The cap is WorkManager's run count for the whole request, not a per-cause counter.
         seed("biz-1", Event.GeofenceTransition.ENTER, 99L)
         val unreadable = spyk(store) { every { loadAllOrNull() } returns null }
         SDKComponent.android()
@@ -232,10 +224,8 @@ class GeofenceEventWorkerTest : RobolectricTest() {
             .build()
 
         worker.doWork() shouldBeEqualTo ListenableWorker.Result.failure()
-        // n= is the run count, so a reader can tell an exhausted budget from a fifth read failure.
         unreadableRecords().single() shouldContain "n=${GeofenceConstants.MAX_WORKER_RUN_ATTEMPTS + 3}"
         unreadableRecords().single() shouldContain "retry=false"
-        // Nothing was sent and nothing was dropped: a later enqueue or flush still recovers the row.
         coVerify(exactly = 0) { tracker.trackEvent(any()) }
         store.loadAll().map { it.geofenceId } shouldBeEqualTo listOf("biz-1")
     }
@@ -252,8 +242,6 @@ class GeofenceEventWorkerTest : RobolectricTest() {
 
     @Test
     fun doWork_givenQueueDrainedSuccessfully_expectNoEmptyQueueRecord() = runTest {
-        // The drain exits through the same empty-queue branch, so without the guard every
-        // successful delivery would also report a flush that overtook it.
         seed("biz-1", Event.GeofenceTransition.ENTER)
         seed("biz-2", Event.GeofenceTransition.EXIT)
         coEvery { tracker.trackEvent(any()) } returns Result.success(Unit)
@@ -266,8 +254,7 @@ class GeofenceEventWorkerTest : RobolectricTest() {
 
     @Test
     fun doWork_givenSiblingNodeAlreadyDrainedTheChain_expectOneEmptyQueueRecord() = runTest {
-        // A geoset fan-out enqueues one node per row and the first drains them all, so the later
-        // nodes wake to an empty store. This is the common path, not the foreground flush.
+        // A geoset fan-out enqueues a node per row and the first drains them all.
         seed("biz-1", Event.GeofenceTransition.ENTER, transitionId = "tid-fanout", geosetId = "geoset-a")
         seed("biz-1", Event.GeofenceTransition.ENTER, transitionId = "tid-fanout", geosetId = "geoset-b")
         coEvery { tracker.trackEvent(any()) } returns Result.success(Unit)
@@ -289,15 +276,13 @@ class GeofenceEventWorkerTest : RobolectricTest() {
         val result = createWorker(inputDataFor(entry.key)).doWork()
 
         result shouldBeEqualTo ListenableWorker.Result.retry()
-        // Left in place so a WorkManager retry — or the foreground flush — can deliver later.
         store.loadAll().map { it.key } shouldBeEqualTo listOf("biz_ENTER_tid-seed_none")
     }
 
     @Test
     fun doWork_givenNonIOException_expectRetryScheduledAndChainPreserved() = runTest {
-        // Not Result.failure(): that cancels the dependents and discards everything queued behind
-        // this row. Not Result.success() either: this node can be the last in the chain, and then
-        // nothing would ever come back for the head, stranding it and every later transition.
+        // Not failure(): that cancels every dependent queued behind this row. Not success(): if this
+        // is the chain's last node, nothing would ever retry the head.
         val entry = seed("biz", Event.GeofenceTransition.ENTER, timestamp = 0L)
         coEvery { tracker.trackEvent(any()) } returns
             Result.failure(IllegalStateException("bad state"))
@@ -310,8 +295,7 @@ class GeofenceEventWorkerTest : RobolectricTest() {
 
     @Test
     fun doWork_givenPermanentlyRejectedHead_expectItDroppedAndLaterTransitionsDelivered() = runTest {
-        // Every non-2xx is an IOException subclass. Treated as retryable, a 400 would be resent
-        // forever and, since each node drains the oldest row, block every later transition.
+        // Every non-2xx is an IOException subclass; retrying a 400 would block every later transition.
         val enter = seed("biz", Event.GeofenceTransition.ENTER, timestamp = 1L, transitionId = "tid-enter")
         val exit = seed("biz", Event.GeofenceTransition.EXIT, timestamp = 2L, transitionId = "tid-exit")
         val attempts = mutableListOf<PendingGeofenceDelivery>()
@@ -326,17 +310,13 @@ class GeofenceEventWorkerTest : RobolectricTest() {
 
         createWorker(Data.EMPTY).doWork() shouldBeEqualTo ListenableWorker.Result.success()
 
-        // The rejected head is dropped rather than retried, and the drain continues past it.
         attempts shouldBeEqualTo listOf(enter, exit)
         store.loadAll().isEmpty().shouldBeTrue()
-        // The tail has to say what actually happened to the row, or a replay run reads a dropped
-        // transition as one still queued.
         deliveryFailedTail() shouldContain "retry=false"
     }
 
     @Test
     fun doWork_givenRetryableHttpStatus_expectRetryAndEntryKept() = runTest {
-        // The counterpart: a 503 is the server failing, not refusing, so the row must survive.
         val entry = seed("biz", Event.GeofenceTransition.ENTER, timestamp = 0L)
         coEvery { tracker.trackEvent(any()) } returns
             Result.failure(HttpRequestFailure(503, "unavailable"))
@@ -349,8 +329,6 @@ class GeofenceEventWorkerTest : RobolectricTest() {
 
     @Test
     fun doWork_givenTerminalRejectionWhoseRemovalFails_expectRowKeptAndTailSaysItWillRetry() = runTest {
-        // The payload is refused permanently but its row could not be removed, so it is still queued
-        // and the tail must not report it as dropped.
         val entry = seed("biz", Event.GeofenceTransition.ENTER, timestamp = 0L)
         val failingRemoval = spyk(store) { every { remove(any()) } returns false }
         SDKComponent.android()
@@ -367,8 +345,6 @@ class GeofenceEventWorkerTest : RobolectricTest() {
 
     @Test
     fun doWork_givenTerminalFailureThenRecovery_expectHeadAndLaterTransitionsBothDelivered() = runTest {
-        // The retry a terminal failure schedules must be able to drain the whole queue, not just the
-        // row that failed.
         val enter = seed("biz", Event.GeofenceTransition.ENTER, timestamp = 1L, transitionId = "tid-enter")
         val exit = seed("biz", Event.GeofenceTransition.EXIT, timestamp = 2L, transitionId = "tid-exit")
         val attempts = mutableListOf<PendingGeofenceDelivery>()
@@ -382,7 +358,6 @@ class GeofenceEventWorkerTest : RobolectricTest() {
         }
 
         createWorker(Data.EMPTY).doWork() shouldBeEqualTo ListenableWorker.Result.retry()
-        // Same log method as the permanent-rejection case, opposite disposal: this row survives.
         deliveryFailedTail() shouldContain "retry=true"
         createWorker(Data.EMPTY).doWork() shouldBeEqualTo ListenableWorker.Result.success()
 
@@ -423,9 +398,7 @@ class GeofenceEventWorkerTest : RobolectricTest() {
 
     @Test
     fun doWork_givenNullUserId_expectDroppedWithoutTrackingSoQueueDrains() = runTest {
-        // Anonymous transitions are dropped before persisting, so this row shouldn't exist. If one
-        // does, no retry can supply its snapshotted userId, so it is dropped rather than block the
-        // ordered queue.
+        // No retry can supply a missing userId, so the row is dropped rather than block the queue.
         val anonymous = seed("biz-anon", Event.GeofenceTransition.ENTER, timestamp = 0L, userId = null)
         val deliverable = seed(
             "biz-next",
@@ -444,8 +417,7 @@ class GeofenceEventWorkerTest : RobolectricTest() {
 
     @Test
     fun doWork_givenSuccessfulSendWhoseRemovalNeverPersists_expectOneSendThenBackedOffRetry() = runTest {
-        // The worker drains the oldest row in a loop, so a sent row that stays on disk would be
-        // resent without bound unless "sent" is told apart from "sent and removed".
+        // The worker drains in a loop, so a sent row left on disk would otherwise resend forever.
         val entry = seed("biz-stuck", Event.GeofenceTransition.ENTER, timestamp = 7L)
         coEvery { tracker.trackEvent(any()) } returns Result.success(Unit)
         val removalNeverPersists = spyk(store) { every { remove(any()) } returns false }

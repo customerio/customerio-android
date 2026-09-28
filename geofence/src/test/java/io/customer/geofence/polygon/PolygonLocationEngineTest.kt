@@ -35,10 +35,6 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.shadows.ShadowSystemClock
 
-/**
- * The engine decides from one already-received fix at a time. What it refuses to decide is as much
- * a part of the contract as what it commits.
- */
 @RunWith(RobolectricTestRunner::class)
 @OptIn(ExperimentalCoroutinesApi::class)
 class PolygonLocationEngineTest : RobolectricTest() {
@@ -95,7 +91,7 @@ class PolygonLocationEngineTest : RobolectricTest() {
         engine.processResponsiveLocation(insideFix())
         store.getEnteredIds() shouldContainSame setOf(POLYGON_ID)
 
-        // Same id, same active set, ring moved ~1 km north. The old fix is now well outside it.
+        // Ring moved ~1 km north, so the old fix is now well outside it.
         store.saveCachedRegions(
             listOf(
                 polygonRegion().copy(
@@ -227,9 +223,8 @@ class PolygonLocationEngineTest : RobolectricTest() {
 
     @Test
     fun processResponsiveLocation_givenAccuracyCircleStraddlingTheRing_expectEnter() = runTest {
-        // 52 m inside at 45 m accuracy: accuracy plus the 20 m departure margin exceeds the
-        // clearance, but arrival applies no margin. A missed polygon arrival is never re-derived,
-        // while a spurious one is corrected by the next decisive fix.
+        // Arrival applies no departure margin: a missed arrival is never re-derived, while a
+        // spurious one is corrected by the next decisive fix.
         engine.processResponsiveLocation(insideFix(accuracyMeters = 45f))
 
         store.getEnteredIds() shouldBeEqualTo setOf(POLYGON_ID)
@@ -258,9 +253,8 @@ class PolygonLocationEngineTest : RobolectricTest() {
 
     @Test
     fun processResponsiveLocation_givenAVenueShallowerThanTheFixAccuracy_expectItStillReports() = runTest {
-        // No point in this 18.5 m-deep ring is more than 17.6 m from an edge, so a 20 m fix is
-        // always marginal. The 50 m ceiling floor keeps it admissible: the first fix holds and the
-        // second settles it.
+        // No point in this ring is over 17.6 m from an edge, so a 20 m fix is always marginal;
+        // the 50 m ceiling floor keeps it admissible.
         armSmallPolygon()
         val base = SystemClock.elapsedRealtimeNanos() - 10_000_000_000L
 
@@ -278,9 +272,8 @@ class PolygonLocationEngineTest : RobolectricTest() {
 
     @Test
     fun processResponsiveLocation_givenOneMarginalFixThenACoarseOne_expectEnter() = runTest {
-        // On the 54 m campus ring a 5.6 m-inside fix at 18 m accuracy is marginal, so it holds.
-        // The next fix is too coarse to judge that ring, so it is not evidence against the hold and
-        // the arrival is reported.
+        // 5.6 m inside at 18 m is marginal, so it holds. The next fix is too coarse to judge the
+        // 54 m ring, so it cannot break the hold.
         val base = SystemClock.elapsedRealtimeNanos() - 10_000_000_000L
         engine.activate(POLYGON_ID)
 
@@ -289,7 +282,7 @@ class PolygonLocationEngineTest : RobolectricTest() {
         )
         store.getEnteredIds().shouldBeEmpty()
 
-        // About 2 m north, so a different observation rather than the held one re-delivered.
+        // About 2 m north, so it is not the held fix re-delivered.
         engine.processResponsiveLocation(
             fix(37.774568, -122.4194, elapsedRealtimeNanos = base + 2_000_000_000L, accuracyMeters = 120f)
         )
@@ -332,8 +325,6 @@ class PolygonLocationEngineTest : RobolectricTest() {
 
     @Test
     fun processResponsiveLocation_givenVisitEntirelyBetweenTwoFixes_expectMissedRatherThanInvented() = runTest {
-        // The device drove in and out between two fixes, both outside. With no evidence of a visit,
-        // none is reported.
         val base = SystemClock.elapsedRealtimeNanos() - 10_000_000_000L
 
         engine.processResponsiveLocation(fix(37.7750, -122.4175, elapsedRealtimeNanos = base))
@@ -401,9 +392,8 @@ class PolygonLocationEngineTest : RobolectricTest() {
 
     @Test
     fun processResponsiveLocation_givenEnclosingCircleEditedButRingUnchanged_expectTransitionStillCommitted() = runTest {
-        // The transition revision covers the enclosing circle as well as the ring, so a catalog sync
-        // that only retunes the wake radius still bumps it. A fence cache keyed on the ring alone
-        // would keep serving the old revision, and the processor drops those as replaced geometry.
+        // The transition revision covers the enclosing circle too. A fence cache keyed on the ring
+        // alone would serve the old revision, which the processor drops as replaced geometry.
         engine.processResponsiveLocation(insideFix())
         store.getEnteredIds() shouldContainSame setOf(POLYGON_ID)
         store.saveCachedRegions(listOf(polygonRegion().copy(radius = 900f)))
@@ -485,8 +475,7 @@ class PolygonLocationEngineTest : RobolectricTest() {
         coVerify(exactly = 0) {
             emitter.emitWithRetainedAttempt(any(), any(), any(), any(), any(), any(), any(), any(), any(), any())
         }
-        // A gate is calibrated against the fixes it discards, so the rejection carries accuracy and
-        // age. Explicit values because `any()` would also match the default nulls.
+        // Explicit values because `any()` would also match the default nulls.
         verify {
             logger.logPolygonFixNotUsable(
                 PolygonFixRejection.FIX_TOO_OLD,
@@ -575,7 +564,7 @@ class PolygonLocationEngineTest : RobolectricTest() {
         )
     )
 
-    // Roughly 39 m x 35 m — a single retail unit. Centre is under 20 m from the nearest edge.
+    // Roughly 39 m x 35 m, so its centre is under 20 m from the nearest edge.
     private fun smallPolygonRegion() = GeofenceRegion(
         id = SMALL_POLYGON_ID,
         latitude = 37.7750,

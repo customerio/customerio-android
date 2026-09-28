@@ -2,25 +2,20 @@ package io.customer.geofence
 
 import android.location.Location
 
-/**
- * A region crossing as the OS reported it, in SDK terms. One GMS broadcast can name several
- * fences sharing one transition and one fix.
- */
+/** One GMS broadcast, which can name several fences sharing one transition and one fix. */
 internal data class GeofenceCrossing(
     val geofenceIds: List<String>,
     val transition: GeofenceCrossingTransition,
-    /** The OS's own name for the transition, for the log only; [transition] is the interpreted form. */
+    /** For the log only; [transition] is the interpreted form. */
     val transitionName: String,
-    /** The OS's transition code, for the unsupported-transition record. */
     val rawTransitionCode: Int,
-    /** The fix the OS attached to this crossing. Null when the OS supplied none. */
     val latitude: Double?,
     val longitude: Double?,
     /** The OS fix itself; polygon evaluation needs its accuracy and elapsed-realtime stamp. */
     val triggeringLocation: Location?,
     /**
-     * Unix seconds when the broadcast arrived; ships on the delivered event. Stamped before any
-     * dispatch work, because building the geofence graph on a cold process would otherwise skew it.
+     * Unix seconds when the broadcast arrived; ships on the delivered event. Stamped before dispatch
+     * work, because building the geofence graph on a cold process would otherwise skew it.
      */
     val receivedAtSeconds: Long
 )

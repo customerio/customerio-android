@@ -47,8 +47,7 @@ import org.robolectric.RobolectricTestRunner
 @RunWith(RobolectricTestRunner::class)
 class GeofenceCrossingPipelineTest : RobolectricTest() {
 
-    // 'mock' prefix to avoid shadowing SDKComponent.eventBus / AndroidSDKComponent
-    // extension properties inside `sdk { ... }` / `android { ... }` override lambdas.
+    // 'mock' prefix avoids shadowing SDKComponent extension properties in the override lambdas.
     private val mockEventBus: EventBus = mockk(relaxed = true)
     private val mockScheduler: GeofenceEventScheduler = mockk(relaxed = true)
     private val mockServices: GeofenceServices = mockk(relaxed = true)
@@ -58,7 +57,7 @@ class GeofenceCrossingPipelineTest : RobolectricTest() {
     private val mockSecureUserStore: SecureUserStore = mockk(relaxed = true)
     private val mockPolygonController: PolygonGeofenceServiceController = mockk(relaxed = true)
 
-    /** Captures the emitted tail: the geofence logger is a computed singleton and cannot be mocked. */
+    /** The geofence logger is a computed singleton and cannot be mocked. */
     private class CapturingLogger : Logger {
         val messages = mutableListOf<String>()
         override var logLevel: CioLogLevel = CioLogLevel.DEBUG
@@ -95,10 +94,8 @@ class GeofenceCrossingPipelineTest : RobolectricTest() {
     // Real store: the mocked scheduler never claims, so appended entries stay assertable.
     private val pendingStore get() = SDKComponent.android().pendingGeofenceDeliveryStore
 
-    /** The real pipeline, resolved from the overridden graph. */
     private val pipeline get() = SDKComponent.android().geofenceCrossingPipeline
 
-    /** Feeds one crossing; GMS-code translation is the receiver's job and is tested there. */
     private suspend fun dispatchCrossing(
         transition: GeofenceCrossingTransition,
         geofenceIds: List<String>,
@@ -142,10 +139,8 @@ class GeofenceCrossingPipelineTest : RobolectricTest() {
             }
         )
         GeofenceDiagnostics.setEnabledForTesting(true)
-        // Default: cooldown allows emission.
         every { mockCooldownFilter.suppressedForSeconds(any(), any(), any()) } returns null
-        // The business processor stages then commits through the store; relaxed answers false,
-        // which reads as a refused write and drops the delivery before the scheduler sees it.
+        // Relaxed false reads as a refused write and drops the delivery before scheduling.
         every { mockStore.savePendingTransitionEntries(any(), any()) } returns true
         every { mockStore.commitBusinessTransition(any(), any(), any(), any(), any()) } returns true
         every { mockStore.userStateGeneration() } returns 0L
@@ -160,15 +155,14 @@ class GeofenceCrossingPipelineTest : RobolectricTest() {
             "biz-geofence-1",
             "biz-geofence-2"
         )
-        // Routing is gated on this second set; mirror it so a registered fence is routable unless
-        // a test says otherwise.
+        // Routing reads this second set; mirror it so registered fences are routable.
         every { mockStore.getRoutableRegisteredIds() } answers { mockStore.getRegisteredIds() }
         // Relaxed would answer empty, which reads as "inside nothing" and drops every EXIT.
         every { mockStore.getEnteredIds() } answers { mockStore.getRegisteredIds() }
         every { mockStore.getCachedRegions() } returns emptyList()
         // Not read by the EXIT guard, which uses getEnteredIds.
         every { mockStore.claimExit(any()) } returns true
-        // Default: containment has been recorded, i.e. not a freshly-upgraded install.
+        // Containment recorded, i.e. not a freshly-upgraded install.
         every { mockStore.hasContainmentRecord() } returns true
         // Default: fences monitor both transitions, so the EXIT guard applies.
         every { mockStore.getCachedRegion(any()) } returns
@@ -379,7 +373,6 @@ class GeofenceCrossingPipelineTest : RobolectricTest() {
         )
 
         coVerify(exactly = 0) { mockScheduler.schedule(any()) }
-        // Recording the emit on a failed persist would suppress the retry.
         verify(exactly = 0) { mockCooldownFilter.record("user-42", "biz-geofence", Event.GeofenceTransition.ENTER) }
     }
 
@@ -534,7 +527,6 @@ class GeofenceCrossingPipelineTest : RobolectricTest() {
 
     @Test
     fun handle_givenUnmatchedExitOnUpgradedInstall_expectDeliveredNotDropped() = runTest {
-        // Override the entered-everywhere default so this EXIT reads as unmatched.
         every { mockStore.getEnteredIds() } returns emptySet()
         every { mockStore.claimExit("biz-geofence-2") } returns false
         every { mockStore.hasContainmentRecord() } returns false
@@ -586,7 +578,6 @@ class GeofenceCrossingPipelineTest : RobolectricTest() {
 
     @Test
     fun handle_givenConcurrentBroadcastsForSameFence_expectBookkeepingSerialized() = runTest {
-        // Without the lock an ENTER and an EXIT for one fence interleave read-decide-persist.
         val inFlight = AtomicInteger()
         val peakInFlight = AtomicInteger()
         coEvery { mockScheduler.schedule(any()) } coAnswers {

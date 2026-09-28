@@ -15,10 +15,8 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 
 /**
- * The seams default to [PolygonSupport.Disabled], which is only safe if the production graph actually
- * supplies the opt-in, and supplies it *everywhere*. A build that mapped polygons but then dropped
- * them at the ranker would pass every per-class test in this module while being broken in
- * production. These assertions read the real graph.
+ * The seams default to [PolygonSupport.Disabled], so these read the real graph to prove it supplies
+ * the opt-in everywhere. Per-class tests would miss a seam left disabled.
  */
 @RunWith(RobolectricTestRunner::class)
 class GeofencePolygonSupportWiringTest : RobolectricTest() {
@@ -40,8 +38,6 @@ class GeofencePolygonSupportWiringTest : RobolectricTest() {
 
     @Test
     fun geofenceDistanceFilter_givenProductionGraph_expectPolygonRanked() {
-        // The graph's ranker must accept polygons too, or every polygon the request asks for is
-        // fetched and then dropped.
         val ranked = SDKComponent.geofenceDistanceFilter.nearest(
             regions = listOf(polygonRegion()),
             latitude = 37.7750,

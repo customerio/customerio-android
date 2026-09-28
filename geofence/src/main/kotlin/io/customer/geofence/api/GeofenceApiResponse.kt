@@ -23,11 +23,7 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.doubleOrNull
 
-/**
- * Wire shape of `POST /geofences/nearest`. `config` and the per-region
- * `name` / `transition_types` / `last_updated` fields are optional forward-compat
- * slots the SDK honors if the backend sends them and silently skips otherwise.
- */
+/** Wire shape of `POST /geofences/nearest`. */
 @Serializable
 internal data class GeofenceApiResponse(
     @SerialName("config")
@@ -36,8 +32,7 @@ internal data class GeofenceApiResponse(
     val geofences: List<GeofenceApiRegion>
 )
 
-// Every field nullable so backend can roll fields out gradually; per-field
-// fallbacks live in [toDomain].
+// Nullable so the backend can roll fields out gradually; fallbacks live in [toDomain].
 @Serializable
 internal data class GeofenceApiConfig(
     @SerialName("local_refresh_trigger_radius")
@@ -88,8 +83,7 @@ internal data class GeofenceApiRegion(
     val lastUpdated: Long? = null,
     @SerialName("geoset_ids")
     val geosetIds: List<String> = emptyList(),
-    // A JsonElement, not a typed map, so malformed `metadata` can't fail the response decode;
-    // [sanitizeMetadata] reduces it to scalars.
+    // A JsonElement, not a typed map, so malformed `metadata` can't fail the response decode.
     @SerialName("metadata")
     val metadata: JsonElement? = null
 )
@@ -145,8 +139,6 @@ internal fun GeofenceApiResponse.toDomainRegions(
     return mapped
 }
 
-// Coerces raw server values into sane bounds so a misconfigured backend can't push the SDK into a
-// pathological state.
 private fun GeofenceApiConfig.toDomain(): GeofenceConfig {
     val coercedLocalRefresh = localRefreshTriggerRadius?.takeIf { it > 0 }
         ?.coerceIn(
@@ -154,9 +146,8 @@ private fun GeofenceApiConfig.toDomain(): GeofenceConfig {
             GeofenceConstants.MAX_LOCAL_REFRESH_RADIUS_METERS
         )
         ?: GeofenceConstants.FALLBACK_LOCAL_REFRESH_RADIUS_METERS
-    // null → default cap; 0 → explicitly disabled (no cap). A positive value below the trigger
-    // radius would create a dead-zone (a geofence inside the trigger but beyond the cap never gets
-    // re-ranked), so fall back to the default.
+    // 0 disables the cap. A cap below the trigger radius would leave fences inside the trigger but
+    // past the cap never re-ranked, so it falls back to the default.
     val coercedMaxMonitoringDistance = when {
         maxMonitoringDistance == null -> GeofenceConstants.FALLBACK_MAX_MONITORING_DISTANCE_METERS
         maxMonitoringDistance == 0f -> GeofenceConstants.NO_MONITORING_DISTANCE_CAP_METERS
@@ -179,8 +170,7 @@ private fun GeofenceApiConfig.toDomain(): GeofenceConfig {
                 GeofenceConstants.MAX_DUPLICATE_EVENTS_EXPIRY_MS
             )
             ?: GeofenceConstants.DEDUPE_COOLDOWN_MS,
-        // Range is 0..99: zero is a valid server-side kill switch; 99 leaves one
-        // OS slot for the movement trigger. Out-of-range values fall back.
+        // 0 is a server-side kill switch; 99 leaves one OS slot for the movement trigger.
         maxBusinessGeofences = android?.maxBusinessGeofence?.takeIf { it in 0..99 }
             ?: GeofenceConstants.FALLBACK_MAX_BUSINESS_GEOFENCES,
         maxMonitoringDistance = coercedMaxMonitoringDistance
@@ -188,15 +178,13 @@ private fun GeofenceApiConfig.toDomain(): GeofenceConfig {
 }
 
 /**
- * Null when the region violates Geofence.Builder preconditions or carries geometry this build can't
- * monitor. A record with `geometry` or `enclosing_circle` never falls back to the flat
+ * A record with `geometry` or `enclosing_circle` never falls back to the flat
  * `latitude`/`longitude`/`radius` fields, which would monitor a circle the backend never asked for.
  */
 internal fun GeofenceApiRegion.toDomain(
     polygonSupport: PolygonSupport = PolygonSupport.Disabled
 ): GeofenceRegion? {
     if (id.isBlank()) return null
-    // A blank `shape` routes as absent, not as an unsupported shape.
     return when (shape?.trim()?.lowercase()?.takeIf(String::isNotEmpty)) {
         null, CIRCLE_SHAPE -> {
             if (geometry != null || enclosingCircle != null) {
@@ -245,10 +233,6 @@ private fun GeofenceApiRegion.toCircleRegionOrNull(): GeofenceRegion? {
     )
 }
 
-/**
- * Fails closed: a non-Polygon geometry type, a build without polygon monitoring, an invalid ring or
- * an unusable enclosing circle each drop only this record, with a logged reason.
- */
 private fun GeofenceApiRegion.toPolygonRegionOrNull(
     geometry: GeofenceApiGeometry,
     enclosingCircle: GeofenceApiEnclosingCircle,
@@ -305,10 +289,7 @@ private fun GeofenceApiRegion.toPolygonRegionOrNull(
     )
 }
 
-/**
- * Every fetched record as the server sent it, before any are dropped. Only the ring is resolved (an
- * unbuildable ring has no vertices to report), so a record the mapper rejects still gets a row.
- */
+/** Includes records [toDomainRegions] drops, so a rejected record still gets a row. */
 internal fun GeofenceApiResponse.toCatalogEntries(): List<GeofenceCatalogEntry> =
     geofences.map { region -> region.toCatalogEntry() }
 
@@ -319,9 +300,7 @@ private fun GeofenceApiRegion.toCatalogEntry(): GeofenceCatalogEntry {
         id = id,
         name = name,
         geosetIds = geosetIds,
-        // Absent `shape` means circle, as in the mapper.
         shape = claimedShape ?: CIRCLE_SHAPE,
-        // A polygon's centre is its enclosing circle, never the flat fields.
         latitude = if (isPolygonRecord) enclosingCircle?.latitude else latitude,
         longitude = if (isPolygonRecord) enclosingCircle?.longitude else longitude,
         radiusMeters = if (isPolygonRecord) enclosingCircle?.baseRadiusMeters else radius,
@@ -333,19 +312,14 @@ private fun GeofenceApiRegion.toCatalogEntry(): GeofenceCatalogEntry {
 private val GeofenceApiGeometry.isPolygonType: Boolean
     get() = type.equals(POLYGON_GEOMETRY_TYPE, ignoreCase = true)
 
-/**
- * Decodes a GeoJSON `Polygon` block into validated geometry, or `null` when it isn't one the SDK
- * supports (wrong type, holes, malformed positions, out-of-range or degenerate ring). Decoding does
- * not imply monitoring; that also needs [PolygonSupport].
- */
+/** Decoding does not imply monitoring; that also needs [PolygonSupport]. */
 internal fun GeofenceApiGeometry.toPolygonGeometryOrNull(): PolygonGeometry? {
     if (!isPolygonType) return null
     val vertices = coordinates?.toPolygonVerticesOrNull() ?: return null
     return PolygonGeometry.fromOrNull(vertices)
 }
 
-// GeoJSON positions are [longitude, latitude]; extra elements (elevation) are ignored. More than one
-// ring means holes, which aren't supported.
+// GeoJSON positions are [longitude, latitude]; more than one ring means holes (unsupported).
 private fun JsonElement.toPolygonVerticesOrNull(): List<PolygonCoordinate>? {
     val rings = this as? JsonArray ?: return null
     if (rings.size != 1) return null
@@ -366,12 +340,7 @@ private const val POLYGON_GEOMETRY_TYPE = "Polygon"
 private const val CIRCLE_SHAPE = "circle"
 private const val POLYGON_SHAPE = "polygon"
 
-/**
- * Reduces the raw wire value to the scalar map the event can carry: anything that isn't a JSON object
- * (or is absent) becomes empty, non-scalar/null values are dropped, and count/size are capped as a
- * backstop (see [GeofenceConstants]). Key order makes the capping deterministic. Never throws, so a
- * malformed `metadata` yields empty metadata rather than failing the region.
- */
+/** Scalars only, count/size capped. Keys are sorted so the capping is deterministic. */
 private fun sanitizeMetadata(raw: JsonElement?): Map<String, JsonElement> {
     val obj = raw as? JsonObject ?: return emptyMap()
     if (obj.isEmpty()) return emptyMap()
@@ -388,10 +357,6 @@ private fun sanitizeMetadata(raw: JsonElement?): Map<String, JsonElement> {
     return kept
 }
 
-/**
- * Null / empty / all-unknown values fall back to `[ENTER, EXIT]`; mixed
- * valid + unknown keeps just the valid subset. Each unknown value is logged.
- */
 private fun resolveTransitionTypes(raw: List<String>?): List<GeofenceTransitionType> {
     raw?.forEach { value ->
         if (parseTransitionType(value) == null) SDKComponent.geofenceLogger.logUnknownApiTransitionType(value)

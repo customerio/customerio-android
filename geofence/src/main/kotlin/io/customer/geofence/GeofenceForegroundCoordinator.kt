@@ -8,7 +8,6 @@ import io.customer.sdk.data.store.SecureUserStore
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.withContext
 
-/** What the SDK does when the app comes to the foreground, with no Android in it. */
 internal class GeofenceForegroundCoordinator(
     private val services: GeofenceServices,
     private val secureUserStore: SecureUserStore,
@@ -41,7 +40,6 @@ internal class GeofenceForegroundCoordinator(
         }
     }
 
-    /** Takes a fresh fix so the refresh runs from where the device is. False when none was taken. */
     fun takeFixForRefresh(): Boolean {
         if (locationMode != GeofenceLocationMode.AUTOMATIC) return false
         if (services.isAwaitingLocation()) return false
@@ -54,14 +52,14 @@ internal class GeofenceForegroundCoordinator(
     }
 
     /**
-     * A silent fix that never arrived leaves the sync armed with nothing to consume it, and nothing
-     * re-requests one until the next cold launch. Foreground entry is the next chance.
+     * A silent fix that never arrived leaves the sync armed, and nothing re-requests until cold
+     * launch.
      */
     private fun retrySyncAwaitingLocation() {
         if (!services.isAwaitingLocation()) return
         try {
             if (services.isHostRefreshPending()) {
-                // A host asked for a live fix; an anchor cannot satisfy it, so re-request instead of syncing.
+                // An anchor can't satisfy a host's live-fix request, so re-request instead of syncing.
                 locationServices.requestLocationUpdateSilently()
                 return
             }
@@ -76,21 +74,18 @@ internal class GeofenceForegroundCoordinator(
             services.onForegroundRetry(latitude = anchor?.latitude, longitude = anchor?.longitude)
             autoAcquireIfNeeded(anchor)
         } catch (e: CancellationException) {
-            // Never swallow cancellation.
             throw e
         } catch (e: Throwable) {
             logger.logSyncFailed("foreground retry failed: ${e.message}")
         }
     }
 
-    /** In AUTOMATIC, acquires a silent fix when none is available; MANUAL leaves it to the host. */
     fun autoAcquireIfNeeded(currentLocation: LocationCoordinates?) {
         if (currentLocation != null) return
         if (locationMode != GeofenceLocationMode.AUTOMATIC) return
         locationServices.requestLocationUpdateSilently()
     }
 
-    /** The anchor for an identify/launch refresh, shared with the foreground retry. */
     fun anchor(): LocationCoordinates? = resolveAnchor(
         registrationCenter = regionStore.getLastMovementTriggerLocation(),
         lastKnown = lastKnownLocation()

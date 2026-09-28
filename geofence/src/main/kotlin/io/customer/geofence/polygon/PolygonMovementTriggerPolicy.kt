@@ -4,7 +4,6 @@ import io.customer.geofence.GeofenceConstants
 import io.customer.geofence.GeofenceRegion
 import kotlin.math.min
 
-/** Computes one conservative movement-trigger radius across the relevant polygon set. */
 internal class PolygonMovementTriggerPolicy {
     fun safeRadiusMeters(
         regions: List<GeofenceRegion>,
@@ -16,9 +15,8 @@ internal class PolygonMovementTriggerPolicy {
         val polygons = regions.filter(GeofenceRegion::isPolygon)
         if (polygons.isEmpty()) return normalRadiusMeters
 
-        // Each polygon we are outside caps the trigger so it is crossed before the ring; each one
-        // we are inside wants a small radius so departure is noticed. Kept separate: one running
-        // minimum would let a single entered polygon floor the trigger for every approach.
+        // Approach and departure ceilings kept apart: one running minimum would let a single
+        // entered polygon floor the trigger for every approach.
         var approachCeiling = normalRadiusMeters.toDouble()
         var departureCeiling = Double.MAX_VALUE
         var approaching = false
@@ -46,24 +44,19 @@ internal class PolygonMovementTriggerPolicy {
             }
         }
 
-        // A clearance too small to keep the trigger inside the nearest ring is a refusal, and it
-        // stays a refusal even when some other polygon is being departed. Stopping would lose that
-        // arrival, and being inside an unrelated fence does not make it recoverable.
+        // Too little clearance before the nearest ring is a refusal even while another polygon is
+        // departed: stopping would lose that arrival.
         if (approaching && approachCeiling < GeofenceConstants.MIN_LOCAL_REFRESH_RADIUS_METERS) {
             return null
         }
         if (!departing) return approachCeiling.toFloat()
 
-        // The departed ring's own clearance still applies, so deep inside a large polygon the
-        // trigger stays large; only a ring too small for a resolvable trigger falls to the floor.
-        // The floor is applied last so a smaller configured radius cannot cap it below what GMS
-        // resolves.
+        // Floor applied last so a smaller configured radius cannot cap it below what GMS resolves.
         val departureRadius = departureCeiling
             .coerceAtMost(normalRadiusMeters.toDouble())
             .coerceAtLeast(MIN_DEPARTURE_TRIGGER_RADIUS_METERS)
 
-        // An approach in the same set still caps it: widening past a ring being walked towards
-        // loses that arrival, which is worse than noticing a departure late.
+        // An approach still caps it: a lost arrival is worse than a late departure.
         return if (approaching) {
             min(approachCeiling, departureRadius).toFloat()
         } else {
@@ -72,19 +65,15 @@ internal class PolygonMovementTriggerPolicy {
     }
 
     internal companion object {
-        // Independent of the evaluator's arrival ceiling: a bad fix here shrinks the movement
-        // trigger around every polygon, a worse failure than misjudging one fence. Equal to the
-        // evaluator's floor by coincidence, so either may change alone.
+        // Equals the evaluator's arrival floor only by coincidence: a bad fix here shrinks the
+        // trigger around every polygon, so either may change alone.
         const val MAX_TRIGGER_FIX_ACCURACY_METERS = 50.0
 
-        /** Lead distance kept between the trigger and the ring on approach. */
         const val APPROACH_LEAD_MARGIN_METERS = 100.0
 
         /**
-         * Smallest trigger armed for a departure. Not
-         * [GeofenceConstants.MIN_LOCAL_REFRESH_RADIUS_METERS], which clamps server config and says
-         * nothing about what GMS resolves. A trigger smaller than GMS's coarse containment error
-         * fires falsely, and each false fire costs a sync and a re-registration.
+         * Not [GeofenceConstants.MIN_LOCAL_REFRESH_RADIUS_METERS], which clamps server config. A
+         * trigger smaller than GMS's coarse containment error fires falsely, each costing a sync.
          */
         const val MIN_DEPARTURE_TRIGGER_RADIUS_METERS = 250.0
     }

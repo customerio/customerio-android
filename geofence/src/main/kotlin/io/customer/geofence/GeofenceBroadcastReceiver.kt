@@ -24,8 +24,7 @@ import kotlinx.coroutines.withTimeoutOrNull
 class GeofenceBroadcastReceiver : BroadcastReceiver() {
 
     override fun onReceive(context: Context, intent: Intent) {
-        // goAsync keeps the process alive until the crossing is persisted and its delivery
-        // scheduled; without it the OS may kill us mid-dispatch.
+        // goAsync keeps the process alive until the crossing is persisted and its delivery scheduled.
         val pendingResult = goAsync()
         try {
             SDKComponent.setupAndroidComponent(context = context)
@@ -57,7 +56,6 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
         }
     }
 
-    /** Translates one GMS broadcast into a [GeofenceCrossing]; routing lives in [GeofenceCrossingPipeline]. */
     @VisibleForTesting
     internal suspend fun handleGeofencingEvent(geofencingEvent: GeofencingEvent?) {
         val logger = SDKComponent.geofenceLogger
@@ -69,9 +67,9 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
         if (geofencingEvent.hasError()) {
             logger.logGeofencingError(geofencingEvent.errorCode)
             if (geofencingEvent.errorCode == GeofenceStatusCodes.GEOFENCE_NOT_AVAILABLE) {
-                // GMS requires callers to re-register after this error. Invalidate only our claim
-                // that OS registrations are live; cached definitions and containment survive so
-                // the next foreground/location refresh can restore them without duplicate ENTERs.
+                // GMS requires re-registering after this. Invalidate only the live-registration
+                // claim; cached definitions and containment survive so a refresh restores without
+                // duplicate ENTERs.
                 SDKComponent.android().polygonGeofenceServiceController.invalidateOsRegistrationState()
             }
             return
@@ -84,8 +82,7 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
             }
         val location = geofencingEvent.triggeringLocation
         val gmsTransition = geofencingEvent.geofenceTransition
-        // Logged before routing and before the Location is narrowed to lat/lng: the only place the
-        // OS's full triggering fix (accuracy, age, mock flag) is still available.
+        // The only place the OS's full triggering fix (accuracy, age, mock flag) is still available.
         logger.logCallbackReceived(
             geofenceIds = triggeringGeofenceIds,
             transitionName = transitionName(gmsTransition),
@@ -105,10 +102,7 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
         )
     }
 
-    /**
-     * Builds the [GeofenceCrossing] and hands it to the pipeline. A separate test seam because a
-     * `GeofencingEvent` cannot be built without GMS internals.
-     */
+    /** Test seam: a `GeofencingEvent` cannot be built without GMS internals. */
     @VisibleForTesting
     internal suspend fun dispatchTransition(
         gmsTransitionType: Int,
@@ -132,13 +126,12 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
     }
 
     /**
-     * Holds the goAsync window open until a movement refresh this crossing started has landed,
-     * within what is left of the dispatch budget. A timeout ends the wait only, not the refresh.
+     * Holds the goAsync window open for a movement refresh this crossing started, within the
+     * remaining dispatch budget. A timeout ends the wait only, not the refresh.
      */
     private suspend fun dispatchCrossing(crossing: GeofenceCrossing) {
         val startedAtUptimeMs = SDKComponent.clock.elapsedRealtime()
-        // Resolved apart from handling so it can be timed: on a cold process this builds the DI
-        // singleton, GMS client included.
+        // Resolved apart from handling so it can be timed: a cold process builds the DI singleton here.
         val pipeline = SDKComponent.android().geofenceCrossingPipeline
         SDKComponent.geofenceLogger.logDispatchReady(SDKComponent.clock.elapsedRealtime() - startedAtUptimeMs)
         val refreshJob = pipeline.handle(crossing)
@@ -164,8 +157,7 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
     }
 
     internal companion object {
-        // goAsync grants ~10s before the OS considers the receiver blocked; total budget for
-        // one dispatch (persistence + GMS awaits + movement-refresh wait), with headroom.
+        // goAsync grants ~10s before the OS considers the receiver blocked; this leaves headroom.
         private const val DISPATCH_WAIT_BUDGET_MS = 8_000L
     }
 }

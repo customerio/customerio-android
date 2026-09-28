@@ -10,14 +10,8 @@ import com.google.android.gms.location.Priority
 import io.customer.geofence.GeofenceLogger
 
 /**
- * Listens for fixes other apps are already paying for, while any polygon is registered.
- *
- * `PRIORITY_PASSIVE` never turns a sensor on and guarantees nothing: with no other app requesting
- * location, no fix arrives. It can only narrow the gap between periodic re-checks, which
- * WorkManager floors at 15 minutes.
- *
- * No session state, unlike [PolygonApproachMonitor]: one long-lived request while any polygon is
- * registered. A delivery after a user change is refused by the controller's generation check.
+ * Listens for fixes other apps already pay for; `PRIORITY_PASSIVE` never turns a sensor on and
+ * guarantees nothing. One long-lived request while any polygon is registered, with no session state.
  */
 internal interface PolygonPassiveMonitor {
     /**
@@ -39,7 +33,6 @@ internal class GmsPolygonPassiveMonitor(
 ) : PolygonPassiveMonitor {
     @SuppressLint("MissingPermission")
     override fun start() {
-        // Non-null in practice with FLAG_UPDATE_CURRENT; the type is nullable for NO_CREATE's sake.
         val pendingIntent = pendingIntent(FLAG_DEFAULT) ?: return
         runCatching {
             client.requestLocationUpdates(passiveRequest(), pendingIntent)
@@ -49,24 +42,21 @@ internal class GmsPolygonPassiveMonitor(
     }
 
     override fun stop() {
-        // NO_CREATE, so a stop cannot mint the very request it is trying to remove. Absent means
-        // nothing was ever registered, which is the ordinary case for a build with no polygons.
+        // NO_CREATE, so a stop cannot mint the very request it is trying to remove.
         val pendingIntent = pendingIntent(FLAG_NO_CREATE) ?: return
         runCatching {
             client.removeLocationUpdates(pendingIntent)
                 .addOnSuccessListener { logger.logPolygonPassiveStopped() }
                 .addOnFailureListener { logger.logPolygonPassiveFailed(it.message) }
         }.onFailure { logger.logPolygonPassiveFailed(it.message) }
-        // Cancelled as well as removed, which is what makes [isArmed] answerable. Removing the
-        // request stops new deliveries but leaves the intent alive, so a fix already dispatched
-        // still arrives and nothing it can read says the session ended.
+        // Cancelled as well as removed so [isArmed] turns false: removal leaves the intent alive, and
+        // a fix already dispatched still arrives.
         pendingIntent.cancel()
     }
 
     /**
-     * Whether this registration is still live. Read at delivery: the OS dispatches a passive fix
-     * before the receiver runs, so there is no earlier point to capture a token. The system owns the
-     * intent, so a cold-process delivery under a live registration is still admitted.
+     * Read at delivery, since the OS dispatches before the receiver runs. The system owns the intent,
+     * so a cold-process delivery under a live registration is still admitted.
      */
     override fun isArmed(): Boolean = pendingIntent(FLAG_NO_CREATE) != null
 
@@ -79,22 +69,15 @@ internal class GmsPolygonPassiveMonitor(
 
     internal companion object {
         /**
-         * Distinct from [PolygonApproachMonitor]'s. Not required while the intents target different
-         * receivers, but keeps the two `PendingIntent`s apart if that ever changes.
+         * Distinct from [PolygonApproachMonitor]'s so the intents stay apart if they share a
+         * receiver.
          */
         private const val PENDING_INTENT_REQUEST_CODE = 47303
 
         private val FLAG_DEFAULT = PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
         private val FLAG_NO_CREATE = PendingIntent.FLAG_NO_CREATE or PendingIntent.FLAG_MUTABLE
 
-        /**
-         * Throttles process wakes: a navigating maps app requests a fix every second, and each would
-         * otherwise reach the evaluator. Sensor cost is already bounded by the controller's 30 s
-         * fresh-fix cooldown.
-         *
-         * A passive `PendingIntent` request does not survive reboot; boot restore starts it again, so
-         * `polygon.passive.started` after every boot is expected.
-         */
+        /** Throttles process wakes: a navigating maps app requests a fix every second. */
         internal const val MINIMUM_INTERVAL_MS = 60_000L
         private const val NOMINAL_INTERVAL_MS = 5 * 60_000L
 

@@ -22,8 +22,7 @@ class GeofenceBootReceiver : BroadcastReceiver() {
         if (intent.action != Intent.ACTION_BOOT_COMPLETED) return
 
         val logger = SDKComponent.geofenceLogger
-        // goAsync keeps the process alive until the restore resolves; without it the OS may kill
-        // us before GMS commits the registration.
+        // goAsync keeps the process alive until GMS commits the restored registration.
         val pendingResult = goAsync()
         try {
             SDKComponent.setupAndroidComponent(context = context)

@@ -71,9 +71,8 @@ class GeofenceSessionInterleavingTest : RobolectricTest() {
     @Test
     fun onAppLaunch_givenAnIdentifyLandsBetweenTheReadAndTheStore_expectTheNewerSessionKept() =
         runTest(StandardTestDispatcher()) {
-            // Launch reads user-a, an identify for user-b opens and arms its session, then launch
-            // reaches the store. Reopening user-a here would clear routing with no pass queued to
-            // re-arm it, so the next business callback would be dropped as unarmed.
+            // An identify for user-b lands inside launch's read. Reopening user-a would clear routing
+            // with no pass queued to re-arm it.
             every { secureUserStore.getUserId() } answers {
                 store.beginUserSession(USER_B)
                 store.saveRoutableRegisteredIdsIfCurrent(setOf(FENCE), store.userStateGeneration())
@@ -102,10 +101,8 @@ class GeofenceSessionInterleavingTest : RobolectricTest() {
 
     @Test
     fun polygonSessionOpen_givenAnIdentifyRacesTheLaunchRead_expectTheIdentifiedUserOwnsIt() {
-        // The launch, boot and callback paths all reach the store through this one controller
-        // entry point. The read it hands down runs under the session lock, so an identify on
-        // another thread cannot land between the read and the open and be reopened as the older
-        // user. Threads, not a re-entrant stub: the whole point is that the other path blocks.
+        // The read runs under the session lock, so an identify cannot land between read and open.
+        // Real threads, not a re-entrant stub: the point is that the other path blocks.
         val controller = PolygonGeofenceServiceController(
             context = applicationMock,
             store = store,

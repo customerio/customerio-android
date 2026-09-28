@@ -46,7 +46,6 @@ class GeofenceTransitionEmitterTest : RobolectricTest() {
         every { mockRegionStore.savePendingTransitionEntries(any(), any()) } returns true
     }
 
-    /** Defaults describe the common case: an ENTER on a fence monitoring both transitions. */
     private suspend fun emit(
         geofenceId: String = "biz-1",
         transition: Event.GeofenceTransition = Event.GeofenceTransition.ENTER,
@@ -74,7 +73,6 @@ class GeofenceTransitionEmitterTest : RobolectricTest() {
         emitted.shouldBeFalse()
         verify(exactly = 0) { mockPendingStore.appendAll(any()) }
         coVerify(exactly = 0) { mockScheduler.schedule(any()) }
-        // The remainder the filter reported has to reach the log, not a placeholder.
         verify(exactly = 1) { mockLogger.logTransitionSuppressed("biz-1", "ENTER", 12.0) }
     }
 
@@ -117,13 +115,11 @@ class GeofenceTransitionEmitterTest : RobolectricTest() {
 
         emit(geosetIds = listOf("g1", "g2"))
 
-        // One acceptance record per crossing, carrying the per-geoset row count.
         verify(exactly = 1) { mockLogger.logTransitionAccepted("biz-1", "ENTER", 2) }
     }
 
     @Test
     fun emit_givenPersistFails_expectNoAcceptedRecord() = runTest {
-        // Logged only after the durable write, so a failed write never reads as accepted.
         every { mockCooldownFilter.suppressedForSeconds(any(), any(), any()) } returns null
         every { mockPendingStore.appendAll(any()) } returns false
 
@@ -134,8 +130,6 @@ class GeofenceTransitionEmitterTest : RobolectricTest() {
 
     @Test
     fun emit_givenCooldownSuppresses_expectNoAcceptedRecord() = runTest {
-        // A suppressed crossing logs its own record and must not also claim acceptance, or it
-        // counts twice off-device.
         every { mockCooldownFilter.suppressedForSeconds(any(), any(), any()) } returns 42.0
 
         emit()
@@ -146,8 +140,6 @@ class GeofenceTransitionEmitterTest : RobolectricTest() {
 
     @Test
     fun emit_givenBlankGeosetAlongsideReal_expectBlankDropped() = runTest {
-        // A catalog row carrying "" would otherwise persist an entry with an empty geosetId and
-        // report two events where iOS reports one.
         every { mockCooldownFilter.suppressedForSeconds(any(), any(), any()) } returns null
         every { mockPendingStore.appendAll(any()) } returns true
         val entries = slot<List<PendingGeofenceDelivery>>()
@@ -161,7 +153,6 @@ class GeofenceTransitionEmitterTest : RobolectricTest() {
 
     @Test
     fun emit_givenEveryGeosetBlank_expectOneNullGeosetEvent() = runTest {
-        // Dropping every id must land on the no-geosets path rather than emitting nothing at all.
         every { mockCooldownFilter.suppressedForSeconds(any(), any(), any()) } returns null
         every { mockPendingStore.appendAll(any()) } returns true
         val entries = slot<List<PendingGeofenceDelivery>>()
@@ -175,8 +166,6 @@ class GeofenceTransitionEmitterTest : RobolectricTest() {
 
     @Test
     fun emit_givenSchedulerThrowsForOneGeoset_expectRemainingStillScheduled() = runTest {
-        // A scheduler failure for one geoset must not abandon the rest of the batch; the row is
-        // already persisted, so the foreground flush still delivers the un-scheduled one.
         every { mockCooldownFilter.suppressedForSeconds(any(), any(), any()) } returns null
         every { mockPendingStore.appendAll(any()) } returns true
         coEvery { mockScheduler.schedule(match { it.geosetId == "g1" }) } throws RuntimeException("boom")
@@ -207,7 +196,6 @@ class GeofenceTransitionEmitterTest : RobolectricTest() {
         val emitted = emit()
 
         emitted.shouldBeFalse()
-        // Ahead of the cooldown, so the slot stays free for the next genuine transition.
         verify(exactly = 0) { mockCooldownFilter.suppressedForSeconds(any(), any(), any()) }
         verify(exactly = 0) { mockPendingStore.appendAll(any()) }
     }
@@ -220,8 +208,7 @@ class GeofenceTransitionEmitterTest : RobolectricTest() {
 
         val emitted = emit(monitorsExit = false)
 
-        // GMS never reports an EXIT for this fence, so nothing would ever clear the mark: honouring
-        // it here would suppress every arrival after the first for the life of the registration.
+        // GMS never reports an EXIT for this fence, so nothing would ever clear the mark.
         emitted.shouldBeTrue()
     }
 
@@ -243,7 +230,6 @@ class GeofenceTransitionEmitterTest : RobolectricTest() {
 
         val emitted = emit(transition = Event.GeofenceTransition.EXIT)
 
-        // The gate is ENTER-only: an EXIT must never be blocked by it.
         emitted.shouldBeTrue()
     }
 
@@ -265,7 +251,6 @@ class GeofenceTransitionEmitterTest : RobolectricTest() {
 
         emit()
 
-        // Marking a rolled-back write would suppress the retry and lose the crossing entirely.
         verify(exactly = 0) { mockRegionStore.markEnterEmitted(any(), any()) }
     }
 
@@ -305,8 +290,7 @@ class GeofenceTransitionEmitterTest : RobolectricTest() {
 
     @Test
     fun emit_givenStagedAttemptWithinTheCooldown_expectDeliveredNotSuppressed() = runTest {
-        // A staged row is a crossing already accepted whose outbox append failed, so its retry
-        // bypasses the cooldown check.
+        // A staged row was already accepted, so its retry bypasses the cooldown.
         val staged = PendingGeofenceDelivery(
             geofenceId = "biz-1",
             transition = Event.GeofenceTransition.ENTER,

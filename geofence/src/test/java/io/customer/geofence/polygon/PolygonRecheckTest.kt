@@ -34,9 +34,7 @@ import org.robolectric.Shadows.shadowOf
 
 /**
  * The periodic re-check, for a device already inside a wake circle when it is registered: GMS may
- * never report that ENTER, and `emitInitialEnters` skips polygons. Pins that the work is scheduled
- * exactly while polygons are registered, and that a run feeds its fix through the ordinary
- * coarse-ENTER path.
+ * never report that ENTER, and `emitInitialEnters` skips polygons.
  */
 @RunWith(RobolectricTestRunner::class)
 class PolygonRecheckTest : RobolectricTest() {
@@ -81,8 +79,7 @@ class PolygonRecheckTest : RobolectricTest() {
 
         WorkManagerPolygonRecheckScheduler(workManagerProvider).schedule() shouldBeEqualTo true
 
-        // KEEP, not REPLACE. Every sync calls this, and REPLACE would re-anchor the period on each
-        // one, so an app that syncs more often than the interval would never re-check at all.
+        // KEEP, not REPLACE: every sync calls this, and REPLACE would re-anchor the period each time.
         verify {
             workManager.enqueueUniquePeriodicWork(
                 WorkManagerPolygonRecheckScheduler.POLYGON_RECHECK_WORK,
@@ -96,7 +93,6 @@ class PolygonRecheckTest : RobolectricTest() {
 
     @Test
     fun schedule_givenWorkManagerUnavailable_expectFalseAndNoCrash() {
-        // The host can leave WorkManager uninitialised; the callback path still works without this.
         every { workManagerProvider.getWorkManager() } returns null
 
         val scheduler = WorkManagerPolygonRecheckScheduler(workManagerProvider)
@@ -136,18 +132,15 @@ class PolygonRecheckTest : RobolectricTest() {
             .doWork()
 
         result shouldBeEqualTo ListenableWorker.Result.success()
-        // Self-healing: a missed cancel site costs one wake rather than a permanent periodic job.
         verify { mockRecheckScheduler.cancel() }
-        // And the re-assert stays out of it when the catalog really is empty, or the retirement
-        // would put back exactly what it just removed.
+        // No re-assert when the catalog really is empty, or the retirement would undo itself.
         verify(exactly = 0) { mockRecheckScheduler.schedule() }
         coVerify(exactly = 0) { mockFreshFix.awaitFreshFix(any(), any()) }
     }
 
     @Test
     fun worker_givenPermissionRevoked_expectItSaysSoRatherThanBlamingReception() = runTest {
-        // awaitFreshFix reports a revoked permission and a silent GPS as the same null, so the
-        // worker checks permission first and records which one happened.
+        // awaitFreshFix returns the same null for a revoked permission and a silent GPS.
         shadowOf(ApplicationProvider.getApplicationContext<Application>())
             .denyPermissions(
                 Manifest.permission.ACCESS_FINE_LOCATION,
@@ -183,8 +176,7 @@ class PolygonRecheckTest : RobolectricTest() {
         every { mockStore.getRoutableRegisteredIds() } returns setOf(VENUE_ID)
         every { mockStore.getCachedRegions() } returns listOf(venueRegion())
         val fix = fixAt(VENUE_LAT, VENUE_LNG)
-        // An identify lands during the wait (up to 20 s), so the stub moves the generation the way
-        // the real store would.
+        // An identify lands during the wait, so the stub moves the generation as the real store would.
         var generation = 7L
         every { mockStore.userStateGeneration() } answers { generation }
         coEvery { mockFreshFix.awaitFreshFix(any(), any()) } coAnswers {
@@ -197,9 +189,8 @@ class PolygonRecheckTest : RobolectricTest() {
             .doWork()
 
         result shouldBeEqualTo ListenableWorker.Result.success()
-        // The same entry point a GMS callback uses, carrying the generation from BEFORE the await
-        // so the controller refuses it, rather than the generation current when the fix landed,
-        // which would attribute this wake to the newly identified user.
+        // The generation from before the await, so the controller refuses it; the one current when
+        // the fix landed would attribute this wake to the newly identified user.
         coVerify {
             mockController.activate(
                 polygonId = VENUE_ID,
@@ -216,9 +207,6 @@ class PolygonRecheckTest : RobolectricTest() {
 
     @Test
     fun worker_expectItAsksForACheapFixNotAGpsOne() = runTest {
-        // Registered polygons are only the nearest set, so a user far from all of them is still
-        // woken every interval. "Inside a circle hundreds of metres across" needs no GPS;
-        // precision is bought downstream, only when the device is inside.
         every { mockStore.getRoutableRegisteredIds() } returns setOf(VENUE_ID)
         every { mockStore.getCachedRegions() } returns listOf(venueRegion())
         coEvery { mockFreshFix.awaitFreshFix(any(), any()) } returns null
@@ -233,8 +221,6 @@ class PolygonRecheckTest : RobolectricTest() {
 
     @Test
     fun worker_givenTheFixIsOutsideTheWakeCircle_expectNoActivation() = runTest {
-        // Registered but far away: there is nothing to re-check, and waking the evaluator for it
-        // would start an approach session for a polygon the device is nowhere near.
         every { mockStore.getRoutableRegisteredIds() } returns setOf(VENUE_ID)
         every { mockStore.getCachedRegions() } returns listOf(venueRegion())
         coEvery { mockFreshFix.awaitFreshFix(any(), any()) } returns fixAt(VENUE_LAT + 1.0, VENUE_LNG)
@@ -248,7 +234,6 @@ class PolygonRecheckTest : RobolectricTest() {
 
     @Test
     fun worker_givenANonPolygonIsRegistered_expectItIsNotRecheckedAsOne() = runTest {
-        // Circles have their own initial-ENTER synthesis; re-checking them here would double-report.
         every { mockStore.getRoutableRegisteredIds() } returns setOf("circle")
         every { mockStore.getCachedRegions() } returns listOf(
             venueRegion().copy(id = "circle", polygonVertices = null)
@@ -264,9 +249,7 @@ class PolygonRecheckTest : RobolectricTest() {
 
     @Test
     fun teardown_expectEveryPathThatDisablesGeofencingCancelsTheWork() {
-        // Enumerated, not sampled: a teardown that misses the cancel leaves the periodic work
-        // fetching fixes after geofencing stopped. A new teardown path on this class belongs in
-        // this list or in the test below it.
+        // A new teardown path on the controller belongs in this list or in the test below it.
         val paths = listOf<Pair<String, (PolygonGeofenceServiceController) -> Unit>>(
             "invalidateOsRegistrationState" to { it.invalidateOsRegistrationState() },
             "stopAll" to { it.stopAll() },
@@ -289,8 +272,6 @@ class PolygonRecheckTest : RobolectricTest() {
 
     @Test
     fun teardown_givenRegistrationsSurvive_expectTheWorkIsLeftAlone() {
-        // Control for the test above. invalidatePersistedCoarseState keeps registrations, so the
-        // re-check is still the one thing that can re-derive an arrival GMS never reported.
         val scheduler = RecordingRecheckScheduler()
 
         controller(scheduler).invalidatePersistedCoarseState()
@@ -300,8 +281,6 @@ class PolygonRecheckTest : RobolectricTest() {
 
     @Test
     fun teardown_expectTheCancelIsNotIssuedUnderTheControllerLock() {
-        // cancel() reaches WorkManager, which does disk work, so issuing it under controllerLock
-        // would stall every coarse callback behind it.
         lateinit var subject: PolygonGeofenceServiceController
         var heldLockDuringCancel: Boolean? = null
         val scheduler = object : PolygonRecheckScheduler {
@@ -341,9 +320,6 @@ class PolygonRecheckTest : RobolectricTest() {
 
     @Test
     fun worker_givenAnActivePolygonIsDecisivelyOutside_expectASyntheticCoarseExit() = runTest {
-        // activate() records the polygon coarse-inside and only a GMS coarse EXIT clears it. For
-        // an ENTER this worker recovered, GMS holds no inside state and may issue no EXIT, so
-        // without this the polygon stays active indefinitely.
         grantLocationPermission()
         every { mockStore.getRoutableRegisteredIds() } returns setOf(VENUE_ID)
         every { mockStore.getCachedRegions() } returns listOf(venueRegion())
@@ -353,8 +329,7 @@ class PolygonRecheckTest : RobolectricTest() {
 
         TestListenableWorkerBuilder<PolygonRecheckWorker>(applicationMock).build().doWork()
 
-        // onCoarseExit, not the store flag and not a direct deactivate: it is the path that keeps
-        // a committed arrival active and reports the holds a teardown discarded.
+        // onCoarseExit, not the store flag or a direct deactivate: it keeps a committed arrival active.
         coVerify(exactly = 1) {
             mockController.onCoarseExit(
                 polygonId = VENUE_ID,
@@ -369,8 +344,7 @@ class PolygonRecheckTest : RobolectricTest() {
 
     @Test
     fun worker_expectTheDepartureThresholdIsPinnedToTheRadius() = runTest {
-        // Ten metres either side of the 120 m circle: 150 - 20 = 130 clears it, 130 - 20 = 110
-        // does not.
+        // Ten metres either side of the 120 m circle: 150 - 20 = 130 clears it, 130 - 20 = 110 does not.
         grantLocationPermission()
         every { mockStore.getRoutableRegisteredIds() } returns setOf(VENUE_ID)
         every { mockStore.getCachedRegions() } returns listOf(venueRegion())
@@ -390,8 +364,7 @@ class PolygonRecheckTest : RobolectricTest() {
 
     @Test
     fun worker_givenTheFixReportsNoAccuracy_expectNoClear() = runTest {
-        // accuracy is 0 when unset, which would make the margin vanish and clear a live session on
-        // a fix whose error is unknown.
+        // accuracy is 0 when unset, which would make the margin vanish.
         grantLocationPermission()
         every { mockStore.getRoutableRegisteredIds() } returns setOf(VENUE_ID)
         every { mockStore.getCachedRegions() } returns listOf(venueRegion())
@@ -409,8 +382,7 @@ class PolygonRecheckTest : RobolectricTest() {
 
     @Test
     fun worker_givenTheOutsideFixIsTooCoarseToDecide_expectNoClear() = runTest {
-        // 300 m out with 250 m of error does not establish a departure, so a live session must not
-        // be torn down on it.
+        // 300 m out with 250 m of error does not establish a departure.
         grantLocationPermission()
         every { mockStore.getRoutableRegisteredIds() } returns setOf(VENUE_ID)
         every { mockStore.getCachedRegions() } returns listOf(venueRegion())
@@ -425,9 +397,6 @@ class PolygonRecheckTest : RobolectricTest() {
 
     @Test
     fun worker_givenTheOutsidePolygonWasNeverActive_expectNothingToClear() = runTest {
-        // The control for the two above. A registered polygon we never activated has no coarse
-        // state to clear, and calling the exit path for it would churn the dedupe memo and put a
-        // departure in the capture for a polygon that was never arrived at.
         grantLocationPermission()
         every { mockStore.getRoutableRegisteredIds() } returns setOf(VENUE_ID)
         every { mockStore.getCachedRegions() } returns listOf(venueRegion())
@@ -442,8 +411,7 @@ class PolygonRecheckTest : RobolectricTest() {
 
     @Test
     fun worker_expectTheTeardownTokenIsReadBeforeTheWaitNotAfterIt() = runTest {
-        // Read after awaitFreshFix, the token would miss a session that ended during the wait.
-        // The stub moves it the way a teardown would.
+        // The stub moves the token during the wait, the way a teardown would.
         every { mockStore.getRoutableRegisteredIds() } returns setOf(VENUE_ID)
         every { mockStore.getCachedRegions() } returns listOf(venueRegion())
         val fix = fixAt(VENUE_LAT, VENUE_LNG)
@@ -472,9 +440,7 @@ class PolygonRecheckTest : RobolectricTest() {
 
     @Test
     fun activate_givenATeardownSinceTheTokenWasTaken_expectNoReArm() = runTest {
-        // stopAll() leaves the routable ids and the user generation in place, so only the token
-        // refuses a worker already past its wait. Cancellation cannot: the coroutine may already
-        // be past the suspension point when the teardown lands.
+        // stopAll() leaves the routable ids and the user generation in place, so only the token refuses.
         every { mockStore.getRoutableRegisteredIds() } returns setOf(VENUE_ID)
         every { mockStore.getCachedRegions() } returns listOf(venueRegion())
         every { mockStore.getCachedRegion(VENUE_ID) } returns venueRegion()
@@ -495,7 +461,6 @@ class PolygonRecheckTest : RobolectricTest() {
 
     @Test
     fun activate_givenNoTeardownSinceTheTokenWasTaken_expectItStillArms() = runTest {
-        // Control: a token that is still current must not block an ordinary scheduled wake.
         every { mockStore.getRoutableRegisteredIds() } returns setOf(VENUE_ID)
         every { mockStore.getCachedRegions() } returns listOf(venueRegion())
         every { mockStore.getCachedRegion(VENUE_ID) } returns venueRegion()
@@ -514,9 +479,8 @@ class PolygonRecheckTest : RobolectricTest() {
 
     @Test
     fun worker_givenTheCatalogFillsDuringRetirement_expectTheScheduleIsReasserted() = runTest {
-        // A sync can schedule the work after this run read an empty catalog, and the retirement
-        // must not cancel that schedule for good. Modelled as a catalog empty on the first read and
-        // populated on the re-read, where the sync's write beat the re-read.
+        // A sync writes the catalog between this run's empty read and its re-read, so the retirement
+        // must not cancel the schedule that sync made.
         var reads = 0
         every { mockStore.getRoutableRegisteredIds() } answers {
             reads++
@@ -530,22 +494,20 @@ class PolygonRecheckTest : RobolectricTest() {
 
         result shouldBeEqualTo ListenableWorker.Result.success()
         reads shouldBeEqualTo 2
-        // Order, not counts: cancelling after the re-assert would leave nothing scheduled and a
-        // count assertion would pass either way.
+        // Order, not counts: a cancel after the re-assert would leave nothing scheduled.
         verifyOrder {
             mockRecheckScheduler.cancel()
             mockRecheckScheduler.schedule()
         }
         verify(exactly = 1) { mockRecheckScheduler.schedule() }
-        // Still asks for no fix: this run read an empty catalog and has nothing to re-check.
+        // No fix: this run read an empty catalog.
         coVerify(exactly = 0) { mockFreshFix.awaitFreshFix(any(), any()) }
     }
 
     @Test
     fun worker_expectTheOwnershipSnapshotIsTakenBeforeTheCatalogReads() = runTest {
-        // Both halves of the ownership snapshot (teardown token and user generation) must be read
-        // before the catalog, or a teardown or identify during that work is captured as current.
-        // The stubs move on the first store read, so the snapshot has to precede it.
+        // The stubs move token and generation on the first catalog read, so the snapshot must
+        // precede it.
         var teardowns = 3L
         var generation = 7L
         every { mockController.teardownGeneration() } answers { teardowns }
@@ -586,10 +548,8 @@ class PolygonRecheckTest : RobolectricTest() {
 
     @Test
     fun activate_givenATeardownLandsAfterTheEarlyCheck_expectTheLockedActivationRefuses() = runTest {
-        // The registration and dedupe reads between the early token check and the locked
-        // activation release the lock, so the locked activation must check the token again. The
-        // teardown runs inside the first registration read, the gap itself, so the interleaving is
-        // deterministic. Not a lock-freedom fixture: stopAll runs reentrantly under this lock.
+        // The teardown runs inside the first registration read, between the early token check and the
+        // locked activation. Not a lock-freedom fixture: stopAll runs reentrantly under this lock.
         every { mockStore.getRoutableRegisteredIds() } returns setOf(VENUE_ID)
         every { mockStore.getCachedRegions() } returns listOf(venueRegion())
         every { mockStore.activeUserSessionId() } returns "user-1"
@@ -616,16 +576,12 @@ class PolygonRecheckTest : RobolectricTest() {
 
         tornDown shouldBeEqualTo true
         verify(exactly = 0) { mockStore.activatePolygon(VENUE_ID) }
-        // A refused activation must not go on to judge its fix either, or the polygon it was
-        // refused for could still have an arrival committed against it.
         coVerify(exactly = 0) { mockEngine.processResponsiveLocation(any(), any()) }
     }
 
     @Test
     fun onCoarseExit_givenATeardownSinceTheTokenWasTaken_expectNoReArm() = runTest {
-        // The departure path keeps a polygon still in the entered set active, and teardown retains
-        // the entered set, so a departure dispatched before stopAll() and run after it would put
-        // the polygon back and restart approach sampling.
+        // Teardown retains the entered set, which the departure path uses to keep a polygon active.
         every { mockStore.getRoutableRegisteredIds() } returns setOf(VENUE_ID)
         every { mockStore.getCachedRegion(VENUE_ID) } returns venueRegion()
         every { mockStore.activeUserSessionId() } returns "user-1"
@@ -644,18 +600,14 @@ class PolygonRecheckTest : RobolectricTest() {
         )
 
         verify(exactly = 0) { mockStore.activatePolygon(VENUE_ID) }
-        // Refused before it records anything. Teardown retains the registrations, so without a
-        // token check this dead departure passes the registration check, records coarse-outside,
-        // and reaches evaluateCallbackFix, which can open the GPS for a finished session.
         verify(exactly = 0) { mockStore.recordPolygonCoarseOutside(VENUE_ID) }
     }
 
     @Test
     fun onCoarseExit_givenATeardownLandsBeforeTheWrite_expectNoCoarseStateAndNoFixRequest() =
         runTest {
-            // A tail check alone would leave the coarse-outside write and the fix evaluation
-            // unguarded. The teardown runs inside the pre-lock registration read, so it lands after
-            // the early bail and the locked check is the only one left.
+            // The teardown runs inside the pre-lock registration read, so it lands after the early
+            // bail and only the locked check can refuse.
             every { mockStore.getRoutableRegisteredIds() } returns setOf(VENUE_ID)
             every { mockStore.activeUserSessionId() } returns "user-1"
             every { mockStore.getCoarseInsidePolygonIds() } returns emptySet()
@@ -689,10 +641,7 @@ class PolygonRecheckTest : RobolectricTest() {
 
     @Test
     fun onCoarseExit_givenATeardownLandsWhileTheFixIsEvaluated_expectNoReArm() = runTest {
-        // The window the check above cannot cover. evaluateCallbackFix suspends, so a teardown
-        // that was not yet current when the coarse-outside write happened can be current by the
-        // time the tail decides whether to keep the polygon active. Driven from the evaluation
-        // itself, which is exactly where the suspension is.
+        // Driven from the evaluation: evaluateCallbackFix suspends, and the tail runs after it.
         every { mockStore.getRoutableRegisteredIds() } returns setOf(VENUE_ID)
         every { mockStore.getCachedRegion(VENUE_ID) } returns venueRegion()
         every { mockStore.activeUserSessionId() } returns "user-1"
@@ -725,8 +674,6 @@ class PolygonRecheckTest : RobolectricTest() {
 
     @Test
     fun onCoarseExit_givenNoTeardown_expectACommittedArrivalStaysActive() = runTest {
-        // Control for the two above: with no teardown, a committed arrival keeps its session so
-        // the business EXIT has something to run against.
         every { mockStore.getRoutableRegisteredIds() } returns setOf(VENUE_ID)
         every { mockStore.getCachedRegion(VENUE_ID) } returns venueRegion()
         every { mockStore.activeUserSessionId() } returns "user-1"
@@ -747,8 +694,6 @@ class PolygonRecheckTest : RobolectricTest() {
 
     @Test
     fun worker_expectTheTeardownTokenReachesTheDeparturePathToo() = runTest {
-        // The departure path needs the same token as activate(), or a departure can undo a
-        // teardown.
         every { mockStore.getRoutableRegisteredIds() } returns setOf(VENUE_ID)
         every { mockStore.getCachedRegions() } returns listOf(venueRegion())
         every { mockStore.getActivePolygonIds() } returns setOf(VENUE_ID)

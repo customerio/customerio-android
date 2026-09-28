@@ -13,8 +13,7 @@ import kotlinx.serialization.json.doubleOrNull
 import kotlinx.serialization.json.longOrNull
 
 /**
- * A geofence transition observed locally but not yet confirmed as tracked by the Customer.io
- * backend. Appended when a transition fires, removed when a delivery channel delivers it: the
+ * A transition not yet confirmed as tracked. Removed by whichever channel delivers it: the
  * WorkManager worker or async fallback (direct HTTP), or the foreground flush (analytics pipeline).
  */
 @Serializable
@@ -24,10 +23,7 @@ internal data class PendingGeofenceDelivery(
     /** Unix epoch **seconds** of the crossing. Use [toGeofenceTransitionEvent] when a [Date] is needed. */
     val timestamp: Long,
     val userId: String?,
-    /**
-     * Identifies the physical crossing, shared across its per-geoset fan-out (geosets differ by
-     * [geosetId]); backend dedup is keyed (transitionId, geoset).
-     */
+    /** Shared by a crossing's per-geoset fan-out; backend dedup is keyed (transitionId, geoset). */
     val transitionId: String,
     /** Null when the fired geofence isn't in the cached region set. */
     val geofenceName: String? = null,
@@ -45,24 +41,18 @@ internal data class PendingGeofenceDelivery(
     override val key: String
         get() = "${geofenceId}_${transition.name}_${transitionId}_${geosetId ?: "none"}"
 
-    /**
-     * Properties of the tracked "Geofence Transition" event, shared so every delivery path sends the
-     * same set. Timestamp is not a property; each path sets it on the envelope from [timestamp].
-     */
+    /** Shared by every delivery path. Timestamp is not a property; each path sets it on the envelope. */
     fun toEventProperties(): Map<String, Any> = buildMap {
         put("transition", transition.name.lowercase())
         put("geofenceId", geofenceId)
         put("transitionId", transitionId)
         geosetId?.let { put("geosetId", it) }
         geofenceName?.let { put("geofenceName", it) }
-        // Always present (empty when the fence has none), unlike the optional fields above.
+        // Always present, even when empty.
         put("metadata", metadata.toEventMetadata())
     }
 
-    /**
-     * The EventBus event the foreground flush publishes for this row. Owns the seconds-to-millis
-     * conversion of [timestamp]; a [Date] built from raw seconds would land in January 1970.
-     */
+    /** Owns the seconds-to-millis conversion; a [Date] built from raw seconds lands in January 1970. */
     fun toGeofenceTransitionEvent(): Event.GeofenceTransitionEvent =
         Event.GeofenceTransitionEvent(
             geofenceId = geofenceId,
@@ -78,8 +68,8 @@ internal data class PendingGeofenceDelivery(
 }
 
 /**
- * Prefers the fence's current cached name and metadata, falling back to the crossing-time snapshot
- * when it has left the cache. Both fields come from one source so they never mix points in time.
+ * Name and metadata come from one source (cache, else the snapshot) so they never mix points in
+ * time.
  */
 internal fun PendingGeofenceDelivery.withFreshestEventData(cachedRegion: GeofenceRegion?): PendingGeofenceDelivery {
     if (cachedRegion == null) {
@@ -92,8 +82,7 @@ internal fun PendingGeofenceDelivery.withFreshestEventData(cachedRegion: Geofenc
     )
 }
 
-// org.json's JSONObject and Segment's serializer reject JsonElement, so unwrap to Kotlin primitives;
-// non-scalars are already gone by ingestion but drop defensively here too.
+// org.json's JSONObject and Segment's serializer reject JsonElement, so unwrap to Kotlin primitives.
 private fun Map<String, JsonElement>.toEventMetadata(): Map<String, Any> = buildMap {
     this@toEventMetadata.forEach { (key, element) ->
         (element as? JsonPrimitive)?.toKotlinPrimitiveOrNull()?.let { put(key, it) }

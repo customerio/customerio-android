@@ -23,10 +23,6 @@ import java.io.IOException
 
 private const val ORDERED_GEOFENCE_DELIVERY_QUEUE = "cio-geofence-delivery-queue"
 
-/**
- * Schedules a [GeofenceEventWorker] for guaranteed delivery of a geofence transition event.
- * Falls back to in-process async HTTP if WorkManager is unavailable (does not survive death).
- */
 internal class GeofenceEventScheduler(
     private val workManagerProvider: CustomerIOWorkManagerProvider,
     private val asyncTracker: AsyncGeofenceEventTracker
@@ -63,7 +59,6 @@ internal class GeofenceEventScheduler(
     }
 }
 
-/** Worker that sends a geofence transition event via direct HTTP, surviving process death. */
 internal class GeofenceEventWorker(
     appContext: Context,
     params: WorkerParameters
@@ -153,9 +148,8 @@ internal class GeofenceEventWorker(
 }
 
 /**
- * A delivery failure worth attempting again. Every non-2xx is an [HttpRequestFailure], which is an
- * [IOException], so the default `it is IOException` predicate would retry a 400 or 401 forever.
- * Other transport failures stay retryable; non-IO failures are not.
+ * Every non-2xx is an [HttpRequestFailure], which is an [IOException], so the default
+ * `it is IOException` predicate would retry a 400 or 401 forever.
  */
 internal fun isRetryableDeliveryFailure(cause: Throwable?): Boolean = when (cause) {
     is HttpRequestFailure -> cause.isRetryable

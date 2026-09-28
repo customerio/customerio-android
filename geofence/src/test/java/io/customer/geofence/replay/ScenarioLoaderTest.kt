@@ -5,7 +5,6 @@ import org.amshove.kluent.shouldBeFalse
 import org.amshove.kluent.shouldBeTrue
 import org.junit.Test
 
-/** The NDJSON reader on hand-written scenarios. Pure parsing, so these run without the corpus. */
 class ScenarioLoaderTest {
 
     @Test
@@ -29,10 +28,6 @@ class ScenarioLoaderTest {
         scenario.given.single().body.single().name shouldBeEqualTo "Here"
     }
 
-    /**
-     * Provenance must not default to `recorded`, or an authored file without `source` would count
-     * as a phone capture and satisfy the "found any drives" guard.
-     */
     @Test
     fun load_givenHeaderWithoutSource_expectUnknownProvenance() {
         val scenario = ScenarioLoader.load(
@@ -69,7 +64,6 @@ class ScenarioLoaderTest {
 
     @Test
     fun load_givenRecordWithoutAt_expectRejected() {
-        // Defaulting to zero would silently reorder the drive, which is worse than not loading it.
         val error = runCatching {
             ScenarioLoader.load(
                 scenarioFile(header("no-at"), """{"k":"when","ev":"os.callback","ids":"A","t":"enter"}""")
@@ -80,7 +74,6 @@ class ScenarioLoaderTest {
 
     @Test
     fun load_givenUnknownKind_expectRejected() {
-        // Dropping it would silently remove an input or assertion and still report green.
         val error = runCatching {
             ScenarioLoader.load(
                 scenarioFile(
@@ -96,7 +89,6 @@ class ScenarioLoaderTest {
 
     @Test
     fun load_givenBatchedIds_expectAllFencesRead() {
-        // GMS batches several fences onto one broadcast; iOS reports one. The loader reads both.
         val scenario = ScenarioLoader.load(
             scenarioFile(
                 header("batch"),

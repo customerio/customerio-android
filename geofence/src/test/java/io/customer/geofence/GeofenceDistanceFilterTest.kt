@@ -71,7 +71,6 @@ class GeofenceDistanceFilterTest : RobolectricTest() {
         val mid = region("biz-mid", 1.0, 0.0) // ~111 km
         val far = region("biz-far", 5.0, 0.0) // ~555 km
 
-        // 50 km cap: only the ~1.1 km region qualifies; count budget is irrelevant here.
         val result = filter.nearest(
             listOf(far, close, mid),
             latitude = 0.0,
@@ -88,7 +87,6 @@ class GeofenceDistanceFilterTest : RobolectricTest() {
         val close = region("biz-close", 0.01, 0.0)
         val far = region("biz-far", 5.0, 0.0) // ~555 km
 
-        // Default (no cap): distance doesn't exclude, only the count budget does.
         val result = filter.nearest(listOf(far, close), latitude = 0.0, longitude = 0.0, max = 5, maxDistanceMeters = noDistanceCap)
 
         result.map { it.id } shouldBeEqualTo listOf("biz-close", "biz-far")
@@ -96,8 +94,7 @@ class GeofenceDistanceFilterTest : RobolectricTest() {
 
     @Test
     fun nearest_givenEquallyDistantRegions_expectOrderedByIdNotInputOrder() {
-        // Equally distant either side of the origin, supplied in reverse id order: the id tiebreak
-        // must decide, so the result can't depend on the server's response order.
+        // Equidistant, supplied in reverse id order.
         val second = region("biz-second", -1.0, 0.0)
         val first = region("biz-first", 1.0, 0.0)
 
@@ -108,9 +105,8 @@ class GeofenceDistanceFilterTest : RobolectricTest() {
 
     @Test
     fun nearest_givenSubMeterDistanceDifference_expectRoundingLetsIdTiebreakDecide() {
-        // Same centre, radii chosen so the boundary distances are 1000.4 m and 1000.2 m — a sub-meter
-        // gap that rounds to the same whole meter. On raw distance "biz-b" would sort first; rounding
-        // makes it a tie so the id decides, which is what keeps the order deterministic.
+        // Boundary distances 1000.4 m and 1000.2 m round to the same meter; on raw distance "biz-b"
+        // would sort first.
         val centreDistance = region("probe", 0.01, 0.0).distanceTo(0.0, 0.0)
         val a = region("biz-a", 0.01, 0.0, radius = centreDistance - 1000.4f)
         val b = region("biz-b", 0.01, 0.0, radius = centreDistance - 1000.2f)
@@ -122,9 +118,7 @@ class GeofenceDistanceFilterTest : RobolectricTest() {
 
     @Test
     fun nearest_givenOccupiedRegionAndNearerCenteredRegions_expectOccupiedRegionKeptAndRankedFirst() {
-        // Device sits inside a 5 km region ~2.2 km from its center, so ranking on center distance
-        // would place it 4th and the count budget would evict it — leaving it unmonitored and its
-        // exit unreportable.
+        // Inside a 5 km region ~2.2 km from its center; center ranking would place it 4th and evict it.
         val occupied = region("biz-occupied", 0.02, 0.0, radius = 5_000f)
         val small1 = region("biz-small-1", 0.001, 0.0) // ~110 m center, ~10 m edge
         val small2 = region("biz-small-2", 0.002, 0.0) // ~221 m center, ~121 m edge
@@ -138,16 +132,14 @@ class GeofenceDistanceFilterTest : RobolectricTest() {
             maxDistanceMeters = noDistanceCap
         )
 
-        // The occupied region sorts first at edge distance 0; the farthest small region is evicted.
         result.map { it.id } shouldBeEqualTo listOf("biz-occupied", "biz-small-1", "biz-small-2")
     }
 
     @Test
     fun nearest_givenOccupiedRegionCenterBeyondDistanceCap_expectRegionStillIncluded() {
-        // Center ~5.5 km away with an 8 km radius: the device is inside, but the center falls outside
-        // the 3 km cap, so measuring to the center would filter out a region containing the device.
+        // Center ~5.5 km away, 8 km radius: the device is inside, but the center is beyond the 3 km cap.
         val occupied = region("biz-occupied", 0.05, 0.0, radius = 8_000f)
-        // Control: neither the center (~11 km) nor the boundary (~11 km) is within the cap.
+        // Control: ~11 km out, beyond the cap either way.
         val beyond = region("biz-beyond", 0.1, 0.0)
 
         val result = filter.nearest(
@@ -163,8 +155,7 @@ class GeofenceDistanceFilterTest : RobolectricTest() {
 
     @Test
     fun nearest_givenLargeRegionWithCloserBoundary_expectRankedAheadOfNearerCenteredSmallRegion() {
-        // Applies to regions the device is outside too: a 2 km region centered ~2.2 km away has its
-        // boundary ~211 m off, nearer than a 100 m region centered ~1.1 km away.
+        // Boundary ~211 m off, nearer than the 100 m region centered ~1.1 km away.
         val bigFar = region("biz-big-far", 0.02, 0.0, radius = 2_000f)
         val smallNear = region("biz-small-near", 0.01, 0.0)
 
@@ -181,8 +172,6 @@ class GeofenceDistanceFilterTest : RobolectricTest() {
 
     @Test
     fun edgeDistanceToOrNull_givenPointInWakeCircleDeadSpace_expectUsesPolygonBoundaryDistance() {
-        // The backend wake circle can contain substantial space outside even a convex polygon.
-        // Measuring against that circle would incorrectly report distance zero.
         polygonRegion().edgeDistanceToOrNull(2.0, 2.0)!! shouldBeGreaterThan 100_000f
     }
 
@@ -190,9 +179,7 @@ class GeofenceDistanceFilterTest : RobolectricTest() {
 
     @Test
     fun nearest_givenPolygonRegionAndPolygonMonitoringDisabled_expectDroppedAndCirclesKept() {
-        // Ranking is the last gate before registration. Without a polygon runtime the region has no
-        // safe interpretation — its circle fields are the coarse trigger — so it is skipped, while
-        // the rest of the catalog ranks normally.
+        // Its circle fields are only the coarse trigger, so without a polygon runtime it is skipped.
         val circle = region("biz-circle", 1.4, 1.4)
 
         val result = filter.nearest(
@@ -208,8 +195,6 @@ class GeofenceDistanceFilterTest : RobolectricTest() {
 
     @Test
     fun nearest_givenPolygonRegionAndPolygonMonitoringEnabled_expectRankedByPolygonBoundary() {
-        // The same input with the opt-in supplied ranks on the ring, proving the drop above is the
-        // opt-in and not a missing capability.
         val enabled = GeofenceDistanceFilter(polygonSupport = PolygonSupport.Enabled)
 
         val result = enabled.nearest(
@@ -225,8 +210,7 @@ class GeofenceDistanceFilterTest : RobolectricTest() {
 
     @Test
     fun nearest_givenCachedPolygonRingThatFailsValidation_expectRegionDroppedWithoutFailingTheRest() {
-        // A ring corrupted in the cache must not throw out of ranking (which would strand the whole
-        // catalog) and must not silently degrade into its circle fields.
+        // Self-intersecting ring; it must not degrade into its circle fields either.
         val enabled = GeofenceDistanceFilter(polygonSupport = PolygonSupport.Enabled)
         val broken = GeofenceRegion(
             id = "broken-polygon",
@@ -255,8 +239,6 @@ class GeofenceDistanceFilterTest : RobolectricTest() {
 
     @Test
     fun nearest_givenRepeatedPassesOverUnchangedCatalog_expectRingValidatedOnce() {
-        // Ring validation is O(V²) and ranking re-runs on every movement trigger, so the result is
-        // memoized per id + ring rather than recomputed per pass.
         val enabled = GeofenceDistanceFilter(polygonSupport = PolygonSupport.Enabled)
         val regions = listOf(polygonRegion())
         mockkObject(PolygonGeometry.Companion)
@@ -275,9 +257,7 @@ class GeofenceDistanceFilterTest : RobolectricTest() {
 
     @Test
     fun nearest_givenDeviceInsideAPolygonsWakeCircleAndRingBeyondTheCap_expectKept() {
-        // The OS monitors the wake circle, so an ENTER is outstanding for this polygon right now.
-        // Dropping it on ring distance would leave its EXIT permanently unobservable. The caller
-        // pins it, because only the caller knows the polygon is registered.
+        // Inside the wake circle, so the OS owes an EXIT; only the caller knows to pin it.
         val enabled = GeofenceDistanceFilter(polygonSupport = PolygonSupport.Enabled)
 
         val result = enabled.nearest(
@@ -294,8 +274,6 @@ class GeofenceDistanceFilterTest : RobolectricTest() {
 
     @Test
     fun nearest_givenDeviceOutsideAPolygonsWakeCircle_expectDroppedByTheCap() {
-        // Control for the case above: same polygon and cap, device clear of the registered circle,
-        // so nothing is outstanding and the ordinary distance cap applies.
         val enabled = GeofenceDistanceFilter(polygonSupport = PolygonSupport.Enabled)
 
         val result = enabled.nearest(
@@ -311,7 +289,6 @@ class GeofenceDistanceFilterTest : RobolectricTest() {
 
     @Test
     fun nearest_givenDeviceInsideAPolygonsWakeCircleAndNoSlotsLeft_expectKeptAheadOfANearerCircle() {
-        // The count cap can evict just as permanently as the distance cap.
         val enabled = GeofenceDistanceFilter(polygonSupport = PolygonSupport.Enabled)
         val nearby = region("biz-near", 2.0001, 2.0)
 
@@ -368,9 +345,7 @@ class GeofenceDistanceFilterTest : RobolectricTest() {
 
     @Test
     fun nearest_givenMorePinnedRegionsThanOsBusinessSlots_expectFarthestReleasedAndLogged() {
-        // GMS rejects the whole addGeofences batch past 100 fences, so honouring every pin here would
-        // lose every fence rather than the farthest pin. Nearest pins are kept: they are the ones whose
-        // EXIT is most imminent.
+        // GMS rejects the whole batch past its limit, so the farthest pins are released first.
         val logger: GeofenceLogger = mockk(relaxed = true)
         val slotLimited = GeofenceDistanceFilter(maxOsBusinessSlots = 2, logger = logger)
         val regions = listOf(
@@ -395,8 +370,6 @@ class GeofenceDistanceFilterTest : RobolectricTest() {
 
     @Test
     fun nearest_givenPinsFillingEverySlot_expectNoDiscoveryEvenBelowServerCap() {
-        // The server cap still has room, but the OS does not. Discovery must yield to the pins rather
-        // than push the batch over the platform limit.
         val slotLimited = GeofenceDistanceFilter(maxOsBusinessSlots = 2, logger = mockk(relaxed = true))
 
         val result = slotLimited.nearest(
@@ -418,7 +391,6 @@ class GeofenceDistanceFilterTest : RobolectricTest() {
 
     @Test
     fun nearest_givenNoPins_expectResultStillBoundedByOsBusinessSlots() {
-        // The unpinned overload shares the same body, so the ceiling can't be bypassed by omitting pins.
         val slotLimited = GeofenceDistanceFilter(maxOsBusinessSlots = 2, logger = mockk(relaxed = true))
         val regions = (1..5).map { region("biz-$it", it * 0.01, 0.0) }
 
@@ -435,8 +407,7 @@ class GeofenceDistanceFilterTest : RobolectricTest() {
 
     @Test
     fun nearest_givenDefaultConstruction_expectLeavesOneOsSlotForTheMovementTrigger() {
-        // The repository prepends the movement trigger to whatever this returns, so the default ceiling
-        // has to be one below the platform limit or that trigger has nowhere to go.
+        // The repository prepends the movement trigger, so one OS slot must stay free.
         val regions = (1..GeofenceConstants.MAX_OS_GEOFENCES + 20).map {
             region("biz-%03d".format(it), it * 0.001, 0.0)
         }
@@ -457,8 +428,6 @@ class GeofenceDistanceFilterTest : RobolectricTest() {
     @Test
     fun nearest_givenUnpinnedPolygonsContainingTheFix_expectTheCapStillBoundsDiscovery() {
         // Only a registered region can owe an EXIT, so an unpinned polygon competes for the cap.
-        // Otherwise it would displace a circle the device is standing in, whose ENTER is then lost:
-        // initial-ENTER synthesis only runs over what this returns.
         val enabled = GeofenceDistanceFilter(polygonSupport = PolygonSupport.Enabled)
 
         val result = enabled.nearest(
@@ -478,7 +447,6 @@ class GeofenceDistanceFilterTest : RobolectricTest() {
 
     @Test
     fun nearest_givenAPinnedPolygonContainingTheFix_expectStillRetainedPastTheCap() {
-        // Control: once the caller pins it, the polygon is exempt from the cap.
         val enabled = GeofenceDistanceFilter(polygonSupport = PolygonSupport.Enabled)
 
         val result = enabled.nearest(

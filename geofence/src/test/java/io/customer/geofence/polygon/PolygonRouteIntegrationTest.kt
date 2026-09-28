@@ -23,8 +23,7 @@ class PolygonRouteIntegrationTest {
 
     @Test
     fun process_givenADepartureFixThatCannotSeparateInsideFromOutside_expectAnUndecidedRecord() {
-        // Roughly 18 m outside the nearest edge, with an accuracy circle plus the departure margin
-        // that reaches back past it. Evaluated, usable, and still not enough to end the visit.
+        // ~18 m outside at 45 m: accuracy plus the departure margin reaches back past the edge.
         val records = PolygonRouteProcessor().process(
             fences = listOf(campus),
             sample = PolygonLocationSample(point(37.7750, -122.4202), 45.0),
@@ -67,8 +66,6 @@ class PolygonRouteIntegrationTest {
 
     @Test
     fun process_givenADecisiveFixThatAgreesWithTheCommittedState_expectNoUndecidedRecord() {
-        // A device sitting still inside a polygon produces one of these per fix. They are not
-        // undecidable, and recording them would bury the fixes that genuinely could not be judged.
         val records = PolygonRouteProcessor().process(
             fences = listOf(campus),
             sample = PolygonLocationSample(point(37.7750, -122.4194), 30.0),
@@ -82,8 +79,7 @@ class PolygonRouteIntegrationTest {
 
     @Test
     fun process_givenAnUndecidedFixInsideThePolygon_expectAPositiveEdge() {
-        // Inside the ring but too coarse to judge: the accuracy ceiling is the only way an interior
-        // fix is undecided.
+        // Only the accuracy ceiling can leave an interior fix undecided.
         val record = undecidedRecordsFor(point(37.7750, -122.4194), accuracyMeters = 60.0)
 
         record.edgeMeters() shouldBeInRange 45.0..60.0
@@ -91,8 +87,7 @@ class PolygonRouteIntegrationTest {
 
     @Test
     fun process_givenAnUndecidedFixOutsideThePolygon_expectANegativeEdge() {
-        // Roughly 18 m outside, mid-departure. Unsigned, this row and the one above would be
-        // indistinguishable.
+        // Roughly 18 m outside, mid-departure.
         val record = undecidedRecordsFor(
             point(37.7750, -122.4202),
             committedStates = mapOf("campus" to PolygonCommittedState.INSIDE)
@@ -114,8 +109,7 @@ class PolygonRouteIntegrationTest {
 
     @Test
     fun process_givenTwoMarginalFixesMinutesApart_expectNoArrivalFromCombiningThem() {
-        // Marginal fixes five minutes apart must not combine into an arrival: walking past a shop
-        // twice is not a visit.
+        // Walking past a shop twice is not a visit.
         val processor = PolygonRouteProcessor()
         val marginal = PolygonLocationSample(point(37.77452, -122.4194), 30.0)
 
@@ -140,8 +134,6 @@ class PolygonRouteIntegrationTest {
 
     @Test
     fun process_givenTwoMarginalFixesOneSampleApart_expectTheArrivalStillCommits() {
-        // The control for the test above: expiry must not quietly disable corroboration. Two fixes
-        // one sampling interval apart are the same visit and must still complete the arrival.
         val processor = PolygonRouteProcessor()
         val marginal = PolygonLocationSample(point(37.77452, -122.4194), 30.0)
 
@@ -167,9 +159,7 @@ class PolygonRouteIntegrationTest {
 
     @Test
     fun process_givenTheSameMarginalFixTwice_expectItCannotCorroborateItself() {
-        // An echo under the same stamp is refused by the per-fence monotonic check, so a marginal
-        // arrival cannot confirm itself from one observation. In a capture an echo would look like
-        // a real second opinion.
+        // An echo under the same stamp is refused by the per-fence monotonic check.
         val processor = PolygonRouteProcessor()
         val marginal = PolygonLocationSample(point(37.77452, -122.4194), 30.0)
 
@@ -186,8 +176,6 @@ class PolygonRouteIntegrationTest {
 
     @Test
     fun process_givenAnArrivalThatDecidesAlone_expectADecidedRecordWithItsEvidence() {
-        // Counterpart to the undecided records above, so a capture shows the fixes a margin
-        // accepted as well as the ones it refused.
         val record = PolygonRouteProcessor().process(
             fences = listOf(campus),
             sample = PolygonLocationSample(point(37.7750, -122.4194), 5.0),
@@ -200,14 +188,12 @@ class PolygonRouteIntegrationTest {
         record.corroborated shouldBeEqualTo false
         record.horizontalAccuracyMeters shouldBeEqualTo 5.0
         record.fixAgeSeconds shouldBeEqualTo 2.5
-        // Positive because the fix is inside, the same sign convention the undecided rows use.
+        // Positive inside, the same sign convention as the undecided rows.
         record.edgeMeters() shouldBeInRange 30.0..60.0
     }
 
     @Test
     fun process_givenAnArrivalThatNeededASecondFix_expectTheRecordOnlyWithTheTransition() {
-        // A marginal arrival: the first fix decides nothing and must not be recorded as a decision,
-        // the second commits it. `corroborated` separates the two populations in a capture.
         val processor = PolygonRouteProcessor()
         val marginal = PolygonLocationSample(point(37.77452, -122.4194), 30.0)
 
@@ -248,8 +234,6 @@ class PolygonRouteIntegrationTest {
 
     @Test
     fun process_givenADecisiveFixThatAgreesWithCommittedState_expectItRecordedNotSilent() {
-        // The fixes a margin let through, which are most fixes, must leave a record too, not only
-        // refusals and transitions.
         val records = PolygonRouteProcessor().process(
             fences = listOf(campus),
             sample = PolygonLocationSample(point(37.7750, -122.4230), 5.0),
@@ -262,16 +246,12 @@ class PolygonRouteIntegrationTest {
         record.membership shouldBeEqualTo "OUTSIDE"
         record.horizontalAccuracyMeters shouldBeEqualTo 5.0
         record.fixAgeSeconds shouldBeEqualTo 3.5
-        // Signed negative: decisively outside, and committed outside, so nothing changes.
         requireNotNull(record.signedBoundaryDistanceMeters) shouldBeInRange -400.0..-1.0
-        // It is not a decision and must not be counted as one.
         records.filterIsInstance<PolygonRouteRecord.Decided>().shouldBeEmpty()
     }
 
     @Test
     fun process_givenAnArrivalThatCommits_expectNoUnchangedRecordForThatFix() {
-        // The control: a fix that changes a belief is a decision, not an agreement. Without this,
-        // logging both on every fix would pass the test above just as well.
         val records = PolygonRouteProcessor().process(
             fences = listOf(campus),
             sample = PolygonLocationSample(point(37.7750, -122.4194), 5.0),
@@ -300,7 +280,6 @@ class PolygonRouteIntegrationTest {
     private fun List<PolygonRouteRecord>.decided(): PolygonRouteRecord.Decided =
         filterIsInstance<PolygonRouteRecord.Decided>().single()
 
-    /** A record reaching an assertion without an edge distance is a test bug, so fail loudly. */
     private fun PolygonRouteRecord.Decided.edgeMeters(): Double =
         requireNotNull(signedBoundaryDistanceMeters) { "decided record carried no edge distance" }
 
@@ -356,9 +335,8 @@ class PolygonRouteIntegrationTest {
     fun route_whenLocationFixIsReplayedOrOutOfOrder_thenDoesNotCountItTwice() {
         val route = RouteHarness(listOf(campus))
 
-        // Marginal fixes: a decisive fix commits at once and the committed state then absorbs every
-        // replay, hiding the guard. Here a replay that slipped through would settle the hold into
-        // an arrival, so only the monotonic stamp check keeps this empty.
+        // Marginal fixes: a decisive one commits at once and the committed state absorbs every
+        // replay, hiding the guard.
         val detections = listOf(2L to 30.0, 2L to 29.0, 1L to 28.0).flatMap { (elapsed, accuracy) ->
             route.process(37.77452, -122.4194, accuracy = accuracy, elapsedRealtimeNanos = elapsed)
         }
@@ -452,8 +430,7 @@ class PolygonRouteIntegrationTest {
 
     @Test
     fun route_whenProcessRestarts_thenPendingEvidenceIsDiscardedButCommittedStateSurvives() {
-        // Marginal fixes, because they are the only ones that leave anything pending: a decisive
-        // fix commits on its own and has no evidence to carry across a restart.
+        // Marginal fixes: only they leave evidence pending across a restart.
         val durableStates = mutableMapOf("campus" to PolygonCommittedState.OUTSIDE)
         var route = RouteHarness(listOf(campus), durableStates)
         route.process(37.77452, -122.4194, accuracy = 30.0).shouldBeEmpty()
@@ -475,7 +452,6 @@ class PolygonRouteIntegrationTest {
         val states = mutableMapOf("campus" to PolygonCommittedState.OUTSIDE)
         val processor = PolygonRouteProcessor()
 
-        // Marginal, so the first fix leaves a pending arrival rather than committing outright.
         val marginal = PolygonLocationSample(point(37.77452, -122.4194), 30.0)
         processor.process(
             fences = listOf(campus),

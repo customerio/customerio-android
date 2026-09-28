@@ -23,7 +23,7 @@ class PolygonShapeAdversarialIntegrationTest {
         lShape.vertices.size shouldBeEqualTo 6
         // In the bar of the L.
         lShape.relationTo(point(-0.001, 0.0)) shouldBeEqualTo PolygonPointRelation.INSIDE
-        // In the notch the L wraps around — accepting the shape is only useful if this stays out.
+        // In the notch the L wraps around.
         lShape.relationTo(point(0.001, 0.001)) shouldBeEqualTo PolygonPointRelation.OUTSIDE
     }
 

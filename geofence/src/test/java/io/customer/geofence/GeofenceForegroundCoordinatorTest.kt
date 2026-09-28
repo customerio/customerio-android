@@ -39,8 +39,7 @@ class GeofenceForegroundCoordinatorTest {
         lastKnownLocation = { lastKnown },
         locationMode = mode,
         logger = mockk(relaxed = true),
-        // Unconfined so `onForeground`'s hop resolves within `runTest` instead of on a real IO
-        // thread the assertions would race.
+        // Unconfined so `onForeground`'s IO hop resolves within `runTest`.
         dispatchers = testDispatchers
     )
 
@@ -98,9 +97,8 @@ class GeofenceForegroundCoordinatorTest {
 
     @Test
     fun onForeground_givenTheIdentityReadThrows_expectTheStuckSyncStillHealed() = runTest {
-        // The Keystore decrypt behind `getUserId` throws on some OEMs; the self-heal needs no
-        // identity, so it must still run. `takeFixForRefresh` only reaches the identity read when
-        // nothing is awaiting a fix, hence false on the way in and true from the retry onwards.
+        // The self-heal needs no identity. `takeFixForRefresh` only reads identity when nothing
+        // is awaiting a fix, hence false first.
         val throwingStore: SecureUserStore = mockk {
             every { getUserId() } throws IllegalStateException("keystore unavailable")
         }
@@ -115,8 +113,7 @@ class GeofenceForegroundCoordinatorTest {
     @Test
     fun onForeground_givenHostRequestLandsDuringTheAnchorRead_expectLiveFixNotAnchorSync() = runTest {
         every { mockServices.isAwaitingLocation() } returns true
-        // False on the way in, true by the time the anchor read returns: an anchor cannot satisfy a
-        // host asking for a live fix, whichever side of that read the request arrives on.
+        // Arrives during the anchor read; an anchor cannot satisfy a host asking for a live fix.
         every { mockServices.isHostRefreshPending() } returnsMany listOf(false, true)
         every { mockRegionStore.getLastMovementTriggerLocation() } returns GeofenceLocation(1.5, 2.5)
 

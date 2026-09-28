@@ -22,7 +22,7 @@ class GeofenceCooldownFilterTest : RobolectricTest() {
 
     private val mockStore: GeofenceCooldownStore = mockk(relaxed = true)
     private val mockRegionStore: GeofenceRegionStore = mockk(relaxed = true) {
-        // Default to no cached config — exercises the fallback to DEDUPE_COOLDOWN_MS.
+        // No cached config, so the filter falls back to DEDUPE_COOLDOWN_MS.
         every { getCachedConfig() } returns null
     }
     private val mockClock: Clock = mockk(relaxed = true)
@@ -46,8 +46,6 @@ class GeofenceCooldownFilterTest : RobolectricTest() {
 
     @Test
     fun cooldown_givenAllowedEmit_expectStalePruneSweep() {
-        // Entries older than the max clampable cooldown can't suppress under any config, so
-        // pruning them bounds the store as fences churn.
         every { mockStore.getLastEmitTimestamp(any(), any(), any()) } returns null
         val now = 100_000L + GeofenceConstants.MAX_DUPLICATE_EVENTS_EXPIRY_MS
         every { mockClock.currentTimeMillis() } returns now
@@ -82,7 +80,6 @@ class GeofenceCooldownFilterTest : RobolectricTest() {
 
     @Test
     fun suppressedForSeconds_givenHalfTheWindowElapsed_expectTheRemainderInSeconds() {
-        // The value is logged, so it must be the real remainder rather than a placeholder.
         val lastEmit = 100_000L
         val elapsed = GeofenceConstants.DEDUPE_COOLDOWN_MS / 2
         every { mockStore.getLastEmitTimestamp("user-1", "biz-1", Event.GeofenceTransition.ENTER) } returns lastEmit
@@ -118,7 +115,6 @@ class GeofenceCooldownFilterTest : RobolectricTest() {
 
     @Test
     fun cooldown_givenSameGeofenceDifferentTransition_keysIndependently() {
-        // ENTER fired recently, EXIT never did: EXIT must not be suppressed.
         every { mockStore.getLastEmitTimestamp("user-1", "biz-1", Event.GeofenceTransition.ENTER) } returns 100L
         every { mockStore.getLastEmitTimestamp("user-1", "biz-1", Event.GeofenceTransition.EXIT) } returns null
         every { mockClock.currentTimeMillis() } returns 200L
@@ -130,8 +126,6 @@ class GeofenceCooldownFilterTest : RobolectricTest() {
 
     @Test
     fun cooldown_givenSameGeofenceDifferentUser_keysIndependently() {
-        // Account switch: the previous user's window must not mask the new user's
-        // transition on the same fence.
         every { mockStore.getLastEmitTimestamp("user-1", "biz-1", Event.GeofenceTransition.ENTER) } returns 100L
         every { mockStore.getLastEmitTimestamp("user-2", "biz-1", Event.GeofenceTransition.ENTER) } returns null
         every { mockClock.currentTimeMillis() } returns 200L
@@ -151,8 +145,7 @@ class GeofenceCooldownFilterTest : RobolectricTest() {
         val lastEmit = 100_000L
         every { mockStore.getLastEmitTimestamp("user-1", "biz-1", Event.GeofenceTransition.ENTER) } returns lastEmit
 
-        // Inside the server window but well outside the constant fallback → must block, and the
-        // remainder must be measured against the server window rather than the fallback constant.
+        // Inside the server window but outside the fallback → blocks, remainder from the server window.
         every { mockClock.currentTimeMillis() } returns lastEmit + 1_000
         filter.suppressedForSeconds("user-1", "biz-1", Event.GeofenceTransition.ENTER) shouldBeEqualTo
             (serverCooldownMs - 1_000) / 1000.0

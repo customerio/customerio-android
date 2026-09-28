@@ -6,9 +6,8 @@ import android.os.SystemClock
 import java.util.Locale
 
 /**
- * Whether a record is something the SDK was told, decided, or neither. Replay feeds `in` records
- * back and compares `out` records, so this is explicit rather than inferred from the event name.
- * An environment fault the SDK reacts to is [INPUT]: replay must be fed it to reproduce the decision.
+ * Replay feeds `in` records back and compares `out` ones. An environment fault the SDK reacts to is
+ * [INPUT], since replay must be fed it to reproduce the decision.
  */
 internal enum class GeofenceLogIo(val wire: String) {
     INPUT("in"),
@@ -17,21 +16,15 @@ internal enum class GeofenceLogIo(val wire: String) {
 }
 
 /**
- * Builds the machine-readable tail appended to a geofence log message.
- *
- * ```
- * [Geofence] Geofence 'notl_core' ENTER: queued ... || ev=transition.accepted io=out id=notl_core t=enter n=1
- * ```
- *
- * Mirrors the iOS `GeofenceLog`. The key vocabulary matches; a few records are split
- * differently per platform (registration in particular), so the parser accepts both shapes.
+ * Builds the ` || key=value` log tail. Keys match iOS's `GeofenceLog`; a few records (registration
+ * in particular) split differently per platform, so the parser accepts both shapes.
  */
 internal object GeofenceLogTail {
     /** A parser splits on the **last** occurrence, and only if the remainder is all `key=value`. */
     const val DELIMITER = " || "
 
     /**
-     * @param ev stable machine key. Never reworded — `msg` is the prose someone will rewrite.
+     * @param ev stable machine key; never reworded.
      * @param fields null values are omitted, keeping absent and empty distinct.
      */
     fun tail(
@@ -39,28 +32,22 @@ internal object GeofenceLogTail {
         io: GeofenceLogIo,
         fields: List<Pair<String, String?>> = emptyList()
     ): String {
-        // Gates every tail value; whether the prose is emitted is the caller's decision.
         if (!GeofenceDiagnostics.isEnabled) return ""
 
         val parts = StringBuilder(DELIMITER).append("ev=").append(ev).append(" io=").append(io.wire)
         for ((key, value) in fields) {
             if (value == null) continue
-            // Sanitize by default and let the few composed keys opt out, so a new field is safe
-            // without anyone remembering to wrap it.
+            // Sanitize by default so a new field is safe; only composed keys opt out.
             val safe = if (key in COMPOSED_KEYS) foldWhitespace(value) else sanitize(value)
             parts.append(' ').append(key).append('=').append(safe)
         }
         return parts.toString()
     }
 
-    /**
-     * Characters the format uses as separators: `=` a pair, `,` a list, `:` an `id:distance` entry,
-     * `|` the tail delimiter. Replaced in untrusted tokens only, never in a composed value, where
-     * folding would turn `a,b` into `a_b`.
-     */
+    /** Format separators: `=` a pair, `,` a list, `:` an `id:distance` entry, `|` the tail delimiter. */
     private val SEPARATORS = charArrayOf('=', ',', ':', '|')
 
-    /** Keys whose values compose separators on purpose; every other value is an untrusted token. */
+    /** Keys whose values contain separators by construction; every other value is an untrusted token. */
     private val COMPOSED_KEYS = setOf("ranked", "evicted", "ids", "gs", "tt", "ring")
 
     /** For [COMPOSED_KEYS] values: folds only whitespace, which separates one `key=value` from the next. */
@@ -104,7 +91,6 @@ internal object GeofenceLogTail {
         return if (values.size > limit) "$head,+${values.size - limit}" else head
     }
 
-    /** Comma-separated, capped; the count travels separately so truncation stays honest. */
     fun list(values: List<String>, limit: Int = 25): String? {
         if (values.isEmpty()) return null
         // `take` throws on a negative count, and a log must never crash the process.
@@ -112,7 +98,6 @@ internal object GeofenceLogTail {
         return if (values.size > limit) "$head,+${values.size - limit}" else head
     }
 
-    /** Reasons are tokens so they survive the sentence in front of them being reworded. */
     fun token(value: String): String {
         val out = StringBuilder(value.length)
         var lastWasSeparator = false
@@ -131,21 +116,16 @@ internal object GeofenceLogTail {
 
     // MARK: - Fix quality and provenance
 
-    /**
-     * Where a fix came from. Unlike iOS, Android's `triggeringLocation` is a real fix the OS
-     * computed for the crossing.
-     */
+    /** Unlike iOS, Android's `triggeringLocation` is a real fix the OS computed for the crossing. */
     enum class FixSource(val wire: String) {
-        /** The OS's own triggering fix, attached to the crossing it reported. */
         OS_TRIGGER("os_trigger"),
 
-        /** Last handed to or cached by the SDK — may be arbitrarily stale. */
+        /** Last handed to or cached by the SDK; may be arbitrarily stale. */
         CACHED("cached"),
         FRESH_REQUEST("fresh_request"),
         NONE("none")
     }
 
-    /** How good the fix is and where it came from; `age` separates a measurement from a guess. */
     fun fixQuality(location: Location?, source: FixSource): List<Pair<String, String?>> {
         val fields = mutableListOf<Pair<String, String?>>("fixsrc" to source.wire)
         if (location == null) return fields
@@ -156,7 +136,6 @@ internal object GeofenceLogTail {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && location.hasVerticalAccuracy()) {
             fields.add("vacc" to num(location.verticalAccuracyMeters))
         }
-        // Keeps simulated runs distinguishable from real ones once captures are pooled.
         fields.add("sim" to bool(isMock(location)))
         return fields
     }
@@ -176,7 +155,6 @@ internal object GeofenceLogTail {
 
     // MARK: - Device position
 
-    /** Device position. Gated with the rest of the tail; no per-field switch. */
     fun position(location: Location?): List<Pair<String, String?>> {
         if (location == null) return emptyList()
         return buildList {
@@ -188,7 +166,6 @@ internal object GeofenceLogTail {
         }
     }
 
-    /** Coordinates only, for the paths that carry bare doubles rather than a full [Location]. */
     fun position(latitude: Double?, longitude: Double?): List<Pair<String, String?>> {
         if (latitude == null || longitude == null) return emptyList()
         return listOf("lat" to num(latitude, 5), "lon" to num(longitude, 5))

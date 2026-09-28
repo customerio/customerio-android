@@ -22,9 +22,8 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 
 /**
- * Runs the containment-only pass against the real [GeofenceRegionStoreImpl]. [GeofenceRepositoryTest]
- * stubs reconcile by hand, so only the real store's epoch filter and key-absence grace can show this
- * path arms the EXIT guard.
+ * Runs the containment-only pass against the real [GeofenceRegionStoreImpl]; only its epoch filter
+ * and key-absence grace can show this path arms the EXIT guard.
  */
 @RunWith(RobolectricTestRunner::class)
 class GeofenceContainmentRealStoreTest : RobolectricTest() {
@@ -72,8 +71,7 @@ class GeofenceContainmentRealStoreTest : RobolectricTest() {
             expectedUserStateGeneration = store.userStateGeneration()
         )
         store.saveRegisteredIds(setOf(GeofenceConstants.MOVEMENT_TRIGGER_ID, fence.id))
-        // Routing too: a pass that registered without arming this leaves the cache reading as
-        // unregistered, so the refresh below would re-register rather than judge containment.
+        // Without routing the cache reads as unregistered and the refresh re-registers instead.
         store.saveRoutableRegisteredIds(setOf(GeofenceConstants.MOVEMENT_TRIGGER_ID, fence.id))
         store.saveLastMovementTriggerLocation(GeofenceLocation(0.0, 0.0), 1_000f)
         store.setLastRegistrationUptime(clock.elapsedRealtime())
@@ -81,7 +79,6 @@ class GeofenceContainmentRealStoreTest : RobolectricTest() {
 
     @Test
     fun anchorOnlyState_expectGuardStillDeferring() {
-        // Control: with no live fix yet the key is absent, so the EXIT guard fails open.
         store.hasContainmentRecord().shouldBeFalse()
         store.claimExit(fence.id).shouldBeFalse()
     }
@@ -90,18 +87,16 @@ class GeofenceContainmentRealStoreTest : RobolectricTest() {
     fun liveFixOnFreshInputs_expectGuardArmedAndGenuineExitClaimable() = runTest {
         repository.refreshFromLiveFix(latitude = 0.0, longitude = 0.0)
 
-        // Pins the SKIP path: a LOCAL pass would also satisfy the assertions below, through a
-        // different code path.
+        // Pins the SKIP path; a LOCAL pass would also satisfy the assertions below.
         coVerify(exactly = 0) { manager.replaceGeofences(any(), any()) }
         store.getEnteredIds() shouldContainSame setOf(fence.id)
         store.hasContainmentRecord().shouldBeTrue()
-        // A genuine departure is matched, not read as phantom.
         store.claimExit(fence.id).shouldBeTrue()
     }
 
     @Test
     fun liveFixOutsideEveryFence_expectRecordCreatedEmpty() = runTest {
-        // ~555m out: a real reading of "inside nothing" must still end the grace.
+        // ~555m out: inside nothing must still end the grace.
         repository.refreshFromLiveFix(latitude = 0.005, longitude = 0.0)
 
         store.getEnteredIds() shouldBeEqualTo emptySet()
@@ -110,8 +105,7 @@ class GeofenceContainmentRealStoreTest : RobolectricTest() {
 
     @Test
     fun exitClaimedBeforeTheFix_expectTheFixReseeds() = runTest {
-        // A departure claimed before the pass captured its epoch is older evidence, so the fix
-        // re-seeds. A later claim would outrank it (covered in GeofenceRegionStoreTest).
+        // A claim before the pass captured its epoch is older evidence, so the fix re-seeds.
         store.recordEntered(fence.id)
         store.claimExit(fence.id).shouldBeTrue()
 

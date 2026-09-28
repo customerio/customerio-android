@@ -90,8 +90,6 @@ class GeofenceUnownedSessionRealStoreTest : RobolectricTest() {
 
         store.beginUserSession(USER)
 
-        // The generation moves as for a switch, so a pass that began before this cannot arm routing
-        // for it. Fences stay registered but unarmed: nothing is attributed to this user yet.
         store.userStateGeneration() shouldBeEqualTo generationBefore + 1L
         store.getRegisteredIds() shouldContain fence.id
         store.getRoutableRegisteredIds().shouldBeEmpty()
@@ -105,15 +103,12 @@ class GeofenceUnownedSessionRealStoreTest : RobolectricTest() {
 
     @Test
     fun unownedSessionWithNoNetwork_expectRoutingArmedFromTheCachedCatalog() = runTest {
-        // Without this the switch would strand an offline upgrade: fences registered, routing empty,
-        // and no completing pass to arm them until the network returns or the device leaves the
-        // trigger radius. The remote pass still reports its failure; the re-rank is what recovers.
+        // Otherwise an offline upgrade stays registered but unrouted until the network returns.
         coEvery { apiService.fetchGeofences(any()) } returns Result.failure(IOException("offline"))
 
         store.beginUserSession(USER)
         val result = repository.refresh(latitude = 0.0, longitude = 0.0)
 
-        // Armed because the fetch was attempted and failed, not because it never ran.
         coVerify(exactly = 1) { apiService.fetchGeofences(any()) }
         result.isFailure shouldBeEqualTo true
         store.getRoutableRegisteredIds() shouldContainSame store.getRegisteredIds()
@@ -122,8 +117,7 @@ class GeofenceUnownedSessionRealStoreTest : RobolectricTest() {
 
     @Test
     fun armedSessionWithNoNetwork_expectNoLocalReRank() = runTest {
-        // The re-rank recovers an unarmed session; it is not a general fallback. A session already
-        // routing must not re-register from a stale cache every time a fetch happens to fail.
+        // The re-rank only recovers an unarmed session; it is not a general fallback.
         store.beginUserSession(USER)
         store.saveRoutableRegisteredIdsIfCurrent(store.getRegisteredIds(), store.userStateGeneration())
             .shouldBeTrue()
@@ -131,8 +125,7 @@ class GeofenceUnownedSessionRealStoreTest : RobolectricTest() {
 
         repository.refresh(latitude = 0.0, longitude = 0.0)
 
-        // The remote attempt has to have happened, or "did not re-register" is true only because
-        // the pass never went remote at all.
+        // Otherwise "did not re-register" could pass because the pass never went remote.
         coVerify(exactly = 1) { apiService.fetchGeofences(any()) }
         coVerify(exactly = 0) { manager.replaceGeofences(any(), any()) }
         store.getRoutableRegisteredIds() shouldContainSame store.getRegisteredIds()
@@ -140,8 +133,6 @@ class GeofenceUnownedSessionRealStoreTest : RobolectricTest() {
 
     @Test
     fun unownedSessionWithNoNetwork_expectMovementAlsoReArmsFromTheCache() = runTest {
-        // The other half of the recovery, and the one the movement trigger's unarmed exemption
-        // exists for: a wake with no network still re-ranks rather than leaving the session dark.
         coEvery { apiService.fetchGeofences(any()) } returns Result.failure(IOException("offline"))
         store.beginUserSession(USER)
         store.saveRoutableRegisteredIdsIfCurrent(emptySet(), store.userStateGeneration()).shouldBeTrue()
@@ -153,9 +144,7 @@ class GeofenceUnownedSessionRealStoreTest : RobolectricTest() {
 
     @Test
     fun unownedSessionThenBootRestore_expectTheCachedFencesRegisteredAgain() = runTest {
-        // A reboot restores from the persisted anchor alone: no live fix, no network. Opening an
-        // unowned session must not take that anchor with it, or the first reboot after an upgrade
-        // leaves the device with no fences and reports success for it.
+        // A reboot restores from the persisted anchor alone, so opening the session must keep it.
         val restored = slot<List<GeofenceRegion>>()
         coEvery { manager.replaceGeofencesForBootRestore(capture(restored)) } returns Result.success(Unit)
 
@@ -169,9 +158,7 @@ class GeofenceUnownedSessionRealStoreTest : RobolectricTest() {
 
     @Test
     fun switchBetweenTwoKnownUsers_expectTheAnchorsDroppedWithTheRestOfTheSession() = runTest {
-        // The other side of the adoption exception. Anchors survive an adoption because the
-        // registrations they describe are this same user's; a real switch must not hand the next
-        // user the previous one's last known position to anchor fetches and boot restore on.
+        // Anchors survive adoption only because the registrations are the same user's.
         store.beginUserSession(USER)
         store.saveApiFetchStateIfCurrent(
             location = GeofenceLocation(10.0, 20.0),
@@ -188,8 +175,7 @@ class GeofenceUnownedSessionRealStoreTest : RobolectricTest() {
 
     @Test
     fun unownedSessionOpenedByAppLaunchThenBootRestore_expectTheCachedFencesRegisteredAgain() = runTest {
-        // onAppLaunch opens the same unowned session through the absent-only entry point, which is
-        // reached only when no owner is recorded. It must keep the anchors for the same reason.
+        // onAppLaunch opens the session through the absent-only entry point.
         val restored = slot<List<GeofenceRegion>>()
         coEvery { manager.replaceGeofencesForBootRestore(capture(restored)) } returns Result.success(Unit)
 

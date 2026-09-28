@@ -1,18 +1,14 @@
 package io.customer.geofence.replay
 
 /**
- * Grades what the replayed SDK decided against what the device decided.
- *
- * Matches by `(ev, fence id, transition, why)` and by count, not timestamp: what must hold is the
- * same decisions about the same fences, the same number of times.
+ * Grades the replay's decisions against the device's by `(ev, fence id, transition, why)` and count,
+ * not timestamp: what must hold is the same decisions about the same fences, the same number of times.
  */
 internal object ReplayMatcher {
 
     /**
-     * The only records a scenario asserts: the SDK's `io=out` records, decisions that leave the SDK
-     * (a region set handed to the OS, a transition handed to delivery, a reset on sign-out).
-     * Decisions about inputs (dedupes, drops, synthesised enters) are graded only through
-     * `transition.accepted`, so a drive is not pinned to one implementation's internals.
+     * Only `io=out` decisions, those that leave the SDK. Decisions about inputs (dedupes, drops) are
+     * graded through `transition.accepted`, so a drive is not pinned to one implementation's internals.
      */
     val assertedEvents = setOf(
         "registration.applied",
@@ -21,8 +17,6 @@ internal object ReplayMatcher {
     )
 
     /**
-     * A decision, stripped to the parts that identify it.
-     *
      * `ok` is not part of the key, so `why` is what separates a failed `module.reset`
      * (`why=os_clear_failed`, `why=other_user_signed_in`) from a successful one.
      */

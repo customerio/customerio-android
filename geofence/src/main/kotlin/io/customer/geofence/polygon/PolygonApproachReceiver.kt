@@ -85,8 +85,7 @@ class PolygonApproachReceiver : BroadcastReceiver() {
         val expired = effectiveDeadline <= SystemClock.elapsedRealtime()
         val identifiedUserId = userId?.takeIf { it.isNotEmpty() }
         if (identifiedUserId != null) {
-            // Gate only. The session opens against the identity read under the store's own lock, so
-            // an identify landing after the gate cannot be reverted to the user read here.
+            // Gate only: the session opens on the identity read under its own lock, not this one.
             controller.beginUserSessionForCurrentUser()
             when (
                 controller.processApproachLocations(
@@ -100,8 +99,8 @@ class PolygonApproachReceiver : BroadcastReceiver() {
                         monitor.stop(expectedUserStateGeneration, effectiveDeadline)
                         return
                     }
-                    // A PendingIntent can cold-start a fresh SDK process. Adopt the bounded session
-                    // so a later sign-out can remove it immediately in this process.
+                    // Adopted because this delivery may have cold-started the process, so a sign-out
+                    // here can remove the session.
                     monitor.start(
                         expectedUserStateGeneration,
                         effectiveDeadline

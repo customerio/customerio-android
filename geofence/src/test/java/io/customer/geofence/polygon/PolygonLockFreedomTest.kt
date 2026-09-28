@@ -33,15 +33,8 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.shadows.ShadowSystemClock
 
 /**
- * Every polygon record must reach the host's log dispatcher with neither `controllerLock` nor
- * `stateLock` held: the dispatcher is customer code, and a slow lambda under either lock stalls
- * every polygon evaluation or coarse callback. The tests drive real paths with a [Logger] that
- * collects any call made while `Thread.holdsLock` reports either lock held.
- *
- * [aRecordEmittedUnderALock_expectTheHarnessCatchesIt] validates the harness with a probe lock, and
- * [theControllerLockPredicate_expectItReportsTrueFromInsideTheLock] validates
- * [PolygonGeofenceServiceController.holdsControllerLock]. [PolygonLocationEngine.holdsStateLock] has
- * no equivalent seam.
+ * Polygon records must reach the host's log dispatcher with neither `controllerLock` nor
+ * `stateLock` held: the dispatcher is customer code, and a slow one would stall every evaluation.
  */
 @RunWith(RobolectricTestRunner::class)
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -57,10 +50,7 @@ class PolygonLockFreedomTest : RobolectricTest() {
     private lateinit var engine: PolygonLocationEngine
     private lateinit var controller: PolygonGeofenceServiceController
 
-    /**
-     * Set after construction, because the logger has to exist before the engine and controller it
-     * queries. Unset, `record` fails rather than passing vacuously.
-     */
+    /** Set after construction: the logger exists before the engine and controller it queries. */
     private var lockHeld: (() -> Boolean)? = null
 
     private val violations = mutableListOf<String>()
@@ -77,16 +67,14 @@ class PolygonLockFreedomTest : RobolectricTest() {
         override fun error(message: String, tag: String?, throwable: Throwable?) = record(message)
 
         private fun record(message: String) {
-            // requireNotNull, not error(): inside a Logger implementation, error() resolves to
-            // this interface's own error method, so the elvis branch types as Any and the result
-            // stops being callable.
+            // requireNotNull, not `?: error()`: here error() resolves to Logger.error, so the
+            // elvis branch types as Any.
             val isLockHeld = requireNotNull(lockHeld) {
                 "lockHeld was never wired; this test would pass vacuously"
             }
             emissions += 1
-            // Collected rather than thrown: a throw here surfaces as whatever the production code
-            // does with a logging failure, which could be swallowed by a catch and turn a real
-            // violation into a green test.
+            // Collected rather than thrown: production code could swallow a logging throw and turn
+            // a real violation into a green test.
             if (isLockHeld()) violations += message
         }
     }
@@ -99,8 +87,7 @@ class PolygonLockFreedomTest : RobolectricTest() {
             logger = mockk(relaxed = true)
         ).also { it.clearAll() }
         ShadowSystemClock.advanceBy(Duration.ofMinutes(1))
-        // Only so a failure names the offending record via its `ev=` tail; the assertions count
-        // logger calls rather than parse them.
+        // Only so a failure names the offending record; the assertions do not parse records.
         GeofenceDiagnostics.setEnabledForTesting(true)
 
         every { secureUserStore.getUserId() } returns USER_ID
@@ -180,15 +167,13 @@ class PolygonLockFreedomTest : RobolectricTest() {
 
     @Test
     fun coarseExitWithNoFixWhileAnArrivalIsHeld_expectTheDiscardIsEmittedOutsideBothLocks() = runTest {
-        // The sweep below cannot reach this because it unregisters the polygon first. onCoarseExit
-        // tears the session down inside controllerLock, so the discarded ids must be carried out.
-        // No fix, because a fix would resolve the hold before the teardown.
+        // No fix, because one would resolve the hold before the teardown. The sweep below cannot
+        // reach this because it unregisters the polygon first.
         val generation = store.userStateGeneration()
         controller.activate(polygonId = VENUE_ID, expectedUserStateGeneration = generation)
         engine.processResponsiveLocation(marginalFix())
 
-        // The teardown branch runs only for a polygon not committed INSIDE; a confirmed arrival
-        // would make this test cover nothing.
+        // The teardown branch runs only for a polygon not committed INSIDE.
         store.getEnteredIds() shouldNotContain VENUE_ID
 
         controller.onCoarseExit(VENUE_ID, triggeringLocation = null, expectedUserStateGeneration = generation)
@@ -200,8 +185,6 @@ class PolygonLockFreedomTest : RobolectricTest() {
 
     @Test
     fun coarseCallbacksAndTeardowns_expectEveryRecordIsEmittedOutsideBothLocks() = runTest {
-        // A sweep rather than one assertion per record: these are the controllerLock paths that
-        // log, and the point is that none of them may log while holding it.
         val generation = store.userStateGeneration()
         controller.activate(polygonId = VENUE_ID, expectedUserStateGeneration = generation)
         controller.onCoarseExit(VENUE_ID, triggeringLocation = null, expectedUserStateGeneration = generation)
@@ -226,9 +209,7 @@ class PolygonLockFreedomTest : RobolectricTest() {
 
     @Test
     fun aRecordEmittedUnderALock_expectTheHarnessCatchesIt() {
-        // Positive control for the harness (predicate plus collection). A test-owned lock, because
-        // running code under a production lock would need a test-only hook into a lock that gates
-        // every geofence callback.
+        // A test-owned lock, because a production lock would need a test-only hook.
         val probe = Any()
         lockHeld = { Thread.holdsLock(probe) }
 
@@ -242,7 +223,6 @@ class PolygonLockFreedomTest : RobolectricTest() {
 
     @Test
     fun theControllerLockPredicate_expectItReportsTrueFromInsideTheLock() {
-        // The probe-lock control validates the harness, not the production predicate.
         // publishRegistrationIfCurrent already runs a caller lambda inside controllerLock.
         var heldInside: Boolean? = null
 
@@ -256,7 +236,6 @@ class PolygonLockFreedomTest : RobolectricTest() {
     }
 
     private fun assertNoViolations() {
-        // An empty violation list means nothing if the path logged nothing at all.
         check(emissions > 0) { "no record was emitted on this path, so it asserts nothing" }
         check(violations.isEmpty()) {
             "records emitted while controllerLock or stateLock was held:\n" +

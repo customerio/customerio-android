@@ -16,11 +16,8 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 
 /**
- * A `POST /v2/geofences/nearest` payload decoded by the shipping path.
- *
- * Coordinates, names and addresses are synthetic; the wire shape matches a real v2 response: numeric
- * `id` and `geoset_ids`, `enclosing_circle` on polygons only, a repeated closing vertex, absent
- * `transition_types` and `last_updated`, and the real `metadata` keys. Keep real captures out of it.
+ * A `POST /v2/geofences/nearest` payload decoded by the shipping path. Coordinates, names and
+ * addresses are synthetic but the wire shape is real; keep real captures out of it.
  */
 @RunWith(RobolectricTestRunner::class)
 class GeofenceV2PayloadTest : RobolectricTest() {
@@ -63,7 +60,7 @@ class GeofenceV2PayloadTest : RobolectricTest() {
 
         val market = polygons.first { it.id == "18" }
         market.enclosingCircle?.baseRadiusMeters shouldBeEqualTo 101.0
-        // 5 wire positions in, 4 out: the canonicaliser drops the repeated closing vertex.
+        // The canonicaliser drops the repeated closing vertex.
         market.geometry?.toPolygonGeometryOrNull()?.vertices?.size shouldBeEqualTo 4
     }
 
@@ -97,7 +94,6 @@ class GeofenceV2PayloadTest : RobolectricTest() {
         decode().geofences.forEach { assertNull(it.lastUpdated) }
     }
 
-    /** Without the polygon opt-in (the mapper's default), every polygon drops and every circle survives. */
     @Test
     fun v2Payload_mapsCirclesAndDropsPolygonsWithoutPolygonRuntime() {
         val regions = decode().toDomainRegions()
@@ -108,14 +104,12 @@ class GeofenceV2PayloadTest : RobolectricTest() {
         )
     }
 
-    /** The catalog is the record of what the server sent, so it must keep the polygons. */
     @Test
     fun v2Payload_catalogKeepsEveryRecordIncludingPolygons() {
         val catalog = decode().toCatalogEntries()
         assertEquals(9, catalog.size)
         assertEquals(4, catalog.count { it.shape == "polygon" })
         assertEquals(5, catalog.count { it.shape == "circle" })
-        // A polygon's catalog radius is the backend's enclosing circle.
         catalog.first { it.id == "18" }.radiusMeters shouldBeEqualTo 101.0
     }
 

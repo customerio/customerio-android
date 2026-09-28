@@ -6,7 +6,6 @@ import io.customer.sdk.communication.Event
 import io.customer.sdk.data.store.PreferenceStore
 import io.customer.sdk.data.store.read
 
-/** Persists last-emitted timestamps for geofence event cooldown, keyed per user. */
 internal interface GeofenceCooldownStore {
     fun getLastEmitTimestamp(userId: String, geofenceId: String, transition: Event.GeofenceTransition): Long?
     fun recordEmit(userId: String, geofenceId: String, transition: Event.GeofenceTransition, timestamp: Long)
@@ -60,7 +59,6 @@ internal class GeofenceCooldownStoreImpl(
         prefs.edit { clear() }
     }
 
-    // ':' separators keep free-form userId/geofenceId values from colliding across components.
     private fun cooldownKey(userId: String, geofenceId: String, transition: Event.GeofenceTransition): String {
         return "$KEY_PREFIX$userId:$geofenceId:${transition.name}"
     }

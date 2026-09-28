@@ -5,13 +5,7 @@ import io.customer.geofence.PolygonArrivalExpiry
 import org.amshove.kluent.shouldBeEqualTo
 import org.junit.Test
 
-/**
- * How a held (marginal) arrival is settled: it is reported unless a judged fix reads outside or
- * the 60 s window elapses.
- *
- * Requiring a second agreeing fix fails for a stationary device: the fused provider re-emits the
- * coordinate it already carried, which is not an independent fix.
- */
+/** A held arrival is reported unless a judged fix reads outside or the 60 s window elapses. */
 class PolygonCorroborationWindowTest {
 
     /** Same relocated geometry as fence B in [PolygonCorroborationOnRealFencesTest]. */
@@ -27,7 +21,7 @@ class PolygonCorroborationWindowTest {
         )
     )
 
-    /** 8.4 m inside the ring. Paired with an accuracy above that, so the arrival needs a second fix. */
+    /** 8.4 m inside the ring. */
     private val insideFix = PolygonCoordinate(-8.910190, 22.430533)
 
     /** About 2 m north of [insideFix], so it is an independent fix rather than a re-delivery. */
@@ -36,10 +30,7 @@ class PolygonCorroborationWindowTest {
     /** 47.3 m outside the ring, beyond a 20 m fix's accuracy plus the 20 m departure margin. */
     private val clearlyOutsideFix = PolygonCoordinate(-8.908373, 22.431400)
 
-    /**
-     * 8.3 m outside the ring: less than a 15 m fix's own accuracy, so it never satisfies the
-     * departure clearance, yet it still breaks a held arrival.
-     */
+    /** 8.3 m outside the ring: under a 15 m fix's accuracy, so short of departure clearance. */
     private val justOutsideFix = PolygonCoordinate(-8.908723, 22.431400)
 
     private val committedOutside = mapOf(fence.id to PolygonCommittedState.OUTSIDE)
@@ -68,8 +59,7 @@ class PolygonCorroborationWindowTest {
 
     @Test
     fun process_givenASecondMeasurementPastTheWindow_expectTheArrivalIsLost() {
-        // The only way a hold is dropped without contradicting evidence: past the 60 s window the
-        // held fix no longer describes where the device is, so this fix opens its own hold.
+        // Past the 60 s window the held fix is stale, so this fix opens its own hold.
         val processor = PolygonRouteProcessor()
         processor.process(
             fences = listOf(fence),
@@ -144,9 +134,8 @@ class PolygonCorroborationWindowTest {
 
     @Test
     fun process_givenAFixReadingOutsideWithoutDepartureClearance_expectTheArrivalIsAbandoned() {
-        // Any judged fix reading outside breaks the hold. Requiring departure clearance (accuracy
-        // plus 20 m) instead would commit this false arrival and keep it open until a fix cleared
-        // the ring by that much.
+        // Any judged fix reading outside breaks the hold; requiring departure clearance instead
+        // would commit this false arrival.
         val processor = PolygonRouteProcessor()
         processor.process(
             fences = listOf(fence),
@@ -171,8 +160,7 @@ class PolygonCorroborationWindowTest {
 
     @Test
     fun process_givenAnOutsideReadingTooCoarseToJudge_expectTheArrivalIsStillReported() {
-        // Reads 47 m outside, but 150 m accuracy exceeds this venue's 113 m ceiling, so the fix is
-        // unjudged and cannot break the hold.
+        // 150 m exceeds the venue's 113 m ceiling, so the fix is unjudged and can't break the hold.
         val processor = PolygonRouteProcessor()
         processor.process(
             fences = listOf(fence),
@@ -249,8 +237,8 @@ class PolygonCorroborationWindowTest {
 
     @Test
     fun process_givenTheHeldPositionRepeated_expectTheArrivalIsReportedUnconfirmed() {
-        // A stationary device: the provider re-emits the held coordinate with a substituted
-        // accuracy. Not a second opinion, but not evidence against the arrival either.
+        // A stationary device: the provider re-emits the held coordinate. Not a second opinion, but
+        // not evidence against the arrival either, so requiring an agreeing fix would lose it.
         val processor = PolygonRouteProcessor()
         processor.process(
             fences = listOf(fence),
@@ -276,8 +264,7 @@ class PolygonCorroborationWindowTest {
 
     @Test
     fun process_givenAFixThatCannotJudgeTheVenue_expectTheArrivalIsReportedUnconfirmed() {
-        // A different position, but too coarse for a 113 m venue: it neither supports nor
-        // contradicts the hold.
+        // A different position, but 150 m is too coarse to judge a 113 m venue.
         val processor = PolygonRouteProcessor()
         processor.process(
             fences = listOf(fence),
@@ -302,8 +289,8 @@ class PolygonCorroborationWindowTest {
 
     @Test
     fun process_givenTheSameMeasurementDeliveredTwice_expectTheStampDedupeRefusesIt() {
-        // A re-delivery under the same elapsed-realtime stamp is refused before the hold is
-        // consulted, so a duplicate broadcast cannot settle an arrival either way.
+        // A same-stamp re-delivery is refused before the hold is consulted, so a duplicate
+        // broadcast cannot settle an arrival.
         val processor = PolygonRouteProcessor()
         processor.process(
             fences = listOf(fence),
@@ -327,9 +314,8 @@ class PolygonCorroborationWindowTest {
 
     @Test
     fun process_givenThePreciseAnswerIsTheHeldFixItself_expectTheArrivalIsReportedUnconfirmed() {
-        // GMS answers a hold's precise-fix request with the fix it just delivered, stamp and all,
-        // when that fix is under a second old. Refusing it as not-newer would leave the hold
-        // waiting for a fix minutes away.
+        // GMS answers the hold's precise-fix request with the held fix itself, same stamp, when it
+        // is under a second old; refusing it as not-newer would leave the hold waiting minutes.
         val processor = PolygonRouteProcessor()
         processor.process(
             fences = listOf(fence),

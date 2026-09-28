@@ -17,11 +17,9 @@ import kotlinx.coroutines.launch
 import org.json.JSONObject
 
 /**
- * Sends a geofence transition event via direct HTTP, bypassing the analytics pipeline, so
- * [GeofenceEventWorker] and the async fallback don't depend on full SDK initialization.
- *
- * Sends as [PendingGeofenceDelivery.userId], snapshotted at queue time so a later sign-in can't
- * reattribute it. Anonymous transitions are never persisted, so a missing userId fails the send.
+ * Direct HTTP, bypassing the analytics pipeline, so the worker and async fallback don't need full
+ * SDK initialization. Sends as the queue-time [PendingGeofenceDelivery.userId] so a later sign-in
+ * can't reattribute it.
  */
 internal interface GeofenceEventTracker {
     suspend fun trackEvent(entry: PendingGeofenceDelivery): Result<Unit>
@@ -58,11 +56,7 @@ internal class GeofenceEventTrackerImpl(
     }
 }
 
-/**
- * Fire-and-forget fallback when WorkManager is unavailable; does not survive process death. Like
- * the worker, the entry stays in the store until the send is confirmed, so a failure leaves it for
- * the foreground flush. Overlap with the flush is deduped backend-side on transitionId.
- */
+/** Fallback when WorkManager is unavailable; does not survive process death. */
 internal class AsyncGeofenceEventTracker(
     private val tracker: GeofenceEventTracker,
     private val pendingStore: PendingDeliveryStore<PendingGeofenceDelivery>,

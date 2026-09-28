@@ -33,8 +33,7 @@ class PolygonAccuracyEvaluatorTest {
 
     @Test
     fun decisiveEvidenceFor_whenDepartingNearTheBoundary_thenRemainsAmbiguous() {
-        // Mirror of the case above, ~11 m outside. Departure keeps the clearance margin, so a
-        // marginal fix does not end a visit.
+        // ~11 m outside. Departure keeps the clearance margin.
         val sample = sample(latitude = 0.0, longitude = 0.0011, accuracyMeters = 5.0)
 
         evaluator.decisiveEvidenceFor(geometry, sample, PolygonCommittedState.INSIDE).evidence shouldBeEqualTo
@@ -51,8 +50,7 @@ class PolygonAccuracyEvaluatorTest {
 
     @Test
     fun decisiveEvidenceFor_whenDepartingWellClearOfTheRingOnACoarseFix_thenStillReturnsExit() {
-        // ~1.1 km of clearance against 120 m of uncertainty. Clearance is read before the accuracy
-        // ceiling, so a fix coarser than the venue still ends the visit when it is this far out.
+        // ~1.1 km out at 120 m accuracy: clearance is read before the accuracy ceiling.
         val sample = sample(latitude = 0.0, longitude = 0.011, accuracyMeters = 120.0)
 
         val result = evaluator.decisiveEvidenceFor(geometry, sample, PolygonCommittedState.INSIDE)
@@ -63,8 +61,7 @@ class PolygonAccuracyEvaluatorTest {
 
     @Test
     fun decisiveEvidenceFor_whenAlreadyOutsideOnACoarseFix_thenAgreesInsteadOfRefusing() {
-        // The same fix with nothing committed: decisive and agreeing, so it must not be reported
-        // as an `accuracy_too_low` refusal.
+        // The same fix with nothing committed.
         val sample = sample(latitude = 0.0, longitude = 0.011, accuracyMeters = 120.0)
 
         val result = evaluator.decisiveEvidenceFor(geometry, sample, PolygonCommittedState.OUTSIDE)
@@ -76,8 +73,7 @@ class PolygonAccuracyEvaluatorTest {
 
     @Test
     fun decisiveEvidenceFor_whenDepartingOnACoarseFixNearTheRing_thenStillRefuses() {
-        // Clearance is read before accuracy, not instead of it. ~56 m outside at 120 m accuracy
-        // does not clear the margin, so it falls through to the ceiling and reports that reason.
+        // ~56 m outside at 120 m accuracy: short of the margin, so it falls through to the ceiling.
         val sample = sample(latitude = 0.0, longitude = 0.0015, accuracyMeters = 120.0)
 
         val result = evaluator.decisiveEvidenceFor(geometry, sample, PolygonCommittedState.INSIDE)
@@ -99,8 +95,7 @@ class PolygonAccuracyEvaluatorTest {
 
     @Test
     fun decisiveEvidenceFor_whenTheVenueIsShallowerThanTheFloor_thenStillHoldsTheArrival() {
-        // Under the 50 m floor an 11 m-deep ring is admitted but held: refusing it would make a
-        // small venue undetectable at ordinary background accuracy.
+        // Held, not refused: refusing would make a venue this small undetectable in the background.
         val sample = sample(latitude = 0.0, longitude = 0.0, accuracyMeters = 30.0)
 
         val result = evaluator.decisiveEvidenceFor(shallowGeometry, sample, PolygonCommittedState.OUTSIDE)
@@ -117,15 +112,13 @@ class PolygonAccuracyEvaluatorTest {
         val result = evaluator.decisiveEvidenceFor(geometry, sample, PolygonCommittedState.OUTSIDE)
 
         result.evidence shouldBeEqualTo PolygonEvidence.ENTER
-        // The centre of this ring is 111 m from its nearest edge, so a 60 m circle cannot have been
-        // taken from outside it and there is nothing for a second fix to add.
+        // A 60 m circle at a point 111 m from every edge lies wholly inside the ring.
         result.requiresCorroboration shouldBeEqualTo false
     }
 
     @Test
     fun decisiveEvidenceFor_whenTheVenueIsDeepButTheFixIsNearItsEdge_thenHoldsTheArrival() {
-        // 33 m inside a 111 m-deep ring at 60 m accuracy: deep enough to judge, but closer to the
-        // edge than the fix's own uncertainty.
+        // 33 m inside a 111 m-deep ring at 60 m accuracy: closer to the edge than the uncertainty.
         val sample = sample(latitude = 0.0, longitude = 0.0007, accuracyMeters = 60.0)
 
         val result = evaluator.decisiveEvidenceFor(geometry, sample, PolygonCommittedState.OUTSIDE)

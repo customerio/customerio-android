@@ -38,9 +38,8 @@ tasks.withType(KotlinCompile).all {
     }
 }
 
-// Declares the replay corpus (outside this repo) as a test input, so a changed or missing corpus
-// does not reuse cached results. Resolved like `Scenarios.resolve`: `CIO_GEOFENCE_SCENARIOS`, else
-// `mobile-replay-harness/scenarios` in this module or up to five directories above it.
+// Declares the replay corpus as a test input, so a changed or missing corpus does not reuse cached
+// results. Must resolve it the same way as `Scenarios.resolve`.
 tasks.withType(Test).configureEach {
     def override = providers.environmentVariable("CIO_GEOFENCE_SCENARIOS").orNull
     File corpus = null

@@ -45,7 +45,6 @@ class PolygonWakeCircleValidatorTest {
 
     @Test
     fun prepare_givenACircleSmallerThanAnyBackendSends_expectNoFloorApplied() {
-        // No floor: the circle is registered exactly as sent, however small.
         val wakeCircle = PolygonWakeCircle(
             center = point(37.0005, -121.9995),
             baseRadiusMeters = 30.0

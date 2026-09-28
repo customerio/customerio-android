@@ -26,19 +26,14 @@ import kotlinx.coroutines.launch
 private const val MODULE_NAME = "Geofence"
 
 /**
- * Geofence module for Customer.io SDK.
+ * Geofence module for Customer.io SDK. Registers server-defined geofences with the OS, forwards
+ * transitions to the CDP, and refreshes the set as the user moves. A polygon or movement-trigger
+ * callback without a decisive fix may open a bounded, balanced-power location session. Polygons
+ * alone do not start sampling, and no foreground service is started.
  *
- * Registering this module enables on-device geofence monitoring: server-defined
- * geofences are registered with the OS, transitions are persisted and forwarded
- * to the CDP, and the local set is refreshed when the user moves far enough. A polygon or
- * movement-trigger callback whose fix is not decisive may open a bounded, balanced-power location
- * session. Registering polygons alone does not start sampling, and no foreground service is started.
- *
- * Requires [ModuleLocation] to be registered alongside it — geofencing uses its
- * location provider regardless of the location tracking mode, and works even when
- * location tracking is OFF (geofence fixes never emit analytics). With the default
- * [GeofenceLocationMode.AUTOMATIC] the SDK acquires the location it needs on its own;
- * with [GeofenceLocationMode.MANUAL] the host drives it via [refreshFromCurrentLocation].
+ * Requires [ModuleLocation], even when location tracking is OFF; geofence fixes never emit
+ * analytics. With the default [GeofenceLocationMode.AUTOMATIC] the SDK acquires location itself;
+ * with [GeofenceLocationMode.MANUAL] call [refreshFromCurrentLocation].
  *
  * Usage:
  * ```
@@ -57,8 +52,7 @@ class ModuleGeofence @JvmOverloads constructor(
     override fun initialize() {
         val logger = SDKComponent.geofenceLogger
 
-        // Without the location module no fix can reach the SDK, so nothing would ever sync. Log the
-        // misconfiguration and bail before installing subscriptions that would never deliver.
+        // Without the location module no fix can reach the SDK, so nothing would ever sync.
         val locationModule = runCatching { ModuleLocation.instance() }.getOrNull()
         if (locationModule == null) {
             runCatching { SDKComponent.android().polygonGeofenceServiceController.stopAll() }
@@ -66,15 +60,12 @@ class ModuleGeofence @JvmOverloads constructor(
             return
         }
 
-        // Tells the app-start path apart in logs; the boot receiver marks its own, and a geofence
-        // wake announces itself via os.callback.received.
         logger.logModuleInitialized(GeofenceLaunchReason.APP_START)
 
         val eventBus = SDKComponent.eventBus
         val sdkAndroid = SDKComponent.android()
 
-        // Here as well as on foreground entry, since a cold background wake never foregrounds. The
-        // shared reporter dedupes the two.
+        // Here as well as on foreground entry, since a cold background wake never foregrounds.
         sdkAndroid.geofencePermissionReporter.reportIfChanged()
 
         subscribeToEvents(eventBus, sdkAndroid, locationModule)
@@ -82,12 +73,9 @@ class ModuleGeofence @JvmOverloads constructor(
     }
 
     /**
-     * Requests a one-shot location fix and refreshes the nearby geofence set from
-     * it, without emitting a "CIO Location Update" analytics event. Works
-     * regardless of [GeofenceModuleConfig.locationMode].
-     *
-     * Call this after the host app has been granted location permission — the
-     * primary way to drive geofencing when [GeofenceLocationMode.MANUAL] is set.
+     * Requests a one-shot fix and refreshes nearby geofences from it, without emitting a
+     * "CIO Location Update" event. Works in any [GeofenceModuleConfig.locationMode], and is how
+     * [GeofenceLocationMode.MANUAL] drives geofencing. Call after location permission is granted.
      */
     @OptIn(InternalCustomerIOApi::class)
     fun refreshFromCurrentLocation() {
@@ -96,13 +84,12 @@ class ModuleGeofence @JvmOverloads constructor(
             SDKComponent.geofenceLogger.logMissingLocationModule()
             return
         }
-        // Arm first so the returning fix drives a sync even without a prior
-        // no-location skip, then request a silent (no-analytics) fix.
+        // Arm first so the returning fix drives a sync.
         SDKComponent.android().geofenceServices.onRefreshRequested()
         locationModule.locationServices.requestLocationUpdateSilently()
     }
 
-    /** Foreground and anchor decisions, built here so a test can drive them without a lifecycle owner. */
+    /** Built here so a test can drive it without a lifecycle owner. */
     @OptIn(InternalCustomerIOApi::class)
     internal fun foregroundCoordinator(
         sdkAndroid: AndroidSDKComponent,
@@ -118,18 +105,12 @@ class ModuleGeofence @JvmOverloads constructor(
         dispatchers = SDKComponent.dispatchersProvider
     )
 
-    /**
-     * Subscribe to the SDK-wide events geofencing reacts to: fresh location fixes,
-     * identify (prime the new user's nearby set), and sign-out (wipe user state).
-     */
     private fun subscribeToEvents(
         eventBus: EventBus,
         sdkAndroid: AndroidSDKComponent,
         locationModule: ModuleLocation
     ) {
-        // Recover from a first-run race where identify lands before the first
-        // GPS fix: GeofenceServices holds a "last skipped for no-location" flag
-        // and re-triggers a refresh when a fresh fix arrives.
+        // Recovers from identify landing before the first fix.
         eventBus.subscribe<Event.LocationFixAcquired> {
             // Logged before the handler: a discarded fix is still a fix that arrived.
             SDKComponent.geofenceLogger.logLocationFix(it.latitude, it.longitude)
@@ -140,8 +121,6 @@ class ModuleGeofence @JvmOverloads constructor(
             )
         }
 
-        // On identify, prime the geofence pipeline so the new user's session has its
-        // nearby set fetched, anchored at the last registration center or cached location.
         eventBus.subscribe<Event.UserChangedEvent> {
             val userId = it.userId
             if (!userId.isNullOrEmpty()) {
@@ -165,20 +144,17 @@ class ModuleGeofence @JvmOverloads constructor(
             }
         }
 
-        // Sign-out: clear user-scoped geofence state so the next identity inherits nothing.
-        // ResetEvent fires from `clearIdentify()` before `UserChangedEvent(null)`, so it is the
-        // explicit "wipe user state" signal.
+        // The sign-out signal: `clearIdentify()` fires it before `UserChangedEvent(null)`. Logged
+        // here, not on that event, so one sign-out is one record.
         eventBus.subscribe<Event.ResetEvent> {
-            // Not on the UserChangedEvent(null) that follows: one sign-out, one record.
             SDKComponent.geofenceLogger.logIdentityChanged(identified = false)
             sdkAndroid.geofenceServices.onUserSignedOut()
         }
     }
 
     /**
-     * Registers foreground-driven geofence work on the main thread. Posting defers it past the
-     * SDK's synchronous module-init loop, so ModuleLocation has initialized even when geofence is
-     * registered ahead of it. ProcessLifecycleOwner registration needs the main thread anyway.
+     * Posting defers past the synchronous module-init loop, so ModuleLocation has initialized even
+     * when registered after this module. ProcessLifecycleOwner needs the main thread anyway.
      */
     private fun scheduleForegroundWork(
         eventBus: EventBus,
@@ -188,9 +164,6 @@ class ModuleGeofence @JvmOverloads constructor(
     ) {
         val mainThreadPoster: MainThreadPoster = HandlerMainThreadPoster()
         mainThreadPoster.post {
-            // Flush pending OS-delivered transitions to the analytics pipeline on
-            // every foreground entry (at-least-once with the WorkManager worker,
-            // deduped downstream by transitionId).
             ProcessLifecycleOwner.get().lifecycle.addObserver(
                 GeofenceLifecycleObserver(
                     deliveryFlusher = sdkAndroid.geofenceDeliveryFlusher,
@@ -199,8 +172,8 @@ class ModuleGeofence @JvmOverloads constructor(
                     permissionReporter = sdkAndroid.geofencePermissionReporter,
                     logger = logger,
                     onForeground = {
-                        // Off the main thread: deciding whether to take a fix needs the identity read,
-                        // a Keystore decrypt that can block for hundreds of ms on some OEMs.
+                        // Off the main thread: the identity read is a Keystore decrypt that can block
+                        // for hundreds of ms on some OEMs.
                         val foregroundScope = SDKComponent.scopeProvider.geofenceScope
                         foregroundScope.launch {
                             try {
@@ -218,9 +191,7 @@ class ModuleGeofence @JvmOverloads constructor(
                 )
             )
 
-            // Defensive sync for a user persisted from a previous session; the freshness threshold
-            // makes it a cheap no-op when identify follows. Off the main thread: the reads below
-            // include a Keystore decrypt that can block for hundreds of ms on some OEMs.
+            // Off the main thread for the same Keystore read.
             val launchScope = SDKComponent.scopeProvider.geofenceScope
             launchScope.launch {
                 try {
@@ -241,12 +212,10 @@ class ModuleGeofence @JvmOverloads constructor(
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Throwable) {
-                    // Keystore/prefs reads can throw on some OEMs; log instead of relying on
-                    // the scope's last-resort handler so the failure is attributable.
+                    // Keystore/prefs reads can throw on some OEMs.
                     SDKComponent.geofenceLogger.logSyncFailed("app-launch refresh failed: ${e.message}")
                 } finally {
-                    // One-shot: geofenceScope mints a fresh scope per access, so cancel it once
-                    // the launch read completes rather than leaking its Job.
+                    // geofenceScope mints a fresh scope per access; cancel it rather than leak its Job.
                     launchScope.cancel()
                 }
             }

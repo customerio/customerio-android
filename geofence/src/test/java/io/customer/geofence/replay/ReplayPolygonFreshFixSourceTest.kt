@@ -30,7 +30,6 @@ class ReplayPolygonFreshFixSourceTest : RobolectricTest() {
         request.await() shouldBeEqualTo fix
     }
 
-    /** A request that already timed out is closed, so its late answer is unanswered too. */
     @Test
     fun deliver_givenTheRequestTimedOut_expectReportedUnanswered() = runTest {
         val source = ReplayPolygonFreshFixSource()

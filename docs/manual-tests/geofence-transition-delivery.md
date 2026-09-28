@@ -1,20 +1,18 @@
 # Manual Test Plan — Geofence Transition Delivery (Android)
 
-Covers geofence transition delivery: a transition is recorded in a disk-backed
-`PendingDeliveryStore` and delivered **at-least-once** by one of two channels:
-the **WorkManager worker** (direct HTTP `/track`, survives process death) or
-the **foreground flush** (analytics pipeline). All transitions share one ordered
-WorkManager chain; the worker drains the oldest row and removes it only after a
-confirmed send. The flush publishes, then removes the row; it does not cancel the
-chain, so a queued worker later finds the row gone and sends nothing.
+A transition is recorded in a disk-backed `PendingDeliveryStore` and delivered
+**at-least-once** by the **WorkManager worker** (direct HTTP `/track`, survives
+process death) or the **foreground flush** (analytics pipeline). Transitions
+share one ordered WorkManager chain; the worker sends the oldest row and removes
+it only after a confirmed send. The flush publishes, then removes the row without
+cancelling the chain, so a queued worker later finds the row gone and sends nothing.
 
 > **Core invariant for every case:** each geofence transition reaches
-> Customer.io **at least once** — never zero. The rare duplicate (a crash after
-> an ambiguous send, or the two channels overlapping) always carries the same
-> `transitionId`, which is the backend's dedupe key. The portal event is a
-> single **`Geofence Transition`** event with a `transition: enter|exit`
-> property (one event per geoset a fence belongs to; all share the crossing's
-> `transitionId`).
+> Customer.io **at least once**. A rare duplicate (a crash after an ambiguous
+> send, or both channels overlapping) carries the same `transitionId`, the
+> backend's dedupe key. The portal shows one **`Geofence Transition`** event per
+> geoset the fence belongs to, with a `transition: enter|exit` property; all
+> share the crossing's `transitionId`.
 
 > **Identified users only:** transitions observed while no user is identified
 > are dropped before queuing and never delivered.
@@ -25,12 +23,11 @@ chain, so a queued worker later finds the row gone and sends nothing.
 
 Unlike push (which ships a `SimulatePushDeliveryReceiver`), a geofence
 transition **cannot** be faked with `adb am broadcast`: `GeofencingEvent` has no
-public constructor and is parsed from GMS-internal intent extras. So we drive
-the **real** production path with the emulator's mock location, crossing a
-geofence that the SDK has actually registered with GMS from the workspace's
-`POST /geofences/nearest` response.
+public constructor and is parsed from GMS-internal intent extras. Instead, use
+the emulator's mock location to drive the **real** path, crossing a geofence the
+SDK registered with GMS from the `POST /geofences/nearest` response.
 
-The delivery arbitration logic itself is also covered by automated tests:
+Automated tests also cover the delivery arbitration logic:
 - `core` — `PendingDeliveryFlusherTest`, `PendingDeliveryClaimTest`, `PendingDeliveryStoreTest`
 - `geofence` — `GeofenceEventWorkerTest` (send / retry / skip), `GeofenceBroadcastReceiverTest` (append + schedule, no inline publish), `AsyncGeofenceEventTrackerTest`, `GeofenceLifecycleObserverTest`, `PendingGeofenceDeliveryTest`
 
@@ -69,16 +66,16 @@ adb shell am start -n $PKG/.ui.dashboard.DashboardActivity  # foreground app
 adb shell am force-stop $PKG                                # kill process
 ```
 
-> Tip: confirm geofences are registered first — look for
-> `[Geofence] Geofence sync succeeded: N regions registered`, then note the
+> Tip: first confirm geofences are registered
+> (`[Geofence] Geofence sync succeeded: N regions registered`), then use the
 > registered geofence's center/radius to choose inside/outside coordinates.
 
 ### Portal check
 
 Workspace → **Data & Integrations → Activity Logs**, filter for the
-`Geofence Transition` event and check its `transition` property (`enter` /
-`exit`) plus `geofenceId` to count deliveries for a given crossing. A fence in
-N geosets produces N events per crossing, all sharing one `transitionId`.
+`Geofence Transition` event and count deliveries per crossing by its
+`transition` (`enter` / `exit`) and `geofenceId` properties. A fence in N
+geosets produces N events per crossing, all sharing one `transitionId`.
 
 ### Log hallmarks (message text after the `[Geofence]` prefix)
 
@@ -120,9 +117,8 @@ _(No `published to analytics pipeline via foreground flush` for this transition 
 
 ## TC2 — Foreground flush: offline at transition, then online + foreground
 
-**Objective:** When the worker can't send (offline), the transition is
-delivered via the analytics-pipeline flush on next foreground, and the queued
-worker then finds nothing to send.
+**Objective:** When the worker can't send (offline), the foreground flush
+delivers the transition and the queued worker then finds nothing to send.
 
 **Preconditions:** **Offline** (airplane mode on); app **backgrounded**;
 background-location granted (so the transition still fires offline).
@@ -162,8 +158,8 @@ for `<id>`, normally via the analytics pipeline.
 
 ## TC3 — No duplicate in the normal path (cross-check of TC2)
 
-**Objective:** Confirm the queued worker doesn't *also* deliver after the flush
-in the normal (no-crash) path.
+**Objective:** The queued worker doesn't *also* deliver after the flush in the
+no-crash path.
 
 **Preconditions:** Run TC2; stay online + foreground for ~2–3 min afterward.
 
@@ -179,9 +175,9 @@ mid-run) instead of sending.
 **Expected store:** `[]` (stays empty).
 
 **Expected portal:** ✅ `Geofence Transition` (`transition: enter`) = **1 per geoset**
-for `<id>`. A duplicate here is a bug **unless** it shares the previous event's
-`transitionId` (the at-least-once crash window): same-id duplicates are the
-backend dedupe's job, different-id duplicates are an SDK regression.
+for `<id>`. A duplicate with the previous event's `transitionId` is the
+at-least-once crash window and is deduped by the backend; a duplicate with a
+different `transitionId` is an SDK regression.
 
 ---
 
@@ -208,7 +204,7 @@ relaunch.
 [Geofence] Geofence '<id>' ENTER: published to analytics pipeline via foreground flush
 [Geofence] Geofence foreground flush complete: 1 transition(s) handed off this run
 ```
-_(Or, if WorkManager runs first on relaunch: `delivered via WorkManager ...` and the flush logs `0 pending`. Either way — the event arrives.)_
+_(Or, if WorkManager runs first on relaunch: `delivered via WorkManager ...` and the flush logs `0 pending`. Either way the event arrives.)_
 
 **Expected store after step 6:** `[]`
 

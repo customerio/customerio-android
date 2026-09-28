@@ -19,11 +19,9 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 
 /**
- * The coarse polygon ENTER path against the real [GeofenceRegionStoreImpl], so every precondition
- * and the persistence asserted are the store's own.
- *
- * Calls [PolygonGeofenceServiceController.activate] directly, so it covers neither the receiver's
- * routing and drop paths nor the region-revision check (passed `null` here).
+ * Coarse polygon ENTER against the real [GeofenceRegionStoreImpl]. Calls
+ * [PolygonGeofenceServiceController.activate] directly, so receiver routing and the
+ * region-revision check are not covered.
  */
 @RunWith(RobolectricTestRunner::class)
 class PolygonCoarseEnterRealStoreTest : RobolectricTest() {

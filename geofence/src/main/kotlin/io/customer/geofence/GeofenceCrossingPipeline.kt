@@ -6,9 +6,8 @@ import io.customer.sdk.communication.Event
 import kotlinx.coroutines.Job
 
 /**
- * Ordering and admission decisions for a parsed [GeofenceCrossing], between the OS callback and
- * [GeofenceBusinessTransitionProcessor] (circle delivery) or [PolygonGeofenceServiceController]
- * (polygon verdicts).
+ * Ordering and admission for a [GeofenceCrossing] before [GeofenceBusinessTransitionProcessor]
+ * (circles) or [PolygonGeofenceServiceController] (polygons).
  */
 internal class GeofenceCrossingPipeline(
     private val regionStore: GeofenceRegionStore,
@@ -20,13 +19,11 @@ internal class GeofenceCrossingPipeline(
 ) {
     /** @return the movement-refresh [Job] this crossing started, so an OS execution window can wait for it. */
     suspend fun handle(crossing: GeofenceCrossing): Job? {
-        // The receiver's stamp, not a fresh read: resolving this singleton on a cold process builds
-        // the geofence graph first.
+        // The receiver's stamp, not a fresh read; see [GeofenceCrossing.receivedAtSeconds].
         val timestamp = crossing.receivedAtSeconds
 
-        // Cold-start callbacks can beat the posted launch initialization. Establish the persisted
-        // secure user's session synchronously; legacy installs without an owner are migrated by the
-        // store without discarding their already-live OS registrations.
+        // Cold-start callbacks can beat the posted launch initialization, so establish the persisted
+        // user's session synchronously first.
         polygonController.beginUserSessionForCurrentUser()
         // A previous callback can have staged a transition before the file outbox was writable.
         // Recover it before interpreting this edge so an ENTER followed by EXIT stays ordered.
@@ -35,9 +32,8 @@ internal class GeofenceCrossingPipeline(
         val userStateGeneration = regionStore.userStateGeneration()
         val routableIds = regionStore.getRoutableRegisteredIds()
         val (routableTriggeringIds, unroutableIds) = crossing.geofenceIds.partition { it in routableIds }
-        // An identify clears routing until its refresh completes, and a just-added fence can report
-        // its INITIAL_TRIGGER_ENTER before routing arms. Such a registration is unroutable but not an
-        // orphan: drop its callback, and evict only ids the bookkeeping no longer claims.
+        // Routing is unarmed after an identify or a fresh add; such a registration is not an orphan.
+        // Drop its callback, and evict only ids the bookkeeping no longer claims.
         val unarmedTriggerIds = if (unroutableIds.isEmpty()) {
             emptyList()
         } else {
@@ -45,7 +41,7 @@ internal class GeofenceCrossingPipeline(
             val (unarmedIds, orphanIds) = unroutableIds.partition { it in registeredIds }
             orphanIds.forEach { logger.logTransitionDroppedUnknownId(it) }
             if (orphanIds.isNotEmpty()) {
-                // Result ignored — a failed removal self-heals on the next orphan event.
+                // Result ignored: a failed removal self-heals on the next orphan event.
                 registrar.removeGeofencesByIds(orphanIds)
             }
             // The movement trigger has no business meaning and is the only refresh path that runs
@@ -55,10 +51,9 @@ internal class GeofenceCrossingPipeline(
             triggerIds
         }
 
-        // Circles, then the movement trigger, then polygons (stable, so GMS order holds per group).
         // Circles first: the refresh this batch starts can evict one, and `requireRegistered` would
-        // then drop its delivered EXIT. The trigger before polygons: their handlers await GMS and
-        // would spend the dispatch budget before the refresh job exists.
+        // drop its EXIT. Trigger before polygons: their GMS awaits would spend the budget before
+        // the refresh job exists.
         val polygonIds = regionStore.getCachedRegions()
             .filter(GeofenceRegion::isPolygon)
             .mapTo(mutableSetOf(), GeofenceRegion::id)
@@ -128,14 +123,12 @@ internal class GeofenceCrossingPipeline(
         return movementRefreshJob
     }
 
-    /** Only EXIT drives a refresh; the trigger is registered for EXIT alone. */
     private fun handleMovementTrigger(crossing: GeofenceCrossing, userStateGeneration: Long): Job? {
         if (crossing.transition != GeofenceCrossingTransition.EXIT) {
             logger.logMovementTriggerIgnoredNonExit(crossing.transitionName)
             return null
         }
-        // Passed as a lambda: the polygon radius callback awaits GMS, and running it here would
-        // spend the broadcast budget before the refresh job exists.
+        // A lambda: the polygon callback awaits GMS and must not run before the refresh job exists.
         return services.onMovementTriggerExit(
             latitude = crossing.latitude,
             longitude = crossing.longitude,

@@ -6,6 +6,7 @@ import io.customer.commontest.config.testConfigurationDefault
 import io.customer.commontest.core.RobolectricTest
 import io.customer.geofence.api.GeofenceApiService
 import io.customer.geofence.store.GeofenceRegionStoreImpl
+import io.customer.sdk.communication.Event
 import io.customer.sdk.core.util.Clock
 import io.customer.sdk.data.store.SecureUserStore
 import io.mockk.coEvery
@@ -39,6 +40,7 @@ class GeofenceContainmentRealStoreTest : RobolectricTest() {
     private val packageInfo: GeofencePackageInfo = mockk { every { lastUpdateTimeMs() } returns null }
 
     private val fence = GeofenceRegion("biz-1", 0.0, 0.0, 100f)
+    private val dwellFence = fence.copy(dwellThresholdSeconds = 60)
 
     override fun setup(testConfig: TestConfig) {
         super.setup(testConfigurationDefault { argument(ApplicationArgument(applicationMock)) })
@@ -120,6 +122,61 @@ class GeofenceContainmentRealStoreTest : RobolectricTest() {
         repository.refreshFromLiveFix(latitude = 0.0, longitude = 0.0)
 
         store.getEnteredIds() shouldContainSame setOf(fence.id)
+    }
+
+    @Test
+    fun lostExitThenMovementProofThenEnter_expectSecondVisitDwells() = runTest {
+        val processor = lostExitVisit()
+
+        // The device left (EXIT lost) and travelled far enough to trip the movement trigger. That
+        // pass keeps the fence registered, and its fix clears the edge by more than its accuracy.
+        repository.handleMovement(
+            latitude = 0.003,
+            longitude = 0.0,
+            movementTriggerRadius = { null },
+            fixQuality = GeofenceFixQuality(fixElapsedRealtimeMillis = 9_000L, horizontalAccuracyMeters = 30f)
+        )
+        store.getRegistrationIncarnation(dwellFence.id)?.registeredAtElapsedMs shouldBeEqualTo 1_000L
+        store.getRegistrationIncarnation(dwellFence.id)?.outsideProvenAtElapsedMs shouldBeEqualTo 9_000L
+        // The premise: nothing on this path retires the stale containment record.
+        store.getEnteredIds() shouldContainSame setOf(dwellFence.id)
+
+        val coordinator = GeofenceDwellCoordinator(store, processor)
+        coordinator.onEnter(dwellFence.id, enteredAtSeconds = 900L, entryFixElapsedMs = 12_000L)
+        coordinator.onNativeDwell(dwellFence.id, observedAtSeconds = 960L, triggeringFixElapsedMs = 72_000L)
+
+        coVerify(exactly = 2) {
+            processor.process(any(), Event.GeofenceTransition.DWELL, any(), any(), any(), any(), any(), any(), any())
+        }
+        store.getDwellVisit(dwellFence.id)?.entryWasObserved shouldBeEqualTo true
+    }
+
+    @Test
+    fun lostExitThenEnterWithoutOutsideProof_expectSingleDwell() = runTest {
+        val processor = lostExitVisit()
+        val coordinator = GeofenceDwellCoordinator(store, processor)
+
+        coordinator.onEnter(dwellFence.id, enteredAtSeconds = 900L, entryFixElapsedMs = 12_000L)
+        coordinator.onNativeDwell(dwellFence.id, observedAtSeconds = 960L, triggeringFixElapsedMs = 72_000L)
+
+        coVerify(exactly = 1) {
+            processor.process(any(), Event.GeofenceTransition.DWELL, any(), any(), any(), any(), any(), any(), any())
+        }
+    }
+
+    /** A circle visit entered at fix 2 000 and dwelled at 5 000, whose EXIT was then lost. */
+    private suspend fun lostExitVisit(): GeofenceBusinessTransitionProcessor {
+        store.saveCachedRegions(listOf(dwellFence))
+        store.recordRegistrationIncarnations(listOf(dwellFence), registeredAtElapsedMs = 1_000L)
+        store.recordEntered(dwellFence.id)
+        val processor = mockk<GeofenceBusinessTransitionProcessor>()
+        coEvery { processor.process(any(), any(), any(), any(), any(), any(), any(), any(), any()) } returns
+            GeofenceTransitionEmitter.Result.PERSISTED
+        val coordinator = GeofenceDwellCoordinator(store, processor)
+        coordinator.onEnter(dwellFence.id, enteredAtSeconds = 100L, beginsNewVisit = true, entryFixElapsedMs = 2_000L)
+        coordinator.onNativeDwell(dwellFence.id, observedAtSeconds = 160L, triggeringFixElapsedMs = 5_000L)
+        store.getDwellVisit(dwellFence.id)?.emitted shouldBeEqualTo true
+        return processor
     }
 
     private fun sampleConfig() = GeofenceConfig(

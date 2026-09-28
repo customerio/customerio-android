@@ -964,6 +964,185 @@ class GeofenceDwellCoordinatorTest {
         visit?.entryWasObserved shouldBeEqualTo true
     }
 
+    @Test
+    fun repeatedEnterAfterOutsideProofSinceTheVisit_startsANewObservedVisit() = runTest {
+        // EXIT lost, so containment still holds the fence. The registration then proved the device
+        // outside after the visit's entry, and GMS decided this ENTER after that proof.
+        val state = repeatedEnterState(outsideProvenAt = FRESH_FIX_MS + 10_000L)
+        val coordinator = GeofenceDwellCoordinator(store, processor)
+
+        coordinator.onEnter("circle", enteredAtSeconds = 900L, entryFixElapsedMs = FRESH_FIX_MS + 20_000L)
+
+        val restarted = state.visit
+        (restarted?.visitId == "visit-1") shouldBeEqualTo false
+        restarted?.enteredAtSeconds shouldBeEqualTo 900L
+        restarted?.emitted shouldBeEqualTo false
+        restarted?.entryWasObserved shouldBeEqualTo true
+        restarted?.entryFixElapsedMs shouldBeEqualTo FRESH_FIX_MS + 20_000L
+
+        coordinator.onNativeDwell("circle", observedAtSeconds = 960L, triggeringFixElapsedMs = FRESH_FIX_MS + 80_000L)
+
+        val context = slot<GeofenceTransitionEmitter.VisitContext.Dwell>()
+        coVerify(exactly = 1) {
+            processor.process(any(), any(), any(), any(), any(), any(), any(), capture(context), any())
+        }
+        context.captured.visitId shouldBeEqualTo restarted?.visitId
+        context.captured.enteredAt shouldBeEqualTo 900L
+        context.captured.durationSeconds shouldBeEqualTo 60L
+    }
+
+    @Test
+    fun repeatedEnterWithoutOutsideProof_keepsTheEmittedVisit() = runTest {
+        // GMS can re-report ENTER without the device ever leaving, so the ENTER alone splits nothing.
+        val state = repeatedEnterState(outsideProvenAt = null)
+        val coordinator = GeofenceDwellCoordinator(store, processor)
+
+        coordinator.onEnter("circle", enteredAtSeconds = 900L, entryFixElapsedMs = FRESH_FIX_MS + 20_000L)
+        coordinator.onNativeDwell("circle", observedAtSeconds = 960L, triggeringFixElapsedMs = FRESH_FIX_MS + 80_000L)
+
+        state.visit?.visitId shouldBeEqualTo "visit-1"
+        coVerify(exactly = 0) { processor.process(any(), any(), any(), any(), any(), any(), any(), any(), any()) }
+    }
+
+    @Test
+    fun repeatedEnterWhoseFixDoesNotPostdateTheOutsideProof_keepsTheVisit() = runTest {
+        // Duplicate delivery carrying the visit's own entry fix, then ENTERs decided at or before
+        // the proof, which cannot describe an arrival after it.
+        for (entryFix in listOf(FRESH_FIX_MS, FRESH_FIX_MS + 5_000L, FRESH_FIX_MS + 10_000L, null)) {
+            val state = repeatedEnterState(outsideProvenAt = FRESH_FIX_MS + 10_000L)
+
+            GeofenceDwellCoordinator(store, processor)
+                .onEnter("circle", enteredAtSeconds = 900L, entryFixElapsedMs = entryFix)
+
+            state.visit?.visitId shouldBeEqualTo "visit-1"
+        }
+    }
+
+    @Test
+    fun outsideProofNotAfterTheVisitsEntry_doesNotSplitIt() = runTest {
+        // A proof from before this stay began, such as the registration's own outside fix or an
+        // out-of-order EXIT from an earlier stay, says nothing about leaving this one.
+        for (proof in listOf(FRESH_FIX_MS - 1L, FRESH_FIX_MS)) {
+            val state = repeatedEnterState(outsideProvenAt = proof)
+
+            GeofenceDwellCoordinator(store, processor)
+                .onEnter("circle", enteredAtSeconds = 900L, entryFixElapsedMs = FRESH_FIX_MS + 20_000L)
+
+            state.visit?.visitId shouldBeEqualTo "visit-1"
+        }
+    }
+
+    @Test
+    fun visitWithoutAnInsideFix_isNotSplitByOutsideProof() = runTest {
+        // Started by an ENTER with no triggering fix: nothing orders the proof after the stay began.
+        val state = repeatedEnterState(outsideProvenAt = FRESH_FIX_MS + 10_000L, visitEntryFix = null)
+
+        GeofenceDwellCoordinator(store, processor)
+            .onEnter("circle", enteredAtSeconds = 900L, entryFixElapsedMs = FRESH_FIX_MS + 20_000L)
+
+        state.visit?.visitId shouldBeEqualTo "visit-1"
+    }
+
+    @Test
+    fun outsideProofOlderThanALaterAttributedDwell_doesNotSplit() = runTest {
+        // A noisy fix proved the device outside, but GMS then reported DWELL for this visit from a
+        // later fix, so the device was still inside after it.
+        val state = repeatedEnterState(outsideProvenAt = FRESH_FIX_MS + 10_000L)
+        val coordinator = GeofenceDwellCoordinator(store, processor)
+
+        coordinator.onNativeDwell("circle", observedAtSeconds = 400L, triggeringFixElapsedMs = FRESH_FIX_MS + 15_000L)
+        state.visit?.lastInsideFixElapsedMs shouldBeEqualTo FRESH_FIX_MS + 15_000L
+        coordinator.onEnter("circle", enteredAtSeconds = 900L, entryFixElapsedMs = FRESH_FIX_MS + 20_000L)
+
+        state.visit?.visitId shouldBeEqualTo "visit-1"
+    }
+
+    @Test
+    fun outsideProofAfterTheLastAttributedDwell_stillSplits() = runTest {
+        val state = repeatedEnterState(outsideProvenAt = FRESH_FIX_MS + 20_000L)
+        val coordinator = GeofenceDwellCoordinator(store, processor)
+
+        coordinator.onNativeDwell("circle", observedAtSeconds = 400L, triggeringFixElapsedMs = FRESH_FIX_MS + 15_000L)
+        coordinator.onEnter("circle", enteredAtSeconds = 900L, entryFixElapsedMs = FRESH_FIX_MS + 30_000L)
+
+        (state.visit?.visitId == "visit-1") shouldBeEqualTo false
+    }
+
+    @Test
+    fun enterDecidedBeforeTheDwellThatRecoveredTheVisit_keepsIt() = runTest {
+        // ENTER lost in process death, DWELL recovered and emitted the visit, then the ENTER's
+        // broadcast arrived late. DWELL commits no containment, so this ENTER reports a new visit.
+        val region = circle()
+        var visit: GeofenceDwellVisit? = null
+        every { store.getCachedRegion("circle") } returns region
+        every { store.getRegistrationIncarnation("circle") } returns liveRegistration(region)
+        every { store.userStateGeneration() } returns 7L
+        every { store.getDwellVisit("circle") } answers { visit }
+        every { store.saveDwellVisit(any()) } answers {
+            visit = firstArg()
+            true
+        }
+        coEvery { processor.process(any(), any(), any(), any(), any(), any(), any(), any(), any()) } returns
+            GeofenceTransitionEmitter.Result.PERSISTED
+        val coordinator = GeofenceDwellCoordinator(store, processor)
+        coordinator.onNativeDwell("circle", observedAtSeconds = 1_000L, triggeringFixElapsedMs = FRESH_FIX_MS)
+        val recovered = visit
+
+        coordinator.onEnter("circle", enteredAtSeconds = 1_005L, beginsNewVisit = true, entryFixElapsedMs = FRESH_FIX_MS - 5_000L)
+
+        visit shouldBeEqualTo recovered
+        visit?.emitted shouldBeEqualTo true
+
+        // A later ENTER still restarts it, as containment never held the fence.
+        coordinator.onEnter("circle", enteredAtSeconds = 2_000L, beginsNewVisit = true, entryFixElapsedMs = FRESH_FIX_MS + 1L)
+        (visit?.visitId == recovered?.visitId) shouldBeEqualTo false
+    }
+
+    @Test
+    fun legacyVisitWithoutLastInsideFix_decodesWithNone() {
+        val legacy = """{"geofenceId":"circle","visitId":"v","enteredAtSeconds":1,"regionRevision":2,""" +
+            """"userStateGeneration":3,"emitted":true,"registrationElapsedMs":4,"entryFixElapsedMs":5}"""
+
+        val decoded = GeofenceJsonSerializer().decode(GeofenceDwellVisit.serializer(), legacy)
+
+        decoded.entryFixElapsedMs shouldBeEqualTo 5L
+        decoded.lastInsideFixElapsedMs.shouldBeNull()
+    }
+
+    private class RepeatedEnterState(var visit: GeofenceDwellVisit?)
+
+    /** An emitted visit whose EXIT was lost, entered at [visitEntryFix] under the live registration. */
+    private fun repeatedEnterState(
+        outsideProvenAt: Long?,
+        visitEntryFix: Long? = FRESH_FIX_MS
+    ): RepeatedEnterState {
+        val region = circle()
+        val state = RepeatedEnterState(
+            GeofenceDwellVisit(
+                geofenceId = "circle",
+                visitId = "visit-1",
+                enteredAtSeconds = 100L,
+                regionRevision = region.transitionRevision(),
+                userStateGeneration = 7L,
+                emitted = true,
+                registrationElapsedMs = REGISTERED_AT_MS,
+                entryFixElapsedMs = visitEntryFix
+            )
+        )
+        every { store.getCachedRegion("circle") } returns region
+        every { store.getRegistrationIncarnation("circle") } returns
+            liveRegistration(region).copy(outsideProvenAtElapsedMs = outsideProvenAt)
+        every { store.userStateGeneration() } returns 7L
+        every { store.getDwellVisit("circle") } answers { state.visit }
+        every { store.saveDwellVisit(any()) } answers {
+            state.visit = firstArg()
+            true
+        }
+        coEvery { processor.process(any(), any(), any(), any(), any(), any(), any(), any(), any()) } returns
+            GeofenceTransitionEmitter.Result.PERSISTED
+        return state
+    }
+
     private suspend fun assertEntryObserved(outsideProvenAt: Long, entryFix: Long?, expected: Boolean) {
         val region = circle()
         var visit: GeofenceDwellVisit? = null

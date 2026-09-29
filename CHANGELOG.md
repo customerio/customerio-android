@@ -1,3 +1,9 @@
+## [4.23.2](https://github.com/customerio/customerio-android/compare/4.23.1...4.23.2) (2026-09-29)
+
+### Bug Fixes
+
+* **messagingpush:** bound decoding and skip images over 5 MiB ([#917](https://github.com/customerio/customerio-android/issues/917)) ([17ca963](https://github.com/customerio/customerio-android/commit/17ca963a0cc3cfae9c5422297bb8de57e10c3bd5))
+
 ## [4.23.1](https://github.com/customerio/customerio-android/compare/4.23.0...4.23.1) (2026-09-29)
 
 ### Bug Fixes

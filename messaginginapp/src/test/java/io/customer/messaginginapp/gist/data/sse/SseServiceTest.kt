@@ -8,12 +8,16 @@ import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkObject
 import io.mockk.unmockkObject
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.async
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
+import okhttp3.mockwebserver.SocketPolicy
 import org.amshove.kluent.shouldBe
 import org.amshove.kluent.shouldBeEqualTo
 import org.amshove.kluent.shouldBeInstanceOf
@@ -23,6 +27,56 @@ import org.robolectric.RobolectricTestRunner
 
 @RunWith(RobolectricTestRunner::class)
 class SseServiceTest : IntegrationTest() {
+    @Test
+    fun testConnectSse_whenCallIsCancelledWhileCollected_thenFlowCompletes() {
+        runBlocking {
+            val server = MockWebServer()
+            server.enqueue(
+                MockResponse()
+                    .setResponseCode(200)
+                    .setHeader("Content-Type", "text/event-stream")
+                    .setBody("event: connected\ndata: {}\n\n")
+                    .setSocketPolicy(SocketPolicy.KEEP_OPEN)
+            )
+            server.start()
+            mockkObject(GistEnvironment.PROD)
+
+            try {
+                every { GistEnvironment.PROD.getSseApiUrl() } returns
+                    server.url("/api/v3/sse").toString()
+                val state =
+                    InAppMessagingState(
+                        siteId = "test-site",
+                        dataCenter = "us",
+                        environment = GistEnvironment.PROD,
+                        userId = "test-user",
+                        sessionId = "test-session"
+                    )
+                val service =
+                    SseService(
+                        sseLogger = mockk(relaxed = true),
+                        inAppMessagingManager = mockk {
+                            every { getCurrentState() } returns state
+                        }
+                    )
+                val opened = CompletableDeferred<Unit>()
+                val collecting =
+                    async {
+                        service.connectSse(state.sessionId, state.userId.orEmpty(), state.siteId)
+                            .onEach { if (it == ConnectionOpenEvent) opened.complete(Unit) }
+                            .toList()
+                    }
+
+                withTimeout(5_000) { opened.await() }
+                service.disconnect()
+                withTimeout(5_000) { collecting.await() }
+            } finally {
+                unmockkObject(GistEnvironment.PROD)
+                server.shutdown()
+            }
+        }
+    }
+
     @Test
     fun testConnectSse_whenServerReturnsEventStream_thenEmitsOpenAndServerEvent() {
         runBlocking {

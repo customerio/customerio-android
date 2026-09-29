@@ -99,12 +99,14 @@ internal class SseService(
                                     if (!closedResult.isSuccess) {
                                         sseLogger.logFailedToSendConnectionClosedEvent()
                                     }
-                                    close()
                                 }
+                                close()
                             }
                         } catch (e: Exception) {
                             if (!call.isCanceled()) {
                                 sendFailure(e, response)
+                            } else {
+                                close()
                             }
                         }
                     }

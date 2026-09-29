@@ -73,9 +73,13 @@ def okhttpCompatibilityVersion = providers.gradleProperty("okhttpCompatibilityVe
 if (okhttpCompatibilityVersion != null) {
     def okhttpCompatibilityArtifact =
             providers.gradleProperty("okhttpCompatibilityArtifact").getOrElse("okhttp")
-    configurations.configureEach {
-        resolutionStrategy.eachDependency { details ->
-            if (details.requested.group == "com.squareup.okhttp3") {
+    configurations.configureEach { configuration ->
+        // Changing debugRuntimeClasspath also changes debugCompileClasspath through AGP's
+        // consistent resolution. Only swap the test runtime so the SDK still compiles against 4.12.
+        if (configuration.name == "debugUnitTestRuntimeClasspath") {
+            configuration.resolutionStrategy.eachDependency { details ->
+                if (details.requested.group != "com.squareup.okhttp3" ||
+                        !(details.requested.name in ["okhttp", "mockwebserver"])) return
                 if (details.requested.name == "okhttp" && okhttpCompatibilityArtifact != "okhttp") {
                     details.useTarget(
                             "com.squareup.okhttp3:${okhttpCompatibilityArtifact}:${okhttpCompatibilityVersion}"

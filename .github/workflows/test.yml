@@ -36,6 +36,13 @@ jobs:
           -PokhttpCompatibilityArtifact=${{ matrix.okhttp-artifact }}
           --tests 'io.customer.messaginginapp.gist.data.sse.SseEventReaderTest'
           --tests 'io.customer.messaginginapp.gist.data.sse.SseServiceTest'
+      - name: Publish SSE compatibility test results
+        if: ${{ always() }}
+        uses: mikepenz/action-junit-report@cf701569b05ccdd861a76b8607a66d76f6fd4857 # v5.5.1
+        with:
+          report_paths: 'messaginginapp/build/test-results/testDebugUnitTest/TEST-*.xml'
+          fail_on_failure: true
+          require_tests: true
 
   unit-test:
     runs-on: ubuntu-latest

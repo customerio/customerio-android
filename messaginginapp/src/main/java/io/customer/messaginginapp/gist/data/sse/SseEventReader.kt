@@ -14,15 +14,18 @@ internal class SseEventReader(
     private val source: BufferedSource,
     private val onEvent: (type: String?, data: String) -> Unit
 ) {
+    private var skipLeadingLf = false
+
     fun process() {
         var eventType: String? = null
         val data = StringBuilder()
         var isFirstLine = true
+        var hasPendingField = false
 
         while (true) {
             var line = readLine()
             if (line == null) {
-                if (data.isNotEmpty()) {
+                if (hasPendingField) {
                     throw EOFException("SSE stream ended before the event delimiter")
                 }
                 return
@@ -36,10 +39,13 @@ internal class SseEventReader(
                 dispatchEvent(eventType, data)
                 eventType = null
                 data.clear()
+                hasPendingField = false
                 continue
             }
 
             if (line.startsWith(COMMENT_PREFIX)) continue
+
+            hasPendingField = true
 
             val separator = line.indexOf(FIELD_SEPARATOR)
             val field = if (separator == -1) line else line.substring(0, separator)
@@ -60,6 +66,11 @@ internal class SseEventReader(
      * terminators. indexOfElement blocks until it finds either delimiter or reaches EOF.
      */
     private fun readLine(): String? {
+        if (skipLeadingLf) {
+            if (source.request(1) && source.buffer[0] == LINE_FEED) source.skip(1)
+            skipLeadingLf = false
+        }
+
         val newlineIndex = source.indexOfElement(NEWLINE_BYTES)
         if (newlineIndex == -1L) {
             return if (source.buffer.size == 0L) null else source.readUtf8()
@@ -67,9 +78,9 @@ internal class SseEventReader(
 
         val line = source.readUtf8(newlineIndex)
         val delimiter = source.readByte()
-        if (delimiter == CARRIAGE_RETURN && source.request(1) && source.buffer[0] == LINE_FEED) {
-            source.skip(1)
-        }
+        // Return a CR-terminated line immediately. Looking ahead for LF here would block a
+        // live CR-only stream until the server writes another byte.
+        skipLeadingLf = delimiter == CARRIAGE_RETURN
         return line
     }
 

@@ -27,6 +27,7 @@ import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import okhttp3.Headers
 import okhttp3.Headers.Companion.toHeaders
@@ -182,10 +183,11 @@ class QueueInboxTriggerTest : IntegrationTest() {
         val method = Queue::class.java.getDeclaredMethod(
             "handleSuccessfulFetch",
             QueueMessagesResponse::class.java,
-            Boolean::class.javaPrimitiveType
+            Boolean::class.javaPrimitiveType,
+            Long::class.javaPrimitiveType
         )
         method.isAccessible = true
-        method.invoke(queue, response, false)
+        method.invoke(queue, response, false, 0L)
         flushCoroutines(scopeProviderStub.inAppLifecycleScope)
 
         // The poll published the mapped inbox messages into the headless store; the visual
@@ -206,6 +208,77 @@ class QueueInboxTriggerTest : IntegrationTest() {
 
         assert(manager.getCurrentState().queuedInlineMessagesState.getMessage(elementId) == null) {
             "expected an authoritative no-content response to clear an unhosted inline message"
+        }
+    }
+
+    @Test
+    fun fetchUserMessages_whenSseSnapshotArrivesBeforeOlderHttpResponse_expectNewerInlineMessageRetained() {
+        val response = CompletableDeferred<Response<QueueMessagesResponse>>()
+        coEvery { mockQueueService.fetchMessagesForUser(any(), any()) } coAnswers { response.await() }
+        queue.fetchUserMessages()
+
+        val newMessage = createMessage(elementId = "new-promotion")
+        manager.dispatch(
+            InAppMessagingAction.ProcessMessageQueue(
+                messages = listOf(newMessage),
+                isSseSnapshot = true
+            )
+        )
+        response.complete(Response.success(QueueMessagesResponse()))
+        flushCoroutines(scopeProviderStub.inAppLifecycleScope)
+
+        assert(manager.getCurrentState().queuedInlineMessagesState.getMessage("new-promotion") is InlineMessageState.ReadyToEmbed) {
+            "expected the SSE message to survive an older HTTP queue snapshot"
+        }
+        assert(manager.getCurrentState().messagesInQueue.any { it.queueId == newMessage.queueId }) {
+            "expected the newer SSE queue to survive the older HTTP response"
+        }
+    }
+
+    @Test
+    fun fetchUserMessages_whenSseSnapshotArrivesBeforeOlderNoContent_expectNewerInlineMessageRetained() {
+        val response = CompletableDeferred<Response<QueueMessagesResponse>>()
+        coEvery { mockQueueService.fetchMessagesForUser(any(), any()) } coAnswers { response.await() }
+        queue.fetchUserMessages()
+
+        val newMessage = createMessage(elementId = "new-promotion")
+        manager.dispatch(
+            InAppMessagingAction.ProcessMessageQueue(
+                messages = listOf(newMessage),
+                isSseSnapshot = true
+            )
+        )
+        response.complete(Response.success<QueueMessagesResponse>(204, null))
+        flushCoroutines(scopeProviderStub.inAppLifecycleScope)
+
+        assert(manager.getCurrentState().queuedInlineMessagesState.getMessage("new-promotion") is InlineMessageState.ReadyToEmbed) {
+            "expected the SSE message to survive an older HTTP no-content response"
+        }
+    }
+
+    @Test
+    fun fetchUserMessages_whenSseSnapshotArrivesBeforeOlderNotModified_expectNewerQueueRetained() {
+        val response = CompletableDeferred<Response<QueueMessagesResponse>>()
+        coEvery { mockQueueService.fetchMessagesForUser(any(), any()) } coAnswers { response.await() }
+        queue.fetchUserMessages()
+
+        val newMessage = createMessage(elementId = "new-promotion")
+        manager.dispatch(
+            InAppMessagingAction.ProcessMessageQueue(
+                messages = listOf(newMessage),
+                isSseSnapshot = true
+            )
+        )
+        response.complete(
+            mockk(relaxed = true) {
+                every { code() } returns 304
+                every { headers() } returns Headers.headersOf()
+            }
+        )
+        flushCoroutines(scopeProviderStub.inAppLifecycleScope)
+
+        assert(manager.getCurrentState().messagesInQueue.any { it.queueId == newMessage.queueId }) {
+            "expected an older uncached 304 not to clear a newer SSE queue snapshot"
         }
     }
 

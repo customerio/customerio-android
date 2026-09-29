@@ -19,6 +19,8 @@ internal data class InAppMessagingState(
     val modalMessageState: ModalMessageState = ModalMessageState.Initial,
     val queuedInlineMessagesState: QueuedInlineMessagesState = QueuedInlineMessagesState(),
     val messagesInQueue: Set<Message> = emptySet(),
+    // Distinguishes a live SSE queue snapshot from an older HTTP fetch still in flight.
+    val sseMessageRevision: Long = 0,
     val inboxMessages: Set<InboxMessage> = emptySet(),
     // Client-side tombstones: queueIds of inbox messages the user dismissed locally. A subsequent
     // poll's /queue response can still echo a just-deleted message (eventual consistency / cached
@@ -64,6 +66,7 @@ internal data class InAppMessagingState(
         append("modalMessageState=$modalMessageState,\n")
         append("embeddedMessagesState=$queuedInlineMessagesState,\n")
         append("messagesInQueue=${messagesInQueue.map(Message::queueId)},\n")
+        append("sseMessageRevision=$sseMessageRevision,\n")
         append("inboxMessages=${inboxMessages.map(InboxMessage::deliveryId)},\n")
         append("deletedInboxMessageIds=$deletedInboxMessageIds,\n")
         append("shownMessageQueueIds=$shownMessageQueueIds,\n")
@@ -85,6 +88,7 @@ internal data class InAppMessagingState(
             if (modalMessageState != other.modalMessageState) put("modalMessageState", modalMessageState to other.modalMessageState)
             if (queuedInlineMessagesState != other.queuedInlineMessagesState) put("embeddedMessagesState", queuedInlineMessagesState to other.queuedInlineMessagesState)
             if (messagesInQueue != other.messagesInQueue) put("messagesInQueue", messagesInQueue to other.messagesInQueue)
+            if (sseMessageRevision != other.sseMessageRevision) put("sseMessageRevision", sseMessageRevision to other.sseMessageRevision)
             if (inboxMessages != other.inboxMessages) put("inboxMessages", inboxMessages to other.inboxMessages)
             if (deletedInboxMessageIds != other.deletedInboxMessageIds) put("deletedInboxMessageIds", deletedInboxMessageIds to other.deletedInboxMessageIds)
             if (shownMessageQueueIds != other.shownMessageQueueIds) put("shownMessageQueueIds", shownMessageQueueIds to other.shownMessageQueueIds)

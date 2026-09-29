@@ -290,7 +290,8 @@ class SseConnectionManagerTest : JUnitTest() {
         verify { sseDataParser.parseInAppMessages(messagesJson) }
         verify { inAppMessagingManager.dispatch(capture(actionSlot)) }
         actionSlot.captured.messages.shouldBeEqualTo(mockMessages)
-        actionSlot.captured.shouldReconcileInlineMessages.shouldBeEqualTo(false)
+        actionSlot.captured.shouldReconcileInlineMessages.shouldBeEqualTo(true)
+        actionSlot.captured.isSseSnapshot.shouldBeEqualTo(true)
     }
 
     @Test

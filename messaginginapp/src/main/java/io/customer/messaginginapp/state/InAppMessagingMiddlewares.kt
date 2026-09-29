@@ -183,6 +183,10 @@ internal fun routeChangeMiddleware() = middleware<InAppMessagingState> { store, 
  */
 internal fun processMessages() = middleware<InAppMessagingState> { store, next, action ->
     if (action is InAppMessagingAction.ProcessMessageQueue) {
+        // A live SSE snapshot wins over an HTTP response requested before it arrived.
+        if (action.expectedSseRevision != null && action.expectedSseRevision != store.state.sseMessageRevision) {
+            return@middleware store.state
+        }
         val notShownMessages = action.messages
             .filter { message ->
                 // filter out the messages that are already shown
@@ -199,7 +203,12 @@ internal fun processMessages() = middleware<InAppMessagingState> { store, next, 
 
         // update the state with the messages in the queue that are not shown
         // because in the next steps we will check if there is a message to be shown and display them
-        next(InAppMessagingAction.ProcessMessageQueue(notShownMessages))
+        next(
+            InAppMessagingAction.ProcessMessageQueue(
+                messages = notShownMessages,
+                isSseSnapshot = action.isSseSnapshot
+            )
+        )
 
         // Reconcile all route-eligible inline messages before notifying views. This both adds newly
         // available elements and removes stale ready states from earlier queue snapshots.

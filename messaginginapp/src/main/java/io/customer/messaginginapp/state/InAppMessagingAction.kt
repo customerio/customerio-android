@@ -25,7 +25,9 @@ internal sealed class InAppMessagingAction {
     data class SetAnonymousIdentifier(val anonymousId: String) : InAppMessagingAction()
     data class ProcessMessageQueue(
         val messages: List<Message>,
-        val shouldReconcileInlineMessages: Boolean = true
+        val shouldReconcileInlineMessages: Boolean = true,
+        val isSseSnapshot: Boolean = false,
+        val expectedSseRevision: Long? = null
     ) : InAppMessagingAction()
     data class ProcessInboxMessages(val messages: List<InboxMessage>) : InAppMessagingAction()
     data class DisplayMessage(val message: Message) : InAppMessagingAction()
@@ -46,7 +48,10 @@ internal sealed class InAppMessagingAction {
         data class TrackClicked(override val message: InboxMessage, val actionName: String?, val actionValue: String? = null) : InboxAction(message)
     }
 
-    data class ClearMessageQueue(val isContentEmpty: Boolean) : InAppMessagingAction()
+    data class ClearMessageQueue(
+        val isContentEmpty: Boolean,
+        val expectedSseRevision: Long? = null
+    ) : InAppMessagingAction()
     object Reset : InAppMessagingAction()
 }
 

@@ -28,7 +28,11 @@ internal val inAppMessagingReducer: Reducer<InAppMessagingState> = { state, acti
             state.copy(anonymousId = action.anonymousId)
 
         is InAppMessagingAction.ClearMessageQueue ->
-            if (action.isContentEmpty) {
+            if (action.expectedSseRevision != null && action.expectedSseRevision != state.sseMessageRevision) {
+                // The in-app HTTP response is older than an SSE snapshot. A 204 can still clear
+                // the independent inbox state; a 304 has no authoritative content to apply.
+                if (action.isContentEmpty) state.copy(inboxMessages = emptySet()) else state
+            } else if (action.isContentEmpty) {
                 // A no-content (HTTP 204) response is authoritative for messages that have not
                 // been displayed. Keep an actively embedded message until dismissal or view
                 // release, shown queue IDs so stale data cannot redisplay it, and inbox deletion
@@ -52,7 +56,10 @@ internal val inAppMessagingReducer: Reducer<InAppMessagingState> = { state, acti
             }
 
         is InAppMessagingAction.ProcessMessageQueue ->
-            state.copy(messagesInQueue = action.messages.toSet())
+            state.copy(
+                messagesInQueue = action.messages.toSet(),
+                sseMessageRevision = state.sseMessageRevision + if (action.isSseSnapshot) 1 else 0
+            )
 
         is InAppMessagingAction.ProcessInboxMessages -> {
             // Drop any server-echoed message the user already dismissed locally (eventual
@@ -132,6 +139,7 @@ internal val inAppMessagingReducer: Reducer<InAppMessagingState> = { state, acti
             modalMessageState = ModalMessageState.Initial,
             queuedInlineMessagesState = QueuedInlineMessagesState(),
             messagesInQueue = emptySet(),
+            sseMessageRevision = state.sseMessageRevision + 1,
             inboxMessages = emptySet(),
             deletedInboxMessageIds = emptySet(),
             shownMessageQueueIds = emptySet(),

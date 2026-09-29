@@ -347,7 +347,7 @@ class InAppMessagingStoreTest : IntegrationTest() {
     }
 
     @Test
-    fun givenReadyInlineMessage_whenIncrementalMessageArrives_thenBothRemainAvailable() = runTest {
+    fun givenReadyInlineMessage_whenNewSseSnapshotArrives_thenWithdrawnMessageBecomesUnavailable() = runTest {
         initializeAndSetUser()
         val firstElementId = "first-promotion"
         val firstMessage = createInAppMessage(
@@ -364,12 +364,13 @@ class InAppMessagingStoreTest : IntegrationTest() {
         manager.dispatch(
             InAppMessagingAction.ProcessMessageQueue(
                 messages = listOf(secondMessage),
-                shouldReconcileInlineMessages = false
+                isSseSnapshot = true
             )
         )
 
-        module.observeInlineMessageAvailability(firstElementId).first() shouldBe true
+        module.observeInlineMessageAvailability(firstElementId).first() shouldBe false
         module.observeInlineMessageAvailability(secondElementId).first() shouldBe true
+        manager.getCurrentState().messagesInQueue.map(Message::queueId) shouldBeEqualTo listOf(secondMessage.queueId)
     }
 
     @Test

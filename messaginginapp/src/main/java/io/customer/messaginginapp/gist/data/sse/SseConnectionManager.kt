@@ -243,10 +243,12 @@ internal class SseConnectionManager(
                     val messages = sseDataParser.parseInAppMessages(event.data)
                     if (messages.isNotEmpty()) {
                         sseLogger.logReceivedMessages(messages.size, "in-app")
+                        // Gist realtime sends the current non-empty queue, not just the changed
+                        // message. Reconcile availability against the complete snapshot.
                         inAppMessagingManager.dispatch(
                             InAppMessagingAction.ProcessMessageQueue(
                                 messages = messages,
-                                shouldReconcileInlineMessages = false
+                                isSseSnapshot = true
                             )
                         )
                     } else {

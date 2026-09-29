@@ -162,15 +162,17 @@ internal class Queue(
         scope.launch {
             try {
                 logger.debug("Fetching user messages")
+                val sseRevisionAtFetchStart = state.sseMessageRevision
                 val latestMessagesResponse = gistQueueService.fetchMessagesForUser(sessionId = state.sessionId)
 
                 val code = latestMessagesResponse.code()
                 val fromCache = latestMessagesResponse.headers()[HEADER_FROM_CACHE] == "true"
                 when {
-                    (code == 204 || code == 304) -> handleNoContent(code)
+                    (code == 204 || code == 304) -> handleNoContent(code, sseRevisionAtFetchStart)
                     latestMessagesResponse.isSuccessful -> handleSuccessfulFetch(
                         responseBody = latestMessagesResponse.body(),
-                        fromCache = fromCache
+                        fromCache = fromCache,
+                        expectedSseRevision = sseRevisionAtFetchStart
                     )
 
                     else -> handleFailedFetch(code)
@@ -185,20 +187,27 @@ internal class Queue(
         }
     }
 
-    private fun handleNoContent(responseCode: Int) {
+    private fun handleNoContent(responseCode: Int, expectedSseRevision: Long) {
         if (responseCode == 204) {
             logger.debug("No messages found for user with response code: $responseCode")
         } else {
             logger.debug("Queue not modified without a cached response; retaining last-known inline and inbox messages")
         }
         inAppMessagingManager.dispatch(
-            InAppMessagingAction.ClearMessageQueue(isContentEmpty = responseCode == 204)
+            InAppMessagingAction.ClearMessageQueue(
+                isContentEmpty = responseCode == 204,
+                expectedSseRevision = expectedSseRevision
+            )
         )
     }
 
     // For cached responses (304), apply locally cached opened status to preserve user's changes.
     // For fresh responses (200), clear cached status and use server's data.
-    private fun handleSuccessfulFetch(responseBody: QueueMessagesResponse?, fromCache: Boolean) {
+    private fun handleSuccessfulFetch(
+        responseBody: QueueMessagesResponse?,
+        fromCache: Boolean,
+        expectedSseRevision: Long
+    ) {
         if (responseBody == null) {
             logger.error("Received null response body for successful fetch")
             return
@@ -223,7 +232,12 @@ internal class Queue(
             logger.debug("Processing ${regularMessages.size} regular messages and ${eligibleAnonymousMessages.size} eligible anonymous messages")
 
             // Process all in-app messages through the normal queue
-            inAppMessagingManager.dispatch(InAppMessagingAction.ProcessMessageQueue(allMessages))
+            inAppMessagingManager.dispatch(
+                InAppMessagingAction.ProcessMessageQueue(
+                    messages = allMessages,
+                    expectedSseRevision = expectedSseRevision
+                )
+            )
 
             // Process inbox messages next
             val inboxMessages = response.inboxMessages

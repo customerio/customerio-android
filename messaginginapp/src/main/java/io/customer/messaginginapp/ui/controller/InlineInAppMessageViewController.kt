@@ -180,7 +180,11 @@ internal constructor(
         val viewElementId = elementId ?: return
         val inlineMessageState = state.queuedInlineMessagesState.getMessage(viewElementId)
         if (inlineMessageState == null) {
-            currentMessage?.let { message -> dismissMessage(message) {} }
+            currentMessage?.let { message ->
+                dismissMessage(message) {
+                    refreshViewState(inAppMessagingManager.getCurrentState())
+                }
+            }
             return
         }
         if (!inlineMessageState.message.matchesRoute(state.currentRoute)) {

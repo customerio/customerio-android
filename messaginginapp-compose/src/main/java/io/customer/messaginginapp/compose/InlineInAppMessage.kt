@@ -96,8 +96,8 @@ fun InlineInAppMessage(
         }
     }
 
-    // Lazy items can leave composition permanently without their Activity being destroyed.
-    // Release the WebView then; temporary View detach/reattach keeps it for scroll reuse.
+    // A View can detach and reattach while still in composition, so it keeps its renderer then.
+    // A lazy item leaving composition releases it; scrolling back creates a new renderer.
     DisposableEffect(view) {
         onDispose { view.releaseForComposition() }
     }

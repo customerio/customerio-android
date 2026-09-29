@@ -352,6 +352,40 @@ class InlineMessageViewControllerBehaviorTest : JUnitTest() {
     }
 
     @Test
+    fun handleMessageState_givenMessageReturnsDuringNullStateDismissal_expectMessageRestored() {
+        val controller = setupGistAndCreateViewController()
+        controller.initMockViewCallback()
+        val elementId = "test-element-id"
+        val message = createInAppMessage(queueId = "1", elementId = elementId)
+        controller.elementId = elementId
+        messagingManager.dispatch(InAppMessagingAction.EmbedMessages(listOf(message)))
+            .flushCoroutines(scopeProviderStub.inAppLifecycleScope)
+        controller.routeLoaded(String.random)
+        flushCoroutines(scopeProviderStub.inAppLifecycleScope)
+
+        var onDismissFinished: (() -> Unit)? = null
+        every {
+            platformDelegate.animateViewSize(
+                widthInDp = any(),
+                heightInDp = 0.0,
+                duration = any(),
+                onStart = any(),
+                onEnd = any()
+            )
+        } answers { onDismissFinished = arg(4) }
+
+        messagingManager.dispatch(InAppMessagingAction.Reset)
+            .flushCoroutines(scopeProviderStub.inAppLifecycleScope)
+        messagingManager.dispatch(InAppMessagingAction.EmbedMessages(listOf(message)))
+            .flushCoroutines(scopeProviderStub.inAppLifecycleScope)
+        requireNotNull(onDismissFinished).invoke()
+
+        verify(exactly = 2) { viewDelegate.createEngineWebViewInstance() }
+        controller.currentMessage shouldBeEqualTo message
+        controller.engineWebViewDelegate.shouldNotBeNull()
+    }
+
+    @Test
     fun handleMessageState_givenElementIdChanged_expectPreviousDismissedAndNewMessageShown() {
         val controller = setupGistAndCreateViewController()
         val viewCallback = controller.initMockViewCallback()

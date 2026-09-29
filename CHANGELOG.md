@@ -1,3 +1,9 @@
+## [4.23.1](https://github.com/customerio/customerio-android/compare/4.23.0...4.23.1) (2026-09-29)
+
+### Bug Fixes
+
+* **messaginginapp:** support OkHttp 5 SSE ([34fbcc6](https://github.com/customerio/customerio-android/commit/34fbcc609c22b0309030c92f15c5b65b69756d12))
+
 ## [4.23.0](https://github.com/customerio/customerio-android/compare/4.22.0...4.23.0) (2026-09-29)
 
 ### Features

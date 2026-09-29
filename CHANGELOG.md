@@ -1,3 +1,9 @@
+## [4.23.0](https://github.com/customerio/customerio-android/compare/4.22.0...4.23.0) (2026-09-29)
+
+### Features
+
+* **messaginginapp:** expose inline message availability (MBL-1707) ([e6c860b](https://github.com/customerio/customerio-android/commit/e6c860bffc67bd67efcdfe2ffe748e6683abe7b8))
+
 ## [4.22.0](https://github.com/customerio/customerio-android/compare/4.21.1...4.22.0) (2026-09-25)
 
 ### Features

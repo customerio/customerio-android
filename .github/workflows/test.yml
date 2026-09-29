@@ -11,6 +11,39 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  okhttp-compatibility-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      matrix:
+        include:
+          - okhttp-version: 5.4.0
+            okhttp-artifact: okhttp
+            platform: Android
+          # OkHttp 5.5's Android artifact requires compileSdk 37. Use the shared JVM runtime API
+          # here until this SDK's AGP version supports 37; host apps still provide the Android shell.
+          - okhttp-version: 5.5.0
+            okhttp-artifact: okhttp-jvm
+            platform: JVM core
+    name: OkHttp ${{ matrix.okhttp-version }} ${{ matrix.platform }} SSE compatibility
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-android
+      - name: Run SSE compatibility tests
+        run: >-
+          ./gradlew :messaginginapp:testDebugUnitTest
+          -PokhttpCompatibilityVersion=${{ matrix.okhttp-version }}
+          -PokhttpCompatibilityArtifact=${{ matrix.okhttp-artifact }}
+          --tests 'io.customer.messaginginapp.gist.data.sse.SseEventReaderTest'
+          --tests 'io.customer.messaginginapp.gist.data.sse.SseServiceTest'
+      - name: Publish SSE compatibility test results
+        if: ${{ always() }}
+        uses: mikepenz/action-junit-report@cf701569b05ccdd861a76b8607a66d76f6fd4857 # v5.5.1
+        with:
+          report_paths: 'messaginginapp/build/test-results/testDebugUnitTest/TEST-*.xml'
+          fail_on_failure: true
+          require_tests: true
+
   unit-test:
     runs-on: ubuntu-latest
     timeout-minutes: 20

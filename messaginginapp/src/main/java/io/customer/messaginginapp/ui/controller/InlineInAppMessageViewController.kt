@@ -96,6 +96,17 @@ internal constructor(
     @UiThread
     internal fun onViewOwnerCreated() {
         isViewActive = true
+        currentMessage?.takeIf { message ->
+            val inlineState = elementId?.let {
+                inAppMessagingManager.getCurrentState().queuedInlineMessagesState.getMessage(it)
+            }
+            message.queueId != null && inlineState is InlineMessageState.Embedded &&
+                inlineState.message.queueId == message.queueId
+        }?.let { message ->
+            inAppMessagingManager.dispatch(
+                InAppMessagingAction.SetInlineMessageViewAttached(message = message, isAttached = true)
+            )
+        }
         unsubscribeFromStore()
         subscribeToStore()
     }
@@ -144,6 +155,18 @@ internal constructor(
         }
     }
 
+    /** Stops observing while a lifecycle-owned view is temporarily off screen, without reloading it. */
+    @UiThread
+    internal fun onViewTemporarilyDetached() {
+        isViewActive = false
+        unsubscribeFromStore()
+        currentMessage?.takeIf { it.queueId != null }?.let { message ->
+            inAppMessagingManager.dispatch(
+                InAppMessagingAction.SetInlineMessageViewAttached(message = message, isAttached = false)
+            )
+        }
+    }
+
     @UiThread
     private fun refreshViewState(state: InAppMessagingState) {
         if (!isViewActive) return
@@ -155,6 +178,11 @@ internal constructor(
             return
         }
         if (!inlineMessageState.message.matchesRoute(state.currentRoute)) {
+            // A message already displayed in this host remained visible across route changes
+            // before the availability API. Keep that behavior for existing View consumers.
+            if (inlineMessageState is InlineMessageState.Embedded && currentMessage == inlineMessageState.message) {
+                return
+            }
             currentMessage?.let { message ->
                 dismissMessage(message) {
                     refreshViewState(inAppMessagingManager.getCurrentState())

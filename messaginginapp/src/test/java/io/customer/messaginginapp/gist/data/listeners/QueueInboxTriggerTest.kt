@@ -257,12 +257,13 @@ class QueueInboxTriggerTest : IntegrationTest() {
     }
 
     @Test
-    fun fetchUserMessages_whenSseSnapshotArrivesBeforeOlderNotModified_expectNewerQueueRetained() {
+    fun fetchUserMessages_whenSseSnapshotArrivesBeforeOlderNotModified_expectNewerModalQueueRetained() {
         val response = CompletableDeferred<Response<QueueMessagesResponse>>()
         coEvery { mockQueueService.fetchMessagesForUser(any(), any()) } coAnswers { response.await() }
         queue.fetchUserMessages()
 
-        val newMessage = createMessage(elementId = "new-promotion")
+        manager.dispatch(InAppMessagingAction.SetPageRoute("account"))
+        val newMessage = createMessage(routeRule = pageRuleContains("home"))
         manager.dispatch(
             InAppMessagingAction.ProcessMessageQueue(
                 messages = listOf(newMessage),
@@ -278,7 +279,7 @@ class QueueInboxTriggerTest : IntegrationTest() {
         flushCoroutines(scopeProviderStub.inAppLifecycleScope)
 
         assert(manager.getCurrentState().messagesInQueue.any { it.queueId == newMessage.queueId }) {
-            "expected an older uncached 304 not to clear a newer SSE queue snapshot"
+            "expected an older uncached 304 not to clear a newer SSE modal queue snapshot"
         }
     }
 

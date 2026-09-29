@@ -276,6 +276,39 @@ class InlineMessageViewControllerBehaviorTest : JUnitTest() {
     }
 
     @Test
+    fun handleMessageState_givenDisplayedMessageAndRouteChanges_expectExistingViewRetained() {
+        val controller = setupGistAndCreateViewController()
+        val viewCallback = controller.initMockViewCallback()
+        val elementId = "test-element-id"
+        val message = createInAppMessage(
+            queueId = "1",
+            elementId = elementId,
+            pageRule = pageRuleEquals("home")
+        )
+        controller.elementId = elementId
+        messagingManager.dispatch(InAppMessagingAction.SetPageRoute("home"))
+        messagingManager.dispatch(InAppMessagingAction.ProcessMessageQueue(listOf(message)))
+            .flushCoroutines(scopeProviderStub.inAppLifecycleScope)
+        controller.routeLoaded(String.random)
+        flushCoroutines(scopeProviderStub.inAppLifecycleScope)
+        clearMocks(viewDelegate, engineWebViewDelegate, platformDelegate, viewCallback, answers = false)
+
+        messagingManager.dispatch(InAppMessagingAction.SetPageRoute("settings"))
+            .flushCoroutines(scopeProviderStub.inAppLifecycleScope)
+        messagingManager.dispatch(InAppMessagingAction.SetPageRoute("home"))
+            .flushCoroutines(scopeProviderStub.inAppLifecycleScope)
+
+        controller.currentMessage shouldBeEqualTo message
+        controller.engineWebViewDelegate.shouldNotBeNull()
+        val inlineState = messagingManager.getCurrentState().queuedInlineMessagesState
+            .getMessage(elementId) as InlineMessageState.Embedded
+        inlineState.isViewAttached shouldBeEqualTo true
+        verify(exactly = 0) { viewCallback.onNoMessageToDisplay() }
+        verify(exactly = 0) { viewCallback.onLoadingStarted() }
+        verify(exactly = 0) { engineWebViewDelegate.releaseResources() }
+    }
+
+    @Test
     fun handleMessageState_givenRouteReturnsDuringHideAnimation_expectMessageRestored() {
         val controller = setupGistAndCreateViewController()
         controller.initMockViewCallback()
@@ -434,6 +467,36 @@ class InlineMessageViewControllerBehaviorTest : JUnitTest() {
         inlineState.shouldRetainWhenDetached shouldBeEqualTo true
         controller.engineWebViewDelegate.shouldBeNull()
         controller.currentMessage.shouldBeNull()
+    }
+
+    @Test
+    fun onViewTemporarilyDetached_givenDisplayedMessage_expectNoTeardownOrReloadOnReattach() {
+        val controller = setupGistAndCreateViewController()
+        val viewCallback = controller.initMockViewCallback()
+        val elementId = "test-element-id"
+        val message = createInAppMessage(queueId = "1", elementId = elementId)
+        controller.elementId = elementId
+        messagingManager.dispatch(InAppMessagingAction.EmbedMessages(listOf(message)))
+            .flushCoroutines(scopeProviderStub.inAppLifecycleScope)
+        controller.routeLoaded(String.random)
+        flushCoroutines(scopeProviderStub.inAppLifecycleScope)
+        clearMocks(viewDelegate, engineWebViewDelegate, platformDelegate, viewCallback, answers = false)
+
+        controller.onViewTemporarilyDetached()
+        val detachedState = messagingManager.getCurrentState().queuedInlineMessagesState
+            .getMessage(elementId) as InlineMessageState.Embedded
+        detachedState.isViewAttached shouldBeEqualTo false
+        controller.onViewOwnerCreated()
+        flushCoroutines(scopeProviderStub.inAppLifecycleScope)
+
+        controller.currentMessage shouldBeEqualTo message
+        controller.engineWebViewDelegate.shouldNotBeNull()
+        val reattachedState = messagingManager.getCurrentState().queuedInlineMessagesState
+            .getMessage(elementId) as InlineMessageState.Embedded
+        reattachedState.isViewAttached shouldBeEqualTo true
+        verify(exactly = 0) { viewCallback.onNoMessageToDisplay() }
+        verify(exactly = 0) { viewCallback.onLoadingStarted() }
+        verify(exactly = 0) { engineWebViewDelegate.releaseResources() }
     }
 
     @Test

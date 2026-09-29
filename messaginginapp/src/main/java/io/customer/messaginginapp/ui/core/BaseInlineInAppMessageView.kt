@@ -76,7 +76,7 @@ constructor(
             // Without a lifecycle owner, detachment is the only destruction signal available.
             onViewOwnerDestroyed()
         } else {
-            controller.onViewDetached()
+            controller.onViewTemporarilyDetached()
         }
     }
 

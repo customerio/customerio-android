@@ -1,5 +1,6 @@
 package io.customer.messaginginapp.gist.data.sse
 
+import io.customer.messaginginapp.gist.data.AnonymousMessageManager
 import io.customer.messaginginapp.gist.data.NetworkUtilities
 import io.customer.messaginginapp.state.InAppMessagingAction
 import io.customer.messaginginapp.state.InAppMessagingManager
@@ -49,6 +50,7 @@ internal class SseConnectionManager(
     private val sseLogger: InAppSseLogger,
     private val sseService: SseService,
     private val sseDataParser: SseDataParser,
+    private val anonymousMessageManager: AnonymousMessageManager,
     private val inAppMessagingManager: InAppMessagingManager,
     private val heartbeatTimer: HeartbeatTimer,
     private val retryHelper: SseRetryHelper,
@@ -244,10 +246,11 @@ internal class SseConnectionManager(
                     if (messages.isNotEmpty()) {
                         sseLogger.logReceivedMessages(messages.size, "in-app")
                         // Gist realtime sends the current non-empty queue, not just the changed
-                        // message. Reconcile availability against the complete snapshot.
+                        // message. Unlike HTTP, that queue does not include locally cached
+                        // broadcasts, so retain broadcasts that are still eligible.
                         inAppMessagingManager.dispatch(
                             InAppMessagingAction.ProcessMessageQueue(
-                                messages = messages,
+                                messages = messages + anonymousMessageManager.getEligibleAnonymousMessages(),
                                 isSseSnapshot = true
                             )
                         )

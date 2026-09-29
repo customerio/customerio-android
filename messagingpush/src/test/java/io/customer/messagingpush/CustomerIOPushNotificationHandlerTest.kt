@@ -1,5 +1,11 @@
 package io.customer.messagingpush
 
+import android.app.Notification
+import android.app.NotificationManager
+import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.Color
+import android.graphics.drawable.BitmapDrawable
 import android.os.Bundle
 import com.google.firebase.messaging.RemoteMessage
 import io.customer.commontest.config.TestConfig
@@ -14,14 +20,22 @@ import io.customer.messagingpush.logger.PushNotificationLogger
 import io.customer.messagingpush.testutils.core.IntegrationTest
 import io.customer.messagingpush.util.NotificationChannelCreator
 import io.mockk.mockk
+import java.io.ByteArrayOutputStream
 import org.amshove.kluent.shouldBeEqualTo
+import org.amshove.kluent.shouldNotBeNull
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
+import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows
 
 @RunWith(RobolectricTestRunner::class)
 internal class CustomerIOPushNotificationHandlerTest : IntegrationTest() {
+    @get:Rule val temporaryFolder = TemporaryFolder()
     private lateinit var pushNotificationHandler: CustomerIOPushNotificationHandler
     private lateinit var pushNotificationPayload: CustomerIOParsedPushPayload
     private val mockPushLogger = mockk<PushNotificationLogger>(relaxed = true)
@@ -127,5 +141,40 @@ internal class CustomerIOPushNotificationHandlerTest : IntegrationTest() {
         pushNotificationHandler.handleMessage(contextMock, false)
 
         assertCalledNever { mockPushLogger.logShowingPushNotification(any()) }
+    }
+
+    @Test
+    fun handleMessage_whenRichPushImageIsWide_thenPostsSquareLargeIconAndKeepsBigPicture() {
+        val source = Bitmap.createBitmap(1024, 512, Bitmap.Config.ARGB_8888)
+        source.eraseColor(Color.BLUE)
+        val encoded = ByteArrayOutputStream()
+        source.compress(Bitmap.CompressFormat.PNG, 100, encoded)
+        source.recycle()
+        val imageFile = temporaryFolder.newFile("wide-picture.png").apply { writeBytes(encoded.toByteArray()) }
+        val message = RemoteMessage.Builder("destination").setData(
+            mapOf(
+                "CIO-Delivery-ID" to "delivery-id",
+                "CIO-Delivery-Token" to "delivery-token",
+                "title" to "Title",
+                "body" to "Body",
+                "image" to imageFile.toURI().toURL().toString()
+            )
+        ).build()
+        val handler = CustomerIOPushNotificationHandler(mockk(relaxed = true), message, NotificationChannelCreator())
+
+        handler.handleMessage(contextMock, true)
+
+        val manager = contextMock.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        val notification = Shadows.shadowOf(manager).allNotifications.single()
+        val largeIcon = notification.getLargeIcon()
+        largeIcon.shouldNotBeNull()
+        val icon = (largeIcon.loadDrawable(contextMock) as BitmapDrawable).bitmap
+        val targetSize = (64 * contextMock.resources.displayMetrics.density).toInt().coerceAtLeast(1)
+        assertEquals(icon.width, icon.height)
+        assertTrue(icon.width in 1..targetSize)
+        val picture = notification.extras.parcelable<Bitmap>(Notification.EXTRA_PICTURE)
+        picture.shouldNotBeNull()
+        assertEquals(picture.width, picture.height * 2)
+        assertFalse(picture.isRecycled)
     }
 }

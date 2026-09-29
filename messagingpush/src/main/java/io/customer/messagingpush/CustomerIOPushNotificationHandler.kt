@@ -270,21 +270,7 @@ internal class CustomerIOPushNotificationHandler(
         )?.let { bitmap ->
             style.bigPicture(bitmap)
             val iconSize = (MAX_LARGE_ICON_DP * display.density).roundToInt().coerceAtLeast(1)
-            val iconScale = minOf(
-                iconSize.toFloat() / bitmap.width,
-                iconSize.toFloat() / bitmap.height,
-                1f
-            )
-            val largeIcon = if (iconScale < 1f) {
-                Bitmap.createScaledBitmap(
-                    bitmap,
-                    (bitmap.width * iconScale).roundToInt().coerceAtLeast(1),
-                    (bitmap.height * iconScale).roundToInt().coerceAtLeast(1),
-                    true
-                )
-            } else {
-                bitmap
-            }
+            val largeIcon = BitmapDownloader.squareIcon(bitmap, iconSize)
             builder.setLargeIcon(largeIcon)
             builder.setStyle(style)
         }

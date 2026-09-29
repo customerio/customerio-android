@@ -1,7 +1,9 @@
 package io.customer.messagingpush.util
 
 import android.graphics.Bitmap
+import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.Paint
 import io.customer.messagingpush.testutils.core.IntegrationTest
 import java.io.ByteArrayOutputStream
 import java.io.IOException
@@ -14,8 +16,10 @@ import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.GraphicsMode
 
 @RunWith(RobolectricTestRunner::class)
+@GraphicsMode(GraphicsMode.Mode.NATIVE)
 internal class BitmapDownloaderTest : IntegrationTest() {
     @get:Rule val temporaryFolder = TemporaryFolder()
 
@@ -44,6 +48,38 @@ internal class BitmapDownloaderTest : IntegrationTest() {
 
         assertEquals(1080, result?.width)
         assertEquals(540, result?.height)
+    }
+
+    @Test
+    fun decodeSampled_whenPanoramicLogoIsCenterCropped_thenKeepsSquareDetailWithinTarget() {
+        // Robolectric's region decoder models output dimensions but does not decode pixels.
+        val result = BitmapDownloader.decodeSampled(compressedImage(4096, 64), 64, 64, centerCrop = true)
+
+        assertEquals(64, result?.width)
+        assertEquals(64, result?.height)
+    }
+
+    @Test
+    fun squareIcon_whenImageIsWide_thenKeepsCenterPixelsAndSourceBitmap() {
+        val source = Bitmap.createBitmap(256, 128, Bitmap.Config.ARGB_8888)
+        source.eraseColor(Color.RED)
+        Canvas(source).drawRect(64f, 0f, 192f, 128f, Paint().apply { color = Color.BLUE })
+
+        val result = BitmapDownloader.squareIcon(source, 64)
+
+        assertEquals(64, result.width)
+        assertEquals(64, result.height)
+        assertEquals(Color.BLUE, result.getPixel(0, 0))
+        assertEquals(Color.BLUE, result.getPixel(63, 63))
+        org.junit.Assert.assertFalse(source.isRecycled)
+    }
+
+    @Test
+    fun decodeSampled_whenLogoIsTall_thenCenterCropsToSquare() {
+        val result = BitmapDownloader.decodeSampled(compressedImage(128, 1024), 64, 64, centerCrop = true)
+
+        assertEquals(64, result?.width)
+        assertEquals(64, result?.height)
     }
 
     @Test

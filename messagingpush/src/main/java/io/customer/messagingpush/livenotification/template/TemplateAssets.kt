@@ -63,11 +63,11 @@ internal object TemplateAssets {
     private fun downloadCached(context: Context, url: String): Bitmap? {
         val cacheDir = File(context.cacheDir, URL_CACHE_DIR).apply { mkdirs() }
         val maxSize = (MAX_REMOTE_ICON_DP * context.resources.displayMetrics.density).roundToInt().coerceAtLeast(1)
-        val cacheFile = File(cacheDir, sha256("v2:$maxSize:$url"))
+        val cacheFile = File(cacheDir, sha256("v3:$maxSize:$url"))
         if (cacheFile.exists()) {
             BitmapDownloader.decodeFile(cacheFile, maxSize, maxSize)?.let { return it }
         }
-        val bitmap = BitmapDownloader.download(url, maxSize, maxSize) ?: return null
+        val bitmap = BitmapDownloader.download(url, maxSize, maxSize, centerCrop = true) ?: return null
         try {
             val saved = writeCache(cacheFile, bitmap)
             if (saved) File(cacheDir, sha256(url)).delete()

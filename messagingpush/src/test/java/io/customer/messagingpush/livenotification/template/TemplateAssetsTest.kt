@@ -6,6 +6,7 @@ import io.customer.messagingpush.livenotification.LiveNotificationAsset
 import io.customer.messagingpush.testutils.core.IntegrationTest
 import java.io.ByteArrayOutputStream
 import org.amshove.kluent.shouldNotBeNull
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -60,5 +61,28 @@ internal class TemplateAssetsTest : IntegrationTest() {
         val cached = TemplateAssets.toBitmap(contextMock, asset)
         cached.shouldNotBeNull()
         assertTrue(cached.width <= maxSize && cached.height <= maxSize)
+    }
+
+    @Test
+    fun toBitmap_whenRemoteLogoIsWide_thenCachesSquareIconWithoutShrinkingShortSide() {
+        val bitmap = Bitmap.createBitmap(512, 256, Bitmap.Config.ARGB_8888)
+        bitmap.eraseColor(Color.BLUE)
+        val output = ByteArrayOutputStream()
+        bitmap.compress(Bitmap.CompressFormat.PNG, 100, output)
+        bitmap.recycle()
+        val imageFile = temporaryFolder.newFile("wide-logo.png").apply { writeBytes(output.toByteArray()) }
+        val asset = LiveNotificationAsset.RemoteUrl(imageFile.toURI().toURL().toString())
+        val targetSize = (64 * contextMock.resources.displayMetrics.density).toInt().coerceAtLeast(1)
+
+        val first = TemplateAssets.toBitmap(contextMock, asset)
+        first.shouldNotBeNull()
+        assertEquals(targetSize, first.width)
+        assertEquals(targetSize, first.height)
+
+        imageFile.delete()
+        val cached = TemplateAssets.toBitmap(contextMock, asset)
+        cached.shouldNotBeNull()
+        assertEquals(targetSize, cached.width)
+        assertEquals(targetSize, cached.height)
     }
 }

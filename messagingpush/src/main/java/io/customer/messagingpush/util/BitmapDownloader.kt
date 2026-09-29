@@ -2,6 +2,10 @@ package io.customer.messagingpush.util
 
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.BitmapRegionDecoder
+import android.graphics.Canvas
+import android.graphics.Paint
+import android.graphics.Rect
 import io.customer.sdk.core.di.SDKComponent
 import java.io.ByteArrayOutputStream
 import java.io.File
@@ -18,7 +22,7 @@ import kotlinx.coroutines.withContext
 
 internal object BitmapDownloader {
 
-    fun download(imageUrl: String, maxWidth: Int, maxHeight: Int): Bitmap? = runBlocking {
+    fun download(imageUrl: String, maxWidth: Int, maxHeight: Int, centerCrop: Boolean = false): Bitmap? = runBlocking {
         withContext(Dispatchers.IO) {
             try {
                 val deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(MAX_TRANSFER_DURATION_MS)
@@ -33,7 +37,7 @@ internal object BitmapDownloader {
                     readBounded(input, connection, deadline)
                 }
                 remainingMillis(deadline)
-                decodeSampled(bytes, maxWidth, maxHeight)
+                decodeSampled(bytes, maxWidth, maxHeight, centerCrop)
             } catch (e: Exception) {
                 SDKComponent.logger.error("Failed to download bitmap from '$imageUrl': ${e.message}")
                 null
@@ -51,15 +55,63 @@ internal object BitmapDownloader {
         return BitmapFactory.decodeFile(file.path, options)?.let { scaleToFit(it, maxWidth, maxHeight) }
     }
 
-    internal fun decodeSampled(bytes: ByteArray, maxWidth: Int, maxHeight: Int): Bitmap? {
+    internal fun decodeSampled(bytes: ByteArray, maxWidth: Int, maxHeight: Int, centerCrop: Boolean = false): Bitmap? {
         val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
         BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
         if (!validDimensions(bounds)) return null
+        if (centerCrop) {
+            require(maxWidth == maxHeight && maxWidth > 0)
+            decodeSquareRegion(bytes, bounds.outWidth, bounds.outHeight, maxWidth)?.let { return it }
+        }
         val options = BitmapFactory.Options().apply {
             inSampleSize = calculateInSampleSize(bounds.outWidth, bounds.outHeight, maxWidth, maxHeight)
         }
         return BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options)
-            ?.let { scaleToFit(it, maxWidth, maxHeight) }
+            ?.let { bitmap ->
+                val fitted = scaleToFit(bitmap, maxWidth, maxHeight)
+                if (!centerCrop) return@let fitted
+                val cropped = squareIcon(fitted, maxWidth)
+                if (cropped !== fitted) fitted.recycle()
+                cropped
+            }
+    }
+
+    /** Crops the center before scaling so a wide image fills the square large-icon slot. */
+    fun squareIcon(bitmap: Bitmap, maxSize: Int): Bitmap {
+        require(maxSize > 0)
+        val side = minOf(bitmap.width, bitmap.height)
+        val size = minOf(side, maxSize)
+        if (bitmap.width == size && bitmap.height == size) return bitmap
+        val left = (bitmap.width - side) / 2
+        val top = (bitmap.height - side) / 2
+        return Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888).also { icon ->
+            Canvas(icon).drawBitmap(
+                bitmap,
+                Rect(left, top, left + side, top + side),
+                Rect(0, 0, size, size),
+                Paint(Paint.FILTER_BITMAP_FLAG)
+            )
+        }
+    }
+
+    @Suppress("DEPRECATION")
+    private fun decodeSquareRegion(bytes: ByteArray, width: Int, height: Int, maxSize: Int): Bitmap? {
+        // Decode only the square region, avoiding a large intermediate bitmap for panoramic logos.
+        // Formats unsupported by the region decoder retain the bounded full-image fallback.
+        val decoder = runCatching { BitmapRegionDecoder.newInstance(bytes, 0, bytes.size, false) }.getOrNull()
+            ?: return null
+        return try {
+            val side = minOf(width, height)
+            val left = (width - side) / 2
+            val top = (height - side) / 2
+            val options = BitmapFactory.Options().apply {
+                inSampleSize = calculateInSampleSize(side, side, maxSize, maxSize)
+            }
+            decoder.decodeRegion(Rect(left, top, left + side, top + side), options)
+                ?.let { scaleToFit(it, maxSize, maxSize) }
+        } finally {
+            decoder.recycle()
+        }
     }
 
     internal fun calculateInSampleSize(width: Int, height: Int, maxWidth: Int, maxHeight: Int): Int {

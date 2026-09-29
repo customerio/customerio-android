@@ -1,5 +1,6 @@
 package io.customer.messaginginapp.gist.data.sse
 
+import io.customer.messaginginapp.gist.data.AnonymousMessageManager
 import io.customer.messaginginapp.gist.data.NetworkUtilities
 import io.customer.messaginginapp.gist.data.model.InboxMessage
 import io.customer.messaginginapp.gist.data.model.Message
@@ -32,6 +33,7 @@ class SseConnectionManagerTest : JUnitTest() {
     private val sseLogger = mockk<InAppSseLogger>(relaxed = true)
     private val sseService = mockk<SseService>(relaxed = true)
     private val sseDataParser = mockk<SseDataParser>(relaxed = true)
+    private val anonymousMessageManager = mockk<AnonymousMessageManager>(relaxed = true)
     private val inAppMessagingManager = mockk<InAppMessagingManager>(relaxed = true)
     private val heartbeatTimer = mockk<HeartbeatTimer>(relaxed = true) {
         every { timeoutFlow } returns MutableStateFlow<HeartbeatTimeoutEvent?>(null).asStateFlow()
@@ -52,10 +54,12 @@ class SseConnectionManagerTest : JUnitTest() {
 
     @BeforeEach
     fun setup() {
+        every { anonymousMessageManager.getEligibleAnonymousMessages() } returns emptyList()
         connectionManager = SseConnectionManager(
             sseLogger = sseLogger,
             sseService = sseService,
             sseDataParser = sseDataParser,
+            anonymousMessageManager = anonymousMessageManager,
             inAppMessagingManager = inAppMessagingManager,
             heartbeatTimer = heartbeatTimer,
             retryHelper = retryHelper,
@@ -271,7 +275,7 @@ class SseConnectionManagerTest : JUnitTest() {
             sessionId = "test-session",
             siteId = "test-site"
         )
-        val mockMessages = listOf(mockk<Message>(), mockk<Message>())
+        val mockMessages = listOf(Message(messageId = "msg1"), Message(messageId = "msg2"))
         val messagesJson = """[{"messageId": "msg1"}, {"messageId": "msg2"}]"""
 
         every { inAppMessagingManager.getCurrentState() } returns mockState
@@ -290,6 +294,103 @@ class SseConnectionManagerTest : JUnitTest() {
         verify { sseDataParser.parseInAppMessages(messagesJson) }
         verify { inAppMessagingManager.dispatch(capture(actionSlot)) }
         actionSlot.captured.messages.shouldBeEqualTo(mockMessages)
+        actionSlot.captured.shouldReconcileInlineMessages.shouldBeEqualTo(true)
+        actionSlot.captured.isSseSnapshot.shouldBeEqualTo(true)
+    }
+
+    @Test
+    fun testHandleSseEvent_whenBroadcastIsCached_thenKeepsItInQueueSnapshot() = runTest {
+        val userMessage = Message(messageId = "user-message")
+        val broadcast = Message(
+            messageId = "broadcast",
+            properties = mapOf(
+                "gist" to mapOf(
+                    "broadcast" to mapOf("frequency" to mapOf("count" to 1, "delay" to 0))
+                )
+            )
+        )
+        val messagesJson = """[{"messageId": "user-message"}]"""
+        every { inAppMessagingManager.getCurrentState() } returns InAppMessagingState(
+            userId = "test-user",
+            sessionId = "test-session",
+            siteId = "test-site"
+        )
+        every { sseDataParser.parseInAppMessages(messagesJson) } returns listOf(userMessage)
+        every { anonymousMessageManager.getEligibleAnonymousMessages() } returns listOf(broadcast)
+        coEvery { sseService.connectSse(any(), any(), any()) } returns flowOf(
+            ServerEvent(ServerEvent.MESSAGES, messagesJson)
+        )
+        val actionSlot = slot<InAppMessagingAction.ProcessMessageQueue>()
+
+        connectionManager.startConnection()
+        testScope.advanceUntilIdle()
+
+        verify { inAppMessagingManager.dispatch(capture(actionSlot)) }
+        actionSlot.captured.messages.shouldBeEqualTo(listOf(userMessage, broadcast))
+    }
+
+    @Test
+    fun testHandleSseEvent_whenServerIncludesBroadcast_thenUsesOnlyLocallyEligibleBroadcast() = runTest {
+        val userMessage = Message(messageId = "user-message", queueId = "user-queue")
+        val serverBroadcast = Message(
+            messageId = "broadcast",
+            queueId = "broadcast-queue",
+            priority = 1,
+            properties = mapOf(
+                "gist" to mapOf(
+                    "broadcast" to mapOf("frequency" to mapOf("count" to 1, "delay" to 0))
+                )
+            )
+        )
+        val eligibleBroadcast = serverBroadcast.copy(priority = 9)
+        val messagesJson = "server-with-broadcast"
+        every { inAppMessagingManager.getCurrentState() } returns InAppMessagingState(
+            userId = "test-user",
+            sessionId = "test-session",
+            siteId = "test-site"
+        )
+        every { sseDataParser.parseInAppMessages(messagesJson) } returns listOf(userMessage, serverBroadcast)
+        every { anonymousMessageManager.getEligibleAnonymousMessages() } returns listOf(eligibleBroadcast)
+        coEvery { sseService.connectSse(any(), any(), any()) } returns flowOf(
+            ServerEvent(ServerEvent.MESSAGES, messagesJson)
+        )
+        val actionSlot = slot<InAppMessagingAction.ProcessMessageQueue>()
+
+        connectionManager.startConnection()
+        testScope.advanceUntilIdle()
+
+        verify { inAppMessagingManager.dispatch(capture(actionSlot)) }
+        actionSlot.captured.messages.shouldBeEqualTo(listOf(userMessage, eligibleBroadcast))
+    }
+
+    @Test
+    fun testHandleSseEvent_whenServerBroadcastIsNotLocallyEligible_thenExcludesIt() = runTest {
+        val serverBroadcast = Message(
+            messageId = "broadcast",
+            queueId = "broadcast-queue",
+            properties = mapOf(
+                "gist" to mapOf(
+                    "broadcast" to mapOf("frequency" to mapOf("count" to 1, "delay" to 0))
+                )
+            )
+        )
+        val messagesJson = "server-broadcast-only"
+        every { inAppMessagingManager.getCurrentState() } returns InAppMessagingState(
+            userId = "test-user",
+            sessionId = "test-session",
+            siteId = "test-site"
+        )
+        every { sseDataParser.parseInAppMessages(messagesJson) } returns listOf(serverBroadcast)
+        coEvery { sseService.connectSse(any(), any(), any()) } returns flowOf(
+            ServerEvent(ServerEvent.MESSAGES, messagesJson)
+        )
+        val actionSlot = slot<InAppMessagingAction.ProcessMessageQueue>()
+
+        connectionManager.startConnection()
+        testScope.advanceUntilIdle()
+
+        verify { inAppMessagingManager.dispatch(capture(actionSlot)) }
+        actionSlot.captured.messages.shouldBeEqualTo(emptyList())
     }
 
     @Test

@@ -12,6 +12,8 @@ import io.customer.datapipelines.plugins.ApplicationLifecyclePlugin
 import io.customer.datapipelines.plugins.AutomaticActivityScreenTrackingPlugin
 import io.customer.datapipelines.plugins.CustomerIODestination
 import io.customer.datapipelines.plugins.ScreenFilterPlugin
+import io.customer.sdk.communication.Event
+import io.customer.sdk.communication.EventBus
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.util.CioLogLevel
 import io.customer.sdk.data.model.Region
@@ -171,6 +173,26 @@ class CustomerIOConfigBuilderTest : RobolectricTest() {
 
         assertCalledOnce { givenModule1.initialize() }
         assertCalledOnce { givenModule2.initialize() }
+    }
+
+    @Test
+    fun initialize_givenModule_expectInitializedEventAfterModuleSetup() {
+        val givenModule: CustomerIOGenericModule = mockGenericModule().apply {
+            every { moduleName } returns String.random
+            every { moduleConfig } returns mockk()
+        }
+        val eventBus = mockk<EventBus>(relaxed = true)
+        SDKComponent.overrideDependency<EventBus>(eventBus)
+        val config = createCustomerIOConfigBuilder()
+            .addCustomerIOModule(givenModule)
+            .build()
+
+        CustomerIO.initialize(config)
+
+        verifyOrder {
+            givenModule.initialize()
+            eventBus.publish(Event.SdkInitializedEvent)
+        }
     }
 
     @Test

@@ -1,4 +1,5 @@
 public final class io/customer/messaginginapp/compose/InlineInAppMessageKt {
 	public static final fun InlineInAppMessage-drOMvmE (Ljava/lang/String;Landroidx/compose/ui/Modifier;Landroidx/compose/ui/graphics/Color;Lkotlin/jvm/functions/Function3;Landroidx/compose/runtime/Composer;II)V
+	public static final fun rememberInlineMessageAvailability (Ljava/lang/String;Landroidx/compose/runtime/Composer;I)Landroidx/compose/runtime/State;
 }
 

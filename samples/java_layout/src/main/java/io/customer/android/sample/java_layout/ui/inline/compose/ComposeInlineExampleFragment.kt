@@ -109,7 +109,7 @@ fun ComposeInlineExampleScreen(context: Context) {
                 }
 
                 // Header inline in-app message (sticky header)
-                // Using elementId "compose-sticky-header" to match KotlinComposeInlineComponent
+                // This Java-layout demo uses its own element IDs.
                 InlineInAppMessage(
                     elementId = "compose-sticky-header",
                     modifier = Modifier.fillMaxWidth(),
@@ -124,7 +124,7 @@ fun ComposeInlineExampleScreen(context: Context) {
                     modifier = Modifier.padding(16.dp)
                 )
 
-                // Middle inline in-app message with "compose-sticky-center" elementId to match KotlinComposeInlineComponent
+                // Middle inline in-app message for this Java-layout demo.
                 InlineInAppMessage(
                     elementId = "compose-sticky-center",
                     modifier = Modifier

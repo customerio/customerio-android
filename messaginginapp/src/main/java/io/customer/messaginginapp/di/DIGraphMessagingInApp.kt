@@ -111,6 +111,7 @@ internal val SDKComponent.sseConnectionManager: SseConnectionManager
             sseLogger = inAppSseLogger,
             sseService = sseService,
             sseDataParser = sseDataParser,
+            anonymousMessageManager = anonymousMessageManager,
             inAppMessagingManager = inAppMessagingManager,
             heartbeatTimer = heartbeatTimer,
             retryHelper = sseRetryHelper,

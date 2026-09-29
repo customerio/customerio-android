@@ -1,5 +1,6 @@
 package io.customer.sdk.communication
 
+import io.customer.base.internal.InternalCustomerIOApi
 import io.customer.sdk.events.Metric
 import java.util.Date
 import java.util.UUID
@@ -57,6 +58,18 @@ sealed class Event {
     data class LocationAcquired(
         val latitude: Double,
         val longitude: Double
+    ) : Event()
+
+    /**
+     * The same fix as [LocationAcquired], plus when it was taken, for subscribers that judge
+     * geometry. [fixElapsedRealtimeMillis] is monotonic since boot, so a clock correction cannot
+     * age a fix; null means the source reported no time.
+     */
+    @InternalCustomerIOApi
+    data class LocationFixAcquired(
+        val latitude: Double,
+        val longitude: Double,
+        val fixElapsedRealtimeMillis: Long? = null
     ) : Event()
 
     class DeleteDeviceTokenEvent : Event()

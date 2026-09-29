@@ -100,7 +100,11 @@ internal class LocationTracker(
      * Processes an incoming location: caches in memory, persists
      * coordinates, and attempts to send a location track event.
      */
-    fun onLocationReceived(latitude: Double, longitude: Double) {
+    fun onLocationReceived(
+        latitude: Double,
+        longitude: Double,
+        fixElapsedRealtimeMillis: Long? = null
+    ) {
         logger.debug("Location update received: lat=$latitude, lng=$longitude")
 
         val location = LocationCoordinates(latitude = latitude, longitude = longitude)
@@ -109,7 +113,16 @@ internal class LocationTracker(
         locationPreferenceStore.saveCachedLocation(latitude, longitude)
 
         trySendLocationTrack(latitude, longitude)
-        eventBus.publish(Event.LocationAcquired(latitude = latitude, longitude = longitude))
+        eventBus.publish(
+            Event.LocationAcquired(latitude = latitude, longitude = longitude)
+        )
+        eventBus.publish(
+            Event.LocationFixAcquired(
+                latitude = latitude,
+                longitude = longitude,
+                fixElapsedRealtimeMillis = fixElapsedRealtimeMillis
+            )
+        )
     }
 
     /**
@@ -117,11 +130,24 @@ internal class LocationTracker(
      * [trackedLocation]/persistence are left untouched, so it never reaches identify
      * context. Updates [lastKnownLocation] so geofencing can read it back.
      */
-    fun onLocationReceivedWithoutTracking(latitude: Double, longitude: Double) {
+    fun onLocationReceivedWithoutTracking(
+        latitude: Double,
+        longitude: Double,
+        fixElapsedRealtimeMillis: Long? = null
+    ) {
         logger.debug("Location update received (geofence-only, not tracked): lat=$latitude, lng=$longitude")
 
         lastKnownLocation = LocationCoordinates(latitude = latitude, longitude = longitude)
-        eventBus.publish(Event.LocationAcquired(latitude = latitude, longitude = longitude))
+        eventBus.publish(
+            Event.LocationAcquired(latitude = latitude, longitude = longitude)
+        )
+        eventBus.publish(
+            Event.LocationFixAcquired(
+                latitude = latitude,
+                longitude = longitude,
+                fixElapsedRealtimeMillis = fixElapsedRealtimeMillis
+            )
+        )
     }
 
     /**

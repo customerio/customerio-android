@@ -40,6 +40,11 @@ internal object GeofenceConstants {
     // when the API config field is missing or non-positive.
     const val STALE_THRESHOLD_MS = 24 * 60 * 60 * 1_000L
 
+    // How old a requested fix may be and still judge containment; `getCurrentLocation` can answer
+    // from cache. Sized against the cache rather than delivery latency: indoors the provider
+    // returns the same fix for up to ~124s.
+    const val MAX_LIVE_FIX_AGE_MS = 5L * 60 * 1_000L
+
     // Duplicate-transition suppression window used by GeofenceCooldownFilter.
     // Doubles as the fallback for `duplicateEventsExpiry` from the API config
     // when the field is missing or non-positive.
@@ -49,6 +54,23 @@ internal object GeofenceConstants {
     // well above the server, which does the real validation. Per-value size is left to the server.
     const val MAX_METADATA_COUNT = 100
     const val MAX_METADATA_PAYLOAD_BYTES = 100 * 1024 // 100 KB
+
+    // Total attempts this work request gets before an unreadable queue gives up the wake. It is
+    // WorkManager's own count, so delivery retries spend from the same budget: a read failure
+    // arriving after five network retries gives up at once. Acceptable because the rows are
+    // untouched on disk and a later enqueue or foreground flush recovers them, and because no
+    // number of retries fixes a broken file.
+    const val MAX_WORKER_RUN_ATTEMPTS = 5
+
+    // Hard platform limit: Google Play services rejects an `addGeofences` request that would take an
+    // app past 100 simultaneously registered geofences. Not configurable, not negotiable — the SDK
+    // must arrive under it, because GMS fails the whole batch rather than trimming it.
+    const val MAX_OS_GEOFENCES = 100
+
+    // Business geofences the SDK may attempt at once. One OS slot is always spent on the movement
+    // trigger, which has to stay registered for the local re-rank / remote refresh loop to keep
+    // working. Server config (`maxBusinessGeofences`, coerced to 0..99) can only lower this.
+    const val MAX_OS_BUSINESS_GEOFENCE_SLOTS = MAX_OS_GEOFENCES - 1
 
     // GMS `Geofence.Builder().setExpirationDuration()` flag for "never expires".
     // Our geofences are managed at the application level (we remove explicitly)

@@ -16,40 +16,37 @@ internal class GeofenceCooldownFilter(
     private val clock: Clock
 ) {
     /**
-     * Atomically checks the cooldown and records the emit if allowed.
+     * `null` when the caller should proceed to emit, otherwise the seconds still left on the
+     * window. The check already computes that figure, so returning it rather than recomputing
+     * keeps reporting a suppression free of a second store read on a background wake.
      *
-     * `null` when the caller should proceed to emit. Otherwise the seconds still left on the
-     * window — a value this check already computes, returned rather than recomputed, so reporting
-     * it costs no second read of the store on a background wake.
+     * Checks only. [record] is the separate write, so there is nothing to roll back.
      */
     @Synchronized
-    fun tryAcquire(
+    fun suppressedForSeconds(
         userId: String,
         geofenceId: String,
         transition: Event.GeofenceTransition
     ): Double? {
         val cooldownMs = regionStore.getCachedConfig()?.duplicateEventsExpiry
             ?: GeofenceConstants.DEDUPE_COOLDOWN_MS
-        val last = store.getLastEmitTimestamp(userId, geofenceId, transition)
+        val last = store.getLastEmitTimestamp(userId, geofenceId, transition) ?: return null
+        val elapsed = clock.currentTimeMillis() - last
+        return if (elapsed < cooldownMs) (cooldownMs - elapsed) / 1000.0 else null
+    }
+
+    @Synchronized
+    fun record(
+        userId: String,
+        geofenceId: String,
+        transition: Event.GeofenceTransition
+    ) {
         val now = clock.currentTimeMillis()
-        if (last != null) {
-            val elapsed = now - last
-            if (elapsed < cooldownMs) return (cooldownMs - elapsed) / 1000.0
-        }
         store.recordEmit(userId, geofenceId, transition, now)
         // Sweep entries past the max possible cooldown — they can't suppress under any config —
         // to bound the store as fences churn, without the double-fire risk of pruning by cached set.
         store.pruneOlderThan(now - GeofenceConstants.MAX_DUPLICATE_EVENTS_EXPIRY_MS)
-        return null
     }
-
-    /**
-     * Rolls back a prior [tryAcquire] for this key so a later transition isn't suppressed. Used when
-     * the work that followed the acquire couldn't be durably queued, so the crossing can be retried.
-     */
-    @Synchronized
-    fun release(userId: String, geofenceId: String, transition: Event.GeofenceTransition) =
-        store.remove(userId, geofenceId, transition)
 
     @Synchronized
     fun clearAll() = store.clearAll()

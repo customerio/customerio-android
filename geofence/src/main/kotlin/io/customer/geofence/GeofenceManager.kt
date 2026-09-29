@@ -9,8 +9,12 @@ import androidx.annotation.RequiresPermission
 import com.google.android.gms.location.Geofence
 import com.google.android.gms.location.GeofencingClient
 import com.google.android.gms.location.GeofencingRequest
+import java.util.concurrent.TimeoutException
 import kotlin.coroutines.resume
+import kotlin.time.Duration.Companion.seconds
+import kotlinx.coroutines.CancellableContinuation
 import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withTimeoutOrNull
 
 /** Wraps GeofencingClient to register/remove geofences with the OS. */
 internal class GeofenceManager(
@@ -19,7 +23,7 @@ internal class GeofenceManager(
     private val receiverToggle: GeofenceReceiverToggle,
     private val permissionChecker: GeofencePermissionChecker,
     private val logger: GeofenceLogger
-) {
+) : GeofenceRegistrar {
 
     private val pendingIntent: PendingIntent by lazy {
         val intent = Intent(context, GeofenceBroadcastReceiver::class.java)
@@ -43,12 +47,12 @@ internal class GeofenceManager(
      *
      * Re-upserting a same-ID geofence triggers GMS state reconciliation that
      * can fire spurious EXIT events; skipping the overlap avoids that.
-     * Default `emptySet()` means "OS state unknown, register everything".
+     * An empty set means "OS state unknown, register everything".
      */
     @RequiresPermission(Manifest.permission.ACCESS_FINE_LOCATION)
-    suspend fun replaceGeofences(
+    override suspend fun replaceGeofences(
         regions: List<GeofenceRegion>,
-        existingBusinessIds: Set<String> = emptySet()
+        existingBusinessIds: Set<String>
     ): Result<Unit> = replaceGeofencesInternal(
         regions = regions,
         // The movement trigger evaluates the device's position at register time, so a stale center
@@ -61,8 +65,31 @@ internal class GeofenceManager(
 
     /** Boot-restore entry point; registration is identical to [replaceGeofences]. */
     @RequiresPermission(Manifest.permission.ACCESS_FINE_LOCATION)
-    suspend fun replaceGeofencesForBootRestore(regions: List<GeofenceRegion>): Result<Unit> =
+    override suspend fun replaceGeofencesForBootRestore(regions: List<GeofenceRegion>): Result<Unit> =
         replaceGeofences(regions)
+
+    /**
+     * Re-centres the SDK's single shared movement trigger without touching business regions.
+     *
+     * A same-id add replaces the registration in place, which is how every other path here
+     * re-registers it, so there is no prior removal: removing first would mean a failed or
+     * timed-out add leaves the device with no trigger at all and nothing to re-arm it. It also
+     * keeps the worst case to one GMS call, which matters on the broadcast path.
+     */
+    @RequiresPermission(Manifest.permission.ACCESS_FINE_LOCATION)
+    override suspend fun replaceMovementTrigger(region: GeofenceRegion): Result<Unit> {
+        require(region.id == GeofenceConstants.MOVEMENT_TRIGGER_ID) {
+            "movement trigger must use the reserved request id"
+        }
+        if (!permissionChecker.hasRequiredLocationPermissions()) {
+            logger.logMissingPermission("ACCESS_FINE_LOCATION")
+            return Result.failure(SecurityException("Required location permissions not granted"))
+        }
+        return registerBatch(
+            regions = listOf(region),
+            initialTrigger = GeofencingRequest.INITIAL_TRIGGER_EXIT
+        )
+    }
 
     @RequiresPermission(Manifest.permission.ACCESS_FINE_LOCATION)
     private suspend fun replaceGeofencesInternal(
@@ -137,7 +164,7 @@ internal class GeofenceManager(
             return Result.failure(e)
         }
 
-        return suspendCancellableCoroutine { cont ->
+        return awaitGmsCall("addGeofences") { cont ->
             try {
                 client.addGeofences(request, pendingIntent)
                     .addOnSuccessListener {
@@ -156,10 +183,10 @@ internal class GeofenceManager(
         }
     }
 
-    suspend fun removeGeofencesByIds(ids: List<String>): Result<Unit> {
+    override suspend fun removeGeofencesByIds(ids: List<String>): Result<Unit> {
         if (ids.isEmpty()) return Result.success(Unit)
 
-        return suspendCancellableCoroutine { cont ->
+        return awaitGmsCall("removeGeofences") { cont ->
             try {
                 client.removeGeofences(ids)
                     .addOnSuccessListener {
@@ -179,8 +206,8 @@ internal class GeofenceManager(
         }
     }
 
-    suspend fun clearAll(): Result<Unit> {
-        return suspendCancellableCoroutine { cont ->
+    override suspend fun clearAll(): Result<Unit> {
+        return awaitGmsCall("removeGeofences (all)") { cont ->
             client.removeGeofences(pendingIntent)
                 .addOnSuccessListener {
                     if (!cont.isActive) return@addOnSuccessListener
@@ -196,6 +223,21 @@ internal class GeofenceManager(
         }
     }
 
+    /**
+     * A Task never calls back when Play Services is mid-update, and the caller holds the refresh
+     * slot — so an unbounded await wedges every later sync. Safe here unlike around the slot CAS:
+     * nothing holds a resource on the result, so a late success just becomes a spurious failure.
+     */
+    private suspend fun awaitGmsCall(
+        description: String,
+        block: (CancellableContinuation<Result<Unit>>) -> Unit
+    ): Result<Unit> =
+        withTimeoutOrNull(GMS_CALL_TIMEOUT) { suspendCancellableCoroutine(block) }
+            ?: run {
+                logger.logGmsCallTimedOut(description)
+                Result.failure(TimeoutException("GMS $description gave no callback within $GMS_CALL_TIMEOUT"))
+            }
+
     private fun GeofenceRegion.toGmsGeofence(): Geofence {
         return Geofence.Builder()
             .setRequestId(id)
@@ -203,5 +245,12 @@ internal class GeofenceManager(
             .setTransitionTypes(toGmsTransitionTypes())
             .setExpirationDuration(GeofenceConstants.GEOFENCE_EXPIRATION_NEVER)
             .build()
+    }
+
+    private companion object {
+        // Per call, generous against the millisecond norm. A pass chains up to four (remove and
+        // re-add movement, add business, roll back), so a wedged GMS can still outlast the
+        // receiver's 8s goAsync budget — the join there is best-effort and the refresh continues.
+        val GMS_CALL_TIMEOUT = 5.seconds
     }
 }

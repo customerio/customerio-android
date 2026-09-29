@@ -29,6 +29,9 @@ class GeofenceApiServiceTest {
 
         capturedParams.captured.method shouldBeEqualTo HttpMethod.POST
         capturedParams.captured.path shouldBeEqualTo "/geofences/nearest"
+        // The version travels separately, so the client replaces the one the region host carries
+        // instead of composing /v1/v2/geofences/nearest off it.
+        capturedParams.captured.apiVersion shouldBeEqualTo "v2"
     }
 
     @Test

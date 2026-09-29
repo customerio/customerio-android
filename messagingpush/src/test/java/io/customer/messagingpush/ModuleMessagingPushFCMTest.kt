@@ -113,7 +113,7 @@ class ModuleMessagingPushFCMTest : IntegrationTest() {
         // an FCM-woken background process that initializes the SDK must not flush
         // because background-process network conditions make WorkManager the only
         // credible channel.
-        every { mockPendingStore.loadAll() } returns listOf(
+        every { mockPendingStore.loadAllOrNull() } returns listOf(
             PendingPushDeliveryMetric(deliveryId = "d1", token = "t1")
         )
 
@@ -130,7 +130,7 @@ class ModuleMessagingPushFCMTest : IntegrationTest() {
             PendingPushDeliveryMetric(deliveryId = "d1", token = "t1"),
             PendingPushDeliveryMetric(deliveryId = "d2", token = "t2")
         )
-        every { mockPendingStore.loadAll() } returns entries
+        every { mockPendingStore.loadAllOrNull() } returns entries
         every { mockPendingStore.claim(any()) } returns true
 
         module.handoffPendingPushDeliveryToAnalyticsPipeline()
@@ -167,7 +167,7 @@ class ModuleMessagingPushFCMTest : IntegrationTest() {
         // The WorkManager worker won the race and already claimed (delivered) the
         // entry; the handoff's claim returns false, so it must not publish again.
         val entries = listOf(PendingPushDeliveryMetric(deliveryId = "d1", token = "t1"))
-        every { mockPendingStore.loadAll() } returns entries
+        every { mockPendingStore.loadAllOrNull() } returns entries
         every { mockPendingStore.claim("d1") } returns false
 
         module.handoffPendingPushDeliveryToAnalyticsPipeline()
@@ -179,7 +179,7 @@ class ModuleMessagingPushFCMTest : IntegrationTest() {
 
     @Test
     fun handoff_givenEmptyStore_expectNoCancelNoPublishNoClaim() = runTest {
-        every { mockPendingStore.loadAll() } returns emptyList()
+        every { mockPendingStore.loadAllOrNull() } returns emptyList()
 
         module.handoffPendingPushDeliveryToAnalyticsPipeline()
 
@@ -198,7 +198,7 @@ class ModuleMessagingPushFCMTest : IntegrationTest() {
         val entries = listOf(
             PendingPushDeliveryMetric(deliveryId = "d1", token = "t1")
         )
-        every { mockPendingStore.loadAll() } returns entries
+        every { mockPendingStore.loadAllOrNull() } returns entries
         every { mockPendingStore.claim("d1") } returns true
 
         module.handoffPendingPushDeliveryToAnalyticsPipeline()
@@ -228,7 +228,7 @@ class ModuleMessagingPushFCMTest : IntegrationTest() {
             PendingPushDeliveryMetric(deliveryId = "boom", token = "t1"),
             PendingPushDeliveryMetric(deliveryId = "ok", token = "t2")
         )
-        every { mockPendingStore.loadAll() } returns entries
+        every { mockPendingStore.loadAllOrNull() } returns entries
         every { mockPendingStore.claim("ok") } returns true
         val failingOperation: Operation = mockk(relaxed = true) {
             every { result } returns

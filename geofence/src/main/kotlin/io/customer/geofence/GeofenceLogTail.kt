@@ -8,6 +8,9 @@ import java.util.Locale
 /**
  * Whether a record is something the SDK was told, decided, or neither.
  *
+ * An environment fault the SDK reacts to counts as [INPUT], not [OBSERVATION]: replay has to be fed
+ * the fault to reproduce the decision taken because of it.
+ *
  * Stated explicitly rather than inferred from the event name: replay feeds the `in` records back
  * and compares the `out` records, so a naming convention getting this wrong invalidates a run.
  */
@@ -69,7 +72,7 @@ internal object GeofenceLogTail {
      * The only values that compose the format's separators on purpose. Everything else is treated
      * as an untrusted token: geofence identifiers are workspace-authored and can hold anything.
      */
-    private val COMPOSED_KEYS = setOf("ranked", "evicted", "ids", "gs", "tt")
+    private val COMPOSED_KEYS = setOf("ranked", "evicted", "ids", "gs", "tt", "ring")
 
     /**
      * Applied to every finished value. Only whitespace, which is what separates one `key=value`
@@ -165,7 +168,8 @@ internal object GeofenceLogTail {
         if (location == null) return fields
 
         if (location.hasAccuracy()) fields.add("acc" to num(location.accuracy))
-        fields.add("age" to num(fixAgeSeconds(location)))
+        // Full precision, matching iOS's tail.
+        fields.add("age" to num(fixAgeSeconds(location), 6))
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && location.hasVerticalAccuracy()) {
             fields.add("vacc" to num(location.verticalAccuracyMeters))
         }
@@ -174,9 +178,14 @@ internal object GeofenceLogTail {
         return fields
     }
 
+    private const val NANOS_PER_SECOND = 1_000_000_000.0
+
     /** Monotonic, not wall clock: `getTime()` steps with NTP, `elapsedRealtimeNanos` cannot. */
+    fun fixAgeSeconds(elapsedRealtimeNanos: Long): Double =
+        (SystemClock.elapsedRealtimeNanos() - elapsedRealtimeNanos) / NANOS_PER_SECOND
+
     private fun fixAgeSeconds(location: Location): Double =
-        (SystemClock.elapsedRealtimeNanos() - location.elapsedRealtimeNanos) / 1_000_000_000.0
+        fixAgeSeconds(location.elapsedRealtimeNanos)
 
     @Suppress("DEPRECATION")
     private fun isMock(location: Location): Boolean =

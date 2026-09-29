@@ -1,0 +1,274 @@
+{
+  "geofences": [
+    {
+      "id": 18,
+      "name": "Northgate Market",
+      "shape": "polygon",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              -122.4202117,
+              37.7742584
+            ],
+            [
+              -122.4185883,
+              37.7742584
+            ],
+            [
+              -122.4185883,
+              37.7755416
+            ],
+            [
+              -122.4202117,
+              37.7755416
+            ],
+            [
+              -122.4202117,
+              37.7742584
+            ]
+          ]
+        ]
+      },
+      "enclosing_circle": {
+        "latitude": 37.7749,
+        "longitude": -122.4194,
+        "base_radius_m": 101
+      },
+      "distance_m": 0.0,
+      "geoset_ids": [
+        1
+      ],
+      "metadata": {}
+    },
+    {
+      "id": 16,
+      "name": "Riverside Bakery",
+      "shape": "polygon",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              -122.4145538,
+              37.7778324
+            ],
+            [
+              -122.4128822,
+              37.7778324
+            ],
+            [
+              -122.4128822,
+              37.7791536
+            ],
+            [
+              -122.4145538,
+              37.7791536
+            ],
+            [
+              -122.4145538,
+              37.7778324
+            ]
+          ]
+        ]
+      },
+      "enclosing_circle": {
+        "latitude": 37.778493,
+        "longitude": -122.413718,
+        "base_radius_m": 104
+      },
+      "distance_m": 633.52913539,
+      "geoset_ids": [
+        1
+      ],
+      "metadata": {}
+    },
+    {
+      "id": 4,
+      "name": "Lakeside Fitness Club",
+      "shape": "circle",
+      "latitude": 37.768612,
+      "longitude": -122.415991,
+      "radius": 250,
+      "distance_m": 765.73883263,
+      "geoset_ids": [
+        1
+      ],
+      "metadata": {
+        "radius_input": "km",
+        "location_input": "address",
+        "address_place_id": "PlaceIdPlaceholder0004",
+        "address_formatted_address": "Lakeside Fitness Club, 104 Example Street, Testville"
+      }
+    },
+    {
+      "id": 17,
+      "name": "Corner Coffee House",
+      "shape": "polygon",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              -122.414821,
+              37.7795976
+            ],
+            [
+              -122.413069,
+              37.7795976
+            ],
+            [
+              -122.413069,
+              37.7809824
+            ],
+            [
+              -122.414821,
+              37.7809824
+            ],
+            [
+              -122.414821,
+              37.7795976
+            ]
+          ]
+        ]
+      },
+      "enclosing_circle": {
+        "latitude": 37.78029,
+        "longitude": -122.413945,
+        "base_radius_m": 109
+      },
+      "distance_m": 771.471336,
+      "geoset_ids": [
+        1
+      ],
+      "metadata": {}
+    },
+    {
+      "id": 19,
+      "name": "Central Observation Tower",
+      "shape": "circle",
+      "latitude": 37.765019,
+      "longitude": -122.422809,
+      "radius": 1000,
+      "distance_m": 1132.85012139,
+      "geoset_ids": [
+        1
+      ],
+      "metadata": {
+        "radius_input": "km",
+        "location_input": "address",
+        "address_place_id": "PlaceIdPlaceholder0019",
+        "address_formatted_address": "Central Observation Tower, 119 Example Street, Testville"
+      }
+    },
+    {
+      "id": 20,
+      "name": "Westfield Residences",
+      "shape": "polygon",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              -122.4158736,
+              37.78218
+            ],
+            [
+              -122.4070164,
+              37.78218
+            ],
+            [
+              -122.4070164,
+              37.78918
+            ],
+            [
+              -122.4158736,
+              37.78918
+            ],
+            [
+              -122.4158736,
+              37.78218
+            ]
+          ]
+        ]
+      },
+      "enclosing_circle": {
+        "latitude": 37.78568,
+        "longitude": -122.411445,
+        "base_radius_m": 551
+      },
+      "distance_m": 1410.42768997,
+      "geoset_ids": [
+        1
+      ],
+      "metadata": {}
+    },
+    {
+      "id": 12,
+      "name": "Harbour Industrial Park",
+      "shape": "circle",
+      "latitude": 37.788375,
+      "longitude": -122.429628,
+      "radius": 1000,
+      "distance_m": 1718.71396095,
+      "geoset_ids": [
+        3
+      ],
+      "metadata": {
+        "radius_input": "km",
+        "location_input": "address",
+        "address_place_id": "PlaceIdPlaceholder0012",
+        "address_formatted_address": "Harbour Industrial Park, 112 Example Street, Testville"
+      }
+    },
+    {
+      "id": 9,
+      "name": "Downtown Conference Centre",
+      "shape": "circle",
+      "latitude": 37.747951,
+      "longitude": -122.379623,
+      "radius": 1000,
+      "distance_m": 4626.65717247,
+      "geoset_ids": [
+        3
+      ],
+      "metadata": {
+        "radius_input": "km",
+        "location_input": "address",
+        "address_place_id": "PlaceIdPlaceholder0009",
+        "address_formatted_address": "Downtown Conference Centre, 109 Example Street, Testville"
+      }
+    },
+    {
+      "id": 10,
+      "name": "Parkview General Hospital",
+      "shape": "circle",
+      "latitude": 37.828799,
+      "longitude": -122.44213,
+      "radius": 500,
+      "distance_m": 6519.38208095,
+      "geoset_ids": [
+        2
+      ],
+      "metadata": {
+        "radius_input": "km",
+        "location_input": "address",
+        "address_place_id": "PlaceIdPlaceholder0010",
+        "address_formatted_address": "Parkview General Hospital, 110 Example Street, Testville"
+      }
+    }
+  ],
+  "config": {
+    "local_refresh_trigger_radius": 1000,
+    "remote_fetch_refresh_trigger_radius": 5000,
+    "remote_fetch_refresh_expiry_time": 86400000,
+    "duplicate_events_expiry_time": 3600000,
+    "android": {
+      "max_business_geofence": 19
+    },
+    "ios": {
+      "max_business_geofence": 19
+    }
+  }
+}

@@ -2,6 +2,7 @@ package io.customer.messaginginapp.gist.data.sse
 
 import io.customer.messaginginapp.gist.data.AnonymousMessageManager
 import io.customer.messaginginapp.gist.data.NetworkUtilities
+import io.customer.messaginginapp.gist.data.model.isMessageAnonymous
 import io.customer.messaginginapp.state.InAppMessagingAction
 import io.customer.messaginginapp.state.InAppMessagingManager
 import kotlinx.coroutines.CancellationException
@@ -246,11 +247,12 @@ internal class SseConnectionManager(
                     if (messages.isNotEmpty()) {
                         sseLogger.logReceivedMessages(messages.size, "in-app")
                         // Gist realtime sends the current non-empty queue, not just the changed
-                        // message. Unlike HTTP, that queue does not include locally cached
-                        // broadcasts, so retain broadcasts that are still eligible.
+                        // message. Retain locally eligible broadcasts, but do not let a server
+                        // copy bypass their local frequency and dismissal rules.
                         inAppMessagingManager.dispatch(
                             InAppMessagingAction.ProcessMessageQueue(
-                                messages = messages + anonymousMessageManager.getEligibleAnonymousMessages(),
+                                messages = messages.filterNot { it.isMessageAnonymous() } +
+                                    anonymousMessageManager.getEligibleAnonymousMessages(),
                                 isSseSnapshot = true
                             )
                         )

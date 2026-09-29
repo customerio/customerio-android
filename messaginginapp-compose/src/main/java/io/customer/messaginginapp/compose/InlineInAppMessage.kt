@@ -17,17 +17,22 @@ import io.customer.messaginginapp.ModuleMessagingInApp
 import io.customer.messaginginapp.type.InAppMessage
 import io.customer.messaginginapp.type.InlineMessageActionListener
 import io.customer.messaginginapp.ui.InlineInAppMessageView
+import io.customer.sdk.communication.Event
+import io.customer.sdk.core.di.SDKComponent
 import kotlinx.coroutines.android.awaitFrame
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.emitAll
+import kotlinx.coroutines.flow.filterIsInstance
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flow
 
 /**
  * Remembers whether an inline in-app message is currently available for [elementId].
  *
  * The state starts as `false` and updates with the current message queue, route, and message
  * lifecycle. Reading it has no side effects: it does not fetch, display, or mark a message as shown.
- * If the in-app messaging module has not been initialized, the state remains `false` rather than
- * failing composition. Initialize Customer.io before composing this helper to receive later updates.
+ * If the in-app messaging module has not been initialized, the state remains `false` until SDK
+ * initialization completes, then starts observing the module if it was configured.
  * This makes it suitable for conditionally adding an item to a lazy layout:
  *
  * ```
@@ -49,12 +54,16 @@ fun rememberInlineMessageAvailability(elementId: String): State<Boolean> {
     return availability.collectAsStateWithLifecycle(initialValue = false)
 }
 
-internal fun inlineMessageAvailabilityFlow(elementId: String): Flow<Boolean> =
-    try {
-        ModuleMessagingInApp.instance().observeInlineMessageAvailability(elementId)
-    } catch (_: IllegalStateException) {
-        flowOf(false)
+@OptIn(InternalCustomerIOApi::class)
+internal fun inlineMessageAvailabilityFlow(elementId: String): Flow<Boolean> = flow {
+    var module = SDKComponent.modules[ModuleMessagingInApp.MODULE_NAME] as? ModuleMessagingInApp
+    if (module == null) {
+        emit(false)
+        SDKComponent.eventBus.flow.filterIsInstance<Event.SdkInitializedEvent>().first()
+        module = SDKComponent.modules[ModuleMessagingInApp.MODULE_NAME] as? ModuleMessagingInApp
     }
+    module?.let { emitAll(it.observeInlineMessageAvailability(elementId)) }
+}
 
 /**
  * A Composable that displays an inline in-app message for a given element ID.

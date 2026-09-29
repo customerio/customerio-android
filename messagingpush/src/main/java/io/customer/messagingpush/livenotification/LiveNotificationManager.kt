@@ -228,7 +228,7 @@ internal class LiveNotificationManager(
      * Renders a server-delivered live notification off the caller's thread.
      *
      * Push renders used to run inline on Firebase's `onMessageReceived` thread, where the
-     * blocking branding-logo download (up to ~20s) held up Firebase's message handler and
+     * blocking branding-logo download held up Firebase's message handler and
      * delayed follow-up pushes. Routing them through the same chain as local renders releases
      * that thread immediately and keeps push and local renders from interleaving.
      */
@@ -249,7 +249,7 @@ internal class LiveNotificationManager(
             // A logout/reset after this render was queued invalidates it, so it can't
             // re-post a previous user's activity into a store that reset just cleared.
             if (generation != renderGeneration) return@launch
-            // The render below performs a blocking branding-logo download (up to ~20s) and
+            // The render below performs a blocking branding-logo download and
             // may invoke a slow app renderer. A logout can land during that window — after
             // this pre-check passed — so the handler re-checks the generation immediately
             // before it posts the notification and writes the activity type back.

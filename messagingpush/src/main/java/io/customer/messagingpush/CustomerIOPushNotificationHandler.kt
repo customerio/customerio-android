@@ -28,6 +28,7 @@ import io.customer.messagingpush.util.PushTrackingUtil.Companion.DELIVERY_TOKEN_
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.extensions.applicationMetaData
 import kotlin.math.abs
+import kotlin.math.roundToInt
 
 /**
  * Class to handle PushNotification.
@@ -51,6 +52,8 @@ internal class CustomerIOPushNotificationHandler(
             "com.google.firebase.messaging.default_notification_icon"
         private const val FCM_METADATA_DEFAULT_NOTIFICATION_COLOR =
             "com.google.firebase.messaging.default_notification_color"
+        private const val MAX_BIG_PICTURE_DIMENSION_PX = 1024
+        private const val MAX_LARGE_ICON_DP = 64
     }
 
     private val diGraph = SDKComponent
@@ -195,7 +198,7 @@ internal class CustomerIOPushNotificationHandler(
             // notification + data payload (foreground)
             val notificationImage = bundle.getString(IMAGE_KEY) ?: remoteMessage.notification?.imageUrl?.toString()
             if (notificationImage != null) {
-                addImage(notificationImage, notificationBuilder, body)
+                addImage(context, notificationImage, notificationBuilder, body)
             }
         } catch (e: Exception) {
             e.printStackTrace()
@@ -250,6 +253,7 @@ internal class CustomerIOPushNotificationHandler(
     }
 
     private fun addImage(
+        context: Context,
         imageUrl: String,
         builder: NotificationCompat.Builder,
         body: String,
@@ -258,9 +262,30 @@ internal class CustomerIOPushNotificationHandler(
         val style = NotificationCompat.BigPictureStyle()
             .bigLargeIcon(defaultLargeIcon)
             .setSummaryText(body)
-        BitmapDownloader.download(imageUrl)?.let { bitmap ->
+        val display = context.resources.displayMetrics
+        BitmapDownloader.download(
+            imageUrl,
+            maxWidth = display.widthPixels.coerceIn(1, MAX_BIG_PICTURE_DIMENSION_PX),
+            maxHeight = display.heightPixels.coerceIn(1, MAX_BIG_PICTURE_DIMENSION_PX)
+        )?.let { bitmap ->
             style.bigPicture(bitmap)
-            builder.setLargeIcon(bitmap)
+            val iconSize = (MAX_LARGE_ICON_DP * display.density).roundToInt().coerceAtLeast(1)
+            val iconScale = minOf(
+                iconSize.toFloat() / bitmap.width,
+                iconSize.toFloat() / bitmap.height,
+                1f
+            )
+            val largeIcon = if (iconScale < 1f) {
+                Bitmap.createScaledBitmap(
+                    bitmap,
+                    (bitmap.width * iconScale).roundToInt().coerceAtLeast(1),
+                    (bitmap.height * iconScale).roundToInt().coerceAtLeast(1),
+                    true
+                )
+            } else {
+                bitmap
+            }
+            builder.setLargeIcon(largeIcon)
             builder.setStyle(style)
         }
     }

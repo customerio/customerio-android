@@ -64,14 +64,17 @@ internal object BitmapDownloader {
             decodeSquareRegion(bytes, bounds.outWidth, bounds.outHeight, maxWidth)?.let { return it }
         }
         val options = BitmapFactory.Options().apply {
-            inSampleSize = calculateInSampleSize(bounds.outWidth, bounds.outHeight, maxWidth, maxHeight)
+            inSampleSize = if (centerCrop) {
+                calculateSquareSampleSize(bounds.outWidth, bounds.outHeight, maxWidth)
+            } else {
+                calculateInSampleSize(bounds.outWidth, bounds.outHeight, maxWidth, maxHeight)
+            }
         }
         return BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options)
             ?.let { bitmap ->
-                val fitted = scaleToFit(bitmap, maxWidth, maxHeight)
-                if (!centerCrop) return@let fitted
-                val cropped = squareIcon(fitted, maxWidth)
-                if (cropped !== fitted) fitted.recycle()
+                if (!centerCrop) return@let scaleToFit(bitmap, maxWidth, maxHeight)
+                val cropped = squareIcon(bitmap, maxWidth)
+                if (cropped !== bitmap) bitmap.recycle()
                 cropped
             }
     }
@@ -126,6 +129,19 @@ internal object BitmapDownloader {
         return sampleSize
     }
 
+    internal fun calculateSquareSampleSize(width: Int, height: Int, maxSize: Int): Int {
+        val side = minOf(width, height)
+        var sampleSize = calculateInSampleSize(side, side, maxSize, maxSize)
+        // Formats without region decoding still retain short-side detail, with a 4 MiB bitmap budget.
+        while (
+            ((width.toLong() + sampleSize - 1) / sampleSize) *
+            ((height.toLong() + sampleSize - 1) / sampleSize) > MAX_ICON_DECODE_PIXELS
+        ) {
+            sampleSize *= 2
+        }
+        return sampleSize
+    }
+
     private fun scaleToFit(bitmap: Bitmap, maxWidth: Int, maxHeight: Int): Bitmap {
         val scale = minOf(
             maxWidth.toFloat() / bitmap.width,
@@ -173,4 +189,5 @@ internal object BitmapDownloader {
     private const val MAX_DOWNLOAD_BYTES = 5 * 1024 * 1024
     private const val MAX_SOURCE_DIMENSION_PX = 65_536
     private const val MAX_SOURCE_PIXELS = 50_000_000L
+    private const val MAX_ICON_DECODE_PIXELS = 1_048_576L
 }

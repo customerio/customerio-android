@@ -70,7 +70,10 @@ internal object TemplateAssets {
         val bitmap = BitmapDownloader.download(url, maxSize, maxSize, centerCrop = true) ?: return null
         try {
             val saved = writeCache(cacheFile, bitmap)
-            if (saved) File(cacheDir, sha256(url)).delete()
+            if (saved) {
+                File(cacheDir, sha256(url)).delete()
+                File(cacheDir, sha256("v2:$maxSize:$url")).delete()
+            }
         } catch (e: Exception) {
             SDKComponent.logger.debug("Failed to cache live notification image '$url': ${e.message}")
         }

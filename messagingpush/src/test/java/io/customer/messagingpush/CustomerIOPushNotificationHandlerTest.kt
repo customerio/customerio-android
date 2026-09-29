@@ -7,6 +7,7 @@ import android.graphics.Bitmap
 import android.graphics.Color
 import android.graphics.drawable.BitmapDrawable
 import android.os.Bundle
+import androidx.core.app.NotificationCompat
 import com.google.firebase.messaging.RemoteMessage
 import io.customer.commontest.config.TestConfig
 import io.customer.commontest.config.testConfigurationDefault
@@ -32,8 +33,10 @@ import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows
+import org.robolectric.annotation.GraphicsMode
 
 @RunWith(RobolectricTestRunner::class)
+@GraphicsMode(GraphicsMode.Mode.NATIVE)
 internal class CustomerIOPushNotificationHandlerTest : IntegrationTest() {
     @get:Rule val temporaryFolder = TemporaryFolder()
     private lateinit var pushNotificationHandler: CustomerIOPushNotificationHandler
@@ -170,10 +173,19 @@ internal class CustomerIOPushNotificationHandlerTest : IntegrationTest() {
         largeIcon.shouldNotBeNull()
         val icon = (largeIcon.loadDrawable(contextMock) as BitmapDrawable).bitmap
         val targetSize = (64 * contextMock.resources.displayMetrics.density).toInt().coerceAtLeast(1)
-        assertEquals(icon.width, icon.height)
-        assertTrue(icon.width in 1..targetSize)
         val picture = notification.extras.parcelable<Bitmap>(Notification.EXTRA_PICTURE)
         picture.shouldNotBeNull()
+        // The platform may reduce a 64 dp icon further. Compare with a full square through the same builder.
+        val square = Bitmap.createBitmap(targetSize, targetSize, Bitmap.Config.ARGB_8888)
+        val reference = NotificationCompat.Builder(contextMock, notification.channelId)
+            .setLargeIcon(square)
+            .setStyle(NotificationCompat.BigPictureStyle().bigPicture(picture))
+            .build()
+        val referenceIcon = (reference.getLargeIcon().loadDrawable(contextMock) as BitmapDrawable).bitmap
+        assertEquals(icon.width, icon.height)
+        assertEquals(referenceIcon.width, icon.width)
+        assertTrue(icon.width in 1..targetSize)
+        assertEquals(Color.BLUE, icon.getPixel(icon.width / 2, icon.height / 2))
         assertEquals(picture.width, picture.height * 2)
         assertFalse(picture.isRecycled)
     }

@@ -1,10 +1,14 @@
 package io.customer.messagingpush.util
 
 import android.graphics.Bitmap
+import android.graphics.BitmapRegionDecoder
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import io.customer.messagingpush.testutils.core.IntegrationTest
+import io.mockk.every
+import io.mockk.mockkStatic
+import io.mockk.unmockkStatic
 import java.io.ByteArrayOutputStream
 import java.io.IOException
 import java.net.ServerSocket
@@ -80,6 +84,32 @@ internal class BitmapDownloaderTest : IntegrationTest() {
 
         assertEquals(64, result?.width)
         assertEquals(64, result?.height)
+    }
+
+    @Suppress("DEPRECATION")
+    @Test
+    fun decodeSampled_whenRegionDecoderRejectsFormat_thenKeepsShortSideDetailInFallback() {
+        mockkStatic(BitmapRegionDecoder::class)
+        try {
+            every { BitmapRegionDecoder.newInstance(any<ByteArray>(), any(), any(), any()) } throws IOException("Unsupported format")
+
+            val result = BitmapDownloader.decodeSampled(compressedImage(1024, 256), 192, 192, centerCrop = true)
+
+            assertEquals(192, result?.width)
+            assertEquals(192, result?.height)
+            assertEquals(Color.BLUE, result?.getPixel(0, 0))
+        } finally {
+            unmockkStatic(BitmapRegionDecoder::class)
+        }
+    }
+
+    @Test
+    fun calculateSquareSampleSize_whenImageHasExtremeAspectRatio_thenBoundsDecodedPixels() {
+        val sample = BitmapDownloader.calculateSquareSampleSize(50_000, 1000, 192)
+        val width = (50_000L + sample - 1) / sample
+        val height = (1000L + sample - 1) / sample
+
+        org.junit.Assert.assertTrue(width * height <= 1_048_576)
     }
 
     @Test

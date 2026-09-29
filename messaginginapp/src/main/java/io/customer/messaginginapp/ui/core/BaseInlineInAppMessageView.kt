@@ -95,6 +95,12 @@ constructor(
         controller.onViewOwnerDestroyed()
     }
 
+    /** Releases a Compose-owned view when it leaves composition and will not be reattached. */
+    @InternalCustomerIOApi
+    fun releaseForComposition() {
+        controller.onViewDetached()
+    }
+
     /**
      * Element ID for targeting this view with specific inline messages.
      */

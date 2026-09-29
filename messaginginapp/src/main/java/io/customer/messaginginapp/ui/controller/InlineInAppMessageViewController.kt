@@ -158,6 +158,12 @@ internal constructor(
     /** Stops observing while a lifecycle-owned view is temporarily off screen, without reloading it. */
     @UiThread
     internal fun onViewTemporarilyDetached() {
+        // A renderer still loading must not finish after its host leaves the window. This also
+        // applies when recreating an already displayed message (which skips the display event).
+        if (currentMessage != null && currentRoute == null) {
+            onViewDetached()
+            return
+        }
         isViewActive = false
         unsubscribeFromStore()
         currentMessage?.takeIf { it.queueId != null }?.let { message ->
@@ -279,6 +285,7 @@ internal constructor(
             stopEngineWebViewLoading()
         }
         currentMessage = null
+        currentRoute = null
         viewDelegate.isVisible = false
         contentWidthInDp = null
         contentHeightInDp = null
@@ -290,6 +297,7 @@ internal constructor(
     @UiThread
     private fun displayMessage(message: Message) {
         viewTransitionId++
+        currentRoute = null
         elapsedTimer.start("Displaying inline message: ${message.messageId}")
         viewCallback?.onLoadingStarted()
         attachEngineWebView()

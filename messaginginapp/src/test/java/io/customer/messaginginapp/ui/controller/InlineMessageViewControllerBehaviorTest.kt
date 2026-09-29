@@ -500,6 +500,48 @@ class InlineMessageViewControllerBehaviorTest : JUnitTest() {
     }
 
     @Test
+    fun onViewTemporarilyDetached_givenLoadInFlight_expectRendererReleasedBeforeItCanDisplay() {
+        val controller = setupGistAndCreateViewController()
+        controller.initMockViewCallback()
+        val elementId = "test-element-id"
+        val message = createInAppMessage(queueId = "1", elementId = elementId)
+        controller.elementId = elementId
+        messagingManager.dispatch(InAppMessagingAction.EmbedMessages(listOf(message)))
+            .flushCoroutines(scopeProviderStub.inAppLifecycleScope)
+        clearMocks(messagingManager, viewDelegate, engineWebViewDelegate, platformDelegate, answers = false)
+
+        controller.onViewTemporarilyDetached()
+        controller.routeLoaded(String.random)
+
+        controller.currentMessage.shouldBeNull()
+        controller.engineWebViewDelegate.shouldBeNull()
+        verify(exactly = 1) { engineWebViewDelegate.releaseResources() }
+        verify(exactly = 0) { messagingManager.dispatch(InAppMessagingAction.DisplayMessage(message)) }
+    }
+
+    @Test
+    fun onViewTemporarilyDetached_givenRestoredMessageStillLoading_expectRendererReleased() {
+        val elementId = "test-element-id"
+        val message = createInAppMessage(queueId = "1", elementId = elementId)
+        gistProvider.setUserId(String.random)
+        messagingManager.dispatch(InAppMessagingAction.EmbedMessages(listOf(message)))
+            .flushCoroutines(scopeProviderStub.inAppLifecycleScope)
+        messagingManager.dispatch(InAppMessagingAction.DisplayMessage(message))
+            .flushCoroutines(scopeProviderStub.inAppLifecycleScope)
+        val controller = createViewController()
+        controller.initMockViewCallback()
+        controller.elementId = elementId
+        flushCoroutines(scopeProviderStub.inAppLifecycleScope)
+        clearMocks(engineWebViewDelegate, answers = false)
+
+        controller.onViewTemporarilyDetached()
+
+        controller.currentMessage.shouldBeNull()
+        controller.engineWebViewDelegate.shouldBeNull()
+        verify(exactly = 1) { engineWebViewDelegate.releaseResources() }
+    }
+
+    @Test
     fun onViewReattached_givenQueuedStateFromPreviousSubscription_expectStaleStateIgnored() {
         val controller = setupGistAndCreateViewController()
         controller.initMockViewCallback()

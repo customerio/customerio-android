@@ -3,6 +3,7 @@ package io.customer.messaginginapp.compose
 import android.view.ViewGroup
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.State
 import androidx.compose.runtime.remember
@@ -11,6 +12,7 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import io.customer.base.internal.InternalCustomerIOApi
 import io.customer.messaginginapp.ModuleMessagingInApp
 import io.customer.messaginginapp.type.InAppMessage
 import io.customer.messaginginapp.type.InlineMessageActionListener
@@ -67,6 +69,7 @@ internal fun inlineMessageAvailabilityFlow(elementId: String): Flow<Boolean> =
  *                     the system's colorControlActivated will be used
  * @param onAction Optional callback that will be invoked when a message action is clicked
  */
+@OptIn(InternalCustomerIOApi::class)
 @Composable
 fun InlineInAppMessage(
     elementId: String,
@@ -91,6 +94,12 @@ fun InlineInAppMessage(
                 setProgressTint(color.toArgb())
             }
         }
+    }
+
+    // Lazy items can leave composition permanently without their Activity being destroyed.
+    // Release the WebView then; temporary View detach/reattach keeps it for scroll reuse.
+    DisposableEffect(view) {
+        onDispose { view.releaseForComposition() }
     }
 
     // Update progress tint when it changes

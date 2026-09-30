@@ -75,6 +75,14 @@ internal class EngineWebView @JvmOverloads constructor(
     private val viewLifecycleOwner: Lifecycle?
         get() = findViewTreeLifecycleOwner()?.lifecycle
 
+    /**
+     * Tracks whether the interface was armed via the no-lifecycle-owner fallback in
+     * [onAttachedToWindow]. Mirrors the [hasSubscribedToController] pattern in
+     * [io.customer.messaginginapp.ui.core.BaseInlineInAppMessageView] so that
+     * [onDetachedFromWindow] can mirror the correct teardown path.
+     */
+    private var hasSubscribedViaFallback = false
+
     init {
         // exception handling is required for webview in-case webview is not supported in the device
         try {
@@ -88,6 +96,57 @@ internal class EngineWebView @JvmOverloads constructor(
 
     override fun getView(): EngineWebView {
         return this
+    }
+
+    /**
+     * Re-subscribes to the current view-tree lifecycle owner whenever the view is (re-)attached
+     * to a window.
+     *
+     * This mirrors [io.customer.messaginginapp.ui.core.BaseInlineInAppMessageView.onAttachedToWindow]
+     * (PR #611 / MBL-1329) and fixes the regression where react-native-screens re-parents the
+     * same [EngineWebView] instance under a *new* lifecycle owner on back-navigation. Before
+     * this fix, the observer remained registered on the destroyed first owner and
+     * [onLifecycleResumed] never fired for the new owner, leaving
+     * [EngineWebViewInterface.isAttachedToWebView] false and silently dropping all taps.
+     *
+     * [LifecycleRegistry.addObserver] replays the owner's current state, so a RESUMED owner
+     * immediately drives [onResume] → [onLifecycleResumed] → [EngineWebViewInterface.attach],
+     * re-arming the interface without any extra call to [setup].
+     *
+     * Adding the same observer twice to the same [LifecycleRegistry] is idempotent, so the
+     * existing registration in [setup] is not affected.
+     */
+    override fun onAttachedToWindow() {
+        super.onAttachedToWindow()
+
+        val lifecycle = viewLifecycleOwner
+        if (lifecycle != null) {
+            lifecycle.addObserver(this)
+        } else {
+            // Fallback: arm the interface directly when no lifecycle owner is available.
+            // Mirrors setup()'s fallback and BaseInlineInAppMessageView's no-owner path.
+            if (!hasSubscribedViaFallback) {
+                onLifecycleResumed()
+                hasSubscribedViaFallback = true
+            }
+        }
+    }
+
+    /**
+     * Unsubscribes from the lifecycle owner when the view is detached from the window.
+     *
+     * Mirrors [io.customer.messaginginapp.ui.core.BaseInlineInAppMessageView.onDetachedFromWindow]
+     * and pairs with [onAttachedToWindow] to complete the re-subscribe lifecycle.
+     */
+    override fun onDetachedFromWindow() {
+        super.onDetachedFromWindow()
+
+        if (hasSubscribedViaFallback) {
+            onLifecyclePaused()
+            hasSubscribedViaFallback = false
+        } else {
+            viewLifecycleOwner?.removeObserver(this)
+        }
     }
 
     override fun onResume(owner: LifecycleOwner) {

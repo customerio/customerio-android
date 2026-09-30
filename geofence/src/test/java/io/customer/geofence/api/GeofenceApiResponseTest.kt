@@ -50,22 +50,16 @@ class GeofenceApiResponseTest : RobolectricTest() {
 
     @Test
     fun parseAndMap_givenPolygonAndNoOptIn_expectDroppedAndCirclesKept() {
-        // The default at the seam — what the repository calls today. The record decodes, but this
-        // build can't evaluate a polygon, and its enclosing circle is a proximity trigger rather
-        // than the fence, so the region must not survive into the registerable set.
         val regions = parseRegions(polygonAndCircleJson())
 
         regions.map(GeofenceRegion::id) shouldBeEqualTo listOf("circle")
         verify { mockLogger.logPolygonDroppedUnsupportedRuntime("campus") }
-        // No generic "invalid region" noise: the polygon drop reports its own reason.
         verify(exactly = 0) { mockLogger.logInvalidRegionDropped("campus") }
     }
 
     @Test
     fun parseAndMap_givenPolygonWithCircleFieldsAndNoOptIn_expectNotDegradedToCircle() {
-        // The dangerous shape: a polygon record that also carries lat/lng/radius. Falling back to
-        // those fields would register (and report business transitions for) a fence the backend
-        // never described.
+        // Falling back to the circle fields would register a fence the backend never described.
         val regions = parseRegions(
             """
             {
@@ -103,16 +97,12 @@ class GeofenceApiResponseTest : RobolectricTest() {
 
     @Test
     fun parseAndMap_givenOnlyPolygonsAndNoOptIn_expectThrowsSoLiveCatalogSurvives() {
-        // Every region dropped = unusable response. Throwing fails the refresh and leaves the
-        // previously registered set in place; returning an empty list would wipe it.
         invoking { parseRegions(polygonOnlyJson()) } shouldThrow IllegalStateException::class
         verify { mockLogger.logPolygonDroppedUnsupportedRuntime("campus") }
     }
 
     @Test
     fun parseAndMap_givenPolygonAndOptIn_expectValidatedPolygonAndEnclosingCircle() {
-        // The same record with the runtime's opt-in supplied: proves the drop above is the opt-in,
-        // not a gap in the wire contract or the geometry.
         val region = parseRegions(polygonAndCircleJson(), PolygonSupport.Enabled)
             .single { it.id == "campus" }
 
@@ -180,8 +170,6 @@ class GeofenceApiResponseTest : RobolectricTest() {
 
     @Test
     fun parseAndMap_givenBlankShape_expectTreatedAsAbsentNotUnsupported() {
-        // A field carrying only whitespace names no shape at all, so it routes the way a missing
-        // discriminator does rather than dropping the record.
         val regions = parseRegions(
             """
             {
@@ -200,7 +188,6 @@ class GeofenceApiResponseTest : RobolectricTest() {
 
     @Test
     fun parseAndMap_givenPaddedPolygonShape_expectRoutedToPolygonBranch() {
-        // The trim has to apply to every discriminator, not just the circle one.
         val region = parseRegions(
             polygonAndCircleJson().replace("\"shape\": \"polygon\"", "\"shape\": \" Polygon \""),
             PolygonSupport.Enabled
@@ -211,8 +198,6 @@ class GeofenceApiResponseTest : RobolectricTest() {
 
     @Test
     fun parseAndMap_givenPaddedUnknownShape_expectRawValueReported() {
-        // The drop reason has to name what the server actually sent, not the trimmed form used for
-        // matching, or the log sends someone looking for a shape string that was never on the wire.
         parseRegions(
             """
             {
@@ -230,9 +215,6 @@ class GeofenceApiResponseTest : RobolectricTest() {
 
     @Test
     fun parseAndMap_givenBlankShapeCarryingGeometry_expectDroppedAsInconsistentNotRegistered() {
-        // Routing a blank discriminator as absent must not weaken the inconsistency guard: the
-        // record still carries geometry, so falling back to its circle fields would register a
-        // fence the backend never described.
         val regions = parseRegions(
             """
             {
@@ -269,9 +251,8 @@ class GeofenceApiResponseTest : RobolectricTest() {
 
     @Test
     fun parseAndMap_givenPolygonPositionThatIsNotFinite_expectRecordDroppedNotWholeSync() {
-        // Positions decode as JsonElement, so the literal "NaN" becomes a Double and passes every
-        // geometry check — each one compares, and every comparison against NaN is false. It would
-        // surface only in the strict cache encoder, after the sync had already registered.
+        // Positions decode as JsonElement, so "NaN" becomes a Double and passes every comparison-based
+        // geometry check.
         val regions = parseRegions(
             """
             {
@@ -298,8 +279,7 @@ class GeofenceApiResponseTest : RobolectricTest() {
 
     @Test
     fun parseAndMap_givenPolygonWithOutOfRangeWakeCircleCenter_expectRecordDroppedNotWholeSync() {
-        // Geofence.Builder throws on an out-of-range centre and registration builds the batch in one
-        // map, so letting this through fails every fence in the sync, not just this record.
+        // Geofence.Builder throws on an out-of-range centre, failing the whole registration batch.
         val regions = parseRegions(
             """
             {
@@ -373,15 +353,12 @@ class GeofenceApiResponseTest : RobolectricTest() {
             PolygonSupport.Enabled
         )
 
-        // The backend admits concave rings and the ray cast handles them, so re-checking convexity
-        // here only put the SDK out of step with the payload it was sent.
         regions.map(GeofenceRegion::id) shouldBeEqualTo listOf("concave", "circle")
     }
 
     @Test
     fun toPolygonGeometryOrNull_givenGeoJsonPolygon_expectDecodedRing() {
-        // The wire contract itself needs no opt-in: decoding and validating a polygon block is what
-        // this module ships. Only turning it into a monitored region is gated.
+        // Decoding needs no opt-in; only turning it into a monitored region is gated.
         val geometry = parseResponse(polygonAndCircleJson()).geofences
             .single { it.id == "campus" }
             .geometry
@@ -396,8 +373,6 @@ class GeofenceApiResponseTest : RobolectricTest() {
 
     @Test
     fun parseAndMap_givenUnknownGeometryTypeWithCircleFields_expectDroppedNotDegradedToCircle() {
-        // A shape the SDK doesn't understand is dropped and logged, with or without the opt-in —
-        // silently monitoring its bounding circle would report transitions for the wrong area.
         listOf(PolygonSupport.Disabled, PolygonSupport.Enabled).forEach { support ->
             val regions = parseRegions(
                 """
@@ -424,7 +399,6 @@ class GeofenceApiResponseTest : RobolectricTest() {
 
     @Test
     fun parseAndMap_givenNullGeometryType_expectRegionDecodesAsCircle() {
-        // Absent geometry is the circle contract and must stay byte-for-byte the old behaviour.
         val regions = parseRegions(
             """{ "geofences": [ { "id": "circle", "latitude": 1.5, "longitude": 2.5, "radius": 100, "geometry": null } ] }"""
         )
@@ -464,8 +438,6 @@ class GeofenceApiResponseTest : RobolectricTest() {
 
     @Test
     fun parseAndMap_givenSelfIntersectingPolygon_expectDropIsIsolatedNotThrown() {
-        // A ring that fails validation drops itself with a reason — no exception, so the rest of
-        // the response still maps.
         val regions = parseRegions(
             """
             {
@@ -493,7 +465,7 @@ class GeofenceApiResponseTest : RobolectricTest() {
 
     @Test
     fun parseAndMap_givenOversizedPolygon_expectDroppedWithoutCostingOtherRegions() {
-        // A continent-sized ring has no usable OS trigger circle (well past the 100 km ceiling).
+        // Well past the 100 km OS trigger ceiling.
         val regions = parseRegions(
             """
             {
@@ -586,8 +558,6 @@ class GeofenceApiResponseTest : RobolectricTest() {
 
     @Test
     fun parseAndMap_givenFractionalRadius_expectDecodeSucceeds() {
-        // A backend sending 150.5 (or 150.0) must not fail the whole response —
-        // the domain radius is a Float either way.
         val regions = parseRegions(
             """{ "geofences": [ { "id": 1, "latitude": 0.0, "longitude": 0.0, "radius": 150.5 } ] }"""
         )
@@ -597,7 +567,7 @@ class GeofenceApiResponseTest : RobolectricTest() {
 
     @Test
     fun parseAndMap_givenInvalidRegions_expectDroppedAndValidKept() {
-        // GMS would throw for these at registration — each drops alone, with a log.
+        // GMS would throw for each of these at registration.
         val regions = parseRegions(
             """
             {
@@ -619,7 +589,6 @@ class GeofenceApiResponseTest : RobolectricTest() {
 
     @Test
     fun parseAndMap_givenOneRegionMappingThrows_expectOthersKept() {
-        // One region's unexpected mapper throw must cost only itself.
         val response = parseResponse(twoValidRegionsJson())
         mockkStatic("io.customer.geofence.api.GeofenceApiResponseKt")
         try {
@@ -639,7 +608,7 @@ class GeofenceApiResponseTest : RobolectricTest() {
 
     @Test
     fun parseAndMap_givenAllRegionsMappingThrow_expectThrowsNotEmptyList() {
-        // All regions dropping = unusable response; an empty "success" would wipe live registrations.
+        // An empty "success" would wipe live registrations.
         val response = parseResponse(twoValidRegionsJson())
         mockkStatic("io.customer.geofence.api.GeofenceApiResponseKt")
         try {
@@ -653,8 +622,6 @@ class GeofenceApiResponseTest : RobolectricTest() {
 
     @Test
     fun parseAndMap_givenAllRegionsInvalid_expectThrowsNotEmptyList() {
-        // Same guard for all-invalid values (no exceptions involved) — only a genuinely
-        // empty response may produce an empty result.
         val raw = """
             {
               "geofences": [
@@ -670,9 +637,8 @@ class GeofenceApiResponseTest : RobolectricTest() {
 
     @Test
     fun parse_givenNaNOrInfinityValues_expectDecodeFails() {
-        // Pins the assumption that lets toDomain skip isFinite checks: the serializer has
-        // no allowSpecialFloatingPointValues, so NaN/Infinity can never reach mapping —
-        // even via lenient-mode quoted strings. Decode failure -> Result.failure upstream.
+        // toDomain relies on this instead of isFinite checks, so keep
+        // allowSpecialFloatingPointValues off.
         val nanRadius = """{ "geofences": [ { "id": 1, "latitude": 0.0, "longitude": 0.0, "radius": "NaN" } ] }"""
         val infLatitude = """{ "geofences": [ { "id": 1, "latitude": "Infinity", "longitude": 0.0, "radius": 100 } ] }"""
 
@@ -682,8 +648,6 @@ class GeofenceApiResponseTest : RobolectricTest() {
 
     @Test
     fun parseAndMap_givenBoundaryCoordinates_expectKept() {
-        // Poles and the antimeridian are valid registerable values — the validation is
-        // inclusive at the boundaries.
         val regions = parseRegions(
             """
             {
@@ -708,8 +672,7 @@ class GeofenceApiResponseTest : RobolectricTest() {
 
     @Test
     fun parseAndMap_givenNumericGeosetIdsOnWire_expectStringsInOrder() {
-        // Server contract: geoset_ids arrive as JSON numbers ([]int64). The SDK treats them as opaque
-        // string identifiers (like `id`), coercing each element without reordering.
+        // The server sends geoset_ids as JSON numbers; the SDK treats them as opaque strings.
         val regions = parseRegions(
             """
             { "geofences": [ { "id": 1, "latitude": 0.0, "longitude": 0.0, "radius": 100, "geoset_ids": [1, 3, 7] } ] }
@@ -721,7 +684,6 @@ class GeofenceApiResponseTest : RobolectricTest() {
 
     @Test
     fun parseAndMap_givenQuotedStringGeosetIdsOnWire_expectStringsInOrder() {
-        // Defensive: geoset_ids are typed as strings, so a quoted form decodes identically to the numeric contract.
         val regions = parseRegions(
             """
             { "geofences": [ { "id": 1, "latitude": 0.0, "longitude": 0.0, "radius": 100, "geoset_ids": ["1", "3", "7"] } ] }
@@ -759,8 +721,6 @@ class GeofenceApiResponseTest : RobolectricTest() {
 
     @Test
     fun parseAndMap_givenNonScalarMetadataValues_expectDroppedAtParseScalarsKept() {
-        // Non-scalar values (object/array/null) can't be emitted, so they're dropped at parse rather
-        // than stored — and one bad value must not fail the whole region parse.
         val regions = parseRegions(
             """
             { "geofences": [ { "id": 1, "latitude": 0.0, "longitude": 0.0, "radius": 100,
@@ -775,8 +735,6 @@ class GeofenceApiResponseTest : RobolectricTest() {
 
     @Test
     fun parseAndMap_givenMalformedMetadataType_expectEmptyMetadataAndRegionStillParses() {
-        // `metadata` sent as a non-object (here a string) must not fail the region/response decode —
-        // it degrades to empty metadata while every other field parses normally.
         val regions = parseRegions(
             """
             { "geofences": [ { "id": 1, "latitude": 1.5, "longitude": 2.5, "radius": 100, "metadata": "oops" } ] }
@@ -814,7 +772,6 @@ class GeofenceApiResponseTest : RobolectricTest() {
 
     @Test
     fun parseAndMap_givenMinimalRegion_expectDefaultsForOptionalFields() {
-        // Only required fields present; nullable / defaulted fields use SDK defaults.
         val regions = parseRegions(
             """
             { "geofences": [ { "id": 9, "latitude": 1.0, "longitude": 2.0, "radius": 100 } ] }
@@ -838,8 +795,6 @@ class GeofenceApiResponseTest : RobolectricTest() {
 
     @Test
     fun parseAndMap_givenQuotedStringId_expectDecodedAsString() {
-        // Forward-compat: if backend ever ships ids as opaque strings (UUIDs etc.),
-        // the SDK consumes them unchanged.
         val regions = parseRegions(
             """{ "geofences": [ { "id": "abc-123", "latitude": 0.0, "longitude": 0.0, "radius": 100 } ] }"""
         )
@@ -849,7 +804,6 @@ class GeofenceApiResponseTest : RobolectricTest() {
 
     @Test
     fun parseAndMap_givenUnknownTopLevelField_expectIgnoredAndParses() {
-        // Forward-compat: future top-level additions don't break decoding.
         val regions = parseRegions(
             """
             {
@@ -878,8 +832,6 @@ class GeofenceApiResponseTest : RobolectricTest() {
 
     @Test
     fun parseAndMap_givenEmptyExternalId_expectPreserved() {
-        // Empty string is preserved separately from null — "explicitly empty"
-        // is distinct from "never set."
         val regions = parseRegions(
             """
             { "geofences": [ { "id": 1, "latitude": 0.0, "longitude": 0.0, "radius": 100, "external_id": "" } ] }
@@ -908,7 +860,6 @@ class GeofenceApiResponseTest : RobolectricTest() {
 
     @Test
     fun parseAndMap_givenAllUnknownTransitionTypes_expectDefaultAndAllLogged() {
-        // `[dwell]` → all unknown → fall back to [ENTER, EXIT], log each unknown.
         val regions = parseRegions(regionJsonWith(transitionTypes = """["dwell"]"""))
 
         regions[0].transitionTypes shouldContainSame listOf(
@@ -920,7 +871,6 @@ class GeofenceApiResponseTest : RobolectricTest() {
 
     @Test
     fun parseAndMap_givenMixedValidAndUnknownTransitionTypes_expectOnlyValidKept() {
-        // `[enter, dwell]` → keep ENTER, drop "dwell", log it.
         val regions = parseRegions(regionJsonWith(transitionTypes = """["enter", "dwell"]"""))
 
         regions[0].transitionTypes shouldContainSame listOf(GeofenceTransitionType.ENTER)
@@ -938,7 +888,6 @@ class GeofenceApiResponseTest : RobolectricTest() {
 
     @Test
     fun parseAndMap_givenOnlyValidTransitionTypes_expectNoUnknownLogged() {
-        // Inverse of the unknown-log test: no spurious logs on the happy path.
         parseRegions(regionJsonWith(transitionTypes = """["enter", "exit"]"""))
         verify(exactly = 0) { mockLogger.logUnknownApiTransitionType(any()) }
     }
@@ -960,9 +909,7 @@ class GeofenceApiResponseTest : RobolectricTest() {
 
     @Test
     fun toDomainConfig_givenNoConfigBlock_expectNull() {
-        // When backend doesn't ship a config block, the SDK keeps using the
-        // last cached value (or constants). `null` is the signal that drives
-        // the cache-save gating in the repository.
+        // null tells the repository to keep its last cached config.
         val response = parseResponse("""{ "geofences": [] }""")
         response.toDomainConfig().shouldBeNull()
     }
@@ -997,7 +944,6 @@ class GeofenceApiResponseTest : RobolectricTest() {
 
     @Test
     fun toDomainConfig_givenAllFieldsMissing_expectAllFallbacks() {
-        // Empty config object — every field-level fallback fires.
         val response = parseResponse("""{ "config": {}, "geofences": [] }""")
 
         response.toDomainConfig() shouldBeEqualTo fallbackConfig()
@@ -1005,8 +951,6 @@ class GeofenceApiResponseTest : RobolectricTest() {
 
     @Test
     fun toDomainConfig_givenPartialConfig_expectPresentFieldsUsedAndRestFallback() {
-        // Backend rolling fields out gradually: present fields are used (and coerced), each absent
-        // field falls back independently.
         val response = parseResponse(
             """
             {
@@ -1031,8 +975,7 @@ class GeofenceApiResponseTest : RobolectricTest() {
 
     @Test
     fun toDomainConfig_givenZeroOrNegativeNumericFields_expectFallbacks() {
-        // Radii / expiry fields: `takeIf { it > 0 }` rejects 0 and negative.
-        // `max_business_geofence = 0` is a valid kill switch (covered separately).
+        // 0 is a valid kill switch for max_business_geofence, so it gets -5 instead.
         val response = parseResponse(
             """
             {
@@ -1054,17 +997,13 @@ class GeofenceApiResponseTest : RobolectricTest() {
 
     @Test
     fun toDomainConfig_givenMaxBusinessGeofenceZero_expectRespected() {
-        // Zero is a valid server-side kill switch — "register no business
-        // geofences." Distinct from missing / out-of-range (which fall back).
         val response = parseResponse(configJsonWithMax(0))
         response.toDomainConfig()?.maxBusinessGeofences shouldBeEqualTo 0
     }
 
     @Test
     fun toDomainConfig_givenMaxBusinessGeofenceAtOrAboveOsLimit_expectFallback() {
-        // OS hard-caps at 100 geofences per app (movement trigger + business);
-        // business cap of 100 would push the total to 101 and the OS rejects.
-        // 99 is the highest accepted value.
+        // With the movement trigger, 100 business fences would exceed the OS's 100-fence cap.
         val atLimit = parseResponse(configJsonWithMax(100)).toDomainConfig()
         val above = parseResponse(configJsonWithMax(500)).toDomainConfig()
 
@@ -1074,7 +1013,6 @@ class GeofenceApiResponseTest : RobolectricTest() {
 
     @Test
     fun toDomainConfig_givenLocalRefreshRadiusOutOfRange_expectClampedToBounds() {
-        // Positive but absurd radii clamp to the sane bounds instead of being used as-is.
         val belowMin = parseResponse("""{ "config": { "local_refresh_trigger_radius": 10 }, "geofences": [] }""")
         val aboveMax = parseResponse("""{ "config": { "local_refresh_trigger_radius": 999999 }, "geofences": [] }""")
 
@@ -1124,7 +1062,6 @@ class GeofenceApiResponseTest : RobolectricTest() {
 
     @Test
     fun toDomainConfig_givenMaxMonitoringDistanceZero_expectNoCap() {
-        // 0 is the explicit "disable the cap" signal — register regardless of distance.
         val response = parseResponse(
             """{ "config": { "max_monitoring_distance": 0 }, "geofences": [] }"""
         )
@@ -1137,8 +1074,8 @@ class GeofenceApiResponseTest : RobolectricTest() {
 
     @Test
     fun toDomainRegions_givenPolygonMissingCoordinates_expectOnlyThatRecordDropped() {
-        // These nested objects decode before the per-record try/catch, so a required field here
-        // would reject the whole response — valid circles included.
+        // These decode before the per-record try/catch, so a required field would reject the whole
+        // response.
         val regions = parseRegions(partialPolygonJson(geometry = """{ "type": "Polygon" }"""), PolygonSupport.Enabled)
 
         regions.map { it.id } shouldContainSame listOf("plain-circle")
@@ -1164,8 +1101,7 @@ class GeofenceApiResponseTest : RobolectricTest() {
 
     @Test
     fun toDomainRegions_givenValidPolygon_expectTheBackendCircleRegisteredAsSent() {
-        // The registered radius is the backend's, not a floored or padded one. Both fields are
-        // still carried because they answer different questions, and here they agree.
+        // The registered radius is the backend's, not a floored or padded one.
         val regions = parseRegions(polygonAndCircleJson(), PolygonSupport.Enabled)
         val polygon = regions.first { it.id == "campus" }
 
@@ -1206,8 +1142,7 @@ class GeofenceApiResponseTest : RobolectricTest() {
     fun toCatalogEntries_expectOneEntryPerWireRecordEvenWhenOneIsDropped() {
         val response = parseResponse(polygonAndCircleJson())
 
-        // With polygon monitoring off the mapper keeps only the circle. The catalog is the record
-        // of what the server sent, so it must still describe both.
+        // The catalog records what the server sent, including records the mapper drops.
         response.toDomainRegions().map(GeofenceRegion::id) shouldBeEqualTo listOf("circle")
         response.toCatalogEntries().map { it.id } shouldBeEqualTo listOf("campus", "circle")
     }
@@ -1222,18 +1157,15 @@ class GeofenceApiResponseTest : RobolectricTest() {
         val entry = parseResponse(polygonOnlyJson()).toCatalogEntries().single()
 
         entry.shape shouldBeEqualTo "polygon"
-        // The backend's circle, not the padded radius the SDK would register.
         entry.latitude shouldBeEqualTo 37.775
         entry.longitude shouldBeEqualTo -122.4194
         entry.radiusMeters shouldBeEqualTo 100.0
-        // Five wire positions, closing vertex dropped: the count a consumer checks truncation with.
+        // Five wire positions, closing vertex dropped.
         entry.vertices?.size shouldBeEqualTo 4
     }
 
     @Test
     fun toCatalogEntries_givenUnbuildableRing_expectRowKeptWithoutVertices() {
-        // The case the catalog exists for: the mapper drops this record entirely, so before this
-        // change the capture had no row naming it at all.
         val response = parseResponse(
             """
             {
@@ -1260,8 +1192,6 @@ class GeofenceApiResponseTest : RobolectricTest() {
 
     @Test
     fun toCatalogEntries_givenPolygonWithoutEnclosingCircle_expectPlacementAbsentNotSubstituted() {
-        // The flat fields describe a different shape. Falling back to them would place a polygon at
-        // a circle's centre and radius, which reads as a real fence rather than a missing one.
         val entry = parseResponse(
             """
             {
@@ -1291,15 +1221,12 @@ class GeofenceApiResponseTest : RobolectricTest() {
         entry.latitude.shouldBeNull()
         entry.longitude.shouldBeNull()
         entry.radiusMeters.shouldBeNull()
-        // The row still exists, and the ring it did send is still reported.
         entry.vertices?.size shouldBeEqualTo 3
     }
 
     @Test
     fun toCatalogEntries_givenGeometryWithoutDiscriminator_expectCircleClaimAndTheRing() {
-        // The mis-described record: the mapper drops it as undescribed_shape. The row keeps both
-        // halves of the contradiction — the claim it made and the geometry it actually sent —
-        // because a row saying only "circle" is indistinguishable from a plain circle.
+        // A row saying only "circle" would be indistinguishable from a plain circle.
         val entry = parseResponse(
             """
             {
@@ -1326,7 +1253,6 @@ class GeofenceApiResponseTest : RobolectricTest() {
 
         entry.shape shouldBeEqualTo "circle"
         entry.vertices?.size shouldBeEqualTo 3
-        // Read as a circle, so its placement is the flat fields it claimed.
         entry.latitude shouldBeEqualTo 1.0
         entry.radiusMeters shouldBeEqualTo 50.0
     }
@@ -1339,7 +1265,6 @@ class GeofenceApiResponseTest : RobolectricTest() {
             """.trimIndent()
         ).toCatalogEntries().single()
 
-        // What the server claimed, lowercased but not judged — the drop record carries the verdict.
         entry.shape shouldBeEqualTo "hexagon"
         entry.latitude shouldBeEqualTo 1.0
         entry.radiusMeters shouldBeEqualTo 50.0
@@ -1353,7 +1278,6 @@ class GeofenceApiResponseTest : RobolectricTest() {
             """.trimIndent()
         ).toCatalogEntries().single()
 
-        // No discriminator is how every pre-polygon response looks; it is a circle, not an unknown.
         entry.shape shouldBeEqualTo "circle"
         entry.vertices.shouldBeNull()
         entry.transitionTypes shouldBeEqualTo listOf("enter", "exit")
@@ -1367,8 +1291,7 @@ class GeofenceApiResponseTest : RobolectricTest() {
             """.trimIndent()
         )
 
-        // Production order: catalog first, then mapping. Both resolve transition types, and only
-        // the mapper may report an unknown one — otherwise every unknown value is counted twice.
+        // Production order. Only the mapper may report an unknown type, or it is counted twice.
         response.toCatalogEntries()
         response.toDomainRegions()
 
@@ -1379,12 +1302,10 @@ class GeofenceApiResponseTest : RobolectricTest() {
 
     private val jsonSerializer = GeofenceJsonSerializer()
 
-    // Mirrors GeofenceApiServiceImpl's call site so tests exercise the same
-    // decode path (lenient at the wire boundary).
+    // Mirrors GeofenceApiServiceImpl's lenient decode.
     private fun parseResponse(raw: String): GeofenceApiResponse =
         jsonSerializer.decode(GeofenceApiResponse.serializer(), raw, lenient = true)
 
-    // Defaults to the seam's fail-closed value, which is what the repository passes today.
     private fun parseRegions(
         raw: String,
         polygonSupport: PolygonSupport = PolygonSupport.Disabled

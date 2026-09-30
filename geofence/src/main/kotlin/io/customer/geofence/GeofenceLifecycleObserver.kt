@@ -9,18 +9,8 @@ import io.customer.sdk.communication.EventBus
 import io.customer.sdk.data.store.PendingDeliveryFlusher
 
 /**
- * Registered with `ProcessLifecycleOwner` at geofence-module init. On every foreground
- * entry it flushes pending OS-delivered transitions through the analytics pipeline,
- * independent of the location tracking mode (so MANUAL still delivers), then runs
- * [onForeground] — the retry hook for a sync still waiting on a location fix.
- *
- * The shared [PendingDeliveryFlusher] runs [PendingDeliveryFlusher.DeliveryGuarantee.AT_LEAST_ONCE]:
- * publish, remove, then best-effort cancel the WorkManager delivery. The worker
- * (send-then-remove) is the durable channel while the row exists; duplicates across the
- * two are deduped downstream by transitionId. The entry's snapshotted userId rides through
- * on [io.customer.sdk.communication.Event.GeofenceTransitionEvent] for attribution.
- *
- * All lifecycle callbacks arrive on the main thread, so no synchronization is needed.
+ * Flushes in every location mode, so MANUAL still delivers. The WorkManager chain is not cancelled:
+ * a queued worker finds the row gone, and duplicates are deduped downstream by transitionId.
  */
 internal class GeofenceLifecycleObserver(
     private val deliveryFlusher: PendingDeliveryFlusher<PendingGeofenceDelivery>,
@@ -32,9 +22,7 @@ internal class GeofenceLifecycleObserver(
 ) : DefaultLifecycleObserver {
 
     override fun onStart(owner: LifecycleOwner) {
-        // Before the flush and the refresh, both of which behave differently depending on it. The
-        // reporter is shared with module init, so a tier already reported at process start is not
-        // repeated here.
+        // First, since the flush and refresh behave differently by tier.
         permissionReporter.reportIfChanged()
         flushPendingGeofenceDeliveries()
         onForeground()

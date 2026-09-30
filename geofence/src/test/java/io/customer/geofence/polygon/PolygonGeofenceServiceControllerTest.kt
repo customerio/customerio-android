@@ -66,13 +66,11 @@ class PolygonGeofenceServiceControllerTest {
 
     @Test
     fun onCoarseExit_givenResetWhileRegisteringTheTrigger_expectNoStaleLocationWrite() = runTest {
-        // The registration awaits GMS with no lock held. A sign-out that completes during that
-        // await has already cleared this user's state, so writing their location back afterwards
-        // hands the next session an anchor that belongs to the departing user.
+        // Registration awaits GMS with no lock held. A sign-out in that gap has cleared this user,
+        // so writing the location back would hand the next session the departing user's anchor.
         val registrationStarted = CompletableDeferred<Unit>()
         val finishRegistration = CompletableDeferred<Unit>()
-        // Well outside the polygon, with a real fix age and accuracy: the trigger is only
-        // registered for a fix the policy accepts, so anything less never reaches the await.
+        // Well outside, with a real age and accuracy, so the movement policy reaches the await.
         val exitLocation = location(elapsedRealtimeNanos = 100L).apply { latitude = 37.7900 }
         every { store.getRoutableRegisteredIds() } returns setOf("campus")
         every { store.getEnteredIds() } returns emptySet()
@@ -86,7 +84,7 @@ class PolygonGeofenceServiceControllerTest {
 
         val exit = async { controller.onCoarseExit("campus", exitLocation) }
         registrationStarted.await()
-        // Sign-out lands: the generation this pass carries is no longer current.
+        // Sign-out lands mid-await.
         every { store.userStateGeneration() } returns 1L
         finishRegistration.complete(Unit)
         exit.await()
@@ -99,8 +97,6 @@ class PolygonGeofenceServiceControllerTest {
 
     @Test
     fun onCoarseExit_givenTheSessionSurvivesRegistration_expectTheLocationRecorded() = runTest {
-        // Positive control for the test above: same path, no reset. Without it a guard that always
-        // refused the write would pass just as well.
         val exitLocation = location(elapsedRealtimeNanos = 100L).apply { latitude = 37.7900 }
         every { store.getRoutableRegisteredIds() } returns setOf("campus")
         every { store.getEnteredIds() } returns emptySet()
@@ -244,12 +240,8 @@ class PolygonGeofenceServiceControllerTest {
 
     @Test
     fun recover_givenPersistedPolygonState_expectDoesNotCreateSamplingSession() {
-        // The active set is "polygons whose circle contains the device", which persists for as long
-        // as they stand there — far longer than the two-minute session. Re-arming here would
-        // therefore open a fresh session on EVERY foreground for someone sitting inside a polygon.
-        // Recovery is not needed for the fixes themselves: the OS request is a PendingIntent that
-        // outlives the process, so delivery resumes on its own and handleLocations re-adopts the
-        // bounded session from the deadline in the intent extras.
+        // The active set outlives the two-minute session, so re-arming would open one on every
+        // foreground. The OS PendingIntent outlives the process and handleLocations re-adopts it.
         every { store.getActivePolygonIds() } returns setOf("campus")
         every { store.getLastRegistrationUptime() } returns 0L
 
@@ -349,8 +341,7 @@ class PolygonGeofenceServiceControllerTest {
 
     @Test
     fun beginUserSession_givenDifferentUser_expectStopsOldFineSessionBeforeRefresh() {
-        // The real store bumps the generation whenever it opens a session, and that bump is what
-        // tells the controller the previous session's sampling is now orphaned.
+        // Mirrors the real store, which bumps the generation whenever it opens a session.
         every { store.activeUserSessionId() } returns "user-A"
         every { store.beginUserSession("user-B") } answers {
             every { store.userStateGeneration() } returns 1L
@@ -367,8 +358,8 @@ class PolygonGeofenceServiceControllerTest {
 
     @Test
     fun beginUserSession_givenTheSameUser_expectNothingTornDown() {
-        // The store no-ops and leaves the generation alone, so a repeated open must not stop a
-        // live session. Every callback path calls this, so a teardown here would be constant.
+        // The store no-ops and keeps the generation. Every callback opens the session, so a
+        // teardown here would be constant.
         every { store.activeUserSessionId() } returns "user-1"
 
         controller.beginUserSession("user-1")
@@ -434,10 +425,6 @@ class PolygonGeofenceServiceControllerTest {
 
     @Test
     fun onCoarseExit_givenLastActivePolygonAndNoTriggeringFix_expectStopsBoundedSession() = runTest {
-        // Driven through the coarse EXIT rather than a deactivate entry point of its own: the
-        // callback is the only thing in production that tears a polygon's session down, and with
-        // no triggering fix it is also the path that reaches the teardown with an arrival still
-        // held. See PolygonLockFreedomTest for that half.
         var activeIds = setOf("campus")
         every { store.getActivePolygonIds() } answers { activeIds }
         every { store.deactivatePolygon("campus") } answers { activeIds = emptySet() }
@@ -489,14 +476,8 @@ class PolygonGeofenceServiceControllerTest {
 
     @Test
     fun processApproachLocations_givenUncertainFixInsideTheTrigger_expectItStillOpensASession() = runTest {
-        // Admission asks where the fix is, not how sure it is. The accuracy term that used to sit
-        // here required the whole accuracy circle inside the radius, which was satisfiable only
-        // because the radius was padded to 400 m; against the backend's own circle an indoor fix
-        // could never satisfy it from anywhere, and the polygon would never be evaluated.
-        //
-        // What a coarse fix cannot do is produce a verdict — the evaluator's ceiling still refuses
-        // it — so the cost of admitting one is a sampling session, against a missed arrival that
-        // nothing re-derives.
+        // Admission asks where the fix is, not how sure. The evaluator's ceiling still refuses a
+        // coarse verdict, so admitting one costs only a sampling session.
         var activeIds = emptySet<String>()
         every { store.getActivePolygonIds() } answers { activeIds }
         every { store.activatePolygon(any()) } answers { activeIds = activeIds + firstArg<String>() }
@@ -537,13 +518,7 @@ class PolygonGeofenceServiceControllerTest {
 
     @Test
     fun processApproachLocations_givenIdentifyLandsDuringTheTriggerAwait_expectStaleNotContinue() = runTest {
-        // The trigger update awaits GMS with no lock held. An identify landing in that gap leaves
-        // this continuation reading the new user's active set, and answering CONTINUE would make
-        // the receiver start a session for a generation that has already ended, replacing the
-        // approach request the new user just armed.
-        //
-        // 278 m north of the ring: far enough out that the movement policy accepts the fix and the
-        // await is reached, close enough that the pass does not deactivate the polygon first.
+        // ~222 m outside the ring: far enough to reach the await, close enough to stay active.
         val fix = location(elapsedRealtimeNanos = 100L).apply { latitude = 37.7775 }
         var generation = 0L
         var activeIds = setOf("campus")
@@ -553,7 +528,6 @@ class PolygonGeofenceServiceControllerTest {
         every { store.getCachedConfig() } returns geofenceConfig()
         coEvery { engine.processResponsiveLocation(fix, any()) } returns acceptedFix()
         coEvery { manager.replaceMovementTrigger(any()) } coAnswers {
-            // Identify completes while the registration is in flight.
             generation = 1L
             Result.success(Unit)
         }
@@ -589,7 +563,6 @@ class PolygonGeofenceServiceControllerTest {
         this.elapsedRealtimeNanos = elapsedRealtimeNanos
     }
 
-    /** An evaluation that used the fix and left nothing undecided, which is the ordinary pass. */
     private fun acceptedFix() =
         PolygonEvaluationOutcome(acceptedFix = true, undecidedPolygonIds = emptySet())
 
@@ -617,8 +590,6 @@ class PolygonGeofenceServiceControllerTest {
 
     @Test
     fun activate_givenTheFenceIsNotRoutable_expectTheDropIsLoggedWithAReason() = runTest {
-        // The path that lost an arrival on the 2026-09-17 drive returned silently, so a capture
-        // could not tell a callback the OS never sent from one the SDK discarded.
         every { store.getRoutableRegisteredIds() } returns emptySet()
 
         controller.activate(

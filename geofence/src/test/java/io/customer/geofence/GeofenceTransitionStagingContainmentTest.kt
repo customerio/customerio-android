@@ -24,10 +24,8 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 
 /**
- * Physical containment and durable delivery are two different facts, and storage can fail for either
- * one independently. These tests pin what the device is believed to be *inside* across a full
- * ENTER → EXIT visit while the durable outbox is unavailable — the case where getting containment
- * wrong silently corrupts every later transition for that fence.
+ * Physical containment and durable delivery can fail independently; these pin containment across an
+ * ENTER then EXIT while the outbox is unavailable.
  */
 @RunWith(RobolectricTestRunner::class)
 class GeofenceTransitionStagingContainmentTest : RobolectricTest() {
@@ -71,16 +69,14 @@ class GeofenceTransitionStagingContainmentTest : RobolectricTest() {
         val processor = processor()
         every { outbox.appendAll(any()) } returns false
 
-        // ENTER: the stage commits containment in the same write, so the device is INSIDE even though
-        // nothing is deliverable yet.
+        // The stage commits containment in the same write, so INSIDE with nothing deliverable yet.
         processor.process(GEOFENCE_ID, Event.GeofenceTransition.ENTER, timestampSeconds = 100L)
 
         regionStore.getEnteredIds() shouldContainSame setOf(GEOFENCE_ID)
         regionStore.getAllPendingTransitionEntries().map { it.transition } shouldBeEqualTo
             listOf(Event.GeofenceTransition.ENTER)
 
-        // EXIT: still nothing deliverable, but the device really did leave. Containment must follow the
-        // physical edge; leaving it INSIDE would make the next ENTER look redundant and be dropped.
+        // The device really left; staying INSIDE would drop the next ENTER as redundant.
         processor.process(GEOFENCE_ID, Event.GeofenceTransition.EXIT, timestampSeconds = 200L)
 
         regionStore.getEnteredIds().shouldBeEmpty()
@@ -102,28 +98,23 @@ class GeofenceTransitionStagingContainmentTest : RobolectricTest() {
             listOf(Event.GeofenceTransition.ENTER, Event.GeofenceTransition.EXIT)
         outbox.loadAll().map { it.timestamp } shouldBeEqualTo listOf(100L, 200L)
         regionStore.getAllPendingTransitionEntries().shouldBeEmpty()
-        // Recovery only completes the delivery handoff; replaying the older ENTER's containment here
-        // would resurrect a visit the device has already left.
+        // Replaying the older ENTER's containment would resurrect a visit already left.
         regionStore.getEnteredIds().shouldBeEmpty()
     }
 
     @Test
     fun recoverPendingTransitions_givenExitAlreadyQueuedWhileOlderEnterIsStillStaged_expectEnterFirst() = runTest {
         val processor = processor()
-        // ENTER stages, but its outbox append fails, so the queue never sees it.
         every { outbox.appendAll(any()) } returns false
         processor.process(GEOFENCE_ID, Event.GeofenceTransition.ENTER, timestampSeconds = 100L)
 
-        // The EXIT's append succeeds. Emission drains older staged attempts before appending its
-        // own, so the ENTER is restored ahead of the EXIT rather than being queued behind it — the
-        // queue can never hold the later edge alone while an earlier one is still staged.
+        // Emission drains older staged attempts first, so the ENTER is queued ahead of the EXIT.
         every { outbox.appendAll(any()) } answers { callOriginal() }
         processor.process(GEOFENCE_ID, Event.GeofenceTransition.EXIT, timestampSeconds = 200L)
         outbox.loadAll().map { it.transition } shouldBeEqualTo
             listOf(Event.GeofenceTransition.ENTER, Event.GeofenceTransition.EXIT)
 
-        // A second, explicit recovery re-appends both by key. appendAll replaces a matching row
-        // rather than duplicating it, and staged order is physical order, so the queue is stable.
+        // Re-appends both by key; appendAll replaces a matching row rather than duplicating it.
         processor.recoverPendingTransitions().shouldBeTrue()
 
         outbox.loadAll().map { it.transition } shouldBeEqualTo
@@ -145,8 +136,6 @@ class GeofenceTransitionStagingContainmentTest : RobolectricTest() {
 
         processor.process(GEOFENCE_ID, Event.GeofenceTransition.ENTER, timestampSeconds = 100L)
 
-        // Neither the event nor the state is durable, so the device must not be believed inside. A
-        // later fix re-observes the same edge and stages it again.
         regionStore.getEnteredIds().shouldBeEmpty()
         outbox.loadAll().shouldBeEmpty()
     }
@@ -168,8 +157,6 @@ class GeofenceTransitionStagingContainmentTest : RobolectricTest() {
             logger = logger
         ).process(GEOFENCE_ID, Event.GeofenceTransition.EXIT, timestampSeconds = 200L)
 
-        // The EXIT reached nothing durable, so containment stays INSIDE and the exit remains reportable
-        // the next time a fix confirms it. Clearing it here would drop the exit permanently.
         regionStore.getEnteredIds() shouldContainSame setOf(GEOFENCE_ID)
     }
 

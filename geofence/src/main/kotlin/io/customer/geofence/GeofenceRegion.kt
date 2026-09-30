@@ -10,10 +10,8 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonElement
 
 /**
- * A geographic region to monitor for enter/exit transitions.
- *
- * `id` is the OS request ID — derived from the backend's numeric geofence ID
- * so it stays stable and matches the `geofenceId` key on transition events.
+ * `id` is the OS request ID, taken from the backend ID so it stays stable and matches `geofenceId`
+ * on events.
  */
 @Serializable
 internal data class GeofenceRegion(
@@ -43,10 +41,8 @@ internal data class GeofenceRegion(
     @SerialName("polygonVertices")
     val polygonVertices: List<PolygonCoordinate>? = null,
     /**
-     * The backend's own wake-circle radius for a polygon. Equal to [radius] now that the circle is
-     * registered as sent, and kept distinct because they answer different questions: [radius] is
-     * whatever GMS holds for a region, this is what the backend said the enclosing circle is. Null
-     * for circles, whose [radius] is already the backend's.
+     * Polygon only. Equals [radius] today, but [radius] is what GMS holds and this is what the
+     * backend sent.
      */
     @SerialName("baseRadiusMeters")
     val baseRadiusMeters: Double? = null
@@ -55,18 +51,13 @@ internal data class GeofenceRegion(
         get() = polygonVertices != null
 
     /**
-     * Validated geometry for the stored ring, or `null` when it doesn't validate.
-     *
-     * Vertices reach a region already validated, but they also survive a round trip through the
-     * cache, so this re-checks rather than trusting the file. Callers must handle `null` by skipping
-     * the region: falling back to the circle fields would monitor the enclosing trigger circle as
-     * though it were the polygon.
+     * Re-validates because vertices round-trip through the cache. On `null`, skip the region: its
+     * circle fields describe the enclosing trigger circle, not the polygon.
      */
     fun polygonGeometryOrNull(): PolygonGeometry? =
         polygonVertices?.let(PolygonGeometry::fromOrNull)
 }
 
-/** Transition types a geofence can monitor, mapped to GMS constants. */
 @Serializable
 internal enum class GeofenceTransitionType(val gmsValue: Int) {
     @SerialName("enter")
@@ -76,13 +67,7 @@ internal enum class GeofenceTransitionType(val gmsValue: Int) {
     EXIT(Geofence.GEOFENCE_TRANSITION_EXIT)
 }
 
-/**
- * Straight-line distance in meters from this region's center to the given coordinates.
- *
- * @throws IllegalArgumentException if coordinates are out of range
- * (latitude must be -90..90, longitude must be -180..180).
- * Callers should validate coordinates at the API boundary.
- */
+/** Meters from the center. Throws for out-of-range coordinates; validate at the API boundary. */
 internal fun GeofenceRegion.distanceTo(lat: Double, lng: Double): Float {
     val result = FloatArray(1)
     Location.distanceBetween(latitude, longitude, lat, lng, result)
@@ -90,19 +75,8 @@ internal fun GeofenceRegion.distanceTo(lat: Double, lng: Double): Float {
 }
 
 /**
- * Straight-line distance in meters from this region's *boundary* to the given coordinates, `0` when
- * they fall inside the region; `null` when the region is a polygon whose geometry is unusable.
- *
- * Relevance for monitoring is proximity to the boundary, not to the center: ranking on center
- * distance evicts a region the device currently occupies once enough regions have nearer centers,
- * and an unmonitored region can never report its exit.
- *
- * A polygon with no usable geometry has no boundary to measure to, and its circle fields describe
- * the coarse trigger rather than the fence — so it reports no distance at all and the caller drops
- * it, instead of ranking (and then registering) an area the backend never sent.
- *
- * [polygonGeometry] lets a caller that already validated this region's ring pass it back in; the
- * default re-derives it.
+ * Meters from the boundary, `0` inside, `null` (drop it) for unusable polygon geometry. Boundary, not
+ * center, so nearer centers can't evict an occupied region, which would then never report its exit.
  */
 internal fun GeofenceRegion.edgeDistanceToOrNull(
     lat: Double,
@@ -119,7 +93,7 @@ internal fun GeofenceRegion.edgeDistanceToOrNull(
     }
 }
 
-/** Containment against the real shape. Unusable polygon geometry answers `false` — never "inside". */
+/** Against the real shape; unusable polygon geometry is never inside. */
 internal fun GeofenceRegion.contains(latitude: Double, longitude: Double): Boolean = if (isPolygon) {
     val relation = polygonGeometryOrNull()?.relationTo(PolygonCoordinate(latitude, longitude))
     relation != null && relation != PolygonPointRelation.OUTSIDE
@@ -127,10 +101,6 @@ internal fun GeofenceRegion.contains(latitude: Double, longitude: Double): Boole
     distanceTo(latitude, longitude) <= radius
 }
 
-/**
- * Converts the SDK transition types to a GMS bitmask for [Geofence.Builder.setTransitionTypes].
- * E.g., [ENTER, EXIT] → GEOFENCE_TRANSITION_ENTER | GEOFENCE_TRANSITION_EXIT.
- */
 internal fun GeofenceRegion.toGmsTransitionTypes(): Int {
     if (isPolygon) {
         return Geofence.GEOFENCE_TRANSITION_ENTER or Geofence.GEOFENCE_TRANSITION_EXIT
@@ -141,9 +111,8 @@ internal fun GeofenceRegion.toGmsTransitionTypes(): Int {
 }
 
 /**
- * True when two regions match on the fields GMS registers (id, coordinates, radius, transition types).
- * A change to only the event/bookkeeping fields (name, geosets, metadata, etc.) skips a re-register
- * that would otherwise fire a spurious `INITIAL_TRIGGER_ENTER`.
+ * Only the fields GMS registers, so other edits (name, geosets, metadata) skip a re-register that
+ * would fire a spurious `INITIAL_TRIGGER_ENTER`. Polygons always register ENTER and EXIT.
  */
 internal fun GeofenceRegion.equalsForRegistration(other: GeofenceRegion): Boolean =
     id == other.id &&

@@ -16,7 +16,6 @@ import kotlinx.coroutines.CancellableContinuation
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withTimeoutOrNull
 
-/** Wraps GeofencingClient to register/remove geofences with the OS. */
 internal class GeofenceManager(
     private val context: Context,
     private val client: GeofencingClient,
@@ -40,41 +39,26 @@ internal class GeofenceManager(
         )
     }
 
-    /**
-     * Replaces currently-registered geofences with [regions]; empty list
-     * disables the broadcast receiver. Business IDs in [existingBusinessIds]
-     * are left alone — only additions (regions − existing) are sent to GMS.
-     *
-     * Re-upserting a same-ID geofence triggers GMS state reconciliation that
-     * can fire spurious EXIT events; skipping the overlap avoids that.
-     * An empty set means "OS state unknown, register everything".
-     */
+    /** An empty [existingBusinessIds] means OS state is unknown, so everything is registered. */
     @RequiresPermission(Manifest.permission.ACCESS_FINE_LOCATION)
     override suspend fun replaceGeofences(
         regions: List<GeofenceRegion>,
         existingBusinessIds: Set<String>
     ): Result<Unit> = replaceGeofencesInternal(
         regions = regions,
-        // The movement trigger evaluates the device's position at register time, so a stale center
-        // fires EXIT straight away and the next handleMovement re-centers on a real fix. ENTER is
-        // not used: it only delivers a transition the receiver ignores, and combining the two stops
-        // GMS delivering the trigger's later EXIT at all.
+        // A stale center fires EXIT at register time, so handleMovement re-centers on a real fix. No
+        // ENTER: the receiver ignores it, and combining the two stops GMS delivering the later EXIT.
         movementInitialTrigger = GeofencingRequest.INITIAL_TRIGGER_EXIT,
         existingBusinessIds = existingBusinessIds
     )
 
-    /** Boot-restore entry point; registration is identical to [replaceGeofences]. */
     @RequiresPermission(Manifest.permission.ACCESS_FINE_LOCATION)
     override suspend fun replaceGeofencesForBootRestore(regions: List<GeofenceRegion>): Result<Unit> =
         replaceGeofences(regions)
 
     /**
-     * Re-centres the SDK's single shared movement trigger without touching business regions.
-     *
-     * A same-id add replaces the registration in place, which is how every other path here
-     * re-registers it, so there is no prior removal: removing first would mean a failed or
-     * timed-out add leaves the device with no trigger at all and nothing to re-arm it. It also
-     * keeps the worst case to one GMS call, which matters on the broadcast path.
+     * No prior removal: a same-id add replaces in place, and removing first would leave no trigger
+     * and nothing to re-arm it if the add fails or times out.
      */
     @RequiresPermission(Manifest.permission.ACCESS_FINE_LOCATION)
     override suspend fun replaceMovementTrigger(region: GeofenceRegion): Result<Unit> {
@@ -98,10 +82,7 @@ internal class GeofenceManager(
         existingBusinessIds: Set<String> = emptySet()
     ): Result<Unit> {
         if (regions.isEmpty()) {
-            // No geofences to register => disable the receiver so we don't burn
-            // resources listening for events that can't fire. Covers both the
-            // fresh-account-with-no-geofences case and the account-transitioned-to-0
-            // case (where stale cleanup just removed the previous registrations).
+            // Only when monitoring is off (the movement trigger is otherwise always included).
             receiverToggle.setEnabled(false)
             logger.logGeofencesRegistered(0)
             return Result.success(Unit)
@@ -111,17 +92,15 @@ internal class GeofenceManager(
             return Result.failure(SecurityException("Required location permissions not granted"))
         }
 
-        // Split because GMS allows one initial-trigger per batch — business
-        // uses INITIAL_TRIGGER_ENTER, movement is caller-controlled.
+        // GMS allows one initial trigger per batch: business uses ENTER, movement is caller-controlled.
         val movementTrigger = regions.filter { it.id == GeofenceConstants.MOVEMENT_TRIGGER_ID }
         val (businessToAdd, businessKept) = regions
             .filter { it.id != GeofenceConstants.MOVEMENT_TRIGGER_ID }
             .partition { it.id !in existingBusinessIds }
 
         if (movementTrigger.isNotEmpty()) {
-            // GMS retains per-ID transition state across same-ID re-registers, so
-            // a just-fired EXIT keeps the ID stuck OUTSIDE and blocks future EXITs
-            // at the new center. Removing first forces a fresh state machine.
+            // GMS keeps per-ID state across same-ID re-registers, so a just-fired EXIT would stay
+            // OUTSIDE and block EXITs at the new center. Removing first resets it.
             removeGeofencesByIds(listOf(GeofenceConstants.MOVEMENT_TRIGGER_ID))
             val result = registerBatch(movementTrigger, initialTrigger = movementInitialTrigger)
             if (result.isFailure) return result
@@ -130,8 +109,7 @@ internal class GeofenceManager(
         if (businessToAdd.isNotEmpty()) {
             val result = registerBatch(businessToAdd, initialTrigger = GeofencingRequest.INITIAL_TRIGGER_ENTER)
             if (result.isFailure) {
-                // Roll back the movement trigger so we don't leave a safety-net
-                // geofence alone in the OS with no business regions to act on.
+                // Don't leave the movement trigger registered with no business regions.
                 if (movementTrigger.isNotEmpty()) {
                     removeGeofencesByIds(movementTrigger.map { it.id })
                 }
@@ -153,7 +131,7 @@ internal class GeofenceManager(
         regions: List<GeofenceRegion>,
         initialTrigger: Int
     ): Result<Unit> {
-        // Defense in depth: a GMS rejection must fail the sync, never crash the host.
+        // A GMS rejection must fail the sync, never crash the host.
         val request = try {
             GeofencingRequest.Builder()
                 .setInitialTrigger(initialTrigger)
@@ -224,9 +202,9 @@ internal class GeofenceManager(
     }
 
     /**
-     * A Task never calls back when Play Services is mid-update, and the caller holds the refresh
-     * slot — so an unbounded await wedges every later sync. Safe here unlike around the slot CAS:
-     * nothing holds a resource on the result, so a late success just becomes a spurious failure.
+     * A Task never calls back while Play Services updates, and the caller holds the refresh slot, so
+     * an unbounded await wedges later syncs. Nothing holds a resource on the result, so a late
+     * success just becomes a spurious failure.
      */
     private suspend fun awaitGmsCall(
         description: String,
@@ -248,9 +226,8 @@ internal class GeofenceManager(
     }
 
     private companion object {
-        // Per call, generous against the millisecond norm. A pass chains up to four (remove and
-        // re-add movement, add business, roll back), so a wedged GMS can still outlast the
-        // receiver's 8s goAsync budget — the join there is best-effort and the refresh continues.
+        // Per call. replaceGeofences chains up to four, so a wedged GMS can outlast the receiver's
+        // 8s goAsync budget; that join is best-effort.
         val GMS_CALL_TIMEOUT = 5.seconds
     }
 }

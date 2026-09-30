@@ -13,26 +13,17 @@ import kotlinx.serialization.json.doubleOrNull
 import kotlinx.serialization.json.longOrNull
 
 /**
- * A geofence transition observed locally but not yet confirmed as tracked by
- * the Customer.io backend. Appended when a transition fires, removed when one
- * of the two delivery channels — the [GeofenceEventWorker] (durable, direct
- * HTTP) or the foreground flush (analytics pipeline) — delivers it.
- *
- * The shared [PendingDeliveryStore] requires a stable `key`; ours doubles as
- * the WorkManager unique-work name, so the foreground flush can cancel the
- * pending worker by the same key before publishing.
+ * A transition not yet confirmed as tracked. Removed by whichever channel delivers it: the
+ * WorkManager worker or async fallback (direct HTTP), or the foreground flush (analytics pipeline).
  */
 @Serializable
 internal data class PendingGeofenceDelivery(
     val geofenceId: String,
     val transition: Event.GeofenceTransition,
-    /** Unix epoch **seconds** at receiver time. Use [toGeofenceTransitionEvent] when a [Date] is needed. */
+    /** Unix epoch **seconds** of the crossing. Use [toGeofenceTransitionEvent] when a [Date] is needed. */
     val timestamp: Long,
     val userId: String?,
-    /**
-     * Identifies the physical crossing, shared across its per-geoset fan-out (geosets differ by
-     * [geosetId]); backend dedup is keyed (transitionId, geoset).
-     */
+    /** Shared by a crossing's per-geoset fan-out; backend dedup is keyed (transitionId, geoset). */
     val transitionId: String,
     /** Null when the fired geofence isn't in the cached region set. */
     val geofenceName: String? = null,
@@ -50,28 +41,18 @@ internal data class PendingGeofenceDelivery(
     override val key: String
         get() = "${geofenceId}_${transition.name}_${transitionId}_${geosetId ?: "none"}"
 
-    /**
-     * Properties carried on the tracked "Geofence Transition" event. Kept here
-     * so the worker's direct-HTTP send and the foreground flush build an
-     * identical property set. Timestamp is not a property — each delivery path
-     * sets it on the event envelope from [timestamp].
-     */
+    /** Shared by every delivery path. Timestamp is not a property; each path sets it on the envelope. */
     fun toEventProperties(): Map<String, Any> = buildMap {
         put("transition", transition.name.lowercase())
         put("geofenceId", geofenceId)
         put("transitionId", transitionId)
         geosetId?.let { put("geosetId", it) }
         geofenceName?.let { put("geofenceName", it) }
-        // Always present (empty when the fence has none), unlike the optional fields above.
+        // Always present, even when empty.
         put("metadata", metadata.toEventMetadata())
     }
 
-    /**
-     * Builds the EventBus event the foreground flush publishes for this row.
-     * Owns the seconds→milliseconds conversion on [timestamp] so no caller has
-     * to construct a [Date] from the raw [Long] (which would silently produce
-     * a date in January 1970 if passed seconds).
-     */
+    /** Owns the seconds-to-millis conversion; a [Date] built from raw seconds lands in January 1970. */
     fun toGeofenceTransitionEvent(): Event.GeofenceTransitionEvent =
         Event.GeofenceTransitionEvent(
             geofenceId = geofenceId,
@@ -87,9 +68,8 @@ internal data class PendingGeofenceDelivery(
 }
 
 /**
- * Prefers the fence's current cached name + metadata, falling back to the crossing-time snapshot when
- * it has left the cache. Both fields move together so they never mix points in time. Applied by every
- * delivery path so all send an identical, consistently-sourced set.
+ * Name and metadata come from one source (cache, else the snapshot) so they never mix points in
+ * time.
  */
 internal fun PendingGeofenceDelivery.withFreshestEventData(cachedRegion: GeofenceRegion?): PendingGeofenceDelivery {
     if (cachedRegion == null) {
@@ -102,8 +82,7 @@ internal fun PendingGeofenceDelivery.withFreshestEventData(cachedRegion: Geofenc
     )
 }
 
-// org.json's JSONObject and Segment's serializer reject JsonElement, so unwrap to Kotlin primitives;
-// non-scalars are already gone by ingestion but drop defensively here too.
+// org.json's JSONObject and Segment's serializer reject JsonElement, so unwrap to Kotlin primitives.
 private fun Map<String, JsonElement>.toEventMetadata(): Map<String, Any> = buildMap {
     this@toEventMetadata.forEach { (key, element) ->
         (element as? JsonPrimitive)?.toKotlinPrimitiveOrNull()?.let { put(key, it) }

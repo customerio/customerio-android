@@ -26,9 +26,8 @@ internal class GeofenceBusinessTransitionProcessor(
         expectedUserStateGeneration: Long? = null,
         requireRegistered: Boolean = false
     ) = transitionMutex.withLock {
-        // Capture admission before consulting routability. A user switch clears routability and
-        // increments this generation; whichever side of that boundary this callback observes, it
-        // cannot be attributed to the next identified user.
+        // Read the generation before routability: a user switch clears one and bumps the other, so
+        // this callback can never be attributed to the next identified user.
         val userStateGeneration = expectedUserStateGeneration ?: store.userStateGeneration()
         if (store.userStateGeneration() != userStateGeneration) return@withLock
         if (requireRegistered && geofenceId !in store.getRoutableRegisteredIds()) return@withLock
@@ -37,17 +36,14 @@ internal class GeofenceBusinessTransitionProcessor(
         if (expectedRegionRevision != null && currentRegionRevision != expectedRegionRevision) {
             return@withLock
         }
-        // Both clauses answer "should this EXIT exist", from different records, and a fence that
-        // never reports ENTER is excluded from both: it can satisfy neither, so requiring either
-        // would swallow every EXIT it produces. Mirrors isRedundantEnter in the emitter.
+        // A fence that never reports ENTER is exempt from both clauses below: it can satisfy
+        // neither, so requiring either would swallow every EXIT it produces. Mirrors
+        // isRedundantEnter in the emitter.
         val monitorsEnter = cachedRegion?.transitionTypes?.contains(GeofenceTransitionType.ENTER) == true
         val exitingUserId = secureUserStore.getUserId()?.takeIf { it.isNotEmpty() }
-        // Where the device IS: nothing recorded us inside, so there is nothing to leave.
         val deviceWasNeverInside = geofenceId !in store.getEnteredIds() && store.hasContainmentRecord()
-        // What the BACKEND believes: a sync can seed containment from a fix too coarse to
-        // synthesise the matching ENTER, and the EXIT then reads as matched while the backend was
-        // never told of an arrival. Measured on 2026-09-19: a 1 km circle registered around a
-        // device already inside it, on a 400 m fix, delivered an EXIT for a visit never reported.
+        // A sync can seed containment from a fix too coarse to synthesise the matching ENTER, so the
+        // EXIT would read as matched for an arrival the backend was never told about.
         val backendWasNeverTold = exitingUserId != null &&
             store.hasEmittedEnterRecord(exitingUserId) &&
             !store.hasEmittedEnter(exitingUserId, geofenceId)
@@ -57,13 +53,8 @@ internal class GeofenceBusinessTransitionProcessor(
         if (isUnmatchedExit) {
             logger.logExitDroppedNeverEntered(geofenceId)
         }
-        // The two halves need different endings, which is the whole reason they are separate
-        // conditions. `backendWasNeverTold` is a real departure we cannot report, so it falls
-        // through to the containment commit below. `deviceWasNeverInside` has no departure to
-        // commit, and committing one is not free: it bumps the fence's exit epoch, and
-        // reconcileEnteredIds drops any inside entry whose exit epoch postdates the caller's fix,
-        // so a sync holding an earlier inside fix loses its seed and initial-ENTER synthesis has
-        // nothing to act on.
+        // Only `deviceWasNeverInside` skips the commit: it has no departure, and committing one would
+        // bump the exit epoch, making reconcileEnteredIds drop an in-flight sync's inside seed.
         if (transition == Event.GeofenceTransition.EXIT && monitorsEnter && deviceWasNeverInside) {
             return@withLock
         }
@@ -72,11 +63,8 @@ internal class GeofenceBusinessTransitionProcessor(
             Event.GeofenceTransition.ENTER -> GeofenceTransitionType.ENTER
             Event.GeofenceTransition.EXIT -> GeofenceTransitionType.EXIT
         }
-        // Suppresses delivery only. The departure itself is not in question, so it falls through to
-        // the containment commit every other suppressed path reaches: returning here instead left
-        // the fence in getEnteredIds() after the device had gone, and the redundant-ENTER guard
-        // then read every later visit at that venue as unchanged. What the backend cannot be told
-        // about is this one crossing, not the device's position.
+        // Suppresses delivery only; the containment commit below must still run, or the fence stays in
+        // getEnteredIds() and the redundant-ENTER guard reads every later visit as unchanged.
         val shouldEmit = !isUnmatchedExit &&
             (
                 !enforceConfiguredTransition ||

@@ -19,8 +19,7 @@ class GeofenceFixQualityTest {
 
     @Test
     fun isFresh_givenFixStampedAfterNow_expectNotTreatedAsFresh() {
-        // Monotonic time cannot run backwards, so only a host-supplied stamp can land here — and a
-        // bogus one (a units slip, say) would otherwise read as fresh forever and seed containment.
+        // A bogus future stamp would otherwise read as fresh forever.
         GeofenceFixQuality(fixElapsedRealtimeMillis = NOW + 1).isFresh(NOW).shouldBeFalse()
     }
 

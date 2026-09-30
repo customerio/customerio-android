@@ -71,8 +71,6 @@ class GeofenceCooldownStoreTest : RobolectricTest() {
 
     @Test
     fun recordEmit_givenNewStoreInstance_expectValuePersisted() {
-        // Cooldown state must survive across SDK / process restarts — otherwise a
-        // re-launch could fire a duplicate event still within the suppression window.
         store.recordEmit("user-1", "biz-1", Event.GeofenceTransition.ENTER, 1_234L)
 
         val newInstance = GeofenceCooldownStoreImpl(applicationMock)
@@ -96,8 +94,7 @@ class GeofenceCooldownStoreTest : RobolectricTest() {
 
     @Test
     fun pruneOlderThan_givenIdWithUnderscores_expectPruned() {
-        // Keys embed the geofenceId between fixed prefix/suffix; underscores in the
-        // id must not confuse the prefix scan.
+        // Underscores in the id must not confuse the key prefix scan.
         store.recordEmit("user-1", "biz_with_underscores", Event.GeofenceTransition.ENTER, 100L)
 
         store.pruneOlderThan(500L)
@@ -107,11 +104,8 @@ class GeofenceCooldownStoreTest : RobolectricTest() {
 
     @Test
     fun recordEmit_expectKeySpelledWithTheEnumConstantName() {
-        // Keys are written straight into SharedPreferences, so the spelling is persisted state:
-        // renaming a transition constant orphans every cooldown row on upgrade and each affected
-        // fence emits one suppressed event again. Nothing else here reads the key back literally.
-        // The prefs file name is spelled out for the same reason, not as a convenience: renaming
-        // it orphans the same rows, so it is pinned here too.
+        // Key spelling and the prefs file name are persisted; renaming either orphans every row on
+        // upgrade.
         store.recordEmit("user-1", "biz-1", Event.GeofenceTransition.ENTER, 100L)
         store.recordEmit("user-1", "biz-1", Event.GeofenceTransition.EXIT, 200L)
 

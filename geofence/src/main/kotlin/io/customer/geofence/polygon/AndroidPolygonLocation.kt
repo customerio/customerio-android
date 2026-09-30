@@ -10,9 +10,8 @@ internal data class AndroidPolygonLocationFix(
 
 internal fun Location.toPolygonLocationFix(): AndroidPolygonLocationFix? {
     if (!hasAccuracy() || !accuracy.isFinite() || accuracy <= 0f || elapsedRealtimeNanos <= 0L) return null
-    // The range check belongs to this path, not to PolygonCoordinate: a backend payload is the
-    // backend's to validate, but a provider can report a position the earth does not have, and
-    // carrying one into the evaluator would judge containment against a point that cannot exist.
+    // Range-checked here, not in PolygonCoordinate: a provider can report an impossible position,
+    // while backend payloads are the backend's to validate.
     if (!latitude.isFinite() || latitude !in -90.0..90.0) return null
     if (!longitude.isFinite() || longitude !in -180.0..180.0) return null
 

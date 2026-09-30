@@ -23,7 +23,7 @@ class PolygonShapeAdversarialIntegrationTest {
         lShape.vertices.size shouldBeEqualTo 6
         // In the bar of the L.
         lShape.relationTo(point(-0.001, 0.0)) shouldBeEqualTo PolygonPointRelation.INSIDE
-        // In the notch the L wraps around — accepting the shape is only useful if this stays out.
+        // In the notch the L wraps around.
         lShape.relationTo(point(0.001, 0.001)) shouldBeEqualTo PolygonPointRelation.OUTSIDE
     }
 
@@ -85,9 +85,8 @@ class PolygonShapeAdversarialIntegrationTest {
 
         val events = buildList {
             repeat(3) { addAll(route.process(0.0, 0.0, accuracy = 2.0)) }
-            // Departure keeps a clearance margin, so "clear fixes" has to mean clear of it: at
-            // 0.0002 the fix sits ~15 m outside a ~7 m corridor, inside the margin, and the exit
-            // is correctly withheld. Moved out to a distance that genuinely clears.
+            // Departure needs clearance beyond accuracy plus a 20 m margin, so the exit fix sits
+            // ~100 m out of the ~13 m-wide corridor; ~15 m out would correctly be withheld.
             repeat(3) { addAll(route.process(0.0010, 0.0, accuracy = 2.0)) }
         }
 

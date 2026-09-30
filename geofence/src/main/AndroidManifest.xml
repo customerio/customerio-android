@@ -19,23 +19,14 @@
             android:exported="false" />
 
         <!--
-            Receives the displacement-gated polygon approach fixes registered with GMS.
-
-            Deliberately always enabled, unlike the two receivers around it. Its registration is a
-            PendingIntent held by GMS that outlives both the process and the kill switch, so
-            disabling this would strand a live request with nothing able to receive the delivery
-            that tears it down.
+            Always enabled: its GMS PendingIntent outlives the process and the kill switch, and a
+            delivery is what removes a stale request.
         -->
         <receiver
             android:name="io.customer.geofence.polygon.PolygonApproachReceiver"
             android:exported="false" />
 
-        <!--
-            Receives fixes other apps requested, while any polygon is registered.
-
-            Always enabled, for the reason above: its registration is a PendingIntent held by GMS
-            that outlives the process, so disabling this would strand a live request.
-        -->
+        <!-- Receives fixes other apps requested. Always enabled, for the same reason as above. -->
         <receiver
             android:name="io.customer.geofence.polygon.PolygonPassiveReceiver"
             android:exported="false" />

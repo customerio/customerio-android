@@ -2,7 +2,7 @@ package io.customer.geofence.store
 
 import kotlinx.serialization.Serializable
 
-/** Exact location samples awaiting ordered, encrypted polygon evaluation. */
+/** Exact location samples persisted, encrypted, until the ordered polygon evaluation replays them. */
 @Serializable
 internal data class PendingPolygonApproachBatch(
     val id: String,

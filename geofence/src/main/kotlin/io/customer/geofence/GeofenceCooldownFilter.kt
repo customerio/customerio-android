@@ -6,9 +6,8 @@ import io.customer.sdk.communication.Event
 import io.customer.sdk.core.util.Clock
 
 /**
- * Suppresses duplicate geofence events within the server-configured cooldown window.
- * Windows are user-scoped (matching iOS): after an account switch, the previous
- * user's window never masks the new user's transition on the same fence.
+ * Suppresses duplicate geofence events within the cooldown window. Windows are user-scoped, so a
+ * previous user's window never masks the new user's transition on the same fence.
  */
 internal class GeofenceCooldownFilter(
     private val store: GeofenceCooldownStore,
@@ -16,11 +15,8 @@ internal class GeofenceCooldownFilter(
     private val clock: Clock
 ) {
     /**
-     * `null` when the caller should proceed to emit, otherwise the seconds still left on the
-     * window. The check already computes that figure, so returning it rather than recomputing
-     * keeps reporting a suppression free of a second store read on a background wake.
-     *
-     * Checks only. [record] is the separate write, so there is nothing to roll back.
+     * `null` when the caller should emit, otherwise the seconds left. Read-only; [record] is the
+     * write.
      */
     @Synchronized
     fun suppressedForSeconds(
@@ -43,8 +39,8 @@ internal class GeofenceCooldownFilter(
     ) {
         val now = clock.currentTimeMillis()
         store.recordEmit(userId, geofenceId, transition, now)
-        // Sweep entries past the max possible cooldown — they can't suppress under any config —
-        // to bound the store as fences churn, without the double-fire risk of pruning by cached set.
+        // Prune by age past the max possible cooldown, not by cached fence set: an aged entry can't
+        // suppress under any config, while pruning a live window would let a repeat double-fire.
         store.pruneOlderThan(now - GeofenceConstants.MAX_DUPLICATE_EVENTS_EXPIRY_MS)
     }
 

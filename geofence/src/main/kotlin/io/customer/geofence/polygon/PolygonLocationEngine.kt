@@ -17,25 +17,9 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
 /**
- * What one evaluation pass concluded, beyond the transitions it already committed.
- *
- * [undecidedPolygonIds] is the caller's cue to go and get a better fix: those fences were judged
- * against a real fix and it did not separate inside from outside. A pass that aborted, rather than
- * one that decided nothing, reports neither, so an identify landing mid-pass does not trigger a
- * sensor request for a session that is already gone.
- *
- * [pendingArrivalPolygonIds] is the same cue for the opposite verdict. Those fences decided ENTER
- * and are holding it for a second measurement, which nothing in the background supplies inside the
- * corroboration window: `cor=true` appears in no capture, so every marginal arrival was dropped.
- * It accumulates over every location in the pass, so it reads as "still holding" only while a pass
- * carries one location, which is all any caller passes today.
- *
- * [evaluatedPolygonIds] is every fence this pass actually judged. A fence the route processor
- * skipped, because the fix is not strictly newer than the one it last saw for it, appears in
- * neither this set nor [undecidedPolygonIds], so a caller cannot read absence from the undecided
- * set as a decision. [acceptedFix] cannot answer that: it is set once for the pass, before any
- * fence is judged. The one fix not skipped that way is a precise fix that answers a request with
- * the very fix the request was made from, for a fence holding an arrival on that fix.
+ * [undecidedPolygonIds] and [pendingArrivalPolygonIds] cue a better-fix request; an aborted pass
+ * reports neither. [evaluatedPolygonIds] is every fence judged: one skipped because the fix is not
+ * newer is in no set, so absence from [undecidedPolygonIds] is not a decision.
  */
 internal data class PolygonEvaluationOutcome(
     val acceptedFix: Boolean,
@@ -49,32 +33,8 @@ internal data class PolygonEvaluationOutcome(
 }
 
 /**
- * Decides polygon containment from fixes admitted by the wake-scoped responsive runtime.
- *
- * ## What this engine is
- *
- * It never asks the OS for location. Every fix it sees came from a GMS wake callback or the bounded
- * [PolygonApproachMonitor] session opened after that callback. The engine decides whether a fix is
- * decisive enough to move committed containment.
- *
- * ## Best-effort boundary — read before relying on it
- *
- * This is deliberately bounded, and that has consequences it does not hide:
- *
- * - **Unobserved crossings are missed.** If neither an enclosing-circle nor adaptive-movement wake
- *   produces a usable fix, the engine has no evidence and emits no transition.
- * - **A fix near the boundary decides nothing.** [PolygonAccuracyEvaluator.decisiveEvidenceFor]
- *   requires the whole accuracy circle, plus an anti-jitter margin, to be on one side of the ring.
- *   Fixes coarser than the decisive accuracy ceiling, and fixes whose uncertainty straddles the
- *   boundary, are ignored rather than guessed at — a wrong ENTER is worse than a late one.
- * - **Small polygons may never be decided at all.** A ring narrower than roughly twice
- *   (fix accuracy + margin) has no interior point far enough from its own boundary to be decisive.
- *   Such a polygon can only produce transitions from unusually accurate fixes, and on a device
- *   reporting typical background accuracy it will produce none. That is a reported limitation, not a
- *   defect to be tuned around here.
- *
- * V1 deliberately has no continuous or foreground-service mode. The bounded session stops as soon
- * as a safe adaptive movement trigger can take over, or when its time budget expires.
+ * Decides polygon containment from fixes its callers deliver; it never requests location itself.
+ * A crossing no wake observes with a usable fix is missed.
  */
 internal class PolygonLocationEngine(
     private val store: GeofenceRegionStore,
@@ -88,16 +48,9 @@ internal class PolygonLocationEngine(
     private val stateLock = Any()
     private val geometryCache = mutableMapOf<String, CachedGeometry>()
 
-    // Keyed on the rings themselves, not on the active id set: a sync can replace a polygon's
-    // geometry without changing which polygons are active, and evaluating the ring it replaced
-    // reports the device inside a fence that has moved.
     private var cachedFenceSignature: Map<String, Int> = emptyMap()
     private var cachedFences: List<PolygonFence> = emptyList()
 
-    /**
-     * Discards the current evaluation session. Called when no polygon is active any more, or when
-     * user-scoped state is invalidated, so a later fix cannot be judged against a stale session.
-     */
     fun stop(): Set<String> = synchronized(stateLock) {
         routeProcessor.clear().also {
             geometryCache.clear()
@@ -110,11 +63,7 @@ internal class PolygonLocationEngine(
         resetEvidenceLocked(polygonId).also { armSessionLocked(restartSession = true) }
     }
 
-    /**
-     * Arms evaluation from the fix that caused a passive approach session to begin. Background
-     * delivery can batch recent locations, so using only the normal trigger grace would discard an
-     * observed crossing merely because Play services delivered the batch late.
-     */
+    /** Arms from the approach's first fix: a late background batch can predate the normal grace. */
     fun activateFromApproach(
         polygonId: String,
         firstFixElapsedRealtimeNanos: Long
@@ -130,16 +79,9 @@ internal class PolygonLocationEngine(
     fun resetEvidence(polygonId: String): Set<String> =
         synchronized(stateLock) { resetEvidenceLocked(polygonId) }
 
-    /**
-     * Whether the calling thread holds [stateLock]. Exposed only so a test can assert that no
-     * record reaches the host's log dispatcher while this lock is held, which is the invariant the
-     * returned-record plumbing in this file exists to preserve. A boolean rather than the lock
-     * itself: nothing outside this class has any business synchronizing on it.
-     */
     @VisibleForTesting
     internal fun holdsStateLock(): Boolean = Thread.holdsLock(stateLock)
 
-    /** The one place a returned [PolygonRouteRecord] becomes a log line. */
     private fun emitRouteRecord(record: PolygonRouteRecord) = when (record) {
         is PolygonRouteRecord.Undecided -> logger.logPolygonUndecided(
             geofenceId = record.geofenceId,
@@ -187,11 +129,6 @@ internal class PolygonLocationEngine(
     fun deactivate(polygonId: String): Set<String> =
         synchronized(stateLock) { resetEvidenceLocked(polygonId) }
 
-    /**
-     * Evaluates one fix that arrived from a low-power source, moving containment only when that
-     * single fix is decisive on its own. See the class documentation for what this deliberately
-     * cannot see.
-     */
     suspend fun processResponsiveLocation(
         location: Location,
         expectedUserStateGeneration: Long = store.userStateGeneration(),
@@ -202,11 +139,6 @@ internal class PolygonLocationEngine(
         answersHeldFixAt = answersHeldFixAt
     )
 
-    /**
-     * Ordered evaluation of a batch of fixes.
-     *
-     * V1 calls this through [processResponsiveLocation], one fix at a time.
-     */
     private suspend fun processLocations(
         locations: List<Location>,
         expectedUserStateGeneration: Long,
@@ -217,8 +149,7 @@ internal class PolygonLocationEngine(
             logger.logPolygonEvaluationSkipped(PolygonEvaluationSkip.USER_STATE_CHANGED)
             return@withLock PolygonEvaluationOutcome.NOTHING
         }
-        // Every active location batch is also an autonomous outbox-recovery opportunity. Do not
-        // evaluate a newer edge while an older one is still unable to reach the durable file queue.
+        // Don't evaluate a newer edge while an older one cannot reach the durable queue.
         if (!transitionProcessor.recoverPendingTransitions()) {
             logger.logPolygonEvaluationSkipped(PolygonEvaluationSkip.OUTBOX_BLOCKED)
             return@withLock PolygonEvaluationOutcome.NOTHING
@@ -236,9 +167,6 @@ internal class PolygonLocationEngine(
             }
         }
         if (!sessionArmed) {
-            // armSessionLocked cannot fail, so the only way to get here is the generation check
-            // above. Reporting this as "session not armed" would hide an identify or sign-out race
-            // behind a reason that cannot actually occur.
             logger.logPolygonEvaluationSkipped(PolygonEvaluationSkip.USER_STATE_CHANGED)
             return@withLock PolygonEvaluationOutcome.NOTHING
         }
@@ -256,11 +184,8 @@ internal class PolygonLocationEngine(
                 logger.logPolygonFixNotUsable(PolygonFixRejection.NO_USABLE_FIX)
                 continue
             }
-            // Every record below is emitted after the block closes. GeofenceLogger forwards to the
-            // host Logger, whose dispatcher is customer code, so logging under stateLock would let
-            // a slow customer lambda stall evaluation. The FIX_TOO_OLD record predates this change
-            // and had the same problem; it is hoisted with the rest rather than left behind in a
-            // block being restructured around it.
+            // Records are emitted after the block: the host's log dispatcher is customer code and
+            // must not run under stateLock.
             var userStateChanged = false
             var fixTooOld = false
             var noEvaluableFences = false
@@ -306,21 +231,15 @@ internal class PolygonLocationEngine(
                 logger.logPolygonEvaluationSkipped(PolygonEvaluationSkip.NO_EVALUABLE_FENCES)
             }
             val routeOutcome = outcome ?: continue
-            // Every record decided inside the block above is emitted here. The route processor
-            // returns them instead of logging them because stateLock gates every polygon
-            // evaluation, and these records reach the host's log dispatcher, which is customer
-            // code. PolygonLockFreedomTest is what keeps that true.
             routeOutcome.records.filterIsInstance<PolygonRouteRecord.Undecided>()
                 .mapTo(undecidedPolygonIds, PolygonRouteRecord.Undecided::geofenceId)
             routeOutcome.records.filterIsInstance<PolygonRouteRecord.ArrivalPending>()
                 .mapTo(pendingArrivalPolygonIds, PolygonRouteRecord.ArrivalPending::geofenceId)
-            // Every record names the fence it judged, so the records are the pass's own statement
-            // of what it looked at. A skipped fence produces none.
+            // Every judged fence produces a record; a skipped fence produces none.
             routeOutcome.records.mapTo(evaluatedPolygonIds, PolygonRouteRecord::geofenceId)
             routeOutcome.records.forEach(::emitRouteRecord)
             routeOutcome.detections.forEach { detection ->
                 if (store.userStateGeneration() != expectedUserStateGeneration) {
-                    // Not under a lock here, so it logs in place and aborts the pass as before.
                     logger.logPolygonEvaluationSkipped(PolygonEvaluationSkip.USER_STATE_CHANGED)
                     return@withLock PolygonEvaluationOutcome.NOTHING
                 }
@@ -387,11 +306,10 @@ internal class PolygonLocationEngine(
 
     private fun activePolygonFencesLocked(): List<PolygonFence> {
         val activeIds = store.getActivePolygonIds()
-        // One catalog read. getCachedRegion decodes the whole catalog per call, so reading once and
-        // filtering costs less than the per-id lookups this used to do on every rebuild.
+        // One catalog read: getCachedRegion decodes the whole catalog per call.
         val regions = store.getCachedRegions().filter { it.id in activeIds && it.isPolygon }
-        // Keyed on the transition revision, not just the ring: it also covers the enclosing circle,
-        // and a fence rebuilt from a stale revision has its detections dropped as replaced geometry.
+        // Keyed on transition revision, not the active id set: a sync can edit a fence without
+        // changing the set, and a fence built from a stale revision has its detections dropped.
         val signature = regions.associate { it.id to it.transitionRevision() }
         if (signature == cachedFenceSignature) return cachedFences
         geometryCache.keys.retainAll(regions.mapTo(mutableSetOf()) { it.id })
@@ -407,8 +325,8 @@ internal class PolygonLocationEngine(
                 }
             }
             if (geometry == null) {
-                // A ring that no longer validates must not fall back to its enclosing circle: that
-                // circle is a coarse trigger, kilometres wider than the fence.
+                // A ring that no longer validates must not fall back to its enclosing circle, a
+                // coarse trigger much wider than the fence.
                 logger.logPolygonRegionNotRanked(region.id, PolygonNotRankedReason.RING_UNBUILDABLE)
                 null
             } else {

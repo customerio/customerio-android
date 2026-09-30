@@ -23,7 +23,6 @@ class GeofenceLifecycleObserverTest {
     private val mockRegionStore: GeofenceRegionStore = mockk(relaxed = true)
     private val mockLogger: GeofenceLogger = mockk(relaxed = true)
 
-    // Granted-and-always by default; the two tier tests set their own.
     private val mockPermissionChecker: GeofencePermissionChecker = mockk(relaxed = true) {
         every { hasFineLocationPermission() } returns true
         every { isBackgroundDeliveryAvailable() } returns true
@@ -31,10 +30,7 @@ class GeofenceLifecycleObserverTest {
 
     private var foregroundHookRuns = 0
 
-    /**
-     * The real reporter, not a double: the dedup these tests are about lives in it, and it is now
-     * shared with module init rather than owned by the observer.
-     */
+    /** Real, because the dedup under test lives in it. */
     private val permissionReporter = GeofencePermissionReporter(
         permissionChecker = mockPermissionChecker,
         logger = mockLogger
@@ -51,9 +47,6 @@ class GeofenceLifecycleObserverTest {
 
     @Test
     fun reportIfChanged_givenAProcessThatNeverForegrounds_expectTheTierStillReported() {
-        // The cold background wake: a geofence broadcast starts the process, module init runs, and
-        // `onStart` never fires. Every capture of that session used to say nothing about the
-        // permission the SDK was operating under — and that is the session a drive records.
         permissionReporter.reportIfChanged()
 
         verify(exactly = 1) { mockLogger.logPermissionTier(GeofenceLogger.PERMISSION_ALWAYS) }
@@ -105,7 +98,6 @@ class GeofenceLifecycleObserverTest {
 
     @Test
     fun onStart_givenUnreadableQueue_expectTheFailureRecorded() {
-        // The only path that runs without a new transition, so silence here means no record at all.
         val callbacksSlot = slot<PendingDeliveryFlusher.Callbacks<PendingGeofenceDelivery>>()
         every { mockDeliveryFlusher.flush(capture(callbacksSlot), any(), any()) } returns Unit
 
@@ -125,8 +117,6 @@ class GeofenceLifecycleObserverTest {
 
     @Test
     fun onStart_expectPublishedEventUsesFreshCachedNameAndMetadata() {
-        // The flush path must apply the same cache-preferred hybrid as the worker path, so a fence
-        // still in cache publishes its current name/metadata over the row's crossing-time snapshot.
         every { mockRegionStore.getCachedRegion("g1") } returns GeofenceRegion(
             id = "g1",
             latitude = 1.0,

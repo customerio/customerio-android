@@ -8,9 +8,8 @@ import org.junit.Test
 class PolygonWakeCircleValidatorTest {
     @Test
     fun prepare_givenARetailSizedCircle_expectItRegisteredAsSent() {
-        // A real workspace polygon catalogues a 101 m base circle. It already encloses the ring,
-        // so anything added to it only moves the wake further from the venue: the 400 m floor this
-        // replaces woke us 193 m outside that shop on 2026-09-18 and the visit went unrecorded.
+        // The base circle already encloses the ring, so padding it only moves the wake further
+        // from the venue.
         val wakeCircle = PolygonWakeCircle(
             center = point(37.0005, -121.9995),
             baseRadiusMeters = 101.0
@@ -24,7 +23,6 @@ class PolygonWakeCircleValidatorTest {
 
     @Test
     fun prepare_givenAKilometreWideCircle_expectItRegisteredAsSent() {
-        // The same rule at the other end of the catalogue, where the old floor was inert.
         val wakeCircle = PolygonWakeCircle(
             center = point(37.0005, -121.9995),
             baseRadiusMeters = 5_000.0
@@ -47,9 +45,6 @@ class PolygonWakeCircleValidatorTest {
 
     @Test
     fun prepare_givenACircleSmallerThanAnyBackendSends_expectNoFloorApplied() {
-        // Nothing clamps a small circle up. Whether GMS triggers one this small is unknown below
-        // 250 m in this repository and is what the next field capture is for; inventing a floor
-        // here would only hide which radius was registered when that capture is read.
         val wakeCircle = PolygonWakeCircle(
             center = point(37.0005, -121.9995),
             baseRadiusMeters = 30.0

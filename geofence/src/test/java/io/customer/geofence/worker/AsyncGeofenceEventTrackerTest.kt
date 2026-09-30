@@ -51,14 +51,12 @@ class AsyncGeofenceEventTrackerTest : RobolectricTest() {
 
         asyncTracker.trackEvent(entry)
 
-        // At-least-once contract: send with the snapshotted entry, remove only after success.
         coVerify(exactly = 1) { mockTracker.trackEvent(entry) }
         verify(exactly = 1) { mockStore.remove("biz-1_ENTER_tid-1_none") }
     }
 
     @Test
     fun trackEvent_givenEntryAlreadyDelivered_expectNoSend() = runTest {
-        // Foreground flush already delivered + removed this entry: do not re-send.
         every { mockStore.contains(any()) } returns false
         val entry = PendingGeofenceDelivery("biz-3", Event.GeofenceTransition.ENTER, 7L, "user-42", transitionId = "tid-3")
 
@@ -70,8 +68,7 @@ class AsyncGeofenceEventTrackerTest : RobolectricTest() {
 
     @Test
     fun trackEvent_givenPresenceUnknown_expectSentRatherThanAssumedDelivered() = runTest {
-        // An unreadable queue is not proof the entry was delivered elsewhere. Delivery is
-        // at-least-once and deduped backend-side, so sending is the safe direction.
+        // Delivery is at-least-once and deduped backend-side, so sending is the safe direction.
         val entry = PendingGeofenceDelivery("biz-6", Event.GeofenceTransition.ENTER, 13L, "user-42", transitionId = "tid-6")
         every { mockStore.contains(any()) } returns null
         coEvery { mockTracker.trackEvent(any()) } returns Result.success(Unit)
@@ -83,8 +80,7 @@ class AsyncGeofenceEventTrackerTest : RobolectricTest() {
 
     @Test
     fun trackEvent_givenStoreThrows_expectLoggedNotCrashed() = runTest {
-        // The fire-and-forget scope has no exception handler — an escaping throw
-        // would crash the host. The entry stays in store for the foreground flush.
+        // The fire-and-forget scope has no exception handler, so a throw would crash the host.
         val entry = PendingGeofenceDelivery("biz-5", Event.GeofenceTransition.ENTER, 11L, "user-42", transitionId = "tid-5")
         every { mockStore.contains(any()) } throws IllegalStateException("corrupt store")
 
@@ -103,14 +99,12 @@ class AsyncGeofenceEventTrackerTest : RobolectricTest() {
 
         asyncTracker.trackEvent(entry)
 
-        // Never removed, so the foreground flush can still deliver it.
         verify(exactly = 0) { mockStore.remove(any()) }
     }
 
     @Test
     fun trackEvent_givenNullUserId_expectNoLoadAndNoSend() = runTest {
-        // Anonymous session: HTTP needs a userId, so we leave the entry in
-        // the store for the foreground flush to publish via anonymousId.
+        // HTTP needs a userId, so the entry is left for the foreground flush.
         val entry = PendingGeofenceDelivery("biz-anon", Event.GeofenceTransition.ENTER, 11L, userId = null, transitionId = "tid-anon")
 
         asyncTracker.trackEvent(entry)

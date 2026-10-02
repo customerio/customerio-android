@@ -1,12 +1,11 @@
 package io.customer.messagingpush.provider
 
-import android.content.Context
 import com.google.android.gms.common.ConnectionResult
 import com.google.android.gms.common.GoogleApiAvailability
 import com.google.android.gms.tasks.OnCompleteListener
 import com.google.android.gms.tasks.Task
-import com.google.firebase.messaging.FirebaseMessaging
 import io.customer.commontest.core.JUnit5Test
+import io.customer.commontest.extensions.assertCalledNever
 import io.customer.commontest.extensions.assertCalledOnce
 import io.customer.messagingpush.logger.PushNotificationLogger
 import io.mockk.every
@@ -17,21 +16,20 @@ import org.junit.jupiter.api.Test
 
 class FCMTokenProviderTest : JUnit5Test() {
 
-    private val mockContext = mockk<Context>()
     private val mockGoogleApiAvailability = mockk<GoogleApiAvailability>()
-    private val mockFirebaseMessaging = mockk<FirebaseMessaging>()
+    private val mockTokenSource = mockk<FirebaseTokenSource>()
     private val mockPushLogger = mockk<PushNotificationLogger>(relaxed = true)
 
     private val tokenProvider: DeviceTokenProvider = FCMTokenProviderImpl(
-        mockContext,
+        contextMock,
         { mockGoogleApiAvailability },
-        { mockFirebaseMessaging },
+        mockTokenSource,
         mockPushLogger
     )
 
     @Test
     fun test_getCurrentToken_givenPlayServicesAvailable_logSuccess() {
-        every { mockGoogleApiAvailability.isGooglePlayServicesAvailable(mockContext) } returns ConnectionResult.SUCCESS
+        every { mockGoogleApiAvailability.isGooglePlayServicesAvailable(contextMock) } returns ConnectionResult.SUCCESS
 
         tokenProvider.getCurrentToken { }
 
@@ -42,19 +40,20 @@ class FCMTokenProviderTest : JUnit5Test() {
 
     @Test
     fun test_getCurrentToken_givenPlayServicesUnavailable_logUnavailable() {
-        every { mockGoogleApiAvailability.isGooglePlayServicesAvailable(mockContext) } returns ConnectionResult.API_UNAVAILABLE
+        every { mockGoogleApiAvailability.isGooglePlayServicesAvailable(contextMock) } returns ConnectionResult.API_UNAVAILABLE
 
         tokenProvider.getCurrentToken { }
 
         assertCalledOnce {
             mockPushLogger.logGooglePlayServicesUnavailable(ConnectionResult.API_UNAVAILABLE)
         }
+        assertCalledNever { mockTokenSource.fetchToken() }
     }
 
     @Test
     fun test_getCurrentToken_givenPlayServicesCheckThrows_logUnavailable() {
         val illegalArgumentException = IllegalArgumentException()
-        every { mockGoogleApiAvailability.isGooglePlayServicesAvailable(mockContext) } throws illegalArgumentException
+        every { mockGoogleApiAvailability.isGooglePlayServicesAvailable(contextMock) } throws illegalArgumentException
 
         tokenProvider.getCurrentToken { }
 
@@ -65,14 +64,14 @@ class FCMTokenProviderTest : JUnit5Test() {
 
     @Test
     fun test_getCurrentToken_givenObtainingTokenSuccessful() {
-        every { mockGoogleApiAvailability.isGooglePlayServicesAvailable(mockContext) } returns ConnectionResult.SUCCESS
+        every { mockGoogleApiAvailability.isGooglePlayServicesAvailable(contextMock) } returns ConnectionResult.SUCCESS
 
         val token = "fcm-token"
         val task = mockk<Task<String>>(relaxed = true)
         val taskSlot = slot<OnCompleteListener<String>>()
         every { task.isSuccessful } returns true
         every { task.result } returns token
-        every { mockFirebaseMessaging.getToken() } returns task
+        every { mockTokenSource.fetchToken() } returns task
         every { task.addOnCompleteListener(capture(taskSlot)) } returns task
 
         var result: String? = null
@@ -86,14 +85,14 @@ class FCMTokenProviderTest : JUnit5Test() {
 
     @Test
     fun test_getCurrentToken_givenObtainingTokenNotSuccessful() {
-        every { mockGoogleApiAvailability.isGooglePlayServicesAvailable(mockContext) } returns ConnectionResult.SUCCESS
+        every { mockGoogleApiAvailability.isGooglePlayServicesAvailable(contextMock) } returns ConnectionResult.SUCCESS
 
         val task = mockk<Task<String>>(relaxed = true)
         val exception = IllegalStateException()
         val taskSlot = slot<OnCompleteListener<String>>()
         every { task.isSuccessful } returns false
         every { task.exception } returns exception
-        every { mockFirebaseMessaging.getToken() } returns task
+        every { mockTokenSource.fetchToken() } returns task
         every { task.addOnCompleteListener(capture(taskSlot)) } returns task
 
         var result: String? = null
@@ -107,10 +106,10 @@ class FCMTokenProviderTest : JUnit5Test() {
 
     @Test
     fun test_getCurrentToken_givenObtainingTokenThrows() {
-        every { mockGoogleApiAvailability.isGooglePlayServicesAvailable(mockContext) } returns ConnectionResult.SUCCESS
+        every { mockGoogleApiAvailability.isGooglePlayServicesAvailable(contextMock) } returns ConnectionResult.SUCCESS
 
         val exception = IllegalStateException()
-        every { mockFirebaseMessaging.getToken() } throws exception
+        every { mockTokenSource.fetchToken() } throws exception
 
         var result: String? = null
         tokenProvider.getCurrentToken { result = it }

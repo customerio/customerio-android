@@ -69,7 +69,9 @@ class FirebaseTokenSourceTest : JUnit5Test() {
         val result = tokenSource(registration = null).fetchToken()
 
         result shouldBeEqualTo legacyTokenTask
+        registerCalls shouldBeEqualTo 1
         assertCalledOnce { mockPushLogger.logInstallationIdUnsupported() }
+        assertCalledNever { mockPushLogger.obtainingInstallationIdStarted() }
     }
 
     @Test
@@ -101,6 +103,7 @@ class FirebaseTokenSourceTest : JUnit5Test() {
         )
 
         tokenSource.fetchToken() shouldBeEqualTo legacyTokenTask
+        assertCalledOnce { mockPushLogger.logInstallationIdUnsupported() }
     }
 
     private fun givenMetaData(optedIn: Boolean) {

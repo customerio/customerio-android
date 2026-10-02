@@ -18,6 +18,7 @@ import io.customer.datapipelines.extensions.asMap
 import io.customer.datapipelines.extensions.sanitizeForJson
 import io.customer.datapipelines.extensions.type
 import io.customer.datapipelines.extensions.updateAnalyticsConfig
+import io.customer.datapipelines.extensions.withDeviceTokenType
 import io.customer.datapipelines.migration.TrackingMigrationProcessor
 import io.customer.datapipelines.plugins.ApplicationLifecyclePlugin
 import io.customer.datapipelines.plugins.AutoTrackDeviceAttributesPlugin
@@ -38,6 +39,7 @@ import io.customer.sdk.core.util.CioLogLevel
 import io.customer.sdk.core.util.Iso8601TimestampFormatter
 import io.customer.sdk.core.util.Logger
 import io.customer.sdk.data.model.CustomAttributes
+import io.customer.sdk.data.model.DeviceTokenType
 import io.customer.sdk.data.model.Settings
 import io.customer.sdk.events.TrackMetric
 import io.customer.sdk.util.EventNames
@@ -174,7 +176,7 @@ class CustomerIO private constructor(
             trackMetric(TrackMetric.InApp(metric = it.event, deliveryId = it.deliveryID, metadata = it.params))
         }
         eventBus.subscribe<Event.RegisterDeviceTokenEvent> {
-            registerDeviceToken(deviceToken = it.token)
+            registerDeviceToken(deviceToken = it.token, tokenType = it.tokenType)
         }
         eventBus.subscribe<Event.GeofenceTransitionEvent> { geofenceEvent ->
             // Snapshotted userId (if any) overrides current SDK identity for this one event so a
@@ -413,14 +415,21 @@ class CustomerIO private constructor(
         trackDeviceAttributes(registeredDeviceToken, attributes)
     }
 
-    override fun registerDeviceTokenImpl(deviceToken: String) {
+    override fun registerDeviceTokenImpl(deviceToken: String) = saveAndTrackDeviceToken(deviceToken, tokenType = null)
+
+    /** Registers a token the SDK fetched from Firebase itself, so its [tokenType] is known. */
+    internal fun registerDeviceToken(deviceToken: String, tokenType: DeviceTokenType?) = synchronized(this) {
+        saveAndTrackDeviceToken(deviceToken, tokenType)
+    }
+
+    private fun saveAndTrackDeviceToken(deviceToken: String, tokenType: DeviceTokenType?) {
         if (deviceToken.isBlank()) {
             dataPipelinesLogger.logStoringBlankPushToken()
             return
         }
 
         dataPipelinesLogger.logStoringDevicePushToken(deviceToken, this.userId)
-        globalPreferenceStore.saveDeviceToken(deviceToken)
+        globalPreferenceStore.saveDeviceToken(deviceToken, tokenType)
 
         dataPipelinesLogger.logRegisteringPushToken(deviceToken, this.userId)
         trackDeviceAttributes(token = deviceToken)
@@ -440,12 +449,17 @@ class CustomerIO private constructor(
             }
         }
 
-        val attributes = if (moduleConfig.autoTrackDeviceAttributes) {
+        val trackedAttributes = if (moduleConfig.autoTrackDeviceAttributes) {
             // order matters! allow customer to override default values if they wish.
             deviceStore.buildDeviceAttributes() + customAddedAttributes
         } else {
             customAddedAttributes
         }
+        // Always applied, even with autoTrackDeviceAttributes off: the backend needs the type for every device.
+        val attributes = trackedAttributes.withDeviceTokenType(
+            tokenType = globalPreferenceStore.getDeviceTokenType(),
+            logger = dataPipelinesLogger
+        )
 
         // Update plugin with updated device information
         contextPlugin.deviceToken = token

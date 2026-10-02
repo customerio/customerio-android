@@ -66,6 +66,15 @@ class CustomerIOFirebaseMessagingServiceTest : IntegrationTest() {
     }
 
     @Test
+    fun onNewToken_givenTokenAlreadyStored_expectDeviceTokenStillRegistered() {
+        every { mockGlobalPreferenceStore.getDeviceToken() } returns "legacy-token"
+
+        CustomerIOFirebaseMessagingService.onNewToken(contextMock, "legacy-token")
+
+        assertCalledOnce { mockEventBus.publish(Event.RegisterDeviceTokenEvent("legacy-token")) }
+    }
+
+    @Test
     fun serviceOnRegistered_givenNewInstallationId_expectDeviceTokenRegistered() {
         every { mockGlobalPreferenceStore.getDeviceToken() } returns null
 

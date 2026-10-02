@@ -53,7 +53,7 @@ open class CustomerIOFirebaseMessagingService : FirebaseMessagingService() {
 
         /**
          * Handles the Firebase Installation ID (FID) delivered once this app instance registers
-         * with FCM. Call this from [FirebaseMessagingService.onRegistered] in your own service when
+         * with FCM. Call this from `FirebaseMessagingService.onRegistered` in your own service when
          * the app opts in to FID registration (firebase-messaging 25.1.0+).
          *
          * @param context reference to application context

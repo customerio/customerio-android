@@ -324,7 +324,7 @@ class CustomerIO private constructor(
             if (existingDeviceToken != null) {
                 dataPipelinesLogger.automaticTokenRegistrationForNewProfile(existingDeviceToken, userId)
                 // register device to newly identified profile
-                trackDeviceAttributes(token = existingDeviceToken)
+                trackDeviceAttributes(token = existingDeviceToken, tokenType = globalPreferenceStore.getDeviceTokenType())
             }
         }
 
@@ -412,12 +412,17 @@ class CustomerIO private constructor(
         }
 
     override fun setDeviceAttributes(attributes: CustomAttributes) {
-        trackDeviceAttributes(registeredDeviceToken, attributes)
+        // Registration writes token and type under this lock; read them together so a concurrent
+        // registration can't pair the old token with the new type. Track outside the lock (it logs).
+        val (token, tokenType) = synchronized(this) {
+            registeredDeviceToken to globalPreferenceStore.getDeviceTokenType()
+        }
+        trackDeviceAttributes(token = token, tokenType = tokenType, customAddedAttributes = attributes)
     }
 
     override fun registerDeviceTokenImpl(deviceToken: String) = saveAndTrackDeviceToken(deviceToken, tokenType = null)
 
-    /** Registers a token the SDK fetched from Firebase itself, so its [tokenType] is known. */
+    /** [tokenType] is null when the token didn't come from the SDK's own Firebase fetch. */
     internal fun registerDeviceToken(deviceToken: String, tokenType: DeviceTokenType?) = synchronized(this) {
         saveAndTrackDeviceToken(deviceToken, tokenType)
     }
@@ -432,10 +437,14 @@ class CustomerIO private constructor(
         globalPreferenceStore.saveDeviceToken(deviceToken, tokenType)
 
         dataPipelinesLogger.logRegisteringPushToken(deviceToken, this.userId)
-        trackDeviceAttributes(token = deviceToken)
+        trackDeviceAttributes(token = deviceToken, tokenType = tokenType)
     }
 
-    private fun trackDeviceAttributes(token: String?, customAddedAttributes: CustomAttributes = emptyMap()) {
+    private fun trackDeviceAttributes(
+        token: String?,
+        tokenType: DeviceTokenType?,
+        customAddedAttributes: CustomAttributes = emptyMap()
+    ) {
         if (token.isNullOrBlank()) {
             dataPipelinesLogger.logTrackingDevicesAttributesWithoutValidToken()
             return
@@ -456,10 +465,7 @@ class CustomerIO private constructor(
             customAddedAttributes
         }
         // Always applied, even with autoTrackDeviceAttributes off: the backend needs the type for every device.
-        val attributes = trackedAttributes.withDeviceTokenType(
-            tokenType = globalPreferenceStore.getDeviceTokenType(),
-            logger = dataPipelinesLogger
-        )
+        val attributes = trackedAttributes.withDeviceTokenType(tokenType = tokenType, logger = dataPipelinesLogger)
 
         // Update plugin with updated device information
         contextPlugin.deviceToken = token

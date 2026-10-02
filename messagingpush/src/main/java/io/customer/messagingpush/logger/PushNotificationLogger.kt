@@ -147,6 +147,28 @@ internal class PushNotificationLogger(private val logger: Logger) {
         )
     }
 
+    fun logInstallationIdRegisterMissing(throwable: Throwable) {
+        logger.error(
+            tag = TAG,
+            message = "Firebase is in Installation ID mode but FirebaseMessaging.register() was not found. Check that the SDK's consumer ProGuard rules are applied",
+            throwable = throwable
+        )
+    }
+
+    fun logInstallationIdUnchanged(installationId: String) {
+        logger.debug(
+            tag = TAG,
+            message = "Firebase Installation ID unchanged, already registered: $installationId"
+        )
+    }
+
+    fun logInstallationIdUnregistered(installationId: String) {
+        logger.debug(
+            tag = TAG,
+            message = "App unregistered Firebase Installation ID from FCM: $installationId"
+        )
+    }
+
     fun obtainingTokenSuccess(token: String) {
         logger.debug(
             tag = TAG,

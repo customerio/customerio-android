@@ -102,6 +102,44 @@ class PushNotificationLoggerTest : JUnitTest() {
     }
 
     @Test
+    fun test_logInstallationIdRegisterMissing_forwardsCorrectCallToLogger() {
+        val error = IllegalStateException("API disabled")
+        pushLogger.logInstallationIdRegisterMissing(error)
+
+        assertCalledOnce {
+            mockLogger.error(
+                tag = "Push",
+                message = "Firebase is in Installation ID mode but FirebaseMessaging.register() was not found. Check that the SDK's consumer ProGuard rules are applied",
+                throwable = error
+            )
+        }
+    }
+
+    @Test
+    fun test_logInstallationIdUnchanged_forwardsCorrectCallToLogger() {
+        pushLogger.logInstallationIdUnchanged("fid")
+
+        assertCalledOnce {
+            mockLogger.debug(
+                tag = "Push",
+                message = "Firebase Installation ID unchanged, already registered: fid"
+            )
+        }
+    }
+
+    @Test
+    fun test_logInstallationIdUnregistered_forwardsCorrectCallToLogger() {
+        pushLogger.logInstallationIdUnregistered("fid")
+
+        assertCalledOnce {
+            mockLogger.debug(
+                tag = "Push",
+                message = "App unregistered Firebase Installation ID from FCM: fid"
+            )
+        }
+    }
+
+    @Test
     fun test_obtainingTokenSuccess_forwardsCorrectCallToLogger() {
         val token = "fcm-token"
         pushLogger.obtainingTokenSuccess(token)

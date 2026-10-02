@@ -7,10 +7,13 @@ import io.customer.datapipelines.testutils.core.testConfiguration
 import io.customer.sdk.communication.Event
 import io.customer.sdk.communication.EventBus
 import io.customer.sdk.core.di.SDKComponent
+import io.customer.sdk.data.model.DeviceTokenType
 import io.customer.sdk.data.store.SecureUserStore
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.slot
 import io.mockk.verify
+import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Test
 
 class DataPipelineEventBusInteractionTest : JUnitTest() {
@@ -42,6 +45,16 @@ class DataPipelineEventBusInteractionTest : JUnitTest() {
         assertCalledOnce { eventBus.subscribe(Event.TrackPushMetricEvent::class, any()) }
         assertCalledOnce { eventBus.subscribe(Event.TrackInAppMetricEvent::class, any()) }
         assertCalledOnce { eventBus.subscribe(Event.RegisterDeviceTokenEvent::class, any()) }
+    }
+
+    @Test
+    fun givenRegisterDeviceTokenEventWithType_expectTokenStoredWithType() = runTest {
+        val subscriber = slot<suspend (Event.RegisterDeviceTokenEvent) -> Unit>()
+        verify { eventBus.subscribe(Event.RegisterDeviceTokenEvent::class, capture(subscriber)) }
+
+        subscriber.captured(Event.RegisterDeviceTokenEvent("fid-value", DeviceTokenType.FID))
+
+        assertCalledOnce { SDKComponent.android().globalPreferenceStore.saveDeviceToken("fid-value", DeviceTokenType.FID) }
     }
 
     @Test

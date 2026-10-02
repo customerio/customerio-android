@@ -61,7 +61,7 @@ internal class LiveNotificationManagerTest : IntegrationTest() {
         )
     }
 
-    private fun saveToken() = SDKComponent.android().globalPreferenceStore.saveDeviceToken("fcm-tok")
+    private fun saveToken() = SDKComponent.android().globalPreferenceStore.saveDeviceToken("fcm-tok", null)
 
     @Test
     fun start_reportsStartEventWithAttributesAndContentState() {

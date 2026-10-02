@@ -1,6 +1,7 @@
 package io.customer.sdk.communication
 
 import io.customer.base.internal.InternalCustomerIOApi
+import io.customer.sdk.data.model.DeviceTokenType
 import io.customer.sdk.events.Metric
 import java.util.Date
 import java.util.UUID
@@ -51,8 +52,10 @@ sealed class Event {
         override val params: Map<String, String> = emptyMap()
     ) : Event()
 
-    data class RegisterDeviceTokenEvent(
-        val token: String
+    /** [tokenType] is null when the token didn't come from the SDK's own Firebase fetch. */
+    data class RegisterDeviceTokenEvent @JvmOverloads constructor(
+        val token: String,
+        val tokenType: DeviceTokenType? = null
     ) : Event()
 
     /**

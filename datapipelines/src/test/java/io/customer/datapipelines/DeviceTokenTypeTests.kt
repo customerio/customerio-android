@@ -103,6 +103,21 @@ class DeviceTokenTypeTests : IntegrationTest() {
     }
 
     @Test
+    fun identify_expectTokenTypeReadUnderLock() {
+        setupSdk()
+        sdkInstance.registerDeviceToken(String.random, DeviceTokenType.FID)
+        var typeReadUnderLock: Boolean? = null
+        every { globalPreferenceStore.getDeviceTokenType() } answers {
+            typeReadUnderLock = Thread.holdsLock(sdkInstance)
+            DeviceTokenType.FID
+        }
+
+        sdkInstance.identify(String.random)
+
+        typeReadUnderLock shouldBeEqualTo true
+    }
+
+    @Test
     fun setDeviceAttributes_givenReservedTypeAndKnownType_expectSdkTypeWinsAndWarning() {
         setupSdk()
         sdkInstance.registerDeviceToken(String.random, DeviceTokenType.TOKEN)

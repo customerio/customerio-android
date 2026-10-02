@@ -3,9 +3,7 @@ package io.customer.messagingpush.provider
 import android.content.Context
 import com.google.android.gms.common.ConnectionResult
 import com.google.android.gms.common.GoogleApiAvailability
-import com.google.firebase.messaging.FirebaseMessaging
 import io.customer.messagingpush.logger.PushNotificationLogger
-import javax.inject.Provider
 
 /**
  *  Responsible for token generation and validity
@@ -20,14 +18,14 @@ interface DeviceTokenProvider {
  */
 internal class FCMTokenProviderImpl(
     private val context: Context,
-    private val googleApiAvailabilityProvider: Provider<GoogleApiAvailability>,
-    private val firebaseMessagingProvider: Provider<FirebaseMessaging>,
+    private val googleApiAvailabilityProvider: () -> GoogleApiAvailability,
+    private val tokenSource: FirebaseTokenSource,
     private val pushLogger: PushNotificationLogger
 ) : DeviceTokenProvider {
 
     private fun isValidForThisDevice(): Boolean {
         return try {
-            val result = googleApiAvailabilityProvider.get().isGooglePlayServicesAvailable(context)
+            val result = googleApiAvailabilityProvider().isGooglePlayServicesAvailable(context)
 
             if (result == ConnectionResult.SUCCESS) {
                 pushLogger.logGooglePlayServicesAvailable()
@@ -50,7 +48,7 @@ internal class FCMTokenProviderImpl(
                 return
             }
 
-            firebaseMessagingProvider.get().token.addOnCompleteListener { task ->
+            tokenSource.fetchToken().addOnCompleteListener { task ->
                 if (task.isSuccessful) {
                     val existingDeviceToken = task.result
                     pushLogger.obtainingTokenSuccess(existingDeviceToken)

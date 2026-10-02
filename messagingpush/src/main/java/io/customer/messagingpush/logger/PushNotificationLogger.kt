@@ -133,6 +133,20 @@ internal class PushNotificationLogger(private val logger: Logger) {
         )
     }
 
+    fun obtainingInstallationIdStarted() {
+        logger.debug(
+            tag = TAG,
+            message = "App opted in to Firebase Installation ID, registering with FCM to get it"
+        )
+    }
+
+    fun logInstallationIdUnsupported() {
+        logger.info(
+            tag = TAG,
+            message = "App opted in to Firebase Installation ID, but this Firebase version can't register with it (needs firebase-messaging 25.1.0+). Using FCM token instead"
+        )
+    }
+
     fun obtainingTokenSuccess(token: String) {
         logger.debug(
             tag = TAG,

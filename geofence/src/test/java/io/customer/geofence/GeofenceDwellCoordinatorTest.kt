@@ -936,17 +936,22 @@ class GeofenceDwellCoordinatorTest {
     }
 
     @Test
-    fun outsideProofOlderThanALaterAttributedDwell_doesNotSplit() = runTest {
-        // A noisy fix proved the device outside, but GMS then reported DWELL for this visit from a
-        // later fix, so the device was still inside after it.
+    fun outsideProofAfterTheVisitsInsideEvidence_isNotOverruledByALaterDwell() = runTest {
+        // Outside proof clears the edge by the fix's accuracy plus a margin, so a later GMS DWELL
+        // shows the device came back, not that it never left. GMS reported no ENTER since, so its
+        // loitering may still count from this visit's entry: the DWELL qualifies nothing.
         val state = repeatedEnterState(outsideProvenAt = FRESH_FIX_MS + 10_000L)
         val coordinator = GeofenceDwellCoordinator(store, processor, clock, bootSessions)
 
         coordinator.onNativeDwell("circle", observedAtSeconds = 400L, triggeringFixElapsedMs = FRESH_FIX_MS + 15_000L)
-        state.visit?.lastInsideFixElapsedMs shouldBeEqualTo FRESH_FIX_MS + 15_000L
+
+        coVerify(exactly = 0) { processor.process(any(), any(), any(), any(), any(), any(), any(), any()) }
+        state.visit?.lastInsideFixElapsedMs.shouldBeNull()
+        state.visit?.entryWasObserved shouldBeEqualTo false
+        // GMS's ENTER after the proof is the re-entry, and starts a new visit.
         coordinator.onEnter("circle", enteredAtSeconds = 900L, entryFixElapsedMs = FRESH_FIX_MS + 20_000L)
 
-        state.visit?.visitId shouldBeEqualTo "visit-1"
+        (state.visit?.visitId == "visit-1") shouldBeEqualTo false
     }
 
     @Test
@@ -1258,6 +1263,36 @@ class GeofenceDwellCoordinatorTest {
             // Still the same stay as far as containment, the queued DWELL and its retry know.
             visit() shouldBeEqualTo current.copy(entryWasObserved = false)
         }
+    }
+
+    @Test
+    fun exitWithoutAFixReceivedBeforeTheVisitBegan_keepsTheObservedEntry() = runTest {
+        // Control: by receipt this EXIT predates the visit's ENTER, so it says nothing about this stay.
+        val region = circle()
+        val current = GeofenceDwellVisit(
+            geofenceId = "circle",
+            visitId = "current",
+            enteredAtSeconds = WALL_ENTRY_SECONDS,
+            regionRevision = region.transitionRevision(),
+            userStateGeneration = 7L,
+            entryWasObserved = true,
+            registrationElapsedMs = REGISTERED_AT_MS,
+            entryFixElapsedMs = FRESH_FIX_MS,
+            bootSessionId = "boot-a",
+            enteredAtElapsedMs = 30_000L
+        )
+        val visit = statefulVisitStore(region, current)
+        every { store.getEnteredIds() } returns setOf("circle")
+        val coordinator = GeofenceDwellCoordinator(store, processor, clock, bootSessions)
+
+        coordinator.onNativeExit(
+            "circle",
+            WALL_ENTRY_SECONDS - 5L,
+            triggeringFixElapsedMs = null,
+            exitedAtElapsedMs = 25_000L
+        ) shouldBeEqualTo true
+
+        visit() shouldBeEqualTo current
     }
 
     @Test

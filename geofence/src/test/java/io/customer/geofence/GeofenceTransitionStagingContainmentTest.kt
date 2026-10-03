@@ -427,6 +427,144 @@ class GeofenceTransitionStagingContainmentTest : RobolectricTest() {
     }
 
     @Test
+    fun pipeline_givenExitWithoutATriggeringFixThenALaterDwell_expectTheDwellWithoutEntryTiming() = runTest {
+        armDwellRegion(dwellRegion(), outsideProven = true)
+        val pipeline = pipeline(regionStore, coordinator(regionStore))
+        pipeline.handle(crossing(GeofenceCrossingTransition.ENTER, fixMs = 1_000L))
+        val visitId = regionStore.getDwellVisit(GEOFENCE_ID).shouldNotBeNull().visitId
+
+        // The legacy EXIT is still delivered and moves containment outside, but its time is unknown.
+        pipeline.handle(crossing(GeofenceCrossingTransition.EXIT, fixMs = null, receivedAtElapsedMs = 30_100L))
+        outbox.loadAll().map { it.transition } shouldBeEqualTo
+            listOf(Event.GeofenceTransition.ENTER, Event.GeofenceTransition.EXIT)
+        regionStore.getEnteredIds().shouldBeEmpty()
+        // GMS later reports DWELL, so the device came back, but the ENTER for that was lost.
+        pipeline.handle(crossing(GeofenceCrossingTransition.DWELL, fixMs = 65_000L))
+
+        // Still native evidence, but timing from ENTER@1000 would span the EXIT already sent.
+        val dwell = outbox.loadAll().single { it.transition == Event.GeofenceTransition.DWELL }
+        dwell.transitionId shouldBeEqualTo visitId
+        dwell.enteredAt.shouldBeNull()
+        dwell.dwellDurationSeconds.shouldBeNull()
+    }
+
+    @Test
+    fun pipeline_givenDwellQueuedBeforeAnExitWithoutAFix_expectItUnchangedAndNotRepeated() = runTest {
+        // Control: what is already queued is never rewritten, and a redelivery cannot add a second.
+        armDwellRegion(dwellRegion(), outsideProven = true)
+        val pipeline = pipeline(regionStore, coordinator(regionStore))
+        pipeline.handle(crossing(GeofenceCrossingTransition.ENTER, fixMs = 1_000L))
+        pipeline.handle(crossing(GeofenceCrossingTransition.DWELL, fixMs = 65_000L))
+        val queued = outbox.loadAll().single { it.transition == Event.GeofenceTransition.DWELL }
+        queued.enteredAt shouldBeEqualTo wallSecondsAt(1_000L)
+
+        pipeline.handle(crossing(GeofenceCrossingTransition.EXIT, fixMs = null, receivedAtElapsedMs = 70_100L))
+        pipeline.handle(crossing(GeofenceCrossingTransition.DWELL, fixMs = 65_000L))
+
+        outbox.loadAll().filter { it.transition == Event.GeofenceTransition.DWELL } shouldBeEqualTo listOf(queued)
+    }
+
+    @Test
+    fun pipeline_givenKnownOutsideThenGmsDwellWithoutAnEnterSince_expectNoDwellAndNoEntryTiming() = runTest {
+        armDwellRegion(dwellRegion(), outsideProven = true)
+        val pipeline = pipeline(regionStore, coordinator(regionStore))
+        pipeline.handle(crossing(GeofenceCrossingTransition.ENTER, fixMs = 1_000L))
+        val visitId = regionStore.getDwellVisit(GEOFENCE_ID).shouldNotBeNull().visitId
+        // A trusted movement fix at 9 000 cleared the kept circle's edge; GMS reported no EXIT.
+        regionStore.raiseOutsideProof(setOf(GEOFENCE_ID), provenAtElapsedMs = 9_000L, bootSessionId = "boot")
+
+        // GMS never reported leaving, so its loitering may still count from ENTER@1000, even for
+        // a DWELL decided more than a threshold after the outside fix.
+        pipeline.handle(crossing(GeofenceCrossingTransition.DWELL, fixMs = 12_000L))
+        pipeline.handle(crossing(GeofenceCrossingTransition.DWELL, fixMs = 70_000L))
+
+        outbox.loadAll().filter { it.transition == Event.GeofenceTransition.DWELL }.shouldBeEmpty()
+        val visit = regionStore.getDwellVisit(GEOFENCE_ID).shouldNotBeNull()
+        visit.visitId shouldBeEqualTo visitId
+        // A later EXIT must not date this stay from ENTER@1000 either.
+        visit.entryWasObserved shouldBeEqualTo false
+        regionStore.getEnteredIds() shouldContainSame setOf(GEOFENCE_ID)
+    }
+
+    @Test
+    fun pipeline_givenKnownOutsideThenAnEnterWhoseVisitWriteWasLost_expectOneDwellForAFreshCandidate() = runTest {
+        armDwellRegion(dwellRegion(), outsideProven = true)
+        val coordinator = spyk(coordinator(regionStore))
+        val pipeline = pipeline(regionStore, coordinator)
+        pipeline.handle(crossing(GeofenceCrossingTransition.ENTER, fixMs = 1_000L))
+        val oldVisitId = regionStore.getDwellVisit(GEOFENCE_ID).shouldNotBeNull().visitId
+        regionStore.raiseOutsideProof(setOf(GEOFENCE_ID), provenAtElapsedMs = 9_000L, bootSessionId = "boot")
+        // GMS re-entered at 20 000 and the ENTER committed, but the process died before its visit write.
+        coEvery { coordinator.onEnter(any(), any(), any(), any(), any(), any(), any()) } returns Unit
+        pipeline.handle(crossing(GeofenceCrossingTransition.ENTER, fixMs = 20_000L))
+
+        // GMS's loitering now counts from an ENTER after the outside fix.
+        pipeline.handle(crossing(GeofenceCrossingTransition.DWELL, fixMs = 80_000L))
+
+        val dwell = outbox.loadAll().single { it.transition == Event.GeofenceTransition.DWELL }
+        (dwell.transitionId == oldVisitId) shouldBeEqualTo false
+        dwell.transitionId shouldBeEqualTo regionStore.getDwellVisit(GEOFENCE_ID)?.visitId
+        dwell.enteredAt.shouldBeNull()
+        dwell.dwellDurationSeconds.shouldBeNull()
+    }
+
+    @Test
+    fun pipeline_givenEmittedVisitThenKnownOutside_expectNoRepeatButTheReEntrysOwnDwell() = runTest {
+        armDwellRegion(dwellRegion(), outsideProven = true)
+        val pipeline = pipeline(regionStore, coordinator(regionStore))
+        pipeline.handle(crossing(GeofenceCrossingTransition.ENTER, fixMs = 1_000L))
+        pipeline.handle(crossing(GeofenceCrossingTransition.DWELL, fixMs = 65_000L))
+        val first = outbox.loadAll().single { it.transition == Event.GeofenceTransition.DWELL }
+        regionStore.raiseOutsideProof(setOf(GEOFENCE_ID), provenAtElapsedMs = 70_000L, bootSessionId = "boot")
+
+        // Neither GMS DWELL shows GMS noticed the departure, so neither describes the new stay.
+        pipeline.handle(crossing(GeofenceCrossingTransition.DWELL, fixMs = 140_000L))
+        pipeline.handle(crossing(GeofenceCrossingTransition.DWELL, fixMs = 65_000L))
+        outbox.loadAll().filter { it.transition == Event.GeofenceTransition.DWELL } shouldBeEqualTo listOf(first)
+
+        // GMS reports the re-entry; that stay is a new visit with its own observed entry.
+        pipeline.handle(crossing(GeofenceCrossingTransition.ENTER, fixMs = 150_000L))
+        pipeline.handle(crossing(GeofenceCrossingTransition.DWELL, fixMs = 210_000L))
+
+        val dwells = outbox.loadAll().filter { it.transition == Event.GeofenceTransition.DWELL }
+        dwells.size shouldBeEqualTo 2
+        dwells.first() shouldBeEqualTo first
+        (dwells.last().transitionId == first.transitionId) shouldBeEqualTo false
+        dwells.last().enteredAt shouldBeEqualTo wallSecondsAt(150_000L)
+        dwells.last().dwellDurationSeconds shouldBeEqualTo 60L
+    }
+
+    @Test
+    fun pipeline_givenDelayedDwellDecidedBeforeAKnownOutside_expectNoDwell() = runTest {
+        armDwellRegion(dwellRegion(), outsideProven = true)
+        val pipeline = pipeline(regionStore, coordinator(regionStore))
+        pipeline.handle(crossing(GeofenceCrossingTransition.ENTER, fixMs = 1_000L))
+        regionStore.raiseOutsideProof(setOf(GEOFENCE_ID), provenAtElapsedMs = 9_000L, bootSessionId = "boot")
+
+        // Decided at 5 000, before the device was seen outside, and delivered after: that stay ended.
+        pipeline.handle(crossing(GeofenceCrossingTransition.DWELL, fixMs = 5_000L, receivedAtElapsedMs = 70_100L))
+
+        outbox.loadAll().filter { it.transition == Event.GeofenceTransition.DWELL }.shouldBeEmpty()
+    }
+
+    @Test
+    fun pipeline_givenOutsideProofOlderThanTheVisitsEntry_expectTheDwellWithItsEntryTiming() = runTest {
+        // Control: proof from before the entry is what made the entry observed, not a break.
+        armDwellRegion(dwellRegion(), outsideProven = true)
+        regionStore.raiseOutsideProof(setOf(GEOFENCE_ID), provenAtElapsedMs = 900L, bootSessionId = "boot")
+        val pipeline = pipeline(regionStore, coordinator(regionStore))
+        pipeline.handle(crossing(GeofenceCrossingTransition.ENTER, fixMs = 1_000L))
+        val visitId = regionStore.getDwellVisit(GEOFENCE_ID).shouldNotBeNull().visitId
+
+        pipeline.handle(crossing(GeofenceCrossingTransition.DWELL, fixMs = 65_000L))
+
+        val dwell = outbox.loadAll().single { it.transition == Event.GeofenceTransition.DWELL }
+        dwell.transitionId shouldBeEqualTo visitId
+        dwell.enteredAt shouldBeEqualTo wallSecondsAt(1_000L)
+        dwell.dwellDurationSeconds shouldBeEqualTo 64L
+    }
+
+    @Test
     fun dwellRetry_givenOutboxAcceptedButEmittedStateLost_expectFirstEvidenceRepeatedAfterRestart() = runTest {
         val dwellRegion = dwellRegion().copy(geosetIds = listOf("geoset-a", "geoset-b"))
         armDwellRegion(dwellRegion, outsideProven = true)
@@ -509,10 +647,12 @@ class GeofenceTransitionStagingContainmentTest : RobolectricTest() {
     /** Receipt wall time for a fix, on a clock that agrees with the boot clock and never steps. */
     private fun wallSecondsAt(fixMs: Long) = 1_000L + (fixMs + 100L) / 1_000L
 
+    /** A null [fixMs] is a callback GMS delivered without a triggering location. */
     private fun crossing(
         transition: GeofenceCrossingTransition,
-        fixMs: Long,
-        wallSeconds: Long = wallSecondsAt(fixMs),
+        fixMs: Long?,
+        receivedAtElapsedMs: Long = requireNotNull(fixMs) + 100L,
+        wallSeconds: Long = 1_000L + receivedAtElapsedMs / 1_000L,
         ids: List<String> = listOf(GEOFENCE_ID)
     ) = GeofenceCrossing(
         geofenceIds = ids,
@@ -521,14 +661,16 @@ class GeofenceTransitionStagingContainmentTest : RobolectricTest() {
         rawTransitionCode = 0,
         latitude = 0.0,
         longitude = 0.0,
-        triggeringLocation = Location("gps").apply {
-            latitude = 0.0
-            longitude = 0.0
-            accuracy = 10f
-            elapsedRealtimeNanos = fixMs * 1_000_000L
+        triggeringLocation = fixMs?.let {
+            Location("gps").apply {
+                latitude = 0.0
+                longitude = 0.0
+                accuracy = 10f
+                elapsedRealtimeNanos = it * 1_000_000L
+            }
         },
         receivedAtSeconds = wallSeconds,
-        receivedAtElapsedMs = fixMs + 100L
+        receivedAtElapsedMs = receivedAtElapsedMs
     )
 
     private fun processor() = GeofenceBusinessTransitionProcessor(

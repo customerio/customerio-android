@@ -155,14 +155,26 @@ internal class GeofenceDwellCoordinator(
         val bootSessionId = bootSessionProvider.currentSessionId()
         val atElapsedMs = observedAtElapsedMs ?: clock.elapsedRealtime()
         var visit = currentVisit(region, bootSessionId)
-        if (visit == null) {
+        // This registration saw the device decisively outside after everything that placed it inside
+        // the stored visit, so that stay has ended even though GMS reported no EXIT.
+        val outsideAt = incarnation.outsideProvenAtElapsedMs
+        val visitEnded = visit != null && outsideAt != null && outsideAt > insideAnchor(visit)
+        if (visit == null || visitEnded) {
+            val fix = triggeringFixElapsedMs ?: return@withLock
+            // Decided before the departure, so it describes the stay that ended.
+            if (outsideAt != null && fix <= outsideAt) return@withLock
+            if (!gmsReenteredSince(incarnation, outsideAt, fix)) {
+                // Inside again, but GMS may still be counting its loitering from the old ENTER,
+                // so this cannot qualify the new stay. A later EXIT must not date it from that
+                // ENTER either.
+                if (visit != null && visit.entryWasObserved) store.saveDwellVisit(visit.copy(entryWasObserved = false))
+                return@withLock
+            }
             // GMS delivered dwell only after its loitering delay, so this callback is qualifying
             // proof even if the preceding ENTER callback was lost during process death. That holds
             // only for the live registration's delay: a DWELL from a replaced one proved some other
             // threshold, or geometry, and cannot recover a visit here.
-            if (triggeringFixElapsedMs == null || triggeringFixElapsedMs < incarnation.registeredAtElapsedMs) {
-                return@withLock
-            }
+            if (fix < incarnation.registeredAtElapsedMs) return@withLock
             visit = GeofenceDwellVisit(
                 geofenceId = geofenceId,
                 visitId = UUID.randomUUID().toString(),
@@ -183,8 +195,8 @@ internal class GeofenceDwellCoordinator(
         // does not: an unattributed EXIT deliberately leaves the visit in place, so the device may
         // have left long ago.
         if (!belongsTo(visit, triggeringFixElapsedMs)) return@withLock
-        // belongsTo guarantees a fix. Recorded even once emitted: an outside proof older than this
-        // fix was overruled by GMS still placing the device inside (see [departedSince]).
+        // belongsTo guarantees a fix. Recorded even once emitted: the device is inside at this fix,
+        // so only outside proof after it can end the visit (see [departedSince] and above).
         val insideFix = triggeringFixElapsedMs ?: return@withLock
         if (insideFix > (visit.lastInsideFixElapsedMs ?: Long.MIN_VALUE)) {
             visit = visit.copy(lastInsideFixElapsedMs = insideFix)
@@ -324,7 +336,16 @@ internal class GeofenceDwellCoordinator(
         val receivedAtElapsedMs = exitedAtElapsedMs ?: clock.elapsedRealtime()
         val receivedBeforeVisit = visit.enteredAtElapsedMs?.let { receivedAtElapsedMs < it }
             ?: (exitedAtSeconds < visit.enteredAtSeconds)
-        if (receivedBeforeVisit || !belongsTo(visit, triggeringFixElapsedMs)) return@withLock true
+        if (receivedBeforeVisit) return@withLock true
+        if (!belongsTo(visit, triggeringFixElapsedMs)) {
+            // The visit stays: a stale callback must not end it, and its emitted mark keeps a
+            // redelivered DWELL from repeating. But this EXIT is still delivered and moves
+            // containment outside, so no later DWELL may date the stay from an entry before it.
+            if (visit.entryWasObserved && geofenceId in store.getEnteredIds()) {
+                store.saveDwellVisit(visit.copy(entryWasObserved = false))
+            }
+            return@withLock true
+        }
         store.removeDwellVisit(geofenceId)
         true
     }
@@ -436,6 +457,32 @@ internal class GeofenceDwellCoordinator(
 
     private fun latestInsideFix(visit: GeofenceDwellVisit): Long? =
         listOfNotNull(visit.entryFixElapsedMs, visit.lastInsideFixElapsedMs).maxOrNull()
+
+    /**
+     * Latest time the visit is known inside. Without a fix, its ENTER's receipt: GMS decided it no
+     * later, so outside proof after that receipt certainly follows the entry.
+     */
+    private fun insideAnchor(visit: GeofenceDwellVisit): Long =
+        latestInsideFix(visit) ?: visit.enteredAtElapsedMs ?: Long.MAX_VALUE
+
+    /**
+     * Whether GMS itself turned inside after [outsideAt], so a DWELL it decided at [dwellFix] counts
+     * its loitering delay from after that outside proof. A DWELL alone only bounds GMS's ENTER from
+     * above, and GMS may have missed a departure only the SDK saw. GMS's state moved past the proof
+     * when the registration came no earlier, when GMS reported an EXIT no earlier, or when an ENTER
+     * between the proof and this DWELL was admitted.
+     */
+    private fun gmsReenteredSince(
+        incarnation: GeofenceRegistrationIncarnation,
+        outsideAt: Long?,
+        dwellFix: Long
+    ): Boolean {
+        outsideAt ?: return true
+        val lastEnterFix = incarnation.lastEnterFixElapsedMs
+        return incarnation.registeredAtElapsedMs >= outsideAt ||
+            (incarnation.lastExitFixElapsedMs ?: Long.MIN_VALUE) >= outsideAt ||
+            (lastEnterFix != null && lastEnterFix > outsideAt && lastEnterFix <= dwellFix)
+    }
 
     /**
      * Whether an ENTER that found containment outside is the observed crossing of [existing], a

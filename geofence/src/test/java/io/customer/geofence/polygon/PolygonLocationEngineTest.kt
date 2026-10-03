@@ -8,6 +8,7 @@ import io.customer.commontest.config.testConfigurationDefault
 import io.customer.commontest.core.RobolectricTest
 import io.customer.geofence.GeofenceBusinessTransitionProcessor
 import io.customer.geofence.GeofenceConstants
+import io.customer.geofence.GeofenceCooldownFilter
 import io.customer.geofence.GeofenceDwellCoordinator
 import io.customer.geofence.GeofenceJsonSerializer
 import io.customer.geofence.GeofenceLogger
@@ -15,8 +16,10 @@ import io.customer.geofence.GeofenceRegion
 import io.customer.geofence.GeofenceTransitionEmitter
 import io.customer.geofence.PolygonFixRejection
 import io.customer.geofence.store.GeofenceRegionStoreImpl
+import io.customer.geofence.store.PendingGeofenceDelivery
 import io.customer.sdk.communication.Event
 import io.customer.sdk.core.util.Clock
+import io.customer.sdk.data.store.PendingDeliveryStore
 import io.customer.sdk.data.store.SecureUserStore
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -254,6 +257,65 @@ class PolygonLocationEngineTest : RobolectricTest() {
         // Left behind, a process death before the next ENTER's visit write would let the next
         // inside fix resume it across the time spent outside.
         store.getDwellVisit(POLYGON_ID).shouldBeNull()
+    }
+
+    @Test
+    fun processResponsiveLocation_givenEnteredFenceAndAPointInsideByLessThanItsAccuracy_expectNoDwellEvidence() = runTest {
+        engine.processResponsiveLocation(insideFix())
+
+        // 5 m inside the north edge with 40 m accuracy: the fix's uncertainty reaches outside.
+        engine.processResponsiveLocation(marginalInsideFix(elapsedRealtimeNanos = SystemClock.elapsedRealtimeNanos() - 1_000_000_000L))
+
+        store.getEnteredIds() shouldContainSame setOf(POLYGON_ID)
+        coVerify(exactly = 0) { dwellCoordinator.onInsideEvidence(any(), any(), any(), any()) }
+
+        // About 53 m inside with 20 m accuracy is wholly inside the ring.
+        engine.processResponsiveLocation(insideFix(elapsedRealtimeNanos = SystemClock.elapsedRealtimeNanos(), accuracyMeters = 20f))
+
+        coVerify(exactly = 1) { dwellCoordinator.onInsideEvidence(POLYGON_ID, any(), any(), any()) }
+    }
+
+    @Test
+    fun processResponsiveLocation_givenMarginalInsideAfterTheThreshold_expectNoDwellUntilAClearInsideFix() = runTest {
+        store.saveCachedRegions(listOf(polygonRegion().copy(dwellThresholdSeconds = 60)))
+        val outbox = PendingDeliveryStore(
+            context = applicationMock,
+            fileName = "cio_test_marginal_inside_outbox.json",
+            elementSerializer = PendingGeofenceDelivery.serializer(),
+            logger = mockk(relaxed = true)
+        ).also { it.removeAll() }
+        val cooldownFilter: GeofenceCooldownFilter = mockk(relaxed = true) {
+            every { suppressedForSeconds(any(), any(), any()) } returns null
+        }
+        val processor = GeofenceBusinessTransitionProcessor(
+            store,
+            secureUserStore,
+            GeofenceTransitionEmitter(cooldownFilter, outbox, mockk(relaxed = true), store, logger),
+            logger
+        )
+        val realEngine = PolygonLocationEngine(
+            store = store,
+            transitionProcessor = processor,
+            clock = clock,
+            logger = logger,
+            dwellCoordinator = GeofenceDwellCoordinator(store, processor, clock) { "boot" }
+        )
+        fun dwells() = outbox.loadAll().filter { it.transition == Event.GeofenceTransition.DWELL }
+
+        realEngine.processResponsiveLocation(insideFix(elapsedRealtimeNanos = SystemClock.elapsedRealtimeNanos() - 1_000_000_000L))
+        val visit = store.getDwellVisit(POLYGON_ID).shouldNotBeNull()
+        ShadowSystemClock.advanceBy(Duration.ofSeconds(70))
+
+        realEngine.processResponsiveLocation(marginalInsideFix(elapsedRealtimeNanos = SystemClock.elapsedRealtimeNanos() - 1_000_000_000L))
+
+        // Past the threshold, but this fix cannot show the device stayed inside.
+        dwells().shouldBeEmpty()
+        store.getEnteredIds() shouldContainSame setOf(POLYGON_ID)
+        store.getDwellVisit(POLYGON_ID) shouldBeEqualTo visit
+
+        realEngine.processResponsiveLocation(insideFix(elapsedRealtimeNanos = SystemClock.elapsedRealtimeNanos(), accuracyMeters = 20f))
+
+        dwells().map { it.transitionId } shouldBeEqualTo listOf(visit.visitId)
     }
 
     private fun engineWithRealDwell(): PolygonLocationEngine {
@@ -644,6 +706,9 @@ class PolygonLocationEngineTest : RobolectricTest() {
         timestampMillis: Long = 100_000L,
         accuracyMeters: Float = 5f
     ) = fix(37.7750, -122.4194, elapsedRealtimeNanos, timestampMillis, accuracyMeters)
+
+    private fun marginalInsideFix(elapsedRealtimeNanos: Long) =
+        fix(37.775455, -122.4194, elapsedRealtimeNanos, accuracyMeters = 40f)
 
     private fun outsideFix(
         elapsedRealtimeNanos: Long = SystemClock.elapsedRealtimeNanos() - 2_000_000_000L

@@ -1494,6 +1494,18 @@ internal class GeofenceLogger(private val logger: Logger) {
         )
     }
 
+    fun logTransitionDroppedSuperseded(geofenceId: String, transitionName: String) {
+        logger.debug(
+            "Geofence '$geofenceId' $transitionName: dropped — its triggering fix is older than one already placing the device inside" +
+                tail(
+                    "transition.dropped",
+                    GeofenceLogIo.OBSERVATION,
+                    listOf("id" to geofenceId, "t" to transitionName.lowercase(), "why" to "superseded_by_newer_fix")
+                ),
+            tag = TAG
+        )
+    }
+
     fun logUnsupportedGeometryDropped(geofenceId: String, type: String) {
         logger.error(
             "Geofence '$geofenceId' dropped — unsupported geometry type='$type' (only Polygon is understood). Not degraded to a circle; check SDK / backend version alignment." +

@@ -17,7 +17,9 @@ internal data class GeofenceCrossing(
      * Unix seconds when the broadcast arrived; ships on the delivered event. Stamped before dispatch
      * work, because building the geofence graph on a cold process would otherwise skew it.
      */
-    val receivedAtSeconds: Long
+    val receivedAtSeconds: Long,
+    /** elapsedRealtime read with [receivedAtSeconds], so a visit can be measured on the boot clock. */
+    val receivedAtElapsedMs: Long
 )
 
 /** GMS reports DWELL only for circles configured with a loitering delay. */

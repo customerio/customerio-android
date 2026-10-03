@@ -9,6 +9,7 @@ import io.customer.commontest.config.TestConfig
 import io.customer.commontest.config.testConfigurationDefault
 import io.customer.commontest.core.RobolectricTest
 import io.customer.geofence.di.pendingGeofenceDeliveryStore
+import io.customer.geofence.polygon.PolygonBootSessionProvider
 import io.customer.geofence.polygon.PolygonCoordinate
 import io.customer.geofence.polygon.PolygonGeofenceServiceController
 import io.customer.geofence.store.GeofenceDwellVisit
@@ -125,6 +126,7 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
                         overrideDependency<GeofenceRegistrar>(mockManager)
                         overrideDependency<SecureUserStore>(mockSecureUserStore)
                         overrideDependency<PolygonGeofenceServiceController>(mockPolygonController)
+                        overrideDependency<PolygonBootSessionProvider>(PolygonBootSessionProvider { "boot" })
                     }
                 }
             }
@@ -859,8 +861,9 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
     @OptIn(ExperimentalCoroutinesApi::class)
     @Test
     fun dispatchTransition_givenDispatchBudgetAlreadySpent_expectNoWaitForRefreshJob() = runTest {
-        // 9s already elapsed: earlier awaits in the dispatch share the join's budget.
-        every { mockClock.elapsedRealtime() } returnsMany listOf(0L, 9_000L)
+        // 9s already elapsed: earlier awaits in the dispatch share the join's budget. The first
+        // read is the crossing's receipt stamp.
+        every { mockClock.elapsedRealtime() } returnsMany listOf(0L, 0L, 9_000L)
         val refreshJob = launch { delay(60_000) }
         every { mockServices.onMovementTriggerExit(any(), any(), any(), any()) } returns refreshJob
 
@@ -1520,7 +1523,7 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
 
     @Test
     fun handleGeofencingEvent_givenDispatchBudgetAlreadySpent_expectNoWaitForRefreshJob() = runTest {
-        every { mockClock.elapsedRealtime() } returnsMany listOf(0L, 9_000L)
+        every { mockClock.elapsedRealtime() } returnsMany listOf(0L, 0L, 9_000L)
         val refreshJob = launch { delay(60_000) }
         every { mockServices.onMovementTriggerExit(any(), any(), any(), any()) } returns refreshJob
 
@@ -1636,7 +1639,8 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
     private fun liveRegistration(region: GeofenceRegion) = GeofenceRegistrationIncarnation(
         geofenceId = region.id,
         regionRevision = region.transitionRevision(),
-        registeredAtElapsedMs = REGISTERED_AT_MS
+        registeredAtElapsedMs = REGISTERED_AT_MS,
+        bootSessionId = "boot"
     )
 
     private fun fixAtElapsed(elapsedMs: Long): Location =

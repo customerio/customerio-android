@@ -29,12 +29,19 @@ internal class GeofenceBusinessTransitionProcessor(
         // False when the caller already ended the visit this EXIT provably belongs to. A native
         // callback's receipt time cannot order it against a newer visit, so ending by timestamp
         // here could clear that newer visit.
-        endsVisitByTimestamp: Boolean = true
+        endsVisitByTimestamp: Boolean = true,
+        // Evaluated under the transition lock before anything is emitted or committed. False drops
+        // the transition: GMS decided it before an opposite transition already handled.
+        admits: () -> Boolean = { true }
     ): GeofenceTransitionEmitter.Result? = transitionMutex.withLock {
         // Read the generation before routability: a user switch clears one and bumps the other, so
         // this callback can never be attributed to the next identified user.
         val userStateGeneration = expectedUserStateGeneration ?: store.userStateGeneration()
         if (store.userStateGeneration() != userStateGeneration) return@withLock null
+        if (!admits()) {
+            logger.logTransitionDroppedSuperseded(geofenceId, transition.name)
+            return@withLock null
+        }
         val cachedRegion = store.getCachedRegion(geofenceId)
         val currentRegionRevision = cachedRegion?.transitionRevision()
         if (expectedRegionRevision != null && currentRegionRevision != expectedRegionRevision) {

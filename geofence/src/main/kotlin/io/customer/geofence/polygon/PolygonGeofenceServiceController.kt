@@ -18,6 +18,7 @@ import io.customer.geofence.PolygonSamplingSkip
 import io.customer.geofence.distanceTo
 import io.customer.geofence.store.GeofenceRegionStore
 import io.customer.geofence.store.getCachedConfigOrFallback
+import io.customer.geofence.store.registrationsPredateBoot
 import io.customer.geofence.transitionRevision
 import io.customer.sdk.data.store.SecureUserStore
 import kotlinx.coroutines.sync.Mutex
@@ -34,6 +35,7 @@ internal class PolygonGeofenceServiceController(
     private val freshFixSource: PolygonFreshFixSource,
     private val recheckScheduler: PolygonRecheckScheduler,
     private val passiveMonitor: PolygonPassiveMonitor,
+    private val bootSessionProvider: PolygonBootSessionProvider,
     private val logger: GeofenceLogger
 ) {
     private val movementTriggerPolicy = PolygonMovementTriggerPolicy()
@@ -945,7 +947,7 @@ internal class PolygonGeofenceServiceController(
         }
 
     private fun osStateWasWiped(): Boolean {
-        val rebooted = store.getLastRegistrationUptime()?.let { SystemClock.elapsedRealtime() < it } == true
+        val rebooted = store.registrationsPredateBoot(bootSessionProvider.currentSessionId(), SystemClock.elapsedRealtime())
         val currentPackageUpdate = runCatching {
             context.packageManager.getPackageInfo(context.packageName, 0).lastUpdateTime
         }.getOrNull()

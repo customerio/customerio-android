@@ -120,7 +120,8 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
                 latitude = latitude,
                 longitude = longitude,
                 triggeringLocation = triggeringLocation,
-                receivedAtSeconds = SDKComponent.clock.currentTimeSeconds()
+                receivedAtSeconds = SDKComponent.clock.currentTimeSeconds(),
+                receivedAtElapsedMs = SDKComponent.clock.elapsedRealtime()
             )
         )
     }

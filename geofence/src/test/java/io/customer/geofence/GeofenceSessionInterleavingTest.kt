@@ -113,6 +113,7 @@ class GeofenceSessionInterleavingTest : RobolectricTest() {
             freshFixSource = NeverAnswersFreshFix,
             recheckScheduler = NoopRecheckScheduler,
             passiveMonitor = NoopPassiveMonitor,
+            bootSessionProvider = { "boot" },
             logger = mockk(relaxed = true)
         )
         store.beginUserSession(USER_A)

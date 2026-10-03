@@ -21,10 +21,11 @@ class GeofenceRegionTest : RobolectricTest() {
     }
 
     @Test
-    fun toGmsTransitionTypes_givenExitOnly_expectExitBitmask() {
+    fun toGmsTransitionTypes_givenExitOnly_expectInternalEnterAndExitBitmask() {
         val region = buildRegion(transitionTypes = listOf(GeofenceTransitionType.EXIT))
 
-        region.toGmsTransitionTypes() shouldBeEqualTo Geofence.GEOFENCE_TRANSITION_EXIT
+        region.toGmsTransitionTypes() shouldBeEqualTo
+            (Geofence.GEOFENCE_TRANSITION_ENTER or Geofence.GEOFENCE_TRANSITION_EXIT)
     }
 
     @Test

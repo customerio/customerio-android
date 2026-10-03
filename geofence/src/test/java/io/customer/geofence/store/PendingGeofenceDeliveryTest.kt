@@ -58,6 +58,27 @@ class PendingGeofenceDeliveryTest {
     }
 
     @Test
+    fun eventProperties_givenExitVisit_expectObservedDuration() {
+        val entry = PendingGeofenceDelivery(
+            geofenceId = "biz-2",
+            transition = Event.GeofenceTransition.EXIT,
+            timestamp = 199L,
+            userId = "user-A",
+            transitionId = "visit-1",
+            visitId = "visit-1",
+            enteredAt = 100L,
+            visitDurationSeconds = 99L,
+            detectionSource = "native"
+        )
+
+        entry.toEventProperties() shouldContain ("visitId" to "visit-1")
+        entry.toEventProperties() shouldContain ("enteredAt" to 100L)
+        entry.toEventProperties() shouldContain ("visitDurationSeconds" to 99L)
+        entry.toEventProperties() shouldContain ("detectionSource" to "native")
+        entry.toEventProperties().keys shouldNotContain "dwellDurationSeconds"
+    }
+
+    @Test
     fun serialization_givenRowWrittenByAnEarlierVersion_expectItStillDecodes() {
         // No @SerialName, so the constant name is the on-disk value. Only a literal row catches a
         // rename; a round trip re-encodes with the new spelling and passes.

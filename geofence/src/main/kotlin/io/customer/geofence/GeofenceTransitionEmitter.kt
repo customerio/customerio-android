@@ -34,6 +34,13 @@ internal class GeofenceTransitionEmitter(
             val durationSeconds: Long?,
             override val detectionSource: String
         ) : VisitContext()
+
+        data class Exit(
+            override val visitId: String,
+            override val enteredAt: Long,
+            val durationSeconds: Long,
+            override val detectionSource: String
+        ) : VisitContext()
     }
     internal enum class Result {
         PERSISTED,
@@ -237,6 +244,7 @@ internal class GeofenceTransitionEmitter(
                     enteredAt = visitContext?.enteredAt,
                     dwellThresholdSeconds = (visitContext as? VisitContext.Dwell)?.thresholdSeconds,
                     dwellDurationSeconds = (visitContext as? VisitContext.Dwell)?.durationSeconds,
+                    visitDurationSeconds = (visitContext as? VisitContext.Exit)?.durationSeconds,
                     detectionSource = visitContext?.detectionSource
                 )
             }.also { created ->

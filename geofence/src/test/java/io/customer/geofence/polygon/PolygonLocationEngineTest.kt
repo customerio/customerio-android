@@ -14,7 +14,9 @@ import io.customer.geofence.GeofenceJsonSerializer
 import io.customer.geofence.GeofenceLogger
 import io.customer.geofence.GeofenceRegion
 import io.customer.geofence.GeofenceTransitionEmitter
+import io.customer.geofence.GeofenceTransitionType
 import io.customer.geofence.PolygonFixRejection
+import io.customer.geofence.store.GeofenceDwellVisit
 import io.customer.geofence.store.GeofenceRegionStoreImpl
 import io.customer.geofence.store.PendingGeofenceDelivery
 import io.customer.sdk.communication.Event
@@ -25,8 +27,10 @@ import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.spyk
 import io.mockk.verify
 import java.time.Duration
+import java.util.concurrent.atomic.AtomicReference
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -36,6 +40,7 @@ import org.amshove.kluent.shouldBeEmpty
 import org.amshove.kluent.shouldBeEqualTo
 import org.amshove.kluent.shouldBeNull
 import org.amshove.kluent.shouldContainSame
+import org.amshove.kluent.shouldNotBeEqualTo
 import org.amshove.kluent.shouldNotBeNull
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -77,6 +82,8 @@ class PolygonLocationEngineTest : RobolectricTest() {
         coEvery { emitter.emitWithRetainedAttempt(any(), any(), any(), any(), any(), any(), any(), any(), any(), any()) } returns
             GeofenceTransitionEmitter.Result.PERSISTED
         coEvery { emitter.recoverPendingTransitions() } returns true
+        coEvery { dwellCoordinator.capturePolygonExit(any(), any(), any(), any()) } returns
+            GeofenceDwellCoordinator.PolygonExit()
         engine = PolygonLocationEngine(
             store = store,
             transitionProcessor = GeofenceBusinessTransitionProcessor(
@@ -260,6 +267,29 @@ class PolygonLocationEngineTest : RobolectricTest() {
     }
 
     @Test
+    fun processResponsiveLocation_givenLegacyVisitAndBackwardClockStep_expectExitEndsTheVisit() = runTest {
+        val contexts = captureVisitContexts()
+        val dwellEngine = engineWithRealDwell(exitOnlyPolygon())
+        val now = SystemClock.elapsedRealtimeNanos()
+        dwellEngine.processResponsiveLocation(insideFix(elapsedRealtimeNanos = now - 3_000_000_000L))
+        val legacy = store.getDwellVisit(POLYGON_ID).shouldNotBeNull()
+        store.saveDwellVisit(legacy.copy(bootSessionId = null, enteredAtElapsedMs = null)) shouldBeEqualTo true
+
+        // The fresh outside fix ends the stay even though the legacy entry has no comparable boot stamp.
+        dwellEngine.processResponsiveLocation(
+            fix(37.7750, -122.4175, elapsedRealtimeNanos = now - 2_000_000_000L, timestampMillis = 10_000L)
+        )
+
+        store.getDwellVisit(POLYGON_ID).shouldBeNull()
+        contexts.filterIsInstance<GeofenceTransitionEmitter.VisitContext.Exit>().shouldBeEmpty()
+
+        dwellEngine.processResponsiveLocation(
+            insideFix(elapsedRealtimeNanos = now - 1_000_000_000L, timestampMillis = 20_000L)
+        )
+        store.getDwellVisit(POLYGON_ID).shouldNotBeNull().visitId shouldNotBeEqualTo legacy.visitId
+    }
+
+    @Test
     fun processResponsiveLocation_givenEnteredFenceAndAPointInsideByLessThanItsAccuracy_expectNoDwellEvidence() = runTest {
         engine.processResponsiveLocation(insideFix())
 
@@ -318,17 +348,150 @@ class PolygonLocationEngineTest : RobolectricTest() {
         dwells().map { it.transitionId } shouldBeEqualTo listOf(visit.visitId)
     }
 
-    private fun engineWithRealDwell(): PolygonLocationEngine {
-        store.saveCachedRegions(listOf(polygonRegion().copy(dwellThresholdSeconds = 60)))
-        val processor = GeofenceBusinessTransitionProcessor(store, secureUserStore, emitter, logger)
+    private fun engineWithRealDwell(
+        region: GeofenceRegion = polygonRegion().copy(dwellThresholdSeconds = 60),
+        dwellStore: GeofenceRegionStoreImpl = store
+    ): PolygonLocationEngine {
+        store.saveCachedRegions(listOf(region))
+        val processor = GeofenceBusinessTransitionProcessor(dwellStore, secureUserStore, emitter, logger)
         return PolygonLocationEngine(
-            store = store,
+            store = dwellStore,
             transitionProcessor = processor,
             clock = clock,
             logger = logger,
-            dwellCoordinator = GeofenceDwellCoordinator(store, processor, clock) { "boot" }
+            dwellCoordinator = GeofenceDwellCoordinator(dwellStore, processor, clock) { "boot" }
         )
     }
+
+    // ---------- the visit duration a polygon EXIT reports ----------
+
+    @Test
+    fun processResponsiveLocation_givenExitOnlyPolygonWithoutThreshold_expectExitReportsTheObservedVisit() = runTest {
+        val contexts = captureVisitContexts()
+        val dwellEngine = engineWithRealDwell(exitOnlyPolygon())
+
+        val visitId = observeVisitThenExit(dwellEngine, exitTimestampMillis = 175_000L)
+
+        val exit = contexts.filterIsInstance<GeofenceTransitionEmitter.VisitContext.Exit>().single()
+        exit.visitId shouldBeEqualTo visitId
+        exit.enteredAt shouldBeEqualTo 100L
+        exit.durationSeconds shouldBeEqualTo 75L
+        exit.detectionSource shouldBeEqualTo "location_evidence"
+        store.getDwellVisit(POLYGON_ID).shouldBeNull()
+    }
+
+    @Test
+    fun processResponsiveLocation_givenTheWallClockJumpedForwardMidVisit_expectExitWithoutDuration() = runTest {
+        val contexts = captureVisitContexts()
+        val dwellEngine = engineWithRealDwell(exitOnlyPolygon())
+
+        // 75 s apart on the boot clock, but the wall clock moved an hour ahead meanwhile.
+        observeVisitThenExit(dwellEngine, exitTimestampMillis = 3_775_000L, wallClockStepMillis = 3_600_000L)
+
+        coVerify(exactly = 1) {
+            emitter.emitWithRetainedAttempt(POLYGON_ID, Event.GeofenceTransition.EXIT, any(), any(), any(), any(), any(), any(), any(), any(), any())
+        }
+        contexts.filterIsInstance<GeofenceTransitionEmitter.VisitContext.Exit>().shouldBeEmpty()
+        store.getDwellVisit(POLYGON_ID).shouldBeNull()
+    }
+
+    @Test
+    fun processResponsiveLocation_givenTheWallClockSteppedBackMidVisit_expectVisitEndedAndTheNextOneMeasured() = runTest {
+        val contexts = captureVisitContexts()
+        val dwellEngine = engineWithRealDwell(exitOnlyPolygon())
+
+        val firstVisitId = observeVisitThenExit(dwellEngine, exitTimestampMillis = 10_000L)
+
+        contexts.filterIsInstance<GeofenceTransitionEmitter.VisitContext.Exit>().shouldBeEmpty()
+        store.getDwellVisit(POLYGON_ID).shouldBeNull()
+
+        // The EXIT's fix proved the device outside, so the next inside fix is an observed entry.
+        val reEntryAt = SystemClock.elapsedRealtimeNanos() - 1_000_000_000L
+        dwellEngine.processResponsiveLocation(insideFix(elapsedRealtimeNanos = reEntryAt, timestampMillis = 20_000L))
+        val second = store.getDwellVisit(POLYGON_ID).shouldNotBeNull()
+        second.visitId shouldNotBeEqualTo firstVisitId
+        second.entryWasObserved shouldBeEqualTo true
+        ShadowSystemClock.advanceBy(Duration.ofSeconds(60))
+        dwellEngine.processResponsiveLocation(
+            fix(37.7750, -122.4175, elapsedRealtimeNanos = reEntryAt + 60_000_000_000L, timestampMillis = 80_000L)
+        )
+
+        val exit = contexts.filterIsInstance<GeofenceTransitionEmitter.VisitContext.Exit>().single()
+        exit.visitId shouldBeEqualTo second.visitId
+        exit.durationSeconds shouldBeEqualTo 60L
+    }
+
+    @Test
+    fun processResponsiveLocation_givenANewerVisitWrittenWhileTheExitCommits_expectOnlyTheEndedVisitReportedAndRemoved() = runTest {
+        val contexts = captureVisitContexts()
+        val region = exitOnlyPolygon()
+        val reEntry = AtomicReference<GeofenceDwellVisit>()
+        val dwellStore = spyk(store)
+        // A re-entry's visit lands at the store boundary, after the EXIT's context was read and
+        // before the EXIT's own cleanup.
+        every {
+            dwellStore.commitBusinessTransition(POLYGON_ID, Event.GeofenceTransition.EXIT, any(), any(), any())
+        } answers {
+            val committed = callOriginal()
+            reEntry.get()?.let { dwellStore.saveDwellVisit(it).shouldBeEqualTo(true) }
+            committed
+        }
+        val dwellEngine = engineWithRealDwell(region, dwellStore)
+        val now = SystemClock.elapsedRealtimeNanos()
+        dwellEngine.processResponsiveLocation(outsideFix(elapsedRealtimeNanos = now - 3_000_000_000L))
+        dwellEngine.processResponsiveLocation(insideFix(elapsedRealtimeNanos = now - 2_000_000_000L))
+        val ended = store.getDwellVisit(POLYGON_ID).shouldNotBeNull()
+        reEntry.set(
+            ended.copy(
+                visitId = "re-entry",
+                enteredAtSeconds = 175L,
+                entryWasObserved = false,
+                enteredAtElapsedMs = (now + 74_000_000_000L) / 1_000_000L
+            )
+        )
+        ShadowSystemClock.advanceBy(Duration.ofSeconds(75))
+
+        dwellEngine.processResponsiveLocation(
+            fix(37.7750, -122.4175, elapsedRealtimeNanos = now + 73_000_000_000L, timestampMillis = 175_000L)
+        )
+
+        val exit = contexts.filterIsInstance<GeofenceTransitionEmitter.VisitContext.Exit>().single()
+        exit.visitId shouldBeEqualTo ended.visitId
+        exit.durationSeconds shouldBeEqualTo 75L
+        store.getDwellVisit(POLYGON_ID)?.visitId shouldBeEqualTo "re-entry"
+    }
+
+    private fun captureVisitContexts(): MutableList<GeofenceTransitionEmitter.VisitContext?> {
+        val contexts = mutableListOf<GeofenceTransitionEmitter.VisitContext?>()
+        coEvery {
+            emitter.emitWithRetainedAttempt(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), captureNullable(contexts))
+        } returns GeofenceTransitionEmitter.Result.PERSISTED
+        return contexts
+    }
+
+    /**
+     * Outside, then inside (wall 100 s), then outside 75 s later on the boot clock. Returns the visit's ID.
+     */
+    private suspend fun observeVisitThenExit(
+        dwellEngine: PolygonLocationEngine,
+        exitTimestampMillis: Long,
+        wallClockStepMillis: Long = 0L
+    ): String {
+        val now = SystemClock.elapsedRealtimeNanos()
+        dwellEngine.processResponsiveLocation(outsideFix(elapsedRealtimeNanos = now - 3_000_000_000L))
+        dwellEngine.processResponsiveLocation(insideFix(elapsedRealtimeNanos = now - 2_000_000_000L))
+        val visit = store.getDwellVisit(POLYGON_ID).shouldNotBeNull()
+        visit.entryWasObserved shouldBeEqualTo true
+        ShadowSystemClock.advanceBy(Duration.ofSeconds(75))
+        every { clock.currentTimeMillis() } returns 100_000L + wallClockStepMillis
+        dwellEngine.processResponsiveLocation(
+            fix(37.7750, -122.4175, elapsedRealtimeNanos = now + 73_000_000_000L, timestampMillis = exitTimestampMillis)
+        )
+        store.getEnteredIds().shouldBeEmpty()
+        return visit.visitId
+    }
+
+    private fun exitOnlyPolygon() = polygonRegion().copy(transitionTypes = listOf(GeofenceTransitionType.EXIT))
 
     @Test
     fun processResponsiveLocation_givenConcurrentDeliveriesOfSameFix_expectSerializedSingleEnter() = runTest {

@@ -101,6 +101,40 @@ class GeofenceDwellCoordinatorTest {
     }
 
     @Test
+    fun weekLongObservedVisitInOneBoot_isReportedOnExit() = runTest {
+        // No silence cutoff: an uninterrupted stay is reported however long it lasted.
+        val week = 7L * 86_400L
+        val region = circle().copy(transitionTypes = listOf(GeofenceTransitionType.EXIT))
+        val visit = GeofenceDwellVisit(
+            geofenceId = "circle",
+            visitId = "long-visit",
+            enteredAtSeconds = WALL_ENTRY_SECONDS,
+            regionRevision = region.transitionRevision(),
+            userStateGeneration = 7L,
+            registrationElapsedMs = REGISTERED_AT_MS,
+            entryFixElapsedMs = FRESH_FIX_MS,
+            bootSessionId = "boot-a",
+            enteredAtElapsedMs = FRESH_FIX_MS + 100L
+        )
+        every { store.getCachedRegion("circle") } returns region
+        every { store.getRegistrationIncarnation("circle") } returns liveRegistration(region)
+        every { store.userStateGeneration() } returns 7L
+        every { store.getDwellVisit("circle") } returns visit
+        val coordinator = GeofenceDwellCoordinator(store, processor, clock, bootSessions)
+
+        val exit = coordinator.onNativeExit(
+            "circle",
+            exitedAtSeconds = WALL_ENTRY_SECONDS + week,
+            triggeringFixElapsedMs = FRESH_FIX_MS + week * 1_000L,
+            exitedAtElapsedMs = FRESH_FIX_MS + 100L + week * 1_000L
+        )
+
+        exit.visitContext?.visitId shouldBeEqualTo "long-visit"
+        exit.visitContext?.durationSeconds shouldBeEqualTo week
+        verify { store.removeDwellVisit("circle") }
+    }
+
+    @Test
     fun dayLongDwellThreshold_remainsAchievableWhenEvidenceArrivesLate() = runTest {
         val region = circle().copy(dwellThresholdSeconds = 86_400)
         var visit = GeofenceDwellVisit(
@@ -290,6 +324,28 @@ class GeofenceDwellCoordinatorTest {
     }
 
     @Test
+    fun exitContextDoesNotConsumeVisitBeforeTransitionAdmission() = runTest {
+        val region = polygon()
+        var visit: GeofenceDwellVisit? = null
+        every { store.getCachedRegion("polygon") } returns region
+        every { store.userStateGeneration() } returns 2L
+        every { store.getDwellVisit("polygon") } answers { visit }
+        every { store.saveDwellVisit(any()) } answers {
+            visit = firstArg()
+            true
+        }
+        val coordinator = GeofenceDwellCoordinator(store, processor, clock, bootSessions)
+
+        coordinator.onEnter("polygon", enteredAtSeconds = 100L, beginsNewVisit = true, enteredAtElapsedMs = 100_000L)
+        val firstVisitId = visit?.visitId
+        coordinator.capturePolygonExit("polygon", exitedAtSeconds = 200L, exitFixElapsedMs = 200_000L)
+            .endedVisitId shouldBeEqualTo firstVisitId
+
+        verify(exactly = 0) { store.removeDwellVisit("polygon") }
+        visit?.visitId shouldBeEqualTo firstVisitId
+    }
+
+    @Test
     fun polygonEvidenceLongAfterTheDeadline_emitsForTheStillValidVisit() = runTest {
         val region = polygon()
         var visit: GeofenceDwellVisit? = null
@@ -372,6 +428,123 @@ class GeofenceDwellCoordinatorTest {
     }
 
     @Test
+    fun exitOnlyFence_tracksVisitAndReturnsObservedDuration() = runTest {
+        val region = circle().copy(
+            transitionTypes = listOf(GeofenceTransitionType.EXIT),
+            dwellThresholdSeconds = 0
+        )
+        var visit: GeofenceDwellVisit? = null
+        every { store.getCachedRegion("circle") } returns region
+        every { store.getRegistrationIncarnation("circle") } returns
+            liveRegistration(region).copy(outsideProvenAtElapsedMs = REGISTERED_AT_MS)
+        every { store.userStateGeneration() } returns 7L
+        every { store.getDwellVisit("circle") } answers { visit }
+        every { store.saveDwellVisit(any()) } answers {
+            visit = firstArg()
+            true
+        }
+        val coordinator = GeofenceDwellCoordinator(store, processor, clock, bootSessions)
+
+        coordinator.onEnter(
+            "circle",
+            enteredAtSeconds = 100L,
+            beginsNewVisit = true,
+            entryFixElapsedMs = FRESH_FIX_MS,
+            enteredAtElapsedMs = FRESH_FIX_MS + 100L
+        )
+        val visitId = visit?.visitId
+        // GMS decided the departure from a fix 75 s after the entry's, received 75 s later on both clocks.
+        val context = coordinator.onNativeExit(
+            geofenceId = "circle",
+            exitedAtSeconds = 175L,
+            triggeringFixElapsedMs = FRESH_FIX_MS + 75_000L,
+            exitedAtElapsedMs = FRESH_FIX_MS + 75_100L
+        ).visitContext
+
+        context?.visitId shouldBeEqualTo visitId
+        context?.enteredAt shouldBeEqualTo 100L
+        context?.durationSeconds shouldBeEqualTo 75L
+        context?.detectionSource shouldBeEqualTo "native"
+    }
+
+    @Test
+    fun exitOnlyFence_discoveredInsideAtRegistrationOmitsDuration() = runTest {
+        val region = circle().copy(transitionTypes = listOf(GeofenceTransitionType.EXIT))
+        var visit: GeofenceDwellVisit? = null
+        every { store.getCachedRegion("circle") } returns region
+        every { store.getRegistrationIncarnation("circle") } returns liveRegistration(region)
+        every { store.userStateGeneration() } returns 7L
+        every { store.getDwellVisit("circle") } answers { visit }
+        every { store.saveDwellVisit(any()) } answers {
+            visit = firstArg()
+            true
+        }
+        every { store.removeDwellVisit("circle") } answers { visit = null }
+        val coordinator = GeofenceDwellCoordinator(store, processor, clock, bootSessions)
+
+        coordinator.onEnter("circle", enteredAtSeconds = 100L, beginsNewVisit = true, entryFixElapsedMs = FRESH_FIX_MS)
+        visit?.entryWasObserved shouldBeEqualTo false
+
+        coordinator.onNativeExit("circle", exitedAtSeconds = 175L, triggeringFixElapsedMs = FRESH_FIX_MS + 75_000L)
+            .visitContext.shouldBeNull()
+        visit.shouldBeNull()
+    }
+
+    @Test
+    fun exitWithoutObservedEntry_omitsVisitContext() = runTest {
+        val region = circle().copy(transitionTypes = listOf(GeofenceTransitionType.EXIT))
+        every { store.getCachedRegion("circle") } returns region
+        every { store.getRegistrationIncarnation("circle") } returns liveRegistration(region)
+        every { store.userStateGeneration() } returns 7L
+        every { store.getDwellVisit("circle") } returns null
+        val coordinator = GeofenceDwellCoordinator(store, processor, clock, bootSessions)
+
+        val exit = coordinator.onNativeExit(
+            geofenceId = "circle",
+            exitedAtSeconds = 175L,
+            triggeringFixElapsedMs = FRESH_FIX_MS
+        )
+
+        // Still delivered, as an EXIT without visit metadata.
+        exit.current shouldBeEqualTo true
+        exit.visitContext.shouldBeNull()
+    }
+
+    @Test
+    fun exitAfterNativeDwellRecoveredALostEnter_omitsEstimatedVisitDuration() = runTest {
+        val region = circle().copy(transitionTypes = listOf(GeofenceTransitionType.EXIT))
+        var visit: GeofenceDwellVisit? = null
+        every { store.getCachedRegion("circle") } returns region
+        every { store.getRegistrationIncarnation("circle") } returns liveRegistration(region)
+        every { store.userStateGeneration() } returns 7L
+        every { store.getDwellVisit("circle") } answers { visit }
+        every { store.saveDwellVisit(any()) } answers {
+            visit = firstArg()
+            true
+        }
+        every { store.removeDwellVisit("circle") } answers { visit = null }
+        coEvery { processor.process(any(), any(), any(), any(), any(), any(), any(), any(), any()) } returns
+            GeofenceTransitionEmitter.Result.PERSISTED
+        val coordinator = GeofenceDwellCoordinator(store, processor, clock, bootSessions)
+
+        coordinator.onNativeDwell(
+            "circle",
+            observedAtSeconds = 1_000L,
+            triggeringFixElapsedMs = FRESH_FIX_MS,
+            observedAtElapsedMs = FRESH_FIX_MS + 100L
+        )
+        val exit = coordinator.onNativeExit(
+            "circle",
+            exitedAtSeconds = 1_075L,
+            triggeringFixElapsedMs = FRESH_FIX_MS + 75_000L,
+            exitedAtElapsedMs = FRESH_FIX_MS + 75_100L
+        )
+
+        exit.visitContext.shouldBeNull()
+        visit.shouldBeNull()
+    }
+
+    @Test
     fun delayedExitFromOlderVisit_doesNotClearNewerVisit() = runTest {
         val region = circle().copy(transitionTypes = listOf(GeofenceTransitionType.EXIT))
         val visit = GeofenceDwellVisit(
@@ -388,17 +561,18 @@ class GeofenceDwellCoordinatorTest {
         every { store.getDwellVisit("circle") } returns visit
         val coordinator = GeofenceDwellCoordinator(store, processor, clock, bootSessions)
 
-        coordinator.onNativeExit(
+        val context = coordinator.onNativeExit(
             geofenceId = "circle",
             exitedAtSeconds = 175L,
             triggeringFixElapsedMs = FRESH_FIX_MS
-        )
+        ).visitContext
 
+        context.shouldBeNull()
         verify(exactly = 0) { store.removeDwellVisit("circle") }
     }
 
     @Test
-    fun delayedExitFromReplacedRegistration_doesNotEndTheNewerVisit() = runTest {
+    fun delayedExitFromReplacedRegistration_neitherEndsNorDescribesTheNewerVisit() = runTest {
         val region = circle().copy(transitionTypes = listOf(GeofenceTransitionType.EXIT))
         val newerVisit = GeofenceDwellVisit(
             geofenceId = "circle",
@@ -415,13 +589,14 @@ class GeofenceDwellCoordinatorTest {
         val coordinator = GeofenceDwellCoordinator(store, processor, clock, bootSessions)
 
         // Received well after the newer visit began, but triggered by a fix the replaced
-        // registration evaluated. Receipt time alone would read this as ending the newer visit.
-        coordinator.onNativeExit(
+        // registration evaluated. Receipt time alone would read this as a 500 s visit.
+        val context = coordinator.onNativeExit(
             geofenceId = "circle",
             exitedAtSeconds = 1_500L,
             triggeringFixElapsedMs = REGISTERED_AT_MS - 1L
-        )
+        ).visitContext
 
+        context.shouldBeNull()
         verify(exactly = 0) { store.removeDwellVisit("circle") }
     }
 
@@ -443,12 +618,13 @@ class GeofenceDwellCoordinatorTest {
         every { store.getDwellVisit("circle") } returns newerVisit
         val coordinator = GeofenceDwellCoordinator(store, processor, clock, bootSessions)
 
-        coordinator.onNativeExit(
+        val context = coordinator.onNativeExit(
             geofenceId = "circle",
             exitedAtSeconds = 1_000L,
             triggeringFixElapsedMs = FRESH_FIX_MS - 1L
-        )
+        ).visitContext
 
+        context.shouldBeNull()
         verify(exactly = 0) { store.removeDwellVisit("circle") }
     }
 
@@ -469,7 +645,11 @@ class GeofenceDwellCoordinatorTest {
         every { store.getDwellVisit("circle") } returns visit
         val coordinator = GeofenceDwellCoordinator(store, processor, clock, bootSessions)
 
-        coordinator.onNativeExit("circle", exitedAtSeconds = 200L, triggeringFixElapsedMs = null)
+        val exit = coordinator.onNativeExit("circle", exitedAtSeconds = 200L, triggeringFixElapsedMs = null)
+
+        // A legacy EXIT without a fix is still delivered, just never attributed to the visit.
+        exit.current shouldBeEqualTo true
+        exit.visitContext.shouldBeNull()
 
         verify(exactly = 0) { store.removeDwellVisit("circle") }
     }
@@ -617,11 +797,12 @@ class GeofenceDwellCoordinatorTest {
 
         visit?.entryWasObserved shouldBeEqualTo false
         coordinator.onNativeExit("circle", exitedAtSeconds = 5_600L, triggeringFixElapsedMs = FRESH_FIX_MS)
+            .visitContext.shouldBeNull()
         visit.shouldBeNull()
     }
 
     @Test
-    fun polygonInsideEvidenceRebuildingAVisit_reportsNoObservedEntry() = runTest {
+    fun polygonInsideEvidenceRebuildingAVisit_reportsNoObservedEntryOrExitDuration() = runTest {
         val region = polygon().copy(
             transitionTypes = listOf(GeofenceTransitionType.ENTER, GeofenceTransitionType.EXIT)
         )
@@ -657,6 +838,8 @@ class GeofenceDwellCoordinatorTest {
         }
         context.captured.enteredAt.shouldBeNull()
         context.captured.durationSeconds.shouldBeNull()
+        coordinator.capturePolygonExit("polygon", exitedAtSeconds = 1_200L, exitFixElapsedMs = 1_200_000L)
+            .visitContext.shouldBeNull()
     }
 
     @Test
@@ -678,6 +861,7 @@ class GeofenceDwellCoordinatorTest {
         val coordinator = GeofenceDwellCoordinator(store, processor, clock, bootSessions)
 
         coordinator.onNativeExit("circle", exitedAtSeconds = 5_000L, triggeringFixElapsedMs = FRESH_FIX_MS)
+            .visitContext.shouldBeNull()
 
         verify { store.removeDwellVisit("circle") }
     }
@@ -1162,7 +1346,7 @@ class GeofenceDwellCoordinatorTest {
             WALL_ENTRY_SECONDS - 3_600L,
             triggeringFixElapsedMs = 2_000L,
             exitedAtElapsedMs = 2_100L
-        ) shouldBeEqualTo true
+        ).current shouldBeEqualTo true
 
         visit().shouldBeNull()
 
@@ -1205,7 +1389,7 @@ class GeofenceDwellCoordinatorTest {
             WALL_ENTRY_SECONDS + 80L,
             triggeringFixElapsedMs = 2_000L,
             exitedAtElapsedMs = 80_000L
-        ) shouldBeEqualTo false
+        ).current shouldBeEqualTo false
 
         // Kept, with only the entry withdrawn: the device was outside between it and the DWELL.
         visit() shouldBeEqualTo current.copy(entryWasObserved = false)
@@ -1217,7 +1401,7 @@ class GeofenceDwellCoordinatorTest {
             WALL_ENTRY_SECONDS + 90L,
             triggeringFixElapsedMs = 6_000L,
             exitedAtElapsedMs = 90_000L
-        ) shouldBeEqualTo true
+        ).current shouldBeEqualTo true
 
         visit().shouldBeNull()
     }
@@ -1259,7 +1443,7 @@ class GeofenceDwellCoordinatorTest {
                 WALL_ENTRY_SECONDS + 80L,
                 triggeringFixElapsedMs = exitFix,
                 exitedAtElapsedMs = 80_000L
-            ) shouldBeEqualTo false
+            ).current shouldBeEqualTo false
 
             // Still the same stay as far as containment, the queued DWELL and its retry know.
             visit() shouldBeEqualTo current.copy(entryWasObserved = false)
@@ -1291,7 +1475,7 @@ class GeofenceDwellCoordinatorTest {
             WALL_ENTRY_SECONDS - 5L,
             triggeringFixElapsedMs = null,
             exitedAtElapsedMs = 25_000L
-        ) shouldBeEqualTo true
+        ).current shouldBeEqualTo true
 
         visit() shouldBeEqualTo current
     }
@@ -1323,7 +1507,7 @@ class GeofenceDwellCoordinatorTest {
             WALL_ENTRY_SECONDS + 80L,
             triggeringFixElapsedMs = 900L,
             exitedAtElapsedMs = 80_000L
-        ) shouldBeEqualTo false
+        ).current shouldBeEqualTo false
 
         visit() shouldBeEqualTo current
     }
@@ -1457,6 +1641,41 @@ class GeofenceDwellCoordinatorTest {
         GeofenceDwellCoordinator(store, processor, clock, bootSessions)
             .onEnter("circle", enteredAtSeconds = 100L, beginsNewVisit = true, entryFixElapsedMs = entryFix)
         visit?.entryWasObserved shouldBeEqualTo expected
+    }
+
+    @Test
+    fun nativeExit_reportsTheWallClockSpanOnlyWhileItAgreesWithTheBootClock() = runTest {
+        // 75 s on the boot clock. Whole-second stamps and the two clock reads allow 2 s of
+        // difference; anything more is a clock step.
+        nativeExitDurationForWallSpan(75L) shouldBeEqualTo 75L
+        nativeExitDurationForWallSpan(77L) shouldBeEqualTo 77L
+        nativeExitDurationForWallSpan(78L).shouldBeNull()
+        nativeExitDurationForWallSpan(73L) shouldBeEqualTo 73L
+        nativeExitDurationForWallSpan(72L).shouldBeNull()
+    }
+
+    private suspend fun nativeExitDurationForWallSpan(wallSpanSeconds: Long): Long? {
+        val region = circle().copy(transitionTypes = listOf(GeofenceTransitionType.EXIT))
+        every { store.getCachedRegion("circle") } returns region
+        every { store.getRegistrationIncarnation("circle") } returns liveRegistration(region)
+        every { store.userStateGeneration() } returns 7L
+        every { store.getDwellVisit("circle") } returns GeofenceDwellVisit(
+            geofenceId = "circle",
+            visitId = "visit",
+            enteredAtSeconds = WALL_ENTRY_SECONDS,
+            regionRevision = region.transitionRevision(),
+            userStateGeneration = 7L,
+            registrationElapsedMs = REGISTERED_AT_MS,
+            entryFixElapsedMs = FRESH_FIX_MS,
+            bootSessionId = "boot-a",
+            enteredAtElapsedMs = FRESH_FIX_MS + 100L
+        )
+        return GeofenceDwellCoordinator(store, processor, clock, bootSessions).onNativeExit(
+            "circle",
+            exitedAtSeconds = WALL_ENTRY_SECONDS + wallSpanSeconds,
+            triggeringFixElapsedMs = FRESH_FIX_MS + 75_000L,
+            exitedAtElapsedMs = FRESH_FIX_MS + 75_100L
+        ).visitContext?.durationSeconds
     }
 
     private fun liveRegistration(region: GeofenceRegion) = GeofenceRegistrationIncarnation(

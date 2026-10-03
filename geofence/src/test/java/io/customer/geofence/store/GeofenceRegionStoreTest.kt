@@ -25,6 +25,7 @@ import org.amshove.kluent.shouldBeNull
 import org.amshove.kluent.shouldBeTrue
 import org.amshove.kluent.shouldContain
 import org.amshove.kluent.shouldContainSame
+import org.amshove.kluent.shouldNotBeNull
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -605,6 +606,22 @@ class GeofenceRegionStoreTest : RobolectricTest() {
         store.raiseOutsideProof(setOf("biz-1"), provenAtElapsedMs = 9_000L, "boot")
 
         store.getRegistrationIncarnation("biz-1")?.outsideProvenAtElapsedMs.shouldBeNull()
+    }
+
+    @Test
+    fun recordNativeExitFix_givenNewerOutsideProof_expectTheProofKeptAndTheExitRecorded() {
+        // A movement fix proved the device outside at 50 000; GMS's EXIT from 40 000 lands later.
+        val region = GeofenceRegion("biz-1", 37.7749, -122.4194, 100f, dwellThresholdSeconds = 60)
+        store.saveCachedRegions(listOf(region))
+        store.recordRegistrationIncarnations(listOf(region), registeredAtElapsedMs = 1_000L, bootSessionId = "boot")
+        store.saveRegisteredIds(setOf("biz-1"))
+        store.raiseOutsideProof(setOf("biz-1"), provenAtElapsedMs = 50_000L, bootSessionId = "boot")
+
+        store.recordNativeExitFix("biz-1", registeredAtElapsedMs = 1_000L, exitFixElapsedMs = 40_000L)
+
+        val incarnation = store.getRegistrationIncarnation("biz-1").shouldNotBeNull()
+        incarnation.outsideProvenAtElapsedMs shouldBeEqualTo 50_000L
+        incarnation.lastExitFixElapsedMs shouldBeEqualTo 40_000L
     }
 
     @Test

@@ -78,7 +78,7 @@ class GeofenceDwellCoordinatorTest {
     }
 
     @Test
-    fun redundantEnterPreservesTheCurrentVisit() = runTest {
+    fun duplicateEnterWithTheOriginalFixPreservesTheCurrentVisit() = runTest {
         val region = circle()
         val current = GeofenceDwellVisit(
             geofenceId = "circle",
@@ -86,7 +86,8 @@ class GeofenceDwellCoordinatorTest {
             enteredAtSeconds = 100L,
             regionRevision = region.transitionRevision(),
             userStateGeneration = 7L,
-            registrationElapsedMs = REGISTERED_AT_MS
+            registrationElapsedMs = REGISTERED_AT_MS,
+            entryFixElapsedMs = REGISTERED_AT_MS
         )
         every { store.getCachedRegion("circle") } returns region
         every { store.getRegistrationIncarnation("circle") } returns liveRegistration(region)
@@ -94,7 +95,7 @@ class GeofenceDwellCoordinatorTest {
         every { store.getDwellVisit("circle") } returns current
         val coordinator = GeofenceDwellCoordinator(store, processor, clock, bootSessions)
 
-        coordinator.onEnter("circle", enteredAtSeconds = 800L, beginsNewVisit = false)
+        coordinator.onEnter("circle", enteredAtSeconds = 800L, beginsNewVisit = false, entryFixElapsedMs = REGISTERED_AT_MS)
 
         verify(exactly = 0) { store.saveDwellVisit(any()) }
     }

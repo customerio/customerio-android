@@ -271,6 +271,9 @@ internal class GeofenceRepositoryImpl(
     ): Result<Unit> {
         // Before the slot wait, as in [refreshFromLiveFix].
         val containmentEpoch = store.containmentEpoch()
+        // Before the slot wait too: a busy slot, a failed fetch or a failed GMS add would otherwise
+        // lose what this fix already proves about the circles GMS is watching.
+        raiseMovementOutsideProof(latitude, longitude, fixQuality)
         if (!awaitRefreshSlot()) {
             logger.logSyncSkipped("refresh already in progress after waiting")
             return Result.success(Unit)
@@ -335,6 +338,30 @@ internal class GeofenceRepositoryImpl(
         } finally {
             releaseRefreshSlot()
         }
+    }
+
+    /**
+     * Records outside proof, from the fix GMS delivered with a movement EXIT, for every registered
+     * circle that fix clears by more than its accuracy plus the margin. Judged against the geometry
+     * GMS is watching: the cached definition, only while it matches the live registration's
+     * revision. [GeofenceRegionStore.raiseOutsideProof] keeps only registrations from this boot that
+     * predate the fix, and never lowers newer proof. The same proof a successful pass raises later.
+     */
+    private fun raiseMovementOutsideProof(latitude: Double, longitude: Double, fixQuality: GeofenceFixQuality) {
+        val takenAt = fixQuality.fixElapsedRealtimeMillis ?: return
+        // On the boot clock, so a fix stamped after now has an untrustworthy time.
+        if (takenAt > clock.elapsedRealtime()) return
+        if (secureUserStore.getUserId().isNullOrBlank()) return
+        val registeredIds = store.getRegisteredIds()
+        val provenOutsideIds = store.getCachedRegions()
+            .filter { region ->
+                !region.isPolygon &&
+                    region.id in registeredIds &&
+                    store.getRegistrationIncarnation(region.id)?.regionRevision == region.transitionRevision() &&
+                    fixQuality.clearsEdge(region.distanceTo(latitude, longitude) - region.radius)
+            }
+            .mapTo(mutableSetOf(), GeofenceRegion::id)
+        store.raiseOutsideProof(provenOutsideIds, takenAt, bootSessionProvider.currentSessionId())
     }
 
     @RequiresPermission(Manifest.permission.ACCESS_FINE_LOCATION)

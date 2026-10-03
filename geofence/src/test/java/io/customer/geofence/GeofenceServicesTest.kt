@@ -77,8 +77,6 @@ class GeofenceServicesTest : RobolectricTest() {
 
     @Test
     fun onLocationAcquired_givenStaleFixAfterNoLocationSkip_expectRearmFlagSurvives() = runTest(StandardTestDispatcher()) {
-        // The path my earlier attempt missed: triggerSync clears this flag, so the fix has to avoid
-        // triggerSync entirely rather than re-arm around it.
         every { secureUserStore.getUserId() } returns "user-42"
         val services = servicesWith(this)
         // A sync with no location arms the flag through the real skip path.
@@ -148,8 +146,7 @@ class GeofenceServicesTest : RobolectricTest() {
             )
             advanceUntilIdle()
 
-            // The evaluation is forwarded unevaluated, so the assertion is that the radius it
-            // yields is what the registration pass sees.
+            // Forwarded unevaluated, so invoke it to check the radius.
             val forwarded = slot<suspend () -> Float?>()
             coVerify { repository.handleMovement(12.34, 56.78, capture(forwarded), any()) }
             forwarded.captured.invoke() shouldBeEqualTo 725f
@@ -182,10 +179,8 @@ class GeofenceServicesTest : RobolectricTest() {
 
     @Test
     fun onUserIdentified_expectSessionOpenedBeforeTheRefresh() = runTest(StandardTestDispatcher()) {
-        // Order is the point. beginUserSession clears routing and the last-sync stamp; opening the
-        // session first sends this refresh down the REMOTE path so it re-registers and arms routing.
-        // Left to the first OS callback instead, the identify SKIPs as fresh and that callback opens
-        // the session, reads the empty routable set it just wrote, and removes every live fence.
+        // beginUserSession clears routing and the last-sync stamp, so it must run first or the first
+        // OS callback reads an empty routable set and removes every live fence.
         every { secureUserStore.getUserId() } returns "user-b"
         coEvery { repository.refresh(any(), any()) } returns Result.success(Unit)
         val services = servicesWith(this)
@@ -213,9 +208,8 @@ class GeofenceServicesTest : RobolectricTest() {
 
     @Test
     fun onAppLaunch_expectSessionOpenedBeforeTheRefresh() = runTest(StandardTestDispatcher()) {
-        // Upgraded install with no session-owner key: opening it here names the launching user, so
-        // the refresh below goes down the REMOTE path and arms routing instead of leaving the first
-        // OS callback to open the session and then drop the event it arrived with.
+        // Opening it first lets the refresh arm routing; otherwise the first OS callback drops its
+        // event.
         every { secureUserStore.getUserId() } returns "user-a"
         coEvery { repository.refresh(any(), any()) } returns Result.success(Unit)
         val services = servicesWith(this)
@@ -257,9 +251,7 @@ class GeofenceServicesTest : RobolectricTest() {
 
     @Test
     fun onMovementTriggerExit_expectReturnedJobTracksRefreshCompletion() = runTest(StandardTestDispatcher()) {
-        // The receiver holds its goAsync window open by joining this job; a job that
-        // completes before the refresh finishes would let the OS kill the process
-        // mid-fetch/mid-re-registration.
+        // The receiver joins this job to hold its goAsync window open.
         coEvery { repository.handleMovement(any(), any(), any(), any()) } coAnswers {
             delay(1_000)
             Result.success(Unit)
@@ -288,8 +280,7 @@ class GeofenceServicesTest : RobolectricTest() {
 
     @Test
     fun onMovementTriggerExit_givenUnusableFix_expectSkipAndStayArmed() = runTest(StandardTestDispatcher()) {
-        // NaN, infinite and out-of-range coordinates all make Location.distanceBetween throw, part
-        // way through a sync that has no exception handler above it.
+        // Each makes Location.distanceBetween throw mid-sync, with no handler above it.
         val services = servicesWith(this)
 
         val unusable = listOf(
@@ -307,14 +298,12 @@ class GeofenceServicesTest : RobolectricTest() {
         coVerify(exactly = 0) { repository.handleMovement(any(), any(), any(), any()) }
         coVerify(exactly = 0) { repository.refresh(any(), any()) }
         verify(exactly = unusable.size) { logger.logSyncSkippedInvalidLocation(any(), any(), any()) }
-        // Armed like a missing fix, so the next usable one drives a sync.
         services.isAwaitingLocation() shouldBeEqualTo true
     }
 
     @Test
     fun onMovementTriggerExit_givenRepositoryThrows_expectLoggedAndNotRethrown() = runTest(StandardTestDispatcher()) {
-        // The services scope carries a SupervisorJob and no exception handler, so anything escaping
-        // here would reach the thread's default handler and take the host app down.
+        // The scope has no exception handler, so an escape would crash the host app.
         coEvery { repository.handleMovement(any(), any(), any(), any()) } throws IllegalStateException("boom")
         val services = servicesWith(this)
 
@@ -368,8 +357,7 @@ class GeofenceServicesTest : RobolectricTest() {
 
     @Test
     fun onLocationAcquired_givenFixOneMillisecondInsideTheAgeLimit_expectSync() = runTest(StandardTestDispatcher()) {
-        // Boundary control for the stale cases above. This is the only freshness gate — the
-        // repository trusts whatever reaches refreshFromLiveFix — so the limit is pinned here.
+        // The only freshness gate; the repository trusts whatever reaches refreshFromLiveFix.
         coEvery { repository.refreshFromLiveFix(any(), any()) } returns Result.success(Unit)
         every { secureUserStore.getUserId() } returns "user-1"
         val services = servicesWith(this)
@@ -388,8 +376,7 @@ class GeofenceServicesTest : RobolectricTest() {
 
     @Test
     fun onLocationAcquired_givenUnreportedTime_expectSync() = runTest(StandardTestDispatcher()) {
-        // A host-supplied fix may report no time. It asserts a position, so it runs the live pass
-        // rather than being held as stale.
+        // A host-supplied fix may report no time; it still asserts a position.
         coEvery { repository.refreshFromLiveFix(any(), any()) } returns Result.success(Unit)
         every { secureUserStore.getUserId() } returns "user-1"
         val services = servicesWith(this)
@@ -407,7 +394,6 @@ class GeofenceServicesTest : RobolectricTest() {
         coEvery { repository.refreshFromLiveFix(any(), any()) } returns Result.success(Unit)
         val services = servicesWith(this)
 
-        // Skip first, then deliver the fix.
         services.onUserIdentified(latitude = null, longitude = null)
         advanceUntilIdle()
         services.onLocationAcquired(latitude = 12.0, longitude = 34.0)
@@ -422,8 +408,6 @@ class GeofenceServicesTest : RobolectricTest() {
         coEvery { repository.refreshFromLiveFix(any(), any()) } returns Result.success(Unit)
         val services = servicesWith(this)
 
-        // Host-initiated refresh arms the pipeline; the returning fix drives the sync
-        // even without any prior no-location skip.
         services.onRefreshRequested()
         services.onLocationAcquired(latitude = 12.0, longitude = 34.0)
         advanceUntilIdle()
@@ -473,8 +457,7 @@ class GeofenceServicesTest : RobolectricTest() {
 
     @Test
     fun onLocationAcquired_givenPriorSuccessfulSync_expectNoRetriggerOnNewFix() = runTest(StandardTestDispatcher()) {
-        // Successful trigger must clear the rearm flag — otherwise hosts that
-        // stream location updates would refresh on every fix.
+        // Otherwise hosts that stream location updates would refresh on every fix.
         every { secureUserStore.getUserId() } returns "user-1"
         coEvery { repository.refresh(any(), any()) } returns Result.success(Unit)
         val services = servicesWith(this)
@@ -484,15 +467,12 @@ class GeofenceServicesTest : RobolectricTest() {
         services.onLocationAcquired(latitude = 3.0, longitude = 4.0)
         advanceUntilIdle()
 
-        // Only the initial identify call should reach the repository.
         coVerify(exactly = 1) { repository.refresh(any(), any()) }
         coVerify(exactly = 0) { repository.refreshFromLiveFix(any(), any()) }
     }
 
     @Test
     fun onLocationAcquired_afterSignOut_expectNoRefreshFromStaleRefreshFlag() = runTest(StandardTestDispatcher()) {
-        // A pending refresh from the previous session must not survive sign-out and
-        // drive a sync for the next user's first fix.
         every { secureUserStore.getUserId() } returns "user-1"
         coEvery { repository.refresh(any(), any()) } returns Result.success(Unit)
         coEvery { repository.reset() } returns Result.success(Unit)
@@ -510,10 +490,8 @@ class GeofenceServicesTest : RobolectricTest() {
     @Test
     fun onUserSignedOut_expectFineMonitoringAndRegistrationAnchorClearedSynchronously() =
         runTest(StandardTestDispatcher()) {
-            // The persisted registration center is user-scoped. It must be dropped
-            // synchronously on sign-out — before repository.reset() runs on the scope —
-            // so an in-process re-login can't rank the next user's geofences around the
-            // previous user's location.
+            // Cleared before reset() runs, or a re-login ranks the next user's fences around the old
+            // user's location.
             coEvery { repository.reset() } returns Result.success(Unit)
             val services = servicesWith(this)
 
@@ -543,8 +521,7 @@ class GeofenceServicesTest : RobolectricTest() {
         coEvery { repository.refreshFromLiveFix(any(), any()) } returns Result.success(Unit)
         val services = servicesWith(this)
 
-        // A retry that still has no anchor must leave the flag up, or the fix it kicks off
-        // arrives with nothing armed to consume it.
+        // Must stay armed, or the fix the retry kicks off has nothing to consume it.
         services.onUserIdentified(latitude = null, longitude = null)
         services.onForegroundRetry(latitude = null, longitude = null)
         advanceUntilIdle()
@@ -616,7 +593,6 @@ class GeofenceServicesTest : RobolectricTest() {
         services.onUserSignedOut()
         advanceUntilIdle()
 
-        // Otherwise the next user's first foreground entry would retry the previous user's skip.
         services.isAwaitingLocation() shouldBeEqualTo false
     }
 
@@ -629,8 +605,6 @@ class GeofenceServicesTest : RobolectricTest() {
         services.onRefreshRequested()
         services.isHostRefreshPending() shouldBeEqualTo true
 
-        // Only the live fix satisfies a host refresh — the foreground retry keeps
-        // re-requesting one until this consumes the flag.
         services.onLocationAcquired(latitude = 12.0, longitude = 34.0)
         advanceUntilIdle()
 
@@ -644,14 +618,11 @@ class GeofenceServicesTest : RobolectricTest() {
         services.onUserIdentified(latitude = null, longitude = null)
         advanceUntilIdle()
 
-        // A no-location skip retries via the anchor/auto-acquire path, not a forced re-request.
         services.isHostRefreshPending() shouldBeEqualTo false
     }
 
     @Test
     fun onUserSignedOut_expectRepositoryResetInvoked() = runTest(StandardTestDispatcher()) {
-        // Sign-out delegates the wipe decision to repository.reset(); the services layer
-        // just drops the anchor synchronously and kicks reset off the scope.
         coEvery { repository.reset() } returns Result.success(Unit)
         val services = servicesWith(this)
 

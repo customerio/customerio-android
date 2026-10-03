@@ -64,7 +64,6 @@ class GeofenceEventTrackerTest : RobolectricTest() {
         props.getString("geofenceId") shouldBeEqualTo "biz-geofence-1"
         props.getString("transition") shouldBeEqualTo "enter"
         props.getString("transitionId") shouldBeEqualTo "transition-99"
-        // Timestamp lives on the envelope (asserted above), not in properties.
         props.has("timestamp") shouldBeEqualTo false
         props.has("latitude") shouldBeEqualTo false
         props.has("longitude") shouldBeEqualTo false
@@ -95,8 +94,6 @@ class GeofenceEventTrackerTest : RobolectricTest() {
 
     @Test
     fun trackEvent_givenNullUserIdEntry_expectFailureWithoutHttpCall() = runTest {
-        // Precondition guard: anonymous entries belong on the foreground-flush path.
-        // Callers must filter these out; if one slips through, fail loud rather than POST a userId-less event.
         val result = tracker.trackEvent(entry(userId = null))
 
         result.isFailure shouldBeEqualTo true
@@ -106,8 +103,6 @@ class GeofenceEventTrackerTest : RobolectricTest() {
 
     @Test
     fun trackEvent_givenMetadataSnapshotAndCacheMiss_expectMetadataFromSnapshot() = runTest {
-        // Region no longer cached → fall back to the crossing-time snapshot, emitting `metadata`
-        // as a nested object with primitives preserved by type.
         val capturedParams = slot<HttpRequestParams>()
         coEvery { httpClient.request(capture(capturedParams)) } returns Result.success("ok")
         every { regionStore.getCachedRegion(any()) } returns null
@@ -131,7 +126,6 @@ class GeofenceEventTrackerTest : RobolectricTest() {
 
     @Test
     fun trackEvent_givenCachedRegion_expectNameAndMetadataFromCacheNotSnapshot() = runTest {
-        // Hybrid: the fence is still cached, so its current name + metadata win over the snapshot.
         val capturedParams = slot<HttpRequestParams>()
         coEvery { httpClient.request(capture(capturedParams)) } returns Result.success("ok")
         every { regionStore.getCachedRegion("biz-geofence-1") } returns GeofenceRegion(
@@ -161,7 +155,6 @@ class GeofenceEventTrackerTest : RobolectricTest() {
         tracker.trackEvent(entry())
 
         val props = JSONObject(capturedParams.captured.body.shouldNotBeNull()).getJSONObject("properties")
-        // `metadata` is always present, empty when the fence has none.
         props.has("metadata") shouldBeEqualTo true
         props.getJSONObject("metadata").length() shouldBeEqualTo 0
     }

@@ -3,16 +3,67 @@ package io.customer.messaginginapp.compose
 import android.view.ViewGroup
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.State
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import io.customer.base.internal.InternalCustomerIOApi
+import io.customer.messaginginapp.ModuleMessagingInApp
 import io.customer.messaginginapp.type.InAppMessage
 import io.customer.messaginginapp.type.InlineMessageActionListener
 import io.customer.messaginginapp.ui.InlineInAppMessageView
+import io.customer.sdk.communication.Event
+import io.customer.sdk.core.di.SDKComponent
 import kotlinx.coroutines.android.awaitFrame
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emitAll
+import kotlinx.coroutines.flow.filterIsInstance
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flow
+
+/**
+ * Remembers whether an inline in-app message is currently available for [elementId].
+ *
+ * The state starts as `false` and updates with the current message queue, route, and message
+ * lifecycle. Reading it has no side effects: it does not fetch, display, or mark a message as shown.
+ * If the in-app messaging module has not been initialized, the state remains `false` until SDK
+ * initialization completes, then starts observing the module if it was configured.
+ * This makes it suitable for conditionally adding an item to a lazy layout:
+ *
+ * ```
+ * val isAvailable by rememberInlineMessageAvailability("promotion")
+ * LazyColumn {
+ *     if (isAvailable) {
+ *         item { InlineInAppMessage(elementId = "promotion") }
+ *     }
+ * }
+ * ```
+ *
+ * @param elementId The element ID configured for the inline message in Customer.io.
+ */
+@Composable
+fun rememberInlineMessageAvailability(elementId: String): State<Boolean> {
+    val availability = remember(elementId) {
+        inlineMessageAvailabilityFlow(elementId)
+    }
+    return availability.collectAsStateWithLifecycle(initialValue = false)
+}
+
+@OptIn(InternalCustomerIOApi::class)
+internal fun inlineMessageAvailabilityFlow(elementId: String): Flow<Boolean> = flow {
+    var module = SDKComponent.modules[ModuleMessagingInApp.MODULE_NAME] as? ModuleMessagingInApp
+    if (module == null) {
+        emit(false)
+        SDKComponent.eventBus.flow.filterIsInstance<Event.SdkInitializedEvent>().first()
+        module = SDKComponent.modules[ModuleMessagingInApp.MODULE_NAME] as? ModuleMessagingInApp
+    }
+    module?.let { emitAll(it.observeInlineMessageAvailability(elementId)) }
+}
 
 /**
  * A Composable that displays an inline in-app message for a given element ID.
@@ -27,6 +78,7 @@ import kotlinx.coroutines.android.awaitFrame
  *                     the system's colorControlActivated will be used
  * @param onAction Optional callback that will be invoked when a message action is clicked
  */
+@OptIn(InternalCustomerIOApi::class)
 @Composable
 fun InlineInAppMessage(
     elementId: String,
@@ -51,6 +103,12 @@ fun InlineInAppMessage(
                 setProgressTint(color.toArgb())
             }
         }
+    }
+
+    // A View can detach and reattach while still in composition, so it keeps its renderer then.
+    // A lazy item leaving composition releases it; scrolling back creates a new renderer.
+    DisposableEffect(view) {
+        onDispose { view.releaseForComposition() }
     }
 
     // Update progress tint when it changes

@@ -13,6 +13,7 @@ import io.customer.messagingpush.util.BitmapDownloader
 import io.customer.sdk.core.di.SDKComponent
 import java.io.File
 import java.security.MessageDigest
+import kotlin.math.roundToInt
 
 /**
  * Resolves a strongly-typed [LiveNotificationAsset] to a [Bitmap] for the
@@ -21,6 +22,7 @@ import java.security.MessageDigest
 internal object TemplateAssets {
 
     private const val URL_CACHE_DIR = "cio_live_notification_assets"
+    private const val MAX_REMOTE_ICON_DP = 64
 
     fun toBitmap(context: Context, asset: LiveNotificationAsset): Bitmap? =
         try {
@@ -57,19 +59,35 @@ internal object TemplateAssets {
         }
     }
 
-    /** Downloads [url], caching the bytes on disk to avoid re-fetching. */
+    /** Downloads [url], caching the scaled bitmap on disk to avoid re-fetching. */
     private fun downloadCached(context: Context, url: String): Bitmap? {
-        val cacheFile = File(File(context.cacheDir, URL_CACHE_DIR).apply { mkdirs() }, sha256(url))
+        val cacheDir = File(context.cacheDir, URL_CACHE_DIR).apply { mkdirs() }
+        val maxSize = (MAX_REMOTE_ICON_DP * context.resources.displayMetrics.density).roundToInt().coerceAtLeast(1)
+        val cacheFile = File(cacheDir, sha256("v3:$maxSize:$url"))
         if (cacheFile.exists()) {
-            BitmapFactory.decodeFile(cacheFile.path)?.let { return it }
+            BitmapDownloader.decodeFile(cacheFile, maxSize, maxSize)?.let { return it }
         }
-        val bitmap = BitmapDownloader.download(url) ?: return null
+        val bitmap = BitmapDownloader.download(url, maxSize, maxSize, centerCrop = true) ?: return null
         try {
-            cacheFile.outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
+            val saved = writeCache(cacheFile, bitmap)
+            if (saved) {
+                File(cacheDir, sha256(url)).delete()
+                File(cacheDir, sha256("v2:$maxSize:$url")).delete()
+            }
         } catch (e: Exception) {
             SDKComponent.logger.debug("Failed to cache live notification image '$url': ${e.message}")
         }
         return bitmap
+    }
+
+    private fun writeCache(file: File, bitmap: Bitmap): Boolean {
+        val temporary = File.createTempFile("cio_live_", ".tmp", file.parentFile)
+        return try {
+            temporary.outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) } &&
+                temporary.renameTo(file)
+        } finally {
+            temporary.delete()
+        }
     }
 
     private fun sha256(value: String): String =

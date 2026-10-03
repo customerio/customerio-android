@@ -34,7 +34,7 @@ class GeofenceEventSchedulerTest : RobolectricTest() {
 
     override fun setup(testConfig: TestConfig) {
         super.setup(testConfigurationDefault { })
-        // Default: enqueue returns an immediately-successful Operation so suspend await() resolves.
+        // Lets the suspend await() on enqueue resolve.
         every {
             workManager.enqueueUniqueWork(any(), any(), any<OneTimeWorkRequest>())
         } returns immediateSuccessfulOperation()

@@ -7,6 +7,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
@@ -16,23 +17,46 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import io.customer.android.sample.kotlin_compose.ui.theme.CustomerIoSDKTheme
 import io.customer.messaginginapp.compose.InlineInAppMessage
+import io.customer.messaginginapp.compose.rememberInlineMessageAvailability
 import io.customer.messaginginapp.type.InAppMessage
+
+internal const val INLINE_AVAILABILITY_LIST_TAG = "inline_availability_list"
+internal const val INLINE_AVAILABILITY_STATUS_TAG = "inline_availability_status"
+internal const val INLINE_CENTER_ITEM_TAG = "inline_center_item"
+internal const val INLINE_BOTTOM_ITEM_TAG = "inline_bottom_item"
+internal const val CONDITIONAL_INLINE_ELEMENT_ID = "sticky-header"
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun KotlinComposeInlineComponent(context: Context) {
+    val isCenterMessageAvailable by rememberInlineMessageAvailability(CONDITIONAL_INLINE_ELEMENT_ID)
+
+    KotlinComposeInlineContent(
+        context = context,
+        isCenterMessageAvailable = isCenterMessageAvailable
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+internal fun KotlinComposeInlineContent(
+    context: Context,
+    isCenterMessageAvailable: Boolean
+) {
     /**
      * Helper function to handle in-app message actions consistently
      */
@@ -53,64 +77,114 @@ fun KotlinComposeInlineComponent(context: Context) {
 
     CustomerIoSDKTheme {
         Surface(color = MaterialTheme.colorScheme.background) {
-            Column(
+            LazyColumn(
                 modifier = Modifier
                     .fillMaxSize()
-                    .verticalScroll(rememberScrollState())
+                    .testTag(INLINE_AVAILABILITY_LIST_TAG),
+                contentPadding = PaddingValues(bottom = 16.dp)
             ) {
-                // Header inline in-app message (sticky header)
-                // Using the same elementId "sticky-header" as in XML example
-                InlineInAppMessage(
-                    elementId = "compose-sticky-header",
-                    modifier = Modifier.fillMaxWidth(),
-                    progressTint = MaterialTheme.colorScheme.primary, // Using theme's primary color for loading indicator
-                    onAction = { message: InAppMessage, action: String, name: String ->
-                        handleMessageAction("Header", message, action, name)
+                item(key = "availability-status") {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp)
+                    ) {
+                        Text(
+                            text = "Lazy-list inline availability",
+                            style = MaterialTheme.typography.titleMedium
+                        )
+                        Text(
+                            text = "$CONDITIONAL_INLINE_ELEMENT_ID: " +
+                                if (isCenterMessageAvailable) "available" else "unavailable",
+                            modifier = Modifier.testTag(INLINE_AVAILABILITY_STATUS_TAG),
+                            style = MaterialTheme.typography.bodyMedium
+                        )
                     }
-                )
+                }
 
-                // Content area with placeholder elements
-                PlaceholderContent(
-                    modifier = Modifier.padding(16.dp)
-                )
+                item(key = "header-message") {
+                    InlineInAppMessage(
+                        elementId = "compose-sticky-header",
+                        modifier = Modifier.fillMaxWidth(),
+                        progressTint = MaterialTheme.colorScheme.primary,
+                        onAction = { message: InAppMessage, action: String, name: String ->
+                            handleMessageAction("Header", message, action, name)
+                        }
+                    )
+                }
 
-                // Middle inline in-app message with "inline" elementId to match XML
-                InlineInAppMessage(
-                    elementId = "compose-sticky-center",
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(start = 16.dp, end = 16.dp, top = 16.dp),
-                    progressTint = Color(0xFF03DAC5), // Using a custom teal color
-                    onAction = { message: InAppMessage, action: String, name: String ->
-                        handleMessageAction("Inline", message, action, name)
+                item(key = "first-placeholder") {
+                    PlaceholderContent(
+                        modifier = Modifier.padding(16.dp)
+                    )
+                }
+
+                if (isCenterMessageAvailable) {
+                    item(key = "center-message") {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag(INLINE_CENTER_ITEM_TAG)
+                        ) {
+                            InlineInAppMessage(
+                                elementId = CONDITIONAL_INLINE_ELEMENT_ID,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(start = 16.dp, end = 16.dp, top = 16.dp),
+                                progressTint = Color(0xFF03DAC5),
+                                onAction = { message: InAppMessage, action: String, name: String ->
+                                    handleMessageAction("Inline", message, action, name)
+                                }
+                            )
+                        }
                     }
-                )
+                }
 
-                // Second profile card layout
-                ProfileCardPlaceholder()
+                item(key = "second-profile-card") {
+                    ProfileCardPlaceholder()
+                }
 
-                // Full width card
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(90.dp)
-                        .padding(top = 16.dp, start = 16.dp, end = 16.dp)
-                        .background(Color(0xFFEEEEEE), RoundedCornerShape(8.dp))
-                )
+                item(key = "full-width-card") {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(90.dp)
+                            .padding(top = 16.dp, start = 16.dp, end = 16.dp)
+                            .background(Color(0xFFEEEEEE), RoundedCornerShape(8.dp))
+                    )
+                }
 
-                // Third profile card layout
-                ProfileCardPlaceholder(modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp))
+                item(key = "third-profile-card") {
+                    ProfileCardPlaceholder(
+                        modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp)
+                    )
+                }
 
-                // Bottom inline in-app message (below fold) with "below-fold" elementId to match XML
-                InlineInAppMessage(
-                    elementId = "compose-sticky-bottom",
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(start = 16.dp, end = 16.dp, top = 16.dp),
-                    onAction = { message: InAppMessage, action: String, name: String ->
-                        handleMessageAction("Below Fold", message, action, name)
+                item(key = "bottom-message") {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag(INLINE_BOTTOM_ITEM_TAG)
+                    ) {
+                        InlineInAppMessage(
+                            elementId = "compose-sticky-bottom",
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(start = 16.dp, end = 16.dp, top = 16.dp),
+                            onAction = { message: InAppMessage, action: String, name: String ->
+                                handleMessageAction("Below Fold", message, action, name)
+                            }
+                        )
                     }
-                )
+                }
+
+                item(key = "bottom-spacer") {
+                    Spacer(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(400.dp)
+                    )
+                }
             }
         }
     }

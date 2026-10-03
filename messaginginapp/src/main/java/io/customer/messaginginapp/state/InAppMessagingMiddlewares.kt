@@ -86,7 +86,12 @@ private fun handleMessageDismissal(logger: Logger, store: Store<InAppMessagingSt
     // The dismissed message will be filtered out by processMessages() since its queueId is now in shownMessageQueueIds
     if (store.state.shouldUseSse) {
         SDKComponent.inAppSseLogger.logTryDisplayNextMessageAfterDismissal()
-        store.dispatch(InAppMessagingAction.ProcessMessageQueue(store.state.messagesInQueue.toList()))
+        store.dispatch(
+            InAppMessagingAction.ProcessMessageQueue(
+                messages = store.state.messagesInQueue.toList(),
+                shouldReconcileInlineMessages = false
+            )
+        )
     }
 }
 
@@ -162,7 +167,12 @@ internal fun routeChangeMiddleware() = middleware<InAppMessagingState> { store, 
         }
 
         // process the messages in the queue to check if there is a message to be shown
-        store.dispatch(InAppMessagingAction.ProcessMessageQueue(store.state.messagesInQueue.toList()))
+        store.dispatch(
+            InAppMessagingAction.ProcessMessageQueue(
+                messages = store.state.messagesInQueue.toList(),
+                shouldReconcileInlineMessages = false
+            )
+        )
     } else {
         next(action)
     }
@@ -172,7 +182,11 @@ internal fun routeChangeMiddleware() = middleware<InAppMessagingState> { store, 
  * Middleware to process messages in the queue.
  */
 internal fun processMessages() = middleware<InAppMessagingState> { store, next, action ->
-    if (action is InAppMessagingAction.ProcessMessageQueue && action.messages.isNotEmpty()) {
+    if (action is InAppMessagingAction.ProcessMessageQueue) {
+        // A live SSE snapshot wins over an HTTP response requested before it arrived.
+        if (action.expectedSseRevision != null && action.expectedSseRevision != store.state.sseMessageRevision) {
+            return@middleware store.state
+        }
         val notShownMessages = action.messages
             .filter { message ->
                 // filter out the messages that are already shown
@@ -189,11 +203,30 @@ internal fun processMessages() = middleware<InAppMessagingState> { store, next, 
 
         // update the state with the messages in the queue that are not shown
         // because in the next steps we will check if there is a message to be shown and display them
-        next(InAppMessagingAction.ProcessMessageQueue(notShownMessages))
+        next(
+            InAppMessagingAction.ProcessMessageQueue(
+                messages = notShownMessages,
+                isSseSnapshot = action.isSseSnapshot
+            )
+        )
+
+        // Reconcile all route-eligible inline messages before notifying views. This both adds newly
+        // available elements and removes stale ready states from earlier queue snapshots.
+        val availableInlineMessages = inlineMessages
+            .filter { it.matchesRoute(store.state.currentRoute) }
+            .distinctBy(Message::embeddedElementId)
+
+        if (action.shouldReconcileInlineMessages) {
+            store.dispatch(
+                InAppMessagingAction.ReconcileInlineMessages(
+                    messages = availableInlineMessages,
+                    authoritativeMessages = action.messages.filter { it.isEmbedded }
+                )
+            )
+        }
 
         // Handle embedded messages
-        val inLineMessagesToBeShown = inlineMessages
-            .filter { it.matchesRoute(store.state.currentRoute) }
+        val inLineMessagesToBeShown = availableInlineMessages
             .filter { message ->
                 // Ensure no duplicate embedded messages for the same elementId in the active state
                 val elementId = message.gistProperties.elementId ?: return@filter true

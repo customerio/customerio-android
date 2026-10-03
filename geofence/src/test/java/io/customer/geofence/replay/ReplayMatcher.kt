@@ -1,46 +1,24 @@
 package io.customer.geofence.replay
 
 /**
- * Grades what the replayed SDK decided against what the device decided.
- *
- * Matching is by `(ev, fence id, transition, why)` and by count — not by timestamp. A replay runs in
- * microseconds on a virtual clock, so pinning wall-clock offsets would fail on every run for no
- * behavioural reason. What must hold is that the same decisions were reached about the same
- * fences, the same number of times.
+ * Grades the replay's decisions against the device's by `(ev, fence id, transition, why)` and count,
+ * not timestamp: what must hold is the same decisions about the same fences, the same number of times.
  */
 internal object ReplayMatcher {
 
     /**
-     * The only records a scenario asserts. Frozen deliberately: it is what the SDK classifies
-     * `io=out`, and widening it here would let replay grade something the SDK never promised.
-     *
-     * Three of them. An output is a decision that crosses back out of the SDK — a region set
-     * handed to the OS, a transition handed to delivery, a registration cleared on sign-out. A
-     * callback deduplicated, a transition refused or an enter synthesised are decisions about
-     * *inputs*; their only visible consequence is a transition that is or is not accepted, which
-     * the counts here already grade. Asserting them pinned every drive to one implementation's
-     * internals.
+     * Only `io=out` decisions, those that leave the SDK. Decisions about inputs (dedupes, drops) are
+     * graded through `transition.accepted`, so a drive is not pinned to one implementation's internals.
      */
     val assertedEvents = setOf(
         "registration.applied",
         "transition.accepted",
-        // "Logout clears geofences" is a locked cross-platform contract, and both platforms were
-        // deliberately aligned onto this key so one scenario could grade either. Leaving it out of
-        // this set meant the SDK emitted it, the transform wrote it as a `then`, and the matcher
-        // then ignored it — the contract was untested on Android. iOS has no allow-list and has
-        // always graded it.
         "module.reset"
     )
 
     /**
-     * A decision, stripped to the parts that identify it.
-     *
-     * `why` travels when an asserted record carries one, so that two decisions differing only in
-     * their stated reason are not the same claim. No *recorded* drive carries one today, but
-     * `module.reset` can: it is logged `ok=false why=os_clear_failed` and `ok=false
-     * why=other_user_signed_in` as well as plain `ok=true`. `ok` is deliberately not part of this
-     * key, so `why` is the only thing separating a failed sign-out reset from a successful one —
-     * dropping it as unused would grade those two as the same decision.
+     * `ok` is not part of the key, so `why` is what separates a failed `module.reset`
+     * (`why=os_clear_failed`, `why=other_user_signed_in`) from a successful one.
      */
     data class Key(val ev: String, val id: String?, val transition: String?, val why: String?) {
         override fun toString(): String = buildString {

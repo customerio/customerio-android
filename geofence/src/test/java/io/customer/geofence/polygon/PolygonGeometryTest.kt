@@ -9,8 +9,7 @@ import org.junit.Test
 class PolygonGeometryTest {
     @Test
     fun from_whenPolygonIsConcave_thenAcceptsAndAnswersInsideTheNotch() {
-        // Concavity is the backend's call, not ours. What matters is that the ray cast still gets
-        // the reflex corner right: the notch of an L is outside, both arms are inside.
+        // Concavity is the backend's call; the ray cast must still get the L's reflex corner right.
         val lShape = PolygonGeometry.from(
             listOf(
                 point(0.0, 0.0),
@@ -82,9 +81,8 @@ class PolygonGeometryTest {
 
     @Test
     fun from_whenSimpleRingIsWrittenWithNegativeSeamLongitudes_thenAcceptsGeometry() {
-        // Same shape as the ring below, but with the seam vertex written -180 instead of 180 — both
-        // are legal GeoJSON. Judged on raw longitudes that edge reads as a ~359-degree chord across
-        // the ring and the polygon is rejected as self-intersecting.
+        // The seam vertex is written -180 rather than 180, both legal GeoJSON. Judged on raw
+        // longitudes that edge reads as a ~359-degree chord and the ring as self-intersecting.
         PolygonGeometry.from(
             listOf(point(-2.0, 179.0), point(-2.0, 179.5), point(-1.0, -180.0), point(-1.0, 179.0))
         ).vertices.size shouldBeEqualTo 4
@@ -92,9 +90,8 @@ class PolygonGeometryTest {
 
     @Test
     fun from_whenRingIsClosedWithTheOppositeSeamSign_thenCanonicalizesClosingVertex() {
-        // -180 and 180 are the same position, and both spellings are legal GeoJSON. Compared raw the
-        // ring never looks closed, so the closing vertex survives and its zero-length edge is what
-        // gets rejected.
+        // -180 and 180 are the same position. Compared raw the ring never looks closed, so the
+        // closing vertex survives and its zero-length edge gets rejected.
         PolygonGeometry.from(
             listOf(point(0.0, -180.0), point(1.0, -179.0), point(-1.0, -179.0), point(0.0, 180.0))
         ).vertices.size shouldBeEqualTo 3
@@ -102,9 +99,8 @@ class PolygonGeometryTest {
 
     @Test
     fun from_whenClosedRingUsesDecimalCoordinates_thenCanonicalizesClosingVertex() {
-        // Unwrapping sums a short arc per vertex, so on real-world decimals the closing position
-        // lands ~1e-13 from the one it repeats. Compared on the accumulated line the ring never looks
-        // closed, and the sliver edge that survives reads as a self-intersection.
+        // Unwrapping lands the closing position ~1e-13 from the one it repeats. Compared exactly,
+        // the ring never looks closed and the surviving sliver edge reads as a self-intersection.
         PolygonGeometry.from(
             listOf(
                 point(37.0, -122.1),
@@ -117,9 +113,8 @@ class PolygonGeometryTest {
 
     @Test
     fun from_whenRingWindsAroundAPole_thenRejectsUnevaluableGeometry() {
-        // Simple and non-degenerate, so nothing else rejects it, but it unwraps across 270 degrees.
-        // The evaluator projects onto one flat frame, so it would answer against a closing chord
-        // most of the way round the earth rather than the band the ring describes.
+        // Simple and non-degenerate, but it unwraps across 270 degrees. On one flat frame the
+        // evaluator would answer against a closing chord most of the way round the earth.
         invoking {
             PolygonGeometry.from(
                 listOf(point(80.0, 0.0), point(82.0, 90.0), point(82.0, 180.0), point(82.0, -90.0))
@@ -129,7 +124,7 @@ class PolygonGeometryTest {
 
     @Test
     fun from_whenRingCrossingTheSeamIsSelfIntersecting_thenStillRejectsGeometry() {
-        // The guard above must not become a blanket exemption for seam-crossing rings.
+        // Seam unwrapping must not exempt a seam-crossing ring from the self-intersection check.
         invoking {
             PolygonGeometry.from(
                 listOf(point(0.0, 179.5), point(1.0, -179.5), point(1.0, 179.5), point(0.0, -179.5))
@@ -139,9 +134,8 @@ class PolygonGeometryTest {
 
     @Test
     fun relationTo_whenPointIsNearlyAntipodalToTheRing_thenReturnsOutside() {
-        // Ordinary ring on the prime meridian, query half a world away. Mapping each longitude onto
-        // the query point instead of onto the ring splits this ring across the wrap boundary, and the
-        // seam edge becomes a 358-degree chord that swallows the globe.
+        // Mapping longitudes onto the query point instead of the ring would split this ring across
+        // the wrap, and its seam edge would become a 358-degree chord that swallows the globe.
         val ring = primeMeridian()
 
         ring.relationTo(point(0.5, 180.0)) shouldBeEqualTo PolygonPointRelation.OUTSIDE
@@ -186,8 +180,7 @@ class PolygonGeometryTest {
 
     @Test
     fun from_whenPolygonApproachesGeographicPole_thenAccepted() {
-        // Circles at the pole were always registerable; rejecting a polygon there was the SDK
-        // holding the payload to a stricter rule than the backend or the rest of the module.
+        // Circles at the pole are registerable, so a polygon there is not held to a stricter rule.
         val nearPole = PolygonGeometry.from(
             listOf(
                 point(89.92, 10.0),
@@ -199,7 +192,6 @@ class PolygonGeometryTest {
         nearPole.vertices.size shouldBeEqualTo 3
     }
 
-    /** Two-degree square on the prime meridian: an unremarkable ring, nowhere near the seam. */
     private fun primeMeridian(): PolygonGeometry = PolygonGeometry.from(
         listOf(
             point(0.0, -1.0),
@@ -209,7 +201,6 @@ class PolygonGeometryTest {
         )
     )
 
-    /** One-degree square straddling the antimeridian: longitude runs 179.5 east to -179.5 west. */
     private fun dateline(): PolygonGeometry = PolygonGeometry.from(
         listOf(
             point(0.0, 179.5),
@@ -232,11 +223,8 @@ class PolygonGeometryTest {
         PolygonCoordinate(latitude = latitude, longitude = longitude)
 
     /**
-     * Pins the projection's scale, which is the earth radius the module chose. One degree of
-     * latitude measures 111,195 m at R=6,371,000 and 111,320 m at the WGS84 equatorial radius, so
-     * swapping the constant moves every distance by ~0.11%. That is the difference that decides
-     * whether a polygon fitting tightly inside its enclosing circle validates or is dropped, and
-     * iOS projects with the same radius, so a change here is a cross-platform divergence.
+     * Pins R=6,371,000 m, shared with iOS: 111,195 m per degree vs 111,320 m at the WGS84
+     * equatorial radius. That ~0.11% decides whether a tightly fitting polygon validates.
      */
     @Test
     fun boundaryDistanceMeters_givenOneDegreeOfLatitude_expectTheSphericalRadiusScale() {

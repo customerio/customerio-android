@@ -9,10 +9,7 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
 internal interface GeofenceApiService {
-    /**
-     * Fetches the nearest geofences to [location], sent in the request body. The request carries no
-     * user identity, so the location is not attributable to a user.
-     */
+    /** The request carries no user identity, so the location is not attributable to a user. */
     suspend fun fetchGeofences(location: GeofenceLocation): Result<GeofenceApiResponse>
 }
 
@@ -22,7 +19,6 @@ internal class GeofenceApiServiceImpl(
 ) : GeofenceApiService {
 
     override suspend fun fetchGeofences(location: GeofenceLocation): Result<GeofenceApiResponse> {
-        // `radius`/`limit` are optional server-side and omitted.
         val body = jsonSerializer.encode(
             GeofenceNearestRequest.serializer(),
             GeofenceNearestRequest(
@@ -38,8 +34,7 @@ internal class GeofenceApiServiceImpl(
             apiVersion = ENDPOINT_API_VERSION
         )
         return httpClient.request(params).mapCatching { responseBody ->
-            // Lenient at the wire boundary so the SDK doesn't pin a specific
-            // type for `id` — accepts either numeric or quoted-string form.
+            // Lenient so `id` decodes whether sent as a number or a string.
             jsonSerializer.decode(GeofenceApiResponse.serializer(), responseBody, lenient = true)
         }
     }
@@ -52,7 +47,6 @@ internal class GeofenceApiServiceImpl(
     }
 }
 
-/** Wire shape of the `POST /geofences/nearest` request body. */
 @Serializable
 private data class GeofenceNearestRequest(
     @SerialName("latitude")

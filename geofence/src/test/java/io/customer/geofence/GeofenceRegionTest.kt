@@ -82,7 +82,7 @@ class GeofenceRegionTest : RobolectricTest() {
     fun edgeDistanceToOrNull_givenCoordinatesInsideRegion_expectZero() {
         val region = buildRegion(radius = 5_000f)
 
-        // ~2.2 km from center, well within the radius.
+        // ~2.2 km from center.
         region.edgeDistanceToOrNull(0.02, 0.0) shouldBeEqualTo 0f
     }
 
@@ -106,8 +106,6 @@ class GeofenceRegionTest : RobolectricTest() {
 
     @Test
     fun encode_givenCircleRegion_expectNoPolygonFieldOnTheWire() {
-        // The polygon field defaults to null and defaults aren't encoded, so a circle's cached JSON
-        // is byte-identical to what previous SDK versions wrote and read.
         val json = GeofenceJsonSerializer().encode(GeofenceRegion.serializer(), buildRegion())
 
         json shouldNotContain "polygonVertices"
@@ -125,10 +123,7 @@ class GeofenceRegionTest : RobolectricTest() {
     }
 
     // ---------- polygon regions with unusable geometry ----------
-    //
-    // A cached region can outlive the ring that produced it (a corrupted file, a downgrade). Every
-    // accessor must answer "unknown" rather than fall back to the circle fields, which hold the
-    // coarse enclosing trigger — kilometres wider than the fence.
+    // Accessors must answer "unknown", never fall back to the circle fields (the coarse trigger).
 
     @Test
     fun polygonGeometryOrNull_givenRingThatFailsValidation_expectNullNotThrow() {
@@ -147,8 +142,6 @@ class GeofenceRegionTest : RobolectricTest() {
 
     @Test
     fun contains_givenRingThatFailsValidation_expectFalseEvenInsideTriggerCircle() {
-        // The fix is dead-centre in the region's circle fields; without usable geometry the answer
-        // must still be "not inside", or a synthesized ENTER would fire for the trigger circle.
         buildPolygonRegion(selfIntersectingRing()).contains(0.0, 0.0) shouldBeEqualTo false
     }
 

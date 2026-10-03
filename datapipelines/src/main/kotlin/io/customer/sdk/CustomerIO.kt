@@ -566,6 +566,7 @@ class CustomerIO private constructor(
                 logger.moduleInitSuccess(module)
             }
 
+            SDKComponent.eventBus.publish(Event.SdkInitializedEvent)
             logger.coreSdkInitSuccess()
         }
 

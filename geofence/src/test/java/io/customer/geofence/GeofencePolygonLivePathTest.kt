@@ -24,17 +24,8 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 
 /**
- * The live path end to end, with the real mapper and the real distance filter, run twice: once with
- * the opt-in absent and once with the production opt-in the graph actually wires.
- *
- * Without it, a polygon the backend sends must not reach OS registration or produce a business
- * transition — every seam defaults to [io.customer.geofence.polygon.PolygonSupport.Disabled], so a
- * path that forgets the wiring fails closed. With it, the *same* response registers the polygon,
- * which is what proves the drops below are the opt-in and not a missing capability.
- *
- * The repository's other behaviour is covered by [GeofenceRepositoryTest], which mocks the distance
- * filter. This class deliberately uses the real one, because mapping and ranking are the two gates a
- * polygon has to pass to become a registered fence.
+ * The live path with the real mapper and distance filter, the two gates a polygon must pass to be
+ * registered, run without and with the polygon opt-in.
  */
 @RunWith(RobolectricTestRunner::class)
 class GeofencePolygonLivePathTest : RobolectricTest() {
@@ -50,8 +41,7 @@ class GeofencePolygonLivePathTest : RobolectricTest() {
         every { lastUpdateTimeMs() } returns null
     }
 
-    // Shared by the repository, the mapper and the distance filter (both resolve it from the graph),
-    // so one mock sees every drop reason on the path.
+    // The mapper and filter resolve this from the graph, so one mock sees every drop reason.
     private val mockLogger: GeofenceLogger = mockk(relaxed = true)
     private val jsonSerializer = GeofenceJsonSerializer()
 
@@ -69,7 +59,6 @@ class GeofencePolygonLivePathTest : RobolectricTest() {
         every { store.getRegisteredIds() } returns emptySet()
         every { store.getCachedRegions() } returns emptyList()
         coEvery { manager.replaceGeofences(any(), any()) } returns Result.success(Unit)
-        // No opt-in supplied at any seam: every default is Disabled.
         repository = buildRepository(PolygonSupport.Disabled)
     }
 
@@ -104,9 +93,7 @@ class GeofencePolygonLivePathTest : RobolectricTest() {
 
     @Test
     fun refresh_givenDeviceInsidePolygon_expectNoBusinessTransitionEmitted() = runTest {
-        // Everything initial-enter synthesis needs is in place — the device is inside the ring and
-        // inside the enclosing circle, and the store reports the fence as contained — except a
-        // registered polygon. Nothing may be emitted for it.
+        // Everything initial-enter synthesis needs is in place except a registered polygon.
         coEvery { apiService.fetchGeofences(any()) } returns Result.success(response(POLYGON_AND_CIRCLE))
         every { store.getEnteredIds() } returns setOf("campus", "circle")
 
@@ -119,8 +106,6 @@ class GeofencePolygonLivePathTest : RobolectricTest() {
 
     @Test
     fun refresh_givenPolygonOnlyResponse_expectRefreshFailsAndLiveStateUntouched() = runTest {
-        // Nothing usable came back. The refresh fails rather than "succeeding" with an empty set, so
-        // whatever is already registered with the OS stays registered and cached.
         coEvery { apiService.fetchGeofences(any()) } returns Result.success(response(POLYGON_ONLY))
 
         val result = repository.refresh(latitude = 37.775, longitude = -122.419)
@@ -133,9 +118,7 @@ class GeofencePolygonLivePathTest : RobolectricTest() {
 
     @Test
     fun refresh_givenPolygonAlreadyInCache_expectNeverRegisteredAsItsEnclosingCircle() = runTest {
-        // Defence in depth for a catalog that already holds a polygon (written by a build that could
-        // monitor it, then downgraded): ranking drops it rather than registering its trigger circle,
-        // and the rest of the pass still runs.
+        // A catalog written by a build that could monitor polygons, then downgraded.
         val polygon = GeofenceRegion(
             id = "campus",
             latitude = 37.7750,
@@ -143,8 +126,7 @@ class GeofencePolygonLivePathTest : RobolectricTest() {
             radius = 1_200f,
             polygonVertices = campusRing()
         )
-        // Time-fresh cache at the current location, nothing registered yet: a local re-rank, so the
-        // cached polygon is the only candidate the filter sees.
+        // Fresh cache here and nothing registered: a local re-rank over the cached polygon only.
         every { store.getLastSyncTimestamp() } returns System.currentTimeMillis() - 60_000L
         every { store.getLastApiFetchLocation() } returns GeofenceLocation(37.7750, -122.4194)
         every { store.getLastMovementTriggerLocation() } returns GeofenceLocation(37.7750, -122.4194)
@@ -166,8 +148,6 @@ class GeofencePolygonLivePathTest : RobolectricTest() {
 
     @Test
     fun refresh_givenProductionOptInAndPolygonResponse_expectPolygonRegisteredAlongsideCircle() = runTest {
-        // Identical response and identical mapper/ranker; only the opt-in differs. The polygon reaches
-        // the OS as a registered fence, carrying its ring rather than being flattened to a circle.
         coEvery { apiService.fetchGeofences(any()) } returns Result.success(response(POLYGON_AND_CIRCLE))
         val registered = slot<List<GeofenceRegion>>()
 
@@ -185,8 +165,6 @@ class GeofencePolygonLivePathTest : RobolectricTest() {
 
     @Test
     fun refresh_givenProductionOptInAndPolygonOnlyResponse_expectRefreshSucceeds() = runTest {
-        // The "all regions dropped" failure in the disabled case is the opt-in talking, not a
-        // malformed response: with the runtime present the same payload is perfectly usable.
         coEvery { apiService.fetchGeofences(any()) } returns Result.success(response(POLYGON_ONLY))
 
         val result = buildRepository(PolygonSupport.Enabled)
@@ -205,9 +183,8 @@ class GeofencePolygonLivePathTest : RobolectricTest() {
 
     @Test
     fun refresh_givenRegisteredPolygonContainingTheFix_expectPinnedPastTheCap() = runTest {
-        // The OS is monitoring this polygon's wake circle and the device is inside it, so an EXIT
-        // is outstanding. The cap leaves room for one business fence and the circle ranks nearer,
-        // but evicting the polygon would make that EXIT permanently unobservable.
+        // Inside the registered wake circle, so an EXIT is owed; the circle ranks nearer for the
+        // one slot.
         val enabledRepository = buildRepository(PolygonSupport.Enabled)
         every { store.getRegisteredIds() } returns setOf("campus")
         coEvery { apiService.fetchGeofences(any()) } returns Result.success(response(POLYGON_AND_CIRCLE_CAP_ONE))
@@ -222,9 +199,7 @@ class GeofencePolygonLivePathTest : RobolectricTest() {
 
     @Test
     fun refresh_givenUnregisteredPolygonContainingTheFix_expectTheCapStillApplies() = runTest {
-        // Same fix, same catalog, same cap — the polygon has simply never been registered, so it
-        // owes no EXIT and competes for the cap like any other candidate. Pinning it here would
-        // evict the circle the device is standing in, whose ENTER is then never synthesized.
+        // Never registered, so it owes no EXIT and competes for the cap like any other candidate.
         val enabledRepository = buildRepository(PolygonSupport.Enabled)
         every { store.getRegisteredIds() } returns emptySet()
         coEvery { apiService.fetchGeofences(any()) } returns Result.success(response(POLYGON_AND_CIRCLE_CAP_ONE))

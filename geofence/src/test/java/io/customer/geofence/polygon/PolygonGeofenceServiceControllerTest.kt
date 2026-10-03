@@ -48,6 +48,7 @@ class PolygonGeofenceServiceControllerTest {
         freshFixSource = NeverAnswersFreshFix,
         recheckScheduler = NoopRecheckScheduler,
         passiveMonitor = NoopPassiveMonitor,
+        bootSessionProvider = { "boot" },
         logger = mockLogger
     )
 
@@ -58,6 +59,7 @@ class PolygonGeofenceServiceControllerTest {
         every { secureUserStore.getUserId() } returns "user-1"
         every { store.getRegisteredIds() } returns setOf("campus")
         every { store.getRoutableRegisteredIds() } returns setOf("campus")
+        every { store.getLastRegistrationBootSession() } returns "boot"
         every { store.getCachedRegion("campus") } returns polygonRegion()
         every { store.getCachedRegions() } returns listOf(polygonRegion())
         every { store.getActivePolygonIds() } returns emptySet()
@@ -263,6 +265,22 @@ class PolygonGeofenceServiceControllerTest {
     }
 
     @Test
+    fun recover_givenRegistrationFromAnotherBootWithUptimePastIt_expectClearsInsteadOfRestarting() {
+        // BOOT_COMPLETED never arrived, and this boot has been up longer than the last
+        // registration's stamp; a registration with no boot stamp is no evidence either.
+        for (stampedIn in listOf("boot-a", null)) {
+            every { store.getActivePolygonIds() } returns setOf("campus")
+            every { store.getLastRegistrationUptime() } returns 0L
+            every { store.getLastRegistrationBootSession() } returns stampedIn
+
+            controller.recover()
+        }
+
+        verify(exactly = 2) { store.clearActivePolygonIds() }
+        verify(exactly = 2) { engine.stop() }
+    }
+
+    @Test
     fun invalidatePersistedCoarseState_givenReboot_expectStopsOldSessionAndClearsMembership() {
         controller.invalidatePersistedCoarseState()
 
@@ -281,6 +299,8 @@ class PolygonGeofenceServiceControllerTest {
             store.saveRegisteredIds(emptySet())
             store.saveRoutableRegisteredIds(emptySet())
             store.saveRetainedRegisteredRegions(emptyList())
+            // No visit may span the unobserved monitoring gap; the outbox is left alone.
+            store.invalidateDwellContinuity()
             store.clearActivePolygonIds()
             store.retainCoarseInsidePolygonIds(emptySet())
             engine.stop()

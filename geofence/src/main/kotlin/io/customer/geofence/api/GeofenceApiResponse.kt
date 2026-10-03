@@ -85,7 +85,9 @@ internal data class GeofenceApiRegion(
     val geosetIds: List<String> = emptyList(),
     // A JsonElement, not a typed map, so malformed `metadata` can't fail the response decode.
     @SerialName("metadata")
-    val metadata: JsonElement? = null
+    val metadata: JsonElement? = null,
+    @SerialName("dwell_threshold_seconds")
+    val dwellThresholdSeconds: Long? = null
 )
 
 // Nullable throughout: these decode before [toDomainRegions]' per-record try/catch, so a required
@@ -229,7 +231,8 @@ private fun GeofenceApiRegion.toCircleRegionOrNull(): GeofenceRegion? {
         transitionTypes = resolveTransitionTypes(transitionTypes),
         lastUpdated = lastUpdated ?: 0L,
         geosetIds = geosetIds,
-        metadata = sanitizeMetadata(metadata)
+        metadata = sanitizeMetadata(metadata),
+        dwellThresholdSeconds = sanitizeDwellThreshold(dwellThresholdSeconds)
     )
 }
 
@@ -285,7 +288,8 @@ private fun GeofenceApiRegion.toPolygonRegionOrNull(
         lastUpdated = lastUpdated ?: 0L,
         geosetIds = geosetIds,
         metadata = sanitizeMetadata(metadata),
-        polygonVertices = polygon.vertices
+        polygonVertices = polygon.vertices,
+        dwellThresholdSeconds = sanitizeDwellThreshold(dwellThresholdSeconds)
     )
 }
 
@@ -339,6 +343,12 @@ private fun JsonElement.toPolygonVerticesOrNull(): List<PolygonCoordinate>? {
 private const val POLYGON_GEOMETRY_TYPE = "Polygon"
 private const val CIRCLE_SHAPE = "circle"
 private const val POLYGON_SHAPE = "polygon"
+
+private fun sanitizeDwellThreshold(seconds: Long?): Int =
+    seconds
+        ?.takeIf { it in 1L..GeofenceConstants.MAX_DWELL_THRESHOLD_SECONDS.toLong() }
+        ?.toInt()
+        ?: 0
 
 /** Scalars only, count/size capped. Keys are sorted so the capping is deterministic. */
 private fun sanitizeMetadata(raw: JsonElement?): Map<String, JsonElement> {

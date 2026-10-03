@@ -80,6 +80,7 @@ sealed class Event {
 
     enum class GeofenceTransition {
         ENTER,
+        DWELL,
         EXIT
     }
 

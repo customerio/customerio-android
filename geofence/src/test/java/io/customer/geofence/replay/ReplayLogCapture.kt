@@ -75,6 +75,7 @@ internal fun ScenarioRecord.toCrossing(receivedAtSeconds: Long, elapsedRealtimeM
         longitude = double("lon"),
         triggeringLocation = triggeringFix(elapsedRealtimeMillis),
         // Production stamps this when the broadcast is parsed; here, the virtual clock at this stimulus.
-        receivedAtSeconds = receivedAtSeconds
+        receivedAtSeconds = receivedAtSeconds,
+        receivedAtElapsedMs = elapsedRealtimeMillis
     )
 }

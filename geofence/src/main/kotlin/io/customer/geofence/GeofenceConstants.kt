@@ -26,6 +26,10 @@ internal object GeofenceConstants {
     const val MIN_DUPLICATE_EVENTS_EXPIRY_MS = 60_000L // 1 minute
     const val MAX_DUPLICATE_EVENTS_EXPIRY_MS = 24L * 60 * 60 * 1_000L // 24 hours
 
+    // GMS accepts its loitering delay as signed 32-bit milliseconds. This is the largest whole
+    // second threshold that can be represented without changing the configured duration.
+    const val MAX_DWELL_THRESHOLD_SECONDS = Int.MAX_VALUE / 1_000
+
     // Fallback for `remoteFetchRefreshExpiry`; movement-trigger EXIT bypasses it so the trigger can
     // re-centre.
     const val STALE_THRESHOLD_MS = 24 * 60 * 60 * 1_000L
@@ -33,6 +37,16 @@ internal object GeofenceConstants {
     // How old a requested fix may be and still judge containment. `getCurrentLocation` can answer
     // from its cache, so this bounds the cached fix's age, not delivery latency.
     const val MAX_LIVE_FIX_AGE_MS = 5L * 60 * 1_000L
+
+    // How long an outside fix may precede the ENTER it vouches for as an observed crossing. The
+    // crossing happened somewhere in that gap, so it bounds how early the real entry could be. An
+    // approach session samples every 15 s, so its crossings fit; a passive sample minutes apart
+    // does not, and its entry time is honestly unknown to within minutes.
+    const val MAX_OUTSIDE_PROOF_AGE_MS = 2L * 60 * 1_000L
+
+    // Clearance, beyond a fix's own accuracy, before it proves the device outside a fence. The
+    // same value the polygon evaluator requires of a departure.
+    const val OUTSIDE_PROOF_MARGIN_METERS = 20f
 
     // Fallback for `duplicateEventsExpiry`.
     const val DEDUPE_COOLDOWN_MS = 60 * 60 * 1_000L

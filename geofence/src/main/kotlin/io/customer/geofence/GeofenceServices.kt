@@ -16,11 +16,15 @@ internal interface GeofenceServices {
     /**
      * Returns the [Job] so the receiver can hold goAsync open: the trigger usually fires
      * backgrounded, where the process may be killed as soon as the receiver finishes.
+     *
+     * @param fixQuality when the triggering fix was taken and how accurate it was, which decides
+     * whether it can prove the device outside the fences this pass registers.
      */
     fun onMovementTriggerExit(
         latitude: Double?,
         longitude: Double?,
-        movementTriggerRadius: suspend () -> Float? = { null }
+        movementTriggerRadius: suspend () -> Float? = { null },
+        fixQuality: GeofenceFixQuality = GeofenceFixQuality.UNKNOWN
     ): Job?
 
     fun onUserIdentified(latitude: Double?, longitude: Double?)
@@ -77,7 +81,8 @@ internal class GeofenceServicesImpl(
     override fun onMovementTriggerExit(
         latitude: Double?,
         longitude: Double?,
-        movementTriggerRadius: suspend () -> Float?
+        movementTriggerRadius: suspend () -> Float?,
+        fixQuality: GeofenceFixQuality
     ): Job? {
         // triggerSync checks permission before this runs.
         @SuppressLint("MissingPermission")
@@ -85,7 +90,8 @@ internal class GeofenceServicesImpl(
             repository.handleMovement(
                 latitude = lat,
                 longitude = lng,
-                movementTriggerRadius = movementTriggerRadius
+                movementTriggerRadius = movementTriggerRadius,
+                fixQuality = fixQuality
             )
         }
         return triggerSync(
@@ -204,6 +210,9 @@ internal class GeofenceServicesImpl(
             return null
         }
         if (!permissionChecker.hasRequiredLocationPermissions()) {
+            // Without permission the OS cannot preserve a trustworthy monitoring interval. Keep
+            // queued events, but discard live visit state so a later fix cannot invent duration.
+            regionStore.clearDwellVisits()
             logger.logSyncSkippedNoPermission(reason)
             return null
         }

@@ -66,6 +66,7 @@ class GeofenceUnownedSessionRealStoreTest : RobolectricTest() {
             cooldownFilter = mockk(relaxed = true),
             transitionEmitter = mockk(relaxed = true),
             clock = clock,
+            bootSessionProvider = { "boot" },
             packageInfo = packageInfo,
             logger = mockk(relaxed = true)
         )

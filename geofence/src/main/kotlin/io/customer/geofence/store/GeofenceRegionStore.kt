@@ -1,8 +1,10 @@
 package io.customer.geofence.store
 
 import android.content.Context
+import android.content.SharedPreferences
 import androidx.core.content.edit
 import io.customer.geofence.GeofenceConfig
+import io.customer.geofence.GeofenceConstants
 import io.customer.geofence.GeofenceJsonSerializer
 import io.customer.geofence.GeofenceLocation
 import io.customer.geofence.GeofenceRegion
@@ -13,15 +15,132 @@ import io.customer.sdk.data.store.PreferenceCrypto
 import io.customer.sdk.data.store.PreferenceStore
 import io.customer.sdk.data.store.read
 import kotlinx.serialization.KSerializer
+import kotlinx.serialization.Serializable
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.builtins.SetSerializer
 import kotlinx.serialization.builtins.serializer
+
+@Serializable
+internal data class GeofenceDwellVisit(
+    val geofenceId: String,
+    val visitId: String,
+    val enteredAtSeconds: Long,
+    val regionRevision: Int,
+    val userStateGeneration: Long,
+    val emitted: Boolean = false,
+    val entryWasObserved: Boolean = true,
+    /** [GeofenceRegistrationIncarnation.registeredAtElapsedMs] of the circle registration it was observed under. */
+    val registrationElapsedMs: Long? = null,
+    /** Boot-relative time of the fix that reported entry, when the OS supplied one. */
+    val entryFixElapsedMs: Long? = null,
+    /** Latest triggering fix, on the same clock, of a native DWELL attributed to this visit. */
+    val lastInsideFixElapsedMs: Long? = null,
+    /**
+     * Boot the visit started in, from [io.customer.geofence.polygon.PolygonBootSessionProvider].
+     * Every elapsed-realtime field here is only comparable within it. Null on a visit that predates
+     * the field, whose timing is unknown.
+     */
+    val bootSessionId: String? = null,
+    /** elapsedRealtime when [enteredAtSeconds] was stamped. */
+    val enteredAtElapsedMs: Long? = null,
+    /** The first qualified dwell evidence, persisted before emission so every retry repeats it. */
+    val dwellReservation: GeofenceDwellReservation? = null
+)
+
+/** Immutable once saved: a retry after a partial emission resends exactly this evidence. */
+@Serializable
+internal data class GeofenceDwellReservation(
+    val timestampSeconds: Long,
+    val enteredAt: Long?,
+    val thresholdSeconds: Int,
+    val durationSeconds: Long?,
+    val detectionSource: String
+)
+
+/**
+ * One GMS registration of a circle. GeofencingEvent carries no occurrence time or registration
+ * identity, so a callback is attributed to this incarnation only when its triggering fix was taken
+ * after [registeredAtElapsedMs] (stamped once GMS confirmed the add, on the elapsedRealtime clock).
+ */
+@Serializable
+internal data class GeofenceRegistrationIncarnation(
+    val geofenceId: String,
+    val regionRevision: Int,
+    val registeredAtElapsedMs: Long,
+    /** Latest triggering fix of a native EXIT this registration reported, on the same clock. */
+    val lastExitFixElapsedMs: Long? = null,
+    /** Latest triggering fix of a native ENTER this registration reported, on the same clock. */
+    val lastEnterFixElapsedMs: Long? = null,
+    /**
+     * Latest time, on the same clock, at which this registration proved the device outside: the
+     * registration itself when its fresh fix placed the device outside, then each attributed
+     * native EXIT. Only an ENTER whose triggering fix is later than this observed the entry. Null
+     * means no such proof, so an ENTER may be GMS's initial trigger for a device already inside.
+     * Cleared by a monitoring gap, during which the device may have arrived unobserved.
+     */
+    val outsideProvenAtElapsedMs: Long? = null,
+    /**
+     * Boot the registration was made in. Its elapsed-realtime fields only compare with fixes from
+     * that boot. Null on a registration that predates the field, which therefore proves nothing.
+     */
+    val bootSessionId: String? = null
+)
 
 /**
  * Cached regions and config survive sign-out: the fetch is workspace-scoped (no userId on the wire).
  * Location anchors and queued polygon approach fixes are encrypted with [PreferenceCrypto].
  */
 internal interface GeofenceRegionStore {
+    fun getDwellVisit(geofenceId: String): GeofenceDwellVisit?
+
+    /**
+     * Refuses a visit for a fence routing no longer covers, and any write of a visit that has already
+     * ended, so an in-flight update cannot restore a visit across a removal or gap.
+     */
+    fun saveDwellVisit(visit: GeofenceDwellVisit): Boolean
+    fun removeDwellVisit(geofenceId: String)
+
+    /** Ends every visit and every incarnation's outside proof: monitoring had an unobserved gap. */
+    fun clearDwellVisits()
+    fun getRegistrationIncarnation(geofenceId: String): GeofenceRegistrationIncarnation?
+
+    /**
+     * @param outsideIds the fences this registration's fresh fix proved the device outside. Empty
+     * when the fix cannot prove it, so no ENTER is then read as an observed entry.
+     */
+    fun recordRegistrationIncarnations(
+        regions: List<GeofenceRegion>,
+        registeredAtElapsedMs: Long,
+        bootSessionId: String,
+        outsideIds: Set<String> = emptySet()
+    )
+
+    /**
+     * Raises the outside proof of live registrations this pass kept, to [provenAtElapsedMs]: the
+     * fix that proved the device outside. Only a registration made before that fix qualifies: GMS
+     * then monitored it throughout, so any ENTER decided after the fix is a crossing. Never lowers
+     * a later proof, such as an attributed EXIT.
+     */
+    fun raiseOutsideProof(ids: Set<String>, provenAtElapsedMs: Long, bootSessionId: String)
+
+    /**
+     * Raises the incarnation's last EXIT fix, only while [registeredAtElapsedMs] is still live, and its
+     * outside proof to at least that fix.
+     */
+    fun recordNativeExitFix(geofenceId: String, registeredAtElapsedMs: Long, exitFixElapsedMs: Long)
+
+    /** Raises the incarnation's last ENTER fix, only while [registeredAtElapsedMs] is still live. */
+    fun recordNativeEnterFix(geofenceId: String, registeredAtElapsedMs: Long, enterFixElapsedMs: Long)
+
+    /** Ends every visit and forgets every incarnation: OS monitoring had an unobserved gap. */
+    fun invalidateDwellContinuity()
+    fun removeDwellVisitAfterCommittedExit(
+        geofenceId: String,
+        exitedAtSeconds: Long,
+        expectedUserStateGeneration: Long,
+        expectedRegionRevision: Int?
+    ): Boolean
+
     fun appendPendingPolygonApproachBatches(entries: List<PendingPolygonApproachBatch>): Boolean
     fun getPendingPolygonApproachBatches(): List<PendingPolygonApproachBatch>
     fun removePendingPolygonApproachBatch(id: String): Boolean
@@ -102,7 +221,10 @@ internal interface GeofenceRegionStore {
      */
     fun saveRoutableRegisteredIdsIfCurrent(ids: Set<String>, expectedUserStateGeneration: Long): Boolean
 
-    /** Empty until a pass arms it: a registration only routes once a session has claimed it. */
+    /**
+     * Empty until a pass arms it: a registration only routes once a session has claimed it. Writing
+     * it ends the visits of fences it drops, since no callback for them can reach a visit any more.
+     */
     fun getRoutableRegisteredIds(): Set<String>
 
     /** Polygon enclosing circles currently known to contain the device. */
@@ -174,6 +296,10 @@ internal interface GeofenceRegionStore {
     fun getLastRegistrationUptime(): Long?
     fun setLastRegistrationUptime(uptimeMs: Long)
 
+    /** [io.customer.geofence.polygon.PolygonBootSessionProvider] boot of the last successful OS registration. */
+    fun getLastRegistrationBootSession(): String?
+    fun setLastRegistrationBootSession(bootSessionId: String)
+
     /** Package lastUpdateTime at the last successful OS registration, for app-update detection. */
     fun getLastRegistrationPackageUpdateTime(): Long?
     fun setLastRegistrationPackageUpdateTime(timeMs: Long)
@@ -233,6 +359,17 @@ internal interface GeofenceRegionStore {
 
 internal fun GeofenceRegionStore.getCachedConfigOrFallback(): GeofenceConfig =
     getCachedConfig() ?: GeofenceConfig.fallback()
+
+/**
+ * Whether the recorded OS registrations come from an earlier boot, which wiped them, whether or not
+ * BOOT_COMPLETED reached the app. Compares boot identity: once a new boot has been up longer than the
+ * last registration's stamp, uptime alone no longer shows the reboot. A registration with no boot stamp
+ * predates it and cannot be shown current, so it is treated as wiped too.
+ */
+internal fun GeofenceRegionStore.registrationsPredateBoot(bootSessionId: String, nowElapsedMs: Long): Boolean {
+    val stampedIn = getLastRegistrationBootSession() ?: return getRegisteredIds().isNotEmpty()
+    return stampedIn != bootSessionId || getLastRegistrationUptime()?.let { nowElapsedMs < it } == true
+}
 
 internal interface GeofenceLocationCrypto {
     fun encrypt(plaintext: String): String
@@ -304,6 +441,14 @@ internal class GeofenceRegionStoreImpl(
 
     override fun saveCachedRegions(regions: List<GeofenceRegion>) = synchronized(enteredLock) {
         writeJson(KEY_CACHED_REGIONS, REGIONS_SERIALIZER, regions)
+        val current = regions.associateBy(GeofenceRegion::id)
+        val visits = readDwellVisits().filter { visit ->
+            val region = current[visit.geofenceId]
+            region != null &&
+                region.dwellThresholdSeconds > 0 &&
+                region.transitionRevision() == visit.regionRevision
+        }
+        prefs.edit { putDwellVisitsLocked(visits) }
     }
 
     override fun getCachedRegions(): List<GeofenceRegion> =
@@ -359,6 +504,7 @@ internal class GeofenceRegionStoreImpl(
         }
         val updatedEntered = when (first.transition) {
             Event.GeofenceTransition.ENTER -> getEnteredIds() + first.geofenceId
+            Event.GeofenceTransition.DWELL -> getEnteredIds()
             Event.GeofenceTransition.EXIT -> getEnteredIds() - first.geofenceId
         }
         val emittedOwner = readEmittedEnterOwner()
@@ -387,6 +533,7 @@ internal class GeofenceRegionStoreImpl(
         epoch += 1
         when (first.transition) {
             Event.GeofenceTransition.ENTER -> enterEpochByGeofenceId[first.geofenceId] = epoch
+            Event.GeofenceTransition.DWELL -> Unit
             Event.GeofenceTransition.EXIT -> exitEpochByGeofenceId[first.geofenceId] = epoch
         }
         true
@@ -496,6 +643,7 @@ internal class GeofenceRegionStoreImpl(
         val currentEntered = getEnteredIds()
         val updatedEntered = when (transition) {
             Event.GeofenceTransition.ENTER -> currentEntered + geofenceId
+            Event.GeofenceTransition.DWELL -> currentEntered
             Event.GeofenceTransition.EXIT -> currentEntered - geofenceId
         }
         val allPending = readPendingTransitionEntries()
@@ -533,6 +681,7 @@ internal class GeofenceRegionStoreImpl(
         epoch += 1
         when (transition) {
             Event.GeofenceTransition.ENTER -> enterEpochByGeofenceId[geofenceId] = epoch
+            Event.GeofenceTransition.DWELL -> Unit
             Event.GeofenceTransition.EXIT -> exitEpochByGeofenceId[geofenceId] = epoch
         }
         true
@@ -550,16 +699,28 @@ internal class GeofenceRegionStoreImpl(
     override fun getRegisteredIds(): Set<String> =
         readJson(KEY_REGISTERED_IDS, ID_SET_SERIALIZER) ?: emptySet()
 
-    override fun saveRoutableRegisteredIds(ids: Set<String>) =
-        writeJson(KEY_ROUTABLE_REGISTERED_IDS, ID_SET_SERIALIZER, ids)
+    override fun saveRoutableRegisteredIds(ids: Set<String>) = synchronized(enteredLock) {
+        writeRoutableRegisteredIdsLocked(ids)
+    }
 
     override fun saveRoutableRegisteredIdsIfCurrent(
         ids: Set<String>,
         expectedUserStateGeneration: Long
     ): Boolean = synchronized(enteredLock) {
         if (expectedUserStateGeneration != currentUserStateGenerationLocked()) return@synchronized false
-        writeJson(KEY_ROUTABLE_REGISTERED_IDS, ID_SET_SERIALIZER, ids)
+        writeRoutableRegisteredIdsLocked(ids)
         true
+    }
+
+    private fun writeRoutableRegisteredIdsLocked(ids: Set<String>) {
+        // A fence leaving routing stops being watched, whichever pass removed it, so its visit
+        // cannot continue past the gap. Other fences, overlapping or not, keep theirs.
+        val visits = readDwellVisits()
+        val retained = visits.filter { it.geofenceId in ids }
+        prefs.edit {
+            putString(KEY_ROUTABLE_REGISTERED_IDS, jsonSerializer.encode(ID_SET_SERIALIZER, ids))
+            if (retained.size != visits.size) putDwellVisitsLocked(retained)
+        }
     }
 
     override fun getRoutableRegisteredIds(): Set<String> =
@@ -631,6 +792,187 @@ internal class GeofenceRegionStoreImpl(
 
     override fun getEnteredIds(): Set<String> =
         readJson(KEY_ENTERED_IDS, ID_SET_SERIALIZER) ?: emptySet()
+
+    override fun getDwellVisit(geofenceId: String): GeofenceDwellVisit? = synchronized(enteredLock) {
+        readDwellVisits().firstOrNull { it.geofenceId == geofenceId }
+    }
+
+    override fun saveDwellVisit(visit: GeofenceDwellVisit): Boolean = synchronized(enteredLock) {
+        if (visit.userStateGeneration != currentUserStateGenerationLocked()) return@synchronized false
+        val region = getCachedRegion(visit.geofenceId) ?: return@synchronized false
+        if (
+            region.transitionRevision() != visit.regionRevision ||
+            region.dwellThresholdSeconds <= 0
+        ) {
+            return@synchronized false
+        }
+        // A circle visit belongs to one OS registration. A write prepared before a re-registration
+        // or an invalidation landed must not carry the old visit into the new monitoring session.
+        val registeredAt = readIncarnations()[visit.geofenceId]?.registeredAtElapsedMs
+        if (!region.isPolygon && (registeredAt == null || visit.registrationElapsedMs != registeredAt)) {
+            return@synchronized false
+        }
+        // Prepared before its fence left routing or before the visit ended (an EXIT, a removal, a
+        // gap); writing it now would carry the visit across that interruption.
+        if (visit.geofenceId !in getRoutableRegisteredIds() || visit.visitId in readEndedDwellVisitIds()) {
+            return@synchronized false
+        }
+        val visits = readDwellVisits().filterNot { it.geofenceId == visit.geofenceId } + visit
+        @Suppress("UseKtx")
+        prefs.edit().putDwellVisitsLocked(visits).commit()
+    }
+
+    override fun removeDwellVisit(geofenceId: String) = synchronized(enteredLock) {
+        prefs.edit { putDwellVisitsLocked(readDwellVisits().filterNot { it.geofenceId == geofenceId }) }
+    }
+
+    override fun clearDwellVisits() = synchronized(enteredLock) {
+        prefs.edit { putDwellVisitsLocked(emptyList()) }
+        // The same gap ends the outside proof: the device may have arrived while unobserved, and
+        // the next ENTER must not be read as the moment it did.
+        val incarnations = readIncarnations()
+        if (incarnations.values.any { it.outsideProvenAtElapsedMs != null }) {
+            writeJson(
+                KEY_REGISTRATION_INCARNATIONS,
+                INCARNATIONS_SERIALIZER,
+                incarnations.values.map { it.copy(outsideProvenAtElapsedMs = null) }
+            )
+        }
+    }
+
+    override fun getRegistrationIncarnation(geofenceId: String): GeofenceRegistrationIncarnation? =
+        synchronized(enteredLock) { readIncarnations()[geofenceId] }
+
+    override fun recordRegistrationIncarnations(
+        regions: List<GeofenceRegion>,
+        registeredAtElapsedMs: Long,
+        bootSessionId: String,
+        outsideIds: Set<String>
+    ) = synchronized(enteredLock) {
+        val live = getRegisteredIds() + regions.map(GeofenceRegion::id)
+        val incarnations = readIncarnations().filterKeys { it in live } + regions.associate { region ->
+            region.id to GeofenceRegistrationIncarnation(
+                geofenceId = region.id,
+                regionRevision = region.transitionRevision(),
+                registeredAtElapsedMs = registeredAtElapsedMs,
+                outsideProvenAtElapsedMs = registeredAtElapsedMs.takeIf { region.id in outsideIds },
+                bootSessionId = bootSessionId
+            )
+        }
+        writeJson(KEY_REGISTRATION_INCARNATIONS, INCARNATIONS_SERIALIZER, incarnations.values.toList())
+    }
+
+    override fun raiseOutsideProof(
+        ids: Set<String>,
+        provenAtElapsedMs: Long,
+        bootSessionId: String
+    ) = synchronized(enteredLock) {
+        if (ids.isEmpty()) return@synchronized
+        val incarnations = readIncarnations()
+        val raised = incarnations.filterKeys { it in ids && it in getRegisteredIds() }
+            // Elapsed stamps from another boot don't order against this fix.
+            .filterValues { it.bootSessionId == bootSessionId }
+            // A registration made after the fix (by a pass that held the slot while this one
+            // waited) was not watching when it was taken, and a callback from the one it replaced
+            // could otherwise count.
+            .filterValues { it.registeredAtElapsedMs <= provenAtElapsedMs }
+            .filterValues { (it.outsideProvenAtElapsedMs ?: Long.MIN_VALUE) < provenAtElapsedMs }
+            .mapValues { (_, incarnation) -> incarnation.copy(outsideProvenAtElapsedMs = provenAtElapsedMs) }
+        if (raised.isEmpty()) return@synchronized
+        writeJson(KEY_REGISTRATION_INCARNATIONS, INCARNATIONS_SERIALIZER, (incarnations + raised).values.toList())
+    }
+
+    override fun recordNativeExitFix(
+        geofenceId: String,
+        registeredAtElapsedMs: Long,
+        exitFixElapsedMs: Long
+    ) = synchronized(enteredLock) {
+        val incarnations = readIncarnations()
+        val current = incarnations[geofenceId]
+            ?.takeIf { it.registeredAtElapsedMs == registeredAtElapsedMs }
+            ?: return@synchronized
+        if ((current.lastExitFixElapsedMs ?: Long.MIN_VALUE) >= exitFixElapsedMs) return@synchronized
+        // A delayed EXIT must not lower newer proof, such as a movement fix handled first.
+        val exited = current.copy(
+            lastExitFixElapsedMs = exitFixElapsedMs,
+            outsideProvenAtElapsedMs = maxOf(current.outsideProvenAtElapsedMs ?: Long.MIN_VALUE, exitFixElapsedMs)
+        )
+        val updated = incarnations + (geofenceId to exited)
+        writeJson(KEY_REGISTRATION_INCARNATIONS, INCARNATIONS_SERIALIZER, updated.values.toList())
+    }
+
+    override fun recordNativeEnterFix(
+        geofenceId: String,
+        registeredAtElapsedMs: Long,
+        enterFixElapsedMs: Long
+    ) = synchronized(enteredLock) {
+        val incarnations = readIncarnations()
+        val current = incarnations[geofenceId]
+            ?.takeIf { it.registeredAtElapsedMs == registeredAtElapsedMs }
+            ?: return@synchronized
+        if ((current.lastEnterFixElapsedMs ?: Long.MIN_VALUE) >= enterFixElapsedMs) return@synchronized
+        val updated = incarnations + (geofenceId to current.copy(lastEnterFixElapsedMs = enterFixElapsedMs))
+        writeJson(KEY_REGISTRATION_INCARNATIONS, INCARNATIONS_SERIALIZER, updated.values.toList())
+    }
+
+    override fun invalidateDwellContinuity() = synchronized(enteredLock) {
+        prefs.edit(commit = true) {
+            putDwellVisitsLocked(emptyList())
+            remove(KEY_REGISTRATION_INCARNATIONS)
+        }
+    }
+
+    private fun readIncarnations(): Map<String, GeofenceRegistrationIncarnation> =
+        readJson(KEY_REGISTRATION_INCARNATIONS, INCARNATIONS_SERIALIZER)
+            ?.associateBy(GeofenceRegistrationIncarnation::geofenceId)
+            ?: emptyMap()
+
+    override fun removeDwellVisitAfterCommittedExit(
+        geofenceId: String,
+        exitedAtSeconds: Long,
+        expectedUserStateGeneration: Long,
+        expectedRegionRevision: Int?
+    ): Boolean = synchronized(enteredLock) {
+        if (expectedUserStateGeneration != currentUserStateGenerationLocked()) return@synchronized false
+        if (
+            expectedRegionRevision != null &&
+            getCachedRegion(geofenceId)?.transitionRevision() != expectedRegionRevision
+        ) {
+            return@synchronized false
+        }
+        val visits = readDwellVisits()
+        val retained = visits.filterNot {
+            it.geofenceId == geofenceId && it.enteredAtSeconds <= exitedAtSeconds
+        }
+        if (retained.size == visits.size) return@synchronized true
+        @Suppress("UseKtx")
+        prefs.edit().putDwellVisitsLocked(retained).commit()
+    }
+
+    private fun readDwellVisits(): List<GeofenceDwellVisit> =
+        readJson(KEY_DWELL_VISITS, DWELL_VISITS_SERIALIZER) ?: emptyList()
+
+    private fun readEndedDwellVisitIds(): List<String> =
+        readJson(KEY_ENDED_DWELL_VISIT_IDS, ID_LIST_SERIALIZER) ?: emptyList()
+
+    /** Writes [visits] in this edit and records every visit it drops as ended. */
+    private fun SharedPreferences.Editor.putDwellVisitsLocked(
+        visits: List<GeofenceDwellVisit>
+    ): SharedPreferences.Editor {
+        val kept = visits.mapTo(mutableSetOf(), GeofenceDwellVisit::visitId)
+        val ended = readDwellVisits().map(GeofenceDwellVisit::visitId).filterNot { it in kept }
+        if (ended.isNotEmpty()) {
+            // Visit ids are random, so only recently ended ones can still have a write in flight.
+            val endedIds = (readEndedDwellVisitIds() + ended).takeLast(MAXIMUM_ENDED_DWELL_VISIT_IDS)
+            putString(KEY_ENDED_DWELL_VISIT_IDS, jsonSerializer.encode(ID_LIST_SERIALIZER, endedIds))
+        }
+        if (visits.isEmpty()) {
+            remove(KEY_DWELL_VISITS)
+        } else {
+            putString(KEY_DWELL_VISITS, jsonSerializer.encode(DWELL_VISITS_SERIALIZER, visits))
+        }
+        return this
+    }
 
     override fun hasContainmentRecord(): Boolean = prefs.read { contains(KEY_ENTERED_IDS) } ?: false
 
@@ -730,6 +1072,13 @@ internal class GeofenceRegionStoreImpl(
 
     override fun setLastRegistrationUptime(uptimeMs: Long) {
         prefs.edit { putLong(KEY_LAST_REGISTRATION_UPTIME, uptimeMs) }
+    }
+
+    override fun getLastRegistrationBootSession(): String? =
+        prefs.read { getString(KEY_LAST_REGISTRATION_BOOT_SESSION, null) }
+
+    override fun setLastRegistrationBootSession(bootSessionId: String) {
+        prefs.edit { putString(KEY_LAST_REGISTRATION_BOOT_SESSION, bootSessionId) }
     }
 
     override fun getLastRegistrationPackageUpdateTime(): Long? = prefs.read {
@@ -834,6 +1183,7 @@ internal class GeofenceRegionStoreImpl(
             remove(KEY_ACTIVE_POLYGON_IDS)
             remove(KEY_COARSE_INSIDE_POLYGON_IDS)
             remove(KEY_ENTERED_IDS)
+            remove(KEY_DWELL_VISITS)
             remove(KEY_EMITTED_ENTER_IDS)
             remove(KEY_EMITTED_ENTER_OWNER)
             remove(KEY_LAST_SYNC)
@@ -841,7 +1191,9 @@ internal class GeofenceRegionStoreImpl(
                 remove(KEY_REGISTERED_IDS)
                 remove(KEY_ROUTABLE_REGISTERED_IDS)
                 remove(KEY_RETAINED_REGISTERED_REGIONS)
+                remove(KEY_REGISTRATION_INCARNATIONS)
                 remove(KEY_LAST_REGISTRATION_UPTIME)
+                remove(KEY_LAST_REGISTRATION_BOOT_SESSION)
                 remove(KEY_LAST_REGISTRATION_PACKAGE_UPDATE_TIME)
             } else {
                 putString(KEY_ROUTABLE_REGISTERED_IDS, jsonSerializer.encode(ID_SET_SERIALIZER, emptySet()))
@@ -929,6 +1281,9 @@ internal class GeofenceRegionStoreImpl(
         const val KEY_ACTIVE_POLYGON_IDS = "active_polygon_ids"
         const val KEY_COARSE_INSIDE_POLYGON_IDS = "coarse_inside_polygon_ids"
         const val KEY_ENTERED_IDS = "entered_ids"
+        const val KEY_DWELL_VISITS = "dwell_visits"
+        const val KEY_ENDED_DWELL_VISIT_IDS = "ended_dwell_visit_ids"
+        const val KEY_REGISTRATION_INCARNATIONS = "registration_incarnations"
         const val KEY_EMITTED_ENTER_IDS = "emitted_enter_ids"
         const val KEY_EMITTED_ENTER_OWNER = "emitted_enter_owner"
         const val KEY_CACHED_CONFIG = "cached_config"
@@ -937,6 +1292,7 @@ internal class GeofenceRegionStoreImpl(
         const val KEY_LAST_MOVEMENT_TRIGGER_RADIUS = "last_movement_trigger_radius"
         const val KEY_LAST_SYNC = "last_sync_timestamp"
         const val KEY_LAST_REGISTRATION_UPTIME = "last_registration_uptime"
+        const val KEY_LAST_REGISTRATION_BOOT_SESSION = "last_registration_boot_session"
         const val KEY_LAST_REGISTRATION_PACKAGE_UPDATE_TIME = "last_registration_package_update_time"
 
         // Cleared whenever a session opens. Includes the sync stamp so the next session re-fetches.
@@ -946,6 +1302,7 @@ internal class GeofenceRegionStoreImpl(
             KEY_ACTIVE_POLYGON_IDS,
             KEY_COARSE_INSIDE_POLYGON_IDS,
             KEY_ENTERED_IDS,
+            KEY_DWELL_VISITS,
             KEY_EMITTED_ENTER_IDS,
             KEY_EMITTED_ENTER_OWNER,
             KEY_LAST_SYNC
@@ -958,10 +1315,16 @@ internal class GeofenceRegionStoreImpl(
         )
 
         const val MAXIMUM_PENDING_APPROACH_BATCHES = 128
+
+        // At most one visit per OS registration, so one prune ends no more than this many.
+        const val MAXIMUM_ENDED_DWELL_VISIT_IDS = GeofenceConstants.MAX_OS_GEOFENCES
         val REGIONS_SERIALIZER = ListSerializer(GeofenceRegion.serializer())
         val PENDING_TRANSITIONS_SERIALIZER = ListSerializer(PendingGeofenceDelivery.serializer())
         val PENDING_APPROACH_BATCHES_SERIALIZER =
             ListSerializer(PendingPolygonApproachBatch.serializer())
+        val DWELL_VISITS_SERIALIZER = ListSerializer(GeofenceDwellVisit.serializer())
+        val INCARNATIONS_SERIALIZER = ListSerializer(GeofenceRegistrationIncarnation.serializer())
         val ID_SET_SERIALIZER = SetSerializer(String.serializer())
+        val ID_LIST_SERIALIZER = ListSerializer(String.serializer())
     }
 }

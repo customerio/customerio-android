@@ -221,6 +221,14 @@ internal class GeofenceManager(
             .setRequestId(id)
             .setCircularRegion(latitude, longitude, radius)
             .setTransitionTypes(toGmsTransitionTypes())
+            .apply {
+                if (
+                    !isPolygon &&
+                    dwellThresholdSeconds in 1..GeofenceConstants.MAX_DWELL_THRESHOLD_SECONDS
+                ) {
+                    setLoiteringDelay(dwellThresholdSeconds * 1_000)
+                }
+            }
             .setExpirationDuration(GeofenceConstants.GEOFENCE_EXPIRATION_NEVER)
             .build()
     }

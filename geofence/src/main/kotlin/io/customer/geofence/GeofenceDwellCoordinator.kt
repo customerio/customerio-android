@@ -95,6 +95,13 @@ internal class GeofenceDwellCoordinator(
             // DWELL that recovered the visit.
             val insideFix = latestInsideFix(existing)
             if (entryFixElapsedMs != null && insideFix != null && entryFixElapsedMs <= insideFix) {
+                // A distinct ENTER may have reached this write after its own DWELL. It still
+                // makes the original entry ambiguous, while an exact duplicate says nothing new.
+                if (!region.isPolygon && existing.entryWasObserved &&
+                    entryFixElapsedMs != existing.entryFixElapsedMs && belongsTo(existing, entryFixElapsedMs)
+                ) {
+                    store.saveDwellVisit(existing.copy(entryWasObserved = false))
+                }
                 return@withLock
             }
             departed = !beginsNewVisit && departedSince(existing, incarnation, entryFixElapsedMs)

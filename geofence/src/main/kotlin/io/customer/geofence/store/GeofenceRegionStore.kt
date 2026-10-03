@@ -123,7 +123,10 @@ internal interface GeofenceRegionStore {
      */
     fun raiseOutsideProof(ids: Set<String>, provenAtElapsedMs: Long, bootSessionId: String)
 
-    /** Raises the incarnation's last EXIT fix, only while [registeredAtElapsedMs] is still live. */
+    /**
+     * Raises the incarnation's last EXIT fix, only while [registeredAtElapsedMs] is still live, and its
+     * outside proof to at least that fix.
+     */
     fun recordNativeExitFix(geofenceId: String, registeredAtElapsedMs: Long, exitFixElapsedMs: Long)
 
     /** Raises the incarnation's last ENTER fix, only while [registeredAtElapsedMs] is still live. */
@@ -889,7 +892,11 @@ internal class GeofenceRegionStoreImpl(
             ?.takeIf { it.registeredAtElapsedMs == registeredAtElapsedMs }
             ?: return@synchronized
         if ((current.lastExitFixElapsedMs ?: Long.MIN_VALUE) >= exitFixElapsedMs) return@synchronized
-        val exited = current.copy(lastExitFixElapsedMs = exitFixElapsedMs, outsideProvenAtElapsedMs = exitFixElapsedMs)
+        // A delayed EXIT must not lower newer proof, such as a movement fix handled first.
+        val exited = current.copy(
+            lastExitFixElapsedMs = exitFixElapsedMs,
+            outsideProvenAtElapsedMs = maxOf(current.outsideProvenAtElapsedMs ?: Long.MIN_VALUE, exitFixElapsedMs)
+        )
         val updated = incarnations + (geofenceId to exited)
         writeJson(KEY_REGISTRATION_INCARNATIONS, INCARNATIONS_SERIALIZER, updated.values.toList())
     }

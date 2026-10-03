@@ -100,9 +100,17 @@ internal class GeofenceDwellCoordinator(
             departed = !beginsNewVisit && departedSince(existing, incarnation, entryFixElapsedMs)
             if (!beginsNewVisit && !departed) {
                 // A repeated ENTER of this visit is GMS placing the device inside at a later fix, which
-                // an EXIT decided before it must not override (see [onNativeExit]).
-                if (entryFixElapsedMs != null && belongsTo(existing, entryFixElapsedMs)) {
-                    store.saveDwellVisit(existing.copy(lastInsideFixElapsedMs = entryFixElapsedMs))
+                // an EXIT decided before it must not override (see [onNativeExit]). Its fix is newer
+                // than any this visit holds, and GMS may be re-reporting or the device may have come
+                // back after an EXIT the process never handled. The visit, its queued DWELL and its
+                // emitted mark stand, but its entry no longer dates the current stay.
+                if (entryFixElapsedMs == null && !region.isPolygon && existing.entryWasObserved) {
+                    // Without a fix, this callback cannot identify itself as the original ENTER.
+                    store.saveDwellVisit(existing.copy(entryWasObserved = false))
+                } else if (entryFixElapsedMs != null && belongsTo(existing, entryFixElapsedMs)) {
+                    store.saveDwellVisit(
+                        existing.copy(lastInsideFixElapsedMs = entryFixElapsedMs, entryWasObserved = false)
+                    )
                 }
                 return@withLock
             }
@@ -486,9 +494,10 @@ internal class GeofenceDwellCoordinator(
 
     /**
      * Whether an ENTER that found containment outside is the observed crossing of [existing], a
-     * visit a later ENTER of the same stay wrote first. It must itself be an observed entry (no
-     * outside proof since, see [observedCircleEntry]), decided no later than the visit's own entry,
-     * and the visit must have reported nothing yet: a queued DWELL is not rewritten.
+     * visit a duplicate of the same ENTER wrote first. It must itself be an observed entry (no
+     * outside proof since, see [observedCircleEntry]) with the visit's own entry fix, and the visit
+     * must have reported nothing yet: a queued DWELL is not rewritten. A visit begun by an ENTER
+     * with a later fix is not recovered, since that ENTER may follow a lost EXIT.
      */
     private fun recoversObservedEntry(
         existing: GeofenceDwellVisit,
@@ -500,7 +509,7 @@ internal class GeofenceDwellCoordinator(
         return !existing.entryWasObserved &&
             !existing.emitted &&
             existing.dwellReservation == null &&
-            entryFix <= existingEntryFix &&
+            entryFix == existingEntryFix &&
             observedCircleEntry(incarnation, entryFix)
     }
 

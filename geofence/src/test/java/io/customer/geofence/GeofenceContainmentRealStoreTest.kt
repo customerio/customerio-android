@@ -1,5 +1,6 @@
 package io.customer.geofence
 
+import android.location.Location
 import io.customer.commontest.config.ApplicationArgument
 import io.customer.commontest.config.TestConfig
 import io.customer.commontest.config.testConfigurationDefault
@@ -11,11 +12,15 @@ import io.customer.geofence.store.GeofenceRegionStoreImpl
 import io.customer.geofence.store.PendingGeofenceDelivery
 import io.customer.sdk.communication.Event
 import io.customer.sdk.core.util.Clock
+import io.customer.sdk.data.store.PendingDeliveryStore
 import io.customer.sdk.data.store.SecureUserStore
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
 import org.amshove.kluent.shouldBeEqualTo
 import org.amshove.kluent.shouldBeFalse
@@ -196,6 +201,138 @@ class GeofenceContainmentRealStoreTest : RobolectricTest() {
         }
         store.getDwellVisit(dwellFence.id)?.entryFixElapsedMs shouldBeEqualTo 80_000L
     }
+
+    @Test
+    fun movementFixClearingTheEdgeWhenRegistrationFails_expectProofKeptAndNoDwellAcrossTheAbsence() = runTest {
+        val world = provenOutsideWorld()
+        world.pipeline.handle(nativeCrossing(GeofenceCrossingTransition.ENTER, fixMs = 2_000L))
+        val visitId = store.getDwellVisit(dwellFence.id).shouldNotBeNull().visitId
+        coEvery { manager.replaceGeofences(any(), any()) } returns Result.failure(IllegalStateException("GMS add failed"))
+
+        // The fix GMS delivered with the movement EXIT lies ~233 m past the edge at 30 m accuracy.
+        repository.handleMovement(0.003, 0.0, { null }, GeofenceFixQuality(fixElapsedRealtimeMillis = 9_000L, horizontalAccuracyMeters = 30f))
+
+        store.getRegistrationIncarnation(dwellFence.id)?.outsideProvenAtElapsedMs shouldBeEqualTo 9_000L
+        // GMS reported neither the departure nor a return, so its DWELL may count from ENTER@2000.
+        world.pipeline.handle(nativeCrossing(GeofenceCrossingTransition.DWELL, fixMs = 72_000L))
+
+        world.outbox.loadAll().filter { it.transition == Event.GeofenceTransition.DWELL } shouldBeEqualTo emptyList()
+        val visit = store.getDwellVisit(dwellFence.id).shouldNotBeNull()
+        visit.visitId shouldBeEqualTo visitId
+        visit.entryWasObserved shouldBeEqualTo false
+        store.getEnteredIds() shouldContainSame setOf(dwellFence.id)
+    }
+
+    @Test
+    fun movementFixClearingTheEdgeWhileTheRefreshSlotIsBusy_expectProofKept() = runTest {
+        val world = provenOutsideWorld()
+        world.pipeline.handle(nativeCrossing(GeofenceCrossingTransition.ENTER, fixMs = 2_000L))
+        val held = CompletableDeferred<Unit>()
+        coEvery { manager.replaceGeofences(any(), any()) } coAnswers {
+            held.await()
+            Result.failure(IllegalStateException("GMS add failed"))
+        }
+        // An earlier pass holds the refresh slot for the whole wait.
+        val busy = launch(start = CoroutineStart.UNDISPATCHED) {
+            repository.handleMovement(0.0, 0.0, { null }, GeofenceFixQuality.UNKNOWN)
+        }
+
+        repository.handleMovement(0.003, 0.0, { null }, GeofenceFixQuality(fixElapsedRealtimeMillis = 9_000L, horizontalAccuracyMeters = 30f))
+
+        store.getRegistrationIncarnation(dwellFence.id)?.outsideProvenAtElapsedMs shouldBeEqualTo 9_000L
+        held.complete(Unit)
+        busy.join()
+        world.pipeline.handle(nativeCrossing(GeofenceCrossingTransition.DWELL, fixMs = 72_000L))
+        world.outbox.loadAll().filter { it.transition == Event.GeofenceTransition.DWELL } shouldBeEqualTo emptyList()
+    }
+
+    @Test
+    fun movementFixThatCannotProveTheDeviceOutside_expectNoProof() = runTest {
+        // Controls for the early proof: each of these proves nothing about the registered circle.
+        provenOutsideWorld()
+        coEvery { manager.replaceGeofences(any(), any()) } returns Result.failure(IllegalStateException("GMS add failed"))
+        data class Case(
+            val name: String,
+            val latitude: Double,
+            val quality: GeofenceFixQuality,
+            val registeredAt: Long = 1_000L,
+            val registeredInBoot: String = "boot"
+        )
+        val clear = GeofenceFixQuality(fixElapsedRealtimeMillis = 9_000L, horizontalAccuracyMeters = 30f)
+        val cases = listOf(
+            Case("inside", 0.0, clear),
+            // ~40 m past the edge, within the 30 m accuracy plus the 20 m margin.
+            Case("marginal", 0.00126, clear),
+            Case("no accuracy", 0.003, GeofenceFixQuality(fixElapsedRealtimeMillis = 9_000L)),
+            Case("no fix time", 0.003, GeofenceFixQuality(horizontalAccuracyMeters = 30f)),
+            // Stamped after now (10 000) on the boot clock, so its time is not trustworthy.
+            Case("future fix", 0.003, clear.copy(fixElapsedRealtimeMillis = 20_000L)),
+            // GMS was not watching this registration yet when the fix was taken.
+            Case("registered after the fix", 0.003, clear, registeredAt = 9_500L),
+            Case("registered in another boot", 0.003, clear, registeredInBoot = "boot-old")
+        )
+
+        val proofs = cases.associate { case ->
+            store.recordRegistrationIncarnations(listOf(dwellFence), case.registeredAt, case.registeredInBoot)
+            repository.handleMovement(case.latitude, 0.0, { null }, case.quality)
+            case.name to store.getRegistrationIncarnation(dwellFence.id)?.outsideProvenAtElapsedMs
+        }
+
+        proofs shouldBeEqualTo cases.associate { it.name to null }
+    }
+
+    /** Registered at 1 000 with the device proven outside then, a session, and a real outbox. */
+    private fun provenOutsideWorld(): ProofWorld {
+        store.beginUserSession("user-42")
+        seedAnchorPass(bootStamp = bootSessionId)
+        store.saveCachedRegions(listOf(dwellFence))
+        store.recordRegistrationIncarnations(listOf(dwellFence), 1_000L, "boot", outsideIds = setOf(dwellFence.id))
+        val outbox = PendingDeliveryStore(
+            context = applicationMock,
+            fileName = "cio_test_movement_proof_outbox.json",
+            elementSerializer = PendingGeofenceDelivery.serializer(),
+            logger = mockk(relaxed = true)
+        ).also { it.removeAll() }
+        val cooldownFilter: GeofenceCooldownFilter = mockk(relaxed = true) {
+            every { suppressedForSeconds(any(), any(), any()) } returns null
+        }
+        val processor = GeofenceBusinessTransitionProcessor(
+            store,
+            secureUserStore,
+            GeofenceTransitionEmitter(cooldownFilter, outbox, mockk(relaxed = true), store, mockk(relaxed = true)),
+            mockk(relaxed = true)
+        )
+        val pipeline = GeofenceCrossingPipeline(
+            regionStore = store,
+            services = mockk(relaxed = true),
+            registrar = mockk(relaxed = true),
+            transitionProcessor = processor,
+            dwellCoordinator = GeofenceDwellCoordinator(store, processor, clock) { "boot" },
+            polygonController = mockk(relaxed = true),
+            logger = mockk(relaxed = true)
+        )
+        return ProofWorld(pipeline, outbox)
+    }
+
+    private class ProofWorld(
+        val pipeline: GeofenceCrossingPipeline,
+        val outbox: PendingDeliveryStore<PendingGeofenceDelivery>
+    )
+
+    private fun nativeCrossing(transition: GeofenceCrossingTransition, fixMs: Long) = GeofenceCrossing(
+        geofenceIds = listOf(dwellFence.id),
+        transition = transition,
+        transitionName = transition.name,
+        rawTransitionCode = 0,
+        latitude = 0.0,
+        longitude = 0.0,
+        triggeringLocation = Location("gps").apply {
+            accuracy = 10f
+            elapsedRealtimeNanos = fixMs * 1_000_000L
+        },
+        receivedAtSeconds = 1_000L + (fixMs + 100L) / 1_000L,
+        receivedAtElapsedMs = fixMs + 100L
+    )
 
     @Test
     fun lostExitThenEnterWithoutOutsideProof_expectSingleDwell() = runTest {

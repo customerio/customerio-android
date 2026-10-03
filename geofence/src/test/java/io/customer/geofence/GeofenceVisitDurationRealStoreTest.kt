@@ -5,6 +5,7 @@ import io.customer.commontest.config.ApplicationArgument
 import io.customer.commontest.config.TestConfig
 import io.customer.commontest.config.testConfigurationDefault
 import io.customer.commontest.core.RobolectricTest
+import io.customer.geofence.api.GeofenceApiService
 import io.customer.geofence.polygon.PolygonBootSessionProvider
 import io.customer.geofence.store.GeofenceRegionStoreImpl
 import io.customer.geofence.store.PendingGeofenceDelivery
@@ -41,6 +42,7 @@ class GeofenceVisitDurationRealStoreTest : RobolectricTest() {
     private val scheduler: GeofenceEventScheduler = mockk(relaxed = true)
     private val secureUserStore: SecureUserStore = mockk(relaxed = true)
     private val logger: GeofenceLogger = mockk(relaxed = true)
+    private val manager: GeofenceManager = mockk(relaxed = true)
     private lateinit var regionStore: GeofenceRegionStoreImpl
     private lateinit var outbox: PendingDeliveryStore<PendingGeofenceDelivery>
 
@@ -333,6 +335,160 @@ class GeofenceVisitDurationRealStoreTest : RobolectricTest() {
         queued.map { it.transitionId }.toSet().single() shouldNotBeEqualTo visitId
         queued.map { listOf(it.userId, it.visitId, it.enteredAt, it.visitDurationSeconds) }.toSet() shouldBeEqualTo
             setOf(listOf(USER_ID, visitId, wallSecondsAt(1_000L), 75L))
+    }
+
+    @Test
+    fun exitOnlyFenceWithoutThreshold_givenMovementProvedTheDeviceOutsideBeforeGmsExit_expectExitUntimed() = runTest {
+        assertExitAfterSdkOutsideProofIsUntimedAndReEntryMeasured(exitOnlyRegion())
+    }
+
+    @Test
+    fun dwellFence_givenMovementProvedTheDeviceOutsideBeforeGmsExit_expectExitUntimed() = runTest {
+        assertExitAfterSdkOutsideProofIsUntimedAndReEntryMeasured(enterExitRegion().copy(dwellThresholdSeconds = 60))
+    }
+
+    @Test
+    fun exit_givenOutsideProofProcessedAfterALaterDwellButTakenBeforeIt_expectExitUntimed() = runTest {
+        // The movement callback is handled late: GMS's DWELL at 70 000 (still counting from the
+        // original ENTER) is processed first, then the SDK's own fix from 9 000 proves an excursion.
+        val region = enterExitRegion().copy(dwellThresholdSeconds = 60)
+        arm(region, outsideProven = true)
+        val coordinator = coordinator()
+        val pipeline = pipeline(coordinator = coordinator)
+        pipeline.handle(crossing(GeofenceCrossingTransition.ENTER, fixMs = 1_000L))
+        pipeline.handle(crossing(GeofenceCrossingTransition.DWELL, fixMs = 70_000L))
+        regionStore.getDwellVisit(GEOFENCE_ID).shouldNotBeNull().lastInsideFixElapsedMs shouldBeEqualTo 70_000L
+
+        proveOutsideByMovement(coordinator, fixMs = 9_000L)
+        pipeline.handle(crossing(GeofenceCrossingTransition.EXIT, fixMs = 76_000L))
+
+        val exit = outbox.loadAll().last()
+        exit.transition shouldBeEqualTo Event.GeofenceTransition.EXIT
+        exit.visitDurationSeconds.shouldBeNull()
+        regionStore.getDwellVisit(GEOFENCE_ID).shouldBeNull()
+    }
+
+    @Test
+    fun exit_givenSdkOutsideProofThenGmsDwellAlone_expectNoNewStayAndExitUntimed() = runTest {
+        // GMS never re-entered after the proof, so its DWELL may still count from the old ENTER.
+        val region = enterExitRegion().copy(dwellThresholdSeconds = 60)
+        arm(region, outsideProven = true)
+        val coordinator = coordinator()
+        val pipeline = pipeline(coordinator = coordinator)
+        pipeline.handle(crossing(GeofenceCrossingTransition.ENTER, fixMs = 1_000L))
+        proveOutsideByMovement(coordinator, fixMs = 9_000L)
+
+        pipeline.handle(crossing(GeofenceCrossingTransition.DWELL, fixMs = 70_000L))
+        pipeline.handle(crossing(GeofenceCrossingTransition.EXIT, fixMs = 76_000L))
+
+        outbox.loadAll().map { it.transition } shouldBeEqualTo
+            listOf(Event.GeofenceTransition.ENTER, Event.GeofenceTransition.EXIT)
+        val exit = outbox.loadAll().last()
+        exit.visitDurationSeconds.shouldBeNull()
+        exit.visitId shouldBeEqualTo null
+        regionStore.getDwellVisit(GEOFENCE_ID).shouldBeNull()
+    }
+
+    @Test
+    fun exit_givenSdkOutsideProofOlderThanTheEntry_expectExitStillTimed() = runTest {
+        // Control: proof from before the observed crossing says nothing about this stay.
+        arm(exitOnlyRegion(), outsideProven = false)
+        val coordinator = coordinator()
+        val pipeline = pipeline(coordinator = coordinator)
+        proveOutsideByMovement(coordinator, fixMs = 900L)
+        pipeline.handle(crossing(GeofenceCrossingTransition.ENTER, fixMs = 1_000L))
+        regionStore.getDwellVisit(GEOFENCE_ID).shouldNotBeNull().entryWasObserved shouldBeEqualTo true
+
+        pipeline.handle(crossing(GeofenceCrossingTransition.EXIT, fixMs = 76_000L))
+
+        outbox.loadAll().single().visitDurationSeconds shouldBeEqualTo 75L
+    }
+
+    /**
+     * Observed ENTER at 1 000; the SDK's movement fix at 9 000 proves the device outside while GMS
+     * reports nothing; GMS's EXIT at 76 000 then arrives before any re-entry or DWELL.
+     */
+    private suspend fun assertExitAfterSdkOutsideProofIsUntimedAndReEntryMeasured(region: GeofenceRegion) {
+        arm(region, outsideProven = true)
+        val coordinator = coordinator()
+        val pipeline = pipeline(coordinator = coordinator)
+        pipeline.handle(crossing(GeofenceCrossingTransition.ENTER, fixMs = 1_000L))
+        val firstVisit = regionStore.getDwellVisit(GEOFENCE_ID).shouldNotBeNull()
+        firstVisit.entryWasObserved shouldBeEqualTo true
+
+        proveOutsideByMovement(coordinator, fixMs = 9_000L)
+        // No DWELL arrived to withdraw the entry, so only the proof shows the stay was interrupted.
+        regionStore.getDwellVisit(GEOFENCE_ID) shouldBeEqualTo firstVisit
+        pipeline.handle(crossing(GeofenceCrossingTransition.EXIT, fixMs = 76_000L))
+
+        val exit = outbox.loadAll().last()
+        exit.transition shouldBeEqualTo Event.GeofenceTransition.EXIT
+        exit.visitDurationSeconds.shouldBeNull()
+        exit.enteredAt.shouldBeNull()
+        regionStore.getDwellVisit(GEOFENCE_ID).shouldBeNull()
+        regionStore.getEnteredIds().shouldBeEmpty()
+
+        assertNextVisitIsDistinctAndMeasured(pipeline, firstVisit.visitId, wallOffset = 0L)
+    }
+
+    /**
+     * The real producer: a movement pass whose fix clears the kept fence's edge by more than its
+     * accuracy raises the registration's outside proof to that fix, without re-registering it.
+     */
+    private suspend fun proveOutsideByMovement(coordinator: GeofenceDwellCoordinator, fixMs: Long) {
+        val registeredAt = regionStore.getRegistrationIncarnation(GEOFENCE_ID).shouldNotBeNull().registeredAtElapsedMs
+        movementRepository(coordinator).handleMovement(
+            latitude = 0.003,
+            longitude = 0.0,
+            movementTriggerRadius = { null },
+            fixQuality = GeofenceFixQuality(fixElapsedRealtimeMillis = fixMs, horizontalAccuracyMeters = 30f)
+        )
+        val incarnation = regionStore.getRegistrationIncarnation(GEOFENCE_ID).shouldNotBeNull()
+        incarnation.registeredAtElapsedMs shouldBeEqualTo registeredAt
+        incarnation.outsideProvenAtElapsedMs shouldBeEqualTo fixMs
+    }
+
+    private fun movementRepository(coordinator: GeofenceDwellCoordinator): GeofenceRepositoryImpl {
+        val clock = mockk<Clock>(relaxed = true) {
+            every { elapsedRealtime() } returns 10_000L
+            every { currentTimeMillis() } returns System.currentTimeMillis()
+        }
+        coEvery { manager.replaceGeofences(any(), any()) } returns Result.success(Unit)
+        // State a successful anchor pass leaves behind, as in GeofenceContainmentRealStoreTest.
+        regionStore.saveCachedConfig(
+            GeofenceConfig(
+                localRefreshTriggerRadius = 1_000f,
+                remoteFetchRefreshTriggerRadius = 5_000f,
+                remoteFetchRefreshExpiry = 86_400_000L,
+                duplicateEventsExpiry = 3_600_000L,
+                maxBusinessGeofences = 19,
+                maxMonitoringDistance = GeofenceConstants.NO_MONITORING_DISTANCE_CAP_METERS
+            )
+        )
+        regionStore.saveApiFetchStateIfCurrent(
+            location = GeofenceLocation(0.0, 0.0),
+            syncTimestamp = System.currentTimeMillis(),
+            expectedUserStateGeneration = regionStore.userStateGeneration()
+        )
+        regionStore.saveRegisteredIds(setOf(GeofenceConstants.MOVEMENT_TRIGGER_ID, GEOFENCE_ID))
+        regionStore.saveRoutableRegisteredIds(setOf(GeofenceConstants.MOVEMENT_TRIGGER_ID, GEOFENCE_ID))
+        regionStore.saveLastMovementTriggerLocation(GeofenceLocation(0.0, 0.0), 1_000f)
+        regionStore.setLastRegistrationUptime(10_000L)
+        regionStore.setLastRegistrationBootSession(BOOT)
+        return GeofenceRepositoryImpl(
+            apiService = mockk<GeofenceApiService>(relaxed = true),
+            store = regionStore,
+            distanceFilter = GeofenceDistanceFilter(),
+            manager = manager,
+            secureUserStore = secureUserStore,
+            cooldownFilter = mockk(relaxed = true),
+            transitionEmitter = mockk(relaxed = true),
+            clock = clock,
+            bootSessionProvider = { BOOT },
+            packageInfo = mockk { every { lastUpdateTimeMs() } returns null },
+            logger = mockk(relaxed = true),
+            dwellCoordinator = coordinator
+        )
     }
 
     private suspend fun assertNextVisitIsDistinctAndMeasured(

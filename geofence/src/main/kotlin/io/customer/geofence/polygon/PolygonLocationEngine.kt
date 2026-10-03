@@ -265,9 +265,14 @@ internal class PolygonLocationEngine(
                 .mapTo(pendingArrivalPolygonIds, PolygonRouteRecord.ArrivalPending::geofenceId)
             // Every judged fence produces a record; a skipped fence produces none.
             val evaluatedThisFix = routeOutcome.records.mapTo(mutableSetOf(), PolygonRouteRecord::geofenceId)
+            // Dwell evidence needs the fix's whole accuracy circle inside the ring, as on iOS. A point
+            // inside by less than its accuracy keeps the committed state but proves nothing.
             val decisivelyInsideThisFix = routeOutcome.records
                 .filterIsInstance<PolygonRouteRecord.Unchanged>()
                 .filter { it.membership == PolygonCommittedState.INSIDE.name }
+                .filter { record ->
+                    record.signedBoundaryDistanceMeters?.let { it > record.horizontalAccuracyMeters } == true
+                }
                 .mapTo(mutableSetOf(), PolygonRouteRecord::geofenceId)
             evaluatedPolygonIds.addAll(evaluatedThisFix)
             routeOutcome.records.forEach(::emitRouteRecord)

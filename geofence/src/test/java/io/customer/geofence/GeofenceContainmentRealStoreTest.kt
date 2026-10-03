@@ -174,6 +174,30 @@ class GeofenceContainmentRealStoreTest : RobolectricTest() {
     }
 
     @Test
+    fun movementProofThenGmsDwellThenReEnter_expectTheDwellIgnoredAndTheReEntryDwells() = runTest {
+        val processor = lostExitVisit()
+        // The kept fence's movement fix proves the device left, as above; GMS reports no EXIT.
+        repository.handleMovement(
+            latitude = 0.003,
+            longitude = 0.0,
+            movementTriggerRadius = { null },
+            fixQuality = GeofenceFixQuality(fixElapsedRealtimeMillis = 9_000L, horizontalAccuracyMeters = 30f)
+        )
+        store.getRegistrationIncarnation(dwellFence.id)?.outsideProvenAtElapsedMs shouldBeEqualTo 9_000L
+        val coordinator = GeofenceDwellCoordinator(store, processor, clock) { "boot" }
+
+        // GMS never noticed the departure, so this DWELL may still describe the first stay.
+        coordinator.onNativeDwell(dwellFence.id, observedAtSeconds = 960L, triggeringFixElapsedMs = 72_000L)
+        coordinator.onEnter(dwellFence.id, enteredAtSeconds = 980L, entryFixElapsedMs = 80_000L)
+        coordinator.onNativeDwell(dwellFence.id, observedAtSeconds = 1_040L, triggeringFixElapsedMs = 140_000L)
+
+        coVerify(exactly = 2) {
+            processor.process(any(), Event.GeofenceTransition.DWELL, any(), any(), any(), any(), any(), any(), any())
+        }
+        store.getDwellVisit(dwellFence.id)?.entryFixElapsedMs shouldBeEqualTo 80_000L
+    }
+
+    @Test
     fun lostExitThenEnterWithoutOutsideProof_expectSingleDwell() = runTest {
         val processor = lostExitVisit()
         val coordinator = GeofenceDwellCoordinator(store, processor, clock) { "boot" }

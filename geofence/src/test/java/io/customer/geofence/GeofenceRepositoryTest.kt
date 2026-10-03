@@ -72,6 +72,8 @@ class GeofenceRepositoryTest : RobolectricTest() {
         every { store.saveRoutableRegisteredIdsIfCurrent(any(), any()) } returns true
         // The relaxed mock's 0f would re-rank every pass; null means no radius recorded.
         every { store.getLastMovementTriggerRadius() } returns null
+        // Registered in this boot unless a test says otherwise; no stamp would read as a reboot.
+        every { store.getLastRegistrationBootSession() } returns "boot"
         every { store.getRoutableRegisteredIds() } answers { store.getRegisteredIds() }
         every { polygonController.clearUserScopedState() } answers {
             store.clearUserScopedState()
@@ -98,6 +100,7 @@ class GeofenceRepositoryTest : RobolectricTest() {
         cooldownFilter = cooldownFilter,
         transitionEmitter = transitionEmitter,
         clock = clock,
+        bootSessionProvider = { "boot" },
         packageInfo = packageInfo,
         logger = logger,
         polygonController = polygonController,
@@ -1075,7 +1078,7 @@ class GeofenceRepositoryTest : RobolectricTest() {
         repository.refresh(latitude = 0.0, longitude = 0.0)
 
         verify(exactly = 1) {
-            store.recordRegistrationIncarnations(listOf(incomingChanged), registeredAtElapsedMs = 10_000L)
+            store.recordRegistrationIncarnations(listOf(incomingChanged), registeredAtElapsedMs = 10_000L, bootSessionId = "boot")
         }
     }
 
@@ -2524,11 +2527,13 @@ class GeofenceRepositoryTest : RobolectricTest() {
         // Registration sees containment, not the crossing that began the stay.
         val cached = listOf(GeofenceRegion("biz-1", 0.0, 0.0, 100f, dwellThresholdSeconds = 60))
         statefulStore(cached)
+        every { clock.elapsedRealtime() } returns 10_000L
 
         repository.refreshFromLiveFix(latitude = 0.0, longitude = 0.0)
 
+        // Stamped on the boot clock with the wall timestamp, so the visit's time is measured from it.
         coVerify(exactly = 1) {
-            dwellCoordinator.onEnter("biz-1", any(), any(), beginsNewVisit = false)
+            dwellCoordinator.onEnter("biz-1", any(), any(), beginsNewVisit = false, enteredAtElapsedMs = 10_000L)
         }
     }
 
@@ -2542,7 +2547,7 @@ class GeofenceRepositoryTest : RobolectricTest() {
 
         repository.refreshFromLiveFix(latitude = 0.0, longitude = 0.0)
 
-        verify(exactly = 1) { store.recordRegistrationIncarnations(cached, 10_000L, emptySet()) }
+        verify(exactly = 1) { store.recordRegistrationIncarnations(cached, 10_000L, "boot", emptySet()) }
     }
 
     @Test
@@ -2553,7 +2558,7 @@ class GeofenceRepositoryTest : RobolectricTest() {
 
         repository.handleMovement(latitude = 0.0, longitude = 0.0, fixQuality = movementFix(accuracy = 30f))
 
-        verify(exactly = 1) { store.recordRegistrationIncarnations(cached, 10_000L, setOf("biz-1")) }
+        verify(exactly = 1) { store.recordRegistrationIncarnations(cached, 10_000L, "boot", setOf("biz-1")) }
     }
 
     @Test
@@ -2567,7 +2572,7 @@ class GeofenceRepositoryTest : RobolectricTest() {
 
         repository.handleMovement(latitude = 0.0, longitude = 0.0, fixQuality = movementFix(accuracy = 50f))
 
-        verify(exactly = 1) { store.recordRegistrationIncarnations(cached, 10_000L, emptySet()) }
+        verify(exactly = 1) { store.recordRegistrationIncarnations(cached, 10_000L, "boot", emptySet()) }
     }
 
     @Test
@@ -2578,7 +2583,7 @@ class GeofenceRepositoryTest : RobolectricTest() {
 
         repository.handleMovement(latitude = 0.0, longitude = 0.0, fixQuality = movementFix(accuracy = 30f))
 
-        verify(exactly = 1) { store.recordRegistrationIncarnations(cached, 10_000L, setOf("biz-1")) }
+        verify(exactly = 1) { store.recordRegistrationIncarnations(cached, 10_000L, "boot", setOf("biz-1")) }
     }
 
     @Test
@@ -2595,7 +2600,7 @@ class GeofenceRepositoryTest : RobolectricTest() {
 
         repository.handleMovement(latitude = 0.0, longitude = 0.0, fixQuality = stale)
 
-        verify(exactly = 1) { store.recordRegistrationIncarnations(cached, 10_000L, emptySet()) }
+        verify(exactly = 1) { store.recordRegistrationIncarnations(cached, 10_000L, "boot", emptySet()) }
     }
 
     @Test
@@ -2609,8 +2614,8 @@ class GeofenceRepositoryTest : RobolectricTest() {
 
         repository.handleMovement(latitude = 0.0, longitude = 0.0, fixQuality = movementFix(accuracy = 30f))
 
-        verify(exactly = 1) { store.recordRegistrationIncarnations(emptyList(), 10_000L, emptySet()) }
-        verify(exactly = 1) { store.raiseOutsideProof(setOf("biz-1"), 9_000L) }
+        verify(exactly = 1) { store.recordRegistrationIncarnations(emptyList(), 10_000L, "boot", emptySet()) }
+        verify(exactly = 1) { store.raiseOutsideProof(setOf("biz-1"), 9_000L, "boot") }
     }
 
     @Test
@@ -2625,7 +2630,7 @@ class GeofenceRepositoryTest : RobolectricTest() {
 
         repository.handleMovement(latitude = 0.0, longitude = 0.0, fixQuality = old)
 
-        verify(exactly = 1) { store.raiseOutsideProof(setOf("biz-1"), takenAt) }
+        verify(exactly = 1) { store.raiseOutsideProof(setOf("biz-1"), takenAt, "boot") }
     }
 
     @Test
@@ -2636,7 +2641,7 @@ class GeofenceRepositoryTest : RobolectricTest() {
 
         repository.handleMovement(latitude = 0.0, longitude = 0.0, fixQuality = movementFix(accuracy = 50f))
 
-        verify(exactly = 0) { store.raiseOutsideProof(match { it.isNotEmpty() }, any()) }
+        verify(exactly = 0) { store.raiseOutsideProof(match { it.isNotEmpty() }, any(), any()) }
     }
 
     @Test
@@ -2646,7 +2651,7 @@ class GeofenceRepositoryTest : RobolectricTest() {
 
         repository.refreshFromLiveFix(latitude = 0.0, longitude = 0.0)
 
-        verify(exactly = 0) { store.raiseOutsideProof(any(), any()) }
+        verify(exactly = 0) { store.raiseOutsideProof(any(), any(), any()) }
     }
 
     @Test
@@ -2656,7 +2661,7 @@ class GeofenceRepositoryTest : RobolectricTest() {
 
         repository.refreshFromLiveFix(latitude = 0.0, longitude = 0.0)
 
-        verify(exactly = 1) { store.recordRegistrationIncarnations(cached, 10_000L, emptySet()) }
+        verify(exactly = 1) { store.recordRegistrationIncarnations(cached, 10_000L, "boot", emptySet()) }
     }
 
     @Test
@@ -2668,7 +2673,7 @@ class GeofenceRepositoryTest : RobolectricTest() {
 
         repository.refresh(latitude = 0.0, longitude = 0.0)
 
-        verify(exactly = 1) { store.recordRegistrationIncarnations(cached, 10_000L, emptySet()) }
+        verify(exactly = 1) { store.recordRegistrationIncarnations(cached, 10_000L, "boot", emptySet()) }
     }
 
     @Test

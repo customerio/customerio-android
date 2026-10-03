@@ -31,7 +31,9 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.test.runTest
 import org.amshove.kluent.shouldBeEmpty
 import org.amshove.kluent.shouldBeEqualTo
+import org.amshove.kluent.shouldBeNull
 import org.amshove.kluent.shouldContainSame
+import org.amshove.kluent.shouldNotBeNull
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -168,7 +170,7 @@ class PolygonLocationEngineTest : RobolectricTest() {
         )
 
         coVerify(exactly = 1) {
-            dwellCoordinator.onInsideEvidence(POLYGON_ID, 100L, any())
+            dwellCoordinator.onInsideEvidence(POLYGON_ID, 100L, any(), any())
         }
     }
 
@@ -236,6 +238,24 @@ class PolygonLocationEngineTest : RobolectricTest() {
         store.getDwellVisit(POLYGON_ID)?.entryWasObserved shouldBeEqualTo false
     }
 
+    @Test
+    fun processResponsiveLocation_givenExitAfterTheWallClockSteppedBack_expectTheVisitEnded() = runTest {
+        // The EXIT's wall stamp (10 s) precedes the entry's (100 s), but its fix is 1 s later.
+        val dwellEngine = engineWithRealDwell()
+        val now = SystemClock.elapsedRealtimeNanos()
+        dwellEngine.processResponsiveLocation(insideFix(elapsedRealtimeNanos = now - 3_000_000_000L))
+        store.getDwellVisit(POLYGON_ID).shouldNotBeNull()
+
+        dwellEngine.processResponsiveLocation(
+            fix(37.7750, -122.4175, elapsedRealtimeNanos = now - 2_000_000_000L, timestampMillis = 10_000L)
+        )
+
+        store.getEnteredIds().shouldBeEmpty()
+        // Left behind, a process death before the next ENTER's visit write would let the next
+        // inside fix resume it across the time spent outside.
+        store.getDwellVisit(POLYGON_ID).shouldBeNull()
+    }
+
     private fun engineWithRealDwell(): PolygonLocationEngine {
         store.saveCachedRegions(listOf(polygonRegion().copy(dwellThresholdSeconds = 60)))
         val processor = GeofenceBusinessTransitionProcessor(store, secureUserStore, emitter, logger)
@@ -244,7 +264,7 @@ class PolygonLocationEngineTest : RobolectricTest() {
             transitionProcessor = processor,
             clock = clock,
             logger = logger,
-            dwellCoordinator = GeofenceDwellCoordinator(store, processor)
+            dwellCoordinator = GeofenceDwellCoordinator(store, processor, clock) { "boot" }
         )
     }
 
@@ -331,7 +351,7 @@ class PolygonLocationEngineTest : RobolectricTest() {
         engine.processResponsiveLocation(fix(37.7750, -122.41865, accuracyMeters = 45f))
 
         store.getEnteredIds() shouldBeEqualTo setOf(POLYGON_ID)
-        coVerify(exactly = 0) { dwellCoordinator.onInsideEvidence(any(), any(), any()) }
+        coVerify(exactly = 0) { dwellCoordinator.onInsideEvidence(any(), any(), any(), any()) }
     }
 
     @Test

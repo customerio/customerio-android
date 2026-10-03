@@ -112,7 +112,8 @@ class GeofenceCrossingPipelineTest : RobolectricTest() {
             latitude = latitude,
             longitude = longitude,
             triggeringLocation = null,
-            receivedAtSeconds = receivedAtSeconds
+            receivedAtSeconds = receivedAtSeconds,
+            receivedAtElapsedMs = android.os.SystemClock.elapsedRealtime()
         )
     )
 

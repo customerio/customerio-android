@@ -6,10 +6,12 @@ import io.customer.geofence.api.GeofenceApiService
 import io.customer.geofence.api.toCatalogEntries
 import io.customer.geofence.api.toDomainConfig
 import io.customer.geofence.api.toDomainRegions
+import io.customer.geofence.polygon.PolygonBootSessionProvider
 import io.customer.geofence.polygon.PolygonGeofenceServiceController
 import io.customer.geofence.polygon.PolygonSupport
 import io.customer.geofence.store.GeofenceRegionStore
 import io.customer.geofence.store.getCachedConfigOrFallback
+import io.customer.geofence.store.registrationsPredateBoot
 import io.customer.location.LocationCoordinates
 import io.customer.sdk.communication.Event
 import io.customer.sdk.core.util.Clock
@@ -62,6 +64,7 @@ internal class GeofenceRepositoryImpl(
     private val cooldownFilter: GeofenceCooldownFilter,
     private val transitionEmitter: GeofenceTransitionEmitter,
     private val clock: Clock,
+    private val bootSessionProvider: PolygonBootSessionProvider,
     private val packageInfo: GeofencePackageInfo,
     private val logger: GeofenceLogger,
     private val polygonController: PolygonGeofenceServiceController? = null,
@@ -212,7 +215,7 @@ internal class GeofenceRepositoryImpl(
      * (stopped state, OEM battery managers, emulator).
      */
     private fun osStateWipedByReboot(): Boolean =
-        store.getLastRegistrationUptime()?.let { clock.elapsedRealtime() < it } ?: false
+        store.registrationsPredateBoot(bootSessionProvider.currentSessionId(), clock.elapsedRealtime())
 
     /**
      * An app update can cancel the PendingIntent, dropping OS registrations while registeredIds
@@ -657,10 +660,12 @@ internal class GeofenceRepositoryImpl(
                     it.id in reAddedIds && it.id != GeofenceConstants.MOVEMENT_TRIGGER_ID && !it.isPolygon
                 }
                 val registeredAtElapsedMs = clock.elapsedRealtime()
+                val bootSessionId = bootSessionProvider.currentSessionId()
                 fun beyondEdge(region: GeofenceRegion) = region.distanceTo(latitude, longitude) - region.radius
                 store.recordRegistrationIncarnations(
                     regions = reAddedCircles,
                     registeredAtElapsedMs = registeredAtElapsedMs,
+                    bootSessionId = bootSessionId,
                     // Only a recent fix clear of the edge by more than its accuracy proves the
                     // device outside, and so lets the next ENTER count as an observed entry. A
                     // point check would not: GMS reports INITIAL_TRIGGER_ENTER from its own
@@ -684,7 +689,8 @@ internal class GeofenceRepositoryImpl(
                         ids = nearest
                             .filter { !it.isPolygon && it.id in newIds && it.id !in reAddedIds && fixQuality.clearsEdge(beyondEdge(it)) }
                             .mapTo(mutableSetOf(), GeofenceRegion::id),
-                        provenAtElapsedMs = fixTakenAt
+                        provenAtElapsedMs = fixTakenAt,
+                        bootSessionId = bootSessionId
                     )
                 }
                 if (!sessionStillCurrent()) {
@@ -758,6 +764,7 @@ internal class GeofenceRepositoryImpl(
                     // Stamp the new OS session before recover(), which would otherwise still see the
                     // previous session and tear down the monitor reconciliation just started.
                     store.setLastRegistrationUptime(clock.elapsedRealtime())
+                    store.setLastRegistrationBootSession(bootSessionProvider.currentSessionId())
                     packageInfo.lastUpdateTimeMs()?.let { store.setLastRegistrationPackageUpdateTime(it) }
                     val registeredPolygonIds = nearest.filter(GeofenceRegion::isPolygon)
                         .mapTo(mutableSetOf(), GeofenceRegion::id)
@@ -888,6 +895,7 @@ internal class GeofenceRepositoryImpl(
         expectedUserStateGeneration: Long
     ) {
         val timestamp = clock.currentTimeSeconds()
+        val timestampElapsedMs = clock.elapsedRealtime()
         val contained = store.getEnteredIds()
         for (region in candidates) {
             if (secureUserStore.getUserId() != userId ||
@@ -924,7 +932,8 @@ internal class GeofenceRepositoryImpl(
                     region.id,
                     timestamp,
                     expectedUserStateGeneration,
-                    beginsNewVisit = false
+                    beginsNewVisit = false,
+                    enteredAtElapsedMs = timestampElapsedMs
                 )
             }
         }

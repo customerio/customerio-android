@@ -313,10 +313,18 @@ internal class PolygonLocationEngine(
                         observedAtSeconds,
                         expectedUserStateGeneration,
                         beginsNewVisit = !wasInside,
-                        polygonOutsideObserved = outsideObserved
+                        polygonOutsideObserved = outsideObserved,
+                        enteredAtElapsedMs = fix.elapsedRealtimeNanos / NANOS_PER_MILLISECOND
                     )
                 }
                 if (store.userStateGeneration() != expectedUserStateGeneration) return@withLock PolygonEvaluationOutcome.NOTHING
+                if (detection.transition == PolygonTransition.EXIT && detection.polygonId !in store.getEnteredIds()) {
+                    dwellCoordinator?.onPolygonExit(
+                        detection.polygonId,
+                        exitFixElapsedMs = fix.elapsedRealtimeNanos / NANOS_PER_MILLISECOND,
+                        expectedUserStateGeneration = expectedUserStateGeneration
+                    )
+                }
                 if (detection.transition == PolygonTransition.EXIT) {
                     synchronized(stateLock) {
                         if (store.userStateGeneration() != expectedUserStateGeneration) {
@@ -341,7 +349,8 @@ internal class PolygonLocationEngine(
                 dwellCoordinator?.onInsideEvidence(
                     geofenceId,
                     observedAtSeconds,
-                    expectedUserStateGeneration
+                    expectedUserStateGeneration,
+                    observedAtElapsedMs = fix.elapsedRealtimeNanos / NANOS_PER_MILLISECOND
                 )
             }
         }

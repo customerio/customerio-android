@@ -120,17 +120,31 @@ internal class GeofenceCrossingPipeline(
             }
 
             if (transition == Event.GeofenceTransition.DWELL) {
-                dwellCoordinator.onNativeDwell(geofenceId, timestamp, triggeringFixElapsedMs, userStateGeneration)
+                dwellCoordinator.onNativeDwell(
+                    geofenceId = geofenceId,
+                    observedAtSeconds = timestamp,
+                    triggeringFixElapsedMs = triggeringFixElapsedMs,
+                    expectedUserStateGeneration = userStateGeneration,
+                    observedAtElapsedMs = crossing.receivedAtElapsedMs
+                )
             } else {
-                val wasInside = transition == Event.GeofenceTransition.ENTER &&
+                // Re-read under the transition lock just before this ENTER commits (see `admits`): a
+                // read here can predate a concurrent ENTER's commit and start a second visit.
+                var wasInside = transition == Event.GeofenceTransition.ENTER &&
                     geofenceId in regionStore.getEnteredIds()
                 if (transition == Event.GeofenceTransition.EXIT) {
-                    dwellCoordinator.onNativeExit(
+                    val current = dwellCoordinator.onNativeExit(
                         geofenceId = geofenceId,
                         exitedAtSeconds = timestamp,
                         triggeringFixElapsedMs = triggeringFixElapsedMs,
-                        expectedUserStateGeneration = userStateGeneration
+                        expectedUserStateGeneration = userStateGeneration,
+                        exitedAtElapsedMs = crossing.receivedAtElapsedMs
                     )
+                    // GMS reordered it behind a later inside fix, so the device is still here.
+                    if (!current) {
+                        logger.logTransitionDroppedSuperseded(geofenceId, transition.name)
+                        return@forEach
+                    }
                 }
                 transitionProcessor.process(
                     geofenceId = geofenceId,
@@ -140,7 +154,13 @@ internal class GeofenceCrossingPipeline(
                     expectedRegionRevision = region?.transitionRevision(),
                     expectedUserStateGeneration = userStateGeneration,
                     requireRegistered = true,
-                    endsVisitByTimestamp = false
+                    endsVisitByTimestamp = false,
+                    admits = {
+                        if (transition == Event.GeofenceTransition.ENTER) {
+                            wasInside = geofenceId in regionStore.getEnteredIds()
+                        }
+                        dwellCoordinator.admitsNativeEdge(geofenceId, transition, triggeringFixElapsedMs)
+                    }
                 )
                 if (
                     transition == Event.GeofenceTransition.ENTER &&
@@ -151,7 +171,8 @@ internal class GeofenceCrossingPipeline(
                         timestamp,
                         userStateGeneration,
                         beginsNewVisit = !wasInside,
-                        entryFixElapsedMs = triggeringFixElapsedMs
+                        entryFixElapsedMs = triggeringFixElapsedMs,
+                        enteredAtElapsedMs = crossing.receivedAtElapsedMs
                     )
                 }
             }

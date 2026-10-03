@@ -2,16 +2,10 @@ package io.customer.geofence.polygon
 
 import android.location.Location
 
-/**
- * A source that never answers, which is how the pipeline behaved before an on-demand fix existed.
- * The default for tests about something else, so that adding the on-demand path does not quietly
- * change what they measure.
- */
 internal object NeverAnswersFreshFix : PolygonFreshFixSource {
     override suspend fun awaitFreshFix(timeoutMs: Long, priority: PolygonFixPriority): Location? = null
 }
 
-/** Answers the first request with [location] and every later one with nothing. */
 internal class AnswersOnceFreshFix(private val location: Location) : PolygonFreshFixSource {
     var requests: Int = 0
         private set
@@ -22,13 +16,7 @@ internal class AnswersOnceFreshFix(private val location: Location) : PolygonFres
     }
 }
 
-/**
- * Records what the controller asked of the periodic re-check without scheduling anything.
- *
- * A fake rather than a mock because the interesting assertion is the *last* thing asked for: a
- * reconcile that schedules and then cancels leaves the re-check off, and a call-count check would
- * pass either way.
- */
+/** A fake, not a mock: the last call decides the state, and a call count can't tell. */
 internal class RecordingRecheckScheduler : PolygonRecheckScheduler {
     val calls = mutableListOf<String>()
 
@@ -43,25 +31,15 @@ internal class RecordingRecheckScheduler : PolygonRecheckScheduler {
     }
 }
 
-/** The default for tests about something else, so scheduling never changes what they measure. */
 internal object NoopRecheckScheduler : PolygonRecheckScheduler {
     override fun schedule(): Boolean = true
     override fun cancel(): Boolean = true
 }
 
-/**
- * Records the passive listener's lifecycle without touching GMS.
- *
- * The interesting property is the ORDER: a reconcile that starts and then stops leaves the listener
- * off, and a call-count assertion would pass either way.
- */
 internal class RecordingPassiveMonitor : PolygonPassiveMonitor {
     val calls = mutableListOf<String>()
 
-    /**
-     * Armed until something stops it. Receiver tests are about what a delivered fix does, and a
-     * fake that started disarmed would refuse all of them at the arming check.
-     */
+    /** Starts armed so receiver tests are not refused at the arming check. */
     private var armed = true
 
     override fun start() {
@@ -77,11 +55,9 @@ internal class RecordingPassiveMonitor : PolygonPassiveMonitor {
     override fun isArmed(): Boolean = armed
 }
 
-/** The default for tests about something else. */
 internal object NoopPassiveMonitor : PolygonPassiveMonitor {
     override fun start() = Unit
     override fun stop() = Unit
 
-    /** Armed by default: tests about something else must not be refused by the arming check. */
     override fun isArmed(): Boolean = true
 }

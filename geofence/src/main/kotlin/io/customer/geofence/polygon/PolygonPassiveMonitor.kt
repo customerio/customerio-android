@@ -10,20 +10,8 @@ import com.google.android.gms.location.Priority
 import io.customer.geofence.GeofenceLogger
 
 /**
- * Listens for fixes other apps are already paying for, while any polygon is registered.
- *
- * `PRIORITY_PASSIVE` never turns a sensor on. It asks the OS to hand over location that some other
- * app requested anyway, so it costs nothing beyond the delivery, and it guarantees nothing: on a
- * device where no other app asks for location, no fix ever arrives. That asymmetry is the whole
- * argument for it. The periodic re-check is bounded below by WorkManager's 15 minute floor, and a
- * passive fix can land at any moment inside that window, so it can only narrow the gap.
- *
- * Deliberately far simpler than [PolygonApproachMonitor], and the difference is worth stating
- * because that class cost six defects. There is no session here: no deadline, no sample count, no
- * per-session identity. The registration's lifetime is "some polygon is registered", which is a
- * single long-lived request, so nothing needs to tell two generations of it apart. The delivering
- * receiver reads the live generation from the store instead, and a delivery that arrives after a
- * user change is refused by the controller's own generation check rather than by bookkeeping here.
+ * Listens for fixes other apps already pay for; `PRIORITY_PASSIVE` never turns a sensor on and
+ * guarantees nothing. One long-lived request while any polygon is registered, with no session state.
  */
 internal interface PolygonPassiveMonitor {
     /**
@@ -45,7 +33,6 @@ internal class GmsPolygonPassiveMonitor(
 ) : PolygonPassiveMonitor {
     @SuppressLint("MissingPermission")
     override fun start() {
-        // Non-null in practice with FLAG_UPDATE_CURRENT; the type is nullable for NO_CREATE's sake.
         val pendingIntent = pendingIntent(FLAG_DEFAULT) ?: return
         runCatching {
             client.requestLocationUpdates(passiveRequest(), pendingIntent)
@@ -55,27 +42,21 @@ internal class GmsPolygonPassiveMonitor(
     }
 
     override fun stop() {
-        // NO_CREATE, so a stop cannot mint the very request it is trying to remove. Absent means
-        // nothing was ever registered, which is the ordinary case for a build with no polygons.
+        // NO_CREATE, so a stop cannot mint the very request it is trying to remove.
         val pendingIntent = pendingIntent(FLAG_NO_CREATE) ?: return
         runCatching {
             client.removeLocationUpdates(pendingIntent)
                 .addOnSuccessListener { logger.logPolygonPassiveStopped() }
                 .addOnFailureListener { logger.logPolygonPassiveFailed(it.message) }
         }.onFailure { logger.logPolygonPassiveFailed(it.message) }
-        // Cancelled as well as removed, which is what makes [isArmed] answerable. Removing the
-        // request stops new deliveries but leaves the intent alive, so a fix already dispatched
-        // still arrives and nothing it can read says the session ended.
+        // Cancelled as well as removed so [isArmed] turns false: removal leaves the intent alive, and
+        // a fix already dispatched still arrives.
         pendingIntent.cancel()
     }
 
     /**
-     * Whether this registration is still live, which is the only thing a delivered fix can check.
-     *
-     * Read at delivery rather than captured beforehand, deliberately. A passive fix is dispatched
-     * by the OS before the receiver runs, so a token taken when the receiver starts is already the
-     * post-teardown value. The system owns the intent, so this survives process death too, and a
-     * cold-process delivery under a live registration is still admitted.
+     * Read at delivery, since the OS dispatches before the receiver runs. The system owns the intent,
+     * so a cold-process delivery under a live registration is still admitted.
      */
     override fun isArmed(): Boolean = pendingIntent(FLAG_NO_CREATE) != null
 
@@ -88,32 +69,15 @@ internal class GmsPolygonPassiveMonitor(
 
     internal companion object {
         /**
-         * Distinct from [PolygonApproachMonitor]'s by convention with it, not because equality
-         * depends on it: `filterEquals` compares the component among other things, and these two
-         * intents target different receivers, so they could never be equal even sharing a code.
-         * Kept distinct anyway, since `PendingIntent` identity does include the request code and a
-         * future intent that stopped differing by component would then still be safe.
+         * Distinct from [PolygonApproachMonitor]'s so the intents stay apart if they share a
+         * receiver.
          */
         private const val PENDING_INTENT_REQUEST_CODE = 47303
 
         private val FLAG_DEFAULT = PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
         private val FLAG_NO_CREATE = PendingIntent.FLAG_NO_CREATE or PendingIntent.FLAG_MUTABLE
 
-        /**
-         * The interval is a ceiling on what we accept, not a request for anything: passive delivers
-         * only what another app already asked for. [MINIMUM_INTERVAL_MS] is the one number that
-         * matters, because a maps app in navigation requests fixes every second and every one of
-         * them would otherwise reach the evaluator.
-         *
-         * 60 s is **unmeasured**, a starting number. It throttles process wakes rather than sensor
-         * use: the sensor cost of a delivery is bounded already, since an undecided verdict can
-         * only buy a precise fix once per the controller's 30 s cooldown. Revisit it with a capture
-         * that shows the delivery rate, not by reasoning.
-         *
-         * A passive request with a `PendingIntent` does not survive a reboot, unlike a geofence.
-         * Boot restore re-registers and reconcile starts this again, so a capture will show
-         * `polygon.passive.started` after every boot and that is expected, not a restart loop.
-         */
+        /** Throttles process wakes: a navigating maps app requests a fix every second. */
         internal const val MINIMUM_INTERVAL_MS = 60_000L
         private const val NOMINAL_INTERVAL_MS = 5 * 60_000L
 

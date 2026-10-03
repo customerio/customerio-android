@@ -28,18 +28,38 @@ internal val inAppMessagingReducer: Reducer<InAppMessagingState> = { state, acti
             state.copy(anonymousId = action.anonymousId)
 
         is InAppMessagingAction.ClearMessageQueue ->
-            if (action.isContentEmpty) {
-                // A no-content (HTTP 204) response clears the visible lists but is NOT authoritative
-                // about dismissals — keep tombstones so a later cached/stale poll can't resurrect a
-                // message the user already dismissed. Tombstones clear only on Reset (logout).
-                state.copy(messagesInQueue = emptySet(), inboxMessages = emptySet())
+            if (action.expectedSseRevision != null && action.expectedSseRevision != state.sseMessageRevision) {
+                // The in-app HTTP response is older than an SSE snapshot. A 204 can still clear
+                // the independent inbox state; a 304 has no authoritative content to apply.
+                if (action.isContentEmpty) state.copy(inboxMessages = emptySet()) else state
+            } else if (action.isContentEmpty) {
+                // A no-content (HTTP 204) response is authoritative for messages that have not
+                // been displayed. Keep an actively embedded message until dismissal or view
+                // release, shown queue IDs so stale data cannot redisplay it, and inbox deletion
+                // tombstones until Reset so a stale poll cannot resurrect deleted inbox content.
+                state.copy(
+                    queuedInlineMessagesState = state.queuedInlineMessagesState.reconcileMessages(
+                        messages = emptyList(),
+                        authoritativeMessages = emptyList(),
+                        shownMessageQueueIds = state.shownMessageQueueIds,
+                        currentRoute = state.currentRoute
+                    ),
+                    messagesInQueue = emptySet(),
+                    inboxMessages = emptySet()
+                )
             } else {
-                // Only clear the message queue, keep inbox messages until explicitly cleared to show cached content if needed
-                state.copy(messagesInQueue = emptySet())
+                // A failed poll or an uncached 304 is not authoritative. Retain inline messages so
+                // a message that was not eligible for the previous route can still become
+                // available after a route change. Modal messages keep their existing clear-on-
+                // failure behavior, and inbox messages remain available as stale content.
+                state.copy(messagesInQueue = state.messagesInQueue.filter { it.isEmbedded }.toSet())
             }
 
         is InAppMessagingAction.ProcessMessageQueue ->
-            state.copy(messagesInQueue = action.messages.toSet())
+            state.copy(
+                messagesInQueue = action.messages.toSet(),
+                sseMessageRevision = state.sseMessageRevision + if (action.isSseSnapshot) 1 else 0
+            )
 
         is InAppMessagingAction.ProcessInboxMessages -> {
             // Drop any server-echoed message the user already dismissed locally (eventual
@@ -119,6 +139,7 @@ internal val inAppMessagingReducer: Reducer<InAppMessagingState> = { state, acti
             modalMessageState = ModalMessageState.Initial,
             queuedInlineMessagesState = QueuedInlineMessagesState(),
             messagesInQueue = emptySet(),
+            sseMessageRevision = state.sseMessageRevision + 1,
             inboxMessages = emptySet(),
             deletedInboxMessageIds = emptySet(),
             shownMessageQueueIds = emptySet(),
@@ -134,6 +155,26 @@ internal val inAppMessagingReducer: Reducer<InAppMessagingState> = { state, acti
                 } ?: accState
             }
             state.copy(queuedInlineMessagesState = newEmbeddedMessagesState)
+        }
+
+        is InAppMessagingAction.ReconcileInlineMessages -> state.copy(
+            queuedInlineMessagesState = state.queuedInlineMessagesState.reconcileMessages(
+                messages = action.messages,
+                authoritativeMessages = action.authoritativeMessages,
+                shownMessageQueueIds = state.shownMessageQueueIds,
+                currentRoute = state.currentRoute
+            )
+        )
+
+        is InAppMessagingAction.SetInlineMessageViewAttached -> {
+            action.message.queueId?.let { queueId ->
+                state.copy(
+                    queuedInlineMessagesState = state.queuedInlineMessagesState.setMessageViewAttached(
+                        queueId = queueId,
+                        isAttached = action.isAttached
+                    )
+                )
+            } ?: state
         }
 
         is InAppMessagingAction.DisplayMessage -> {

@@ -5,16 +5,8 @@ import kotlinx.serialization.KSerializer
 import kotlinx.serialization.json.Json
 
 /**
- * Project-owned JSON wrapper for the geofence sync pipeline.
- *
- * Two decode entry points for the two failure modes:
- * - [decode] — surface parse failures (API responses; failure → `Result.failure`).
- * - [decodeOrNull] — swallow parse failures (cached state; failure → `null` and the
- *   key gets wiped by the caller).
- *
- * Opt-in `lenient` flag accepts loose wire types (e.g. `"id": 123` or `"id": "abc-123"`)
- * without committing the SDK to a specific shape. Cache reads stay strict — we wrote
- * that JSON ourselves, so loose parsing would only mask corruption.
+ * `lenient` is for API responses (e.g. an unquoted `"id": 123` for a String). Cache reads stay
+ * strict: we wrote that JSON, so leniency would only mask corruption.
  */
 internal class GeofenceJsonSerializer {
 
@@ -37,8 +29,7 @@ internal class GeofenceJsonSerializer {
     ): T? = try {
         decode(serializer, raw, lenient)
     } catch (e: CancellationException) {
-        // Always propagate coroutine cancellation; otherwise callers from a
-        // suspending context could miss being cancelled.
+        // Rethrow so a suspending caller still gets cancelled.
         throw e
     } catch (_: Exception) {
         null

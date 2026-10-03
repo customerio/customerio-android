@@ -48,7 +48,7 @@ class GeofenceRegionStoreTest : RobolectricTest() {
         store.clearAll()
     }
 
-    // --- Cached regions (full backend response) ---
+    // --- Pending polygon approach batches ---
 
     @Test
     fun polygonApproachBatches_givenMultipleAppends_expectOrderedRoundTrip() {
@@ -94,9 +94,7 @@ class GeofenceRegionStoreTest : RobolectricTest() {
 
     @Test
     fun polygonApproachBatches_givenCapReached_expectRejectedInsteadOfSilentlyDropped() {
-        // Reporting success here would tell the scheduler to enqueue a worker for locations that never
-        // reached disk; the worker finds nothing and the fixes are lost. Failing lets the receiver
-        // evaluate them in-process while it still holds them.
+        // A false success would enqueue a worker for fixes that never reached disk.
         val encryptedStore = encryptedStore().also { it.beginUserSession(USER) }
         val generation = encryptedStore.userStateGeneration()
         val atCapacity = List(GeofenceRegionStoreImpl.MAXIMUM_PENDING_APPROACH_BATCHES) { index ->
@@ -108,7 +106,6 @@ class GeofenceRegionStoreTest : RobolectricTest() {
             listOf(approachBatch("overflow", 12.0, generation))
         ).shouldBeFalse()
 
-        // The oldest evidence is still intact, and the rejected batch was not partially written.
         val stored = encryptedStore.getPendingPolygonApproachBatches()
         stored.size shouldBeEqualTo GeofenceRegionStoreImpl.MAXIMUM_PENDING_APPROACH_BATCHES
         stored.none { it.id == "overflow" }.shouldBeTrue()
@@ -117,8 +114,7 @@ class GeofenceRegionStoreTest : RobolectricTest() {
 
     @Test
     fun polygonApproachBatches_givenReplayOfAlreadyStoredBatchAtCapacity_expectStillAccepted() {
-        // An idempotent re-append of a batch already on disk doesn't grow the queue, so the cap must
-        // not reject it and push a batch that *is* durable onto the in-process fallback.
+        // Re-appending a stored batch doesn't grow the queue, so the cap must not reject it.
         val encryptedStore = encryptedStore().also { it.beginUserSession(USER) }
         val generation = encryptedStore.userStateGeneration()
         val atCapacity = List(GeofenceRegionStoreImpl.MAXIMUM_PENDING_APPROACH_BATCHES) { index ->
@@ -150,6 +146,8 @@ class GeofenceRegionStoreTest : RobolectricTest() {
 
         readRaw("pending_polygon_approach_batches") shouldBeEqualTo ""
     }
+
+    // --- Cached regions (full backend response) ---
 
     @Test
     fun getCachedRegions_givenNothingStored_expectEmpty() {
@@ -654,10 +652,7 @@ class GeofenceRegionStoreTest : RobolectricTest() {
 
     @Test
     fun beginUserSession_givenLegacyRegistrationsWithoutOwner_expectRegistrationsKeptAndSessionReopened() {
-        // Nothing records who the persisted state belongs to, so it opens as a switch rather than
-        // being adopted on the assumption that the caller names its owner. Registrations survive,
-        // so the live fences keep firing; routing and containment do not, so nothing is attributed
-        // to this user until a refresh re-arms them.
+        // Registrations survive so live fences keep firing; routing and containment wait for a refresh.
         store.saveRegisteredIds(setOf("biz-1"))
         store.recordEntered("biz-1")
         val recreated = GeofenceRegionStoreImpl(
@@ -688,8 +683,6 @@ class GeofenceRegionStoreTest : RobolectricTest() {
 
     @Test
     fun beginUserSessionIfAbsent_givenADifferentOwner_expectSessionUntouched() {
-        // The whole point of the variant: a caller that read its user earlier must not undo a
-        // session opened since, so routing armed for the current owner survives.
         store.beginUserSession("user-2")
         val generation = store.userStateGeneration()
         store.saveRoutableRegisteredIdsIfCurrent(setOf("biz-1"), generation).shouldBeTrue()
@@ -703,8 +696,7 @@ class GeofenceRegionStoreTest : RobolectricTest() {
 
     @Test
     fun beginUserSessionIfAbsent_givenSignOutClearedTheOwner_expectSessionOpened() {
-        // Absent means no owner, not "never opened": sign-out has already moved the generation on,
-        // and a persisted re-identify still has to open a session here.
+        // Absent means no owner, not "never opened".
         store.beginUserSession("user-1")
         store.clearUserScopedState()
         store.activeUserSessionId().shouldBeNull()
@@ -778,9 +770,7 @@ class GeofenceRegionStoreTest : RobolectricTest() {
 
     @Test
     fun beginUserSession_givenUnownedStateAndAnInFlightPass_expectThatPassRefused() {
-        // The pass began before anyone owned this state, so it cannot arm routing for the session
-        // that now does. Refusing is what sends the incoming user down its own refresh instead of
-        // inheriting a set that was ranked for someone else.
+        // The pass began before anyone owned this state, so it cannot arm routing for the new owner.
         store.saveRegisteredIds(setOf("biz-1"))
         val inFlightGeneration = store.userStateGeneration()
 
@@ -792,9 +782,6 @@ class GeofenceRegionStoreTest : RobolectricTest() {
 
     @Test
     fun getRoutableRegisteredIds_givenIdentifySwitchThenRefresh_expectRoutingRearmed() {
-        // The A-to-B loop end to end: A is registered and routable, identify B clears routing, and
-        // the refresh that follows re-arms it. Without the re-arm the explicit empty set persists and
-        // every later callback is classified as unknown.
         store.beginUserSession("user-a")
         store.saveRegisteredIds(setOf("biz-1"))
         store.saveRoutableRegisteredIdsIfCurrent(setOf("biz-1"), store.userStateGeneration())
@@ -839,8 +826,7 @@ class GeofenceRegionStoreTest : RobolectricTest() {
 
     @Test
     fun getRoutableRegisteredIds_givenRegistrationsNoSessionHasClaimed_expectEmpty() {
-        // A registration routes only once a pass has armed it for a known session. Falling back to
-        // the registered set would route a previous install's fences for whoever identifies next.
+        // Falling back to the registered set would route a previous install's fences for the next user.
         store.saveRegisteredIds(setOf("biz-legacy"))
 
         store.getRoutableRegisteredIds().shouldBeEmpty()
@@ -889,8 +875,7 @@ class GeofenceRegionStoreTest : RobolectricTest() {
 
     @Test
     fun claimExit_givenNeverEntered_expectFalse() {
-        // The phantom-EXIT guard: no containment record means GMS is reconciling its own
-        // state rather than reporting a crossing.
+        // No containment record means GMS is reconciling its own state, not reporting a crossing.
         store.claimExit("biz-1") shouldBeEqualTo false
     }
 
@@ -899,7 +884,7 @@ class GeofenceRegionStoreTest : RobolectricTest() {
         store.recordEntered("biz-1")
 
         store.claimExit("biz-1") shouldBeEqualTo true
-        // Consumed: a duplicate EXIT for the same crossing doesn't pass twice.
+        // Consumed, so a duplicate EXIT doesn't pass twice.
         store.claimExit("biz-1") shouldBeEqualTo false
     }
 
@@ -934,8 +919,7 @@ class GeofenceRegionStoreTest : RobolectricTest() {
         // A sync captures the epoch with its fix, then awaits GMS for seconds.
         val epochAtFix = store.containmentEpoch()
 
-        // Mid-flight the OS reports an arrival at the circle being registered — our fix said the
-        // device was outside it, GMS says otherwise and is looking at the newer position.
+        // Mid-flight the OS reports an arrival from a newer position than our fix.
         store.recordEntered("biz-moved")
 
         val dropped = store.reconcileEnteredIds(
@@ -945,8 +929,7 @@ class GeofenceRegionStoreTest : RobolectricTest() {
             resetIds = setOf("biz-moved")
         )
 
-        // Dropping it here would leave the device inside with no record, so its genuine EXIT would
-        // be discarded as never-entered.
+        // Dropping it would discard the genuine EXIT as never-entered.
         store.getEnteredIds() shouldContainSame setOf("biz-moved")
         dropped.shouldBeEmpty()
     }
@@ -964,7 +947,6 @@ class GeofenceRegionStoreTest : RobolectricTest() {
         )
 
         store.getEnteredIds() shouldContainSame setOf("biz-widened")
-        // Nothing was dropped, so the caller must not drop the mark either.
         dropped.shouldBeEmpty()
     }
 
@@ -979,35 +961,29 @@ class GeofenceRegionStoreTest : RobolectricTest() {
             sinceEpoch = store.containmentEpoch()
         )
 
-        // "biz-unregistered" pruned, "biz-kept" survives because it is still registered.
         store.getEnteredIds() shouldContainSame setOf("biz-kept", "biz-new-inside")
     }
 
     @Test
     fun reconcileEnteredIds_givenExitClaimedAfterFixWasTaken_expectFenceNotReSeeded() {
         store.recordEntered("biz-1")
-        // A sync captures the epoch with its fix, then awaits GMS for seconds.
         val epochAtFix = store.containmentEpoch()
 
-        // Mid-flight the OS reports the departure and the receiver consumes the record.
         store.claimExit("biz-1").shouldBeTrue()
 
-        // The sync now writes back geometry from the older fix, which still contained the fence.
+        // The sync writes back geometry from the older fix, which still contained the fence.
         store.reconcileEnteredIds(
             registeredIds = setOf("biz-1"),
             inside = setOf("biz-1"),
             sinceEpoch = epochAtFix
         )
 
-        // Resurrecting it would leave the device recorded inside a fence it left, disarming the EXIT
-        // guard for that fence until its next departure.
         store.getEnteredIds().shouldBeEmpty()
     }
 
     @Test
     fun reconcileEnteredIds_givenExitClaimedBeforeFixWasTaken_expectFenceSeeded() {
-        // Same fence, opposite order: the departure is already history when the fix is taken, so the
-        // geometry is the newer evidence — e.g. the device drove back in while the process was dead.
+        // The departure predates the fix, so the geometry is the newer evidence.
         store.recordEntered("biz-1")
         store.claimExit("biz-1").shouldBeTrue()
         val epochAtFix = store.containmentEpoch()
@@ -1023,9 +999,7 @@ class GeofenceRegionStoreTest : RobolectricTest() {
 
     @Test
     fun reconcileEnteredIds_givenUnclaimedExitForSameFence_expectStillSeeded() {
-        // A claim that found no record is a suspected GMS artifact, not a departure. Letting it block
-        // the seed would leave the fence with no containment at all, so its next genuine EXIT would
-        // be dropped as never-entered — the failure the seed exists to prevent.
+        // A claim that found no record is a suspected GMS artifact, not a departure.
         val epochAtFix = store.containmentEpoch()
 
         store.claimExit("biz-1").shouldBeFalse()
@@ -1041,14 +1015,12 @@ class GeofenceRegionStoreTest : RobolectricTest() {
 
     @Test
     fun reconcileEnteredIds_givenFenceUnregisteredAfterClaim_expectClaimForgottenSoLaterSeedWorks() {
-        // The claim record is per-fence state that would otherwise accumulate for the life of the
-        // process. Trimming it to the registered set is safe: a fence has to be re-registered before
-        // geometry can seed it again, and by then the old claim is older than any such sync.
+        // Trimming claims to the registered set is safe: a fence must be re-registered before it can
+        // be seeded again.
         store.recordEntered("biz-1")
         val epochAtFix = store.containmentEpoch()
         store.claimExit("biz-1").shouldBeTrue()
 
-        // Fence drops out of the monitored set, so its claim record is trimmed.
         store.reconcileEnteredIds(registeredIds = setOf("biz-other"), inside = emptySet(), sinceEpoch = epochAtFix)
         // Re-registered later with the device inside it, using the same stale epoch.
         store.reconcileEnteredIds(registeredIds = setOf("biz-1"), inside = setOf("biz-1"), sinceEpoch = epochAtFix)
@@ -1075,8 +1047,7 @@ class GeofenceRegionStoreTest : RobolectricTest() {
 
     @Test
     fun hasContainmentRecord_givenPruneOnlyReconcile_expectGracePreserved() {
-        // An upgraded install has no key; a pass with no live fix (null inside) must not create one,
-        // or the EXIT guard arms off an anchor and drops crossings that predate any record.
+        // A pass with no live fix must not create the key, or the EXIT guard arms off an anchor.
         store.reconcileEnteredIds(registeredIds = setOf("biz-1"), inside = null, sinceEpoch = store.containmentEpoch())
 
         store.hasContainmentRecord().shouldBeFalse()
@@ -1084,8 +1055,6 @@ class GeofenceRegionStoreTest : RobolectricTest() {
 
     @Test
     fun hasContainmentRecord_givenLiveFixInsideNothing_expectGraceEnded() {
-        // "Inside nothing" from a live fix is a real reading, so it ends the grace and arms the EXIT
-        // guard — otherwise a user who never enters a fence never gets phantom EXITs filtered.
         store.reconcileEnteredIds(registeredIds = setOf("biz-1"), inside = emptySet(), sinceEpoch = store.containmentEpoch())
 
         store.hasContainmentRecord().shouldBeTrue()
@@ -1102,8 +1071,7 @@ class GeofenceRegionStoreTest : RobolectricTest() {
 
     @Test
     fun reconcileEnteredIds_givenFixReportsOutsideARecordedFence_expectContainmentPreserved() {
-        // Union, not replace: a fix taken at the edge of a circle can read "outside" for a fence the
-        // OS already reported entered, and erasing the record would swallow the genuine EXIT.
+        // Union, not replace: an edge fix can read "outside" a fence the OS already reported entered.
         store.recordEntered("biz-1")
 
         store.reconcileEnteredIds(registeredIds = setOf("biz-1"), inside = emptySet(), sinceEpoch = store.containmentEpoch())
@@ -1113,8 +1081,7 @@ class GeofenceRegionStoreTest : RobolectricTest() {
 
     @Test
     fun reconcileEnteredIds_givenPruneOnlyPassWithExistingRecord_expectRecordCarried() {
-        // The grace only covers a missing key. Once a record exists, a prune-only pass still writes:
-        // it has to drop fences that left the registered set.
+        // The grace only covers a missing key; a prune-only pass still drops unregistered fences.
         store.recordEntered("biz-1")
         store.recordEntered("biz-2")
 
@@ -1143,7 +1110,6 @@ class GeofenceRegionStoreTest : RobolectricTest() {
 
         store.claimExit("biz-1").shouldBeTrue()
 
-        // Both drop together: the mark can't be left behind for a delivery path that may not run.
         store.getEnteredIds().shouldBeEmpty()
         store.hasEmittedEnter(USER, "biz-1").shouldBeFalse()
     }
@@ -1154,8 +1120,6 @@ class GeofenceRegionStoreTest : RobolectricTest() {
 
         store.claimExit("biz-1").shouldBeFalse()
 
-        // An unclaimed EXIT is a GMS artifact, not a departure — re-arming on it would let the next
-        // OS re-report of ENTER through as a fresh arrival.
         store.hasEmittedEnter(USER, "biz-1").shouldBeTrue()
     }
 
@@ -1163,8 +1127,7 @@ class GeofenceRegionStoreTest : RobolectricTest() {
     fun hasEmittedEnter_givenMarkOwnedByAnotherUser_expectFalse() {
         store.markEnterEmitted(USER, "biz-1")
 
-        // A direct A-to-B identify publishes no ResetEvent, so B reaches a still-registered fence
-        // with A's mark in place. Honouring it would swallow B's first arrival.
+        // A direct A-to-B identify publishes no ResetEvent, so B can meet A's mark.
         store.hasEmittedEnter(OTHER_USER, "biz-1").shouldBeFalse()
     }
 
@@ -1176,7 +1139,6 @@ class GeofenceRegionStoreTest : RobolectricTest() {
 
         store.hasEmittedEnter(OTHER_USER, "biz-2").shouldBeTrue()
         store.hasEmittedEnter(OTHER_USER, "biz-1").shouldBeFalse()
-        // The set belongs to one identity at a time, so A's marks are gone rather than parked.
         store.hasEmittedEnter(USER, "biz-1").shouldBeFalse()
     }
 
@@ -1193,12 +1155,9 @@ class GeofenceRegionStoreTest : RobolectricTest() {
 
     @Test
     fun pruneEmittedEnterIds_givenFenceEvictedWhileInside_expectLaterRevisitNotSuppressed() {
-        // Without the prune the mark outlives the monitoring that would clear it: a fence dropped
-        // from the nearest set while the device is inside never reports its EXIT, so a genuine
-        // revisit months later would be swallowed.
+        // An evicted fence never reports its EXIT, so without the prune its mark would outlive it.
         store.markEnterEmitted(USER, "biz-1")
 
-        // Evicted from the monitored set — no EXIT is ever delivered for it.
         store.pruneEmittedEnterIds(setOf("biz-other"))
         // Re-registered on a later sync when the device comes back into range.
         store.pruneEmittedEnterIds(setOf("biz-1"))
@@ -1208,9 +1167,8 @@ class GeofenceRegionStoreTest : RobolectricTest() {
 
     @Test
     fun markEnterEmitted_expectIndependentOfEnteredSet() {
-        // The two sets answer different questions — where the device is vs. what we have sent — and
-        // the geometry seeding writes only the former. Coupling them would let a sync's reconcile
-        // suppress the OS ENTER that follows it milliseconds later.
+        // Geometry seeding writes only the entered set; coupling them would let a sync's reconcile
+        // suppress the OS ENTER that follows it.
         store.markEnterEmitted(USER, "biz-1")
 
         store.getEnteredIds().shouldBeEmpty()
@@ -1286,10 +1244,6 @@ class GeofenceRegionStoreTest : RobolectricTest() {
 
     @Test
     fun saveApiFetchStateIfCurrent_givenNewStoreInstance_expectAnchorDecryptedCorrectly() {
-        // Cross-instance round trip. Location snapshots are encrypted via
-        // [PreferenceCrypto] (Android Keystore); a fresh store must be able to
-        // decrypt what a prior store wrote — otherwise process restarts would
-        // wipe the anchor and break the Tier-B distance check.
         val location = GeofenceLocation(latitude = 37.7749, longitude = -122.4194)
         store.saveApiFetchStateIfCurrent(location, 1L, store.userStateGeneration())
 
@@ -1304,9 +1258,7 @@ class GeofenceRegionStoreTest : RobolectricTest() {
 
     @Test
     fun beginUserSessionForCurrentUser_givenAnIdentifyRacesTheRead_expectTheIdentifiedUserOwnsIt() {
-        // The launch, boot and callback paths do not own the identity they act on. Reading it
-        // outside the session lock lets an identify land in the gap and be reopened as the older
-        // user, which clears the routing that identify's refresh armed.
+        // Reading outside the session lock would let an identify land in the gap and be reopened.
         store.beginUserSession("user-A")
         val readStarted = CountDownLatch(1)
         val identifyDone = CountDownLatch(1)
@@ -1314,7 +1266,7 @@ class GeofenceRegionStoreTest : RobolectricTest() {
         val lateCaller = Thread {
             store.beginUserSessionForCurrentUser {
                 readStarted.countDown()
-                // The identify is trying to run right now. Under the lock it cannot interleave.
+                // The identify is blocked on the session lock here.
                 identifyDone.await(2, TimeUnit.SECONDS)
                 "user-A"
             }
@@ -1383,7 +1335,6 @@ class GeofenceRegionStoreTest : RobolectricTest() {
 
     @Test
     fun saveLastMovementTriggerLocation_givenSubsequentSave_expectOverwrite() {
-        // Each successful registration overwrites — we only ever need the latest.
         store.saveLastMovementTriggerLocation(GeofenceLocation(1.0, 2.0), 1_000f)
         store.saveLastMovementTriggerLocation(GeofenceLocation(3.0, 4.0), 1_000f)
 
@@ -1392,8 +1343,7 @@ class GeofenceRegionStoreTest : RobolectricTest() {
 
     @Test
     fun saveLastMovementTriggerLocation_thenGetRadius_expectTheRegisteredRadiusNotTheConfigured() {
-        // A polygon can shrink the trigger well below the configured radius, and the staleness
-        // check reads this back to decide whether the device has left the circle that exists.
+        // A polygon can shrink the trigger below the configured radius; the staleness check reads this.
         store.saveLastMovementTriggerLocation(GeofenceLocation(1.0, 2.0), 150f)
 
         store.getLastMovementTriggerRadius() shouldBeEqualTo 150f
@@ -1401,14 +1351,12 @@ class GeofenceRegionStoreTest : RobolectricTest() {
 
     @Test
     fun getLastMovementTriggerRadius_givenNothingWritten_expectNull() {
-        // An install upgrading into this key has a centre and no radius. Null is what makes the
-        // caller fall back to the configured radius rather than read 0 and re-rank on every pass.
+        // Null makes the caller fall back to the configured radius rather than read 0.
         store.getLastMovementTriggerRadius().shouldBeNull()
     }
 
     @Test
     fun clearLastMovementTriggerLocation_givenPriorSave_expectRadiusClearedWithIt() {
-        // A stale radius outliving its centre would be applied to the next registration.
         store.saveLastMovementTriggerLocation(GeofenceLocation(1.0, 2.0), 150f)
 
         store.clearLastMovementTriggerLocation()
@@ -1418,8 +1366,6 @@ class GeofenceRegionStoreTest : RobolectricTest() {
 
     @Test
     fun clearLastMovementTriggerLocation_givenPriorSave_expectNull() {
-        // Called when a refresh succeeds with an empty business set (no movement
-        // trigger registered → the cached location is now stale).
         store.saveLastMovementTriggerLocation(GeofenceLocation(1.0, 2.0), 1_000f)
 
         store.clearLastMovementTriggerLocation()
@@ -1467,8 +1413,7 @@ class GeofenceRegionStoreTest : RobolectricTest() {
 
     @Test
     fun saveApiFetchStateIfCurrent_givenIdentifyLandedAfterRoutingWasArmed_expectNothingStamped() {
-        // The pass arms routing, then an identify lands before it stamps the cache. Stamping the
-        // new session fresh off this pass would make its own refresh SKIP, leaving routing empty.
+        // Stamping the new session fresh would make its own refresh SKIP, leaving routing empty.
         store.beginUserSession("user-a")
         val passGeneration = store.userStateGeneration()
         store.beginUserSession("user-b")
@@ -1521,8 +1466,6 @@ class GeofenceRegionStoreTest : RobolectricTest() {
 
     @Test
     fun clearUserScopedState_expectUserKeysAndFreshnessRemovedButCachePreserved() {
-        // Sign-out path: drop user-scoped state and the freshness timestamp
-        // (so the next login re-fetches) but keep cached regions/config.
         val regions = listOf(GeofenceRegion("biz-1", 0.0, 0.0, 50f))
         val config = GeofenceConfig(
             localRefreshTriggerRadius = 1_000f,
@@ -1546,21 +1489,16 @@ class GeofenceRegionStoreTest : RobolectricTest() {
 
         store.clearUserScopedState()
 
-        // User-specific: wiped.
         store.getRegisteredIds().shouldBeEmpty()
         store.getRoutableRegisteredIds().shouldBeEmpty()
         store.getRetainedRegisteredRegions().shouldBeEmpty()
-        // Goes with the registrations it describes — sign-out drops those from the OS.
         store.getEnteredIds().shouldBeEmpty()
-        // The next user must not inherit a suppressed ENTER for a fence they were never told about.
         store.hasEmittedEnter(USER, "biz-1").shouldBeFalse()
         store.getLastApiFetchLocation().shouldBeNull()
         store.getLastMovementTriggerLocation().shouldBeNull()
         store.getLastRegistrationUptime().shouldBeNull()
         store.getLastRegistrationPackageUpdateTime().shouldBeNull()
-        // Freshness throttle: wiped so the next login re-fetches.
         store.getLastSyncTimestamp().shouldBeNull()
-        // Cached regions/config: preserved.
         store.getCachedRegions() shouldBeEqualTo regions
         store.getCachedConfig() shouldBeEqualTo config
     }
@@ -1609,9 +1547,7 @@ class GeofenceRegionStoreTest : RobolectricTest() {
 
     @Test
     fun getCachedRegions_givenAnUnusualPolygonVertex_expectEveryRegionSurvives() {
-        // Range checks used to live in PolygonCoordinate's init, which is the deserializer's
-        // constructor: one bad stored vertex threw mid-list, readJson wiped the key, and every
-        // valid cached region went with it. The bad ring must cost only itself.
+        // A throw decoding one vertex would make readJson wipe the key and every cached region.
         writeRaw(
             "cached_regions",
             """[
@@ -1639,8 +1575,7 @@ class GeofenceRegionStoreTest : RobolectricTest() {
         val cached = store.getCachedRegions()
 
         cached.map { it.id } shouldContain "good-circle"
-        // The coordinate is no longer judged here — the backend admitted the ring — but the point
-        // of the test stands: one odd stored region must not take the whole cache down with it.
+        // Vertex ranges are not judged on read: the backend admitted the ring.
         cached.map { it.id } shouldContain "bad-polygon"
     }
 
@@ -1649,8 +1584,7 @@ class GeofenceRegionStoreTest : RobolectricTest() {
         writeRaw("cached_regions", "this is not valid json")
 
         store.getCachedRegions().shouldBeEmpty()
-        // Re-read after the failed parse should see "no value" (key was wiped),
-        // so writing fresh data works without leftover corruption.
+        // The failed parse wiped the key, so a re-read also sees no value.
         store.getCachedRegions().shouldBeEmpty()
     }
 
@@ -1729,15 +1663,12 @@ class GeofenceRegionStoreTest : RobolectricTest() {
         listOf("id", "latitude", "longitude", "radius", "name", "transitionTypes", "lastUpdated").forEach { key ->
             raw shouldContain "\"$key\""
         }
-        // Enum value serialized as the pinned name — lowercase to match the API
-        // wire format (otherwise the cache and the API speak different dialects).
+        // Lowercase, matching the API wire format.
         raw shouldContain "\"enter\""
     }
 
     @Test
     fun getCachedConfig_givenJsonWithUnknownFields_expectDecodesIgnoringUnknown() {
-        // Forward-compat: a future SDK adding new fields to GeofenceConfig must
-        // still be able to read a JSON payload that has extra fields it doesn't know.
         writeRaw(
             "cached_config",
             """{

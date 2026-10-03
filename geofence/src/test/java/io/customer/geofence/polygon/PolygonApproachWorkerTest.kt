@@ -149,16 +149,12 @@ class PolygonApproachWorkerTest : RobolectricTest() {
 
         result shouldBeEqualTo ListenableWorker.Result.success()
         pending shouldBeEqualTo emptyList()
-        // Dropping and evaluating both end with the batch removed and success, so the outcome alone
-        // cannot tell them apart. Elapsed-realtime timestamps from a previous boot are meaningless
-        // against this boot's clock, so the locations must never reach the evaluator.
+        // Evaluating would also remove the batch and succeed, so assert it was never evaluated.
         coVerify(exactly = 0) { mockController.processApproachLocations(any(), any(), any()) }
     }
 
     @Test
     fun worker_givenEvaluationKeepsFailing_expectRetryUntilTheCapThenDropTheBatch() = runTest {
-        // A poison batch that retried forever would hold the ordered queue and strand every newer
-        // location behind it.
         var pending = listOf(batch("poison"))
         every { sdkStore.getPendingPolygonApproachBatches() } answers { pending }
         every { sdkStore.removePendingPolygonApproachBatch(any()) } answers {
@@ -185,11 +181,7 @@ class PolygonApproachWorkerTest : RobolectricTest() {
         pending shouldBeEqualTo emptyList()
     }
 
-    /**
-     * Boot id read from the graph the worker resolves. Asserting against the test's own provider
-     * would pass even if the override never reached the worker, which is how the previous-boot
-     * test below used to pass for the wrong reason.
-     */
+    /** Boot id from the graph the worker resolves, so the batch passes its boot check. */
     private fun batch(id: String) = PendingPolygonApproachBatch(
         id = id,
         userStateGeneration = 1L,

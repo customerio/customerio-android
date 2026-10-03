@@ -35,6 +35,10 @@ sealed class Event {
 
     object ResetEvent : Event()
 
+    /** Published after all configured SDK modules have finished initializing. */
+    @InternalCustomerIOApi
+    object SdkInitializedEvent : Event()
+
     data class TrackPushMetricEvent(
         val deliveryId: String,
         val event: Metric,

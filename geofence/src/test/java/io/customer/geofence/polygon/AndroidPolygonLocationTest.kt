@@ -20,8 +20,6 @@ class AndroidPolygonLocationTest : RobolectricTest() {
 
     @Test
     fun toPolygonLocationFix_givenCoordinateOutsideTheValidRange_expectRejected() {
-        // A provider can report a corrupt position. Carrying it forward would let the evaluator
-        // judge containment against a point that cannot exist.
         location(latitude = 95.0).toPolygonLocationFix() shouldBeEqualTo null
         location(longitude = -181.0).toPolygonLocationFix() shouldBeEqualTo null
         location(latitude = Double.NaN).toPolygonLocationFix() shouldBeEqualTo null
@@ -29,7 +27,6 @@ class AndroidPolygonLocationTest : RobolectricTest() {
 
     @Test
     fun toPolygonLocationFix_givenCoordinateInRange_expectAccepted() {
-        // Control for the case above: same fix, coordinates the earth actually has.
         location().toPolygonLocationFix() shouldNotBeEqualTo null
     }
 

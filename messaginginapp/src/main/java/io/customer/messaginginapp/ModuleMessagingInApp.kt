@@ -7,11 +7,13 @@ import io.customer.messaginginapp.di.inAppMessagingManager
 import io.customer.messaginginapp.di.notificationInbox
 import io.customer.messaginginapp.di.visualInbox
 import io.customer.messaginginapp.gist.data.model.Message
+import io.customer.messaginginapp.gist.data.model.matchesRoute
 import io.customer.messaginginapp.gist.presentation.GistListener
 import io.customer.messaginginapp.gist.presentation.GistProvider
 import io.customer.messaginginapp.inbox.NotificationInbox
 import io.customer.messaginginapp.inbox.VisualInbox
 import io.customer.messaginginapp.state.InAppMessagingAction
+import io.customer.messaginginapp.state.InlineMessageState
 import io.customer.messaginginapp.type.ColorScheme
 import io.customer.messaginginapp.type.InAppMessage
 import io.customer.messaginginapp.type.InAppMessageError
@@ -22,6 +24,9 @@ import io.customer.sdk.communication.subscribe
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.module.CustomerIOModule
 import io.customer.sdk.events.Metric
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 
 class ModuleMessagingInApp(
     config: MessagingInAppModuleConfig
@@ -82,6 +87,27 @@ class ModuleMessagingInApp(
     fun dismissMessage() {
         gistProvider.dismissMessage()
     }
+
+    /**
+     * Observes whether an inline in-app message is currently available for [elementId].
+     *
+     * The returned flow emits the current value immediately and updates when the message queue,
+     * route, or message lifecycle changes. Observing availability does not fetch, display, or mark a
+     * message as shown. Before the first eligible message is received, the value is `false`.
+     *
+     * @param elementId The element ID configured for the inline message in Customer.io.
+     */
+    fun observeInlineMessageAvailability(elementId: String): Flow<Boolean> =
+        SDKComponent.inAppMessagingManager.state
+            .map { state ->
+                when (val inlineState = state.queuedInlineMessagesState.getMessage(elementId)) {
+                    is InlineMessageState.ReadyToEmbed,
+                    is InlineMessageState.Embedded -> inlineState.message.matchesRoute(state.currentRoute)
+                    is InlineMessageState.Dismissed,
+                    null -> false
+                }
+            }
+            .distinctUntilChanged()
 
     fun setColorScheme(colorScheme: ColorScheme) {
         SDKComponent.inAppMessagingManager.dispatch(InAppMessagingAction.SetColorScheme(colorScheme))

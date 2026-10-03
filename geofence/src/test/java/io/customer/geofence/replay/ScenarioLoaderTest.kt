@@ -5,12 +5,6 @@ import org.amshove.kluent.shouldBeFalse
 import org.amshove.kluent.shouldBeTrue
 import org.junit.Test
 
-/**
- * The NDJSON reader, on scenarios written here rather than recorded.
- *
- * Pure parsing: no Android, no SDK, no harness. These run everywhere, including where the recorded
- * drives are absent, which is most places.
- */
 class ScenarioLoaderTest {
 
     @Test
@@ -29,19 +23,11 @@ class ScenarioLoaderTest {
         scenario.given.size shouldBeEqualTo 1
         scenario.stimuli.size shouldBeEqualTo 1
         scenario.expectations.size shouldBeEqualTo 1
-        // A note is carried but never graded — the whole point of the third classification.
+        // A note is carried but never graded.
         scenario.records.size shouldBeEqualTo 4
         scenario.given.single().body.single().name shouldBeEqualTo "Here"
     }
 
-    /**
-     * Provenance must not default to `recorded`.
-     *
-     * It did, and an authored scenario whose header omitted `source` was then counted as a phone
-     * capture — enough on its own to satisfy the "did discovery find any drives?" guard, which is
-     * the emptiness check inverted. Reproduced by deleting `source` from an authored scenario and
-     * running a one-file corpus: discovery and replay both passed over zero drives.
-     */
     @Test
     fun load_givenHeaderWithoutSource_expectUnknownProvenance() {
         val scenario = ScenarioLoader.load(
@@ -78,7 +64,6 @@ class ScenarioLoaderTest {
 
     @Test
     fun load_givenRecordWithoutAt_expectRejected() {
-        // Defaulting to zero would silently reorder the drive, which is worse than not loading it.
         val error = runCatching {
             ScenarioLoader.load(
                 scenarioFile(header("no-at"), """{"k":"when","ev":"os.callback","ids":"A","t":"enter"}""")
@@ -89,8 +74,6 @@ class ScenarioLoaderTest {
 
     @Test
     fun load_givenUnknownKind_expectRejected() {
-        // Dropping the record instead left the file readable with an input or an assertion missing
-        // from it, and the drive still reported green. iOS throws on the same line.
         val error = runCatching {
             ScenarioLoader.load(
                 scenarioFile(
@@ -106,7 +89,6 @@ class ScenarioLoaderTest {
 
     @Test
     fun load_givenBatchedIds_expectAllFencesRead() {
-        // GMS batches several fences onto one broadcast; iOS reports one. The loader reads both.
         val scenario = ScenarioLoader.load(
             scenarioFile(
                 header("batch"),

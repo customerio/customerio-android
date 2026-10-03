@@ -1,3 +1,21 @@
+## [4.23.2](https://github.com/customerio/customerio-android/compare/4.23.1...4.23.2) (2026-09-29)
+
+### Bug Fixes
+
+* **messagingpush:** bound decoding and skip images over 5 MiB ([#917](https://github.com/customerio/customerio-android/issues/917)) ([17ca963](https://github.com/customerio/customerio-android/commit/17ca963a0cc3cfae9c5422297bb8de57e10c3bd5))
+
+## [4.23.1](https://github.com/customerio/customerio-android/compare/4.23.0...4.23.1) (2026-09-29)
+
+### Bug Fixes
+
+* **messaginginapp:** support OkHttp 5 SSE ([34fbcc6](https://github.com/customerio/customerio-android/commit/34fbcc609c22b0309030c92f15c5b65b69756d12))
+
+## [4.23.0](https://github.com/customerio/customerio-android/compare/4.22.0...4.23.0) (2026-09-29)
+
+### Features
+
+* **messaginginapp:** expose inline message availability (MBL-1707) ([e6c860b](https://github.com/customerio/customerio-android/commit/e6c860bffc67bd67efcdfe2ffe748e6683abe7b8))
+
 ## [4.22.0](https://github.com/customerio/customerio-android/compare/4.21.1...4.22.0) (2026-09-25)
 
 ### Features

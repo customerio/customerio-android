@@ -64,7 +64,6 @@ class GeofencePermissionCheckerTest : RobolectricTest() {
     @Test
     @Config(sdk = [28])
     fun isBackgroundDeliveryAvailable_belowQ_expectTrueRegardlessOfPermission() {
-        // Pre-Q, FINE covers background delivery implicitly.
         deny(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
 
         checker.isBackgroundDeliveryAvailable().shouldBeTrue()

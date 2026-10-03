@@ -1,21 +1,13 @@
 package io.customer.geofence
 
-/**
- * When a fix was taken, and how accurate it was, carried alongside the coordinates it describes.
- * Each is null when the source did not report it.
- */
 internal data class GeofenceFixQuality(
     val fixElapsedRealtimeMillis: Long? = null,
     /** Radius of 68% confidence, as [android.location.Location.getAccuracy] reports it. */
     val horizontalAccuracyMeters: Float? = null
 ) {
     /**
-     * Whether the fix still describes where the device is. Both sides monotonic since boot, so our
-     * own fixes can never be stamped ahead of now; one that is came from a host-supplied time that
-     * cannot be trusted to judge geometry.
-     *
-     * A fix that fails this drives no pass at all: [io.customer.geofence.GeofenceServices] declines
-     * it and leaves the live-fix intent armed, so a later fix still gets to seed containment.
+     * Both clocks are monotonic since boot, so a fix stamped ahead of now has an untrusted host
+     * time.
      */
     fun isFresh(nowElapsedRealtimeMillis: Long): Boolean {
         val takenAt = fixElapsedRealtimeMillis ?: return true

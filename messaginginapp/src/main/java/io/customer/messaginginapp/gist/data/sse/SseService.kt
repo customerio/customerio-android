@@ -9,13 +9,12 @@ import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.buffer
 import kotlinx.coroutines.flow.callbackFlow
+import okhttp3.Call
+import okhttp3.Callback
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
-import okhttp3.sse.EventSource
-import okhttp3.sse.EventSourceListener
-import okhttp3.sse.EventSources
 
 /**
  * SSE service for establishing Server-Sent Events connections.
@@ -31,8 +30,7 @@ internal class SseService(
     private val sseLogger: InAppSseLogger,
     private val inAppMessagingManager: InAppMessagingManager
 ) {
-
-    private var eventSource: EventSource? = null
+    private var call: Call? = null
     private val httpClient = createSseHttpClient()
 
     /**
@@ -45,83 +43,102 @@ internal class SseService(
         sessionId: String,
         userToken: String,
         siteId: String
-    ): Flow<SseEvent> = callbackFlow {
-        val request = createSseRequest(sessionId, userToken, siteId)
+    ): Flow<SseEvent> =
+        callbackFlow {
+            val request = createSseRequest(sessionId, userToken, siteId)
 
-        val currentEventSource = EventSources.createFactory(httpClient)
-            .newEventSource(
-                request,
-                object : EventSourceListener() {
-
-                    override fun onOpen(eventSource: EventSource, response: Response) {
-                        sseLogger.logConnectionOpened()
-                        val result = trySend(ConnectionOpenEvent)
-                        if (!result.isSuccess) {
-                            sseLogger.logFailedToSendConnectionOpenedEvent(result.exceptionOrNull()?.message)
-                        }
-                    }
-
-                    override fun onEvent(
-                        eventSource: EventSource,
-                        id: String?,
-                        type: String?,
-                        data: String
+            val currentCall = httpClient.newCall(request)
+            currentCall.enqueue(
+                object : Callback {
+                    override fun onFailure(
+                        call: Call,
+                        e: java.io.IOException
                     ) {
-                        sseLogger.logReceivedEvent(type)
-
-                        if (type.isNullOrBlank() || data.isBlank()) {
-                            sseLogger.logReceivedEventWithNoTypeOrData()
+                        if (call.isCanceled()) {
+                            close()
                             return
                         }
+                        sendFailure(e, null)
+                    }
 
-                        val result = trySend(ServerEvent(type, data))
-                        if (!result.isSuccess) {
-                            sseLogger.logFailedToSendEvent(result.exceptionOrNull()?.message)
+                    override fun onResponse(
+                        call: Call,
+                        response: Response
+                    ) {
+                        try {
+                            response.use {
+                                val responseBody = response.body
+                                if (!response.isSuccessful || responseBody == null || !response.isEventStream()) {
+                                    sendFailure(null, response)
+                                    return
+                                }
+
+                                sseLogger.logConnectionOpened()
+                                val openResult = trySend(ConnectionOpenEvent)
+                                if (!openResult.isSuccess) {
+                                    sseLogger.logFailedToSendConnectionOpenedEvent(openResult.exceptionOrNull()?.message)
+                                }
+
+                                SseEventReader(responseBody.source()) { type, data ->
+                                    sseLogger.logReceivedEvent(type)
+
+                                    if (type.isNullOrBlank() || data.isBlank()) {
+                                        sseLogger.logReceivedEventWithNoTypeOrData()
+                                        return@SseEventReader
+                                    }
+
+                                    val eventResult = trySend(ServerEvent(type, data))
+                                    if (!eventResult.isSuccess) {
+                                        sseLogger.logFailedToSendEvent(eventResult.exceptionOrNull()?.message)
+                                    }
+                                }.process()
+
+                                if (!call.isCanceled()) {
+                                    sseLogger.logConnectionClosed()
+                                    val closedResult = trySend(ConnectionClosedEvent)
+                                    if (!closedResult.isSuccess) {
+                                        sseLogger.logFailedToSendConnectionClosedEvent()
+                                    }
+                                }
+                                close()
+                            }
+                        } catch (e: Exception) {
+                            if (!call.isCanceled()) {
+                                sendFailure(e, response)
+                            } else {
+                                close()
+                            }
                         }
                     }
 
-                    override fun onFailure(
-                        eventSource: EventSource,
-                        t: Throwable?,
+                    private fun sendFailure(
+                        throwable: Throwable?,
                         response: Response?
                     ) {
-                        sseLogger.logConnectionFailed(t?.message, response?.code)
+                        sseLogger.logConnectionFailed(throwable?.message, response?.code)
 
-                        val sseError = classifySseError(t, response)
-                        val result = trySend(ConnectionFailedEvent(sseError))
+                        val result = trySend(ConnectionFailedEvent(classifySseError(throwable, response)))
                         if (!result.isSuccess) {
                             sseLogger.logFailedToSendErrorEvent(result.exceptionOrNull()?.message)
                         }
 
-                        // Close normally - we've already emitted ConnectionFailedEvent, so the collector will handle it
-                        // Closing with exception would cause the flow collection to throw, leading to duplicate error handling
-                        close()
-                    }
-
-                    override fun onClosed(eventSource: EventSource) {
-                        sseLogger.logConnectionClosed()
-
-                        val result = trySend(ConnectionClosedEvent)
-                        if (!result.isSuccess) {
-                            sseLogger.logFailedToSendConnectionClosedEvent()
-                        }
-
+                        // Close normally because the failure has already been delivered as an event.
                         close()
                     }
                 }
             )
 
-        // Update the shared field for disconnect() method, but capture locally for awaitClose
-        eventSource = currentEventSource
+            // Update the shared field for disconnect() method, but capture locally for awaitClose.
+            call = currentCall
 
-        awaitClose {
-            sseLogger.logFlowCancelled()
-            currentEventSource.cancel()
-            if (eventSource == currentEventSource) {
-                eventSource = null
+            awaitClose {
+                sseLogger.logFlowCancelled()
+                currentCall.cancel()
+                if (call == currentCall) {
+                    call = null
+                }
             }
-        }
-    }.buffer(Channel.BUFFERED)
+        }.buffer(Channel.BUFFERED)
 
     /**
      * Disconnect from SSE endpoint and clean up resources.
@@ -131,12 +148,13 @@ internal class SseService(
      */
     fun disconnect() {
         sseLogger.logDisconnectingService()
-        eventSource?.cancel()
-        eventSource = null
+        call?.cancel()
+        call = null
     }
 
-    private fun createSseHttpClient(): OkHttpClient {
-        return OkHttpClient.Builder()
+    private fun createSseHttpClient(): OkHttpClient =
+        OkHttpClient
+            .Builder()
             .readTimeout(NetworkUtilities.SSE_READ_TIMEOUT_SECONDS, TimeUnit.SECONDS)
             .addInterceptor { chain ->
                 val originalRequest = chain.request()
@@ -148,9 +166,7 @@ internal class SseService(
                 val finalRequest = networkRequest.build()
 
                 chain.proceed(finalRequest)
-            }
-            .build()
-    }
+            }.build()
 
     private fun createSseRequest(
         sessionId: String,
@@ -160,18 +176,28 @@ internal class SseService(
         val encodedUserToken = Base64.encodeToString(userToken.toByteArray(), Base64.NO_WRAP)
         val environment = inAppMessagingManager.getCurrentState().environment
 
-        val url = environment.getSseApiUrl().toHttpUrl().newBuilder()
-            .addQueryParameter(NetworkUtilities.SSE_SESSION_ID_PARAM, sessionId)
-            .addQueryParameter(NetworkUtilities.SSE_SITE_ID_PARAM, siteId)
-            .addQueryParameter(NetworkUtilities.SSE_USER_TOKEN_PARAM, encodedUserToken)
-            .build()
+        val url =
+            environment
+                .getSseApiUrl()
+                .toHttpUrl()
+                .newBuilder()
+                .addQueryParameter(NetworkUtilities.SSE_SESSION_ID_PARAM, sessionId)
+                .addQueryParameter(NetworkUtilities.SSE_SITE_ID_PARAM, siteId)
+                .addQueryParameter(NetworkUtilities.SSE_USER_TOKEN_PARAM, encodedUserToken)
+                .build()
 
         sseLogger.logCreatingRequest(url.toString())
 
-        return Request.Builder()
+        return Request
+            .Builder()
             .url(url)
             .get()
             .build()
+    }
+
+    private fun Response.isEventStream(): Boolean {
+        val mediaType = body?.contentType() ?: return false
+        return mediaType.type == "text" && mediaType.subtype == "event-stream"
     }
 }
 
@@ -208,6 +234,8 @@ internal data class ServerEvent(
 /**
  * Represents error events that occur during SSE connection or communication.
  */
-internal class ConnectionFailedEvent(val error: SseError) : SseEvent
+internal class ConnectionFailedEvent(
+    val error: SseError
+) : SseEvent
 
 internal object ConnectionClosedEvent : SseEvent

@@ -45,6 +45,7 @@ dependencies {
     implementation Dependencies.composeMaterial
     implementation Dependencies.composeRuntime
     implementation Dependencies.coroutinesAndroid
+    implementation Dependencies.androidxLifecycleRuntimeCompose
     
     // Testing
     testImplementation project(":common-test")

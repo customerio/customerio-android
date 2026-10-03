@@ -9,7 +9,6 @@ internal fun interface PolygonBootSessionProvider {
     fun currentSessionId(): String
 }
 
-/** Identifies the current OS boot without persisting a process-local token. */
 internal class AndroidPolygonBootSessionProvider(
     private val context: Context
 ) : PolygonBootSessionProvider {
@@ -24,8 +23,7 @@ internal class AndroidPolygonBootSessionProvider(
         }.getOrNull()?.takeIf(String::isNotBlank)
         if (kernelBootId != null) return "kernel:$kernelBootId"
 
-        // Prefer rejecting same-boot process-death recovery over accepting a location from an
-        // unverifiable previous boot. Current Android releases expose one of the stable sources.
+        // Rejecting same-boot process-death recovery beats accepting a fix from an unverifiable boot.
         return "process:$PROCESS_SESSION_ID"
     }
 

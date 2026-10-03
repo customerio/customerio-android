@@ -3,6 +3,7 @@ package io.customer.messaginginapp.state
 import io.customer.messaginginapp.gist.GistEnvironment
 import io.customer.messaginginapp.gist.data.model.InboxMessage
 import io.customer.messaginginapp.gist.data.model.Message
+import io.customer.messaginginapp.gist.data.model.matchesRoute
 import io.customer.messaginginapp.type.ColorScheme
 
 internal data class InAppMessagingState(
@@ -18,6 +19,8 @@ internal data class InAppMessagingState(
     val modalMessageState: ModalMessageState = ModalMessageState.Initial,
     val queuedInlineMessagesState: QueuedInlineMessagesState = QueuedInlineMessagesState(),
     val messagesInQueue: Set<Message> = emptySet(),
+    // Distinguishes a live SSE queue snapshot from an older HTTP fetch still in flight.
+    val sseMessageRevision: Long = 0,
     val inboxMessages: Set<InboxMessage> = emptySet(),
     // Client-side tombstones: queueIds of inbox messages the user dismissed locally. A subsequent
     // poll's /queue response can still echo a just-deleted message (eventual consistency / cached
@@ -63,6 +66,7 @@ internal data class InAppMessagingState(
         append("modalMessageState=$modalMessageState,\n")
         append("embeddedMessagesState=$queuedInlineMessagesState,\n")
         append("messagesInQueue=${messagesInQueue.map(Message::queueId)},\n")
+        append("sseMessageRevision=$sseMessageRevision,\n")
         append("inboxMessages=${inboxMessages.map(InboxMessage::deliveryId)},\n")
         append("deletedInboxMessageIds=$deletedInboxMessageIds,\n")
         append("shownMessageQueueIds=$shownMessageQueueIds,\n")
@@ -84,6 +88,7 @@ internal data class InAppMessagingState(
             if (modalMessageState != other.modalMessageState) put("modalMessageState", modalMessageState to other.modalMessageState)
             if (queuedInlineMessagesState != other.queuedInlineMessagesState) put("embeddedMessagesState", queuedInlineMessagesState to other.queuedInlineMessagesState)
             if (messagesInQueue != other.messagesInQueue) put("messagesInQueue", messagesInQueue to other.messagesInQueue)
+            if (sseMessageRevision != other.sseMessageRevision) put("sseMessageRevision", sseMessageRevision to other.sseMessageRevision)
             if (inboxMessages != other.inboxMessages) put("inboxMessages", inboxMessages to other.inboxMessages)
             if (deletedInboxMessageIds != other.deletedInboxMessageIds) put("deletedInboxMessageIds", deletedInboxMessageIds to other.deletedInboxMessageIds)
             if (shownMessageQueueIds != other.shownMessageQueueIds) put("shownMessageQueueIds", shownMessageQueueIds to other.shownMessageQueueIds)
@@ -100,8 +105,16 @@ internal sealed class InlineMessageState {
         override fun toString() = "ReadyToEmbed(message=${message.queueId}, elementId=$elementId)"
     }
 
-    data class Embedded(override val message: Message, val elementId: String) : InlineMessageState() {
-        override fun toString() = "Embedded(message=${message.queueId}, elementId=$elementId)"
+    data class Embedded(
+        override val message: Message,
+        val elementId: String,
+        val isViewAttached: Boolean = true,
+        val shouldRetainWhenDetached: Boolean = true
+    ) : InlineMessageState() {
+        override fun toString() =
+            "Embedded(message=${message.queueId}, elementId=$elementId, " +
+                "isViewAttached=$isViewAttached, " +
+                "shouldRetainWhenDetached=$shouldRetainWhenDetached)"
     }
 
     data class Dismissed(override val message: Message) : InlineMessageState() {
@@ -150,6 +163,66 @@ internal data class QueuedInlineMessagesState(
                 put(entry.key, newState)
             }
         )
+    }
+
+    fun setMessageViewAttached(queueId: String, isAttached: Boolean): QueuedInlineMessagesState {
+        val entry = messagesByElementId.entries.find { (_, state) ->
+            state.message.queueId == queueId
+        } ?: return this
+        val embeddedState = entry.value as? InlineMessageState.Embedded ?: return this
+        val updatedState = embeddedState.copy(isViewAttached = isAttached)
+
+        return copy(
+            messagesByElementId = buildMap(messagesByElementId.size) {
+                putAll(messagesByElementId)
+                if (isAttached || updatedState.shouldRetainWhenDetached) {
+                    put(entry.key, updatedState)
+                } else {
+                    remove(entry.key)
+                }
+            }
+        )
+    }
+
+    /**
+     * Reconciles messages waiting for a host view with the latest eligible queue snapshot.
+     *
+     * Messages with an attached view stay active until they are dismissed. A detached embedded
+     * message remains available after it has been shown, or while it is still present in the
+     * authoritative queue. Route eligibility is evaluated by observers and views without treating
+     * a local route replay as an authoritative removal.
+     */
+    fun reconcileMessages(
+        messages: List<Message>,
+        authoritativeMessages: List<Message>,
+        shownMessageQueueIds: Set<String>,
+        currentRoute: String?
+    ): QueuedInlineMessagesState {
+        val reconciledMessages = buildMap {
+            messagesByElementId.forEach { (elementId, state) ->
+                if (state is InlineMessageState.Embedded) {
+                    val isInAuthoritativeQueue = authoritativeMessages.any { message ->
+                        message.queueId != null && message.queueId == state.message.queueId
+                    }
+                    val wasAlreadyShown = state.message.queueId in shownMessageQueueIds
+                    val updatedState = state.copy(
+                        shouldRetainWhenDetached = wasAlreadyShown || isInAuthoritativeQueue
+                    )
+                    if (updatedState.isViewAttached || updatedState.shouldRetainWhenDetached) {
+                        put(elementId, updatedState)
+                    }
+                }
+            }
+
+            messages.forEach { message ->
+                val elementId = message.embeddedElementId ?: return@forEach
+                if (message.matchesRoute(currentRoute) && get(elementId) !is InlineMessageState.Embedded) {
+                    put(elementId, InlineMessageState.ReadyToEmbed(message, elementId))
+                }
+            }
+        }
+
+        return copy(messagesByElementId = reconciledMessages)
     }
 
     fun getMessage(elementId: String): InlineMessageState? = messagesByElementId[elementId]

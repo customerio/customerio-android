@@ -17,15 +17,9 @@ import kotlinx.coroutines.launch
 import org.json.JSONObject
 
 /**
- * Sends a geofence transition event via direct HTTP, bypassing the analytics pipeline.
- * Used by [GeofenceEventWorker] (and the async fallback below) so delivery survives
- * process death and does not depend on full SDK initialization.
- *
- * Precondition: [entry] must carry a non-null [PendingGeofenceDelivery.userId]
- * (the user identified when the transition fired, snapshotted at queue time so
- * sign-out + sign-in cannot reattribute). Anonymous transitions are dropped at
- * the receiver before they're ever persisted, so a null userId here is a bug;
- * the guard below fails the send defensively.
+ * Direct HTTP, bypassing the analytics pipeline, so the worker and async fallback don't need full
+ * SDK initialization. Sends as the queue-time [PendingGeofenceDelivery.userId] so a later sign-in
+ * can't reattribute it.
  */
 internal interface GeofenceEventTracker {
     suspend fun trackEvent(entry: PendingGeofenceDelivery): Result<Unit>
@@ -62,18 +56,7 @@ internal class GeofenceEventTrackerImpl(
     }
 }
 
-/**
- * Async fallback when WorkManager is unavailable. Fire-and-forget; does not
- * survive process death. Uses the same [sendRemoveOnSuccess] contract as the
- * worker — the entry stays in the store until the send is confirmed, so a
- * failed send (or a death mid-request) leaves it for the foreground flush to
- * retry rather than dropping it. The duplicate this can produce (overlap with
- * the flush) is deduped backend-side via the stable transitionId.
- *
- * Entries with a null [PendingGeofenceDelivery.userId] shouldn't exist (the
- * receiver drops anonymous transitions before persisting); the guard below is
- * defensive and leaves such an entry untouched.
- */
+/** Fallback when WorkManager is unavailable; does not survive process death. */
 internal class AsyncGeofenceEventTracker(
     private val tracker: GeofenceEventTracker,
     private val pendingStore: PendingDeliveryStore<PendingGeofenceDelivery>,
@@ -93,8 +76,8 @@ internal class AsyncGeofenceEventTracker(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Throwable) {
-                // Ad-hoc scope with no exception handler — an escape would crash the host.
-                // The entry stays in the store, so the foreground flush retries it.
+                // Ad-hoc scope with no exception handler: an escape would crash the host. The entry
+                // stays in the store for the foreground flush.
                 logger.logAsyncDeliveryFailed(entry.geofenceId, entry.transition.name, e.message)
             }
         }

@@ -71,8 +71,8 @@ class PolygonMovementTriggerPolicyTest {
 
     @Test
     fun safeRadiusMeters_givenApproachToARetailSizedFence_expectStillNoSafeBubble() {
-        // The same holds however close the fence is. This is the case that must not be floored:
-        // 30 m out, a 250 m trigger reaches 220 m past the boundary and the walk-in wakes nothing.
+        // Must not be floored: 30 m out, a 250 m trigger reaches 220 m past the boundary and the
+        // walk-in wakes nothing.
         policy.safeRadiusMeters(
             regions = listOf(rectangle(id = "shop", westMeters = 30.0, eastMeters = 110.0)),
             committedInsideIds = emptySet(),
@@ -83,9 +83,8 @@ class PolygonMovementTriggerPolicyTest {
 
     @Test
     fun safeRadiusMeters_givenDepartureFromARetailSizedFence_expectTheFloorNotTheCatalogDefault() {
-        // The three real retail polygons are 24-42 m inradius. Standing committed inside one, the
-        // clearance is negative, and a refusal falls the caller back to a 1000 m trigger — so the
-        // departure is only seen once the device has moved a kilometre.
+        // Inside a small ring the clearance is negative. A refusal would fall the caller back to
+        // the 1000 m catalog trigger, so departure would only be seen a kilometre out.
         val radius = policy.safeRadiusMeters(
             regions = listOf(
                 rectangle(
@@ -107,9 +106,8 @@ class PolygonMovementTriggerPolicyTest {
 
     @Test
     fun safeRadiusMeters_givenDepartureFromALargePolygon_expectItsOwnClearanceNotTheFloor() {
-        // Found by `customerio-android-c3` on #881. 2 km inside a large ring the invariant the floor
-        // exists to work around is satisfiable: a trigger just under 2 km is crossed before the
-        // boundary. Flooring it to 250 m costs 4-7x the wakes, each a sync and a re-registration.
+        // 2 km inside a large ring a trigger just under 2 km is still crossed before the boundary;
+        // flooring it to 250 m would only add wakes, each a sync and a re-registration.
         val radius = policy.safeRadiusMeters(
             regions = listOf(
                 rectangle(
@@ -130,8 +128,6 @@ class PolygonMovementTriggerPolicyTest {
 
     @Test
     fun safeRadiusMeters_givenDepartureClearanceWiderThanTheCatalogRadius_expectTheCatalogRadius() {
-        // The same ring under the default 1000 m catalog radius. The clearance is wider than the
-        // catalog allows, so the catalog wins: a departure never widens the trigger past it.
         policy.safeRadiusMeters(
             regions = listOf(
                 rectangle(
@@ -150,9 +146,8 @@ class PolygonMovementTriggerPolicyTest {
 
     @Test
     fun safeRadiusMeters_givenDepartureOnlyAndASubClampRefreshRadius_expectNoRefusal() {
-        // Pins the `approaching &&` conjunct on the refusal. The config clamp forbids a radius below
-        // 100 m, so only a caller passing one reaches this: a pure departure must still be armed,
-        // because the refusal is about losing an arrival and there is no arrival here.
+        // Below the config clamp's 100 m minimum. A pure departure is still armed: the refusal
+        // protects an arrival and there is none here.
         policy.safeRadiusMeters(
             regions = listOf(
                 rectangle(
@@ -171,9 +166,8 @@ class PolygonMovementTriggerPolicyTest {
 
     @Test
     fun safeRadiusMeters_givenDepartureAndARefreshRadiusBelowTheFloor_expectTheFloorNotTheConfig() {
-        // Found by Bugbot on #881. `localRefreshTriggerRadius` is only clamped to [100, 5000], so a
-        // workspace can configure 150 m. That says what the workspace wants, not what GMS resolves,
-        // and a departure trigger under the floor fires on coarse containment error instead.
+        // `localRefreshTriggerRadius` is clamped to [100, 5000], so a workspace can configure 150 m.
+        // A departure trigger under the floor would fire on coarse containment error instead.
         policy.safeRadiusMeters(
             regions = listOf(
                 rectangle(
@@ -192,10 +186,8 @@ class PolygonMovementTriggerPolicyTest {
 
     @Test
     fun safeRadiusMeters_givenInsideOnePolygonAndApproachingAnother_expectNoSafeBubble() {
-        // Reported by Shahroz on #881. Standing inside an 80 m shop with another starting 60 m
-        // away, treating the set as "departing" floored the trigger to 250 m and let the controller
-        // stop sampling — but the second shop is entered without ever crossing that trigger, so its
-        // arrival is lost. Being inside one fence must not cancel the approach clearance of another.
+        // A 250 m departure trigger would let sampling stop, and the second shop 60 m away is
+        // entered without crossing it.
         policy.safeRadiusMeters(
             regions = listOf(
                 rectangle(id = "inside", westMeters = -40.0, eastMeters = 40.0, southMeters = -40.0, northMeters = 40.0),
@@ -209,8 +201,6 @@ class PolygonMovementTriggerPolicyTest {
 
     @Test
     fun safeRadiusMeters_givenInsideOnePolygonAndTheOtherFarEnoughAway_expectTheDepartureFloor() {
-        // The same shape with room to satisfy both: the approaching ring is far enough that a
-        // departure-sized trigger is still crossed well before it.
         policy.safeRadiusMeters(
             regions = listOf(
                 rectangle(id = "inside", westMeters = -40.0, eastMeters = 40.0, southMeters = -40.0, northMeters = 40.0),
@@ -224,8 +214,7 @@ class PolygonMovementTriggerPolicyTest {
 
     @Test
     fun safeRadiusMeters_givenApproachClearanceTighterThanTheDepartureFloor_expectTheClearanceWins() {
-        // Between the two: the approach is satisfiable but only below the departure floor, so the
-        // trigger takes the clearance rather than widening past the ring being approached.
+        // Widening to the departure floor would reach past the ring being approached.
         val radius = policy.safeRadiusMeters(
             regions = listOf(
                 rectangle(id = "inside", westMeters = -40.0, eastMeters = 40.0, southMeters = -40.0, northMeters = 40.0),
@@ -271,8 +260,7 @@ class PolygonMovementTriggerPolicyTest {
     private companion object {
         const val METERS_PER_DEGREE = 111_320.0
     }
-    // The reject path had no test at all: a fix too coarse to place the device must not be allowed
-    // to shrink the movement trigger, because a trigger shrunk on a bad fix stops firing.
+    // A fix too coarse to place the device must not size the movement trigger.
 
     @Test
     fun safeRadiusMeters_givenFixCoarserThanTheCeiling_expectNoShrinkAtAll() {

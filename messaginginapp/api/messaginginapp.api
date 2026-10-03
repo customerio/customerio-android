@@ -31,6 +31,7 @@ public final class io/customer/messaginginapp/ModuleMessagingInApp : io/customer
 	public final fun inbox ()Lio/customer/messaginginapp/inbox/NotificationInbox;
 	public fun initialize ()V
 	public static final fun instance ()Lio/customer/messaginginapp/ModuleMessagingInApp;
+	public final fun observeInlineMessageAvailability (Ljava/lang/String;)Lkotlinx/coroutines/flow/Flow;
 	public fun onAction (Lio/customer/messaginginapp/gist/data/model/Message;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V
 	public fun onError (Lio/customer/messaginginapp/gist/data/model/Message;)V
 	public fun onError (Lio/customer/messaginginapp/gist/data/model/Message;Lio/customer/messaginginapp/type/InAppMessageError;)V

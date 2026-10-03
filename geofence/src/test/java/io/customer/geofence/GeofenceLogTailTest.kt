@@ -17,23 +17,12 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 
 /**
- * Producer-side contract for the geofence diagnostics tail.
- *
- * The tail is an untyped string contract consumed by a parser that lives off-device and in another
- * language, so there is no round trip to assert. What can be asserted here is the half we own: that
- * every geofence logger method emits a machine key and a replay classification, that no value can
- * break the parser's whitespace split, and — the load-bearing one — that with the gate off the
- * output is exactly what it was before any of this instrumentation existed.
- *
- * It also pins the derived `why=` tokens. Those are computed from the existing prose rather than
- * from an enum — which is what keeps `logSyncSkipped`'s 20 test references untouched — and the
- * price of that choice is that a reworded sentence would silently change what analysis groups on.
- * Pinning them here converts that into a failing test.
+ * Producer side of the diagnostics tail. The parser lives off-device and groups on these `ev`,
+ * `io` and `why` tokens, so a reworded or renamed token must fail here.
  */
 @RunWith(RobolectricTestRunner::class)
 class GeofenceLogTailTest : RobolectricTest() {
 
-    /** Captures formatted messages. What these tests need is the exact string, not a call count. */
     private class CapturingLogger : Logger {
         val messages = mutableListOf<String>()
         override var logLevel: CioLogLevel = CioLogLevel.DEBUG
@@ -66,16 +55,7 @@ class GeofenceLogTailTest : RobolectricTest() {
         GeofenceDiagnostics.setEnabledForTesting(null)
     }
 
-    /**
-     * `ok` on `permission.changed` means background delivery is available — the reading iOS uses,
-     * where the flag is written only when Always is granted and WhenInUse carries
-     * `why=foreground_only` instead.
-     *
-     * The row-level check below only asserts that `perm` and `ok` are present, and only for Always,
-     * so the values were free to drift. They had: `ok` used to mean "some permission was granted",
-     * which made WhenInUse — the one tier where geofences fire in the foreground and nowhere else —
-     * report `ok=true` here and no `ok` at all on iOS.
-     */
+    /** WhenInUse reports `ok=false`: geofences fire only in the foreground there. */
     @Test
     fun logPermissionTier_givenEachTier_expectOkToMeanBackgroundDelivery() {
         val cases = mapOf(
@@ -93,10 +73,6 @@ class GeofenceLogTailTest : RobolectricTest() {
         }
     }
 
-    /**
-     * `perm` carries the tier vocabulary on every writer of this record, including the refusal
-     * path, which used to put an Android permission constant there instead.
-     */
     @Test
     fun logMissingPermission_expectTheTierInPermAndTheConstantInCtx() {
         val logger = CapturingLogger()
@@ -105,14 +81,11 @@ class GeofenceLogTailTest : RobolectricTest() {
         val fields = parseTail(logger.messages.last())
         fields.shouldNotBeNull()
         fields["perm"] shouldBeEqualTo GeofenceLogger.PERMISSION_DENIED
-        // Normalised by `token()`, as every other `ctx` on this record is.
+        // Normalised by `token()`.
         fields["ctx"] shouldBeEqualTo "access_fine_location"
     }
 
-    /**
-     * Mirrors what the off-device parser does: split on the **last** delimiter, then accept the
-     * remainder only if every token is a `key=value` pair.
-     */
+    /** Mirrors the off-device parser: split on the last delimiter, every token must be `key=value`. */
     private fun parseTail(message: String): Map<String, String>? {
         val index = message.lastIndexOf(GeofenceLogTail.DELIMITER)
         if (index < 0) return null
@@ -143,38 +116,21 @@ class GeofenceLogTailTest : RobolectricTest() {
         if (mock) isMock = true
     }
 
-    /**
-     * One entry per logger method, paired with the keys its record must carry.
-     *
-     * Enumerated by hand because there is no reflection over an extension of behaviour like this. A
-     * new method added without a line here is simply uncovered — but a *renamed key* on anything
-     * listed here fails loudly, which is the failure this contract exists to catch.
-     */
-    /**
-     * One row per record. [ev] is pinned per row, not just collected into a set: a set is
-     * identical whether two records keep their keys or swap them, and a swap silently inverts
-     * what every capture says the SDK decided.
-     */
+    /** [ev] is pinned per row: a set-level check still passes when two records swap keys. */
     private data class Row(
         val name: String,
         val ev: String,
         val requiredKeys: List<String>,
-        /** The method this row exercises, by reference so a rename cannot leave it behind. */
         val method: String,
-        /** Pinned per row: `io` decides what replay feeds back and what it compares. */
         val io: String = "out",
-        /**
-         * Exact values a consumer discriminates on, where presence alone is not enough. Two records
-         * sharing an `ev` and differing only by `why` pass every other check if their reasons are
-         * swapped, so the reason has to be pinned or the pair is untested.
-         */
+        /** Records sharing an `ev` would otherwise pass with their `why` values swapped. */
         val pinned: Map<String, String> = emptyMap(),
         val run: (GeofenceLogger) -> Unit
     )
 
     /**
-     * The frozen replay contract: `in` is what replay injects, `out` is the entire assertion
-     * surface, everything else is `obs`. Pinned per `ev`, which is what a parser dispatches on.
+     * Replay contract per `ev`: `in` is what replay injects, `out` is what it asserts, the rest is
+     * `obs`.
      */
     private val declaredIo: Map<String, String> = mapOf(
         "api.fetch.result" to "in",
@@ -195,7 +151,6 @@ class GeofenceLogTailTest : RobolectricTest() {
         "transition.synthesized" to "obs"
     )
 
-    /** Named separately from [declaredIo] so the count is visible at a glance. */
     private val frozenOutputs = setOf(
         "module.reset",
         "registration.applied",
@@ -324,7 +279,6 @@ class GeofenceLogTailTest : RobolectricTest() {
             val logger = CapturingLogger()
             run(GeofenceLogger(logger))
 
-            // Last message, not first: the precise-location warning would precede a gated record.
             val message = logger.messages.lastOrNull()
             message.shouldNotBeNull()
             val fields = parseTail(message)
@@ -333,8 +287,6 @@ class GeofenceLogTailTest : RobolectricTest() {
             if (fields["ev"] != ev) {
                 throw AssertionError("$name: expected ev=$ev, got '${fields["ev"]}'")
             }
-            // Pinned, not merely one of the three: `io` is what the off-device transform routes on,
-            // so a record flipped from out to in is replayed as something the SDK was told.
             if (fields["io"] != row.io) {
                 throw AssertionError("$name: expected io=${row.io}, got '${fields["io"]}'")
             }
@@ -351,7 +303,7 @@ class GeofenceLogTailTest : RobolectricTest() {
         }
     }
 
-    /** Reads what the logger emitted, not [declaredIo], so a mistake in the map cannot validate itself. */
+    /** Reads what the logger emitted, not the table's `io` values, so a wrong row cannot validate itself. */
     @Test
     fun assertionSurface_expectExactlyTheFrozenOutputs() {
         val emitted = sortedSetOf<String>()
@@ -371,12 +323,8 @@ class GeofenceLogTailTest : RobolectricTest() {
             val run = row.run
             val logger = CapturingLogger()
             run(GeofenceLogger(logger))
-            // Diagnostics-only entry points emit nothing at all with the gate off, which is a
-            // stronger guarantee than emitting unchanged prose.
             val message = logger.messages.lastOrNull() ?: continue
 
-            // Prose in front, machine-readable behind. A record that is all tail has lost the
-            // human-readable half Logcat still depends on.
             val head = message.substringBefore(GeofenceLogTail.DELIMITER)
             if (!head.startsWith("[Geofence] ") || head.length <= "[Geofence] ".length || head.contains("ev=")) {
                 throw AssertionError("$name: prose half is wrong — '$message'")
@@ -391,8 +339,6 @@ class GeofenceLogTailTest : RobolectricTest() {
             val run = row.run
             val logger = CapturingLogger()
             run(GeofenceLogger(logger))
-            // Diagnostics-only entry points emit nothing at all with the gate off, which is a
-            // stronger guarantee than emitting unchanged prose.
             val message = logger.messages.lastOrNull() ?: continue
             val tail = message.substring(message.lastIndexOf(GeofenceLogTail.DELIMITER) + GeofenceLogTail.DELIMITER.length)
             for (token in tail.split(" ")) {
@@ -405,14 +351,8 @@ class GeofenceLogTailTest : RobolectricTest() {
 
     @Test
     fun documentedProse_expectExactStringsManualTestsGrepFor() {
-        // The gate test above only proves no tail leaked; it cannot see a reworded message. The
-        // rename went through it green, changing a line docs/manual-tests greps for — a tester
-        // then finds nothing and reports a false failure.
-        //
-        // Three of the nine hallmark strings that doc lists — the ones this change set touched or
-        // moved past. The other six are unpinned and would still drift silently; extending this
-        // list is cheap and worth doing next time one of them is edited. Golden by design: if a
-        // pinned line changes, the doc changes with it, deliberately, in the same commit.
+        // Testers grep for these per docs/manual-tests/geofence-transition-delivery.md; change both
+        // together.
         GeofenceDiagnostics.setEnabledForTesting(false)
         val golden = listOf<Pair<String, (GeofenceLogger) -> Unit>>(
             "Geofence 'notl_core' ENTER: queued for at-least-once delivery (WorkManager now, analytics pipeline on next foreground)"
@@ -427,9 +367,6 @@ class GeofenceLogTailTest : RobolectricTest() {
             run(GeofenceLogger(logger))
             val message = logger.messages.lastOrNull()
             message.shouldNotBeNull()
-            // Full equality including the tag: the doc's first instruction is
-            // `adb logcat | grep -E "\[Geofence\]"`, so the prefix is part of what a tester
-            // relies on. endsWith would let a TAG change pass unnoticed.
             if (message != "[Geofence] $expected") {
                 throw AssertionError(
                     "prose drifted from docs/manual-tests/geofence-transition-delivery.md\n" +
@@ -441,16 +378,7 @@ class GeofenceLogTailTest : RobolectricTest() {
 
     @Test
     fun everyRecord_expectTheDeclaredVocabulary() {
-        // Companion to the per-row `ev` pin above, catching what a per-row check cannot: a key
-        // removed from the module entirely, or a row added to the table without being declared
-        // here. It does NOT see a record that exists in the module but was never added to the
-        // table — `seen` is built from the table, not from the source. `fence.cataloged` is the
-        // standing proof of that limit.
-        //
-        // `fence.cataloged` is absent because the `apiFetchResult` row passes no regions, so
-        // `logFenceCatalog` returns at its `isEmpty` guard and no catalog row is ever emitted here.
-        // It carries its own `ev` assertion further down. Add a region to that row and this set
-        // gains `fence.cataloged` — update both together.
+        // No `fence.cataloged`: the `apiFetchResult` row passes no regions. `fenceCatalog_*` covers it.
         val expected = setOf(
             "api.fetch.result",
             "dispatch.ready",
@@ -543,14 +471,10 @@ class GeofenceLogTailTest : RobolectricTest() {
             val run = row.run
             val logger = CapturingLogger()
             run(GeofenceLogger(logger))
-            // Diagnostics-only entry points emit nothing at all with the gate off, which is a
-            // stronger guarantee than emitting unchanged prose.
+            // Diagnostics-only records emit nothing with the gate off.
             val message = logger.messages.lastOrNull() ?: continue
 
-            // The whole guarantee in one assertion: a customer build that ships with debug logging
-            // left on sees exactly the prose it saw before this instrumentation existed. Not "sees
-            // only the safe fields" — sees nothing new at all, so a field added to the tail later
-            // needs no privacy review of its own.
+            // No tail at all, so a field added later cannot leak into a customer's debug log.
             if (message.contains(GeofenceLogTail.DELIMITER) || message.contains("ev=")) {
                 throw AssertionError("$name: emitted diagnostics with the gate off — '$message'")
             }
@@ -564,8 +488,7 @@ class GeofenceLogTailTest : RobolectricTest() {
         val target = GeofenceLogger(logger)
         for (row in invocations()) row.run(target)
 
-        // Spot-checks the classes of value the harness cares about, including ones that are
-        // harmless in isolation. The point is that "harmless in isolation" stopped being the test.
+        // Includes keys harmless in isolation; none may appear with the gate off.
         for (message in logger.messages) {
             for (key in listOf("lat=", "lon=", "alt=", "spd=", "brg=", "rlat=", "rlon=", "acc=", "age=", "fixsrc=", "io=", "why=")) {
                 if (message.contains(key)) throw AssertionError("$key leaked with the gate off: '$message'")
@@ -588,10 +511,6 @@ class GeofenceLogTailTest : RobolectricTest() {
 
     @Test
     fun listValues_expectSeparatorsSurviveTheTailBuilder() {
-        // Regression: sanitize folds the format's separators so an untrusted id cannot split a
-        // field, but it must not be applied to a value that composed those separators on purpose.
-        // Folding them turned ids=a,b into ids=a_b and ranked=x:120 into ranked=x_120, which no
-        // unit test noticed and a device capture did.
         GeofenceDiagnostics.setEnabledForTesting(true)
         val logger = CapturingLogger()
         GeofenceLogger(logger).logRankEvaluated(
@@ -608,12 +527,9 @@ class GeofenceLogTailTest : RobolectricTest() {
 
     @Test
     fun proseHalf_expectIdenticalWhicheverWayTheGateIsSet() {
-        // The prose is what a customer reads and what existing tests assert on. Enabling
-        // diagnostics must append to it and never rewrite it.
         for (row in invocations()) {
             val name = row.name
             val run = row.run
-            // Each pass is a fresh "launch" for the once-per-process module.init record.
             GeofenceDiagnostics.setEnabledForTesting(false)
             val off = CapturingLogger()
             run(GeofenceLogger(off))
@@ -623,7 +539,6 @@ class GeofenceLogTailTest : RobolectricTest() {
             run(GeofenceLogger(on))
 
             val onProse = on.messages.last().substringBefore(GeofenceLogTail.DELIMITER)
-            // Nothing with the gate off means nothing to compare — see above.
             val offProse = off.messages.lastOrNull() ?: continue
             if (onProse != offProse) {
                 throw AssertionError("$name: prose differs between gate states\n  off: $offProse\n  on:  $onProse")
@@ -648,8 +563,6 @@ class GeofenceLogTailTest : RobolectricTest() {
         GeofenceDiagnostics.setEnabledForTesting(true)
         geofenceLogger.logCallbackReceived(listOf("notl_core"), "ENTER", location(mock = true), GeofenceLogTail.FixSource.OS_TRIGGER)
 
-        // A fix injected by `adb emu geo fix` or a route driver must be distinguishable from a real
-        // one, or a bench corpus and a drive corpus silently merge.
         parseTail(capturing.messages.last())!!["sim"] shouldBeEqualTo "true"
     }
 
@@ -666,9 +579,6 @@ class GeofenceLogTailTest : RobolectricTest() {
 
     @Test
     fun syncSkipped_givenKnownReasons_expectPinnedTokens() {
-        // Every literal passed to logSyncSkipped in the geofence module. These tokens are what
-        // analysis groups on, so a reworded sentence must fail here rather than quietly split one
-        // bucket into two.
         val expected = mapOf(
             "no cached state to restore" to "no_cached_state_to_restore",
             "no identified user" to "no_identified_user",
@@ -686,9 +596,7 @@ class GeofenceLogTailTest : RobolectricTest() {
 
     @Test
     fun polygonReasons_expectPinnedTokensAndUnchangedProse() {
-        // These tokens are shared with iOS, so they are pinned rather than derived from the
-        // sentence: a reword here would move the bucket on Android only, and a joint query would
-        // read one platform's drops as two populations.
+        // Fixed wire tokens; several are also emitted by iOS, so change them on both platforms.
         PolygonDropReason.entries.map { it.wire } shouldBeEqualTo listOf(
             "undescribed_shape",
             "unusable_polygon",
@@ -700,14 +608,11 @@ class GeofenceLogTailTest : RobolectricTest() {
         PolygonUndecidedReason.entries.map { it.wire } shouldBeEqualTo
             listOf("accuracy_too_low", "on_boundary", "within_accuracy")
 
-        // The prose half is the contract the other way round: these sentences shipped before the
-        // tail existed, and a customer reading debug logs must still see what they saw.
         for (reason in PolygonDropReason.entries) {
             val logger = CapturingLogger()
             GeofenceLogger(logger).logPolygonDropped("notl_core", reason)
             logger.messages.last().contains("Geofence 'notl_core' dropped — polygon rejected: ${reason.detail}") shouldBeEqualTo true
             parseTail(logger.messages.last())!!["why"] shouldBeEqualTo reason.wire
-            // The value, not just its presence: `sh=circle` here would read as a circle drop.
             parseTail(logger.messages.last())!!["sh"] shouldBeEqualTo "polygon"
         }
         for (reason in PolygonNotRankedReason.entries) {
@@ -729,8 +634,6 @@ class GeofenceLogTailTest : RobolectricTest() {
     fun polygonRejections_expectTheirOwnBucketNotTheCountsTheyWouldInflate() {
         GeofenceDiagnostics.setEnabledForTesting(true)
 
-        // A decode-time drop happens once per sync; a ranking exclusion repeats on every movement
-        // trigger for the same fence. Filed under one `ev` they would inflate each other.
         val dropped = CapturingLogger()
         GeofenceLogger(dropped).logPolygonDropped("notl_core", PolygonDropReason.RING_UNBUILDABLE)
         val notRanked = CapturingLogger()
@@ -739,8 +642,7 @@ class GeofenceLogTailTest : RobolectricTest() {
         parseTail(dropped.messages.last())!!["ev"] shouldBeEqualTo "registration.rejected"
         parseTail(notRanked.messages.last())!!["ev"] shouldBeEqualTo "rank.excluded"
 
-        // And a refused fix is not a refused callback: `os.callback.dropped` is what makes
-        // received-vs-dropped countable, and a location update has no receipt to net against.
+        // Not `os.callback.dropped`: that nets against a callback receipt, and a fix has none.
         val fix = CapturingLogger()
         GeofenceLogger(fix).logPolygonFixNotUsable(PolygonFixRejection.NO_USABLE_FIX)
         parseTail(fix.messages.last())!!["ev"] shouldBeEqualTo "polygon.undecided"
@@ -750,8 +652,7 @@ class GeofenceLogTailTest : RobolectricTest() {
     fun runtimeUnsupported_expectOneTokenWhicheverPhaseRefusedIt() {
         GeofenceDiagnostics.setEnabledForTesting(true)
 
-        // A build without polygon monitoring refuses the record at decode and again at ranking,
-        // from two call sites that do not share a constant. One question, so one token.
+        // Decode and ranking refuse it from two call sites that share no constant.
         val atDecode = CapturingLogger()
         GeofenceLogger(atDecode).logPolygonDroppedUnsupportedRuntime("notl_core")
         val atRank = CapturingLogger()
@@ -765,8 +666,6 @@ class GeofenceLogTailTest : RobolectricTest() {
     fun queueUnreadable_expectViaSeparatesTheTwoPathsSharingTheEv() {
         GeofenceDiagnostics.setEnabledForTesting(true)
 
-        // One ev for both paths, so `via` is the only thing separating them. Collapsed, the flush
-        // trace reads as a worker wake.
         val worker = CapturingLogger()
         GeofenceLogger(worker).logEventWorkerQueueUnreadable(2, willRetry = true)
         val flush = CapturingLogger()
@@ -774,15 +673,12 @@ class GeofenceLogTailTest : RobolectricTest() {
 
         parseTail(worker.messages.last())!!["via"] shouldBeEqualTo "work_manager"
         parseTail(flush.messages.last())!!["via"] shouldBeEqualTo "foreground_flush"
-        // Shared, so a query for the failure itself catches both.
         parseTail(worker.messages.last())!!["why"] shouldBeEqualTo "read_failed"
         parseTail(flush.messages.last())!!["why"] shouldBeEqualTo "read_failed"
     }
 
     @Test
     fun polygonApproachFailures_givenEachCallPath_expectTheyStayDistinguishable() {
-        // An OS refusal is the environment's and replays as input; our own handler throwing is an
-        // internal decision. Within each, `op` separates the two call sites that share the record.
         geofenceLogger.logPolygonApproachRequestFailed("boom", operation = "request_updates")
         parseTail(capturing.messages.last())!!["op"] shouldBeEqualTo "request_updates"
         parseTail(capturing.messages.last())!!["io"] shouldBeEqualTo "in"
@@ -800,8 +696,7 @@ class GeofenceLogTailTest : RobolectricTest() {
 
     @Test
     fun unsupportedGeometry_givenTypeWithSeparators_expectSanitized() {
-        // `sh` carries whatever the backend claimed, so on this path it is untrusted wire input
-        // rather than the circle|polygon the catalog emits.
+        // On this path `sh` is the backend's raw type, not the catalog's circle|polygon.
         geofenceLogger.logUnsupportedGeometryDropped("notl_core", "Multi Polygon,v2")
 
         val tail = parseTail(capturing.messages.last())!!
@@ -811,13 +706,8 @@ class GeofenceLogTailTest : RobolectricTest() {
 
     @Test
     fun everyLogMethod_expectATableRowOrADeclaredReason() {
-        // The table cannot see a record that exists in the module but was never added to it, which
-        // is how five polygon records shipped with no tail at all. This closes that loop: a new
-        // `log*` method must either appear above or be named here. Empty is the goal state, so a
-        // record added without a tail now fails rather than being declared away.
+        // Keep `untailed` empty: a record added without a tail must fail, not be declared away.
         val untailed = emptySet<String>()
-        // Emits one record per region, so the table's `apiFetchResult` row cannot reach it — it
-        // passes no regions. Covered by the `fenceCatalog_*` tests instead.
         val coveredElsewhere = setOf("logFenceCatalog")
 
         val declared = GeofenceLogger::class.java.declaredMethods
@@ -835,15 +725,12 @@ class GeofenceLogTailTest : RobolectricTest() {
     fun sanitize_givenWhitespaceInIdentifier_expectFolded() {
         geofenceLogger.logTransitionAccepted("niagara on the lake", "ENTER", 1)
 
-        // Workspace-authored identifiers can contain anything; the parser splits on whitespace.
         parseTail(capturing.messages.last())!!["id"] shouldBeEqualTo "niagara_on_the_lake"
     }
 
     @Test
     fun sanitize_givenSeparatorsInIdentifier_expectFolded() {
-        // Regression: the whitespace test above passes whether or not token fields are sanitized,
-        // because tail() folds whitespace for every value. It never covered the characters the
-        // format itself uses, and 20 `id` call sites went unprotected behind it.
+        // Whitespace is folded for every value, so only separators prove the id is sanitized.
         for (raw in listOf("store,north", "a=b", "aisle:3", "wing|west")) {
             val logger = CapturingLogger()
             GeofenceLogger(logger).logTransitionAccepted(raw, "ENTER", 1)
@@ -858,8 +745,6 @@ class GeofenceLogTailTest : RobolectricTest() {
 
     @Test
     fun composedValues_givenSeparatorsOnPurpose_expectPreserved() {
-        // The other half of the same contract: sanitizing by default must not touch the values
-        // that build their own structure.
         geofenceLogger.logRankEvaluated(
             candidates = 3,
             selectedCount = 2,
@@ -881,10 +766,6 @@ class GeofenceLogTailTest : RobolectricTest() {
 
     @Test
     fun expensiveFields_givenDiagnosticsOff_expectNeverEvaluated() {
-        // The gate's worth on these two paths is that the work is never *done*, not merely never
-        // printed. Every other test here asserts on output, so moving the gate below the lambda
-        // call would leave them all green while a background wake still pays for a distance map
-        // over every candidate and a deserialization of the cached region list.
         GeofenceDiagnostics.setEnabledForTesting(false)
         val logger = CapturingLogger()
         val subject = GeofenceLogger(logger)
@@ -908,12 +789,9 @@ class GeofenceLogTailTest : RobolectricTest() {
         evictedCalls shouldBeEqualTo 0
         distanceCalls shouldBeEqualTo 0
         regionCountCalls shouldBeEqualTo 0
-        // The catalog re-decodes and re-validates every polygon ring the mapper is about to build
-        // anyway; with the gate off that is a background fetch paying twice for rows nobody writes.
         catalogCalls shouldBeEqualTo 0
 
-        // Proves the counts above are zero because of the gate, not because the lambdas are
-        // unreachable. logStorageLoaded is diagnostics-only, so it also gains its prose here.
+        // Proves the zeros above come from the gate, not from unreachable lambdas.
         GeofenceDiagnostics.setEnabledForTesting(true)
         subject.logRankEvaluated(
             candidates = 50,
@@ -942,8 +820,6 @@ class GeofenceLogTailTest : RobolectricTest() {
         shape = "polygon",
         latitude = 25.109908,
         longitude = 55.184004,
-        // The backend's own circle. What GMS registers is this plus our platform margin, and the
-        // catalog must never report that one.
         radiusMeters = baseRadiusMeters,
         vertices = List(vertexCount) { index ->
             PolygonCoordinate(25.10 + index / 10_000.0, 55.18 + index / 10_000.0)
@@ -968,8 +844,6 @@ class GeofenceLogTailTest : RobolectricTest() {
 
     @Test
     fun fenceCatalog_givenNameWithSeparators_expectSanitizedButReadable() {
-        // A workspace-authored name is untrusted text in a format whose only structure is spaces
-        // and `=`. Left raw, `Momo Dubai Test` would split into three bogus fields.
         GeofenceDiagnostics.setEnabledForTesting(true)
         val logger = CapturingLogger()
         GeofenceLogger(logger).logApiFetchResult(1, 10L) { listOf(catalogRegion(name = "Momo Dubai, Test=1")) }
@@ -977,20 +851,11 @@ class GeofenceLogTailTest : RobolectricTest() {
         val fields = parseTail(logger.messages.last())
         fields.shouldNotBeNull()
         fields["name"].shouldNotBeNull()
-        // Still recognisable to a human reading the log, which is half the point of logging it.
         fields["name"]!!.contains("Momo") shouldBeEqualTo true
         fields["name"]!!.contains(" ") shouldBeEqualTo false
         fields["name"]!!.contains("=") shouldBeEqualTo false
     }
 
-    /**
-     * Deliberately absent from [invocations]: that table asserts the gated-*tail* contract, where
-     * the gate strips detail and leaves the prose identical. The catalog is a different kind of
-     * record — it exists only for diagnostics, so the gate removes it entirely. Emitting bare
-     * "catalogued" lines to every customer's Logcat would be noise, and moving the detail into the
-     * prose to satisfy the table would leak coordinates with the gate off. These tests pin the same
-     * contract the table would have.
-     */
     @Test
     fun fenceCatalog_expectMachineKeyAndReplayClassification() {
         GeofenceDiagnostics.setEnabledForTesting(true)
@@ -1018,15 +883,13 @@ class GeofenceLogTailTest : RobolectricTest() {
         fields.shouldNotBeNull()
         fields["sh"] shouldBeEqualTo "polygon"
         fields["nv"] shouldBeEqualTo "4"
-        // lat_lon pairs in SDK order, comma separated, commas intact.
+        // `lat_lon` pairs, comma separated.
         fields["ring"]?.split(",")?.size shouldBeEqualTo 4
         fields["ring"]?.startsWith("25.10000_55.18000") shouldBeEqualTo true
     }
 
     @Test
     fun fenceCatalog_givenPolygon_expectBackendRadiusNotTheRegisteredOne() {
-        // The registered radius carries our platform margin. Emitting it would read as a
-        // cross-platform discrepancy that is only padding, and overstates the fence by a kilometre.
         GeofenceDiagnostics.setEnabledForTesting(true)
         val logger = CapturingLogger()
         GeofenceLogger(logger).logApiFetchResult(1, 10L) { listOf(polygonCatalogRegion(baseRadiusMeters = 900.0)) }
@@ -1036,8 +899,7 @@ class GeofenceLogTailTest : RobolectricTest() {
 
     @Test
     fun fenceCatalog_givenPolygonWithoutBackendRadius_expectRadOmittedNotPadded() {
-        // The mapper drops such a polygon, and the catalog now runs before it, so this row is what
-        // a capture actually gets: absent is recoverable, the padded radius is the bug this had.
+        // The mapper drops this polygon, but the catalog is logged before mapping.
         GeofenceDiagnostics.setEnabledForTesting(true)
         val logger = CapturingLogger()
         val region = polygonCatalogRegion().copy(radiusMeters = null)
@@ -1065,8 +927,6 @@ class GeofenceLogTailTest : RobolectricTest() {
 
     @Test
     fun fenceCatalog_givenRingLongerThanTheCap_expectCountStaysAuthoritative() {
-        // A truncated ring still looks like a valid polygon, so the count is what lets a consumer
-        // notice and refuse instead of computing membership against part of the shape.
         GeofenceDiagnostics.setEnabledForTesting(true)
         val logger = CapturingLogger()
         GeofenceLogger(logger).logApiFetchResult(1, 10L) { listOf(polygonCatalogRegion(vertexCount = 30)) }
@@ -1089,8 +949,6 @@ class GeofenceLogTailTest : RobolectricTest() {
 
     @Test
     fun fenceCatalog_givenGeosetList_expectSeparatorsPreserved() {
-        // `gs` and `tt` compose commas on purpose, like `ids` and `ranked` — they must opt out of
-        // sanitising or the list collapses into one token.
         GeofenceDiagnostics.setEnabledForTesting(true)
         val logger = CapturingLogger()
         GeofenceLogger(logger).logApiFetchResult(1, 10L) { listOf(catalogRegion()) }
@@ -1105,8 +963,6 @@ class GeofenceLogTailTest : RobolectricTest() {
 
     @Test
     fun fenceCatalog_givenDiagnosticsOff_expectNoCatalogRecords() {
-        // The catalog carries no prose worth emitting on its own; with the gate off it must not
-        // exist at all, not merely lose its tail.
         GeofenceDiagnostics.setEnabledForTesting(false)
         val logger = CapturingLogger()
         GeofenceLogger(logger).logApiFetchResult(1, 10L) { listOf(catalogRegion()) }
@@ -1114,14 +970,6 @@ class GeofenceLogTailTest : RobolectricTest() {
         logger.messages.none { it.contains("catalogued") } shouldBeEqualTo true
     }
 
-    /**
-     * Deliberately absent from [invocations], for the same reason as the catalog above: that table
-     * asserts the gated-*tail* contract, where the gate strips detail and leaves the prose
-     * identical. This record is gated whole — a bare "ready after 12ms" with no `ev` says nothing
-     * a reader could act on, and it fires once per broadcast (72 times in nine hours on the
-     * 2026-09-14 drive), so leaving the prose behind would be volume with nothing in it. These
-     * tests pin the same contract the table would have.
-     */
     @Test
     fun dispatchReady_expectMachineKeyAndObservationClassification() {
         GeofenceDiagnostics.setEnabledForTesting(true)
@@ -1133,8 +981,6 @@ class GeofenceLogTailTest : RobolectricTest() {
         val fields = parseTail(message)
         fields.shouldNotBeNull()
         fields["ev"] shouldBeEqualTo "dispatch.ready"
-        // `obs`, never `out`: how long the SDK took to be ready is not something a user could
-        // notice, so replay must never assert on it.
         fields["io"] shouldBeEqualTo "obs"
         fields["ms"] shouldBeEqualTo "12"
     }

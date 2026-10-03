@@ -557,6 +557,41 @@ class GeofenceVisitDurationRealStoreTest : RobolectricTest() {
     // ---------- a delayed EXIT must not lower newer outside proof (foundation F2) ----------
 
     @Test
+    fun exit_givenDistinctEnterHandledAfterItsDwell_expectExitUntimedAndQueuedDwellKept() = runTest {
+        arm(enterExitRegion().copy(dwellThresholdSeconds = 60), outsideProven = true)
+        val pipeline = pipeline()
+        pipeline.handle(crossing(GeofenceCrossingTransition.ENTER, fixMs = 10_000L))
+        pipeline.handle(crossing(GeofenceCrossingTransition.DWELL, fixMs = 111_000L))
+        val queued = outbox.loadAll().single { it.transition == Event.GeofenceTransition.DWELL }
+        pipeline.handle(
+            crossing(GeofenceCrossingTransition.ENTER, fixMs = 50_000L, wallSeconds = wallSecondsAt(112_000L), receivedAtElapsedMs = 112_100L)
+        )
+        pipeline.handle(crossing(GeofenceCrossingTransition.EXIT, fixMs = 190_000L))
+
+        assertLastExitUntimed()
+        regionStore.getDwellVisit(GEOFENCE_ID).shouldBeNull()
+        outbox.loadAll().single { it.transition == Event.GeofenceTransition.DWELL } shouldBeEqualTo queued
+    }
+
+    @Test
+    fun exit_givenOriginalEnterHandledAfterItsDwell_expectExitStillTimed() = runTest {
+        arm(enterExitRegion().copy(dwellThresholdSeconds = 60), outsideProven = true)
+        val pipeline = pipeline()
+        pipeline.handle(crossing(GeofenceCrossingTransition.ENTER, fixMs = 10_000L))
+        val visit = regionStore.getDwellVisit(GEOFENCE_ID).shouldNotBeNull()
+        pipeline.handle(crossing(GeofenceCrossingTransition.DWELL, fixMs = 111_000L))
+        pipeline.handle(
+            crossing(GeofenceCrossingTransition.ENTER, fixMs = 10_000L, wallSeconds = wallSecondsAt(112_000L), receivedAtElapsedMs = 112_100L)
+        )
+        pipeline.handle(crossing(GeofenceCrossingTransition.EXIT, fixMs = 190_000L))
+
+        val exit = outbox.loadAll().last()
+        exit.visitId shouldBeEqualTo visit.visitId
+        exit.enteredAt shouldBeEqualTo wallSecondsAt(10_000L)
+        exit.visitDurationSeconds shouldBeEqualTo 180L
+    }
+
+    @Test
     fun delayedExitAndEnter_givenNewerSdkOutsideProof_expectNoDwellAndUntimedExits() = runTest {
         arm(enterExitRegion().copy(dwellThresholdSeconds = 60), outsideProven = true)
         val coordinator = coordinator()

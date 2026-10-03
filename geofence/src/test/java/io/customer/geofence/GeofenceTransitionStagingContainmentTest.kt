@@ -633,6 +633,24 @@ class GeofenceTransitionStagingContainmentTest : RobolectricTest() {
     }
 
     @Test
+    fun pipeline_givenDistinctEnterHandledAfterItsDwell_expectFutureTimingUnknownAndQueuedFactsKept() = runTest {
+        armDwellRegion(dwellRegion(), outsideProven = true)
+        val pipeline = pipeline(regionStore, coordinator(regionStore))
+        pipeline.handle(crossing(GeofenceCrossingTransition.ENTER, fixMs = 10_000L))
+        pipeline.handle(crossing(GeofenceCrossingTransition.DWELL, fixMs = 111_000L))
+        val queued = outbox.loadAll().single { it.transition == Event.GeofenceTransition.DWELL }
+        // The ENTER for a possible return was handled after its DWELL. Its fix is distinct from
+        // the original entry, so it cannot preserve the old entry timing for a future EXIT.
+        pipeline.handle(crossing(GeofenceCrossingTransition.ENTER, fixMs = 50_000L, receivedAtElapsedMs = 112_100L))
+
+        val visit = regionStore.getDwellVisit(GEOFENCE_ID).shouldNotBeNull()
+        visit.entryWasObserved shouldBeEqualTo false
+        visit.lastInsideFixElapsedMs shouldBeEqualTo 111_000L
+        visit.emitted shouldBeEqualTo true
+        outbox.loadAll().single { it.transition == Event.GeofenceTransition.DWELL } shouldBeEqualTo queued
+    }
+
+    @Test
     fun pipeline_givenDelayedExitOlderThanNewerOutsideProof_expectTheLaterEnterAndDwellUntimed() = runTest {
         armDwellRegion(dwellRegion(), outsideProven = true)
         val pipeline = pipeline(regionStore, coordinator(regionStore))

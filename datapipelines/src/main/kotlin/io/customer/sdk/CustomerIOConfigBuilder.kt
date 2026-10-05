@@ -7,6 +7,7 @@ import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.di.setupAndroidComponent
 import io.customer.sdk.core.module.CustomerIOModule
 import io.customer.sdk.core.module.CustomerIOModuleConfig
+import io.customer.sdk.core.util.CioApiKey
 import io.customer.sdk.core.util.CioLogLevel
 import io.customer.sdk.data.model.Region
 
@@ -47,6 +48,22 @@ class CustomerIOConfigBuilder(
         val migrationSiteId: String? = null
         val screenViewUse: ScreenView = ScreenView.All
         val modules: List<CustomerIOModule<out CustomerIOModuleConfig>> = emptyList()
+
+        /**
+         * Secret (`ak_`) keys must never ship in apps, so fail fast if one is used.
+         */
+        fun requireNotSecretKey(cdpApiKey: String) {
+            require(!CioApiKey.isSecretKey(cdpApiKey)) {
+                "Secret API keys (ak_) can't be used in apps, use your public key in apps."
+            }
+        }
+
+        /**
+         * Region set by the app wins, then the region in the key prefix, then [region].
+         */
+        fun resolveRegion(cdpApiKey: String, region: Region?): Region {
+            return region ?: CioApiKey.region(cdpApiKey) ?: Defaults.region
+        }
     }
 
     init {
@@ -57,7 +74,8 @@ class CustomerIOConfigBuilder(
     private var logLevel: CioLogLevel = Defaults.logLevel
 
     // Host Settings
-    private var region: Region = Defaults.region
+    // null means the region is picked from the key prefix, falling back to the default region
+    private var region: Region? = null
     private var apiHost: String? = Defaults.apiHost
     private var cdnHost: String? = Defaults.cdnHost
 
@@ -98,7 +116,7 @@ class CustomerIOConfigBuilder(
 
     /**
      * Specifies the workspace region to ensure CDP requests are routed to the correct regional endpoint.
-     * Default value is [Region.US].
+     * Default value is the region in the key prefix (e.g. `wk_eu_` is [Region.EU]), or [Region.US] for keys without one.
      * Default values for apiHost and cdnHost are determined by the region.
      * However, if apiHost or cdnHost are manually specified, those values override region-based defaults.
      */
@@ -212,11 +230,12 @@ class CustomerIOConfigBuilder(
      * Build the CustomerIOConfig instance with the specified configuration.
      */
     fun build(): CustomerIOConfig {
+        requireNotSecretKey(cdpApiKey)
         return CustomerIOConfig(
             applicationContext = applicationContext,
             cdpApiKey = cdpApiKey,
             logLevel = logLevel,
-            region = region,
+            region = resolveRegion(cdpApiKey, region),
             apiHost = apiHost,
             cdnHost = cdnHost,
             flushAt = flushAt,

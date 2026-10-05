@@ -3,6 +3,8 @@ package io.customer.messagingpush.provider
 import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
 import android.os.Bundle
+import com.google.android.gms.tasks.OnFailureListener
+import com.google.android.gms.tasks.OnSuccessListener
 import com.google.android.gms.tasks.SuccessContinuation
 import com.google.android.gms.tasks.Task
 import com.google.firebase.installations.FirebaseInstallations
@@ -14,12 +16,15 @@ import io.customer.messagingpush.logger.PushNotificationLogger
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
+import java.io.IOException
 import org.amshove.kluent.shouldBeEqualTo
 import org.junit.jupiter.api.Test
 
 class FirebaseTokenSourceTest : JUnit5Test() {
 
     private val legacyTokenTask = mockk<Task<String>>()
+    private val tokenSuccess = slot<OnSuccessListener<in String>>()
+    private val tokenFailure = slot<OnFailureListener>()
     private val mockFirebaseMessaging = mockk<FirebaseMessaging> {
         every { token } returns legacyTokenTask
     }
@@ -65,13 +70,40 @@ class FirebaseTokenSourceTest : JUnit5Test() {
     @Test
     fun fetchToken_givenOptedInButRegisterUnavailable_expectLegacyTokenAndLog() {
         givenMetaData(optedIn = true)
+        givenTokenListeners()
 
         val result = tokenSource(registration = null).fetchToken()
+        tokenSuccess.captured.onSuccess("legacy-token")
 
         result shouldBeEqualTo legacyTokenTask
         registerCalls shouldBeEqualTo 1
         assertCalledOnce { mockPushLogger.logInstallationIdUnsupported() }
         assertCalledNever { mockPushLogger.obtainingInstallationIdStarted() }
+        assertCalledNever { mockPushLogger.logInstallationIdRegisterMissing(any()) }
+    }
+
+    @Test
+    fun fetchToken_givenRegisterUnavailableButTokenDisabled_expectRegisterMissingError() {
+        givenMetaData(optedIn = true)
+        givenTokenListeners()
+        val disabled = IllegalStateException("API disabled")
+
+        tokenSource(registration = null).fetchToken()
+        tokenFailure.captured.onFailure(disabled)
+
+        assertCalledOnce { mockPushLogger.logInstallationIdRegisterMissing(disabled) }
+        assertCalledNever { mockPushLogger.logInstallationIdUnsupported() }
+    }
+
+    @Test
+    fun fetchToken_givenRegisterUnavailableAndTokenFailsOtherwise_expectNoRegisterMissingError() {
+        givenMetaData(optedIn = true)
+        givenTokenListeners()
+
+        tokenSource(registration = null).fetchToken()
+        tokenFailure.captured.onFailure(IOException("SERVICE_NOT_AVAILABLE"))
+
+        assertCalledNever { mockPushLogger.logInstallationIdRegisterMissing(any()) }
     }
 
     @Test
@@ -95,6 +127,7 @@ class FirebaseTokenSourceTest : JUnit5Test() {
     @Test
     fun fetchToken_givenOptedInOnFirebaseWithoutRegister_expectLegacyToken() {
         givenMetaData(optedIn = true)
+        givenTokenListeners()
         val tokenSource = FirebaseTokenSource(
             context = contextMock,
             firebaseMessaging = { mockFirebaseMessaging },
@@ -103,7 +136,13 @@ class FirebaseTokenSourceTest : JUnit5Test() {
         )
 
         tokenSource.fetchToken() shouldBeEqualTo legacyTokenTask
+        tokenSuccess.captured.onSuccess("legacy-token")
         assertCalledOnce { mockPushLogger.logInstallationIdUnsupported() }
+    }
+
+    private fun givenTokenListeners() {
+        every { legacyTokenTask.addOnSuccessListener(capture(tokenSuccess)) } returns legacyTokenTask
+        every { legacyTokenTask.addOnFailureListener(capture(tokenFailure)) } returns legacyTokenTask
     }
 
     private fun givenMetaData(optedIn: Boolean) {

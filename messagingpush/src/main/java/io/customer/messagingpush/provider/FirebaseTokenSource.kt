@@ -27,9 +27,13 @@ internal class FirebaseTokenSource(
 
         val registration = register(messaging)
         if (registration == null) {
-            // Older Firebase ignores the opt-in and keeps issuing tokens.
-            pushLogger.logInstallationIdUnsupported()
+            // Older Firebase ignores the opt-in and keeps issuing tokens. If getToken() still fails
+            // as disabled, Firebase is in FID mode and register() went missing (e.g. minification).
             return messaging.token
+                .addOnSuccessListener { pushLogger.logInstallationIdUnsupported() }
+                .addOnFailureListener { error ->
+                    if (error is IllegalStateException) pushLogger.logInstallationIdRegisterMissing(error)
+                }
         }
 
         pushLogger.obtainingInstallationIdStarted()

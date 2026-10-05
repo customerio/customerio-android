@@ -844,6 +844,18 @@ class GeofenceLogTailTest : RobolectricTest() {
     )
 
     @Test
+    fun fenceCatalog_whenDwellThresholdProvided_thenRawSecondsRecordedWithoutDefaulting() {
+        GeofenceDiagnostics.setEnabledForTesting(true)
+        for (threshold in listOf(null, 0L, 60L, -1L, Long.MAX_VALUE)) {
+            val logger = CapturingLogger()
+            GeofenceLogger(logger).logApiFetchResult(1, 10L) {
+                listOf(catalogRegion().copy(dwellThresholdSeconds = threshold))
+            }
+            parseTail(logger.messages.last())!!["dwell"] shouldBeEqualTo threshold?.toString()
+        }
+    }
+
+    @Test
     fun fenceCatalog_givenNameWithSeparators_expectSanitizedButReadable() {
         GeofenceDiagnostics.setEnabledForTesting(true)
         val logger = CapturingLogger()

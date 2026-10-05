@@ -49,7 +49,8 @@ private fun ScenarioFence.toApiRegion(): GeofenceApiRegion {
             longitude = longitude,
             radius = radius,
             transitionTypes = transitionTypes.ifEmpty { null },
-            geosetIds = geosetIds
+            geosetIds = geosetIds,
+            dwellThresholdSeconds = dwellThresholdSeconds
         )
     }
     return GeofenceApiRegion(
@@ -63,7 +64,8 @@ private fun ScenarioFence.toApiRegion(): GeofenceApiRegion {
             baseRadiusMeters = radius
         ),
         transitionTypes = transitionTypes.ifEmpty { null },
-        geosetIds = geosetIds
+        geosetIds = geosetIds,
+        dwellThresholdSeconds = dwellThresholdSeconds
     )
 }
 

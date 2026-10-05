@@ -309,7 +309,8 @@ private fun GeofenceApiRegion.toCatalogEntry(): GeofenceCatalogEntry {
         longitude = if (isPolygonRecord) enclosingCircle?.longitude else longitude,
         radiusMeters = if (isPolygonRecord) enclosingCircle?.baseRadiusMeters else radius,
         vertices = geometry?.toPolygonGeometryOrNull()?.vertices,
-        transitionTypes = transitionTypesOrDefaults(transitionTypes).map { it.name.lowercase() }
+        transitionTypes = transitionTypesOrDefaults(transitionTypes).map { it.name.lowercase() },
+        dwellThresholdSeconds = dwellThresholdSeconds
     )
 }
 

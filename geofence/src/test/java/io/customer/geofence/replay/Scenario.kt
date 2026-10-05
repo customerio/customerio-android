@@ -8,11 +8,12 @@ import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
+import kotlinx.serialization.json.decodeFromJsonElement
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 
 /**
- * One recorded drive as `capture2scenario.py` emits it: NDJSON, a header then records tagged
+ * One recorded drive as `tools/scenario.py` emits it: NDJSON, a header then records tagged
  * `given` / `when` / `then` / `note` from the SDK's own `io=` classification.
  */
 internal data class Scenario(
@@ -77,7 +78,8 @@ internal data class ScenarioFence(
     val geosetIds: List<String>,
     val transitionTypes: List<String>,
     // Polygon only: the outer ring. latitude/longitude/radius are then its enclosing wake circle.
-    val vertices: List<PolygonCoordinate>? = null
+    val vertices: List<PolygonCoordinate>? = null,
+    val dwellThresholdSeconds: Long? = null
 )
 
 internal object ScenarioLoader {
@@ -153,7 +155,8 @@ internal object ScenarioLoader {
                 transitionTypes = (o["transitionTypes"] as? JsonArray)
                     ?.mapNotNull { it.jsonPrimitive.contentOrNullSafe() }
                     ?: emptyList(),
-                vertices = vertices
+                vertices = vertices,
+                dwellThresholdSeconds = o["dwellThresholdSeconds"]?.let { Json.decodeFromJsonElement<Long?>(it) }
             )
         }
     }

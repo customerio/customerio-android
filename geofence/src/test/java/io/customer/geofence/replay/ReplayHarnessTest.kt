@@ -1,39 +1,8 @@
 package io.customer.geofence.replay
 
-import io.customer.commontest.config.ApplicationArgument
-import io.customer.commontest.config.TestConfig
-import io.customer.commontest.config.testConfigurationDefault
-import io.customer.commontest.core.RobolectricTest
-import io.customer.commontest.util.DispatchersProviderStub
-import io.customer.geofence.GeofenceDiagnostics
-import io.customer.geofence.GeofenceForegroundCoordinator
-import io.customer.geofence.GeofenceLocationMode
-import io.customer.geofence.GeofencePermissionChecker
-import io.customer.geofence.GeofenceRegistrar
-import io.customer.geofence.api.GeofenceApiService
-import io.customer.geofence.di.geofenceApiService
-import io.customer.geofence.di.geofenceCooldownStore
-import io.customer.geofence.di.geofenceCrossingPipeline
-import io.customer.geofence.di.geofenceEventScheduler
-import io.customer.geofence.di.geofenceLogger
-import io.customer.geofence.di.geofenceManager
-import io.customer.geofence.di.geofencePermissionChecker
-import io.customer.geofence.di.geofenceRegionStore
-import io.customer.geofence.di.geofenceServices
-import io.customer.geofence.di.pendingGeofenceDeliveryStore
-import io.customer.geofence.worker.GeofenceEventScheduler
-import io.customer.sdk.core.di.SDKComponent
-import io.customer.sdk.core.di.clock
-import io.customer.sdk.core.util.Clock
-import io.customer.sdk.core.util.Logger
-import io.customer.sdk.core.util.ScopeProvider
-import io.customer.sdk.data.store.SecureUserStore
-import io.mockk.every
-import io.mockk.mockk
 import kotlinx.coroutines.test.runTest
 import org.amshove.kluent.shouldBeEqualTo
 import org.amshove.kluent.shouldBeTrue
-import org.junit.After
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -43,97 +12,7 @@ import org.robolectric.RobolectricTestRunner
  * outside the repo, so this is what covers the composition on CI.
  */
 @RunWith(RobolectricTestRunner::class)
-class ReplayHarnessTest : RobolectricTest() {
-
-    private val virtualClock = VirtualClock()
-
-    // Same execution model as ScenarioReplayTest, so this covers the harness that suite runs.
-    private val boundaryGate = ReplayBoundaryGate(virtualClock)
-    private val api = ReplayApiService(boundaryGate)
-    private val registrar = ReplayRegistrar(boundaryGate)
-    private val fakeLocationServices = ReplayLocationServices()
-    private val replayLogger = ReplayLogger()
-    private val identity = ReplayRunner.MutableIdentity()
-    private val fakeScopeProvider = ReplayScopeProvider()
-
-    private val fakeSecureUserStore: SecureUserStore = mockk(relaxed = true) {
-        every { getUserId() } answers { identity.userId }
-    }
-    private val scheduler: GeofenceEventScheduler = mockk(relaxed = true)
-    private val permissionChecker: GeofencePermissionChecker = mockk(relaxed = true) {
-        every { hasRequiredLocationPermissions() } returns true
-        every { isBackgroundDeliveryAvailable() } returns true
-    }
-
-    override fun setup(testConfig: TestConfig) {
-        super.setup(
-            testConfigurationDefault {
-                argument(ApplicationArgument(applicationMock))
-                diGraph {
-                    sdk {
-                        overrideDependency<Clock>(virtualClock)
-                        overrideDependency<Logger>(replayLogger)
-                        overrideDependency<ScopeProvider>(fakeScopeProvider)
-                        overrideDependency<GeofenceApiService>(api)
-                    }
-                    android {
-                        overrideDependency<GeofenceRegistrar>(registrar)
-                        overrideDependency<GeofenceEventScheduler>(scheduler)
-                        overrideDependency<GeofencePermissionChecker>(permissionChecker)
-                        overrideDependency<SecureUserStore>(fakeSecureUserStore)
-                    }
-                }
-            }
-        )
-        GeofenceDiagnostics.setEnabledForTesting(true)
-        assertComposedWith(
-            "SecureUserStore" to (SDKComponent.android().secureUserStore to fakeSecureUserStore),
-            "ScopeProvider" to (SDKComponent.scopeProvider to fakeScopeProvider),
-            "Clock" to (SDKComponent.clock to virtualClock),
-            "Logger" to (SDKComponent.logger to replayLogger),
-            "GeofenceRegistrar" to (SDKComponent.android().geofenceManager to registrar),
-            "GeofenceApiService" to (SDKComponent.geofenceApiService to api),
-            "GeofenceEventScheduler" to (SDKComponent.android().geofenceEventScheduler to scheduler),
-            "GeofencePermissionChecker" to (SDKComponent.android().geofencePermissionChecker to permissionChecker)
-        )
-        SDKComponent.android().geofenceRegionStore.clearAll()
-        // Separate from the region store; a leftover cooldown would suppress a fence's first crossing.
-        SDKComponent.android().geofenceCooldownStore.clearAll()
-        SDKComponent.android().pendingGeofenceDeliveryStore.removeAll()
-        replayLogger.clear()
-    }
-
-    @After
-    fun resetDiagnostics() {
-        GeofenceDiagnostics.setEnabledForTesting(null)
-    }
-
-    private fun runner() = ReplayRunner(
-        gate = boundaryGate,
-        scheduler = fakeScopeProvider.scheduler,
-        geofenceScope = fakeScopeProvider.geofenceScope,
-        api = api,
-        registrar = registrar,
-        pipeline = SDKComponent.android().geofenceCrossingPipeline,
-        services = SDKComponent.android().geofenceServices,
-        foreground = foregroundCoordinator(),
-        identity = identity,
-        // Not wired into the graph: these scenarios never drive the polygon fresh-fix path.
-        freshFix = ReplayPolygonFreshFixSource()
-    )
-
-    private fun foregroundCoordinator() = GeofenceForegroundCoordinator(
-        services = SDKComponent.android().geofenceServices,
-        secureUserStore = fakeSecureUserStore,
-        locationServices = fakeLocationServices,
-        regionStore = SDKComponent.android().geofenceRegionStore,
-        lastKnownLocation = { fakeLocationServices.lastKnown },
-        locationMode = GeofenceLocationMode.AUTOMATIC,
-        logger = SDKComponent.geofenceLogger,
-        // Unconfined, so `onForeground`'s dispatcher hop runs inline, not on an IO thread the
-        // replay outruns.
-        dispatchers = DispatchersProviderStub()
-    )
+class ReplayHarnessTest : ReplayTestSupport() {
 
     @Test
     fun replay_givenFetchAndIdentify_expectTheFetchedSetRegistered() = runTest {

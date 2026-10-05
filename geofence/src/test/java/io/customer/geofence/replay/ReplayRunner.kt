@@ -28,7 +28,8 @@ internal class ReplayRunner(
     private val services: GeofenceServices,
     private val foreground: GeofenceForegroundCoordinator,
     private val identity: MutableIdentity,
-    private val freshFix: ReplayPolygonFreshFixSource
+    private val freshFix: ReplayPolygonFreshFixSource,
+    private val assertDelivery: (ScenarioRecord) -> String? = { "delivery.queued has no outbox assertion seam" }
 ) {
     /** A stimulus the scenario carries that this composition has nowhere to put. */
     data class Unsupported(val ev: String, val at: Double)
@@ -37,7 +38,11 @@ internal class ReplayRunner(
      * [unanswered]: recorded `polygon.freshfix.received` times no open request was waiting for, i.e.
      * a request the replay never made (unlike [unsupported], a missing seam).
      */
-    data class Result(val unsupported: List<Unsupported>, val unanswered: List<Double> = emptyList())
+    data class Result(
+        val unsupported: List<Unsupported>,
+        val unanswered: List<Double> = emptyList(),
+        val assertionFailures: List<String> = emptyList()
+    )
 
     /** Last recorded position. Not read: identify passes no position (see `identity.changed`). */
     private var lastFix: Pair<Double, Double>? = null
@@ -53,6 +58,7 @@ internal class ReplayRunner(
 
         val unsupported = mutableListOf<Unsupported>()
         val unanswered = mutableListOf<Double>()
+        val assertionFailures = mutableListOf<String>()
 
         // Queued up front, not on the timeline: a fixture's `at` is its release time (see
         // ReplayApiService).
@@ -67,11 +73,18 @@ internal class ReplayRunner(
             cleared = scenario.records.filter { it.ev == "registration.cleared" }.map { it.at }
         )
 
-        for (record in scenario.stimuli) {
+        val timeline = scenario.records.filter {
+            it.kind == Scenario.Kind.WHEN || (it.kind == Scenario.Kind.THEN && it.ev == ReplayDeliveryAssertions.EVENT)
+        }
+        for (record in timeline) {
             gate.advanceTo(record.at) { pump() }
             // The gate reaches `record.at` after its last pump, so pump again: work due by then
             // runs first.
             pump()
+            if (record.kind == Scenario.Kind.THEN) {
+                assertDelivery(record)?.let(assertionFailures::add)
+                continue
+            }
             when (record.ev) {
                 // Process lifecycle: module wiring is not what a drive exercises.
                 "process.start", "module.init", "module.wake" -> Unit
@@ -146,7 +159,7 @@ internal class ReplayRunner(
         // So decisions still in flight when the capture ended are graded rather than lost.
         gate.releaseAll { pump() }
         pump()
-        return Result(unsupported, unanswered)
+        return Result(unsupported, unanswered, assertionFailures)
     }
 
     /**

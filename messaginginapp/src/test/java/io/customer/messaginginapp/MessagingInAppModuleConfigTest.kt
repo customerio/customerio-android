@@ -19,6 +19,14 @@ class MessagingInAppModuleConfigTest {
     }
 
     @Test
+    fun build_givenNoSiteId_expectEmptySiteId() {
+        val config = MessagingInAppModuleConfig.Builder(region = Region.EU).build()
+
+        config.siteId shouldBeEqualTo ""
+        config.region shouldBeEqualTo Region.EU
+    }
+
+    @Test
     fun setNotificationInboxAccessibilityLabels_expectLabelsOnConfig() {
         val config = MessagingInAppModuleConfig.Builder(siteId = "site", region = Region.US)
             .setNotificationInboxAccessibilityLabels(

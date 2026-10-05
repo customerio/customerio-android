@@ -105,14 +105,15 @@ internal abstract class InAppMessageViewController<ViewCallback : InAppMessageVi
         val uiMode = engineWebViewDelegate?.getView()?.context
             ?.resources?.configuration?.uiMode ?: 0
         val config = EngineWebConfiguration(
-            siteId = store.siteId,
+            siteId = store.siteId.takeIf { store.publicKey == null },
             dataCenter = store.dataCenter,
             messageId = message.messageId,
             instanceId = message.instanceId,
             endpoint = store.environment.getEngineApiUrl(),
             properties = message.properties,
             customAttributes = SDKComponent.gistCustomAttributes.toMap(),
-            colorScheme = store.colorScheme.resolve(uiMode)
+            colorScheme = store.colorScheme.resolve(uiMode),
+            key = store.publicKey
         )
 
         currentMessage = message

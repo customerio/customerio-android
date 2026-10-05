@@ -27,7 +27,8 @@ internal class GistSdk(
     siteId: String,
     dataCenter: String,
     environment: GistEnvironment = GistEnvironment.PROD,
-    colorScheme: ColorScheme = ColorScheme.AUTO
+    colorScheme: ColorScheme = ColorScheme.AUTO,
+    publicKey: String? = null
 ) : GistProvider {
     private val inAppMessagingManager = SDKComponent.inAppMessagingManager
     private val state: InAppMessagingState
@@ -42,7 +43,7 @@ internal class GistSdk(
     private val sseLifecycleManager = SDKComponent.sseLifecycleManager
 
     init {
-        inAppMessagingManager.dispatch(InAppMessagingAction.Initialize(siteId = siteId, dataCenter = dataCenter, environment = environment, colorScheme = colorScheme))
+        inAppMessagingManager.dispatch(InAppMessagingAction.Initialize(siteId = siteId, dataCenter = dataCenter, environment = environment, colorScheme = colorScheme, publicKey = publicKey))
     }
 
     override fun reset() {

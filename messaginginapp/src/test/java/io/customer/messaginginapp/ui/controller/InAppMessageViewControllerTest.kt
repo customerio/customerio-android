@@ -31,6 +31,7 @@ import io.customer.sdk.core.di.SDKComponent
 import io.mockk.clearMocks
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.slot
 import io.mockk.spyk
 import io.mockk.verify
 import io.mockk.verifyOrder
@@ -476,6 +477,28 @@ class InAppMessageViewControllerTest : JUnitTest() {
             colorScheme = givenStoreState.colorScheme.resolve(uiMode)
         )
         assertCalledOnce { engineWebViewDelegate.setup(expectedConfig) }
+    }
+
+    @Test
+    fun engineSetup_givenPublicKey_expectEngineConfiguredWithKeyInsteadOfSiteId() {
+        val givenPublicKey = "wk_us_" + String.random
+        val givenStoreState = InAppMessagingState(
+            siteId = String.random,
+            publicKey = givenPublicKey,
+            dataCenter = String.random,
+            environment = GistEnvironment.LOCAL
+        )
+        every { inAppMessagingManager.getCurrentState() } returns givenStoreState
+        val givenMessage = createInAppMessage()
+        val engineWebViewDelegate = mockk<EngineWebViewDelegate>(relaxed = true)
+        controller.engineWebViewDelegate = engineWebViewDelegate
+
+        controller.loadMessage(givenMessage)
+
+        val configSlot = slot<EngineWebConfiguration>()
+        verify(exactly = 1) { engineWebViewDelegate.setup(capture(configSlot)) }
+        configSlot.captured.key shouldBeEqualTo givenPublicKey
+        configSlot.captured.siteId.shouldBeNull()
     }
 
     @Test

@@ -142,6 +142,64 @@ class SseServiceTest : IntegrationTest() {
     }
 
     @Test
+    fun testConnectSse_givenPublicKeyWithoutSiteId_thenSendsKeyParamAndNoSiteId() {
+        runBlocking {
+            val server = MockWebServer()
+            server.enqueue(
+                MockResponse()
+                    .setResponseCode(200)
+                    .setHeader("Content-Type", "text/event-stream")
+                    .setBody("event: connected\ndata: {}\n\n")
+            )
+            server.start()
+            mockkObject(GistEnvironment.PROD)
+
+            try {
+                every { GistEnvironment.PROD.getSseApiUrl() } returns
+                    server.url("/api/v3/sse").toString()
+
+                val state =
+                    InAppMessagingState(
+                        siteId = "",
+                        publicKey = "wk_us_key",
+                        dataCenter = "us",
+                        environment = GistEnvironment.PROD,
+                        userId = "test-user",
+                        sessionId = "test-session"
+                    )
+                val service =
+                    SseService(
+                        sseLogger = mockk(relaxed = true),
+                        inAppMessagingManager = mockk {
+                            every { getCurrentState() } returns state
+                        }
+                    )
+
+                withTimeout(5_000) {
+                    service
+                        .connectSse(
+                            sessionId = state.sessionId,
+                            userToken = state.userId.orEmpty(),
+                            siteId = state.siteId
+                        ).take(3)
+                        .toList()
+                }
+
+                val request = server.takeRequest()
+                request.requestUrl?.queryParameter("key") shouldBeEqualTo "wk_us_key"
+                request.requestUrl?.queryParameter("siteId") shouldBeEqualTo null
+                request.requestUrl?.queryParameter("sessionId") shouldBeEqualTo "test-session"
+                request.requestUrl?.queryParameter("userToken") shouldBeEqualTo "dGVzdC11c2Vy"
+                request.headers["Authorization"] shouldBeEqualTo null
+                request.headers["X-CIO-Site-Id"] shouldBeEqualTo null
+            } finally {
+                unmockkObject(GistEnvironment.PROD)
+                server.shutdown()
+            }
+        }
+    }
+
+    @Test
     fun testConnectSse_whenServerRejectsRequest_thenEmitsClassifiedFailure() {
         runBlocking {
             val server = MockWebServer()

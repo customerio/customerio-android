@@ -12,6 +12,7 @@ import io.customer.datapipelines.testutils.utils.OutputReaderPlugin
 import io.customer.datapipelines.testutils.utils.identifyEvents
 import io.customer.datapipelines.testutils.utils.trackEvents
 import io.customer.sdk.core.di.SDKComponent
+import io.customer.sdk.data.model.DeviceTokenType
 import io.customer.sdk.data.store.DeviceStore
 import io.customer.sdk.data.store.GlobalPreferenceStore
 import io.customer.sdk.util.EventNames
@@ -19,6 +20,7 @@ import io.mockk.every
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
+import kotlinx.serialization.json.jsonPrimitive
 import org.amshove.kluent.shouldBeEmpty
 import org.amshove.kluent.shouldBeEqualTo
 import org.amshove.kluent.shouldHaveSize
@@ -94,6 +96,19 @@ class DataPipelinesStandardDispatcherTest : JUnitTest(dispatcher = StandardTestD
         val deviceRegisterEventContext = deviceRegisterEvent.context
         deviceRegisterEventContext.deviceToken shouldBeEqualTo givenToken
         deviceRegisterEvent.properties shouldMatchTo deviceStore.buildDeviceAttributes()
+    }
+
+    @Test
+    fun device_givenTwoRegistrationsBeforeProcessing_expectEachUpdateKeepsItsTokenAndType() = runTest {
+        sdkInstance.registerDeviceToken("legacy-token", DeviceTokenType.TOKEN)
+        sdkInstance.registerDeviceToken("fid-value", DeviceTokenType.FID)
+        flushCoroutines(testScope)
+
+        val deviceUpdates = outputReaderPlugin.trackEvents.filter { it.event == EventNames.DEVICE_UPDATE }
+        deviceUpdates.map { it.context.deviceToken to it.properties["_cio_token_type"]?.jsonPrimitive?.content } shouldBeEqualTo listOf(
+            "legacy-token" to "token",
+            "fid-value" to "fid"
+        )
     }
 
     @Test

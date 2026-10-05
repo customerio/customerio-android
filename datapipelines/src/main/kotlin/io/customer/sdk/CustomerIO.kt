@@ -471,9 +471,13 @@ class CustomerIO private constructor(
         contextPlugin.deviceToken = token
 
         logger.info("updating device attributes: $attributes")
+        // Pin the token so it stays paired with this type: ContextPlugin only adds one when the event
+        // is processed, by which time a newer token may have been registered.
         track(
             name = EventNames.DEVICE_UPDATE,
-            properties = attributes
+            properties = attributes.sanitizeForJson(),
+            serializationStrategy = JsonAnySerializer.serializersModule.serializer(),
+            enrichment = { event -> event?.putInContextUnderKey("device", "token", token) }
         )
     }
 

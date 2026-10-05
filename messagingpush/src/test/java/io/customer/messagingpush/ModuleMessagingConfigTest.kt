@@ -6,6 +6,7 @@ import io.customer.commontest.extensions.attachToSDKComponent
 import io.customer.messagingpush.config.PushClickBehavior
 import io.customer.messagingpush.data.communication.CustomerIOPushNotificationCallback
 import io.customer.messagingpush.di.fcmTokenProvider
+import io.customer.messagingpush.provider.DeviceToken
 import io.customer.messagingpush.provider.DeviceTokenProvider
 import io.customer.messagingpush.testutils.core.JUnitTest
 import io.customer.sdk.core.di.SDKComponent
@@ -30,7 +31,7 @@ class ModuleMessagingConfigTest : JUnitTest() {
 
         fcmTokenProviderMock = SDKComponent.android().fcmTokenProvider
         every { fcmTokenProviderMock.getCurrentToken(any()) } answers {
-            val callback = firstArg<(String?) -> Unit>()
+            val callback = firstArg<(DeviceToken?) -> Unit>()
             callback(null)
         }
     }

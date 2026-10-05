@@ -279,10 +279,6 @@ public final class io/customer/messagingpush/processor/PushMessageProcessor$Comp
 	public final fun getRecentMessagesQueue ()Ljava/util/concurrent/LinkedBlockingDeque;
 }
 
-public abstract interface class io/customer/messagingpush/provider/DeviceTokenProvider {
-	public abstract fun getCurrentToken (Lkotlin/jvm/functions/Function1;)V
-}
-
 public abstract interface class io/customer/messagingpush/util/DeepLinkUtil {
 	public abstract fun createDeepLinkExternalIntent (Landroid/content/Context;Ljava/lang/String;)Landroid/content/Intent;
 	public abstract fun createDeepLinkHostAppIntent (Landroid/content/Context;Ljava/lang/String;)Landroid/content/Intent;

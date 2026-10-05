@@ -422,7 +422,7 @@ class CustomerIO private constructor(
 
     override fun registerDeviceTokenImpl(deviceToken: String) = saveAndTrackDeviceToken(deviceToken, tokenType = null)
 
-    /** [tokenType] is null when the token didn't come from the SDK's own Firebase fetch. */
+    /** [tokenType] is null when the kind of token is unknown, e.g. one the app registered itself. */
     internal fun registerDeviceToken(deviceToken: String, tokenType: DeviceTokenType?) = synchronized(this) {
         saveAndTrackDeviceToken(deviceToken, tokenType)
     }

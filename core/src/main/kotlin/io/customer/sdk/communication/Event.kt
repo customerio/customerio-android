@@ -52,7 +52,7 @@ sealed class Event {
         override val params: Map<String, String> = emptyMap()
     ) : Event()
 
-    /** [tokenType] is null when the token didn't come from the SDK's own Firebase fetch. */
+    /** [tokenType] is null when the kind of token is unknown, e.g. one the app registered itself. */
     data class RegisterDeviceTokenEvent @JvmOverloads constructor(
         val token: String,
         val tokenType: DeviceTokenType? = null

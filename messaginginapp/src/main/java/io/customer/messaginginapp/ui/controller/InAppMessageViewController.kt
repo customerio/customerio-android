@@ -105,7 +105,7 @@ internal abstract class InAppMessageViewController<ViewCallback : InAppMessageVi
         val uiMode = engineWebViewDelegate?.getView()?.context
             ?.resources?.configuration?.uiMode ?: 0
         val config = EngineWebConfiguration(
-            siteId = store.siteId.takeIf { store.publicKey == null },
+            siteId = store.siteId.takeIf { it.isNotBlank() },
             dataCenter = store.dataCenter,
             messageId = message.messageId,
             instanceId = message.instanceId,

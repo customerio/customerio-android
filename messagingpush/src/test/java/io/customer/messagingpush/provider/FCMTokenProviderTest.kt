@@ -8,6 +8,7 @@ import io.customer.commontest.core.JUnit5Test
 import io.customer.commontest.extensions.assertCalledNever
 import io.customer.commontest.extensions.assertCalledOnce
 import io.customer.messagingpush.logger.PushNotificationLogger
+import io.customer.sdk.data.model.DeviceTokenType
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
@@ -66,20 +67,20 @@ class FCMTokenProviderTest : JUnit5Test() {
     fun test_getCurrentToken_givenObtainingTokenSuccessful() {
         every { mockGoogleApiAvailability.isGooglePlayServicesAvailable(contextMock) } returns ConnectionResult.SUCCESS
 
-        val token = "fcm-token"
-        val task = mockk<Task<String>>(relaxed = true)
-        val taskSlot = slot<OnCompleteListener<String>>()
+        val token = DeviceToken("fcm-token", DeviceTokenType.TOKEN)
+        val task = mockk<Task<DeviceToken>>(relaxed = true)
+        val taskSlot = slot<OnCompleteListener<DeviceToken>>()
         every { task.isSuccessful } returns true
         every { task.result } returns token
         every { mockTokenSource.fetchToken() } returns task
         every { task.addOnCompleteListener(capture(taskSlot)) } returns task
 
-        var result: String? = null
+        var result: DeviceToken? = null
         tokenProvider.getCurrentToken { result = it }
         taskSlot.captured.onComplete(task)
 
         assertCalledOnce { mockPushLogger.obtainingTokenStarted() }
-        assertCalledOnce { mockPushLogger.obtainingTokenSuccess(token) }
+        assertCalledOnce { mockPushLogger.obtainingTokenSuccess("fcm-token") }
         result shouldBeEqualTo token
     }
 
@@ -87,15 +88,15 @@ class FCMTokenProviderTest : JUnit5Test() {
     fun test_getCurrentToken_givenObtainingTokenNotSuccessful() {
         every { mockGoogleApiAvailability.isGooglePlayServicesAvailable(contextMock) } returns ConnectionResult.SUCCESS
 
-        val task = mockk<Task<String>>(relaxed = true)
+        val task = mockk<Task<DeviceToken>>(relaxed = true)
         val exception = IllegalStateException()
-        val taskSlot = slot<OnCompleteListener<String>>()
+        val taskSlot = slot<OnCompleteListener<DeviceToken>>()
         every { task.isSuccessful } returns false
         every { task.exception } returns exception
         every { mockTokenSource.fetchToken() } returns task
         every { task.addOnCompleteListener(capture(taskSlot)) } returns task
 
-        var result: String? = null
+        var result: DeviceToken? = null
         tokenProvider.getCurrentToken { result = it }
         taskSlot.captured.onComplete(task)
 
@@ -111,7 +112,7 @@ class FCMTokenProviderTest : JUnit5Test() {
         val exception = IllegalStateException()
         every { mockTokenSource.fetchToken() } throws exception
 
-        var result: String? = null
+        var result: DeviceToken? = null
         tokenProvider.getCurrentToken { result = it }
 
         assertCalledOnce { mockPushLogger.obtainingTokenStarted() }

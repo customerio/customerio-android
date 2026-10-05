@@ -13,6 +13,7 @@ import io.customer.commontest.core.JUnit5Test
 import io.customer.commontest.extensions.assertCalledNever
 import io.customer.commontest.extensions.assertCalledOnce
 import io.customer.messagingpush.logger.PushNotificationLogger
+import io.customer.sdk.data.model.DeviceTokenType
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
@@ -33,6 +34,8 @@ class FirebaseTokenSourceTest : JUnit5Test() {
         every { id } returns installationIdTask
     }
     private val mockPushLogger = mockk<PushNotificationLogger>(relaxed = true)
+    private val typedTask = mockk<Task<DeviceToken>>()
+    private val typeContinuation = slot<SuccessContinuation<String, DeviceToken>>()
 
     private var registerCalls = 0
 
@@ -50,20 +53,24 @@ class FirebaseTokenSourceTest : JUnit5Test() {
     @Test
     fun fetchToken_givenNotOptedIn_expectLegacyTokenWithoutRegistering() {
         givenMetaData(optedIn = false)
+        givenTyped(legacyTokenTask)
 
         val result = tokenSource(registration = mockk()).fetchToken()
 
-        result shouldBeEqualTo legacyTokenTask
+        result shouldBeEqualTo typedTask
+        assertTyped("legacy-token", DeviceTokenType.TOKEN)
         registerCalls shouldBeEqualTo 0
     }
 
     @Test
     fun fetchToken_givenNoMetaData_expectLegacyToken() {
         givenMetaData(null)
+        givenTyped(legacyTokenTask)
 
         val result = tokenSource(registration = mockk()).fetchToken()
 
-        result shouldBeEqualTo legacyTokenTask
+        result shouldBeEqualTo typedTask
+        assertTyped("legacy-token", DeviceTokenType.TOKEN)
         registerCalls shouldBeEqualTo 0
     }
 
@@ -75,7 +82,8 @@ class FirebaseTokenSourceTest : JUnit5Test() {
         val result = tokenSource(registration = null).fetchToken()
         tokenSuccess.captured.onSuccess("legacy-token")
 
-        result shouldBeEqualTo legacyTokenTask
+        result shouldBeEqualTo typedTask
+        assertTyped("legacy-token", DeviceTokenType.TOKEN)
         registerCalls shouldBeEqualTo 1
         assertCalledOnce { mockPushLogger.logInstallationIdUnsupported() }
         assertCalledNever { mockPushLogger.obtainingInstallationIdStarted() }
@@ -113,11 +121,13 @@ class FirebaseTokenSourceTest : JUnit5Test() {
         val chained = mockk<Task<String>>()
         val continuation = slot<SuccessContinuation<Any?, String>>()
         every { registration.onSuccessTask(capture(continuation)) } returns chained
+        givenTyped(chained)
 
         val result = tokenSource(registration).fetchToken()
 
-        result shouldBeEqualTo chained
+        result shouldBeEqualTo typedTask
         continuation.captured.then(null) shouldBeEqualTo installationIdTask
+        assertTyped(INSTALLATION_ID, DeviceTokenType.FID)
         assertCalledOnce { mockPushLogger.obtainingInstallationIdStarted() }
         assertCalledNever { mockFirebaseMessaging.token }
     }
@@ -135,14 +145,24 @@ class FirebaseTokenSourceTest : JUnit5Test() {
             pushLogger = mockPushLogger
         )
 
-        tokenSource.fetchToken() shouldBeEqualTo legacyTokenTask
+        tokenSource.fetchToken() shouldBeEqualTo typedTask
         tokenSuccess.captured.onSuccess("legacy-token")
+        assertTyped("legacy-token", DeviceTokenType.TOKEN)
         assertCalledOnce { mockPushLogger.logInstallationIdUnsupported() }
     }
 
     private fun givenTokenListeners() {
         every { legacyTokenTask.addOnSuccessListener(capture(tokenSuccess)) } returns legacyTokenTask
         every { legacyTokenTask.addOnFailureListener(capture(tokenFailure)) } returns legacyTokenTask
+        givenTyped(legacyTokenTask)
+    }
+
+    private fun givenTyped(task: Task<String>) {
+        every { task.onSuccessTask(capture(typeContinuation)) } returns typedTask
+    }
+
+    private fun assertTyped(value: String, type: DeviceTokenType) {
+        typeContinuation.captured.then(value).result shouldBeEqualTo DeviceToken(value, type)
     }
 
     private fun givenMetaData(optedIn: Boolean) {
@@ -160,5 +180,9 @@ class FirebaseTokenSourceTest : JUnit5Test() {
         every {
             packageManager.getApplicationInfo("io.customer.test", PackageManager.GET_META_DATA)
         } returns mockk<ApplicationInfo>().also { it.metaData = metaData }
+    }
+
+    private companion object {
+        const val INSTALLATION_ID = "cAbCdEfGhIjKlMnOpQrStU"
     }
 }

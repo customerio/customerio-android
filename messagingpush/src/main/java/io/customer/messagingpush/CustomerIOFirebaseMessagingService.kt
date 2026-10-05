@@ -10,6 +10,7 @@ import io.customer.sdk.communication.Event
 import io.customer.sdk.communication.EventBus
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.di.setupAndroidComponent
+import io.customer.sdk.data.model.DeviceTokenType
 
 open class CustomerIOFirebaseMessagingService : FirebaseMessagingService() {
 
@@ -72,16 +73,16 @@ open class CustomerIOFirebaseMessagingService : FirebaseMessagingService() {
                 SDKComponent.pushLogger.logInstallationIdUnchanged(installationId)
                 return
             }
-            publishDeviceToken(installationId)
+            publishDeviceToken(installationId, DeviceTokenType.FID)
         }
 
         private fun handleNewToken(context: Context, token: String) {
             SDKComponent.setupAndroidComponent(context = context)
-            publishDeviceToken(token)
+            publishDeviceToken(token, DeviceTokenType.TOKEN)
         }
 
-        private fun publishDeviceToken(token: String) {
-            eventBus.publish(Event.RegisterDeviceTokenEvent(token))
+        private fun publishDeviceToken(token: String, type: DeviceTokenType) {
+            eventBus.publish(Event.RegisterDeviceTokenEvent(token = token, tokenType = type))
         }
 
         private fun handleMessageReceived(

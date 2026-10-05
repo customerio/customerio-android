@@ -4,13 +4,17 @@ import android.content.Context
 import com.google.android.gms.common.ConnectionResult
 import com.google.android.gms.common.GoogleApiAvailability
 import io.customer.messagingpush.logger.PushNotificationLogger
+import io.customer.sdk.data.model.DeviceTokenType
 
 /**
  *  Responsible for token generation and validity
  */
-interface DeviceTokenProvider {
-    fun getCurrentToken(onComplete: (String?) -> Unit)
+internal interface DeviceTokenProvider {
+    fun getCurrentToken(onComplete: (DeviceToken?) -> Unit)
 }
+
+/** A value fetched from Firebase, with whether it's a legacy token or an installation ID. */
+internal data class DeviceToken(val value: String, val type: DeviceTokenType)
 
 /**
  * Wrapper around FCM SDK to make the code base more testable. There is no concept of checked-exceptions in Kotlin
@@ -40,7 +44,7 @@ internal class FCMTokenProviderImpl(
         }
     }
 
-    override fun getCurrentToken(onComplete: (String?) -> Unit) {
+    override fun getCurrentToken(onComplete: (DeviceToken?) -> Unit) {
         pushLogger.obtainingTokenStarted()
         try {
             if (!isValidForThisDevice()) {
@@ -51,7 +55,7 @@ internal class FCMTokenProviderImpl(
             tokenSource.fetchToken().addOnCompleteListener { task ->
                 if (task.isSuccessful) {
                     val existingDeviceToken = task.result
-                    pushLogger.obtainingTokenSuccess(existingDeviceToken)
+                    pushLogger.obtainingTokenSuccess(existingDeviceToken.value)
 
                     onComplete(existingDeviceToken)
                 } else {

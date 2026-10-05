@@ -2,10 +2,12 @@ package io.customer.messagingpush.provider
 
 import android.content.Context
 import com.google.android.gms.tasks.Task
+import com.google.android.gms.tasks.Tasks
 import com.google.firebase.installations.FirebaseInstallations
 import com.google.firebase.messaging.FirebaseMessaging
 import io.customer.messagingpush.logger.PushNotificationLogger
 import io.customer.sdk.core.extensions.applicationMetaData
+import io.customer.sdk.data.model.DeviceTokenType
 
 /**
  * Fetches the value FCM addresses this app instance by: the Firebase Installation ID (FID) when the
@@ -21,26 +23,26 @@ internal class FirebaseTokenSource(
     private val pushLogger: PushNotificationLogger,
     private val register: (FirebaseMessaging) -> Task<*>? = ::registerIfSupported
 ) {
-    fun fetchToken(): Task<String> {
+    fun fetchToken(): Task<DeviceToken> {
         val messaging = firebaseMessaging()
-        if (!isOptedIn()) return messaging.token
+        if (!isOptedIn()) return messaging.token.withType(DeviceTokenType.TOKEN)
 
-        val registration = register(messaging)
-        if (registration == null) {
-            // Older Firebase ignores the opt-in and keeps issuing tokens. If getToken() still fails
-            // as disabled, Firebase is in FID mode and register() went missing (e.g. minification).
-            return messaging.token
-                .addOnSuccessListener { pushLogger.logInstallationIdUnsupported() }
-                .addOnFailureListener { error ->
-                    if (error is IllegalStateException) pushLogger.logInstallationIdRegisterMissing(error)
-                }
-        }
+        val registration = register(messaging) ?: return fetchTokenWithoutRegister(messaging)
 
         pushLogger.obtainingInstallationIdStarted()
         // register() is FID mode's getToken() without the value, so read the FID only after it
         // completes; getId() alone doesn't register with FCM.
-        return registration.onSuccessTask { firebaseInstallations().id }
+        return registration.onSuccessTask { firebaseInstallations().id }.withType(DeviceTokenType.FID)
     }
+
+    // Older Firebase ignores the opt-in and keeps issuing tokens. If getToken() still fails as
+    // disabled, Firebase is in FID mode and register() went missing (e.g. minification).
+    private fun fetchTokenWithoutRegister(messaging: FirebaseMessaging): Task<DeviceToken> = messaging.token
+        .addOnSuccessListener { pushLogger.logInstallationIdUnsupported() }
+        .addOnFailureListener { error ->
+            if (error is IllegalStateException) pushLogger.logInstallationIdRegisterMissing(error)
+        }
+        .withType(DeviceTokenType.TOKEN)
 
     private fun isOptedIn(): Boolean = context.applicationMetaData()?.getBoolean(
         METADATA_INSTALLATION_ID_ENABLED,
@@ -50,6 +52,9 @@ internal class FirebaseTokenSource(
     companion object {
         // Firebase's own opt-in flag, read the same way firebase-messaging reads it.
         private const val METADATA_INSTALLATION_ID_ENABLED = "firebase_messaging_installation_id_enabled"
+
+        private fun Task<String>.withType(type: DeviceTokenType): Task<DeviceToken> =
+            onSuccessTask { value -> Tasks.forResult(DeviceToken(value = value, type = type)) }
 
         /**
          * Calls `FirebaseMessaging.register()`, or returns null on Firebase older than 25.1.0. Uses

@@ -8,6 +8,7 @@ import io.customer.messagingpush.logger.PushNotificationLogger
 import io.customer.messagingpush.testutils.core.IntegrationTest
 import io.customer.sdk.communication.Event
 import io.customer.sdk.communication.EventBus
+import io.customer.sdk.data.model.DeviceTokenType
 import io.customer.sdk.data.store.GlobalPreferenceStore
 import io.mockk.every
 import io.mockk.mockk
@@ -43,7 +44,7 @@ class CustomerIOFirebaseMessagingServiceTest : IntegrationTest() {
 
         CustomerIOFirebaseMessagingService.onRegistered(contextMock, INSTALLATION_ID)
 
-        assertCalledOnce { mockEventBus.publish(Event.RegisterDeviceTokenEvent(INSTALLATION_ID)) }
+        assertCalledOnce { mockEventBus.publish(Event.RegisterDeviceTokenEvent(INSTALLATION_ID, DeviceTokenType.FID)) }
     }
 
     @Test
@@ -52,7 +53,7 @@ class CustomerIOFirebaseMessagingServiceTest : IntegrationTest() {
 
         CustomerIOFirebaseMessagingService.onRegistered(contextMock, INSTALLATION_ID)
 
-        assertCalledOnce { mockEventBus.publish(Event.RegisterDeviceTokenEvent(INSTALLATION_ID)) }
+        assertCalledOnce { mockEventBus.publish(Event.RegisterDeviceTokenEvent(INSTALLATION_ID, DeviceTokenType.FID)) }
     }
 
     @Test
@@ -71,7 +72,7 @@ class CustomerIOFirebaseMessagingServiceTest : IntegrationTest() {
 
         CustomerIOFirebaseMessagingService.onNewToken(contextMock, "legacy-token")
 
-        assertCalledOnce { mockEventBus.publish(Event.RegisterDeviceTokenEvent("legacy-token")) }
+        assertCalledOnce { mockEventBus.publish(Event.RegisterDeviceTokenEvent("legacy-token", DeviceTokenType.TOKEN)) }
     }
 
     @Test
@@ -80,7 +81,7 @@ class CustomerIOFirebaseMessagingServiceTest : IntegrationTest() {
 
         buildService().onRegistered(INSTALLATION_ID)
 
-        assertCalledOnce { mockEventBus.publish(Event.RegisterDeviceTokenEvent(INSTALLATION_ID)) }
+        assertCalledOnce { mockEventBus.publish(Event.RegisterDeviceTokenEvent(INSTALLATION_ID, DeviceTokenType.FID)) }
     }
 
     @Test

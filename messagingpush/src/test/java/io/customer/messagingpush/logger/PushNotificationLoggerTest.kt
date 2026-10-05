@@ -22,6 +22,7 @@ class PushNotificationLoggerTest : JUnitTest() {
     @BeforeEach
     fun setUp() {
         every { mockLogger.debug(any(), any()) } just runs
+        every { mockLogger.info(any(), any()) } just runs
         every { mockLogger.error(any(), any(), any()) } just runs
     }
 
@@ -72,6 +73,30 @@ class PushNotificationLoggerTest : JUnitTest() {
             mockLogger.debug(
                 tag = "Push",
                 message = "Getting current device token from Firebase messaging on app launch"
+            )
+        }
+    }
+
+    @Test
+    fun test_obtainingInstallationIdStarted_forwardsCorrectCallToLogger() {
+        pushLogger.obtainingInstallationIdStarted()
+
+        assertCalledOnce {
+            mockLogger.debug(
+                tag = "Push",
+                message = "App opted in to Firebase Installation ID, registering with FCM to get it"
+            )
+        }
+    }
+
+    @Test
+    fun test_logInstallationIdUnsupported_forwardsCorrectCallToLogger() {
+        pushLogger.logInstallationIdUnsupported()
+
+        assertCalledOnce {
+            mockLogger.info(
+                tag = "Push",
+                message = "App opted in to Firebase Installation ID, but this Firebase version can't register with it (needs firebase-messaging 25.1.0+). Using FCM token instead"
             )
         }
     }

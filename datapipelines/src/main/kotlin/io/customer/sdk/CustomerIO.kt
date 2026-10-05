@@ -18,6 +18,7 @@ import io.customer.datapipelines.extensions.asMap
 import io.customer.datapipelines.extensions.sanitizeForJson
 import io.customer.datapipelines.extensions.type
 import io.customer.datapipelines.extensions.updateAnalyticsConfig
+import io.customer.datapipelines.migration.AnalyticsStorageMigration
 import io.customer.datapipelines.migration.TrackingMigrationProcessor
 import io.customer.datapipelines.plugins.ApplicationLifecyclePlugin
 import io.customer.datapipelines.plugins.AutoTrackDeviceAttributesPlugin
@@ -102,14 +103,22 @@ class CustomerIO private constructor(
         }
     }
 
-    internal val analytics: Analytics = overrideAnalytics ?: Analytics(
-        writeKey = moduleConfig.cdpApiKey,
-        context = androidSDKComponent.applicationContext,
-        configs = updateAnalyticsConfig(
-            moduleConfig = moduleConfig,
-            errorHandler = errorLogger
+    internal val analytics: Analytics = overrideAnalytics ?: run {
+        // Carry identity and queued events over when the app switches to a public key.
+        // Settings still hold the key from the last launch as they're saved in initialize().
+        AnalyticsStorageMigration(androidSDKComponent.applicationContext, logger).migrate(
+            previousKey = globalPreferenceStore.getSettings()?.writeKey,
+            newKey = moduleConfig.cdpApiKey
         )
-    )
+        Analytics(
+            writeKey = moduleConfig.cdpApiKey,
+            context = androidSDKComponent.applicationContext,
+            configs = updateAnalyticsConfig(
+                moduleConfig = moduleConfig,
+                errorHandler = errorLogger
+            )
+        )
+    }
 
     private val contextPlugin: ContextPlugin = ContextPlugin(deviceStore)
 

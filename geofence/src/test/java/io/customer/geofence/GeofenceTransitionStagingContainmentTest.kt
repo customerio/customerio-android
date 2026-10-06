@@ -73,6 +73,38 @@ class GeofenceTransitionStagingContainmentTest : RobolectricTest() {
     }
 
     @Test
+    fun pipeline_givenDwellWithoutEnter_thenExitIsDelivered() = runTest {
+        armDwellRegion(dwellRegion())
+        regionStore.hasContainmentRecord() shouldBeEqualTo false
+        val pipeline = pipeline(regionStore, coordinator(regionStore))
+
+        pipeline.handle(crossing(GeofenceCrossingTransition.DWELL, fixMs = 70_000L))
+        pipeline.handle(crossing(GeofenceCrossingTransition.EXIT, fixMs = 80_000L))
+
+        outbox.loadAll().map { it.transition } shouldBeEqualTo
+            listOf(Event.GeofenceTransition.DWELL, Event.GeofenceTransition.EXIT)
+        regionStore.getDwellVisit(GEOFENCE_ID).shouldBeNull()
+    }
+
+    @Test
+    fun pipeline_givenStagedDwellWithoutEnter_thenRecoveryStillDeliversExit() = runTest {
+        armDwellRegion(dwellRegion())
+        regionStore.hasContainmentRecord() shouldBeEqualTo false
+        val processor = processor()
+        val pipeline = pipeline(regionStore, coordinator(regionStore, processor), processor)
+        every { outbox.appendAll(any()) } returns false
+        pipeline.handle(crossing(GeofenceCrossingTransition.DWELL, fixMs = 70_000L))
+        regionStore.getAllPendingTransitionEntries().single().transition shouldBeEqualTo Event.GeofenceTransition.DWELL
+
+        every { outbox.appendAll(any()) } answers { callOriginal() }
+        pipeline.handle(crossing(GeofenceCrossingTransition.EXIT, fixMs = 80_000L))
+
+        outbox.loadAll().map { it.transition } shouldBeEqualTo
+            listOf(Event.GeofenceTransition.DWELL, Event.GeofenceTransition.EXIT)
+        regionStore.getAllPendingTransitionEntries().shouldBeEmpty()
+    }
+
+    @Test
     fun process_givenOutboxUnavailableAcrossEnterThenExit_expectContainmentTracksPhysicalTruth() = runTest {
         val processor = processor()
         every { outbox.appendAll(any()) } returns false

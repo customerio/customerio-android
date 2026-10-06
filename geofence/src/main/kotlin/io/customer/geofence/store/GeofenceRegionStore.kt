@@ -522,7 +522,11 @@ internal class GeofenceRegionStoreImpl(
                 KEY_PENDING_TRANSITION_ENTRIES,
                 jsonSerializer.encode(PENDING_TRANSITIONS_SERIALIZER, retained + entries)
             )
-            .putString(KEY_ENTERED_IDS, jsonSerializer.encode(ID_SET_SERIALIZER, updatedEntered))
+        // A recovered DWELL can arrive without ENTER. Creating an empty containment record here
+        // would end the missing-record grace and make the processor drop its genuine EXIT.
+        if (first.transition != Event.GeofenceTransition.DWELL) {
+            editor.putString(KEY_ENTERED_IDS, jsonSerializer.encode(ID_SET_SERIALIZER, updatedEntered))
+        }
         updatedEmitted?.let {
             editor.putString(KEY_EMITTED_ENTER_IDS, jsonSerializer.encode(ID_SET_SERIALIZER, it))
         }
@@ -662,7 +666,9 @@ internal class GeofenceRegionStoreImpl(
             else -> null
         }
         val editor = prefs.edit()
-            .putString(KEY_ENTERED_IDS, jsonSerializer.encode(ID_SET_SERIALIZER, updatedEntered))
+        if (transition != Event.GeofenceTransition.DWELL) {
+            editor.putString(KEY_ENTERED_IDS, jsonSerializer.encode(ID_SET_SERIALIZER, updatedEntered))
+        }
         if (pending.isEmpty()) {
             editor.remove(KEY_PENDING_TRANSITION_ENTRIES)
         } else {

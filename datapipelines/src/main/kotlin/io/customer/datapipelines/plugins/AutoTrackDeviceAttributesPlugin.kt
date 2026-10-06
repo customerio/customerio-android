@@ -5,6 +5,9 @@ import com.segment.analytics.kotlin.core.BaseEvent
 import com.segment.analytics.kotlin.core.TrackEvent
 import com.segment.analytics.kotlin.core.platform.Plugin
 import com.segment.analytics.kotlin.core.utilities.putAll
+import com.segment.analytics.kotlin.core.utilities.toJsonElement
+import io.customer.datapipelines.extensions.sanitizeForJson
+import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.util.EventNames
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonObject
@@ -15,6 +18,8 @@ import kotlinx.serialization.json.jsonObject
 class AutoTrackDeviceAttributesPlugin : Plugin {
     override val type: Plugin.Type = Plugin.Type.Before
     override lateinit var analytics: Analytics
+
+    private val deviceStore by lazy { SDKComponent.android().deviceStore }
 
     override fun execute(event: BaseEvent): BaseEvent {
         if ((event as? TrackEvent)?.event != EventNames.DEVICE_UPDATE) {
@@ -28,6 +33,9 @@ class AutoTrackDeviceAttributesPlugin : Plugin {
         val properties = event.properties
 
         event.properties = buildJsonObject {
+            // Collect system-service-backed attributes on the analytics worker, not the SDK caller.
+            putAll(deviceStore.buildDeviceAttributes().sanitizeForJson().toJsonElement().jsonObject)
+            // Explicit custom attributes take precedence over the collected defaults.
             putAll(properties)
             context["network"]?.jsonObject?.let { network ->
                 network["bluetooth"]?.let { value -> put("network_bluetooth", value) }

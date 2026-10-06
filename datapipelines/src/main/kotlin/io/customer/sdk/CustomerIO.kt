@@ -128,6 +128,14 @@ class CustomerIO private constructor(
     @Volatile
     private var syncUserIdentified: Boolean? = null
 
+    // Device events need the identity accepted by the caller, even while analytics.userId() lags.
+    private val userIdForDeviceEvents: String?
+        get() = when (syncUserIdentified) {
+            true -> lastIdentifiedUserIdThisSession
+            false -> null
+            null -> analytics.userId()
+        }
+
     init {
         // Set analytics logger and debug logs based on SDK logger configuration
         Analytics.debugLogsEnabled = logger.logLevel == CioLogLevel.DEBUG
@@ -283,7 +291,7 @@ class CustomerIO private constructor(
         }
 
         // this is the current userId that is identified in the SDK
-        val currentlyIdentifiedProfile = this.userId.takeUnless { it.isNullOrBlank() }
+        val currentlyIdentifiedProfile = userIdForDeviceEvents.takeUnless { it.isNullOrBlank() }
         val isChangingIdentifiedProfile = currentlyIdentifiedProfile != null && currentlyIdentifiedProfile != userId
         val isFirstTimeIdentifying = currentlyIdentifiedProfile == null
 
@@ -306,6 +314,7 @@ class CustomerIO private constructor(
             traits = traits,
             serializationStrategy = serializationStrategy
         )
+        lastIdentifiedUserIdThisSession = userId
         // Reflect identity synchronously on the caller's thread so isUserIdentified is correct
         // immediately, before analytics.userId() catches up (see syncUserIdentified). Must be set
         // before publishUserChanged: the mirror takes precedence over the analytics fallback, so a
@@ -325,10 +334,6 @@ class CustomerIO private constructor(
                 trackDeviceAttributes(token = existingDeviceToken)
             }
         }
-
-        // Update the per-session marker after a successful identify (with or without traits)
-        // so that a subsequent no-traits identify of the same userId can be deduped.
-        lastIdentifiedUserIdThisSession = userId
     }
 
     /**
@@ -357,6 +362,7 @@ class CustomerIO private constructor(
 
     override fun clearIdentifyImpl() {
         logger.info("resetting user profile with id ${this.userId}")
+        val existingUserId = userIdForDeviceEvents
 
         // Reset the dedup marker so a subsequent identify of the same userId is not deduped.
         lastIdentifiedUserIdThisSession = null
@@ -368,9 +374,8 @@ class CustomerIO private constructor(
 
         // since the tasks are asynchronous, we need to store the userId before deleting the device token
         // otherwise, the userId could be null when the delete task is executed
-        val existingUserId = userId
         deleteDeviceToken { event ->
-            event?.apply { userId = existingUserId.toString() }
+            event?.apply { userId = existingUserId.orEmpty() }
         }
 
         logger.debug("resetting user profile")
@@ -410,7 +415,9 @@ class CustomerIO private constructor(
         }
 
     override fun setDeviceAttributes(attributes: CustomAttributes) {
-        trackDeviceAttributes(registeredDeviceToken, attributes)
+        synchronized(this) {
+            trackDeviceAttributes(registeredDeviceToken, attributes)
+        }
     }
 
     override fun registerDeviceTokenImpl(deviceToken: String) {
@@ -440,20 +447,15 @@ class CustomerIO private constructor(
             }
         }
 
-        val attributes = if (moduleConfig.autoTrackDeviceAttributes) {
-            // order matters! allow customer to override default values if they wish.
-            deviceStore.buildDeviceAttributes() + customAddedAttributes
-        } else {
-            customAddedAttributes
-        }
-
         // Update plugin with updated device information
         contextPlugin.deviceToken = token
 
-        logger.info("updating device attributes: $attributes")
+        logger.info("queueing device attribute update: $customAddedAttributes")
         track(
             name = EventNames.DEVICE_UPDATE,
-            properties = attributes
+            properties = customAddedAttributes.sanitizeForJson(),
+            serializationStrategy = JsonAnySerializer.serializersModule.serializer(),
+            enrichment = deviceEventEnrichment(token)
         )
     }
 
@@ -468,7 +470,25 @@ class CustomerIO private constructor(
             return
         }
 
-        track(name = EventNames.DEVICE_DELETE, properties = emptyJsonObject, serializationStrategy = JsonAnySerializer.serializersModule.serializer(), enrichment = enrichment)
+        track(
+            name = EventNames.DEVICE_DELETE,
+            properties = emptyJsonObject,
+            serializationStrategy = JsonAnySerializer.serializersModule.serializer(),
+            enrichment = deviceEventEnrichment(deviceToken, enrichment)
+        )
+    }
+
+    private fun deviceEventEnrichment(token: String, enrichment: EnrichmentClosure? = null): EnrichmentClosure {
+        val eventUserId = userIdForDeviceEvents.orEmpty()
+        val eventAnonymousId = anonymousId
+        return { event ->
+            event?.apply {
+                userId = eventUserId
+                anonymousId = eventAnonymousId
+                putInContextUnderKey("device", "token", token)
+            }
+            enrichment?.invoke(event) ?: event
+        }
     }
 
     override fun trackMetricImpl(event: TrackMetric) {

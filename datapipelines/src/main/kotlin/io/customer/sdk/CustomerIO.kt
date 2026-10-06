@@ -129,19 +129,26 @@ class CustomerIO private constructor(
     private data class PendingDeviceEvent(
         val name: String,
         val properties: JsonObject,
-        val enrichment: EnrichmentClosure
+        val enrichment: EnrichmentClosure,
+        val generation: Long
     )
 
     private var deviceEventWorker: Job? = null
 
-    // One consumer preserves submission order without holding the caller's instance monitor.
+    // Guarded by the instance monitor. A deletion invalidates every older, unsent update.
+    private var deviceEventGeneration = 0L
+
+    // One consumer collects updates without holding the caller's instance monitor.
+    // Deletions bypass collection and invalidate older updates that have not been submitted.
     // Analytics still processes submissions concurrently; this does not guarantee delivery order.
     private val deviceEventQueue by lazy {
         Channel<PendingDeviceEvent>(Channel.UNLIMITED).also { queue ->
             deviceEventWorker = analytics.analyticsScope.launch(analytics.analyticsDispatcher) {
+                val workerContext = currentCoroutineContext()
                 try {
                     for (request in queue) {
                         try {
+                            if (synchronized(this@CustomerIO) { request.generation != deviceEventGeneration }) continue
                             val properties = if (request.name == EventNames.DEVICE_UPDATE && moduleConfig.autoTrackDeviceAttributes) {
                                 buildJsonObject {
                                     putAll(collectDeviceAttributes())
@@ -150,8 +157,14 @@ class CustomerIO private constructor(
                             } else {
                                 request.properties
                             }
-                            currentCoroutineContext().ensureActive()
-                            track(request.name, properties, JsonObject.serializer(), request.enrichment)
+                            synchronized(this@CustomerIO) {
+                                workerContext.ensureActive()
+                                // Check and submit under the same monitor as deletion, so a reset
+                                // cannot invalidate an update between this check and submission.
+                                if (request.generation == deviceEventGeneration) {
+                                    track(request.name, properties, JsonObject.serializer(), request.enrichment)
+                                }
+                            }
                         } catch (exception: CancellationException) {
                             throw exception
                         } catch (exception: Throwable) {
@@ -537,15 +550,19 @@ class CustomerIO private constructor(
             return
         }
 
-        queueDeviceEvent(
+        deviceEventGeneration++
+        // Do not delay removal behind a blocked metadata read. Already-submitted events still
+        // follow analytics' existing processing and persistence behavior.
+        track(
             name = EventNames.DEVICE_DELETE,
             properties = emptyJsonObject,
+            serializationStrategy = JsonObject.serializer(),
             enrichment = deviceEventEnrichment(deviceToken, enrichment)
         )
     }
 
     private fun queueDeviceEvent(name: String, properties: JsonObject, enrichment: EnrichmentClosure) {
-        if (deviceEventQueue.trySend(PendingDeviceEvent(name, properties, enrichment)).isFailure) {
+        if (deviceEventQueue.trySend(PendingDeviceEvent(name, properties, enrichment, deviceEventGeneration)).isFailure) {
             logger.error("Could not queue device event $name because the worker is stopped")
         }
     }

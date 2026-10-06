@@ -83,7 +83,7 @@ class DeviceAttributeCollectionTest : JUnitTest(dispatcher = StandardTestDispatc
     }
 
     @Test
-    fun testRegisterDeviceToken_whenTokenRotatesBeforeProcessing_thenKeepsEachEventsToken() {
+    fun testRegisterDeviceToken_whenTokenRotatesBeforeProcessing_thenDiscardsOldUpdateAndKeepsEachEventsToken() {
         sdkInstance.identify("alice")
         testScope.runCurrent()
 
@@ -94,15 +94,14 @@ class DeviceAttributeCollectionTest : JUnitTest(dispatcher = StandardTestDispatc
         testScope.runCurrent()
 
         outputReader.trackEvents.map { it.event to it.context.deviceToken } shouldBeEqualTo listOf(
-            EventNames.DEVICE_UPDATE to "token-a",
             EventNames.DEVICE_DELETE to "token-a",
             EventNames.DEVICE_UPDATE to "token-b"
         )
-        outputReader.trackEvents.map { it.userId } shouldBeEqualTo listOf("alice", "alice", "alice")
+        outputReader.trackEvents.map { it.userId } shouldBeEqualTo listOf("alice", "alice")
     }
 
     @Test
-    fun testIdentify_whenProfileChangesAndResetsBeforeProcessing_thenKeepsEachEventsProfile() {
+    fun testIdentify_whenProfileChangesAndResetsBeforeProcessing_thenDiscardsOldUpdatesAndKeepsEachDeletionsProfile() {
         sdkInstance.identify("alice")
         sdkInstance.registerDeviceToken("token-a")
         sdkInstance.identify("bob")
@@ -114,13 +113,30 @@ class DeviceAttributeCollectionTest : JUnitTest(dispatcher = StandardTestDispatc
         testScope.runCurrent()
 
         outputReader.trackEvents.map { it.event to it.userId } shouldBeEqualTo listOf(
-            EventNames.DEVICE_UPDATE to "alice",
             EventNames.DEVICE_DELETE to "alice",
-            EventNames.DEVICE_UPDATE to "bob",
             EventNames.DEVICE_DELETE to "bob",
             EventNames.DEVICE_UPDATE to "carol"
         )
-        outputReader.trackEvents.map { it.context.deviceToken } shouldBeEqualTo List(5) { "token-a" }
+        outputReader.trackEvents.map { it.context.deviceToken } shouldBeEqualTo List(3) { "token-a" }
+    }
+
+    @Test
+    fun testIdentify_whenProfileReturnsToSameUserBeforeProcessing_thenDoesNotReviveOldUpdates() {
+        sdkInstance.identify("alice")
+        sdkInstance.registerDeviceToken("token-a")
+        sdkInstance.setDeviceAttributes(mapOf("obsolete" to "old-session"))
+        sdkInstance.identify("bob")
+        sdkInstance.identify("alice")
+        sdkInstance.setDeviceAttributes(mapOf("fresh" to "new-session"))
+
+        testScope.runCurrent()
+
+        val updates = outputReader.trackEvents.filter { it.event == EventNames.DEVICE_UPDATE }
+        updates.map { it.userId } shouldBeEqualTo listOf("alice", "alice")
+        updates.map { it.context.deviceToken } shouldBeEqualTo listOf("token-a", "token-a")
+        updates.any { "obsolete" in it.properties } shouldBeEqualTo false
+        updates.last().properties.getValue("fresh").jsonPrimitive.content shouldBeEqualTo "new-session"
+        outputReader.trackEvents.filter { it.event == EventNames.DEVICE_DELETE }.map { it.userId } shouldBeEqualTo listOf("alice", "bob")
     }
 
     @Test
@@ -139,7 +155,7 @@ class DeviceAttributeCollectionTest : JUnitTest(dispatcher = StandardTestDispatc
     }
 
     @Test
-    fun testRegisterDeviceToken_whenAnonymousProfileResetsBeforeProcessing_thenKeepsEachEventsAnonymousId() {
+    fun testRegisterDeviceToken_whenAnonymousProfileResetsBeforeProcessing_thenDiscardsOldUpdateAndKeepsNewAnonymousId() {
         val originalAnonymousId = sdkInstance.anonymousId
         sdkInstance.registerDeviceToken("token-a")
         sdkInstance.clearIdentify()
@@ -150,9 +166,9 @@ class DeviceAttributeCollectionTest : JUnitTest(dispatcher = StandardTestDispatc
         testScope.runCurrent()
 
         val updates = outputReader.trackEvents.filter { it.event == EventNames.DEVICE_UPDATE }
-        updates.map { it.userId } shouldBeEqualTo listOf("", "")
-        updates.map { it.anonymousId } shouldBeEqualTo listOf(originalAnonymousId, newAnonymousId)
-        updates.map { it.context.deviceToken } shouldBeEqualTo listOf("token-a", "token-b")
+        updates.map { it.userId } shouldBeEqualTo listOf("")
+        updates.map { it.anonymousId } shouldBeEqualTo listOf(newAnonymousId)
+        updates.map { it.context.deviceToken } shouldBeEqualTo listOf("token-b")
     }
 
     @Test
@@ -228,7 +244,7 @@ class DeviceAttributeCollectionTest : JUnitTest(dispatcher = StandardTestDispatc
 
         sdkInstance.registerDeviceToken("token-a")
         currentTime = 1700000001456L
-        sdkInstance.clearIdentify()
+        sdkInstance.setDeviceAttributes(mapOf("custom" to "value"))
         currentTime = 1700000067890L
         testScope.runCurrent()
 

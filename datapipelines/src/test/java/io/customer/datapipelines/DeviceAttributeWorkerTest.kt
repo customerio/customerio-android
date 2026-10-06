@@ -50,7 +50,7 @@ class DeviceAttributeWorkerTest : JUnitTest() {
         val identityProcessed = CountDownLatch(1)
         val collectionStarted = CountDownLatch(1)
         val releaseCollection = CountDownLatch(1)
-        val updatesProcessed = CountDownLatch(2)
+        val updatesProcessed = CountDownLatch(1)
         val events = CopyOnWriteArrayList<TrackEvent>()
         val collectionThreads = CopyOnWriteArrayList<String>()
         val caller = Executors.newSingleThreadExecutor { task -> Thread(task, "sdk-caller") }
@@ -95,9 +95,9 @@ class DeviceAttributeWorkerTest : JUnitTest() {
 
             collectionThreads.forEach { it shouldNotBeEqualTo "sdk-caller" }
             val updates = events.filter { it.event == EventNames.DEVICE_UPDATE }
-            updates.size shouldBeEqualTo 2
+            updates.size shouldBeEqualTo 1
             assertEquals(
-                mapOf("alice" to "token-a", "bob" to "token-a"),
+                mapOf("bob" to "token-a"),
                 updates.associate { it.userId to it.context.deviceToken }
             )
         } finally {
@@ -107,12 +107,13 @@ class DeviceAttributeWorkerTest : JUnitTest() {
     }
 
     @Test
-    fun testClearIdentify_whenAttributeCollectionIsBlocked_thenDeletionDoesNotBypassPendingUpdate() {
+    fun testClearIdentify_whenAttributeCollectionIsBlocked_thenSubmitsDeletionAndDiscardsPendingUpdate() {
         val identityProcessed = CountDownLatch(1)
         val collectionStarted = CountDownLatch(1)
         val releaseCollection = CountDownLatch(1)
         val deletionProcessed = CountDownLatch(1)
-        val deviceEventsProcessed = CountDownLatch(2)
+        val collectionFinished = CountDownLatch(1)
+        val updateProcessed = CountDownLatch(1)
         val events = CopyOnWriteArrayList<TrackEvent>()
         val caller = Executors.newSingleThreadExecutor { task -> Thread(task, "sdk-caller") }
         analytics.add(object : Plugin {
@@ -124,7 +125,7 @@ class DeviceAttributeWorkerTest : JUnitTest() {
                 if (event is TrackEvent && event.event in listOf(EventNames.DEVICE_UPDATE, EventNames.DEVICE_DELETE)) {
                     events.add(event)
                     if (event.event == EventNames.DEVICE_DELETE) deletionProcessed.countDown()
-                    deviceEventsProcessed.countDown()
+                    if (event.event == EventNames.DEVICE_UPDATE) updateProcessed.countDown()
                 }
                 return event
             }
@@ -136,6 +137,7 @@ class DeviceAttributeWorkerTest : JUnitTest() {
         every { androidComponent.deviceStore.buildDeviceAttributes() } answers {
             collectionStarted.countDown()
             check(releaseCollection.await(10, TimeUnit.SECONDS)) { "Attribute collector was not released" }
+            collectionFinished.countDown()
             mapOf("app_version" to "2.0")
         }
 
@@ -147,11 +149,12 @@ class DeviceAttributeWorkerTest : JUnitTest() {
 
             caller.submit { sdkInstance.clearIdentify() }.get(5, TimeUnit.SECONDS)
             sdkInstance.isUserIdentified shouldBeEqualTo false
-            assertFalse(deletionProcessed.await(1, TimeUnit.SECONDS), "Deletion bypassed pending attribute collection")
+            check(deletionProcessed.await(5, TimeUnit.SECONDS)) { "Deletion waited for attribute collection" }
 
             releaseCollection.countDown()
-            check(deviceEventsProcessed.await(5, TimeUnit.SECONDS)) { "Device events were not processed" }
-            assertEquals(setOf(EventNames.DEVICE_UPDATE, EventNames.DEVICE_DELETE), events.map { it.event }.toSet())
+            check(collectionFinished.await(5, TimeUnit.SECONDS)) { "Attribute collection did not finish" }
+            assertFalse(updateProcessed.await(1, TimeUnit.SECONDS), "Obsolete update was submitted after logout")
+            assertEquals(listOf(EventNames.DEVICE_DELETE), events.map { it.event })
             events.forEach {
                 it.userId shouldBeEqualTo "alice"
                 it.context.deviceToken shouldBeEqualTo "token-a"

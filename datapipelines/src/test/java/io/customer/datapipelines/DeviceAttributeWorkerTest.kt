@@ -21,6 +21,7 @@ import org.amshove.kluent.shouldBeEqualTo
 import org.amshove.kluent.shouldNotBeEqualTo
 import org.junit.jupiter.api.Test
 
+/** Verifies caller completion and event attribution on real workers, without assuming FIFO delivery. */
 class DeviceAttributeWorkerTest : JUnitTest() {
     override fun setup(testConfig: TestConfig) {
         super.setup(
@@ -56,9 +57,9 @@ class DeviceAttributeWorkerTest : JUnitTest() {
 
             override fun execute(event: BaseEvent): BaseEvent {
                 if (event is IdentifyEvent && event.userId == "alice") identityProcessed.countDown()
-                if (event is TrackEvent && event.event == EventNames.DEVICE_UPDATE) {
+                if (event is TrackEvent) {
                     events.add(event)
-                    updatesProcessed.countDown()
+                    if (event.event == EventNames.DEVICE_UPDATE) updatesProcessed.countDown()
                 }
                 return event
             }
@@ -90,8 +91,12 @@ class DeviceAttributeWorkerTest : JUnitTest() {
             check(updatesProcessed.await(5, TimeUnit.SECONDS)) { "Device updates were not processed" }
 
             collectionThreads.forEach { it shouldNotBeEqualTo "sdk-caller" }
-            events.map { it.userId }.sorted() shouldBeEqualTo listOf("alice", "bob")
-            events.map { it.context.deviceToken } shouldBeEqualTo listOf("token-a", "token-a")
+            val updates = events.filter { it.event == EventNames.DEVICE_UPDATE }
+            updates.size shouldBeEqualTo 2
+            updates.associate { it.userId to it.context.deviceToken } shouldBeEqualTo mapOf(
+                "alice" to "token-a",
+                "bob" to "token-a"
+            )
         } finally {
             releaseCollection.countDown()
             caller.shutdownNow()

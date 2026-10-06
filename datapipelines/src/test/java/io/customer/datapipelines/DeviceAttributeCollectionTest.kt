@@ -9,8 +9,11 @@ import io.customer.datapipelines.testutils.utils.trackEvents
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.data.store.DeviceStore
 import io.customer.sdk.data.store.GlobalPreferenceStore
+import io.customer.sdk.data.store.SecureUserStore
 import io.customer.sdk.util.EventNames
 import io.mockk.every
+import io.mockk.justRun
+import io.mockk.mockk
 import io.mockk.verify
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -20,6 +23,7 @@ import org.amshove.kluent.shouldBeEqualTo
 import org.amshove.kluent.shouldHaveSingleItem
 import org.amshove.kluent.shouldNotBeEqualTo
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.assertThrows
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class DeviceAttributeCollectionTest : JUnitTest(dispatcher = StandardTestDispatcher()) {
@@ -27,6 +31,7 @@ class DeviceAttributeCollectionTest : JUnitTest(dispatcher = StandardTestDispatc
     private lateinit var deviceStore: DeviceStore
     private lateinit var outputReader: OutputReaderPlugin
     private var storedToken: String? = null
+    private val userStore = mockk<SecureUserStore>(relaxUnitFun = true)
 
     override fun setup(testConfig: TestConfig) {
         super.setup(
@@ -34,6 +39,9 @@ class DeviceAttributeCollectionTest : JUnitTest(dispatcher = StandardTestDispatc
                 sdkConfig {
                     autoAddCustomerIODestination(true)
                     autoTrackDeviceAttributes(true)
+                }
+                diGraph {
+                    android { overrideDependency<SecureUserStore>(userStore) }
                 }
             }
         )
@@ -143,5 +151,16 @@ class DeviceAttributeCollectionTest : JUnitTest(dispatcher = StandardTestDispatc
         updates.map { it.userId } shouldBeEqualTo listOf("", "")
         updates.map { it.anonymousId } shouldBeEqualTo listOf(originalAnonymousId, newAnonymousId)
         updates.map { it.context.deviceToken } shouldBeEqualTo listOf("token-a", "token-b")
+    }
+
+    @Test
+    fun testIdentify_whenIdentityPersistenceFails_thenAllowsRetryOfSameProfile() {
+        every { userStore.saveUserId("alice") } throws IllegalStateException("identity store unavailable")
+        assertThrows<IllegalStateException> { sdkInstance.identify("alice") }
+
+        justRun { userStore.saveUserId("alice") }
+        sdkInstance.identify("alice")
+
+        verify(exactly = 2) { userStore.saveUserId("alice") }
     }
 }

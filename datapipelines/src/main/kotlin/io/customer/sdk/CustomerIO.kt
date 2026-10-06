@@ -127,11 +127,12 @@ class CustomerIO private constructor(
     // restored-from-persistence) analytics userId; true = identified; false = anonymous.
     @Volatile
     private var syncUserIdentified: Boolean? = null
+    private var acceptedUserId: String? = null
 
     // Device events need the identity accepted by the caller, even while analytics.userId() lags.
     private val userIdForDeviceEvents: String?
         get() = when (syncUserIdentified) {
-            true -> lastIdentifiedUserIdThisSession
+            true -> acceptedUserId
             false -> null
             null -> analytics.userId()
         }
@@ -314,7 +315,7 @@ class CustomerIO private constructor(
             traits = traits,
             serializationStrategy = serializationStrategy
         )
-        lastIdentifiedUserIdThisSession = userId
+        acceptedUserId = userId
         // Reflect identity synchronously on the caller's thread so isUserIdentified is correct
         // immediately, before analytics.userId() catches up (see syncUserIdentified). Must be set
         // before publishUserChanged: the mirror takes precedence over the analytics fallback, so a
@@ -334,6 +335,9 @@ class CustomerIO private constructor(
                 trackDeviceAttributes(token = existingDeviceToken)
             }
         }
+
+        // Only dedup after the caller-side work succeeds, so a failed identity write can be retried.
+        lastIdentifiedUserIdThisSession = userId
     }
 
     /**
@@ -366,6 +370,7 @@ class CustomerIO private constructor(
 
         // Reset the dedup marker so a subsequent identify of the same userId is not deduped.
         lastIdentifiedUserIdThisSession = null
+        acceptedUserId = null
         // Reflect logout synchronously so isUserIdentified reads false immediately, before
         // analytics.reset() propagates (see syncUserIdentified).
         syncUserIdentified = false

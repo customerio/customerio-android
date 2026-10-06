@@ -19,6 +19,7 @@ import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.cancel
 import org.amshove.kluent.shouldBeEqualTo
 import org.amshove.kluent.shouldNotBeEqualTo
+import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
 
 /** Verifies caller completion and event attribution on real workers, without assuming FIFO delivery. */
@@ -93,9 +94,9 @@ class DeviceAttributeWorkerTest : JUnitTest() {
             collectionThreads.forEach { it shouldNotBeEqualTo "sdk-caller" }
             val updates = events.filter { it.event == EventNames.DEVICE_UPDATE }
             updates.size shouldBeEqualTo 2
-            updates.associate { it.userId to it.context.deviceToken } shouldBeEqualTo mapOf(
-                "alice" to "token-a",
-                "bob" to "token-a"
+            assertEquals(
+                mapOf("alice" to "token-a", "bob" to "token-a"),
+                updates.associate { it.userId to it.context.deviceToken }
             )
         } finally {
             releaseCollection.countDown()

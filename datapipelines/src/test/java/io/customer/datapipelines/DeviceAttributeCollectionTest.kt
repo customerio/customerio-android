@@ -8,6 +8,7 @@ import io.customer.datapipelines.testutils.utils.OutputReaderPlugin
 import io.customer.datapipelines.testutils.utils.identifyEvents
 import io.customer.datapipelines.testutils.utils.trackEvents
 import io.customer.sdk.core.di.SDKComponent
+import io.customer.sdk.core.util.Clock
 import io.customer.sdk.data.store.DeviceStore
 import io.customer.sdk.data.store.GlobalPreferenceStore
 import io.customer.sdk.data.store.SecureUserStore
@@ -214,5 +215,26 @@ class DeviceAttributeCollectionTest : JUnitTest(dispatcher = StandardTestDispatc
         outputReader.identifyEvents.map { it.userId } shouldBeEqualTo listOf("alice", "bob", "bob")
         outputReader.trackEvents.filter { it.event == EventNames.DEVICE_DELETE }.map { it.userId } shouldBeEqualTo listOf("alice")
         sdkInstance.userId shouldBeEqualTo "bob"
+    }
+
+    @Test
+    fun testDeviceEvents_whenSubmissionIsDelayed_thenKeepCallerTimestamps() {
+        sdkInstance.identify("alice")
+        testScope.runCurrent()
+        val clock = mockk<Clock>()
+        var currentTime = 1700000000123L
+        every { clock.currentTimeMillis() } answers { currentTime }
+        SDKComponent.overrideDependency<Clock>(clock)
+
+        sdkInstance.registerDeviceToken("token-a")
+        currentTime = 1700000001456L
+        sdkInstance.clearIdentify()
+        currentTime = 1700000067890L
+        testScope.runCurrent()
+
+        outputReader.trackEvents.map { it.timestamp } shouldBeEqualTo listOf(
+            "2023-11-14T22:13:20.123Z",
+            "2023-11-14T22:13:21.456Z"
+        )
     }
 }

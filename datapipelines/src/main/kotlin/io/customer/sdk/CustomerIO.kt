@@ -9,6 +9,7 @@ import com.segment.analytics.kotlin.core.platform.EnrichmentClosure
 import com.segment.analytics.kotlin.core.platform.plugins.logger.LogKind
 import com.segment.analytics.kotlin.core.platform.plugins.logger.LogMessage
 import com.segment.analytics.kotlin.core.utilities.JsonAnySerializer
+import com.segment.analytics.kotlin.core.utilities.putAll
 import com.segment.analytics.kotlin.core.utilities.putInContextUnderKey
 import io.customer.base.internal.InternalCustomerIOApi
 import io.customer.datapipelines.config.DataPipelinesModuleConfig
@@ -31,6 +32,7 @@ import io.customer.sdk.communication.Event
 import io.customer.sdk.communication.subscribe
 import io.customer.sdk.core.di.AndroidSDKComponent
 import io.customer.sdk.core.di.SDKComponent
+import io.customer.sdk.core.di.clock
 import io.customer.sdk.core.module.CustomerIOModule
 import io.customer.sdk.core.pipeline.DataPipeline
 import io.customer.sdk.core.pipeline.identifyHookRegistry
@@ -42,7 +44,18 @@ import io.customer.sdk.data.model.Settings
 import io.customer.sdk.events.TrackMetric
 import io.customer.sdk.util.EventNames
 import io.customer.tracking.migration.MigrationProcessor
+import java.util.Date
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.launch
 import kotlinx.serialization.SerializationStrategy
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.serializer
 
 /**
@@ -112,6 +125,45 @@ class CustomerIO private constructor(
     )
 
     private val contextPlugin: ContextPlugin = ContextPlugin(deviceStore)
+
+    private data class PendingDeviceEvent(
+        val name: String,
+        val properties: JsonObject,
+        val enrichment: EnrichmentClosure
+    )
+
+    private var deviceEventWorker: Job? = null
+
+    // One consumer preserves submission order without holding the caller's instance monitor.
+    // Analytics still processes submissions concurrently; this does not guarantee delivery order.
+    private val deviceEventQueue by lazy {
+        Channel<PendingDeviceEvent>(Channel.UNLIMITED).also { queue ->
+            deviceEventWorker = analytics.analyticsScope.launch(analytics.analyticsDispatcher) {
+                try {
+                    for (request in queue) {
+                        try {
+                            val properties = if (request.name == EventNames.DEVICE_UPDATE && moduleConfig.autoTrackDeviceAttributes) {
+                                buildJsonObject {
+                                    putAll(collectDeviceAttributes())
+                                    putAll(request.properties)
+                                }
+                            } else {
+                                request.properties
+                            }
+                            currentCoroutineContext().ensureActive()
+                            track(request.name, properties, JsonObject.serializer(), request.enrichment)
+                        } catch (exception: CancellationException) {
+                            throw exception
+                        } catch (exception: Throwable) {
+                            logger.error("Failed to submit queued device event ${request.name}", throwable = exception)
+                        }
+                    }
+                } finally {
+                    queue.cancel()
+                }
+            }
+        }
+    }
 
     // Tracks the last userId successfully identified in this SDK session. Used to dedup
     // back-to-back identify(userId) calls with no traits, which are no-ops server-side.
@@ -464,10 +516,12 @@ class CustomerIO private constructor(
         contextPlugin.deviceToken = token
 
         logger.info("queueing device attribute update: $customAddedAttributes")
-        track(
+        queueDeviceEvent(
             name = EventNames.DEVICE_UPDATE,
-            properties = customAddedAttributes.sanitizeForJson(),
-            serializationStrategy = JsonAnySerializer.serializersModule.serializer(),
+            properties = Json.encodeToJsonElement(
+                JsonAnySerializer.serializersModule.serializer(),
+                customAddedAttributes.sanitizeForJson()
+            ).jsonObject,
             enrichment = deviceEventEnrichment(token)
         )
     }
@@ -483,21 +537,40 @@ class CustomerIO private constructor(
             return
         }
 
-        track(
+        queueDeviceEvent(
             name = EventNames.DEVICE_DELETE,
             properties = emptyJsonObject,
-            serializationStrategy = JsonAnySerializer.serializersModule.serializer(),
             enrichment = deviceEventEnrichment(deviceToken, enrichment)
         )
+    }
+
+    private fun queueDeviceEvent(name: String, properties: JsonObject, enrichment: EnrichmentClosure) {
+        if (deviceEventQueue.trySend(PendingDeviceEvent(name, properties, enrichment)).isFailure) {
+            logger.error("Could not queue device event $name because the worker is stopped")
+        }
+    }
+
+    private fun collectDeviceAttributes(): JsonObject = try {
+        Json.encodeToJsonElement(
+            JsonAnySerializer.serializersModule.serializer(),
+            deviceStore.buildDeviceAttributes().sanitizeForJson()
+        ).jsonObject
+    } catch (exception: CancellationException) {
+        throw exception
+    } catch (exception: Throwable) {
+        logger.error("Failed to collect automatic device attributes", throwable = exception)
+        emptyJsonObject
     }
 
     private fun deviceEventEnrichment(token: String, enrichment: EnrichmentClosure? = null): EnrichmentClosure {
         val eventUserId = synchronousUserId.orEmpty()
         val eventAnonymousId = anonymousId
+        val eventTimestamp = Iso8601TimestampFormatter.fromDate(Date(SDKComponent.clock.currentTimeMillis()))
         return { event ->
             event?.apply {
                 userId = eventUserId
                 anonymousId = eventAnonymousId
+                eventTimestamp?.let { timestamp = it }
                 putInContextUnderKey("device", "token", token)
             }
             enrichment?.invoke(event) ?: event
@@ -636,6 +709,7 @@ class CustomerIO private constructor(
         @InternalCustomerIOApi
         @VisibleForTesting(otherwise = VisibleForTesting.PACKAGE_PRIVATE)
         fun clearInstance() {
+            instance?.deviceEventWorker?.cancel()
             // Reset SDKComponent to clear static references and avoid memory leaks
             SDKComponent.reset()
             instance = null

@@ -132,8 +132,8 @@ class CustomerIO private constructor(
     // Keep registration pending if caller-side identity persistence fails before it is queued.
     private var deviceRegistrationPending = false
 
-    // Device events need the identity accepted by the caller, even while analytics.userId() lags.
-    private val userIdForDeviceEvents: String?
+    // Calls need the identity accepted by the caller, even while analytics.userId() lags.
+    private val synchronousUserId: String?
         get() = when (syncUserIdentified) {
             true -> acceptedUserId
             false -> null
@@ -257,12 +257,14 @@ class CustomerIO private constructor(
         }
 
     override fun setProfileAttributes(attributes: CustomAttributes) {
-        val identifier = this.userId
-        if (identifier != null) {
-            identify(userId = identifier, traits = attributes)
-        } else {
-            logger.debug("No user profile found, updating sanitized traits for anonymous user ${analytics.anonymousId()}")
-            analytics.identify(traits = attributes.sanitizeForJson())
+        synchronized(this) {
+            val identifier = synchronousUserId
+            if (identifier != null) {
+                identify(userId = identifier, traits = attributes)
+            } else {
+                logger.debug("No user profile found, updating sanitized traits for anonymous user ${analytics.anonymousId()}")
+                analytics.identify(traits = attributes.sanitizeForJson())
+            }
         }
     }
 
@@ -295,7 +297,7 @@ class CustomerIO private constructor(
         }
 
         // this is the current userId that is identified in the SDK
-        val currentlyIdentifiedProfile = userIdForDeviceEvents.takeUnless { it.isNullOrBlank() }
+        val currentlyIdentifiedProfile = synchronousUserId.takeUnless { it.isNullOrBlank() }
         val isChangingIdentifiedProfile = currentlyIdentifiedProfile != null && currentlyIdentifiedProfile != userId
         val isFirstTimeIdentifying = currentlyIdentifiedProfile == null
 
@@ -371,7 +373,7 @@ class CustomerIO private constructor(
 
     override fun clearIdentifyImpl() {
         logger.info("resetting user profile with id ${this.userId}")
-        val existingUserId = userIdForDeviceEvents
+        val existingUserId = synchronousUserId
 
         // Reset the dedup marker so a subsequent identify of the same userId is not deduped.
         lastIdentifiedUserIdThisSession = null
@@ -490,7 +492,7 @@ class CustomerIO private constructor(
     }
 
     private fun deviceEventEnrichment(token: String, enrichment: EnrichmentClosure? = null): EnrichmentClosure {
-        val eventUserId = userIdForDeviceEvents.orEmpty()
+        val eventUserId = synchronousUserId.orEmpty()
         val eventAnonymousId = anonymousId
         return { event ->
             event?.apply {

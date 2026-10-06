@@ -5,6 +5,7 @@ import io.customer.datapipelines.testutils.core.JUnitTest
 import io.customer.datapipelines.testutils.core.testConfiguration
 import io.customer.datapipelines.testutils.extensions.deviceToken
 import io.customer.datapipelines.testutils.utils.OutputReaderPlugin
+import io.customer.datapipelines.testutils.utils.identifyEvents
 import io.customer.datapipelines.testutils.utils.trackEvents
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.data.store.DeviceStore
@@ -197,5 +198,21 @@ class DeviceAttributeCollectionTest : JUnitTest(dispatcher = StandardTestDispatc
             it.event == EventNames.DEVICE_UPDATE && it.userId == "bob"
         }.shouldHaveSingleItem()
         update.context.deviceToken shouldBeEqualTo "token-a"
+    }
+
+    @Test
+    fun testSetProfileAttributes_whenIdentifyIsPending_thenKeepsAcceptedProfile() {
+        sdkInstance.identify("alice")
+        sdkInstance.registerDeviceToken("token-a")
+        testScope.runCurrent()
+
+        sdkInstance.identify("bob")
+        sdkInstance.userId shouldBeEqualTo "alice"
+        sdkInstance.setProfileAttributes(mapOf("favorite_color" to "blue"))
+        testScope.runCurrent()
+
+        outputReader.identifyEvents.map { it.userId } shouldBeEqualTo listOf("alice", "bob", "bob")
+        outputReader.trackEvents.filter { it.event == EventNames.DEVICE_DELETE }.map { it.userId } shouldBeEqualTo listOf("alice")
+        sdkInstance.userId shouldBeEqualTo "bob"
     }
 }

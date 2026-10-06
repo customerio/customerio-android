@@ -163,4 +163,39 @@ class DeviceAttributeCollectionTest : JUnitTest(dispatcher = StandardTestDispatc
 
         verify(exactly = 2) { userStore.saveUserId("alice") }
     }
+
+    @Test
+    fun testIdentify_whenFirstIdentityPersistenceFails_thenRetryRegistersStoredToken() {
+        sdkInstance.registerDeviceToken("token-a")
+        testScope.runCurrent()
+        every { userStore.saveUserId("alice") } throws IllegalStateException("identity store unavailable")
+        assertThrows<IllegalStateException> { sdkInstance.identify("alice") }
+
+        justRun { userStore.saveUserId("alice") }
+        sdkInstance.identify("alice")
+        testScope.runCurrent()
+
+        val update = outputReader.trackEvents.filter {
+            it.event == EventNames.DEVICE_UPDATE && it.userId == "alice"
+        }.shouldHaveSingleItem()
+        update.context.deviceToken shouldBeEqualTo "token-a"
+    }
+
+    @Test
+    fun testIdentify_whenProfileChangePersistenceFails_thenRetryRegistersTokenToNewProfile() {
+        sdkInstance.identify("alice")
+        sdkInstance.registerDeviceToken("token-a")
+        testScope.runCurrent()
+        every { userStore.saveUserId("bob") } throws IllegalStateException("identity store unavailable")
+        assertThrows<IllegalStateException> { sdkInstance.identify("bob") }
+
+        justRun { userStore.saveUserId("bob") }
+        sdkInstance.identify("bob")
+        testScope.runCurrent()
+
+        val update = outputReader.trackEvents.filter {
+            it.event == EventNames.DEVICE_UPDATE && it.userId == "bob"
+        }.shouldHaveSingleItem()
+        update.context.deviceToken shouldBeEqualTo "token-a"
+    }
 }

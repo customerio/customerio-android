@@ -248,9 +248,15 @@ class DeviceAttributeCollectionTest : JUnitTest(dispatcher = StandardTestDispatc
         currentTime = 1700000067890L
         testScope.runCurrent()
 
+        currentTime = 1700000090001L
+        sdkInstance.clearIdentify()
+        currentTime = 1700000123456L
+        testScope.runCurrent()
+
         outputReader.trackEvents.map { it.timestamp } shouldBeEqualTo listOf(
             "2023-11-14T22:13:20.123Z",
-            "2023-11-14T22:13:21.456Z"
+            "2023-11-14T22:13:21.456Z",
+            "2023-11-14T22:14:50.001Z"
         )
     }
 }

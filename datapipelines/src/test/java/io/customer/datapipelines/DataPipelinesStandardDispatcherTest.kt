@@ -9,6 +9,7 @@ import io.customer.datapipelines.testutils.core.testConfiguration
 import io.customer.datapipelines.testutils.extensions.deviceToken
 import io.customer.datapipelines.testutils.extensions.shouldMatchTo
 import io.customer.datapipelines.testutils.utils.OutputReaderPlugin
+import io.customer.datapipelines.testutils.utils.TOKEN_TYPE_ATTRIBUTE
 import io.customer.datapipelines.testutils.utils.identifyEvents
 import io.customer.datapipelines.testutils.utils.trackEvents
 import io.customer.sdk.core.di.SDKComponent
@@ -105,7 +106,7 @@ class DataPipelinesStandardDispatcherTest : JUnitTest(dispatcher = StandardTestD
         flushCoroutines(testScope)
 
         val deviceUpdates = outputReaderPlugin.trackEvents.filter { it.event == EventNames.DEVICE_UPDATE }
-        deviceUpdates.map { it.context.deviceToken to it.properties["cio_token_type"]?.jsonPrimitive?.content } shouldBeEqualTo listOf(
+        deviceUpdates.map { it.context.deviceToken to it.properties[TOKEN_TYPE_ATTRIBUTE]?.jsonPrimitive?.content } shouldBeEqualTo listOf(
             "legacy-token" to "token",
             "fid-value" to "fid"
         )

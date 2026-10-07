@@ -1,5 +1,6 @@
 package io.customer.sdk
 
+import io.customer.datapipelines.extensions.DEVICE_TOKEN_TYPE_ATTRIBUTE
 import io.customer.sdk.core.module.CustomerIOModule
 import io.customer.sdk.core.module.CustomerIOModuleConfig
 import io.customer.sdk.core.util.Logger
@@ -73,7 +74,7 @@ internal class DataPipelinesLogger(private val logger: Logger) {
     fun logReservedDeviceTokenTypeIgnored() {
         logger.error(
             tag = PUSH_TAG,
-            message = "Device attribute cio_token_type is reserved for the SDK, ignoring the provided value"
+            message = "Device attribute $DEVICE_TOKEN_TYPE_ATTRIBUTE is reserved for the SDK, ignoring the provided value"
         )
     }
 

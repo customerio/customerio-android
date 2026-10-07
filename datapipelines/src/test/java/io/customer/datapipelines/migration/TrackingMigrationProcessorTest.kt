@@ -147,7 +147,7 @@ class TrackingMigrationProcessorTest : IntegrationTest() {
         val deviceRegisterEvent = outputReaderPlugin.trackEvents.shouldHaveSingleItem()
         deviceRegisterEvent.event shouldBeEqualTo EventNames.DEVICE_UPDATE
         deviceRegisterEvent.context.deviceToken shouldBeEqualTo oldDeviceToken
-        deviceRegisterEvent.properties shouldBeEqualTo buildJsonObject { put("_cio_token_type", "token") }
+        deviceRegisterEvent.properties shouldBeEqualTo buildJsonObject { put("cio_token_type", "token") }
     }
 
     @Test
@@ -401,7 +401,7 @@ class TrackingMigrationProcessorTest : IntegrationTest() {
         deviceUpdateEvent.event shouldBeEqualTo EventNames.DEVICE_UPDATE
         deviceUpdateEvent.context.deviceToken shouldBeEqualTo givenTask.token
         deviceUpdateEvent.properties shouldBeEqualTo buildJsonObject {
-            put("_cio_token_type", "token")
+            put("cio_token_type", "token")
             put(
                 "device",
                 buildJsonObject {
@@ -436,7 +436,7 @@ class TrackingMigrationProcessorTest : IntegrationTest() {
         deviceUpdateEvent.context.deviceToken shouldBeEqualTo givenTask.token
         deviceUpdateEvent.properties shouldBeEqualTo buildJsonObject {
             putAll(givenAttributes.toJsonObject())
-            put("_cio_token_type", "token")
+            put("cio_token_type", "token")
             put(
                 "device",
                 buildJsonObject {

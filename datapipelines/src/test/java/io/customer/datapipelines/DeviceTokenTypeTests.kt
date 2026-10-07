@@ -172,6 +172,6 @@ class DeviceTokenTypeTests : IntegrationTest() {
     }
 
     private companion object {
-        const val TOKEN_TYPE = "_cio_token_type"
+        const val TOKEN_TYPE = "cio_token_type"
     }
 }

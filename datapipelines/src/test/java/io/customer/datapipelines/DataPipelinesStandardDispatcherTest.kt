@@ -105,7 +105,7 @@ class DataPipelinesStandardDispatcherTest : JUnitTest(dispatcher = StandardTestD
         flushCoroutines(testScope)
 
         val deviceUpdates = outputReaderPlugin.trackEvents.filter { it.event == EventNames.DEVICE_UPDATE }
-        deviceUpdates.map { it.context.deviceToken to it.properties["_cio_token_type"]?.jsonPrimitive?.content } shouldBeEqualTo listOf(
+        deviceUpdates.map { it.context.deviceToken to it.properties["cio_token_type"]?.jsonPrimitive?.content } shouldBeEqualTo listOf(
             "legacy-token" to "token",
             "fid-value" to "fid"
         )

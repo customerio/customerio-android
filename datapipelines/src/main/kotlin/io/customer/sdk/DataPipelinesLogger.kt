@@ -73,7 +73,7 @@ internal class DataPipelinesLogger(private val logger: Logger) {
     fun logReservedDeviceTokenTypeIgnored() {
         logger.error(
             tag = PUSH_TAG,
-            message = "Device attribute _cio_token_type is reserved for the SDK, ignoring the provided value"
+            message = "Device attribute cio_token_type is reserved for the SDK, ignoring the provided value"
         )
     }
 

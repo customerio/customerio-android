@@ -3,10 +3,10 @@ package io.customer.datapipelines.extensions
 import io.customer.sdk.DataPipelinesLogger
 import io.customer.sdk.data.model.DeviceTokenType
 
-internal const val DEVICE_TOKEN_TYPE_ATTRIBUTE = "_cio_token_type"
+internal const val DEVICE_TOKEN_TYPE_ATTRIBUTE = "cio_token_type"
 
 /**
- * Sets the `_cio_token_type` device attribute from [tokenType]. The backend trusts it to pick how it
+ * Sets the `cio_token_type` device attribute from [tokenType]. The backend trusts it to pick how it
  * addresses the device, so only the SDK sets it: a value the app passes is dropped.
  */
 internal fun Map<String, Any?>.withDeviceTokenType(

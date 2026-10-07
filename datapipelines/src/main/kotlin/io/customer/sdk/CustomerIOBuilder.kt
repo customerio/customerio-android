@@ -7,6 +7,7 @@ import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.di.setupAndroidComponent
 import io.customer.sdk.core.module.CustomerIOModule
 import io.customer.sdk.core.module.CustomerIOModuleConfig
+import io.customer.sdk.core.util.CioApiKey
 import io.customer.sdk.core.util.CioLogLevel
 import io.customer.sdk.data.model.Region
 
@@ -204,7 +205,8 @@ class CustomerIOBuilder(
 
     fun build(): CustomerIO {
         // Create CustomerIOConfig from the current builder state
-        CustomerIOConfigBuilder.requireNotSecretKey(cdpApiKey)
+        // This builder must return an instance, so it can't skip init like CustomerIO.initialize does
+        require(!CioApiKey.isSecretKey(cdpApiKey)) { CioApiKey.SECRET_KEY_ERROR }
         val config = CustomerIOConfig(
             applicationContext = applicationContext,
             cdpApiKey = cdpApiKey,

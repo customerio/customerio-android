@@ -37,7 +37,8 @@ class AnalyticsStorageMigrationTest : RobolectricTest() {
         listOf(LEGACY_KEY, PUBLIC_KEY, OTHER_LEGACY_KEY).forEach { key ->
             applicationMock.getSharedPreferences("analytics-android-$key", Context.MODE_PRIVATE).edit().clear().commit()
         }
-        eventsDirectory().listFiles()?.forEach { it.delete() }
+        applicationMock.getSharedPreferences(AnalyticsStorageMigration.MIGRATION_PREFS_NAME, Context.MODE_PRIVATE).edit().clear().commit()
+        eventsDirectory().listFiles()?.forEach { it.deleteRecursively() }
 
         super.teardown()
     }
@@ -89,6 +90,9 @@ class AnalyticsStorageMigrationTest : RobolectricTest() {
             content shouldContain "first"
             content shouldContain "second"
             content shouldContain "third"
+            // Finished batches upload with the key written in them
+            content shouldContain "\"writeKey\":\"$PUBLIC_KEY\""
+            content shouldNotContain LEGACY_KEY
         }
         eventsDirectory().list()!!.forEach { it shouldNotContain LEGACY_KEY }
 
@@ -132,6 +136,27 @@ class AnalyticsStorageMigrationTest : RobolectricTest() {
 
         segmentStorage(PUBLIC_KEY).read(Storage.Constants.AnonymousId) shouldBeEqualTo "existing-anonymous-id"
         segmentStorage(LEGACY_KEY).read(Storage.Constants.AnonymousId) shouldBeEqualTo ANONYMOUS_ID
+    }
+
+    @Test
+    fun migrate_givenEventFileFailsToMove_expectRetriedOnNextLaunch() = runBlocking<Unit> {
+        givenStorageForKey(LEGACY_KEY, finishedBatch = true)
+        val finishedBatch = eventsDirectory().list()!!.first { !it.endsWith(".tmp") }
+        // A non-empty directory at the target name makes the rename fail
+        val blocker = java.io.File(eventsDirectory(), finishedBatch.replace(LEGACY_KEY, PUBLIC_KEY)).apply {
+            mkdirs()
+            java.io.File(this, "file").writeText("")
+        }
+
+        migration.migrate(previousKey = LEGACY_KEY, newKey = PUBLIC_KEY)
+
+        eventsDirectory().list()!!.toList() shouldContain finishedBatch
+        segmentStorage(PUBLIC_KEY).read(Storage.Constants.AnonymousId) shouldBeEqualTo ANONYMOUS_ID
+
+        blocker.deleteRecursively()
+        migration.migrate(previousKey = PUBLIC_KEY, newKey = PUBLIC_KEY)
+
+        eventsDirectory().list()!!.forEach { it shouldNotContain LEGACY_KEY }
     }
 
     companion object {

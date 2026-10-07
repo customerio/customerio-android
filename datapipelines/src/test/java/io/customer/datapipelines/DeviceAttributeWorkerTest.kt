@@ -51,6 +51,7 @@ class DeviceAttributeWorkerTest : JUnitTest() {
         val collectionStarted = CountDownLatch(1)
         val releaseCollection = CountDownLatch(1)
         val updatesProcessed = CountDownLatch(1)
+        val obsoleteUpdateProcessed = CountDownLatch(1)
         val events = CopyOnWriteArrayList<TrackEvent>()
         val collectionThreads = CopyOnWriteArrayList<String>()
         val caller = Executors.newSingleThreadExecutor { task -> Thread(task, "sdk-caller") }
@@ -62,7 +63,8 @@ class DeviceAttributeWorkerTest : JUnitTest() {
                 if (event is IdentifyEvent && event.userId == "alice") identityProcessed.countDown()
                 if (event is TrackEvent) {
                     events.add(event)
-                    if (event.event == EventNames.DEVICE_UPDATE) updatesProcessed.countDown()
+                    if (event.event == EventNames.DEVICE_UPDATE && event.userId == "bob") updatesProcessed.countDown()
+                    if (event.event == EventNames.DEVICE_UPDATE && event.userId == "alice") obsoleteUpdateProcessed.countDown()
                 }
                 return event
             }
@@ -91,7 +93,8 @@ class DeviceAttributeWorkerTest : JUnitTest() {
             caller.submit { sdkInstance.identify("bob") }.get(5, TimeUnit.SECONDS)
             sdkInstance.isUserIdentified shouldBeEqualTo true
             releaseCollection.countDown()
-            check(updatesProcessed.await(5, TimeUnit.SECONDS)) { "Device updates were not processed" }
+            check(updatesProcessed.await(5, TimeUnit.SECONDS)) { "Current profile's device update was not processed" }
+            assertFalse(obsoleteUpdateProcessed.await(1, TimeUnit.SECONDS), "Old profile's update was submitted after the switch")
 
             collectionThreads.forEach { it shouldNotBeEqualTo "sdk-caller" }
             val updates = events.filter { it.event == EventNames.DEVICE_UPDATE }

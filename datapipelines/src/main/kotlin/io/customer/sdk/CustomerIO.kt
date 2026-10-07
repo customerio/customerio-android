@@ -167,6 +167,7 @@ class CustomerIO private constructor(
                                 }
                             }
                         } catch (exception: CancellationException) {
+                            // The collector is synchronous; cancellation ends this worker, not just one update.
                             throw exception
                         } catch (exception: Throwable) {
                             logger.error("Failed to submit queued device event ${request.name}", throwable = exception)

@@ -8,7 +8,9 @@ import com.segment.analytics.kotlin.core.utilities.FileEventStream
 import io.customer.commontest.config.testConfigurationDefault
 import io.customer.commontest.core.RobolectricTest
 import io.customer.sdk.core.util.Logger
+import io.mockk.every
 import io.mockk.mockk
+import io.mockk.verify
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import org.amshove.kluent.shouldBeEmpty
@@ -26,11 +28,12 @@ import sovran.kotlin.Store
 class AnalyticsStorageMigrationTest : RobolectricTest() {
 
     private lateinit var migration: AnalyticsStorageMigration
+    private val mockLogger = mockk<Logger>(relaxed = true)
 
     @Before
     fun setUp() {
         super.setup(testConfigurationDefault {})
-        migration = AnalyticsStorageMigration(applicationMock, mockk<Logger>(relaxed = true))
+        migration = AnalyticsStorageMigration(applicationMock, mockLogger)
     }
 
     override fun teardown() {
@@ -158,6 +161,70 @@ class AnalyticsStorageMigrationTest : RobolectricTest() {
 
         eventsDirectory().list()!!.forEach { it shouldNotContain LEGACY_KEY }
     }
+
+    @Test
+    fun migrate_givenPrefsOfEveryType_expectAllCopied() {
+        legacyPrefs().edit()
+            .putString("string", "value")
+            .putInt("int", 1)
+            .putLong("long", 2L)
+            .putFloat("float", 3f)
+            .putBoolean("boolean", true)
+            .putStringSet("set", setOf("a", "b"))
+            .commit()
+
+        migration.migrate(previousKey = LEGACY_KEY, newKey = PUBLIC_KEY)
+
+        val newPrefs = applicationMock.getSharedPreferences("analytics-android-$PUBLIC_KEY", Context.MODE_PRIVATE)
+        newPrefs.getString("string", null) shouldBeEqualTo "value"
+        newPrefs.getInt("int", 0) shouldBeEqualTo 1
+        newPrefs.getLong("long", 0L) shouldBeEqualTo 2L
+        newPrefs.getFloat("float", 0f) shouldBeEqualTo 3f
+        newPrefs.getBoolean("boolean", false) shouldBeEqualTo true
+        newPrefs.getStringSet("set", null) shouldBeEqualTo setOf("a", "b")
+        legacyPrefs().all.shouldBeEmpty()
+    }
+
+    @Test
+    fun migrate_givenEmptyPreviousKey_expectNothingMoved() {
+        migration.migrate(previousKey = "", newKey = PUBLIC_KEY)
+
+        segmentStorage(PUBLIC_KEY).read(Storage.Constants.AnonymousId).shouldBeNull()
+    }
+
+    @Test
+    fun migrate_givenPreviousKeyHasNoStorage_expectNothingMoved() {
+        java.io.File(eventsDirectory(), "$LEGACY_KEY-0").writeText("{}")
+
+        migration.migrate(previousKey = LEGACY_KEY, newKey = PUBLIC_KEY)
+
+        segmentStorage(PUBLIC_KEY).read(Storage.Constants.AnonymousId).shouldBeNull()
+        eventsDirectory().list()!!.toList() shouldContain "$LEGACY_KEY-0"
+    }
+
+    @Test
+    fun migrate_givenEventFileUnreadable_expectErrorLoggedAndFileKept() {
+        givenStorageForKey(LEGACY_KEY)
+        // A directory with the batch name can't be read as a file
+        java.io.File(eventsDirectory(), "$LEGACY_KEY-9").mkdirs()
+
+        migration.migrate(previousKey = LEGACY_KEY, newKey = PUBLIC_KEY)
+
+        eventsDirectory().list()!!.toList() shouldContain "$LEGACY_KEY-9"
+        verify { mockLogger.error("Failed to move queued analytics events to new public key, will retry on next launch", any(), any()) }
+    }
+
+    @Test
+    fun migrate_givenStorageThrows_expectErrorLogged() {
+        val brokenContext = mockk<Context>()
+        every { brokenContext.getSharedPreferences(any(), any()) } throws IllegalStateException("broken")
+
+        AnalyticsStorageMigration(brokenContext, mockLogger).migrate(previousKey = LEGACY_KEY, newKey = PUBLIC_KEY)
+
+        verify { mockLogger.error("Failed to move analytics storage to new public key: broken", any(), any()) }
+    }
+
+    private fun legacyPrefs() = applicationMock.getSharedPreferences("analytics-android-$LEGACY_KEY", Context.MODE_PRIVATE)
 
     companion object {
         private const val LEGACY_KEY = "4f3b2a1c0d9e8f7a6b5c"

@@ -133,6 +133,7 @@ class CustomerIO private constructor(
         val generation: Long
     )
 
+    @Volatile
     private var deviceEventWorker: Job? = null
 
     // Guarded by the instance monitor. A deletion invalidates every older, unsent update.
@@ -193,9 +194,6 @@ class CustomerIO private constructor(
     @Volatile
     private var syncUserIdentified: Boolean? = null
     private var acceptedUserId: String? = null
-
-    // Keep registration pending if caller-side identity persistence fails before it is queued.
-    private var deviceRegistrationPending = false
 
     // Calls need the identity accepted by the caller, even while analytics.userId() lags.
     private val synchronousUserId: String?
@@ -386,7 +384,6 @@ class CustomerIO private constructor(
             serializationStrategy = serializationStrategy
         )
         acceptedUserId = userId
-        deviceRegistrationPending = deviceRegistrationPending || isFirstTimeIdentifying || isChangingIdentifiedProfile
         // Reflect identity synchronously on the caller's thread so isUserIdentified is correct
         // immediately, before analytics.userId() catches up (see syncUserIdentified). Must be set
         // before publishUserChanged: the mirror takes precedence over the analytics fallback, so a
@@ -397,7 +394,7 @@ class CustomerIO private constructor(
         // returns the new userId for subscribers that gate on it (e.g. location resync).
         publishUserChanged(userId)
 
-        if (deviceRegistrationPending) {
+        if (isFirstTimeIdentifying || isChangingIdentifiedProfile) {
             logger.debug("first time identified or changing identified profile")
             val existingDeviceToken = registeredDeviceToken
             if (existingDeviceToken != null) {
@@ -405,10 +402,9 @@ class CustomerIO private constructor(
                 // register device to newly identified profile
                 trackDeviceAttributes(token = existingDeviceToken)
             }
-            deviceRegistrationPending = false
         }
 
-        // Only dedup after the caller-side work succeeds, so a failed identity write can be retried.
+        // Dedup later calls only after this identify finishes successfully.
         lastIdentifiedUserIdThisSession = userId
     }
 
@@ -443,7 +439,6 @@ class CustomerIO private constructor(
         // Reset the dedup marker so a subsequent identify of the same userId is not deduped.
         lastIdentifiedUserIdThisSession = null
         acceptedUserId = null
-        deviceRegistrationPending = false
         // Reflect logout synchronously so isUserIdentified reads false immediately, before
         // analytics.reset() propagates (see syncUserIdentified).
         syncUserIdentified = false
@@ -590,7 +585,7 @@ class CustomerIO private constructor(
                 eventTimestamp?.let { timestamp = it }
                 putInContextUnderKey("device", "token", token)
             }
-            enrichment?.invoke(event) ?: event
+            if (enrichment == null) event else enrichment(event)
         }
     }
 

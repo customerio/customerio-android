@@ -16,6 +16,7 @@ import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.data.store.GlobalPreferenceStore
 import io.customer.sdk.util.EventNames
 import io.mockk.every
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonPrimitive
@@ -30,6 +31,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 
+@OptIn(ExperimentalCoroutinesApi::class)
 @RunWith(RobolectricTestRunner::class)
 class DeviceAttributesTests : IntegrationTest() {
     private lateinit var globalPreferenceStore: GlobalPreferenceStore
@@ -76,6 +78,7 @@ class DeviceAttributesTests : IntegrationTest() {
         sdkInstance.identify(givenIdentifier)
         every { globalPreferenceStore.getDeviceToken() } returns givenToken
         sdkInstance.registerDeviceToken(givenToken)
+        testDispatcher.scheduler.runCurrent()
 
         val deviceRegisterEvent = outputReaderPlugin.trackEvents.shouldHaveSingleItem()
         deviceRegisterEvent.userId shouldBeEqualTo givenIdentifier
@@ -102,6 +105,7 @@ class DeviceAttributesTests : IntegrationTest() {
         sdkInstance.identify(givenIdentifier)
         every { globalPreferenceStore.getDeviceToken() } returns givenToken
         sdkInstance.registerDeviceToken(givenToken)
+        testDispatcher.scheduler.runCurrent()
 
         val deviceRegisterEvent = outputReaderPlugin.trackEvents.shouldHaveSingleItem()
         deviceRegisterEvent.userId shouldBeEqualTo givenIdentifier
@@ -150,6 +154,7 @@ class DeviceAttributesTests : IntegrationTest() {
         every { globalPreferenceStore.getDeviceToken() } returns givenToken
         sdkInstance.registerDeviceToken(givenToken)
         sdkInstance.setDeviceAttributes(givenAttributes)
+        testDispatcher.scheduler.runCurrent()
 
         // 1. Device Created
         // 2. Device Updated

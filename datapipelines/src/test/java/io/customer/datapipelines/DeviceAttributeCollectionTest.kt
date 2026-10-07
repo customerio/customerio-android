@@ -1,5 +1,6 @@
 package io.customer.datapipelines
 
+import com.segment.analytics.kotlin.core.System
 import io.customer.commontest.config.TestConfig
 import io.customer.datapipelines.testutils.core.JUnitTest
 import io.customer.datapipelines.testutils.core.testConfiguration
@@ -14,10 +15,14 @@ import io.customer.sdk.data.store.GlobalPreferenceStore
 import io.customer.sdk.data.store.SecureUserStore
 import io.customer.sdk.util.EventNames
 import io.mockk.every
-import io.mockk.justRun
 import io.mockk.mockk
 import io.mockk.verify
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicReference
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.serialization.json.jsonPrimitive
@@ -25,7 +30,6 @@ import org.amshove.kluent.shouldBeEqualTo
 import org.amshove.kluent.shouldHaveSingleItem
 import org.amshove.kluent.shouldNotBeEqualTo
 import org.junit.jupiter.api.Test
-import org.junit.jupiter.api.assertThrows
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class DeviceAttributeCollectionTest : JUnitTest(dispatcher = StandardTestDispatcher()) {
@@ -140,6 +144,60 @@ class DeviceAttributeCollectionTest : JUnitTest(dispatcher = StandardTestDispatc
     }
 
     @Test
+    fun testSetDeviceAttributes_whenResetAndTokenRotationOverlapTokenRead_thenDoesNotRestoreOldToken() {
+        sdkInstance.identify("alice")
+        sdkInstance.registerDeviceToken("token-a")
+        testScope.runCurrent()
+
+        val token = AtomicReference("token-a")
+        val tokenReadStarted = CountDownLatch(1)
+        val releaseTokenRead = CountDownLatch(1)
+        val resetStarted = CountDownLatch(1)
+        val resetFinished = CountDownLatch(1)
+        val attributeCaller = Executors.newSingleThreadExecutor { task -> Thread(task, "attribute-caller") }
+        val resetCaller = Executors.newSingleThreadExecutor()
+        val preferences = SDKComponent.android().globalPreferenceStore
+        every { preferences.saveDeviceToken(any()) } answers { token.set(firstArg()) }
+        every { preferences.getDeviceToken() } answers {
+            val capturedToken = token.get()
+            if (Thread.currentThread().name == "attribute-caller") {
+                tokenReadStarted.countDown()
+                check(releaseTokenRead.await(5, TimeUnit.SECONDS)) { "Token read was not released" }
+            }
+            capturedToken
+        }
+
+        try {
+            val attributeCall = attributeCaller.submit { sdkInstance.setDeviceAttributes(mapOf("custom" to "old-session")) }
+            check(tokenReadStarted.await(5, TimeUnit.SECONDS)) { "Attribute call did not read the token" }
+            val resetCall = resetCaller.submit {
+                resetStarted.countDown()
+                sdkInstance.clearIdentify()
+                sdkInstance.registerDeviceToken("token-b")
+                resetFinished.countDown()
+            }
+            check(resetStarted.await(5, TimeUnit.SECONDS)) { "Reset call did not start" }
+            // Give the concurrent reset a chance to finish if the setter's token read is not
+            // protected. The resulting payload, rather than a private lock, is asserted below.
+            resetFinished.await(1, TimeUnit.SECONDS)
+            releaseTokenRead.countDown()
+            attributeCall.get(5, TimeUnit.SECONDS)
+            resetCall.get(5, TimeUnit.SECONDS)
+            testScope.runCurrent()
+
+            sdkInstance.registeredDeviceToken shouldBeEqualTo "token-b"
+            val update = outputReader.trackEvents.filter { it.event == EventNames.DEVICE_UPDATE }.last()
+            update.context.deviceToken shouldBeEqualTo "token-b"
+            update.userId shouldBeEqualTo ""
+            update.anonymousId shouldBeEqualTo sdkInstance.anonymousId
+        } finally {
+            releaseTokenRead.countDown()
+            attributeCaller.shutdownNow()
+            resetCaller.shutdownNow()
+        }
+    }
+
+    @Test
     fun testRegisterDeviceToken_whenAttributeCollectionFails_thenStillEmitsDeviceUpdate() {
         every { deviceStore.buildDeviceAttributes() } throws IllegalStateException("system service unavailable")
 
@@ -172,49 +230,33 @@ class DeviceAttributeCollectionTest : JUnitTest(dispatcher = StandardTestDispatc
     }
 
     @Test
-    fun testIdentify_whenIdentityPersistenceFails_thenAllowsRetryOfSameProfile() {
-        every { userStore.saveUserId("alice") } throws IllegalStateException("identity store unavailable")
-        assertThrows<IllegalStateException> { sdkInstance.identify("alice") }
-
-        justRun { userStore.saveUserId("alice") }
-        sdkInstance.identify("alice")
-
-        verify(exactly = 2) { userStore.saveUserId("alice") }
-    }
-
-    @Test
-    fun testIdentify_whenFirstIdentityPersistenceFails_thenRetryRegistersStoredToken() {
+    fun testClearIdentify_whenDeletionIsReplayedAfterReset_thenKeepsOriginalAnonymousIdAndTimestamp() {
         sdkInstance.registerDeviceToken("token-a")
         testScope.runCurrent()
-        every { userStore.saveUserId("alice") } throws IllegalStateException("identity store unavailable")
-        assertThrows<IllegalStateException> { sdkInstance.identify("alice") }
+        val originalAnonymousId = sdkInstance.anonymousId
+        val clock = mockk<Clock>()
+        var currentTime = 1700000000123L
+        every { clock.currentTimeMillis() } answers { currentTime }
+        SDKComponent.overrideDependency<Clock>(clock)
 
-        justRun { userStore.saveUserId("alice") }
-        sdkInstance.identify("alice")
+        // Hold events in the dependency's real startup queue, then reset before replay.
+        testScope.launch { analytics.store.dispatch(System.ToggleRunningAction(false), System::class) }
+        testScope.runCurrent()
+        sdkInstance.clearIdentify()
+        testScope.runCurrent()
+        val newAnonymousId = sdkInstance.anonymousId
+        newAnonymousId shouldNotBeEqualTo originalAnonymousId
+        outputReader.trackEvents.count { it.event == EventNames.DEVICE_DELETE } shouldBeEqualTo 0
+
+        currentTime = 1700000067890L
+        testScope.launch { analytics.store.dispatch(System.ToggleRunningAction(true), System::class) }
         testScope.runCurrent()
 
-        val update = outputReader.trackEvents.filter {
-            it.event == EventNames.DEVICE_UPDATE && it.userId == "alice"
-        }.shouldHaveSingleItem()
-        update.context.deviceToken shouldBeEqualTo "token-a"
-    }
-
-    @Test
-    fun testIdentify_whenProfileChangePersistenceFails_thenRetryRegistersTokenToNewProfile() {
-        sdkInstance.identify("alice")
-        sdkInstance.registerDeviceToken("token-a")
-        testScope.runCurrent()
-        every { userStore.saveUserId("bob") } throws IllegalStateException("identity store unavailable")
-        assertThrows<IllegalStateException> { sdkInstance.identify("bob") }
-
-        justRun { userStore.saveUserId("bob") }
-        sdkInstance.identify("bob")
-        testScope.runCurrent()
-
-        val update = outputReader.trackEvents.filter {
-            it.event == EventNames.DEVICE_UPDATE && it.userId == "bob"
-        }.shouldHaveSingleItem()
-        update.context.deviceToken shouldBeEqualTo "token-a"
+        val deletion = outputReader.trackEvents.filter { it.event == EventNames.DEVICE_DELETE }.shouldHaveSingleItem()
+        deletion.userId shouldBeEqualTo ""
+        deletion.context.deviceToken shouldBeEqualTo "token-a"
+        deletion.anonymousId shouldBeEqualTo originalAnonymousId
+        deletion.timestamp shouldBeEqualTo "2023-11-14T22:13:20.123Z"
     }
 
     @Test

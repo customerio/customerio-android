@@ -12,6 +12,9 @@ import io.customer.sdk.data.model.Region
  * experience based on the provided configurations
  */
 class MessagingInAppModuleConfig private constructor(
+    /**
+     * Empty when not set, which is fine when the SDK is set up with a public (`wk_`) key.
+     */
     val siteId: String,
     val region: Region,
     val eventListener: InAppEventListener?,
@@ -24,9 +27,14 @@ class MessagingInAppModuleConfig private constructor(
     val notificationInboxAccessibilityLabels: NotificationInboxAccessibilityLabels
 ) : CustomerIOModuleConfig {
     class Builder(
-        private val siteId: String,
+        private val siteId: String?,
         private val region: Region
     ) : CustomerIOModuleConfig.Builder<MessagingInAppModuleConfig> {
+        /**
+         * Use when the SDK is set up with a public (`wk_`) key, which in-app uses instead of a site ID.
+         */
+        constructor(region: Region) : this(siteId = null, region = region)
+
         private var eventListener: InAppEventListener? = null
         private var colorScheme: ColorScheme = ColorScheme.AUTO
         private var inboxEventListener: InboxEventListener? = null
@@ -65,7 +73,7 @@ class MessagingInAppModuleConfig private constructor(
 
         override fun build(): MessagingInAppModuleConfig {
             return MessagingInAppModuleConfig(
-                siteId = siteId,
+                siteId = siteId.orEmpty(),
                 region = region,
                 eventListener = eventListener,
                 colorScheme = colorScheme,

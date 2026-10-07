@@ -8,6 +8,8 @@ import io.customer.messaginginapp.type.ColorScheme
 
 internal data class InAppMessagingState(
     val siteId: String = "",
+    // Public (wk_) API key, used instead of siteId to authenticate in-app requests when set
+    val publicKey: String? = null,
     val dataCenter: String = "",
     val environment: GistEnvironment = GistEnvironment.PROD,
     val colorScheme: ColorScheme = ColorScheme.AUTO,

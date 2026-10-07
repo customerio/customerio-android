@@ -8,7 +8,7 @@ import io.customer.messaginginapp.type.ColorScheme
 import io.customer.messaginginapp.type.InAppMessageError
 
 internal sealed class InAppMessagingAction {
-    data class Initialize(val siteId: String, val dataCenter: String, val environment: GistEnvironment, val colorScheme: ColorScheme = ColorScheme.AUTO) : InAppMessagingAction()
+    data class Initialize(val siteId: String, val dataCenter: String, val environment: GistEnvironment, val colorScheme: ColorScheme = ColorScheme.AUTO, val publicKey: String? = null) : InAppMessagingAction()
     data class SetColorScheme(val colorScheme: ColorScheme) : InAppMessagingAction()
     data class SetPollingInterval(val interval: Long) : InAppMessagingAction()
     data class SetSseEnabled(val enabled: Boolean) : InAppMessagingAction()

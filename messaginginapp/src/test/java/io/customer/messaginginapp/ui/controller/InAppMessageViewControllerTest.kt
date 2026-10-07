@@ -31,6 +31,7 @@ import io.customer.sdk.core.di.SDKComponent
 import io.mockk.clearMocks
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.slot
 import io.mockk.spyk
 import io.mockk.verify
 import io.mockk.verifyOrder
@@ -476,6 +477,51 @@ class InAppMessageViewControllerTest : JUnitTest() {
             colorScheme = givenStoreState.colorScheme.resolve(uiMode)
         )
         assertCalledOnce { engineWebViewDelegate.setup(expectedConfig) }
+    }
+
+    @Test
+    fun engineSetup_givenPublicKeyAndSiteId_expectEngineConfiguredWithBoth() {
+        val givenPublicKey = "wk_us_" + String.random
+        val givenSiteId = String.random
+        val givenStoreState = InAppMessagingState(
+            siteId = givenSiteId,
+            publicKey = givenPublicKey,
+            dataCenter = String.random,
+            environment = GistEnvironment.LOCAL
+        )
+        every { inAppMessagingManager.getCurrentState() } returns givenStoreState
+        val givenMessage = createInAppMessage()
+        val engineWebViewDelegate = mockk<EngineWebViewDelegate>(relaxed = true)
+        controller.engineWebViewDelegate = engineWebViewDelegate
+
+        controller.loadMessage(givenMessage)
+
+        val configSlot = slot<EngineWebConfiguration>()
+        verify(exactly = 1) { engineWebViewDelegate.setup(capture(configSlot)) }
+        configSlot.captured.key shouldBeEqualTo givenPublicKey
+        configSlot.captured.siteId shouldBeEqualTo givenSiteId
+    }
+
+    @Test
+    fun engineSetup_givenPublicKeyWithoutSiteId_expectEngineConfiguredWithKeyOnly() {
+        val givenPublicKey = "wk_us_" + String.random
+        val givenStoreState = InAppMessagingState(
+            siteId = "",
+            publicKey = givenPublicKey,
+            dataCenter = String.random,
+            environment = GistEnvironment.LOCAL
+        )
+        every { inAppMessagingManager.getCurrentState() } returns givenStoreState
+        val givenMessage = createInAppMessage()
+        val engineWebViewDelegate = mockk<EngineWebViewDelegate>(relaxed = true)
+        controller.engineWebViewDelegate = engineWebViewDelegate
+
+        controller.loadMessage(givenMessage)
+
+        val configSlot = slot<EngineWebConfiguration>()
+        verify(exactly = 1) { engineWebViewDelegate.setup(capture(configSlot)) }
+        configSlot.captured.key shouldBeEqualTo givenPublicKey
+        configSlot.captured.siteId shouldBeEqualTo ""
     }
 
     @Test

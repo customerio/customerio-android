@@ -8,6 +8,7 @@ import okhttp3.Request
 class NetworkUtilities {
     companion object {
         internal const val CIO_SITE_ID_HEADER = "X-CIO-Site-Id"
+        internal const val AUTHORIZATION_HEADER = "Authorization"
         internal const val USER_TOKEN_HEADER = "X-Gist-Encoded-User-Token"
         internal const val CIO_DATACENTER_HEADER = "X-CIO-Datacenter"
         internal const val CIO_CLIENT_PLATFORM = "X-CIO-Client-Platform"
@@ -24,6 +25,7 @@ class NetworkUtilities {
         // SSE query parameters
         internal const val SSE_SESSION_ID_PARAM = "sessionId"
         internal const val SSE_SITE_ID_PARAM = "siteId"
+        internal const val SSE_KEY_PARAM = "key"
         internal const val SSE_USER_TOKEN_PARAM = "userToken"
 
         // SSE configuration
@@ -39,14 +41,22 @@ class NetworkUtilities {
          * @param builder Request.Builder to add headers to
          * @param state Current in-app messaging state
          * @param includeUserToken Whether to include user token header (default: true)
+         * @param includeAuthorization Whether to include the public key Authorization header (default: true)
          * @return Request.Builder with common headers applied
          */
         internal fun addCommonHeaders(
             builder: Request.Builder,
             state: InAppMessagingState,
-            includeUserToken: Boolean = true
+            includeUserToken: Boolean = true,
+            includeAuthorization: Boolean = true
         ): Request.Builder {
-            builder.addHeader(CIO_SITE_ID_HEADER, state.siteId)
+            // siteId is optional when the SDK is set up with a public key
+            if (state.siteId.isNotBlank()) {
+                builder.addHeader(CIO_SITE_ID_HEADER, state.siteId)
+            }
+            if (includeAuthorization) {
+                state.publicKey?.let { key -> builder.addHeader(AUTHORIZATION_HEADER, "Bearer $key") }
+            }
             builder.addHeader(CIO_DATACENTER_HEADER, state.dataCenter)
 
             val androidSDKComponent = SDKComponent.android()

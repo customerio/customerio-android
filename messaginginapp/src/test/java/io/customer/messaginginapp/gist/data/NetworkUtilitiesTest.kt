@@ -23,11 +23,50 @@ class NetworkUtilitiesTest : IntegrationTest() {
     // test that reuses the constant would pass straight through a rename of its value.
     private val appIdentifierHeader = "X-CIO-Client-App-Identifier"
 
-    private fun buildHeaders(includeUserToken: Boolean = true) = NetworkUtilities.addCommonHeaders(
+    private fun buildHeaders(
+        includeUserToken: Boolean = true,
+        includeAuthorization: Boolean = true,
+        state: InAppMessagingState = InAppMessagingState(siteId = "site", dataCenter = "us")
+    ) = NetworkUtilities.addCommonHeaders(
         builder = Request.Builder().url("https://gist.example.com/api/v4/users"),
-        state = InAppMessagingState(siteId = "site", dataCenter = "us"),
-        includeUserToken = includeUserToken
+        state = state,
+        includeUserToken = includeUserToken,
+        includeAuthorization = includeAuthorization
     ).build().headers
+
+    private val publicKeyState = InAppMessagingState(siteId = "", dataCenter = "us", publicKey = "wk_us_key")
+
+    @Test
+    fun addCommonHeaders_givenSiteIdOnly_expectSiteIdHeaderAndNoAuthorization() {
+        val headers = buildHeaders()
+
+        headers["X-CIO-Site-Id"] shouldBeEqualTo "site"
+        headers["Authorization"] shouldBeEqualTo null
+    }
+
+    @Test
+    fun addCommonHeaders_givenPublicKeyWithoutSiteId_expectBearerAndNoSiteIdHeader() {
+        val headers = buildHeaders(state = publicKeyState)
+
+        headers["Authorization"] shouldBeEqualTo "Bearer wk_us_key"
+        headers["X-CIO-Site-Id"] shouldBeEqualTo null
+    }
+
+    @Test
+    fun addCommonHeaders_givenPublicKeyAndSiteId_expectBearerAndSiteIdHeader() {
+        val headers = buildHeaders(state = publicKeyState.copy(siteId = "site"))
+
+        headers["Authorization"] shouldBeEqualTo "Bearer wk_us_key"
+        headers["X-CIO-Site-Id"] shouldBeEqualTo "site"
+    }
+
+    @Test
+    fun addCommonHeaders_givenPublicKeyOnSseRequest_expectNoAuthorization() {
+        // SSE passes the key in the URL instead
+        val headers = buildHeaders(includeUserToken = false, includeAuthorization = false, state = publicKeyState)
+
+        headers["Authorization"] shouldBeEqualTo null
+    }
 
     @Test
     fun addCommonHeaders_givenFetchRequest_expectAppIdentifierIsHostPackageName() {

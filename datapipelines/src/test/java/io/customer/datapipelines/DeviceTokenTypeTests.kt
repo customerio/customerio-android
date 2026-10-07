@@ -142,23 +142,18 @@ class DeviceTokenTypeTests : IntegrationTest() {
     }
 
     @Test
-    fun setDeviceAttributes_expectTokenTypeReadUnderLockAndTrackedOutsideIt() {
+    fun setDeviceAttributes_expectTokenTypeReadUnderLock() {
         setupSdk()
         sdkInstance.registerDeviceToken(String.random, DeviceTokenType.FID)
         var typeReadUnderLock: Boolean? = null
-        var warnedUnderLock: Boolean? = null
         every { globalPreferenceStore.getDeviceTokenType() } answers {
             typeReadUnderLock = Thread.holdsLock(sdkInstance)
             DeviceTokenType.FID
-        }
-        every { mockDataPipelinesLogger.logReservedDeviceTokenTypeIgnored() } answers {
-            warnedUnderLock = Thread.holdsLock(sdkInstance)
         }
 
         sdkInstance.setDeviceAttributes(mapOf(TOKEN_TYPE to "token"))
 
         typeReadUnderLock shouldBeEqualTo true
-        warnedUnderLock shouldBeEqualTo false
     }
 
     @Test

@@ -1,8 +1,8 @@
 package io.customer.messaginginapp.gist.data.model.engine
 
 internal data class EngineWebConfiguration(
-    // Null when no site ID is configured, which is fine when a public key is set
-    val siteId: String?,
+    // Empty when no site ID is configured, which is fine when a public key is set
+    val siteId: String,
     val dataCenter: String,
     val messageId: String,
     val instanceId: String,

@@ -521,7 +521,7 @@ class InAppMessageViewControllerTest : JUnitTest() {
         val configSlot = slot<EngineWebConfiguration>()
         verify(exactly = 1) { engineWebViewDelegate.setup(capture(configSlot)) }
         configSlot.captured.key shouldBeEqualTo givenPublicKey
-        configSlot.captured.siteId.shouldBeNull()
+        configSlot.captured.siteId shouldBeEqualTo ""
     }
 
     @Test

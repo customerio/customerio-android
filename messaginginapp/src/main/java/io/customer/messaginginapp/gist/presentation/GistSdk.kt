@@ -43,6 +43,9 @@ internal class GistSdk(
     private val sseLifecycleManager = SDKComponent.sseLifecycleManager
 
     init {
+        if (siteId.isBlank() && publicKey == null) {
+            logger.error("In-app messaging needs a siteId, or the SDK set up with a public (wk_) key")
+        }
         inAppMessagingManager.dispatch(InAppMessagingAction.Initialize(siteId = siteId, dataCenter = dataCenter, environment = environment, colorScheme = colorScheme, publicKey = publicKey))
     }
 

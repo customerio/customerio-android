@@ -10,9 +10,11 @@ import io.customer.messaginginapp.di.inAppMessagingManager
 import io.customer.messaginginapp.state.InAppMessagingAction
 import io.customer.messaginginapp.testutils.core.IntegrationTest
 import io.customer.sdk.core.di.SDKComponent
+import io.customer.sdk.core.util.Logger
 import io.customer.sdk.data.model.Region
 import io.customer.sdk.data.model.Settings
 import io.mockk.mockk
+import io.mockk.verify
 import org.amshove.kluent.shouldBeEqualTo
 import org.amshove.kluent.shouldBeNull
 import org.junit.Test
@@ -22,11 +24,14 @@ import org.robolectric.RobolectricTestRunner
 @RunWith(RobolectricTestRunner::class)
 class GistSdkPublicKeyTest : IntegrationTest() {
 
+    private val mockLogger = mockk<Logger>(relaxed = true)
+
     override fun setup(testConfig: TestConfig) {
         super.setup(
             testConfigurationDefault {
                 diGraph {
                     sdk {
+                        overrideDependency<Logger>(mockLogger)
                         // Keep GistSdk from touching real process-lifecycle wiring
                         overrideDependency(mockk<PollingLifecycleManager>(relaxed = true))
                         overrideDependency(mockk<SseLifecycleManager>(relaxed = true))
@@ -57,6 +62,17 @@ class GistSdkPublicKeyTest : IntegrationTest() {
         val state = SDKComponent.inAppMessagingManager.getCurrentState()
         state.publicKey shouldBeEqualTo PUBLIC_KEY
         state.siteId shouldBeEqualTo ""
+        verify(exactly = 0) { mockLogger.error(any(), any(), any()) }
+    }
+
+    @Test
+    fun gistProvider_givenLegacyKeyAndNoSiteId_expectErrorLogged() {
+        givenSdkInitializedWithKey(LEGACY_KEY)
+        ModuleMessagingInApp(MessagingInAppModuleConfig.Builder(Region.US).build()).attachToSDKComponent()
+
+        SDKComponent.gistProvider
+
+        verify { mockLogger.error("In-app messaging needs a siteId, or the SDK set up with a public (wk_) key", any(), any()) }
     }
 
     @Test

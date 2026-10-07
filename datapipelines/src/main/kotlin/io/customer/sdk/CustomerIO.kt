@@ -9,6 +9,7 @@ import com.segment.analytics.kotlin.core.platform.EnrichmentClosure
 import com.segment.analytics.kotlin.core.platform.plugins.logger.LogKind
 import com.segment.analytics.kotlin.core.platform.plugins.logger.LogMessage
 import com.segment.analytics.kotlin.core.utilities.JsonAnySerializer
+import com.segment.analytics.kotlin.core.utilities.putAll
 import com.segment.analytics.kotlin.core.utilities.putInContextUnderKey
 import io.customer.base.internal.InternalCustomerIOApi
 import io.customer.datapipelines.config.DataPipelinesModuleConfig
@@ -31,6 +32,7 @@ import io.customer.sdk.communication.Event
 import io.customer.sdk.communication.subscribe
 import io.customer.sdk.core.di.AndroidSDKComponent
 import io.customer.sdk.core.di.SDKComponent
+import io.customer.sdk.core.di.clock
 import io.customer.sdk.core.module.CustomerIOModule
 import io.customer.sdk.core.pipeline.DataPipeline
 import io.customer.sdk.core.pipeline.identifyHookRegistry
@@ -42,7 +44,18 @@ import io.customer.sdk.data.model.Settings
 import io.customer.sdk.events.TrackMetric
 import io.customer.sdk.util.EventNames
 import io.customer.tracking.migration.MigrationProcessor
+import java.util.Date
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.launch
 import kotlinx.serialization.SerializationStrategy
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.serializer
 
 /**
@@ -113,6 +126,60 @@ class CustomerIO private constructor(
 
     private val contextPlugin: ContextPlugin = ContextPlugin(deviceStore)
 
+    private data class PendingDeviceEvent(
+        val name: String,
+        val properties: JsonObject,
+        val enrichment: EnrichmentClosure,
+        val generation: Long
+    )
+
+    @Volatile
+    private var deviceEventWorker: Job? = null
+
+    // Guarded by the instance monitor. A deletion invalidates every older, unsent update.
+    private var deviceEventGeneration = 0L
+
+    // One consumer collects updates without holding the caller's instance monitor.
+    // Deletions bypass collection and invalidate older updates that have not been submitted.
+    // Analytics still processes submissions concurrently; this does not guarantee delivery order.
+    private val deviceEventQueue by lazy {
+        Channel<PendingDeviceEvent>(Channel.UNLIMITED).also { queue ->
+            deviceEventWorker = analytics.analyticsScope.launch(analytics.analyticsDispatcher) {
+                val workerContext = currentCoroutineContext()
+                try {
+                    for (request in queue) {
+                        try {
+                            if (synchronized(this@CustomerIO) { request.generation != deviceEventGeneration }) continue
+                            val properties = if (request.name == EventNames.DEVICE_UPDATE && moduleConfig.autoTrackDeviceAttributes) {
+                                buildJsonObject {
+                                    putAll(collectDeviceAttributes())
+                                    putAll(request.properties)
+                                }
+                            } else {
+                                request.properties
+                            }
+                            synchronized(this@CustomerIO) {
+                                workerContext.ensureActive()
+                                // Check and submit under the same monitor as deletion, so a reset
+                                // cannot invalidate an update between this check and submission.
+                                if (request.generation == deviceEventGeneration) {
+                                    track(request.name, properties, JsonObject.serializer(), request.enrichment)
+                                }
+                            }
+                        } catch (exception: CancellationException) {
+                            // The collector is synchronous; cancellation ends this worker, not just one update.
+                            throw exception
+                        } catch (exception: Throwable) {
+                            logger.error("Failed to submit queued device event ${request.name}", throwable = exception)
+                        }
+                    }
+                } finally {
+                    queue.cancel()
+                }
+            }
+        }
+    }
+
     // Tracks the last userId successfully identified in this SDK session. Used to dedup
     // back-to-back identify(userId) calls with no traits, which are no-ops server-side.
     // Reset on clearIdentify so a subsequent identify of the same userId is not deduped.
@@ -127,6 +194,15 @@ class CustomerIO private constructor(
     // restored-from-persistence) analytics userId; true = identified; false = anonymous.
     @Volatile
     private var syncUserIdentified: Boolean? = null
+    private var acceptedUserId: String? = null
+
+    // Calls need the identity accepted by the caller, even while analytics.userId() lags.
+    private val synchronousUserId: String?
+        get() = when (syncUserIdentified) {
+            true -> acceptedUserId
+            false -> null
+            null -> analytics.userId()
+        }
 
     init {
         // Set analytics logger and debug logs based on SDK logger configuration
@@ -245,12 +321,14 @@ class CustomerIO private constructor(
         }
 
     override fun setProfileAttributes(attributes: CustomAttributes) {
-        val identifier = this.userId
-        if (identifier != null) {
-            identify(userId = identifier, traits = attributes)
-        } else {
-            logger.debug("No user profile found, updating sanitized traits for anonymous user ${analytics.anonymousId()}")
-            analytics.identify(traits = attributes.sanitizeForJson())
+        synchronized(this) {
+            val identifier = synchronousUserId
+            if (identifier != null) {
+                identify(userId = identifier, traits = attributes)
+            } else {
+                logger.debug("No user profile found, updating sanitized traits for anonymous user ${analytics.anonymousId()}")
+                analytics.identify(traits = attributes.sanitizeForJson())
+            }
         }
     }
 
@@ -283,7 +361,7 @@ class CustomerIO private constructor(
         }
 
         // this is the current userId that is identified in the SDK
-        val currentlyIdentifiedProfile = this.userId.takeUnless { it.isNullOrBlank() }
+        val currentlyIdentifiedProfile = synchronousUserId.takeUnless { it.isNullOrBlank() }
         val isChangingIdentifiedProfile = currentlyIdentifiedProfile != null && currentlyIdentifiedProfile != userId
         val isFirstTimeIdentifying = currentlyIdentifiedProfile == null
 
@@ -306,6 +384,7 @@ class CustomerIO private constructor(
             traits = traits,
             serializationStrategy = serializationStrategy
         )
+        acceptedUserId = userId
         // Reflect identity synchronously on the caller's thread so isUserIdentified is correct
         // immediately, before analytics.userId() catches up (see syncUserIdentified). Must be set
         // before publishUserChanged: the mirror takes precedence over the analytics fallback, so a
@@ -326,8 +405,7 @@ class CustomerIO private constructor(
             }
         }
 
-        // Update the per-session marker after a successful identify (with or without traits)
-        // so that a subsequent no-traits identify of the same userId can be deduped.
+        // Dedup later calls only after this identify finishes successfully.
         lastIdentifiedUserIdThisSession = userId
     }
 
@@ -357,9 +435,11 @@ class CustomerIO private constructor(
 
     override fun clearIdentifyImpl() {
         logger.info("resetting user profile with id ${this.userId}")
+        val existingUserId = synchronousUserId
 
         // Reset the dedup marker so a subsequent identify of the same userId is not deduped.
         lastIdentifiedUserIdThisSession = null
+        acceptedUserId = null
         // Reflect logout synchronously so isUserIdentified reads false immediately, before
         // analytics.reset() propagates (see syncUserIdentified).
         syncUserIdentified = false
@@ -368,9 +448,8 @@ class CustomerIO private constructor(
 
         // since the tasks are asynchronous, we need to store the userId before deleting the device token
         // otherwise, the userId could be null when the delete task is executed
-        val existingUserId = userId
         deleteDeviceToken { event ->
-            event?.apply { userId = existingUserId.toString() }
+            event?.apply { userId = existingUserId.orEmpty() }
         }
 
         logger.debug("resetting user profile")
@@ -410,7 +489,9 @@ class CustomerIO private constructor(
         }
 
     override fun setDeviceAttributes(attributes: CustomAttributes) {
-        trackDeviceAttributes(registeredDeviceToken, attributes)
+        synchronized(this) {
+            trackDeviceAttributes(registeredDeviceToken, attributes)
+        }
     }
 
     override fun registerDeviceTokenImpl(deviceToken: String) {
@@ -440,20 +521,17 @@ class CustomerIO private constructor(
             }
         }
 
-        val attributes = if (moduleConfig.autoTrackDeviceAttributes) {
-            // order matters! allow customer to override default values if they wish.
-            deviceStore.buildDeviceAttributes() + customAddedAttributes
-        } else {
-            customAddedAttributes
-        }
-
         // Update plugin with updated device information
         contextPlugin.deviceToken = token
 
-        logger.info("updating device attributes: $attributes")
-        track(
+        logger.info("queueing device attribute update: $customAddedAttributes")
+        queueDeviceEvent(
             name = EventNames.DEVICE_UPDATE,
-            properties = attributes
+            properties = Json.encodeToJsonElement(
+                JsonAnySerializer.serializersModule.serializer(),
+                customAddedAttributes.sanitizeForJson()
+            ).jsonObject,
+            enrichment = deviceEventEnrichment(token)
         )
     }
 
@@ -468,7 +546,48 @@ class CustomerIO private constructor(
             return
         }
 
-        track(name = EventNames.DEVICE_DELETE, properties = emptyJsonObject, serializationStrategy = JsonAnySerializer.serializersModule.serializer(), enrichment = enrichment)
+        deviceEventGeneration++
+        // Do not delay removal behind a blocked metadata read. Already-submitted events still
+        // follow analytics' existing processing and persistence behavior.
+        track(
+            name = EventNames.DEVICE_DELETE,
+            properties = emptyJsonObject,
+            serializationStrategy = JsonObject.serializer(),
+            enrichment = deviceEventEnrichment(deviceToken, enrichment)
+        )
+    }
+
+    private fun queueDeviceEvent(name: String, properties: JsonObject, enrichment: EnrichmentClosure) {
+        if (deviceEventQueue.trySend(PendingDeviceEvent(name, properties, enrichment, deviceEventGeneration)).isFailure) {
+            logger.error("Could not queue device event $name because the worker is stopped")
+        }
+    }
+
+    private fun collectDeviceAttributes(): JsonObject = try {
+        Json.encodeToJsonElement(
+            JsonAnySerializer.serializersModule.serializer(),
+            deviceStore.buildDeviceAttributes().sanitizeForJson()
+        ).jsonObject
+    } catch (exception: CancellationException) {
+        throw exception
+    } catch (exception: Throwable) {
+        logger.error("Failed to collect automatic device attributes", throwable = exception)
+        emptyJsonObject
+    }
+
+    private fun deviceEventEnrichment(token: String, enrichment: EnrichmentClosure? = null): EnrichmentClosure {
+        val eventUserId = synchronousUserId.orEmpty()
+        val eventAnonymousId = anonymousId
+        val eventTimestamp = Iso8601TimestampFormatter.fromDate(Date(SDKComponent.clock.currentTimeMillis()))
+        return { event ->
+            event?.apply {
+                userId = eventUserId
+                anonymousId = eventAnonymousId
+                eventTimestamp?.let { timestamp = it }
+                putInContextUnderKey("device", "token", token)
+            }
+            if (enrichment == null) event else enrichment(event)
+        }
     }
 
     override fun trackMetricImpl(event: TrackMetric) {
@@ -603,6 +722,7 @@ class CustomerIO private constructor(
         @InternalCustomerIOApi
         @VisibleForTesting(otherwise = VisibleForTesting.PACKAGE_PRIVATE)
         fun clearInstance() {
+            instance?.deviceEventWorker?.cancel()
             // Reset SDKComponent to clear static references and avoid memory leaks
             SDKComponent.reset()
             instance = null

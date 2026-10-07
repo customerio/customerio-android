@@ -7,6 +7,7 @@ import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.di.setupAndroidComponent
 import io.customer.sdk.core.module.CustomerIOModule
 import io.customer.sdk.core.module.CustomerIOModuleConfig
+import io.customer.sdk.core.util.CioApiKey
 import io.customer.sdk.core.util.CioLogLevel
 import io.customer.sdk.data.model.Region
 
@@ -62,7 +63,7 @@ class CustomerIOBuilder(
     private var logLevel: CioLogLevel = CustomerIOConfigBuilder.Defaults.logLevel
 
     // Host Settings
-    private var region: Region = CustomerIOConfigBuilder.Defaults.region
+    private var region: Region? = null
     private var apiHost: String? = CustomerIOConfigBuilder.Defaults.apiHost
     private var cdnHost: String? = CustomerIOConfigBuilder.Defaults.cdnHost
 
@@ -204,11 +205,13 @@ class CustomerIOBuilder(
 
     fun build(): CustomerIO {
         // Create CustomerIOConfig from the current builder state
+        // This builder must return an instance, so it can't skip init like CustomerIO.initialize does
+        require(!CioApiKey.isSecretKey(cdpApiKey)) { CioApiKey.SECRET_KEY_ERROR }
         val config = CustomerIOConfig(
             applicationContext = applicationContext,
             cdpApiKey = cdpApiKey,
             logLevel = logLevel,
-            region = region,
+            region = CustomerIOConfigBuilder.resolveRegion(cdpApiKey, region),
             apiHost = apiHost,
             cdnHost = cdnHost,
             flushAt = flushAt,

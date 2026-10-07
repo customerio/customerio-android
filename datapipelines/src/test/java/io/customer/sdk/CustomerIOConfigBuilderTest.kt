@@ -20,9 +20,11 @@ import io.customer.sdk.data.model.Region
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verifyOrder
+import org.amshove.kluent.invoking
 import org.amshove.kluent.shouldBe
 import org.amshove.kluent.shouldNotBe
 import org.amshove.kluent.shouldNotBeEqualTo
+import org.amshove.kluent.shouldThrow
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -375,6 +377,51 @@ class CustomerIOConfigBuilderTest : RobolectricTest() {
     }
 
     @Test
+    fun initialize_givenSecretKey_expectSdkNotInitialized() {
+        val config = createCustomerIOConfigBuilder("ak_us_$KEY_BODY").build()
+
+        CustomerIO.initialize(config)
+
+        invoking { CustomerIO.instance() } shouldThrow IllegalStateException::class
+    }
+
+    @Test
+    fun initialize_givenPublicEUKeyWithoutRegion_expectEURegionBasedHosts() {
+        val config = createCustomerIOConfigBuilder("wk_eu_$KEY_BODY").build()
+
+        CustomerIO.initialize(config)
+
+        val dataPipelinesModuleConfig = CustomerIO.instance().moduleConfig
+        dataPipelinesModuleConfig.apiHost shouldBe "cdp-eu.customer.io/v1"
+        dataPipelinesModuleConfig.cdnHost shouldBe "cdp-eu.customer.io/v1"
+    }
+
+    @Test
+    fun initialize_givenPublicEUKeyWithRegionUS_expectRegionOverridesKey() {
+        val config = createCustomerIOConfigBuilder("wk_eu_$KEY_BODY")
+            .region(Region.US)
+            .build()
+
+        CustomerIO.initialize(config)
+
+        val dataPipelinesModuleConfig = CustomerIO.instance().moduleConfig
+        dataPipelinesModuleConfig.apiHost shouldBe "cdp.customer.io/v1"
+        dataPipelinesModuleConfig.cdnHost shouldBe "cdp.customer.io/v1"
+    }
+
+    @Test
+    fun initialize_givenPublicUSKey_expectKeyIsUsedAsIs() {
+        val givenKey = "wk_us_$KEY_BODY"
+        val config = createCustomerIOConfigBuilder(givenKey).build()
+
+        CustomerIO.initialize(config)
+
+        val dataPipelinesModuleConfig = CustomerIO.instance().moduleConfig
+        dataPipelinesModuleConfig.cdpApiKey shouldBe givenKey
+        dataPipelinesModuleConfig.apiHost shouldBe "cdp.customer.io/v1"
+    }
+
+    @Test
     fun build_givenFlushPolicies_expectBuilderAcceptsFlushPolicies() {
         val givenFlushPolicies = emptyList<FlushPolicy>()
 
@@ -399,6 +446,10 @@ class CustomerIOConfigBuilderTest : RobolectricTest() {
         // Config objects should be created successfully
         configEnabled shouldNotBe null
         configDisabled shouldNotBe null
+    }
+
+    private companion object {
+        const val KEY_BODY = "0123456789abcdefABCDEF0123456789_a1B2c3"
     }
 
     private fun createCustomerIOConfigBuilder(givenCdpApiKey: String? = null): CustomerIOConfigBuilder = CustomerIOConfigBuilder(

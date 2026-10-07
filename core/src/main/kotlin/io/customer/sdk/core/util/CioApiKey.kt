@@ -12,7 +12,12 @@ import io.customer.sdk.data.model.Region
 object CioApiKey {
     private val prefixRegex = Regex("^(ak|wk)_(us|eu)_")
 
-    fun isSecretKey(key: String): Boolean = kind(key) == "ak"
+    const val SECRET_KEY_ERROR = "Secret (ak_) keys must not be used in apps. Use your public key in apps."
+
+    /**
+     * Any `ak_` key is secret, even with an unknown region, so it is never sent from an app.
+     */
+    fun isSecretKey(key: String): Boolean = key.startsWith("ak_")
 
     fun isPublicKey(key: String): Boolean = kind(key) == "wk"
 

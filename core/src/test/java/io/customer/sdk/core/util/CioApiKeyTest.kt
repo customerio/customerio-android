@@ -31,7 +31,12 @@ class CioApiKeyTest : JUnit5Test() {
     @Test
     fun isPublicKey_givenUnknownRegionPrefix_expectFalse() {
         CioApiKey.isPublicKey("wk_ap_$KEY_BODY").shouldBeFalse()
-        CioApiKey.isSecretKey("ak_ap_$KEY_BODY").shouldBeFalse()
+    }
+
+    @Test
+    fun isSecretKey_givenAnyAkPrefix_expectTrue() {
+        CioApiKey.isSecretKey("ak_ap_$KEY_BODY").shouldBeTrue()
+        CioApiKey.isSecretKey("ak_$KEY_BODY").shouldBeTrue()
     }
 
     @Test

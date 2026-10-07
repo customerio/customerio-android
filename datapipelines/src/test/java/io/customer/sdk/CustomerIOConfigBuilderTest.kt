@@ -377,10 +377,12 @@ class CustomerIOConfigBuilderTest : RobolectricTest() {
     }
 
     @Test
-    fun build_givenSecretKey_expectThrows() {
-        val builder = createCustomerIOConfigBuilder("ak_us_$KEY_BODY")
+    fun initialize_givenSecretKey_expectSdkNotInitialized() {
+        val config = createCustomerIOConfigBuilder("ak_us_$KEY_BODY").build()
 
-        invoking { builder.build() } shouldThrow IllegalArgumentException::class
+        CustomerIO.initialize(config)
+
+        invoking { CustomerIO.instance() } shouldThrow IllegalStateException::class
     }
 
     @Test

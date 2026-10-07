@@ -50,15 +50,6 @@ class CustomerIOConfigBuilder(
         val modules: List<CustomerIOModule<out CustomerIOModuleConfig>> = emptyList()
 
         /**
-         * Secret (`ak_`) keys must never ship in apps, so fail fast if one is used.
-         */
-        fun requireNotSecretKey(cdpApiKey: String) {
-            require(!CioApiKey.isSecretKey(cdpApiKey)) {
-                "Secret API keys (ak_) can't be used in apps, use your public key in apps."
-            }
-        }
-
-        /**
          * Region set by the app wins, then the region in the key prefix, then [region].
          */
         fun resolveRegion(cdpApiKey: String, region: Region?): Region {
@@ -230,7 +221,6 @@ class CustomerIOConfigBuilder(
      * Build the CustomerIOConfig instance with the specified configuration.
      */
     fun build(): CustomerIOConfig {
-        requireNotSecretKey(cdpApiKey)
         return CustomerIOConfig(
             applicationContext = applicationContext,
             cdpApiKey = cdpApiKey,

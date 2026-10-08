@@ -217,6 +217,7 @@ class GeofenceLogTailTest : RobolectricTest() {
             Row("apiFetchFailed", "api.fetch.result", listOf("ok", "why"), GeofenceLogger::logApiFetchFailed.name, io = "in") { it.logApiFetchFailed("timeout") },
 
             Row("unknownApiTransitionType", "api.transition.unknown", listOf("ok", "why", "value"), GeofenceLogger::logUnknownApiTransitionType.name, io = "obs") { it.logUnknownApiTransitionType("dwell") },
+            Row("unsupportedDwellThreshold", "api.dwell.unsupported", listOf("id", "ok", "why", "value"), GeofenceLogger::logUnsupportedDwellThreshold.name, io = "obs") { it.logUnsupportedDwellThreshold("notl_core", -1L) },
             Row("movementRearmed", "movement.rearmed", listOf("why"), GeofenceLogger::logMovementRearmedAfterFailedRefresh.name, io = "obs") { it.logMovementRearmedAfterFailedRefresh() },
             Row("storageLoaded", "storage.loaded", listOf("n", "anchor"), GeofenceLogger::logStorageLoaded.name, io = "obs") { it.logStorageLoaded({ 30 }, true) },
             Row("persistFailed", "storage.write.failed", listOf("id", "t", "ok"), GeofenceLogger::logPersistFailed.name, io = "obs") { it.logPersistFailed("notl_core", "ENTER") },
@@ -400,6 +401,7 @@ class GeofenceLogTailTest : RobolectricTest() {
             "polygon.passive.skipped",
             "polygon.passive.failed",
             "api.transition.unknown",
+            "api.dwell.unsupported",
             "containment.judged",
             "delivery.failed",
             "delivery.flush",

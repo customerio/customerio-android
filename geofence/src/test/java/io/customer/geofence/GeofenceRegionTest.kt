@@ -29,6 +29,21 @@ class GeofenceRegionTest : RobolectricTest() {
     }
 
     @Test
+    fun toGmsTransitionTypes_givenMovementTrigger_expectExitOnly() {
+        // The trigger re-centres on EXIT alone. The pipeline drops its ENTER, so registering one
+        // would only wake the process.
+        val trigger = GeofenceRegion(
+            id = GeofenceConstants.MOVEMENT_TRIGGER_ID,
+            latitude = 0.0,
+            longitude = 0.0,
+            radius = 100f,
+            transitionTypes = listOf(GeofenceTransitionType.EXIT)
+        )
+
+        trigger.toGmsTransitionTypes() shouldBeEqualTo Geofence.GEOFENCE_TRANSITION_EXIT
+    }
+
+    @Test
     fun toGmsTransitionTypes_givenBothTransitions_expectCombinedBitmask() {
         val region = buildRegion(
             transitionTypes = listOf(GeofenceTransitionType.ENTER, GeofenceTransitionType.EXIT)

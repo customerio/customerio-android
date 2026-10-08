@@ -102,7 +102,8 @@ class LocationTrackerTest {
         tracker.onLocationReceived(
             latitude = 37.7749,
             longitude = -122.4194,
-            fixElapsedRealtimeMillis = 90_000L
+            fixElapsedRealtimeMillis = 90_000L,
+            horizontalAccuracyMeters = 12f
         )
 
         verify { mockEventBus.publish(capture(captured)) }
@@ -112,7 +113,8 @@ class LocationTrackerTest {
             Event.LocationFixAcquired(
                 latitude = 37.7749,
                 longitude = -122.4194,
-                fixElapsedRealtimeMillis = 90_000L
+                fixElapsedRealtimeMillis = 90_000L,
+                horizontalAccuracyMeters = 12f
             )
     }
 
@@ -129,12 +131,15 @@ class LocationTrackerTest {
 
     @Test
     fun givenLocationReceivedWithoutTracking_expectPublishedAndReadableViaLastKnownLocation() {
-        val captured = slot<Event.LocationAcquired>()
+        val captured = mutableListOf<Event>()
 
-        tracker.onLocationReceivedWithoutTracking(37.7749, -122.4194)
+        tracker.onLocationReceivedWithoutTracking(37.7749, -122.4194, 90_000L, 12f)
 
         verify { mockEventBus.publish(capture(captured)) }
-        captured.captured shouldBeEqualTo Event.LocationAcquired(latitude = 37.7749, longitude = -122.4194)
+        captured.filterIsInstance<Event.LocationAcquired>().single() shouldBeEqualTo
+            Event.LocationAcquired(latitude = 37.7749, longitude = -122.4194)
+        captured.filterIsInstance<Event.LocationFixAcquired>().single() shouldBeEqualTo
+            Event.LocationFixAcquired(37.7749, -122.4194, 90_000L, 12f)
         tracker.lastKnownLocation shouldBeEqualTo LocationCoordinates(latitude = 37.7749, longitude = -122.4194)
     }
 

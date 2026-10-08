@@ -31,9 +31,16 @@ internal interface GeofenceRepository {
     /**
      * Always waits for an in-flight sync: the fix is already consumed, and unlike an anchor it can
      * judge containment. The caller must not pass a stale fix.
+     *
+     * @param fixQuality when the fix was taken and how accurate it was. With both, the pass can
+     * prove the device outside circles it registers or already watches; unknown proves nothing.
      */
     @RequiresPermission(Manifest.permission.ACCESS_FINE_LOCATION)
-    suspend fun refreshFromLiveFix(latitude: Double, longitude: Double): Result<Unit>
+    suspend fun refreshFromLiveFix(
+        latitude: Double,
+        longitude: Double,
+        fixQuality: GeofenceFixQuality = GeofenceFixQuality.UNKNOWN
+    ): Result<Unit>
 
     @RequiresPermission(Manifest.permission.ACCESS_FINE_LOCATION)
     suspend fun handleMovement(
@@ -113,7 +120,11 @@ internal class GeofenceRepositoryImpl(
     }
 
     @RequiresPermission(Manifest.permission.ACCESS_FINE_LOCATION)
-    override suspend fun refreshFromLiveFix(latitude: Double, longitude: Double): Result<Unit> {
+    override suspend fun refreshFromLiveFix(
+        latitude: Double,
+        longitude: Double,
+        fixQuality: GeofenceFixQuality
+    ): Result<Unit> {
         // Captured with the fix, before the slot wait: a transition reported while this pass queues
         // is newer evidence than the fix and must outrank its geometry.
         val containmentEpoch = store.containmentEpoch()
@@ -122,7 +133,7 @@ internal class GeofenceRepositoryImpl(
             return Result.success(Unit)
         }
         inFlightUserStateGeneration.set(store.userStateGeneration())
-        return runRefresh(latitude, longitude, FixSource.LIVE, containmentEpoch)
+        return runRefresh(latitude, longitude, FixSource.LIVE, containmentEpoch, fixQuality)
     }
 
     @RequiresPermission(Manifest.permission.ACCESS_FINE_LOCATION)
@@ -130,7 +141,9 @@ internal class GeofenceRepositoryImpl(
         latitude: Double,
         longitude: Double,
         fixSource: FixSource,
-        containmentEpoch: Long
+        containmentEpoch: Long,
+        // Anchors leave this UNKNOWN: stored coordinates prove nothing about where the device is now.
+        fixQuality: GeofenceFixQuality = GeofenceFixQuality.UNKNOWN
     ): Result<Unit> {
         try {
             val userId = secureUserStore.getUserId()
@@ -145,21 +158,44 @@ internal class GeofenceRepositoryImpl(
             val action = stateMutex.withLock { refreshAction(LocationCoordinates(latitude, longitude), config) }
             return when (action) {
                 RefreshAction.REMOTE -> {
-                    val remote = performRemoteRefresh(userId, latitude, longitude, containmentEpoch, fixSource)
+                    val remote = performRemoteRefresh(
+                        userId,
+                        latitude,
+                        longitude,
+                        containmentEpoch,
+                        fixSource,
+                        fixQuality = fixQuality
+                    )
                     // With nothing routable, fences stay registered but unroutable until a pass
                     // completes. Re-rank from the cache so an offline start still routes.
                     if (remote.isFailure &&
                         store.getRoutableRegisteredIds().isEmpty() &&
                         store.getCachedRegions().isNotEmpty()
                     ) {
-                        performLocalRefresh(userId, latitude, longitude, config, containmentEpoch, fixSource)
+                        performLocalRefresh(
+                            userId,
+                            latitude,
+                            longitude,
+                            config,
+                            containmentEpoch,
+                            fixSource,
+                            fixQuality = fixQuality
+                        )
                     }
                     remote
                 }
-                RefreshAction.LOCAL -> performLocalRefresh(userId, latitude, longitude, config, containmentEpoch, fixSource)
+                RefreshAction.LOCAL -> performLocalRefresh(
+                    userId,
+                    latitude,
+                    longitude,
+                    config,
+                    containmentEpoch,
+                    fixSource,
+                    fixQuality = fixQuality
+                )
                 RefreshAction.SKIP -> {
                     logger.logSyncSkippedFresh()
-                    reconcileContainment(userId, latitude, longitude, containmentEpoch, fixSource)
+                    reconcileContainment(userId, latitude, longitude, containmentEpoch, fixSource, fixQuality)
                 }
             }
         } finally {
@@ -273,7 +309,7 @@ internal class GeofenceRepositoryImpl(
         val containmentEpoch = store.containmentEpoch()
         // Before the slot wait too: a busy slot, a failed fetch or a failed GMS add would otherwise
         // lose what this fix already proves about the circles GMS is watching.
-        raiseMovementOutsideProof(latitude, longitude, fixQuality)
+        raiseOutsideProofForWatchedCircles(latitude, longitude, fixQuality)
         if (!awaitRefreshSlot()) {
             logger.logSyncSkipped("refresh already in progress after waiting")
             return Result.success(Unit)
@@ -341,13 +377,14 @@ internal class GeofenceRepositoryImpl(
     }
 
     /**
-     * Records outside proof, from the fix GMS delivered with a movement EXIT, for every registered
-     * circle that fix clears by more than its accuracy plus the margin. Judged against the geometry
+     * Records outside proof, from the fix GMS delivered with a movement EXIT or a SKIP pass's live
+     * fix, for every registered circle that fix clears by more than its accuracy plus the margin.
+     * Judged against the geometry
      * GMS is watching: the cached definition, only while it matches the live registration's
      * revision. [GeofenceRegionStore.raiseOutsideProof] keeps only registrations from this boot that
      * predate the fix, and never lowers newer proof. The same proof a successful pass raises later.
      */
-    private fun raiseMovementOutsideProof(latitude: Double, longitude: Double, fixQuality: GeofenceFixQuality) {
+    private fun raiseOutsideProofForWatchedCircles(latitude: Double, longitude: Double, fixQuality: GeofenceFixQuality) {
         val takenAt = fixQuality.fixElapsedRealtimeMillis ?: return
         // On the boot clock, so a fix stamped after now has an untrustworthy time.
         if (takenAt > clock.elapsedRealtime()) return
@@ -575,8 +612,8 @@ internal class GeofenceRepositoryImpl(
         onSyncStamped: (userStateGeneration: Long) -> Unit = {},
         movementTriggerRadiusMeters: Float? = null,
         /**
-         * Time and accuracy of the pass's fix. Only a movement fix reports both, so only it can
-         * prove the device outside a circle; see [GeofenceFixQuality.provesOutside].
+         * Time and accuracy of the pass's original fix. Live and movement fixes can prove the
+         * device outside a circle; anchors stay unknown. See [GeofenceFixQuality.provesOutside].
          */
         fixQuality: GeofenceFixQuality = GeofenceFixQuality.UNKNOWN,
         // Measured from the caller's entry so `ms=` spans the same work as on iOS.
@@ -882,7 +919,8 @@ internal class GeofenceRepositoryImpl(
         latitude: Double,
         longitude: Double,
         containmentEpoch: Long,
-        fixSource: FixSource
+        fixSource: FixSource,
+        fixQuality: GeofenceFixQuality = GeofenceFixQuality.UNKNOWN
     ): Result<Unit> {
         if (!fixSource.trustsGeometry) return Result.success(Unit)
         return stateMutex.withLock {
@@ -891,6 +929,10 @@ internal class GeofenceRepositoryImpl(
                 logger.logSyncSkipped("user changed during refresh")
                 return@withLock Result.success(Unit)
             }
+            // A SKIP pass registers nothing, so every watched circle predates this fix: one it clears
+            // proves the device outside as of the fix, as a movement fix does. Unknown time or
+            // accuracy proves nothing; the store drops registrations made after the fix.
+            raiseOutsideProofForWatchedCircles(latitude, longitude, fixQuality)
             val registeredIds = store.getRegisteredIds()
             val monitored = store.getCachedRegions().filter { it.id in registeredIds }
             // Circles only: a polygon's `radius` is its far larger wake circle, so a seed from it

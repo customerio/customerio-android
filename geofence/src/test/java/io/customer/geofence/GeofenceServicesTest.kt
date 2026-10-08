@@ -70,7 +70,7 @@ class GeofenceServicesTest : RobolectricTest() {
         services.onLocationAcquired(latitude = 1.0, longitude = 2.0, quality = staleQuality())
         advanceUntilIdle()
 
-        coVerify(exactly = 0) { repository.refreshFromLiveFix(any(), any()) }
+        coVerify(exactly = 0) { repository.refreshFromLiveFix(any(), any(), any()) }
         services.isAwaitingLocation().shouldBeTrue()
         services.isHostRefreshPending().shouldBeTrue()
     }
@@ -87,7 +87,7 @@ class GeofenceServicesTest : RobolectricTest() {
         services.onLocationAcquired(latitude = 1.0, longitude = 2.0, quality = staleQuality())
         advanceUntilIdle()
 
-        coVerify(exactly = 0) { repository.refreshFromLiveFix(any(), any()) }
+        coVerify(exactly = 0) { repository.refreshFromLiveFix(any(), any(), any()) }
         services.isAwaitingLocation().shouldBeTrue()
     }
 
@@ -100,23 +100,23 @@ class GeofenceServicesTest : RobolectricTest() {
         repeat(5) { services.onLocationAcquired(latitude = 1.0, longitude = 2.0, quality = staleQuality()) }
         advanceUntilIdle()
 
-        coVerify(exactly = 0) { repository.refreshFromLiveFix(any(), any()) }
+        coVerify(exactly = 0) { repository.refreshFromLiveFix(any(), any(), any()) }
     }
 
     @Test
     fun onLocationAcquired_givenStaleThenFreshFix_expectFreshOneDischargesTheIntent() = runTest(StandardTestDispatcher()) {
-        coEvery { repository.refreshFromLiveFix(any(), any()) } returns Result.success(Unit)
+        coEvery { repository.refreshFromLiveFix(any(), any(), any()) } returns Result.success(Unit)
         every { secureUserStore.getUserId() } returns "user-42"
         val services = servicesWith(this)
         services.onRefreshRequested()
 
         services.onLocationAcquired(latitude = 1.0, longitude = 2.0, quality = staleQuality())
         advanceUntilIdle()
-        val fresh = GeofenceFixQuality(fixElapsedRealtimeMillis = NOW)
+        val fresh = GeofenceFixQuality(fixElapsedRealtimeMillis = NOW, horizontalAccuracyMeters = 8f)
         services.onLocationAcquired(latitude = 3.0, longitude = 4.0, quality = fresh)
         advanceUntilIdle()
 
-        coVerify(exactly = 1) { repository.refreshFromLiveFix(3.0, 4.0) }
+        coVerify(exactly = 1) { repository.refreshFromLiveFix(3.0, 4.0, fresh) }
         services.isAwaitingLocation().shouldBeFalse()
     }
 
@@ -358,7 +358,7 @@ class GeofenceServicesTest : RobolectricTest() {
     @Test
     fun onLocationAcquired_givenFixOneMillisecondInsideTheAgeLimit_expectSync() = runTest(StandardTestDispatcher()) {
         // The only freshness gate; the repository trusts whatever reaches refreshFromLiveFix.
-        coEvery { repository.refreshFromLiveFix(any(), any()) } returns Result.success(Unit)
+        coEvery { repository.refreshFromLiveFix(any(), any(), any()) } returns Result.success(Unit)
         every { secureUserStore.getUserId() } returns "user-1"
         val services = servicesWith(this)
         services.onRefreshRequested()
@@ -370,14 +370,14 @@ class GeofenceServicesTest : RobolectricTest() {
         )
         advanceUntilIdle()
 
-        coVerify { repository.refreshFromLiveFix(12.0, 34.0) }
+        coVerify { repository.refreshFromLiveFix(12.0, 34.0, any()) }
         services.isAwaitingLocation().shouldBeFalse()
     }
 
     @Test
     fun onLocationAcquired_givenUnreportedTime_expectSync() = runTest(StandardTestDispatcher()) {
         // A host-supplied fix may report no time; it still asserts a position.
-        coEvery { repository.refreshFromLiveFix(any(), any()) } returns Result.success(Unit)
+        coEvery { repository.refreshFromLiveFix(any(), any(), any()) } returns Result.success(Unit)
         every { secureUserStore.getUserId() } returns "user-1"
         val services = servicesWith(this)
         services.onRefreshRequested()
@@ -385,13 +385,13 @@ class GeofenceServicesTest : RobolectricTest() {
         services.onLocationAcquired(latitude = 12.0, longitude = 34.0, quality = GeofenceFixQuality.UNKNOWN)
         advanceUntilIdle()
 
-        coVerify { repository.refreshFromLiveFix(12.0, 34.0) }
+        coVerify { repository.refreshFromLiveFix(12.0, 34.0, any()) }
     }
 
     @Test
     fun onLocationAcquired_givenPriorSkipAndUserIdentified_expectRefresh() = runTest(StandardTestDispatcher()) {
         every { secureUserStore.getUserId() } returns "user-1"
-        coEvery { repository.refreshFromLiveFix(any(), any()) } returns Result.success(Unit)
+        coEvery { repository.refreshFromLiveFix(any(), any(), any()) } returns Result.success(Unit)
         val services = servicesWith(this)
 
         services.onUserIdentified(latitude = null, longitude = null)
@@ -399,26 +399,26 @@ class GeofenceServicesTest : RobolectricTest() {
         services.onLocationAcquired(latitude = 12.0, longitude = 34.0)
         advanceUntilIdle()
 
-        coVerify { repository.refreshFromLiveFix(12.0, 34.0) }
+        coVerify { repository.refreshFromLiveFix(12.0, 34.0, any()) }
     }
 
     @Test
     fun onLocationAcquired_givenExplicitRefreshRequested_expectRefreshWithoutPriorSkip() = runTest(StandardTestDispatcher()) {
         every { secureUserStore.getUserId() } returns "user-1"
-        coEvery { repository.refreshFromLiveFix(any(), any()) } returns Result.success(Unit)
+        coEvery { repository.refreshFromLiveFix(any(), any(), any()) } returns Result.success(Unit)
         val services = servicesWith(this)
 
         services.onRefreshRequested()
         services.onLocationAcquired(latitude = 12.0, longitude = 34.0)
         advanceUntilIdle()
 
-        coVerify { repository.refreshFromLiveFix(12.0, 34.0) }
+        coVerify { repository.refreshFromLiveFix(12.0, 34.0, any()) }
     }
 
     @Test
     fun onLocationAcquired_givenExplicitRefreshRequested_expectConsumedOnce() = runTest(StandardTestDispatcher()) {
         every { secureUserStore.getUserId() } returns "user-1"
-        coEvery { repository.refreshFromLiveFix(any(), any()) } returns Result.success(Unit)
+        coEvery { repository.refreshFromLiveFix(any(), any(), any()) } returns Result.success(Unit)
         val services = servicesWith(this)
 
         services.onRefreshRequested()
@@ -426,8 +426,8 @@ class GeofenceServicesTest : RobolectricTest() {
         services.onLocationAcquired(latitude = 56.0, longitude = 78.0)
         advanceUntilIdle()
 
-        coVerify(exactly = 1) { repository.refreshFromLiveFix(any(), any()) }
-        coVerify(exactly = 0) { repository.refreshFromLiveFix(56.0, 78.0) }
+        coVerify(exactly = 1) { repository.refreshFromLiveFix(any(), any(), any()) }
+        coVerify(exactly = 0) { repository.refreshFromLiveFix(56.0, 78.0, any()) }
     }
 
     @Test
@@ -438,7 +438,7 @@ class GeofenceServicesTest : RobolectricTest() {
         services.onLocationAcquired(latitude = 12.0, longitude = 34.0)
         advanceUntilIdle()
 
-        coVerify(exactly = 0) { repository.refreshFromLiveFix(any(), any()) }
+        coVerify(exactly = 0) { repository.refreshFromLiveFix(any(), any(), any()) }
         coVerify(exactly = 0) { repository.handleMovement(any(), any(), any(), any()) }
     }
 
@@ -452,7 +452,7 @@ class GeofenceServicesTest : RobolectricTest() {
         services.onLocationAcquired(latitude = 12.0, longitude = 34.0)
         advanceUntilIdle()
 
-        coVerify(exactly = 0) { repository.refreshFromLiveFix(any(), any()) }
+        coVerify(exactly = 0) { repository.refreshFromLiveFix(any(), any(), any()) }
     }
 
     @Test
@@ -468,7 +468,7 @@ class GeofenceServicesTest : RobolectricTest() {
         advanceUntilIdle()
 
         coVerify(exactly = 1) { repository.refresh(any(), any()) }
-        coVerify(exactly = 0) { repository.refreshFromLiveFix(any(), any()) }
+        coVerify(exactly = 0) { repository.refreshFromLiveFix(any(), any(), any()) }
     }
 
     @Test
@@ -484,7 +484,7 @@ class GeofenceServicesTest : RobolectricTest() {
         services.onLocationAcquired(latitude = 12.0, longitude = 34.0)
         advanceUntilIdle()
 
-        coVerify(exactly = 0) { repository.refreshFromLiveFix(any(), any()) }
+        coVerify(exactly = 0) { repository.refreshFromLiveFix(any(), any(), any()) }
     }
 
     @Test
@@ -518,7 +518,7 @@ class GeofenceServicesTest : RobolectricTest() {
     fun onForegroundRetry_givenStillNoLocation_expectStaysArmed() = runTest(StandardTestDispatcher()) {
         every { secureUserStore.getUserId() } returns "user-1"
         coEvery { repository.refresh(any(), any()) } returns Result.success(Unit)
-        coEvery { repository.refreshFromLiveFix(any(), any()) } returns Result.success(Unit)
+        coEvery { repository.refreshFromLiveFix(any(), any(), any()) } returns Result.success(Unit)
         val services = servicesWith(this)
 
         // Must stay armed, or the fix the retry kicks off has nothing to consume it.
@@ -530,7 +530,7 @@ class GeofenceServicesTest : RobolectricTest() {
         services.onLocationAcquired(latitude = 12.0, longitude = 34.0)
         advanceUntilIdle()
 
-        coVerify { repository.refreshFromLiveFix(12.0, 34.0) }
+        coVerify { repository.refreshFromLiveFix(12.0, 34.0, any()) }
     }
 
     @Test
@@ -567,7 +567,7 @@ class GeofenceServicesTest : RobolectricTest() {
     fun isAwaitingLocation_expectPeekLeavesFlagForTheReturningFix() = runTest(StandardTestDispatcher()) {
         every { secureUserStore.getUserId() } returns "user-1"
         coEvery { repository.refresh(any(), any()) } returns Result.success(Unit)
-        coEvery { repository.refreshFromLiveFix(any(), any()) } returns Result.success(Unit)
+        coEvery { repository.refreshFromLiveFix(any(), any(), any()) } returns Result.success(Unit)
         val services = servicesWith(this)
 
         services.onUserIdentified(latitude = null, longitude = null)
@@ -579,7 +579,7 @@ class GeofenceServicesTest : RobolectricTest() {
         services.onLocationAcquired(latitude = 12.0, longitude = 34.0)
         advanceUntilIdle()
 
-        coVerify { repository.refreshFromLiveFix(12.0, 34.0) }
+        coVerify { repository.refreshFromLiveFix(12.0, 34.0, any()) }
         services.isAwaitingLocation() shouldBeEqualTo false
     }
 

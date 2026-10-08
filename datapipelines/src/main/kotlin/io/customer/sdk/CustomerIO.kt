@@ -419,13 +419,14 @@ class CustomerIO private constructor(
             setDeviceAttributes(value)
         }
 
-    override fun setDeviceAttributes(attributes: CustomAttributes) {
-        // Registration writes token and type under this lock; read them together so a concurrent
-        // registration can't pair the old token with the new type. Track outside the lock (it logs).
-        val (token, tokenType) = synchronized(this) {
-            registeredDeviceToken to globalPreferenceStore.getDeviceTokenType()
-        }
-        trackDeviceAttributes(token = token, tokenType = tokenType, customAddedAttributes = attributes)
+    // Same lock as registration, held through tracking: a token registered in between would
+    // otherwise be deleted as a refresh and replaced by the stale one read here.
+    override fun setDeviceAttributes(attributes: CustomAttributes) = synchronized(this) {
+        trackDeviceAttributes(
+            token = registeredDeviceToken,
+            tokenType = globalPreferenceStore.getDeviceTokenType(),
+            customAddedAttributes = attributes
+        )
     }
 
     override fun registerDeviceTokenImpl(deviceToken: String) = saveAndTrackDeviceToken(deviceToken, tokenType = null)

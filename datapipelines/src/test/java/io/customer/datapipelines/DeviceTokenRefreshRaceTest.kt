@@ -7,7 +7,7 @@ import io.customer.datapipelines.testutils.core.testConfiguration
 import io.customer.datapipelines.testutils.extensions.deviceToken
 import io.customer.datapipelines.testutils.utils.OutputReaderPlugin
 import io.customer.datapipelines.testutils.utils.trackEvents
-import io.customer.sdk.DataPipelinesLogger
+import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.data.store.GlobalPreferenceStore
 import io.customer.sdk.util.EventNames
 import io.mockk.every
@@ -19,24 +19,19 @@ import org.amshove.kluent.shouldBeEqualTo
 import org.junit.jupiter.api.Test
 
 /**
- * setDeviceAttributes tracks outside the registration lock, so registrations can land while it runs.
- * Store and logger hooks inject them at fixed points to make the interleaving deterministic.
+ * A token registered on another thread while setDeviceAttributes runs must not be undone by it.
  */
 class DeviceTokenRefreshRaceTest : JUnitTest(dispatcher = StandardTestDispatcher()) {
 
     private val testScope get() = delegate.testScope
 
+    @Volatile
     private var storedToken: String? = "token-a"
-    private var onTokenTypeRead: (() -> Unit)? = null
-    private var onTokenRefreshed: (() -> Unit)? = null
 
     private val mockGlobalPreferenceStore = mockk<GlobalPreferenceStore>(relaxUnitFun = true).also {
         every { it.getDeviceToken() } answers { storedToken }
-        every { it.getDeviceTokenType() } answers { takeHook(onTokenTypeRead) { onTokenTypeRead = null }; null }
+        every { it.getDeviceTokenType() } returns null
         every { it.saveDeviceToken(any(), any()) } answers { storedToken = firstArg() }
-    }
-    private val mockDataPipelinesLogger = mockk<DataPipelinesLogger>(relaxed = true).also {
-        every { it.logPushTokenRefreshed() } answers { takeHook(onTokenRefreshed) { onTokenRefreshed = null } }
     }
     private lateinit var outputReaderPlugin: OutputReaderPlugin
 
@@ -45,7 +40,6 @@ class DeviceTokenRefreshRaceTest : JUnitTest(dispatcher = StandardTestDispatcher
             testConfiguration {
                 sdkConfig { autoAddCustomerIODestination(true) }
                 diGraph {
-                    sdk { overrideDependency<DataPipelinesLogger>(mockDataPipelinesLogger) }
                     android { overrideDependency<GlobalPreferenceStore>(mockGlobalPreferenceStore) }
                 }
             }
@@ -58,27 +52,28 @@ class DeviceTokenRefreshRaceTest : JUnitTest(dispatcher = StandardTestDispatcher
         testScope.runCurrent()
     }
 
-    // Each hook fires once; it's cleared first because it can re-enter the same call.
-    private fun takeHook(hook: (() -> Unit)?, clear: () -> Unit) {
-        clear()
-        hook?.invoke()
-    }
-
     @Test
-    fun setDeviceAttributes_givenTokenRegisteredBeforeRefreshDelete_expectDeleteKeepsTokenItRefreshed() = runTest {
-        // token-b registers right after setDeviceAttributes reads token-a, so it sees a refresh from
-        // token-b; token-c then registers before that refresh sends its delete.
-        onTokenTypeRead = {
-            sdkInstance.registerDeviceToken("token-b")
-            onTokenRefreshed = { sdkInstance.registerDeviceToken("token-c") }
+    fun setDeviceAttributes_givenTokenRegisteredOnAnotherThreadMeanwhile_expectNewTokenRegisteredLast() = runTest {
+        val registration = Thread { sdkInstance.registerDeviceToken("token-b") }
+        // Starts the other thread once setDeviceAttributes has read token-a, and gives it time to
+        // finish if nothing holds it back.
+        every { SDKComponent.android().deviceStore.buildDeviceAttributes() } answers {
+            if (registration.state == Thread.State.NEW) {
+                registration.start()
+                registration.join(500)
+            }
+            emptyMap()
         }
 
         sdkInstance.setDeviceAttributes(mapOf("key" to "value"))
+        registration.join()
         flushCoroutines(testScope)
 
-        val deletedTokens = outputReaderPlugin.trackEvents
-            .filter { it.event == EventNames.DEVICE_DELETE }
-            .map { it.context.deviceToken }
-        deletedTokens shouldBeEqualTo listOf("token-a", "token-b", "token-b")
+        val deviceEvents = outputReaderPlugin.trackEvents.map { it.event to it.context.deviceToken }
+        deviceEvents shouldBeEqualTo listOf(
+            EventNames.DEVICE_UPDATE to "token-a",
+            EventNames.DEVICE_DELETE to "token-a",
+            EventNames.DEVICE_UPDATE to "token-b"
+        )
     }
 }

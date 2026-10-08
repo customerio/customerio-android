@@ -40,8 +40,14 @@ internal class ReplayBoundaryGate(val clock: VirtualClock) {
     suspend fun awaitVirtual(releaseAt: Double, what: String) {
         if (releaseAt <= clock.elapsedSeconds) return
         val deferred = CompletableDeferred<Unit>()
-        parked += Parked(releaseAt, what, deferred)
-        deferred.await()
+        val boundary = Parked(releaseAt, what, deferred)
+        parked += boundary
+        try {
+            deferred.await()
+        } finally {
+            // A dead process cannot leave an answer that advances the new process's clock.
+            parked.remove(boundary)
+        }
     }
 
     /**
@@ -84,7 +90,7 @@ internal class ReplayBoundaryGate(val clock: VirtualClock) {
 
     /** Between scenarios: a boundary parked by the previous drive would resume inside the next. */
     fun reset() {
-        parked.forEach { it.gate.complete(Unit) }
+        parked.toList().forEach { it.gate.complete(Unit) }
         parked.clear()
         abandonedAtEnd = emptyList()
     }

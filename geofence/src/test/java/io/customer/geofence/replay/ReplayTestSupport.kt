@@ -5,8 +5,10 @@ import io.customer.commontest.config.TestConfig
 import io.customer.commontest.config.testConfigurationDefault
 import io.customer.commontest.core.RobolectricTest
 import io.customer.commontest.util.DispatchersProviderStub
+import io.customer.geofence.GeofenceBootReceiver
 import io.customer.geofence.GeofenceDiagnostics
 import io.customer.geofence.GeofenceForegroundCoordinator
+import io.customer.geofence.GeofenceLaunchReason
 import io.customer.geofence.GeofenceLocationMode
 import io.customer.geofence.GeofencePermissionChecker
 import io.customer.geofence.GeofenceRegistrar
@@ -20,7 +22,9 @@ import io.customer.geofence.di.geofenceManager
 import io.customer.geofence.di.geofencePermissionChecker
 import io.customer.geofence.di.geofenceRegionStore
 import io.customer.geofence.di.geofenceServices
+import io.customer.geofence.di.geofenceTransitionEmitter
 import io.customer.geofence.di.pendingGeofenceDeliveryStore
+import io.customer.geofence.di.polygonGeofenceServiceController
 import io.customer.geofence.polygon.PolygonFreshFixSource
 import io.customer.geofence.worker.GeofenceEventScheduler
 import io.customer.sdk.core.di.SDKComponent
@@ -31,6 +35,7 @@ import io.customer.sdk.core.util.ScopeProvider
 import io.customer.sdk.data.store.SecureUserStore
 import io.mockk.every
 import io.mockk.mockk
+import kotlinx.coroutines.launch
 import org.junit.After
 
 /** Shared production composition for recorded drives and synthetic replay regressions. */
@@ -45,7 +50,8 @@ abstract class ReplayTestSupport : RobolectricTest() {
     internal val identity = ReplayRunner.MutableIdentity()
 
     // Not `ScopeProviderStub`: the runner needs one shared scheduler to run what a release made runnable.
-    internal val fakeScopeProvider = ReplayScopeProvider()
+    internal var fakeScopeProvider = ReplayScopeProvider()
+        private set
 
     internal val fakeSecureUserStore: SecureUserStore = mockk(relaxed = true) {
         every { getUserId() } answers { identity.userId }
@@ -64,6 +70,15 @@ abstract class ReplayTestSupport : RobolectricTest() {
     internal val replayFreshFix = ReplayPolygonFreshFixSource()
 
     override fun setup(testConfig: TestConfig) {
+        composeSDK()
+        // These clears belong only to a new scenario, never to a process relaunch within one.
+        SDKComponent.android().geofenceRegionStore.clearAll()
+        SDKComponent.android().geofenceCooldownStore.clearAll()
+        SDKComponent.android().pendingGeofenceDeliveryStore.removeAll()
+        replayLogger.clear()
+    }
+
+    private fun composeSDK() {
         super.setup(
             testConfigurationDefault {
                 argument(ApplicationArgument(applicationMock))
@@ -95,16 +110,59 @@ abstract class ReplayTestSupport : RobolectricTest() {
             "GeofenceEventScheduler" to (SDKComponent.android().geofenceEventScheduler to scheduler),
             "GeofencePermissionChecker" to (SDKComponent.android().geofencePermissionChecker to permissionChecker)
         )
-        // Disk-backed: a store left by an earlier test in this JVM would seed state the drive never had.
-        SDKComponent.android().geofenceRegionStore.clearAll()
-        // Separate from the region store; a leftover cooldown would suppress a fence's first crossing.
-        SDKComponent.android().geofenceCooldownStore.clearAll()
-        SDKComponent.android().pendingGeofenceDeliveryStore.removeAll()
-        replayLogger.clear()
+    }
+
+    private fun runtime() = ReplayRunner.Runtime(
+        scope = fakeScopeProvider.geofenceScope,
+        pipeline = SDKComponent.android().geofenceCrossingPipeline,
+        services = SDKComponent.android().geofenceServices,
+        foreground = foregroundCoordinator()
+    )
+
+    private fun reenterProcess(): ReplayRunner.Runtime {
+        val scheduler = fakeScopeProvider.scheduler
+        fakeScopeProvider.stop()
+        SDKComponent.reset()
+        fakeScopeProvider = ReplayScopeProvider(scheduler)
+        composeSDK()
+        return runtime()
+    }
+
+    /** The same launch consumers used by ModuleGeofence, without attaching a live location module. */
+    private fun initializeModule(runtime: ReplayRunner.Runtime) {
+        val android = SDKComponent.android()
+        SDKComponent.geofenceLogger.logModuleInitialized(GeofenceLaunchReason.APP_START)
+        runtime.scope.launch {
+            android.geofenceTransitionEmitter.recoverPendingTransitions()
+            if (!fakeSecureUserStore.getUserId().isNullOrEmpty()) {
+                android.polygonGeofenceServiceController.beginUserSessionForCurrentUser()
+                val anchor = runtime.foreground.anchor()
+                runtime.services.onAppLaunch(anchor?.latitude, anchor?.longitude)
+                runtime.foreground.autoAcquireIfNeeded(anchor)
+            }
+        }
+    }
+
+    /** Identify consumes the persisted registration anchor, just as ModuleGeofence does. */
+    private fun identifyUser(runtime: ReplayRunner.Runtime) {
+        val android = SDKComponent.android()
+        runtime.scope.launch {
+            val userId = fakeSecureUserStore.getUserId()?.takeIf { it.isNotEmpty() } ?: return@launch
+            android.polygonGeofenceServiceController.beginUserSession(userId)
+            val anchor = runtime.foreground.anchor()
+            runtime.services.onUserIdentified(anchor?.latitude, anchor?.longitude)
+            runtime.foreground.autoAcquireIfNeeded(anchor)
+        }
+    }
+
+    private fun restoreBoot(runtime: ReplayRunner.Runtime) {
+        SDKComponent.geofenceLogger.logModuleWoke(GeofenceLaunchReason.BOOT_RESTORE)
+        runtime.scope.launch { GeofenceBootReceiver().restore() }
     }
 
     @After
     fun resetDiagnostics() {
+        fakeScopeProvider.stop()
         GeofenceDiagnostics.setEnabledForTesting(null)
     }
 
@@ -124,12 +182,13 @@ abstract class ReplayTestSupport : RobolectricTest() {
     internal fun runner() = ReplayRunner(
         gate = boundaryGate,
         scheduler = fakeScopeProvider.scheduler,
-        geofenceScope = fakeScopeProvider.geofenceScope,
         api = api,
         registrar = registrar,
-        pipeline = SDKComponent.android().geofenceCrossingPipeline,
-        services = SDKComponent.android().geofenceServices,
-        foreground = foregroundCoordinator(),
+        runtime = runtime(),
+        reenterProcess = ::reenterProcess,
+        initializeModule = ::initializeModule,
+        identifyUser = ::identifyUser,
+        restoreBoot = ::restoreBoot,
         identity = identity,
         freshFix = replayFreshFix,
         assertDelivery = { record ->

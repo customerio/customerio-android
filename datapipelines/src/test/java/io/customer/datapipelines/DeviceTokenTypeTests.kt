@@ -7,6 +7,7 @@ import io.customer.commontest.extensions.random
 import io.customer.datapipelines.testutils.core.IntegrationTest
 import io.customer.datapipelines.testutils.core.testConfiguration
 import io.customer.datapipelines.testutils.utils.OutputReaderPlugin
+import io.customer.datapipelines.testutils.utils.TOKEN_TYPE_ATTRIBUTE
 import io.customer.datapipelines.testutils.utils.trackEvents
 import io.customer.sdk.DataPipelinesLogger
 import io.customer.sdk.core.di.SDKComponent
@@ -56,7 +57,7 @@ class DeviceTokenTypeTests : IntegrationTest() {
 
     private fun deviceUpdateTokenType(): String? {
         val event = outputReaderPlugin.trackEvents.filter { it.event == EventNames.DEVICE_UPDATE }.shouldHaveSingleItem()
-        return event.properties[TOKEN_TYPE]?.jsonPrimitive?.content
+        return event.properties[TOKEN_TYPE_ATTRIBUTE]?.jsonPrimitive?.content
     }
 
     @Test
@@ -88,7 +89,7 @@ class DeviceTokenTypeTests : IntegrationTest() {
         sdkInstance.registerDeviceToken(String.random, DeviceTokenType.TOKEN)
 
         deviceUpdateTokenType() shouldBeEqualTo "token"
-        outputReaderPlugin.trackEvents.single().properties.keys shouldBeEqualTo setOf(TOKEN_TYPE)
+        outputReaderPlugin.trackEvents.single().properties.keys shouldBeEqualTo setOf(TOKEN_TYPE_ATTRIBUTE)
     }
 
     @Test
@@ -123,7 +124,7 @@ class DeviceTokenTypeTests : IntegrationTest() {
         sdkInstance.registerDeviceToken(String.random, DeviceTokenType.TOKEN)
         outputReaderPlugin.reset()
 
-        sdkInstance.setDeviceAttributes(mapOf(TOKEN_TYPE to "fid"))
+        sdkInstance.setDeviceAttributes(mapOf(TOKEN_TYPE_ATTRIBUTE to "fid"))
 
         deviceUpdateTokenType() shouldBeEqualTo "token"
         assertCalledOnce { mockDataPipelinesLogger.logReservedDeviceTokenTypeIgnored() }
@@ -135,7 +136,7 @@ class DeviceTokenTypeTests : IntegrationTest() {
         sdkInstance.registerDeviceToken(String.random)
         outputReaderPlugin.reset()
 
-        sdkInstance.setDeviceAttributes(mapOf(TOKEN_TYPE to "fid"))
+        sdkInstance.setDeviceAttributes(mapOf(TOKEN_TYPE_ATTRIBUTE to "fid"))
 
         deviceUpdateTokenType() shouldBeEqualTo null
         assertCalledOnce { mockDataPipelinesLogger.logReservedDeviceTokenTypeIgnored() }
@@ -151,7 +152,7 @@ class DeviceTokenTypeTests : IntegrationTest() {
             DeviceTokenType.FID
         }
 
-        sdkInstance.setDeviceAttributes(mapOf(TOKEN_TYPE to "token"))
+        sdkInstance.setDeviceAttributes(mapOf(TOKEN_TYPE_ATTRIBUTE to "token"))
 
         typeReadUnderLock shouldBeEqualTo true
     }
@@ -164,9 +165,5 @@ class DeviceTokenTypeTests : IntegrationTest() {
         sdkInstance.setDeviceAttributes(mapOf("color" to "blue"))
 
         assertCalledNever { mockDataPipelinesLogger.logReservedDeviceTokenTypeIgnored() }
-    }
-
-    private companion object {
-        const val TOKEN_TYPE = "_cio_token_type"
     }
 }

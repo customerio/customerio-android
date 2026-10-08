@@ -175,6 +175,53 @@ class DwellReplayTest : ReplayTestSupport() {
         )
     }
 
+    @Test
+    fun replay_whenProcessRestartsBetweenEnterAndDwell_thenObservedVisitSurvives() = runTest {
+        val rows = replay(
+            callback(30, "enter"),
+            queued(30, "enter", 1),
+            // Same boot. The relaunched graph must find the persisted visit, registration and outbox;
+            // a launch refresh that re-registered B would end the visit and drop its entry facts.
+            """{"k":"when","at":40,"ev":"process.start"}""",
+            """{"k":"when","at":40.1,"ev":"module.init","launch":"app_start"}""",
+            queued(41, "enter", 1),
+            queued(41, "dwell", 0),
+            callback(90, "dwell"),
+            queued(90, "dwell", 1, "\"timestampAt\":90,\"enteredAtAt\":30,\"dwellThresholdSeconds\":60,\"dwellDurationSeconds\":60,\"hasVisitId\":true,\"detectionSource\":\"native\""),
+            callback(91, "dwell"),
+            queued(91, "dwell", 1, "\"timestampAt\":90"),
+            callback(100, "exit", latitude = 10.0),
+            queued(100, "exit", 1, "\"timestampAt\":100,\"enteredAtAt\":30,\"visitDurationSeconds\":70,\"hasVisitId\":true,\"detectionSource\":\"native\"")
+        )
+        val dwell = rows.single { it.transition == Event.GeofenceTransition.DWELL }
+        val exit = rows.single { it.transition == Event.GeofenceTransition.EXIT }
+        exit.visitId shouldBeEqualTo dwell.visitId
+        exit.enteredAt shouldBeEqualTo dwell.enteredAt
+    }
+
+    @Test
+    fun replay_whenBootRestoreRunsBetweenEnterAndDwell_thenRecoveredVisitReportsNoEntryFacts() = runTest {
+        // Restore-time invalidation only. The replay keeps this boot's ID and elapsed clock, so it
+        // does not simulate a reboot. Restore still ends the visit and its outside proof: GMS lost
+        // monitoring, and the device may have left and returned unobserved.
+        replay(
+            callback(30, "enter"),
+            queued(30, "enter", 1),
+            """{"k":"when","at":40,"ev":"process.start"}""",
+            """{"k":"when","at":40.1,"ev":"module.init","launch":"app_start"}""",
+            """{"k":"when","at":40.2,"ev":"module.wake","launch":"boot_restore"}""",
+            // A fence never left is not reported entered twice.
+            queued(41, "enter", 1),
+            // GMS restarts loitering from the restored registration, so its DWELL comes at least
+            // one threshold after the restore.
+            queued(100, "dwell", 0),
+            callback(101, "dwell"),
+            queued(101, "dwell", 1, "\"timestampAt\":101,\"dwellThresholdSeconds\":60,\"hasVisitId\":true,\"hasEnteredAt\":false,\"dwellDurationSeconds\":null,\"detectionSource\":\"native\""),
+            callback(110, "exit", latitude = 10.0),
+            queued(110, "exit", 1, "\"hasVisitId\":false,\"hasEnteredAt\":false,\"visitDurationSeconds\":null")
+        )
+    }
+
     private suspend fun replay(
         vararg records: String,
         threshold: Long? = 60,
@@ -186,6 +233,8 @@ class DwellReplayTest : ReplayTestSupport() {
         val scenario = ScenarioLoader.load(
             scenarioFile(
                 header("synthetic-dwell", sourceKind = "authored"),
+                // Only marks the process started, so a later `process.start` in [records] relaunches it.
+                """{"k":"when","at":0,"ev":"process.start"}""",
                 """{"k":"when","at":1,"ev":"identity.changed","ok":true}""",
                 """{"k":"when","at":1.5,"ev":"location.fix","lat":10.0,"lon":20.0,"prov":"bus"}""",
                 """{"k":"given","at":2,"ev":"fixture.api.fetch","ok":true,"body":[$fence]}""",

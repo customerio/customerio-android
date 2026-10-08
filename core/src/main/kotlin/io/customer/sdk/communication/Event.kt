@@ -74,7 +74,7 @@ sealed class Event {
      * proof, never 0 standing in for "unset".
      *
      * The three-property constructor, `copy` and `copy$default` let older modules link against
-     * upgraded core. A copy through any of them keeps the accuracy.
+     * upgraded core. That constructor sets no accuracy; either copy keeps an existing accuracy.
      */
     @InternalCustomerIOApi
     data class LocationFixAcquired(

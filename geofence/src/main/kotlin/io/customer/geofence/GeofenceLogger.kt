@@ -783,6 +783,23 @@ internal class GeofenceLogger(private val logger: Logger) {
         )
     }
 
+    fun logUnsupportedDwellThreshold(geofenceId: String, value: Long) {
+        logger.error(
+            "API response contained unsupported dwell_threshold_seconds=$value for geofence '$geofenceId' (expected 0 to disable or 1..${GeofenceConstants.MAX_DWELL_THRESHOLD_SECONDS}). Dwell disabled for this fence; region kept. Check backend threshold validation." +
+                tail(
+                    "api.dwell.unsupported",
+                    GeofenceLogIo.OBSERVATION,
+                    listOf(
+                        "id" to token(geofenceId),
+                        "ok" to bool(false),
+                        "why" to "unsupported_dwell_threshold",
+                        "value" to token(value.toString())
+                    )
+                ),
+            tag = TAG
+        )
+    }
+
     fun logMovementRearmedAfterFailedRefresh() {
         logger.debug(
             "Movement refresh failed; re-ranking from cache to re-arm the movement trigger" +

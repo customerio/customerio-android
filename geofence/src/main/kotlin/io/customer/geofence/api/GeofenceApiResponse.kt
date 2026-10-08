@@ -232,7 +232,7 @@ private fun GeofenceApiRegion.toCircleRegionOrNull(): GeofenceRegion? {
         lastUpdated = lastUpdated ?: 0L,
         geosetIds = geosetIds,
         metadata = sanitizeMetadata(metadata),
-        dwellThresholdSeconds = sanitizeDwellThreshold(dwellThresholdSeconds)
+        dwellThresholdSeconds = sanitizeDwellThreshold(id, dwellThresholdSeconds)
     )
 }
 
@@ -289,7 +289,7 @@ private fun GeofenceApiRegion.toPolygonRegionOrNull(
         geosetIds = geosetIds,
         metadata = sanitizeMetadata(metadata),
         polygonVertices = polygon.vertices,
-        dwellThresholdSeconds = sanitizeDwellThreshold(dwellThresholdSeconds)
+        dwellThresholdSeconds = sanitizeDwellThreshold(id, dwellThresholdSeconds)
     )
 }
 
@@ -344,11 +344,20 @@ private const val POLYGON_GEOMETRY_TYPE = "Polygon"
 private const val CIRCLE_SHAPE = "circle"
 private const val POLYGON_SHAPE = "polygon"
 
-private fun sanitizeDwellThreshold(seconds: Long?): Int =
-    seconds
-        ?.takeIf { it in 1L..GeofenceConstants.MAX_DWELL_THRESHOLD_SECONDS.toLong() }
-        ?.toInt()
-        ?: 0
+/**
+ * Absent (legacy) and zero (disabled) are silent. Any other value outside what GMS can represent
+ * disables dwell for this fence only, keeping the region, and is logged: a validating backend never
+ * sends one, so it means the contract broke. Never clamped, since GMS would then wait for a
+ * threshold other than the configured one.
+ */
+private fun sanitizeDwellThreshold(geofenceId: String, seconds: Long?): Int {
+    if (seconds == null || seconds == 0L) return 0
+    if (seconds !in 1L..GeofenceConstants.MAX_DWELL_THRESHOLD_SECONDS.toLong()) {
+        SDKComponent.geofenceLogger.logUnsupportedDwellThreshold(geofenceId, seconds)
+        return 0
+    }
+    return seconds.toInt()
+}
 
 /** Scalars only, count/size capped. Keys are sorted so the capping is deterministic. */
 private fun sanitizeMetadata(raw: JsonElement?): Map<String, JsonElement> {

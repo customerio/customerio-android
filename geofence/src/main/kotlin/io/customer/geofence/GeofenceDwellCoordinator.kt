@@ -280,6 +280,35 @@ internal class GeofenceDwellCoordinator(
     }
 
     /**
+     * Whether a polygon's current visit had lasted its dwell threshold at [atElapsedMs] and still
+     * waits for evidence to emit its DWELL, so a more precise fix could qualify it. Reads only: a
+     * stale visit is left to the paths that act on it. A reserved visit already holds its evidence,
+     * and one stamped in another boot or before boot-clock stamps has no measurable duration.
+     *
+     * @param atElapsedMs boot-clock time of the fix that kept the polygon inside without showing it.
+     */
+    suspend fun awaitsDwellProof(
+        geofenceId: String,
+        atElapsedMs: Long,
+        expectedUserStateGeneration: Long = store.userStateGeneration()
+    ): Boolean = mutex.withLock {
+        if (store.userStateGeneration() != expectedUserStateGeneration) return@withLock false
+        val region = store.getCachedRegion(geofenceId) ?: return@withLock false
+        if (!region.isPolygon || region.dwellThresholdSeconds <= 0) return@withLock false
+        val visit = store.getDwellVisit(geofenceId) ?: return@withLock false
+        if (visit.regionRevision != region.transitionRevision() ||
+            visit.userStateGeneration != expectedUserStateGeneration ||
+            visit.emitted ||
+            visit.dwellReservation != null
+        ) {
+            return@withLock false
+        }
+        val elapsedMs = GeofenceVisitTiming.elapsedMs(visit, bootSessionProvider.currentSessionId(), atElapsedMs)
+            ?: return@withLock false
+        elapsedMs >= region.dwellThresholdSeconds * MILLIS_PER_SECOND
+    }
+
+    /**
      * Reads the visit a polygon EXIT's fix ends, before the EXIT is committed. The processor's await
      * can let a newer visit be written, so [onPolygonExit] removes only the visit read here and the
      * EXIT describes only it.

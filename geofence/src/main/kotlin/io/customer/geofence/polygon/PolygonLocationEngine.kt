@@ -19,15 +19,20 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
 /**
- * [undecidedPolygonIds] and [pendingArrivalPolygonIds] cue a better-fix request; an aborted pass
- * reports neither. [evaluatedPolygonIds] is every fence judged: one skipped because the fix is not
- * newer is in no set, so absence from [undecidedPolygonIds] is not a decision.
+ * [undecidedPolygonIds], [pendingArrivalPolygonIds] and [dwellUnprovenPolygonIds] cue a better-fix
+ * request; an aborted pass reports none. [evaluatedPolygonIds] is every fence judged: one skipped
+ * because the fix is not newer is in no set, so absence from [undecidedPolygonIds] is not a decision.
+ *
+ * [dwellUnprovenPolygonIds] are entered polygons whose latest judged fix kept them INSIDE without
+ * placing its whole accuracy circle inside the ring, while their unemitted visit had already lasted
+ * its dwell threshold, so only a more precise fix can show the stay.
  */
 internal data class PolygonEvaluationOutcome(
     val acceptedFix: Boolean,
     val undecidedPolygonIds: Set<String>,
     val pendingArrivalPolygonIds: Set<String> = emptySet(),
-    val evaluatedPolygonIds: Set<String> = emptySet()
+    val evaluatedPolygonIds: Set<String> = emptySet(),
+    val dwellUnprovenPolygonIds: Set<String> = emptySet()
 ) {
     internal companion object {
         val NOTHING = PolygonEvaluationOutcome(acceptedFix = false, undecidedPolygonIds = emptySet())
@@ -194,6 +199,7 @@ internal class PolygonLocationEngine(
         val undecidedPolygonIds = mutableSetOf<String>()
         val pendingArrivalPolygonIds = mutableSetOf<String>()
         val evaluatedPolygonIds = mutableSetOf<String>()
+        val dwellUnprovenPolygonIds = mutableSetOf<String>()
         for (location in locations.sortedBy(Location::getElapsedRealtimeNanos)) {
             if (store.userStateGeneration() != expectedUserStateGeneration) {
                 logger.logPolygonEvaluationSkipped(PolygonEvaluationSkip.USER_STATE_CHANGED)
@@ -267,13 +273,17 @@ internal class PolygonLocationEngine(
             val evaluatedThisFix = routeOutcome.records.mapTo(mutableSetOf(), PolygonRouteRecord::geofenceId)
             // Dwell evidence needs the fix's whole accuracy circle inside the ring, as on iOS. A point
             // inside by less than its accuracy keeps the committed state but proves nothing.
-            val decisivelyInsideThisFix = routeOutcome.records
+            val insideThisFix = routeOutcome.records
                 .filterIsInstance<PolygonRouteRecord.Unchanged>()
                 .filter { it.membership == PolygonCommittedState.INSIDE.name }
+            val decisivelyInsideThisFix = insideThisFix
                 .filter { record ->
                     record.signedBoundaryDistanceMeters?.let { it > record.horizontalAccuracyMeters } == true
                 }
                 .mapTo(mutableSetOf(), PolygonRouteRecord::geofenceId)
+            // Kept INSIDE but proving nothing: a precise fix may still show the stay (see below).
+            val marginallyInsideThisFix =
+                insideThisFix.mapTo(mutableSetOf(), PolygonRouteRecord::geofenceId) - decisivelyInsideThisFix
             evaluatedPolygonIds.addAll(evaluatedThisFix)
             routeOutcome.records.forEach(::emitRouteRecord)
             routeOutcome.detections.forEach { detection ->
@@ -373,12 +383,24 @@ internal class PolygonLocationEngine(
                     observedAtElapsedMs = fix.elapsedRealtimeNanos / NANOS_PER_MILLISECOND
                 )
             }
+            // The latest fix to judge a fence decides whether it still awaits proof, so a later fix in
+            // the batch that decided it, or found it no longer inside, withdraws an earlier cue.
+            dwellUnprovenPolygonIds.removeAll(evaluatedThisFix)
+            marginallyInsideThisFix.filter { it in enteredIds }.forEach { geofenceId ->
+                val awaitsProof = dwellCoordinator?.awaitsDwellProof(
+                    geofenceId,
+                    atElapsedMs = fix.elapsedRealtimeNanos / NANOS_PER_MILLISECOND,
+                    expectedUserStateGeneration = expectedUserStateGeneration
+                ) == true
+                if (awaitsProof) dwellUnprovenPolygonIds += geofenceId
+            }
         }
         PolygonEvaluationOutcome(
             acceptedFix = acceptedFix,
             undecidedPolygonIds = undecidedPolygonIds,
             pendingArrivalPolygonIds = pendingArrivalPolygonIds,
-            evaluatedPolygonIds = evaluatedPolygonIds
+            evaluatedPolygonIds = evaluatedPolygonIds,
+            dwellUnprovenPolygonIds = dwellUnprovenPolygonIds
         )
     }
 

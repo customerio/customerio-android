@@ -153,11 +153,16 @@ internal class GeofenceServicesImpl(
         if (userId.isNullOrEmpty()) return
         // refreshFromLiveFix, not refresh: the flags above are already consumed, so a pass dropped on
         // a slot collision would waste this fix with nothing to request another.
+        // triggerSync checks permission before this runs.
+        @SuppressLint("MissingPermission")
+        val action: suspend (Double, Double) -> Result<Unit> = { lat, lng ->
+            repository.refreshFromLiveFix(lat, lng, fixQuality = quality)
+        }
         triggerSync(
             reason = REASON_LOCATION_ACQUIRED,
             latitude = latitude,
             longitude = longitude,
-            action = repository::refreshFromLiveFix
+            action = action
         )
     }
 

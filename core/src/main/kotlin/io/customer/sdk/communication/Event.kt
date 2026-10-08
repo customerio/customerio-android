@@ -65,16 +65,63 @@ sealed class Event {
     ) : Event()
 
     /**
-     * The same fix as [LocationAcquired], plus when it was taken, for subscribers that judge
-     * geometry. [fixElapsedRealtimeMillis] is monotonic since boot, so a clock correction cannot
-     * age a fix; null means the source reported no time.
+     * The same fix as [LocationAcquired], plus when it was taken and how accurate it was, for
+     * subscribers that judge geometry. [fixElapsedRealtimeMillis] is on the boot clock. For a host
+     * fix stamped only on wall time it is an estimate that a clock step can shift, so such a fix
+     * carries no [horizontalAccuracyMeters] and cannot prove the device outside a fence. Null means
+     * the source reported no time.
+     * [horizontalAccuracyMeters] is the radius of 68% confidence; null means unavailable for geometry
+     * proof, never 0 standing in for "unset".
+     *
+     * The three-property constructor, `copy` and `copy$default` let older modules link against
+     * upgraded core. A copy through any of them keeps the accuracy.
      */
     @InternalCustomerIOApi
     data class LocationFixAcquired(
         val latitude: Double,
         val longitude: Double,
-        val fixElapsedRealtimeMillis: Long? = null
-    ) : Event()
+        val fixElapsedRealtimeMillis: Long?,
+        val horizontalAccuracyMeters: Float?
+    ) : Event() {
+        constructor(
+            latitude: Double,
+            longitude: Double,
+            fixElapsedRealtimeMillis: Long? = null
+        ) : this(latitude, longitude, fixElapsedRealtimeMillis, null)
+
+        /**
+         * The earlier shape's copy. Without defaults, so a call that omits an argument binds to the
+         * generated four-property copy; either way the accuracy is kept.
+         */
+        fun copy(
+            latitude: Double,
+            longitude: Double,
+            fixElapsedRealtimeMillis: Long?
+        ): LocationFixAcquired = copy(latitude, longitude, fixElapsedRealtimeMillis, horizontalAccuracyMeters)
+
+        @InternalCustomerIOApi
+        companion object {
+            /**
+             * What a module compiled against the earlier shape calls for a `copy` that omits
+             * arguments. Hidden from source; the mask bits match the compiler's for that shape.
+             */
+            @JvmStatic
+            @JvmSynthetic
+            @Suppress("FunctionName", "FunctionNaming", "ktlint:standard:function-naming")
+            fun `copy$default`(
+                source: LocationFixAcquired,
+                latitude: Double,
+                longitude: Double,
+                fixElapsedRealtimeMillis: Long?,
+                mask: Int,
+                @Suppress("UNUSED_PARAMETER", "UnusedParameter") unused: Any?
+            ): LocationFixAcquired = source.copy(
+                if (mask and 1 != 0) source.latitude else latitude,
+                if (mask and 2 != 0) source.longitude else longitude,
+                if (mask and 4 != 0) source.fixElapsedRealtimeMillis else fixElapsedRealtimeMillis
+            )
+        }
+    }
 
     class DeleteDeviceTokenEvent : Event()
 

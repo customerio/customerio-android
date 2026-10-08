@@ -126,15 +126,23 @@ internal class FusedLocationProvider(
 /**
  * Extracted from the callback so the mapping is reachable without a live GMS client. The age
  * downstream reads is only as good as this conversion, and a null here is treated as "current".
+ * Accuracy is null unless the fix reports a usable one: [Location.getAccuracy] reads 0 when unset,
+ * and a 0 radius would let any fix prove the device clear of a fence edge.
  */
 @VisibleForTesting
 internal fun Location.toSnapshot(): LocationSnapshot = LocationSnapshot(
     latitude = latitude,
     longitude = longitude,
     timestamp = Date(time),
-    horizontalAccuracy = accuracy.toDouble(),
+    horizontalAccuracy = reportedAccuracyMeters(),
     altitude = if (hasAltitude()) altitude else null,
     fixElapsedRealtimeMillis = elapsedRealtimeNanos.takeIf { it > 0L }?.let { it / NANOS_PER_MILLI }
 )
+
+/** A reported 0 is kept: unlike the unset reading, it is a claim the fix makes. */
+private fun Location.reportedAccuracyMeters(): Double? {
+    if (!hasAccuracy()) return null
+    return accuracy.takeIf { it.isFinite() && it >= 0f }?.toDouble()
+}
 
 private const val NANOS_PER_MILLI = 1_000_000L

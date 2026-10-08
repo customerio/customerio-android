@@ -11,11 +11,44 @@ cancelling the chain, so a queued worker later finds the row gone and sends noth
 > Customer.io **at least once**. A rare duplicate (a crash after an ambiguous
 > send, or both channels overlapping) carries the same `transitionId`, the
 > backend's dedupe key. The portal shows one **`Geofence Transition`** event per
-> geoset the fence belongs to, with a `transition: enter|exit` property; all
+> geoset the fence belongs to, with a `transition: enter|dwell|exit` property; all
 > share the crossing's `transitionId`.
 
 > **Identified users only:** transitions observed while no user is identified
 > are dropped before queuing and never delivered.
+
+DWELL is emitted once per continuous visit when `dwell_threshold_seconds` is
+configured. ENTER and EXIT retain their duplicate-event cooldown; DWELL does not
+use that cooldown. A revisit can therefore deliver DWELL without ENTER or EXIT.
+A suppressed EXIT also omits that visit's exit duration. The backend processes
+each transition independently.
+
+Native circle entry times and durations describe callback observations. Uneven
+callback delays can skew the reported stay; they are not exact crossing times.
+An accurate, recent live fix can establish that the device was outside before its
+first ENTER. Coordinates without reported accuracy or a monotonic sample time cannot
+establish that proof. A host fix stamped only on wall time keeps its age estimate
+but supplies no outside proof. An already-inside visit keeps its entry measurements
+unknown.
+
+Polygon DWELL still requires a later fix whose entire accuracy circle is inside
+the polygon. If a due visit stays INSIDE but the fix's uncertainty crosses the
+boundary, the next eligible callback or recheck can request a precise fix. This
+uses the existing 3-second timeout, 30-second request cooldown, and 30-minute
+retry window for unsuccessful requests from the same position. It adds no timer
+at the dwell threshold and cannot guarantee when a qualifying fix will arrive.
+
+`GeofenceLiveFixVisitTest` covers entry measurements through remote refresh,
+local ranking, offline fallback, and a fresh-cache pass. `PolygonDwellPrecisionTest`
+covers qualification, early and already-emitted visits, and unsuccessful requests.
+Both inspect the real persisted outbox with platform location delivery faked.
+
+Physical-device qualification remains required: park inside a small polygon and
+near its boundary, then repeat with the app foregrounded, backgrounded, screen
+off, and in Doze. Record fix accuracy, request counts, missed or duplicate DWELLs,
+and time from the threshold to delivery. Repeat with coarse location permission
+and after a process restart. These automated regressions do not establish GPS,
+background wake, or battery reliability.
 
 ---
 

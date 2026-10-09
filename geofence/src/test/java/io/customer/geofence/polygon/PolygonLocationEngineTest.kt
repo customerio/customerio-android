@@ -281,7 +281,10 @@ class PolygonLocationEngineTest : RobolectricTest() {
         )
 
         store.getDwellVisit(POLYGON_ID).shouldBeNull()
-        contexts.filterIsInstance<GeofenceTransitionEmitter.VisitContext.Exit>().shouldBeEmpty()
+        val legacyExit = contexts.filterIsInstance<GeofenceTransitionEmitter.VisitContext.Exit>().single()
+        legacyExit.visitId shouldBeEqualTo legacy.visitId
+        legacyExit.enteredAt.shouldBeNull()
+        legacyExit.durationSeconds.shouldBeNull()
 
         dwellEngine.processResponsiveLocation(
             insideFix(elapsedRealtimeNanos = now - 1_000_000_000L, timestampMillis = 20_000L)
@@ -386,12 +389,15 @@ class PolygonLocationEngineTest : RobolectricTest() {
         val dwellEngine = engineWithRealDwell(exitOnlyPolygon())
 
         // 75 s apart on the boot clock, but the wall clock moved an hour ahead meanwhile.
-        observeVisitThenExit(dwellEngine, exitTimestampMillis = 3_775_000L, wallClockStepMillis = 3_600_000L)
+        val observedVisitId = observeVisitThenExit(dwellEngine, exitTimestampMillis = 3_775_000L, wallClockStepMillis = 3_600_000L)
 
         coVerify(exactly = 1) {
             emitter.emitWithRetainedAttempt(POLYGON_ID, Event.GeofenceTransition.EXIT, any(), any(), any(), any(), any(), any(), any(), any(), any())
         }
-        contexts.filterIsInstance<GeofenceTransitionEmitter.VisitContext.Exit>().shouldBeEmpty()
+        val exit = contexts.filterIsInstance<GeofenceTransitionEmitter.VisitContext.Exit>().single()
+        exit.visitId shouldBeEqualTo observedVisitId
+        exit.enteredAt.shouldBeNull()
+        exit.durationSeconds.shouldBeNull()
         store.getDwellVisit(POLYGON_ID).shouldBeNull()
     }
 
@@ -402,7 +408,10 @@ class PolygonLocationEngineTest : RobolectricTest() {
 
         val firstVisitId = observeVisitThenExit(dwellEngine, exitTimestampMillis = 10_000L)
 
-        contexts.filterIsInstance<GeofenceTransitionEmitter.VisitContext.Exit>().shouldBeEmpty()
+        val firstExit = contexts.filterIsInstance<GeofenceTransitionEmitter.VisitContext.Exit>().single()
+        firstExit.visitId shouldBeEqualTo firstVisitId
+        firstExit.enteredAt.shouldBeNull()
+        firstExit.durationSeconds.shouldBeNull()
         store.getDwellVisit(POLYGON_ID).shouldBeNull()
 
         // The EXIT's fix proved the device outside, so the next inside fix is an observed entry.
@@ -416,7 +425,9 @@ class PolygonLocationEngineTest : RobolectricTest() {
             fix(37.7750, -122.4175, elapsedRealtimeNanos = reEntryAt + 60_000_000_000L, timestampMillis = 80_000L)
         )
 
-        val exit = contexts.filterIsInstance<GeofenceTransitionEmitter.VisitContext.Exit>().single()
+        val exits = contexts.filterIsInstance<GeofenceTransitionEmitter.VisitContext.Exit>()
+        exits.map { it.visitId } shouldBeEqualTo listOf(firstVisitId, second.visitId)
+        val exit = exits.last()
         exit.visitId shouldBeEqualTo second.visitId
         exit.durationSeconds shouldBeEqualTo 60L
     }

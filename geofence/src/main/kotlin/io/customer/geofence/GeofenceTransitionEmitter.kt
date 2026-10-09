@@ -35,10 +35,11 @@ internal class GeofenceTransitionEmitter(
             override val detectionSource: String
         ) : VisitContext()
 
+        /** [visitId] names the visit the EXIT ended; entry time and duration are both known or both null. */
         data class Exit(
             override val visitId: String,
-            override val enteredAt: Long,
-            val durationSeconds: Long,
+            override val enteredAt: Long?,
+            val durationSeconds: Long?,
             override val detectionSource: String
         ) : VisitContext()
     }

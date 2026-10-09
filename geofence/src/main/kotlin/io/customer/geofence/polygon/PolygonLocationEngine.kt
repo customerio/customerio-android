@@ -298,6 +298,16 @@ internal class PolygonLocationEngine(
                 val observedAtSeconds = observedTimestampSeconds(fix)
                 val wasInside = detection.transition == PolygonTransition.ENTER &&
                     detection.polygonId in store.getEnteredIds()
+                val polygonExit = if (detection.transition == PolygonTransition.EXIT) {
+                    dwellCoordinator?.capturePolygonExit(
+                        geofenceId = detection.polygonId,
+                        exitedAtSeconds = observedAtSeconds,
+                        exitFixElapsedMs = fix.elapsedRealtimeNanos / NANOS_PER_MILLISECOND,
+                        expectedUserStateGeneration = expectedUserStateGeneration
+                    )
+                } else {
+                    null
+                }
                 val outsideObserved = detection.transition == PolygonTransition.ENTER &&
                     synchronized(stateLock) {
                         provenOutside[detection.polygonId]?.let {
@@ -314,7 +324,11 @@ internal class PolygonLocationEngine(
                     enforceConfiguredTransition = true,
                     expectedRegionRevision = detection.regionRevision,
                     expectedUserStateGeneration = expectedUserStateGeneration,
-                    requireRegistered = true
+                    requireRegistered = true,
+                    visitContext = polygonExit?.visitContext,
+                    // The coordinator ends the visit this EXIT read (see onPolygonExit below). Ending
+                    // by wall time could clear a newer visit, or keep this one after a clock step.
+                    endsVisitByTimestamp = false
                 )
                 if (store.userStateGeneration() != expectedUserStateGeneration) {
                     return@withLock PolygonEvaluationOutcome.NOTHING
@@ -337,6 +351,7 @@ internal class PolygonLocationEngine(
                     dwellCoordinator?.onPolygonExit(
                         detection.polygonId,
                         exitFixElapsedMs = fix.elapsedRealtimeNanos / NANOS_PER_MILLISECOND,
+                        endedVisitId = polygonExit?.endedVisitId,
                         expectedUserStateGeneration = expectedUserStateGeneration
                     )
                 }

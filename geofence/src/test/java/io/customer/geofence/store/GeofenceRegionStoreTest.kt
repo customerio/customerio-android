@@ -319,8 +319,7 @@ class GeofenceRegionStoreTest : RobolectricTest() {
             latitude = 1.0,
             longitude = 2.0,
             radius = 100f,
-            transitionTypes = listOf(GeofenceTransitionType.EXIT),
-            dwellThresholdSeconds = 60
+            transitionTypes = listOf(GeofenceTransitionType.EXIT)
         )
         store.saveCachedRegions(listOf(region))
         store.recordRegistrationIncarnations(listOf(region), registeredAtElapsedMs = 10L, bootSessionId = "boot")

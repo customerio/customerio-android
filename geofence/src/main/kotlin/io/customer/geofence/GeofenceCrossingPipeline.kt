@@ -132,8 +132,8 @@ internal class GeofenceCrossingPipeline(
                 // read here can predate a concurrent ENTER's commit and start a second visit.
                 var wasInside = transition == Event.GeofenceTransition.ENTER &&
                     geofenceId in regionStore.getEnteredIds()
-                if (transition == Event.GeofenceTransition.EXIT) {
-                    val current = dwellCoordinator.onNativeExit(
+                val visitContext = if (transition == Event.GeofenceTransition.EXIT) {
+                    val exit = dwellCoordinator.onNativeExit(
                         geofenceId = geofenceId,
                         exitedAtSeconds = timestamp,
                         triggeringFixElapsedMs = triggeringFixElapsedMs,
@@ -141,10 +141,14 @@ internal class GeofenceCrossingPipeline(
                         exitedAtElapsedMs = crossing.receivedAtElapsedMs
                     )
                     // GMS reordered it behind a later inside fix, so the device is still here.
-                    if (!current) {
+                    if (!exit.current) {
                         logger.logTransitionDroppedSuperseded(geofenceId, transition.name)
                         return@forEach
                     }
+                    // Captured under the coordinator lock, before the visit was removed.
+                    exit.visitContext
+                } else {
+                    null
                 }
                 transitionProcessor.process(
                     geofenceId = geofenceId,
@@ -154,6 +158,7 @@ internal class GeofenceCrossingPipeline(
                     expectedRegionRevision = region?.transitionRevision(),
                     expectedUserStateGeneration = userStateGeneration,
                     requireRegistered = true,
+                    visitContext = visitContext,
                     endsVisitByTimestamp = false,
                     admits = {
                         if (transition == Event.GeofenceTransition.ENTER) {

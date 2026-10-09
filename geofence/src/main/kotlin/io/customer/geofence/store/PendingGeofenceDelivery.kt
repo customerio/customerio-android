@@ -41,6 +41,7 @@ internal data class PendingGeofenceDelivery(
     val enteredAt: Long? = null,
     val dwellThresholdSeconds: Int? = null,
     val dwellDurationSeconds: Long? = null,
+    val visitDurationSeconds: Long? = null,
     val detectionSource: String? = null
 ) : PendingDeliveryStore.PendingDeliveryEntry {
     override val key: String
@@ -57,6 +58,7 @@ internal data class PendingGeofenceDelivery(
         enteredAt?.let { put("enteredAt", it) }
         dwellThresholdSeconds?.let { put("dwellThresholdSeconds", it) }
         dwellDurationSeconds?.let { put("dwellDurationSeconds", it) }
+        visitDurationSeconds?.let { put("visitDurationSeconds", it) }
         detectionSource?.let { put("detectionSource", it) }
         // Always present, even when empty.
         put("metadata", metadata.toEventMetadata())

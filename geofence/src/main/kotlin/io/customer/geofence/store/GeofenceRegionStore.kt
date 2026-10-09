@@ -8,6 +8,7 @@ import io.customer.geofence.GeofenceConstants
 import io.customer.geofence.GeofenceJsonSerializer
 import io.customer.geofence.GeofenceLocation
 import io.customer.geofence.GeofenceRegion
+import io.customer.geofence.GeofenceTransitionType
 import io.customer.geofence.transitionRevision
 import io.customer.sdk.communication.Event
 import io.customer.sdk.core.util.Logger
@@ -451,7 +452,7 @@ internal class GeofenceRegionStoreImpl(
         val visits = readDwellVisits().filter { visit ->
             val region = current[visit.geofenceId]
             region != null &&
-                region.dwellThresholdSeconds > 0 &&
+                (region.dwellThresholdSeconds > 0 || region.transitionTypes.contains(GeofenceTransitionType.EXIT)) &&
                 region.transitionRevision() == visit.regionRevision
         }
         // One edit: the schema marker vouches for exactly these bytes.
@@ -831,7 +832,7 @@ internal class GeofenceRegionStoreImpl(
         val region = getCachedRegion(visit.geofenceId) ?: return@synchronized false
         if (
             region.transitionRevision() != visit.regionRevision ||
-            region.dwellThresholdSeconds <= 0
+            (region.dwellThresholdSeconds <= 0 && !region.transitionTypes.contains(GeofenceTransitionType.EXIT))
         ) {
             return@synchronized false
         }

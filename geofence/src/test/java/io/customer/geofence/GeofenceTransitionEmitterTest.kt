@@ -109,6 +109,39 @@ class GeofenceTransitionEmitterTest : RobolectricTest() {
     }
 
     @Test
+    fun emitWithRetainedAttempt_givenExitVisit_expectCrossingIdDoesNotCollideWithDwellId() = runTest {
+        every { mockCooldownFilter.suppressedForSeconds(any(), any(), any()) } returns null
+        every { mockPendingStore.appendAll(any()) } returns true
+        val entries = slot<List<PendingGeofenceDelivery>>()
+
+        emitter.emitWithRetainedAttempt(
+            geofenceId = "biz-1",
+            transition = Event.GeofenceTransition.EXIT,
+            userId = "user-1",
+            timestampSeconds = 175L,
+            geofenceName = null,
+            metadata = emptyMap(),
+            geosetIds = emptyList(),
+            monitorsExit = true,
+            expectedUserStateGeneration = 0L,
+            expectedRegionRevision = null,
+            visitContext = GeofenceTransitionEmitter.VisitContext.Exit(
+                visitId = "visit-1",
+                enteredAt = 100L,
+                durationSeconds = 75L,
+                detectionSource = "native"
+            )
+        ) shouldBeEqualTo GeofenceTransitionEmitter.Result.PERSISTED
+
+        verify { mockRegionStore.savePendingTransitionEntries(capture(entries), 0L) }
+        entries.captured.single().let { exit ->
+            exit.visitId shouldBeEqualTo "visit-1"
+            (exit.transitionId != exit.visitId).shouldBeTrue()
+            exit.visitDurationSeconds shouldBeEqualTo 75L
+        }
+    }
+
+    @Test
     fun emit_givenPersistSucceeds_expectAcceptedLoggedWithFanoutCount() = runTest {
         every { mockCooldownFilter.suppressedForSeconds(any(), any(), any()) } returns null
         every { mockPendingStore.appendAll(any()) } returns true

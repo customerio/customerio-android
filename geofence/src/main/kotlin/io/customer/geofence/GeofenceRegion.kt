@@ -110,7 +110,12 @@ internal fun GeofenceRegion.toGmsTransitionTypes(): Int {
     }
     var mask = 0
     transitionTypes.forEach { mask = mask or it.gmsValue }
-    if (dwellThresholdSeconds > 0) {
+    // EXIT-only fences still need ENTER to start a visit. The movement trigger only re-centres on
+    // EXIT, and the pipeline drops its ENTER, so registering one would just wake the process.
+    if (
+        id != GeofenceConstants.MOVEMENT_TRIGGER_ID &&
+        (dwellThresholdSeconds > 0 || transitionTypes.contains(GeofenceTransitionType.EXIT))
+    ) {
         mask = mask or Geofence.GEOFENCE_TRANSITION_ENTER or Geofence.GEOFENCE_TRANSITION_EXIT
     }
     if (dwellThresholdSeconds in 1..GeofenceConstants.MAX_DWELL_THRESHOLD_SECONDS) {

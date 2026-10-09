@@ -21,15 +21,25 @@ import org.robolectric.shadows.ShadowSystemClock
 internal class ReplayRunner(
     private val gate: ReplayBoundaryGate,
     private val scheduler: TestCoroutineScheduler,
-    private val geofenceScope: CoroutineScope,
     private val api: ReplayApiService,
     private val registrar: ReplayRegistrar,
-    private val pipeline: GeofenceCrossingPipeline,
-    private val services: GeofenceServices,
-    private val foreground: GeofenceForegroundCoordinator,
+    private var runtime: Runtime,
+    private val reenterProcess: () -> Runtime,
+    private val initializeModule: (Runtime) -> Unit,
+    private val identifyUser: (Runtime) -> Unit,
+    private val restoreBoot: (Runtime) -> Unit,
     private val identity: MutableIdentity,
-    private val freshFix: ReplayPolygonFreshFixSource
+    private val freshFix: ReplayPolygonFreshFixSource,
+    private val assertDelivery: (ScenarioRecord) -> String? = { "delivery.queued has no outbox assertion seam" }
 ) {
+    /** Process-local consumers change on relaunch; the recorded clock and OS ports do not. */
+    data class Runtime(
+        val scope: CoroutineScope,
+        val pipeline: GeofenceCrossingPipeline,
+        val services: GeofenceServices,
+        val foreground: GeofenceForegroundCoordinator
+    )
+
     /** A stimulus the scenario carries that this composition has nowhere to put. */
     data class Unsupported(val ev: String, val at: Double)
 
@@ -37,7 +47,11 @@ internal class ReplayRunner(
      * [unanswered]: recorded `polygon.freshfix.received` times no open request was waiting for, i.e.
      * a request the replay never made (unlike [unsupported], a missing seam).
      */
-    data class Result(val unsupported: List<Unsupported>, val unanswered: List<Double> = emptyList())
+    data class Result(
+        val unsupported: List<Unsupported>,
+        val unanswered: List<Double> = emptyList(),
+        val assertionFailures: List<String> = emptyList()
+    )
 
     /** Last recorded position. Not read: identify passes no position (see `identity.changed`). */
     private var lastFix: Pair<Double, Double>? = null
@@ -53,6 +67,8 @@ internal class ReplayRunner(
 
         val unsupported = mutableListOf<Unsupported>()
         val unanswered = mutableListOf<Double>()
+        val assertionFailures = mutableListOf<String>()
+        var processStarted = false
 
         // Queued up front, not on the timeline: a fixture's `at` is its release time (see
         // ReplayApiService).
@@ -67,34 +83,56 @@ internal class ReplayRunner(
             cleared = scenario.records.filter { it.ev == "registration.cleared" }.map { it.at }
         )
 
-        for (record in scenario.stimuli) {
+        val timeline = scenario.records.filter {
+            it.kind == Scenario.Kind.WHEN || (it.kind == Scenario.Kind.THEN && it.ev == ReplayDeliveryAssertions.EVENT)
+        }
+        for (record in timeline) {
             gate.advanceTo(record.at) { pump() }
             // The gate reaches `record.at` after its last pump, so pump again: work due by then
             // runs first.
             pump()
+            if (record.kind == Scenario.Kind.THEN) {
+                assertDelivery(record)?.let(assertionFailures::add)
+                continue
+            }
             when (record.ev) {
-                // Process lifecycle: module wiring is not what a drive exercises.
-                "process.start", "module.init", "module.wake" -> Unit
+                "process.start" -> {
+                    if (processStarted) runtime = reenterProcess()
+                    processStarted = true
+                }
+
+                "module.init" -> {
+                    if (record.string("launch") in listOf(null, "app_start")) {
+                        initializeModule(runtime)
+                    } else {
+                        unsupported.add(Unsupported(record.ev, record.at))
+                    }
+                }
+
+                "module.wake" -> {
+                    if (record.string("launch") == "boot_restore") {
+                        restoreBoot(runtime)
+                    } else {
+                        unsupported.add(Unsupported(record.ev, record.at))
+                    }
+                }
 
                 // Real external inputs this composition does not model; accepted as no-ops.
                 "permission.changed", "os.error" -> Unit
 
-                "app.foreground" -> foreground.onForeground()
+                "app.foreground" -> runtime.foreground.onForeground()
 
-                // Backgrounding only cancels an in-flight fix request, and the harness never holds one.
+                // Host background cancellation is not modeled by this composition.
                 "app.background" -> Unit
 
                 "identity.changed" -> {
                     val signedIn = record.boolean("ok") ?: true
                     if (signedIn) {
                         identity.userId = REPLAY_USER_ID
-                        // No position: on device the read at identify comes back empty and the next
-                        // `prov=bus` fix drives the sync. A remembered fix could rank from a stale
-                        // place.
-                        services.onUserIdentified(null, null)
+                        identifyUser(runtime)
                     } else {
                         identity.userId = null
-                        services.onUserSignedOut()
+                        runtime.services.onUserSignedOut()
                     }
                 }
 
@@ -106,7 +144,7 @@ internal class ReplayRunner(
                         // Only `prov=bus` is a fix the Location module delivered. Other sources are
                         // reads the SDK made, and feeding one back would invent a location update.
                         if (record.string("prov") == ARRIVAL_FIX_SOURCE) {
-                            services.onLocationAcquired(lat, lon)
+                            runtime.services.onLocationAcquired(lat, lon)
                         }
                     }
                 }
@@ -118,7 +156,8 @@ internal class ReplayRunner(
                     }
                     // On the geofence scope: the pipeline removes orphans inline, so on the runner's
                     // coroutine it would park the runner on a boundary only the runner can open.
-                    geofenceScope.launch { pipeline.handle(crossing) }
+                    val receivingProcess = runtime
+                    receivingProcess.scope.launch { receivingProcess.pipeline.handle(crossing) }
                 }
 
                 // `triggeringFix` dates it from the recorded age, so the same cached fix the
@@ -132,7 +171,7 @@ internal class ReplayRunner(
                 // runs it.
                 "polygon.passive.received" ->
                     record.triggeringFix(gate.clock.elapsedRealtime())?.let { fix ->
-                        geofenceScope.launch { PolygonPassiveReceiver().handleFix(fix) }
+                        runtime.scope.launch { PolygonPassiveReceiver().handleFix(fix) }
                     }
 
                 // The re-check requests its own fix, so the fix it logs is an answer, not a stimulus.
@@ -146,7 +185,7 @@ internal class ReplayRunner(
         // So decisions still in flight when the capture ended are graded rather than lost.
         gate.releaseAll { pump() }
         pump()
-        return Result(unsupported, unanswered)
+        return Result(unsupported, unanswered, assertionFailures)
     }
 
     /**

@@ -740,7 +740,8 @@ internal class GeofenceLogger(private val logger: Logger) {
                             "rad" to num(entry.radiusMeters, 0),
                             "nv" to int(entry.vertices?.size),
                             "ring" to entry.vertices?.let(::ringPairs)?.let(::composedList),
-                            "tt" to composedList(entry.transitionTypes)
+                            "tt" to composedList(entry.transitionTypes),
+                            "dwell" to entry.dwellThresholdSeconds?.toString()
                         )
                     ),
                 tag = TAG

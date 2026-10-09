@@ -42,6 +42,7 @@ internal fun assertComposedWith(vararg expected: Pair<String, Pair<Any, Any>>) {
 internal fun crossingTransitionOf(token: String?): GeofenceCrossingTransition = when (token?.lowercase()) {
     "enter" -> GeofenceCrossingTransition.ENTER
     "exit" -> GeofenceCrossingTransition.EXIT
+    "dwell" -> GeofenceCrossingTransition.DWELL
     else -> GeofenceCrossingTransition.UNSUPPORTED
 }
 

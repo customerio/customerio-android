@@ -1,11 +1,40 @@
 package io.customer.geofence.replay
 
+import kotlinx.serialization.SerializationException
 import org.amshove.kluent.shouldBeEqualTo
 import org.amshove.kluent.shouldBeFalse
 import org.amshove.kluent.shouldBeTrue
+import org.junit.Assert.assertThrows
 import org.junit.Test
 
 class ScenarioLoaderTest {
+
+    @Test
+    fun load_givenMalformedDwellThreshold_expectDecoderFailureInsteadOfDisabledDwell() {
+        for (threshold in listOf("60.0", "true", "\"bad\"", "9223372036854775808")) {
+            assertThrows(SerializationException::class.java) {
+                ScenarioLoader.load(
+                    scenarioFile(
+                        header("bad-dwell"),
+                        """{"k":"given","at":1,"ev":"fixture.api.fetch","body":[${fenceAtDevice("A").dropLast(1)},"dwellThresholdSeconds":$threshold}]}"""
+                    )
+                )
+            }
+        }
+    }
+
+    @Test
+    fun load_givenRawDwellThreshold_expectValuePreservedBeforeDomainValidation() {
+        for (threshold in listOf<Long?>(null, 0, 60, -1, Long.MAX_VALUE)) {
+            val scenario = ScenarioLoader.load(
+                scenarioFile(
+                    header("raw-dwell"),
+                    """{"k":"given","at":1,"ev":"fixture.api.fetch","body":[${fenceAtDevice("A").dropLast(1)},"dwellThresholdSeconds":$threshold}]}"""
+                )
+            )
+            scenario.given.single().body.single().dwellThresholdSeconds shouldBeEqualTo threshold
+        }
+    }
 
     @Test
     fun load_givenAllFourKinds_expectEachRoutedToItsBucket() {

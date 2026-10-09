@@ -1211,6 +1211,17 @@ class GeofenceApiResponseTest : RobolectricTest() {
     // ---------- catalog: built from the wire, before anything is dropped ----------
 
     @Test
+    fun toCatalogEntries_givenInvalidDwellThreshold_expectRawValueWhileDomainDisablesDwell() {
+        for (threshold in listOf(-1L, Long.MAX_VALUE)) {
+            val response = parseResponse(
+                """{"geofences":[{"id":"raw","latitude":10,"longitude":20,"radius":250,"dwell_threshold_seconds":$threshold}]}"""
+            )
+            response.toCatalogEntries().single().dwellThresholdSeconds shouldBeEqualTo threshold
+            response.toDomainRegions().single().dwellThresholdSeconds shouldBeEqualTo 0
+        }
+    }
+
+    @Test
     fun toCatalogEntries_expectOneEntryPerWireRecordEvenWhenOneIsDropped() {
         val response = parseResponse(polygonAndCircleJson())
 

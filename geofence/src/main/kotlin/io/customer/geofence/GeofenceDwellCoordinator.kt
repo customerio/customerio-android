@@ -602,17 +602,18 @@ internal class GeofenceDwellCoordinator(
     }
 
     /**
-     * What an EXIT reports about the visit it ended, or null when the visit's duration is unknown.
-     * That needs an observed entry (not one recovered from a DWELL, rebuilt after continuity loss, or
-     * withdrawn by a later EXIT) timed in this boot, and no outside proof since that entry. The
-     * whole-second wall span is reported only while it agrees with the boot clock (see
-     * [GeofenceVisitTiming.wallClockAgrees]): a clock step in between would otherwise invent or erase
-     * time.
+     * What an EXIT reports about the visit it ended. The visit's ID is reported whenever the EXIT is
+     * attributed to it, even when its entry was never observed (recovered from a DWELL, found inside
+     * at registration, or withdrawn by a later EXIT or ENTER), so the EXIT pairs with any DWELL that
+     * visit reported. Null only when outside proof follows everything that placed the device inside
+     * the visit, as [onNativeDwell] judges it: that stay already ended, and this EXIT may end a later
+     * one the SDK never saw, which must not borrow this visit's ID.
      *
-     * @param outsideProvenAtElapsedMs the live registration's outside proof. One taken after the entry
-     * shows the device left during the stay, even when no DWELL came to withdraw the entry, so the
-     * span would include time away. It is compared with the entry rather than [insideAnchor]: a proof
-     * handled after a later DWELL can still predate that DWELL's fix.
+     * Entry time and duration are reported together or not at all (see [observedDurationSeconds]).
+     *
+     * @param outsideProvenAtElapsedMs the live registration's outside proof. Identity compares it with
+     * [insideAnchor], timing with the entry: a proof handled after a later DWELL can still predate
+     * that DWELL's fix, so the visit continued but its span would include time away.
      */
     private fun exitContext(
         visit: GeofenceDwellVisit,
@@ -622,6 +623,37 @@ internal class GeofenceDwellCoordinator(
         exitedAtElapsedMs: Long,
         detectionSource: String
     ): GeofenceTransitionEmitter.VisitContext.Exit? {
+        if (outsideProvenAtElapsedMs != null && outsideProvenAtElapsedMs > insideAnchor(visit)) return null
+        val durationSeconds = observedDurationSeconds(
+            visit,
+            bootSessionId,
+            outsideProvenAtElapsedMs,
+            exitedAtSeconds,
+            exitedAtElapsedMs
+        )
+        return GeofenceTransitionEmitter.VisitContext.Exit(
+            visitId = visit.visitId,
+            enteredAt = visit.enteredAtSeconds.takeIf { durationSeconds != null },
+            durationSeconds = durationSeconds,
+            detectionSource = detectionSource
+        )
+    }
+
+    /**
+     * Seconds from an observed entry to this EXIT, or null when unknown. That needs an observed entry
+     * (not one recovered from a DWELL, rebuilt after continuity loss, or withdrawn by a later EXIT)
+     * timed in this boot, and no outside proof since that entry, which would put time away in the
+     * span. The whole-second wall span is reported only while it agrees with the boot clock (see
+     * [GeofenceVisitTiming.wallClockAgrees]): a clock step in between would otherwise invent or erase
+     * time.
+     */
+    private fun observedDurationSeconds(
+        visit: GeofenceDwellVisit,
+        bootSessionId: String,
+        outsideProvenAtElapsedMs: Long?,
+        exitedAtSeconds: Long,
+        exitedAtElapsedMs: Long
+    ): Long? {
         if (!visit.entryWasObserved) return null
         val enteredAt = visit.entryFixElapsedMs ?: visit.enteredAtElapsedMs ?: return null
         if (outsideProvenAtElapsedMs != null && outsideProvenAtElapsedMs > enteredAt) return null
@@ -630,12 +662,7 @@ internal class GeofenceDwellCoordinator(
         if (durationSeconds < 0 || !GeofenceVisitTiming.wallClockAgrees(visit.enteredAtSeconds, exitedAtSeconds, elapsedMs)) {
             return null
         }
-        return GeofenceTransitionEmitter.VisitContext.Exit(
-            visitId = visit.visitId,
-            enteredAt = visit.enteredAtSeconds,
-            durationSeconds = durationSeconds,
-            detectionSource = detectionSource
-        )
+        return durationSeconds
     }
 
     private suspend fun emitIfDue(
@@ -731,8 +758,9 @@ internal class GeofenceDwellCoordinator(
      * What a native EXIT meant for its visit.
      *
      * @property current false when the EXIT is older than evidence already placing the device inside.
-     * @property visitContext the visit this EXIT ended, when its observed timing can be reported. A
-     * current EXIT without one is still delivered.
+     * @property visitContext the visit this EXIT ended: always its ID, with entry time and duration
+     * only when observed timing is known. Null when no visit is attributed, or outside proof shows the
+     * visit had already ended. A current EXIT without one is still delivered.
      */
     internal data class NativeExit(
         val current: Boolean,
@@ -743,7 +771,7 @@ internal class GeofenceDwellCoordinator(
      * The visit a polygon EXIT ends, read by [capturePolygonExit].
      *
      * @property endedVisitId null when no visit of this boot was current at the EXIT's fix.
-     * @property visitContext that visit's description, when its duration is known.
+     * @property visitContext that visit's ID, with its entry time and duration when known.
      */
     internal data class PolygonExit(
         val endedVisitId: String? = null,

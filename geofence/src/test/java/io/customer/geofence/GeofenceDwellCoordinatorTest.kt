@@ -485,8 +485,20 @@ class GeofenceDwellCoordinatorTest {
         coordinator.onEnter("circle", enteredAtSeconds = 100L, beginsNewVisit = true, entryFixElapsedMs = FRESH_FIX_MS)
         visit?.entryWasObserved shouldBeEqualTo false
 
-        coordinator.onNativeExit("circle", exitedAtSeconds = 175L, triggeringFixElapsedMs = FRESH_FIX_MS + 75_000L)
-            .visitContext.shouldBeNull()
+        val visitId = checkNotNull(visit).visitId
+
+        // Inside at registration, so the entry time is unknown, but this EXIT still ends that visit.
+        val context = checkNotNull(
+            coordinator.onNativeExit(
+                "circle",
+                exitedAtSeconds = 175L,
+                triggeringFixElapsedMs = FRESH_FIX_MS + 75_000L
+            ).visitContext
+        )
+        context.visitId shouldBeEqualTo visitId
+        context.enteredAt.shouldBeNull()
+        context.durationSeconds.shouldBeNull()
+        context.detectionSource shouldBeEqualTo "native"
         visit.shouldBeNull()
     }
 
@@ -533,6 +545,7 @@ class GeofenceDwellCoordinatorTest {
             triggeringFixElapsedMs = FRESH_FIX_MS,
             observedAtElapsedMs = FRESH_FIX_MS + 100L
         )
+        val dwellVisitId = checkNotNull(visit).visitId
         val exit = coordinator.onNativeExit(
             "circle",
             exitedAtSeconds = 1_075L,
@@ -540,7 +553,10 @@ class GeofenceDwellCoordinatorTest {
             exitedAtElapsedMs = FRESH_FIX_MS + 75_100L
         )
 
-        exit.visitContext.shouldBeNull()
+        val context = checkNotNull(exit.visitContext)
+        context.visitId shouldBeEqualTo dwellVisitId
+        context.enteredAt.shouldBeNull()
+        context.durationSeconds.shouldBeNull()
         visit.shouldBeNull()
     }
 
@@ -796,8 +812,17 @@ class GeofenceDwellCoordinatorTest {
         coordinator.onEnter("circle", enteredAtSeconds = 5_000L, beginsNewVisit = false)
 
         visit?.entryWasObserved shouldBeEqualTo false
-        coordinator.onNativeExit("circle", exitedAtSeconds = 5_600L, triggeringFixElapsedMs = FRESH_FIX_MS)
-            .visitContext.shouldBeNull()
+        val visitId = checkNotNull(visit).visitId
+        val context = checkNotNull(
+            coordinator.onNativeExit(
+                "circle",
+                exitedAtSeconds = 5_600L,
+                triggeringFixElapsedMs = FRESH_FIX_MS
+            ).visitContext
+        )
+        context.visitId shouldBeEqualTo visitId
+        context.enteredAt.shouldBeNull()
+        context.durationSeconds.shouldBeNull()
         visit.shouldBeNull()
     }
 
@@ -838,8 +863,13 @@ class GeofenceDwellCoordinatorTest {
         }
         context.captured.enteredAt.shouldBeNull()
         context.captured.durationSeconds.shouldBeNull()
-        coordinator.capturePolygonExit("polygon", exitedAtSeconds = 1_200L, exitFixElapsedMs = 1_200_000L)
-            .visitContext.shouldBeNull()
+        val exit = coordinator.capturePolygonExit("polygon", exitedAtSeconds = 1_200L, exitFixElapsedMs = 1_200_000L)
+        exit.endedVisitId shouldBeEqualTo context.captured.visitId
+        val exitContext = checkNotNull(exit.visitContext)
+        exitContext.visitId shouldBeEqualTo context.captured.visitId
+        exitContext.enteredAt.shouldBeNull()
+        exitContext.durationSeconds.shouldBeNull()
+        exitContext.detectionSource shouldBeEqualTo "location_evidence"
     }
 
     @Test

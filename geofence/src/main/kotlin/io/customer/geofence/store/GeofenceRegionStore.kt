@@ -149,6 +149,13 @@ internal interface GeofenceRegionStore {
     fun saveCachedRegions(regions: List<GeofenceRegion>)
     fun getCachedRegions(): List<GeofenceRegion>
 
+    /**
+     * True until a current server catalog is published: the cache is missing, or an SDK that
+     * predates fields the server now sends (dwell) wrote it. Workspace-scoped like the catalog,
+     * so sign-out and session changes keep it; only [clearAll] drops it.
+     */
+    fun cachedCatalogNeedsRefresh(): Boolean
+
     /** Current server-catalog region; excludes retained cleanup-only definitions. */
     fun getCachedRegion(id: String): GeofenceRegion? = getCachedRegions().find { it.id == id }
 
@@ -441,7 +448,6 @@ internal class GeofenceRegionStoreImpl(
     }
 
     override fun saveCachedRegions(regions: List<GeofenceRegion>) = synchronized(enteredLock) {
-        writeJson(KEY_CACHED_REGIONS, REGIONS_SERIALIZER, regions)
         val current = regions.associateBy(GeofenceRegion::id)
         val visits = readDwellVisits().filter { visit ->
             val region = current[visit.geofenceId]
@@ -449,11 +455,28 @@ internal class GeofenceRegionStoreImpl(
                 (region.dwellThresholdSeconds > 0 || region.transitionTypes.contains(GeofenceTransitionType.EXIT)) &&
                 region.transitionRevision() == visit.regionRevision
         }
-        prefs.edit { putDwellVisitsLocked(visits) }
+        // One edit: the schema marker vouches for exactly these bytes.
+        prefs.edit {
+            putString(KEY_CACHED_REGIONS, jsonSerializer.encode(REGIONS_SERIALIZER, regions))
+            putInt(KEY_CACHED_CATALOG_SCHEMA, CURRENT_CATALOG_SCHEMA)
+            putDwellVisitsLocked(visits)
+        }
     }
 
     override fun getCachedRegions(): List<GeofenceRegion> =
         readJson(KEY_CACHED_REGIONS, REGIONS_SERIALIZER) ?: emptyList()
+
+    override fun cachedCatalogNeedsRefresh(): Boolean = prefs.read {
+        // A marker of another type is as unknown as a missing one.
+        val schema = try {
+            getInt(KEY_CACHED_CATALOG_SCHEMA, 0)
+        } catch (_: ClassCastException) {
+            0
+        }
+        // Presence, not a parse: this runs every pass. readJson removes unparseable bytes, so a
+        // corrupted catalog refetches on the pass after the one that read it.
+        !contains(KEY_CACHED_REGIONS) || schema < CURRENT_CATALOG_SCHEMA
+    } ?: true
 
     override fun saveRetainedRegisteredRegions(regions: List<GeofenceRegion>) = synchronized(enteredLock) {
         if (regions.isEmpty()) {
@@ -1294,6 +1317,10 @@ internal class GeofenceRegionStoreImpl(
         const val KEY_EMITTED_ENTER_IDS = "emitted_enter_ids"
         const val KEY_EMITTED_ENTER_OWNER = "emitted_enter_owner"
         const val KEY_CACHED_CONFIG = "cached_config"
+        const val KEY_CACHED_CATALOG_SCHEMA = "cached_catalog_schema"
+
+        // Bump when a catalog cached by an earlier SDK lacks a field the server now sends.
+        const val CURRENT_CATALOG_SCHEMA = 1
         const val KEY_LAST_API_FETCH_LOCATION = "last_api_fetch_location"
         const val KEY_LAST_MOVEMENT_TRIGGER_LOCATION = "last_movement_trigger_location"
         const val KEY_LAST_MOVEMENT_TRIGGER_RADIUS = "last_movement_trigger_radius"

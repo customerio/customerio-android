@@ -123,7 +123,8 @@ class GeofenceVisitDurationRealStoreTest : RobolectricTest() {
         val exit = outbox.loadAll().single()
         exit.visitDurationSeconds.shouldBeNull()
         exit.enteredAt.shouldBeNull()
-        exit.visitId.shouldBeNull()
+        // Untimed, but still the visit that ENTER began.
+        exit.visitId shouldBeEqualTo firstVisitId
         regionStore.getDwellVisit(GEOFENCE_ID).shouldBeNull()
         regionStore.getEnteredIds().shouldBeEmpty()
 
@@ -232,16 +233,23 @@ class GeofenceVisitDurationRealStoreTest : RobolectricTest() {
     }
 
     @Test
-    fun exit_givenVisitRecoveredFromANativeDwell_expectNoDuration() = runTest {
+    fun exit_givenVisitRecoveredFromANativeDwell_expectTheDwellsVisitIdWithoutTiming() = runTest {
         arm(exitOnlyRegion().copy(dwellThresholdSeconds = 60), outsideProven = true)
         val pipeline = pipeline()
 
         pipeline.handle(crossing(GeofenceCrossingTransition.DWELL, fixMs = 61_000L))
-        regionStore.getDwellVisit(GEOFENCE_ID).shouldNotBeNull().entryWasObserved shouldBeEqualTo false
+        val visit = regionStore.getDwellVisit(GEOFENCE_ID).shouldNotBeNull()
+        visit.entryWasObserved shouldBeEqualTo false
         pipeline.handle(crossing(GeofenceCrossingTransition.EXIT, fixMs = 90_000L))
 
-        val exit = outbox.loadAll().single { it.transition == Event.GeofenceTransition.EXIT }
-        exit.visitDurationSeconds.shouldBeNull()
+        // The arrival was never observed, so nothing is timed, but the EXIT ends the same continuous
+        // visit the DWELL reported and must carry its ID so the two pair downstream.
+        outbox.loadAll().map { it.transition } shouldBeEqualTo
+            listOf(Event.GeofenceTransition.DWELL, Event.GeofenceTransition.EXIT)
+        outbox.loadAll().first().visitId.shouldNotBeNull() shouldBeEqualTo visit.visitId
+        assertLastExitUntimed(expectedVisitId = visit.visitId)
+        outbox.loadAll().last().detectionSource shouldBeEqualTo "native"
+        regionStore.getDwellVisit(GEOFENCE_ID).shouldBeNull()
     }
 
     @Test
@@ -366,9 +374,8 @@ class GeofenceVisitDurationRealStoreTest : RobolectricTest() {
         proveOutsideByMovement(coordinator, fixMs = 9_000L)
         pipeline.handle(crossing(GeofenceCrossingTransition.EXIT, fixMs = 76_000L))
 
-        val exit = outbox.loadAll().last()
-        exit.transition shouldBeEqualTo Event.GeofenceTransition.EXIT
-        exit.visitDurationSeconds.shouldBeNull()
+        val dwell = outbox.loadAll().single { it.transition == Event.GeofenceTransition.DWELL }
+        assertLastExitUntimed(expectedVisitId = dwell.visitId.shouldNotBeNull())
         regionStore.getDwellVisit(GEOFENCE_ID).shouldBeNull()
     }
 
@@ -514,7 +521,7 @@ class GeofenceVisitDurationRealStoreTest : RobolectricTest() {
 
         outbox.loadAll().map { it.transition } shouldBeEqualTo
             listOf(Event.GeofenceTransition.ENTER, Event.GeofenceTransition.EXIT)
-        assertLastExitUntimed()
+        assertLastExitUntimed(expectedVisitId = visit.visitId)
         regionStore.getDwellVisit(GEOFENCE_ID).shouldBeNull()
     }
 
@@ -530,7 +537,7 @@ class GeofenceVisitDurationRealStoreTest : RobolectricTest() {
         regionStore.getDwellVisit(GEOFENCE_ID).shouldNotBeNull().visitId shouldBeEqualTo visitId
         pipeline.handle(crossing(GeofenceCrossingTransition.EXIT, fixMs = 90_000L))
 
-        assertLastExitUntimed()
+        assertLastExitUntimed(expectedVisitId = visitId)
         regionStore.getDwellVisit(GEOFENCE_ID).shouldBeNull()
     }
 
@@ -568,7 +575,7 @@ class GeofenceVisitDurationRealStoreTest : RobolectricTest() {
         )
         pipeline.handle(crossing(GeofenceCrossingTransition.EXIT, fixMs = 190_000L))
 
-        assertLastExitUntimed()
+        assertLastExitUntimed(expectedVisitId = queued.visitId.shouldNotBeNull())
         regionStore.getDwellVisit(GEOFENCE_ID).shouldBeNull()
         outbox.loadAll().single { it.transition == Event.GeofenceTransition.DWELL } shouldBeEqualTo queued
     }
@@ -681,13 +688,18 @@ class GeofenceVisitDurationRealStoreTest : RobolectricTest() {
         }
     }
 
-    private fun assertLastExitUntimed() {
+    /**
+     * The last row is an EXIT with neither entry time nor duration. [expectedVisitId] is the visit it
+     * ended when the EXIT is attributed to a continuing visit, null when no visit may be named.
+     */
+    private fun assertLastExitUntimed(expectedVisitId: String? = null) {
         val exit = outbox.loadAll().last()
         exit.transition shouldBeEqualTo Event.GeofenceTransition.EXIT
         exit.visitDurationSeconds.shouldBeNull()
         exit.enteredAt.shouldBeNull()
-        exit.visitId.shouldBeNull()
+        exit.visitId shouldBeEqualTo expectedVisitId
         exit.toEventProperties().keys shouldNotContain "visitDurationSeconds"
+        exit.toEventProperties().keys shouldNotContain "enteredAt"
     }
 
     private suspend fun assertNextVisitIsDistinctAndMeasured(

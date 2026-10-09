@@ -22,6 +22,7 @@ class PushNotificationLoggerTest : JUnitTest() {
     @BeforeEach
     fun setUp() {
         every { mockLogger.debug(any(), any()) } just runs
+        every { mockLogger.info(any(), any()) } just runs
         every { mockLogger.error(any(), any(), any()) } just runs
     }
 
@@ -72,6 +73,68 @@ class PushNotificationLoggerTest : JUnitTest() {
             mockLogger.debug(
                 tag = "Push",
                 message = "Getting current device token from Firebase messaging on app launch"
+            )
+        }
+    }
+
+    @Test
+    fun test_obtainingInstallationIdStarted_forwardsCorrectCallToLogger() {
+        pushLogger.obtainingInstallationIdStarted()
+
+        assertCalledOnce {
+            mockLogger.debug(
+                tag = "Push",
+                message = "App opted in to Firebase Installation ID, registering with FCM to get it"
+            )
+        }
+    }
+
+    @Test
+    fun test_logInstallationIdUnsupported_forwardsCorrectCallToLogger() {
+        pushLogger.logInstallationIdUnsupported()
+
+        assertCalledOnce {
+            mockLogger.info(
+                tag = "Push",
+                message = "App opted in to Firebase Installation ID, but this Firebase version can't register with it (needs firebase-messaging 25.1.0+). Using FCM token instead"
+            )
+        }
+    }
+
+    @Test
+    fun test_logInstallationIdRegisterMissing_forwardsCorrectCallToLogger() {
+        val error = IllegalStateException("API disabled")
+        pushLogger.logInstallationIdRegisterMissing(error)
+
+        assertCalledOnce {
+            mockLogger.error(
+                tag = "Push",
+                message = "Firebase is in Installation ID mode but FirebaseMessaging.register() was not found. Check that the SDK's consumer ProGuard rules are applied",
+                throwable = error
+            )
+        }
+    }
+
+    @Test
+    fun test_logInstallationIdUnchanged_forwardsCorrectCallToLogger() {
+        pushLogger.logInstallationIdUnchanged("fid")
+
+        assertCalledOnce {
+            mockLogger.debug(
+                tag = "Push",
+                message = "Firebase Installation ID unchanged, already registered: fid"
+            )
+        }
+    }
+
+    @Test
+    fun test_logInstallationIdUnregistered_forwardsCorrectCallToLogger() {
+        pushLogger.logInstallationIdUnregistered("fid")
+
+        assertCalledOnce {
+            mockLogger.debug(
+                tag = "Push",
+                message = "App unregistered Firebase Installation ID from FCM: fid"
             )
         }
     }

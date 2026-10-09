@@ -15,11 +15,13 @@ import io.customer.datapipelines.testutils.core.testConfiguration
 import io.customer.datapipelines.testutils.extensions.deviceToken
 import io.customer.datapipelines.testutils.extensions.shouldMatchTo
 import io.customer.datapipelines.testutils.utils.OutputReaderPlugin
+import io.customer.datapipelines.testutils.utils.TOKEN_TYPE_ATTRIBUTE
 import io.customer.datapipelines.testutils.utils.identifyEvents
 import io.customer.datapipelines.testutils.utils.screenEvents
 import io.customer.datapipelines.testutils.utils.trackEvents
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.util.Iso8601TimestampFormatter
+import io.customer.sdk.data.model.DeviceTokenType
 import io.customer.sdk.data.store.GlobalPreferenceStore
 import io.customer.sdk.events.Metric
 import io.customer.sdk.events.serializedName
@@ -135,15 +137,18 @@ class TrackingMigrationProcessorTest : IntegrationTest() {
         setupWithMigrationProcessorSpy()
         val oldDeviceToken = String.random
         every { globalPreferenceStore.getDeviceToken() } returns null
+        var storedType: DeviceTokenType? = null
+        every { globalPreferenceStore.saveDeviceToken(any(), any()) } answers { storedType = secondArg() }
+        every { globalPreferenceStore.getDeviceTokenType() } answers { storedType }
 
         outputReaderPlugin.reset()
         migrationProcessorSpy.processDeviceMigration(oldDeviceToken)
 
-        assertCalledOnce { globalPreferenceStore.saveDeviceToken(oldDeviceToken) }
+        assertCalledOnce { globalPreferenceStore.saveDeviceToken(oldDeviceToken, DeviceTokenType.TOKEN) }
         val deviceRegisterEvent = outputReaderPlugin.trackEvents.shouldHaveSingleItem()
         deviceRegisterEvent.event shouldBeEqualTo EventNames.DEVICE_UPDATE
         deviceRegisterEvent.context.deviceToken shouldBeEqualTo oldDeviceToken
-        deviceRegisterEvent.properties.shouldBeEmpty()
+        deviceRegisterEvent.properties shouldBeEqualTo buildJsonObject { put(TOKEN_TYPE_ATTRIBUTE, "token") }
     }
 
     @Test
@@ -155,7 +160,7 @@ class TrackingMigrationProcessorTest : IntegrationTest() {
         outputReaderPlugin.reset()
         migrationProcessorSpy.processDeviceMigration(existingDeviceToken)
 
-        assertCalledNever { globalPreferenceStore.saveDeviceToken(any()) }
+        assertCalledNever { globalPreferenceStore.saveDeviceToken(any(), any()) }
         outputReaderPlugin.allEvents.shouldBeEmpty()
     }
 
@@ -169,7 +174,7 @@ class TrackingMigrationProcessorTest : IntegrationTest() {
         outputReaderPlugin.reset()
         migrationProcessorSpy.processDeviceMigration(oldDeviceToken)
 
-        assertCalledNever { globalPreferenceStore.saveDeviceToken(any()) }
+        assertCalledNever { globalPreferenceStore.saveDeviceToken(any(), any()) }
         val deviceDeleteEvent = outputReaderPlugin.trackEvents.shouldHaveSingleItem()
         deviceDeleteEvent.event shouldBeEqualTo EventNames.DEVICE_DELETE
         deviceDeleteEvent.context.deviceToken shouldBeEqualTo oldDeviceToken
@@ -397,6 +402,7 @@ class TrackingMigrationProcessorTest : IntegrationTest() {
         deviceUpdateEvent.event shouldBeEqualTo EventNames.DEVICE_UPDATE
         deviceUpdateEvent.context.deviceToken shouldBeEqualTo givenTask.token
         deviceUpdateEvent.properties shouldBeEqualTo buildJsonObject {
+            put(TOKEN_TYPE_ATTRIBUTE, "token")
             put(
                 "device",
                 buildJsonObject {
@@ -431,6 +437,7 @@ class TrackingMigrationProcessorTest : IntegrationTest() {
         deviceUpdateEvent.context.deviceToken shouldBeEqualTo givenTask.token
         deviceUpdateEvent.properties shouldBeEqualTo buildJsonObject {
             putAll(givenAttributes.toJsonObject())
+            put(TOKEN_TYPE_ATTRIBUTE, "token")
             put(
                 "device",
                 buildJsonObject {

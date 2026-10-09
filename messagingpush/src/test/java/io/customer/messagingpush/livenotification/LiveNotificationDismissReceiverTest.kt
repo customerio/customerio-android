@@ -48,7 +48,7 @@ internal class LiveNotificationDismissReceiverTest : IntegrationTest() {
     fun onReceive_givenTokenAndUnendedActivity_reportsEndAndMarksTerminal() {
         // The core swipe-to-dismiss contract: a user clearing an in-progress live notification
         // reports `end` to Customer.io and marks the id terminal so a later push can't repost it.
-        SDKComponent.android().globalPreferenceStore.saveDeviceToken("fcm-tok")
+        SDKComponent.android().globalPreferenceStore.saveDeviceToken("fcm-tok", null)
 
         dismiss("act-1")
 
@@ -67,7 +67,7 @@ internal class LiveNotificationDismissReceiverTest : IntegrationTest() {
     fun onReceive_givenAlreadyEndedActivity_doesNotReportSecondEnd() {
         // endLiveNotification (or a remote end) already claimed the terminal transition, so a
         // subsequent swipe must not emit a duplicate end.
-        SDKComponent.android().globalPreferenceStore.saveDeviceToken("fcm-tok")
+        SDKComponent.android().globalPreferenceStore.saveDeviceToken("fcm-tok", null)
         SDKComponent.liveNotificationStore.markEnded("act-1")
 
         dismiss("act-1")
@@ -77,7 +77,7 @@ internal class LiveNotificationDismissReceiverTest : IntegrationTest() {
 
     @Test
     fun onReceive_givenMissingActivityType_isIgnored() {
-        SDKComponent.android().globalPreferenceStore.saveDeviceToken("fcm-tok")
+        SDKComponent.android().globalPreferenceStore.saveDeviceToken("fcm-tok", null)
 
         dismiss("act-1", activityType = null)
 

@@ -620,7 +620,7 @@ class DataPipelinesInteractionTests : JUnitTest() {
 
         sdkInstance.registerDeviceToken(givenToken)
 
-        assertCalledOnce { globalPreferenceStore.saveDeviceToken(givenToken) }
+        assertCalledOnce { globalPreferenceStore.saveDeviceToken(givenToken, null) }
 
         every { globalPreferenceStore.getDeviceToken() } returns givenToken
 

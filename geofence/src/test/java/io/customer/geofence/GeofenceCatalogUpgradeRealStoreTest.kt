@@ -18,6 +18,7 @@ import io.mockk.mockk
 import java.io.IOException
 import kotlinx.coroutines.test.runTest
 import org.amshove.kluent.shouldBeEqualTo
+import org.amshove.kluent.shouldBeFalse
 import org.amshove.kluent.shouldBeTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -96,17 +97,12 @@ class GeofenceCatalogUpgradeRealStoreTest : RobolectricTest() {
 
     @Test
     fun refresh_givenCurrentResponseNotRegistered_expectLegacyCacheKeptAndRetried() = runTest {
-        coEvery { manager.replaceGeofences(any(), any()) } returnsMany listOf(
-            Result.failure(IOException("gms")),
-            Result.success(Unit)
-        )
-        val api = api(Result.success(dwellResponse()))
-        val repository = repository(api)
-        repository.refresh(0.0, 0.0).isFailure.shouldBeTrue()
-        rawCatalog() shouldBeEqualTo LEGACY_CATALOG
-        repository.refresh(0.0, 0.0).isSuccess.shouldBeTrue()
-        coVerify(exactly = 2) { api.fetchGeofences(any()) }
-        store.getCachedRegions().single().dwellThresholdSeconds shouldBeEqualTo 60
+        assertFailedUpgradeRegistrationRetried(osStateWiped = false)
+    }
+
+    @Test
+    fun refresh_givenCurrentResponseNotRegisteredAfterAppUpdate_expectLegacyFallbackThenRetried() = runTest {
+        assertFailedUpgradeRegistrationRetried(osStateWiped = true)
     }
 
     @Test
@@ -120,6 +116,45 @@ class GeofenceCatalogUpgradeRealStoreTest : RobolectricTest() {
     private val rawPrefs get() = applicationMock.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
     private fun rawCatalog(): String? = rawPrefs.getString("cached_regions", null)
+
+    /**
+     * A current catalog GMS rejects is never acknowledged: the catalog and its marker stay legacy, and
+     * the next pass re-fetches and re-adds the fence with its dwell instead of keeping the old one.
+     * After a wipe, the last-known catalog keeps monitoring in the meantime.
+     */
+    private suspend fun assertFailedUpgradeRegistrationRetried(osStateWiped: Boolean) {
+        if (osStateWiped) packageUpdateTime = UPDATE_TIME + 1
+        val registered = mutableListOf<List<GeofenceRegion>>()
+        val kept = mutableListOf<Set<String>>()
+        coEvery { manager.replaceGeofences(capture(registered), capture(kept)) } returnsMany listOf(
+            Result.failure(IOException("gms")),
+            Result.success(Unit)
+        )
+        val api = api(Result.success(dwellResponse()))
+        val repository = repository(api)
+
+        repository.refresh(0.0, 0.0).isFailure.shouldBeTrue()
+        registered.first().business("legacy").dwellThresholdSeconds shouldBeEqualTo 60
+        if (osStateWiped) {
+            // The fallback fully re-registers the last-known definition, without dwell.
+            registered.size shouldBeEqualTo 2
+            registered[1].business("legacy").dwellThresholdSeconds shouldBeEqualTo 0
+            kept[1].isEmpty().shouldBeTrue()
+        } else {
+            registered.size shouldBeEqualTo 1
+        }
+        rawCatalog() shouldBeEqualTo LEGACY_CATALOG
+        store.cachedCatalogNeedsRefresh().shouldBeTrue()
+
+        repository.refresh(0.0, 0.0).isSuccess.shouldBeTrue()
+        coVerify(exactly = 2) { api.fetchGeofences(any()) }
+        registered.last().business("legacy").dwellThresholdSeconds shouldBeEqualTo 60
+        ("legacy" in kept.last()).shouldBeFalse()
+        store.cachedCatalogNeedsRefresh().shouldBeFalse()
+        store.getCachedRegions().single().dwellThresholdSeconds shouldBeEqualTo 60
+    }
+
+    private fun List<GeofenceRegion>.business(id: String) = single { it.id == id }
 
     private fun seedLegacyInstall() {
         rawPrefs.edit().putString("cached_regions", LEGACY_CATALOG).commit().shouldBeTrue()

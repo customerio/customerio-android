@@ -167,10 +167,11 @@ internal class GeofenceRepositoryImpl(
                         fixQuality = fixQuality
                     )
                     // With nothing routable, fences stay registered but unroutable until a pass
-                    // completes. Re-rank from the cache so an offline start still routes.
+                    // completes, and after a reboot or app update GMS dropped them though routable
+                    // ids survived. Either way re-register from the cache so an offline start routes.
                     if (remote.isFailure &&
-                        store.getRoutableRegisteredIds().isEmpty() &&
-                        store.getCachedRegions().isNotEmpty()
+                        store.getCachedRegions().isNotEmpty() &&
+                        (store.getRoutableRegisteredIds().isEmpty() || osStateWiped())
                     ) {
                         performLocalRefresh(
                             userId,
@@ -217,6 +218,9 @@ internal class GeofenceRepositoryImpl(
         logger.logStorageLoaded(regionCount = { cachedRegions.size }, hasAnchor = restoreAnchor != null)
 
         return when {
+            // A catalog cached before fields the server now sends (dwell) re-fetches whatever its
+            // age; only publishing a current response clears this.
+            store.cachedCatalogNeedsRefresh() -> RefreshAction.REMOTE
             isStaleInTime(config) -> RefreshAction.REMOTE
             movedBeyondFetchRadius(distanceFromLastFetch, config) -> RefreshAction.REMOTE
             isRankingStale(distanceFromLastRegistration, config) -> RefreshAction.LOCAL
@@ -330,7 +334,9 @@ internal class GeofenceRepositoryImpl(
             val config = store.getCachedConfigOrFallback()
             val distanceFromAnchor = anchor?.distanceTo(latitude, longitude) ?: 0f
             // No anchor yet (first EXIT after install, clearAll or sign-out): bootstrap from the server.
+            // A legacy catalog too, or a background-only device would wait for the fetch radius.
             val needsRemoteFetch = anchor == null ||
+                store.cachedCatalogNeedsRefresh() ||
                 movedBeyondFetchRadius(distanceFromAnchor, config)
             // The triggering fix is the OS's own, so a reboot/app-update wipe can't make it stale.
             return if (needsRemoteFetch) {

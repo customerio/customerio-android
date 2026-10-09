@@ -151,15 +151,17 @@ class DwellReplayTest : ReplayTestSupport() {
 
     @Test
     fun replay_whenExitHasNoObservedEntry_thenUnknownDurationIsOmitted() = runTest {
-        replay(
+        val rows = replay(
             // Without outside proof, ENTER can report existing presence rather than an arrival.
             callback(30, "enter"),
             callback(90, "dwell"),
             queued(90, "dwell", 1, "\"hasEnteredAt\":false,\"dwellDurationSeconds\":null"),
             callback(100, "exit", latitude = 10.0),
-            queued(100, "exit", 1, "\"visitDurationSeconds\":null,\"hasVisitId\":false,\"hasEnteredAt\":false"),
+            queued(100, "exit", 1, "\"visitDurationSeconds\":null,\"hasVisitId\":true,\"hasEnteredAt\":false"),
             outsideProven = false
         )
+        val dwellVisitId = checkNotNull(rows.single { it.transition == Event.GeofenceTransition.DWELL }.visitId)
+        rows.single { it.transition == Event.GeofenceTransition.EXIT }.visitId shouldBeEqualTo dwellVisitId
     }
 
     @Test
@@ -204,7 +206,7 @@ class DwellReplayTest : ReplayTestSupport() {
         // Restore-time invalidation only. The replay keeps this boot's ID and elapsed clock, so it
         // does not simulate a reboot. Restore still ends the visit and its outside proof: GMS lost
         // monitoring, and the device may have left and returned unobserved.
-        replay(
+        val rows = replay(
             callback(30, "enter"),
             queued(30, "enter", 1),
             """{"k":"when","at":40,"ev":"process.start"}""",
@@ -218,8 +220,10 @@ class DwellReplayTest : ReplayTestSupport() {
             callback(101, "dwell"),
             queued(101, "dwell", 1, "\"timestampAt\":101,\"dwellThresholdSeconds\":60,\"hasVisitId\":true,\"hasEnteredAt\":false,\"dwellDurationSeconds\":null,\"detectionSource\":\"native\""),
             callback(110, "exit", latitude = 10.0),
-            queued(110, "exit", 1, "\"hasVisitId\":false,\"hasEnteredAt\":false,\"visitDurationSeconds\":null")
+            queued(110, "exit", 1, "\"hasVisitId\":true,\"hasEnteredAt\":false,\"visitDurationSeconds\":null")
         )
+        val dwellVisitId = checkNotNull(rows.single { it.transition == Event.GeofenceTransition.DWELL }.visitId)
+        rows.single { it.transition == Event.GeofenceTransition.EXIT }.visitId shouldBeEqualTo dwellVisitId
     }
 
     private suspend fun replay(

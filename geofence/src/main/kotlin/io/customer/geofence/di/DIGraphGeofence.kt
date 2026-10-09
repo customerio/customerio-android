@@ -7,6 +7,7 @@ import io.customer.geofence.GeofenceBusinessTransitionProcessor
 import io.customer.geofence.GeofenceCooldownFilter
 import io.customer.geofence.GeofenceCrossingPipeline
 import io.customer.geofence.GeofenceDistanceFilter
+import io.customer.geofence.GeofenceDwellCoordinator
 import io.customer.geofence.GeofenceJsonSerializer
 import io.customer.geofence.GeofenceLogger
 import io.customer.geofence.GeofenceManager
@@ -117,6 +118,7 @@ internal val AndroidSDKComponent.geofenceCrossingPipeline: GeofenceCrossingPipel
             services = geofenceServices,
             registrar = geofenceManager,
             transitionProcessor = geofenceBusinessTransitionProcessor,
+            dwellCoordinator = geofenceDwellCoordinator,
             polygonController = polygonGeofenceServiceController,
             logger = SDKComponent.geofenceLogger
         )
@@ -186,11 +188,22 @@ internal val AndroidSDKComponent.geofenceBusinessTransitionProcessor: GeofenceBu
         )
     }
 
+internal val AndroidSDKComponent.geofenceDwellCoordinator: GeofenceDwellCoordinator
+    get() = singleton {
+        GeofenceDwellCoordinator(
+            store = geofenceRegionStore,
+            transitionProcessor = geofenceBusinessTransitionProcessor,
+            clock = SDKComponent.clock,
+            bootSessionProvider = polygonBootSessionProvider
+        )
+    }
+
 internal val AndroidSDKComponent.polygonLocationEngine: PolygonLocationEngine
     get() = singleton {
         PolygonLocationEngine(
             store = geofenceRegionStore,
             transitionProcessor = geofenceBusinessTransitionProcessor,
+            dwellCoordinator = geofenceDwellCoordinator,
             clock = SDKComponent.clock,
             logger = SDKComponent.geofenceLogger
         )
@@ -224,6 +237,7 @@ internal val AndroidSDKComponent.polygonGeofenceServiceController: PolygonGeofen
             freshFixSource = polygonFreshFixSource,
             recheckScheduler = polygonRecheckScheduler,
             passiveMonitor = polygonPassiveMonitor,
+            bootSessionProvider = polygonBootSessionProvider,
             logger = SDKComponent.geofenceLogger
         )
     }
@@ -272,9 +286,11 @@ internal val AndroidSDKComponent.geofenceRepository: GeofenceRepository
             cooldownFilter = geofenceCooldownFilter,
             transitionEmitter = geofenceTransitionEmitter,
             clock = SDKComponent.clock,
+            bootSessionProvider = polygonBootSessionProvider,
             packageInfo = geofencePackageInfo,
             logger = SDKComponent.geofenceLogger,
             polygonController = polygonGeofenceServiceController,
+            dwellCoordinator = geofenceDwellCoordinator,
             polygonSupport = SDKComponent.polygonSupport
         )
     }

@@ -9,9 +9,12 @@ import io.customer.commontest.config.TestConfig
 import io.customer.commontest.config.testConfigurationDefault
 import io.customer.commontest.core.RobolectricTest
 import io.customer.geofence.di.pendingGeofenceDeliveryStore
+import io.customer.geofence.polygon.PolygonBootSessionProvider
 import io.customer.geofence.polygon.PolygonCoordinate
 import io.customer.geofence.polygon.PolygonGeofenceServiceController
+import io.customer.geofence.store.GeofenceDwellVisit
 import io.customer.geofence.store.GeofenceRegionStore
+import io.customer.geofence.store.GeofenceRegistrationIncarnation
 import io.customer.geofence.store.PendingGeofenceDelivery
 import io.customer.geofence.worker.GeofenceEventScheduler
 import io.customer.sdk.communication.Event
@@ -123,6 +126,7 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
                         overrideDependency<GeofenceRegistrar>(mockManager)
                         overrideDependency<SecureUserStore>(mockSecureUserStore)
                         overrideDependency<PolygonGeofenceServiceController>(mockPolygonController)
+                        overrideDependency<PolygonBootSessionProvider>(PolygonBootSessionProvider { "boot" })
                     }
                 }
             }
@@ -261,6 +265,209 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
         val entry = pendingStore.loadAll().single()
         entry.geofenceId shouldBeEqualTo "biz-1"
         entry.transition shouldBeEqualTo Event.GeofenceTransition.ENTER
+    }
+
+    @Test
+    fun handleGeofencingEvent_givenRedeliveredEnterWhileInside_expectVisitPreserved() = runTest {
+        val region = GeofenceRegion("biz-1", 0.0, 0.0, 100f, dwellThresholdSeconds = 60)
+        val enteredAt = mockClock.currentTimeSeconds() - 100L
+        val currentVisit = GeofenceDwellVisit(
+            geofenceId = "biz-1",
+            visitId = "current-visit",
+            enteredAtSeconds = enteredAt,
+            regionRevision = region.transitionRevision(),
+            userStateGeneration = 0L
+        )
+        every { mockStore.getCachedRegion("biz-1") } returns region
+        every { mockStore.getDwellVisit("biz-1") } returns currentVisit
+        val event = buildGeofencingEvent(
+            transition = Geofence.GEOFENCE_TRANSITION_ENTER,
+            geofenceIds = listOf("biz-1"),
+            location = realLocation(37.7749, -122.4194)
+        )
+
+        receiver.handleGeofencingEvent(event)
+
+        verify(exactly = 0) { mockStore.saveDwellVisit(any()) }
+    }
+
+    @Test
+    fun handleGeofencingEvent_givenEnterAfterContainmentWasLost_expectVisitRestarted() = runTest {
+        val region = GeofenceRegion("biz-1", 0.0, 0.0, 100f, dwellThresholdSeconds = 60)
+        val enteredAt = mockClock.currentTimeSeconds() - 100L
+        val staleVisit = GeofenceDwellVisit(
+            geofenceId = "biz-1",
+            visitId = "stale-visit",
+            enteredAtSeconds = enteredAt,
+            regionRevision = region.transitionRevision(),
+            userStateGeneration = 0L,
+            registrationElapsedMs = REGISTERED_AT_MS
+        )
+        var enteredIds = emptySet<String>()
+        every { mockStore.getCachedRegion("biz-1") } returns region
+        every { mockStore.getRegistrationIncarnation("biz-1") } returns liveRegistration(region)
+        every { mockStore.getEnteredIds() } answers { enteredIds }
+        every { mockStore.getDwellVisit("biz-1") } returns staleVisit
+        every { mockStore.saveDwellVisit(any()) } returns true
+        every {
+            mockStore.commitBusinessTransition("biz-1", Event.GeofenceTransition.ENTER, any(), 0L, any())
+        } answers {
+            enteredIds = setOf("biz-1")
+            true
+        }
+        val restarted = slot<GeofenceDwellVisit>()
+        val event = buildGeofencingEvent(
+            transition = Geofence.GEOFENCE_TRANSITION_ENTER,
+            geofenceIds = listOf("biz-1"),
+            location = realLocation(37.7749, -122.4194)
+        )
+
+        receiver.handleGeofencingEvent(event)
+
+        verify { mockStore.saveDwellVisit(capture(restarted)) }
+        (restarted.captured.visitId == staleVisit.visitId) shouldBeEqualTo false
+    }
+
+    @Test
+    fun dispatchTransition_givenColdStartDelayedEnter_expectNativeDwellStillQueued() = runTest {
+        val region = GeofenceRegion(
+            id = "biz-1",
+            latitude = 0.0,
+            longitude = 0.0,
+            radius = 100f,
+            transitionTypes = listOf(
+                GeofenceTransitionType.ENTER,
+                GeofenceTransitionType.EXIT
+            ),
+            dwellThresholdSeconds = 60
+        )
+        var enteredIds = emptySet<String>()
+        var visit: GeofenceDwellVisit? = null
+        every { mockClock.currentTimeSeconds() } returnsMany listOf(105L, 160L)
+        every { mockStore.getCachedRegion("biz-1") } returns region
+        every { mockStore.getRegistrationIncarnation("biz-1") } returns liveRegistration(region)
+        every { mockStore.getEnteredIds() } answers { enteredIds }
+        every { mockStore.getDwellVisit("biz-1") } answers { visit }
+        every { mockStore.saveDwellVisit(any()) } answers {
+            visit = firstArg()
+            true
+        }
+        every {
+            mockStore.commitBusinessTransition("biz-1", any(), any(), 0L, any())
+        } answers {
+            if (secondArg<Event.GeofenceTransition>() == Event.GeofenceTransition.ENTER) {
+                enteredIds = setOf("biz-1")
+            }
+            true
+        }
+        val scheduled = mutableListOf<PendingGeofenceDelivery>()
+        coEvery { mockScheduler.schedule(capture(scheduled)) } returns Unit
+
+        receiver.dispatchTransition(
+            gmsTransitionType = Geofence.GEOFENCE_TRANSITION_ENTER,
+            triggeringGeofenceIds = listOf("biz-1"),
+            latitude = 0.0,
+            longitude = 0.0
+        )
+        receiver.dispatchTransition(
+            gmsTransitionType = Geofence.GEOFENCE_TRANSITION_DWELL,
+            triggeringGeofenceIds = listOf("biz-1"),
+            latitude = 0.0,
+            longitude = 0.0,
+            triggeringLocation = fixAtElapsed(REGISTERED_AT_MS + 60_000L)
+        )
+
+        val dwell = scheduled.single { it.transition == Event.GeofenceTransition.DWELL }
+        // Neither a triggering fix nor a proven-outside registration backs the ENTER, so it may be
+        // GMS's initial trigger for a device already inside: the entry time stays unknown.
+        dwell.enteredAt.shouldBeNull()
+        dwell.dwellThresholdSeconds shouldBeEqualTo 60
+        dwell.dwellDurationSeconds.shouldBeNull()
+        visit?.enteredAtSeconds shouldBeEqualTo 105L
+        visit?.emitted shouldBeEqualTo true
+    }
+
+    @Test
+    fun dispatchTransition_givenDelayedExitFromReplacedRegistration_expectNewerVisitKept() = runTest {
+        val region = GeofenceRegion(
+            id = "biz-1",
+            latitude = 0.0,
+            longitude = 0.0,
+            radius = 100f,
+            transitionTypes = listOf(GeofenceTransitionType.ENTER, GeofenceTransitionType.EXIT),
+            dwellThresholdSeconds = 60
+        )
+        val newerVisit = GeofenceDwellVisit(
+            geofenceId = "biz-1",
+            visitId = "newer-visit",
+            enteredAtSeconds = 1_000L,
+            regionRevision = region.transitionRevision(),
+            userStateGeneration = 0L,
+            registrationElapsedMs = REGISTERED_AT_MS
+        )
+        every { mockClock.currentTimeSeconds() } returns 1_500L
+        every { mockStore.getCachedRegion("biz-1") } returns region
+        every { mockStore.getRegistrationIncarnation("biz-1") } returns liveRegistration(region)
+        every { mockStore.getEnteredIds() } returns setOf("biz-1")
+        every { mockStore.getDwellVisit("biz-1") } returns newerVisit
+        every { mockStore.commitBusinessTransition("biz-1", any(), any(), 0L, any()) } returns true
+        val scheduled = mutableListOf<PendingGeofenceDelivery>()
+        coEvery { mockScheduler.schedule(capture(scheduled)) } returns Unit
+
+        // GMS decided this EXIT from a fix taken before the fence was re-registered.
+        receiver.dispatchTransition(
+            gmsTransitionType = Geofence.GEOFENCE_TRANSITION_EXIT,
+            triggeringGeofenceIds = listOf("biz-1"),
+            latitude = 0.0,
+            longitude = 0.0,
+            triggeringLocation = fixAtElapsed(REGISTERED_AT_MS - 1L)
+        )
+
+        verify(exactly = 0) { mockStore.removeDwellVisit("biz-1") }
+        verify(exactly = 0) { mockStore.removeDwellVisitAfterCommittedExit(any(), any(), any(), any()) }
+        val exit = scheduled.single { it.transition == Event.GeofenceTransition.EXIT }
+        exit.visitId.shouldBeNull()
+    }
+
+    @Test
+    fun dispatchTransition_givenDwellFromReplacedRegistration_expectNoDwellUnderTheNewThreshold() = runTest {
+        // Re-registered from a 60 s loitering delay to 900 s; the old registration's DWELL is late.
+        val region = GeofenceRegion(
+            id = "biz-1",
+            latitude = 0.0,
+            longitude = 0.0,
+            radius = 100f,
+            transitionTypes = listOf(GeofenceTransitionType.ENTER, GeofenceTransitionType.EXIT),
+            dwellThresholdSeconds = 900
+        )
+        var visit: GeofenceDwellVisit? = GeofenceDwellVisit(
+            geofenceId = "biz-1",
+            visitId = "visit",
+            enteredAtSeconds = 1_000L,
+            regionRevision = region.transitionRevision(),
+            userStateGeneration = 0L,
+            registrationElapsedMs = REGISTERED_AT_MS
+        )
+        every { mockClock.currentTimeSeconds() } returns 1_100L
+        every { mockStore.getCachedRegion("biz-1") } returns region
+        every { mockStore.getRegistrationIncarnation("biz-1") } returns liveRegistration(region)
+        every { mockStore.getEnteredIds() } returns setOf("biz-1")
+        every { mockStore.getDwellVisit("biz-1") } answers { visit }
+        every { mockStore.saveDwellVisit(any()) } answers {
+            visit = firstArg()
+            true
+        }
+
+        receiver.dispatchTransition(
+            gmsTransitionType = Geofence.GEOFENCE_TRANSITION_DWELL,
+            triggeringGeofenceIds = listOf("biz-1"),
+            latitude = 0.0,
+            longitude = 0.0,
+            triggeringLocation = fixAtElapsed(REGISTERED_AT_MS - 1L)
+        )
+
+        coVerify(exactly = 0) { mockScheduler.schedule(any()) }
+        visit?.emitted shouldBeEqualTo false
     }
 
     @Test
@@ -499,9 +706,53 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
             longitude = -122.4194
         )
 
-        verify { mockServices.onMovementTriggerExit(eq(37.7749), eq(-122.4194), any()) }
+        verify { mockServices.onMovementTriggerExit(eq(37.7749), eq(-122.4194), any(), any()) }
         coVerify(exactly = 0) { mockScheduler.schedule(any()) }
         pendingStore.loadAll() shouldBeEqualTo emptyList()
+    }
+
+    @Test
+    fun dispatchTransition_givenMovementTriggerExit_expectTriggeringFixTimeAndAccuracyForwarded() = runTest {
+        // They decide whether the pass's fix can prove the device outside the fences it registers.
+        val quality = slot<GeofenceFixQuality>()
+        every { mockServices.onMovementTriggerExit(any(), any(), any(), capture(quality)) } returns null
+        val location = Location("gps").apply {
+            latitude = 37.7749
+            longitude = -122.4194
+            accuracy = 12f
+            elapsedRealtimeNanos = 9_000_000_000L
+        }
+
+        receiver.dispatchTransition(
+            gmsTransitionType = Geofence.GEOFENCE_TRANSITION_EXIT,
+            triggeringGeofenceIds = listOf(GeofenceConstants.MOVEMENT_TRIGGER_ID),
+            latitude = 37.7749,
+            longitude = -122.4194,
+            triggeringLocation = location
+        )
+
+        quality.captured shouldBeEqualTo GeofenceFixQuality(fixElapsedRealtimeMillis = 9_000L, horizontalAccuracyMeters = 12f)
+    }
+
+    @Test
+    fun dispatchTransition_givenMovementFixWithoutAccuracy_expectAccuracyLeftUnknown() = runTest {
+        val quality = slot<GeofenceFixQuality>()
+        every { mockServices.onMovementTriggerExit(any(), any(), any(), capture(quality)) } returns null
+        val location = Location("gps").apply {
+            latitude = 37.7749
+            longitude = -122.4194
+            elapsedRealtimeNanos = 9_000_000_000L
+        }
+
+        receiver.dispatchTransition(
+            gmsTransitionType = Geofence.GEOFENCE_TRANSITION_EXIT,
+            triggeringGeofenceIds = listOf(GeofenceConstants.MOVEMENT_TRIGGER_ID),
+            latitude = 37.7749,
+            longitude = -122.4194,
+            triggeringLocation = location
+        )
+
+        quality.captured.horizontalAccuracyMeters.shouldBeNull()
     }
 
     @Test
@@ -517,7 +768,7 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
             longitude = -122.4194
         )
 
-        verify { mockServices.onMovementTriggerExit(eq(37.7749), eq(-122.4194), any()) }
+        verify { mockServices.onMovementTriggerExit(eq(37.7749), eq(-122.4194), any(), any()) }
     }
 
     @Test
@@ -532,7 +783,7 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
             if ("circle" !in order) order += "circle"
             circle
         }
-        every { mockServices.onMovementTriggerExit(any(), any(), any()) } answers {
+        every { mockServices.onMovementTriggerExit(any(), any(), any(), any()) } answers {
             order += "refresh"
             null
         }
@@ -559,7 +810,7 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
             order += "polygon"
             delay(4_500)
         }
-        every { mockServices.onMovementTriggerExit(any(), any(), any()) } answers {
+        every { mockServices.onMovementTriggerExit(any(), any(), any(), any()) } answers {
             order += "refresh"
             null
         }
@@ -578,7 +829,7 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
     fun dispatchTransition_givenMovementTriggerExit_expectDispatchWaitsForRefreshJob() = runTest {
         // Once dispatch returns, goAsync ends and the OS may kill the process mid-refresh.
         val refreshJob = launch { delay(3_000) }
-        every { mockServices.onMovementTriggerExit(any(), any(), any()) } returns refreshJob
+        every { mockServices.onMovementTriggerExit(any(), any(), any(), any()) } returns refreshJob
 
         receiver.dispatchTransition(
             gmsTransitionType = Geofence.GEOFENCE_TRANSITION_EXIT,
@@ -593,7 +844,7 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
     @Test
     fun dispatchTransition_givenHungRefreshJob_expectWaitBoundedAndJobNotCancelled() = runTest {
         val refreshJob = launch { delay(60_000) }
-        every { mockServices.onMovementTriggerExit(any(), any(), any()) } returns refreshJob
+        every { mockServices.onMovementTriggerExit(any(), any(), any(), any()) } returns refreshJob
 
         receiver.dispatchTransition(
             gmsTransitionType = Geofence.GEOFENCE_TRANSITION_EXIT,
@@ -609,10 +860,11 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
     @OptIn(ExperimentalCoroutinesApi::class)
     @Test
     fun dispatchTransition_givenDispatchBudgetAlreadySpent_expectNoWaitForRefreshJob() = runTest {
-        // 9s already elapsed: earlier awaits in the dispatch share the join's budget.
-        every { mockClock.elapsedRealtime() } returnsMany listOf(0L, 9_000L)
+        // 9s already elapsed: earlier awaits in the dispatch share the join's budget. The first
+        // read is the crossing's receipt stamp.
+        every { mockClock.elapsedRealtime() } returnsMany listOf(0L, 0L, 9_000L)
         val refreshJob = launch { delay(60_000) }
-        every { mockServices.onMovementTriggerExit(any(), any(), any()) } returns refreshJob
+        every { mockServices.onMovementTriggerExit(any(), any(), any(), any()) } returns refreshJob
 
         receiver.dispatchTransition(
             gmsTransitionType = Geofence.GEOFENCE_TRANSITION_EXIT,
@@ -636,7 +888,7 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
             longitude = 0.0
         )
 
-        verify(exactly = 0) { mockServices.onMovementTriggerExit(any(), any(), any()) }
+        verify(exactly = 0) { mockServices.onMovementTriggerExit(any(), any(), any(), any()) }
         coVerify(exactly = 0) { mockScheduler.schedule(any()) }
         pendingStore.loadAll() shouldBeEqualTo emptyList()
     }
@@ -1077,7 +1329,7 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
         )
 
         verify(exactly = 0) { mockStore.claimExit(any()) }
-        verify { mockServices.onMovementTriggerExit(any(), any(), any()) }
+        verify { mockServices.onMovementTriggerExit(any(), any(), any(), any()) }
     }
 
     @Test
@@ -1131,7 +1383,7 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
             longitude = 0.0
         )
 
-        verify(exactly = 0) { mockServices.onMovementTriggerExit(any(), any(), any()) }
+        verify(exactly = 0) { mockServices.onMovementTriggerExit(any(), any(), any(), any()) }
         coVerify { mockManager.removeGeofencesByIds(listOf(GeofenceConstants.MOVEMENT_TRIGGER_ID)) }
     }
 
@@ -1201,7 +1453,7 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
             longitude = 2.0
         )
 
-        verify { mockServices.onMovementTriggerExit(eq(1.0), eq(2.0), any()) }
+        verify { mockServices.onMovementTriggerExit(eq(1.0), eq(2.0), any(), any()) }
         coVerify(exactly = 0) { mockManager.removeGeofencesByIds(any()) }
     }
 
@@ -1255,7 +1507,7 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
     @Test
     fun handleGeofencingEvent_givenATriggeringLocation_expectTheCrossingCarriesItUntransposed() = runTest {
         val refreshJob = launch { }
-        every { mockServices.onMovementTriggerExit(any(), any(), any()) } returns refreshJob
+        every { mockServices.onMovementTriggerExit(any(), any(), any(), any()) } returns refreshJob
 
         receiver.handleGeofencingEvent(
             buildGeofencingEvent(
@@ -1265,14 +1517,14 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
             )
         )
 
-        verify { mockServices.onMovementTriggerExit(latitude = 12.25, longitude = -71.75, movementTriggerRadius = any()) }
+        verify { mockServices.onMovementTriggerExit(latitude = 12.25, longitude = -71.75, movementTriggerRadius = any(), fixQuality = any()) }
     }
 
     @Test
     fun handleGeofencingEvent_givenDispatchBudgetAlreadySpent_expectNoWaitForRefreshJob() = runTest {
-        every { mockClock.elapsedRealtime() } returnsMany listOf(0L, 9_000L)
+        every { mockClock.elapsedRealtime() } returnsMany listOf(0L, 0L, 9_000L)
         val refreshJob = launch { delay(60_000) }
-        every { mockServices.onMovementTriggerExit(any(), any(), any()) } returns refreshJob
+        every { mockServices.onMovementTriggerExit(any(), any(), any(), any()) } returns refreshJob
 
         receiver.handleGeofencingEvent(
             buildGeofencingEvent(
@@ -1315,16 +1567,13 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
             )
         )
         pendingStore.loadAll() shouldBeEqualTo emptyList()
-        expectRecorded("os.callback.dropped", "unsupported_transition_type")
-        capturingLogger.messages.any {
-            it.contains("ev=os.callback.dropped") && it.contains("gms=${Geofence.GEOFENCE_TRANSITION_DWELL}")
-        } shouldBeEqualTo true
+        recordFor("os.callback.dropped").shouldBeNull()
     }
 
     @Test
     fun handleGeofencingEvent_givenHungRefreshJob_expectWaitBoundedAndJobNotCancelled() = runTest {
         val refreshJob = launch { delay(60_000) }
-        every { mockServices.onMovementTriggerExit(any(), any(), any()) } returns refreshJob
+        every { mockServices.onMovementTriggerExit(any(), any(), any(), any()) } returns refreshJob
 
         receiver.handleGeofencingEvent(
             buildGeofencingEvent(
@@ -1341,7 +1590,7 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
     @Test
     fun handleGeofencingEvent_givenMovementTriggerExit_expectDispatchWaitsForRefreshJob() = runTest {
         val refreshJob = launch { delay(3_000) }
-        every { mockServices.onMovementTriggerExit(any(), any(), any()) } returns refreshJob
+        every { mockServices.onMovementTriggerExit(any(), any(), any(), any()) } returns refreshJob
 
         receiver.handleGeofencingEvent(
             buildGeofencingEvent(
@@ -1357,7 +1606,7 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
     @Test
     fun handleGeofencingEvent_givenNoTriggeringLocation_expectTheCrossingCarriesNoCoordinates() = runTest {
         val refreshJob = launch { }
-        every { mockServices.onMovementTriggerExit(any(), any(), any()) } returns refreshJob
+        every { mockServices.onMovementTriggerExit(any(), any(), any(), any()) } returns refreshJob
 
         receiver.handleGeofencingEvent(
             buildGeofencingEvent(
@@ -1367,7 +1616,7 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
             )
         )
 
-        verify { mockServices.onMovementTriggerExit(latitude = null, longitude = null, movementTriggerRadius = any()) }
+        verify { mockServices.onMovementTriggerExit(latitude = null, longitude = null, movementTriggerRadius = any(), fixQuality = any()) }
     }
 
     private fun buildGeofencingEvent(
@@ -1385,6 +1634,16 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
             every { triggeringLocation } returns location
         }
     }
+
+    private fun liveRegistration(region: GeofenceRegion) = GeofenceRegistrationIncarnation(
+        geofenceId = region.id,
+        regionRevision = region.transitionRevision(),
+        registeredAtElapsedMs = REGISTERED_AT_MS,
+        bootSessionId = "boot"
+    )
+
+    private fun fixAtElapsed(elapsedMs: Long): Location =
+        realLocation(0.0, 0.0).apply { elapsedRealtimeNanos = elapsedMs * 1_000_000L }
 
     private fun realLocation(lat: Double, lng: Double): Location =
         Location("test-provider").apply {
@@ -1405,4 +1664,8 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
             PolygonCoordinate(37.7755, -122.4200)
         )
     )
+
+    private companion object {
+        const val REGISTERED_AT_MS = 10_000L
+    }
 }

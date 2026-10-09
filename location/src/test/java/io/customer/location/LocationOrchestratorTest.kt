@@ -1,3 +1,4 @@
+// LocationOrchestratorTest.kt — full replacement for location/src/test/java/io/customer/location/LocationOrchestratorTest.kt
 package io.customer.location
 
 import io.customer.location.provider.LocationProvider
@@ -47,7 +48,7 @@ class LocationOrchestratorTest {
         orchestrator(LocationTrackingMode.OFF).requestLocation(LocationRequestIntent(tracked = true))
 
         coVerify(exactly = 0) { provider.requestLocation(any()) }
-        verify(exactly = 0) { tracker.onLocationReceived(any(), any(), any()) }
+        verify(exactly = 0) { tracker.onLocationReceived(any(), any(), any(), any()) }
     }
 
     @Test
@@ -56,8 +57,8 @@ class LocationOrchestratorTest {
 
         orchestrator(LocationTrackingMode.MANUAL).requestLocation(LocationRequestIntent(tracked = true))
 
-        verify { tracker.onLocationReceived(37.7749, -122.4194, FIX_ELAPSED_REALTIME_MS) }
-        verify(exactly = 0) { tracker.onLocationReceivedWithoutTracking(any(), any(), any()) }
+        verify { tracker.onLocationReceived(37.7749, -122.4194, FIX_ELAPSED_REALTIME_MS, ACCURACY_METERS) }
+        verify(exactly = 0) { tracker.onLocationReceivedWithoutTracking(any(), any(), any(), any()) }
     }
 
     @Test
@@ -67,8 +68,26 @@ class LocationOrchestratorTest {
         orchestrator(LocationTrackingMode.OFF).requestLocation(LocationRequestIntent(tracked = false))
 
         coVerify { provider.requestLocation(LocationGranularity.DEFAULT) }
-        verify { tracker.onLocationReceivedWithoutTracking(37.7749, -122.4194, FIX_ELAPSED_REALTIME_MS) }
-        verify(exactly = 0) { tracker.onLocationReceived(any(), any(), any()) }
+        verify { tracker.onLocationReceivedWithoutTracking(37.7749, -122.4194, FIX_ELAPSED_REALTIME_MS, ACCURACY_METERS) }
+        verify(exactly = 0) { tracker.onLocationReceived(any(), any(), any(), any()) }
+    }
+
+    @Test
+    fun requestLocation_givenProviderReportsNoAccuracy_expectUnknownAccuracyForwarded() = runTest {
+        // An unreported accuracy must stay unknown: as 0 it would read as a perfect fix and let any
+        // fix just past a fence's edge prove the device outside.
+        coEvery { provider.currentAuthorizationStatus() } returns AuthorizationStatus.AUTHORIZED_FOREGROUND
+        coEvery { provider.requestLocation(LocationGranularity.DEFAULT) } returns LocationSnapshot(
+            latitude = 37.7749,
+            longitude = -122.4194,
+            timestamp = Date(),
+            horizontalAccuracy = null,
+            fixElapsedRealtimeMillis = FIX_ELAPSED_REALTIME_MS
+        )
+
+        orchestrator(LocationTrackingMode.OFF).requestLocation(LocationRequestIntent(tracked = false))
+
+        verify { tracker.onLocationReceivedWithoutTracking(37.7749, -122.4194, FIX_ELAPSED_REALTIME_MS, null) }
     }
 
     @Test
@@ -78,7 +97,7 @@ class LocationOrchestratorTest {
         orchestrator(LocationTrackingMode.OFF).requestLocation(LocationRequestIntent(tracked = false))
 
         coVerify(exactly = 0) { provider.requestLocation(any()) }
-        verify(exactly = 0) { tracker.onLocationReceivedWithoutTracking(any(), any(), any()) }
+        verify(exactly = 0) { tracker.onLocationReceivedWithoutTracking(any(), any(), any(), any()) }
     }
 
     @Test
@@ -88,7 +107,7 @@ class LocationOrchestratorTest {
         givenAuthorizedFix()
         val intent = LocationRequestIntent(tracked = false)
         var upgradeAccepted: Boolean? = null
-        every { tracker.onLocationReceivedWithoutTracking(any(), any(), any()) } answers {
+        every { tracker.onLocationReceivedWithoutTracking(any(), any(), any(), any()) } answers {
             upgradeAccepted = intent.upgradeToTracked()
         }
 
@@ -128,8 +147,8 @@ class LocationOrchestratorTest {
 
         orchestrator(LocationTrackingMode.ON_APP_START).requestLocation(intent)
 
-        verify { tracker.onLocationReceived(37.7749, -122.4194, FIX_ELAPSED_REALTIME_MS) }
-        verify(exactly = 0) { tracker.onLocationReceivedWithoutTracking(any(), any(), any()) }
+        verify { tracker.onLocationReceived(37.7749, -122.4194, FIX_ELAPSED_REALTIME_MS, ACCURACY_METERS) }
+        verify(exactly = 0) { tracker.onLocationReceivedWithoutTracking(any(), any(), any(), any()) }
     }
 
     @Test
@@ -150,12 +169,15 @@ class LocationOrchestratorTest {
 
         orchestrator(LocationTrackingMode.OFF).requestLocation(intent)
 
-        verify { tracker.onLocationReceivedWithoutTracking(37.7749, -122.4194, FIX_ELAPSED_REALTIME_MS) }
-        verify(exactly = 0) { tracker.onLocationReceived(any(), any(), any()) }
+        verify { tracker.onLocationReceivedWithoutTracking(37.7749, -122.4194, FIX_ELAPSED_REALTIME_MS, ACCURACY_METERS) }
+        verify(exactly = 0) { tracker.onLocationReceived(any(), any(), any(), any()) }
     }
 
     private companion object {
         // Any distinctive value: the point is that this exact one arrives, not that some Long does.
         const val FIX_ELAPSED_REALTIME_MS = 90_000L
+
+        // The snapshot's 10.0 m, as geofencing receives it.
+        const val ACCURACY_METERS = 10f
     }
 }

@@ -22,6 +22,19 @@ internal class GeofenceTransitionEmitter(
     private val regionStore: GeofenceRegionStore,
     private val logger: GeofenceLogger
 ) {
+    internal sealed class VisitContext {
+        abstract val visitId: String
+        abstract val enteredAt: Long?
+        abstract val detectionSource: String
+
+        data class Dwell(
+            override val visitId: String,
+            override val enteredAt: Long?,
+            val thresholdSeconds: Int,
+            val durationSeconds: Long?,
+            override val detectionSource: String
+        ) : VisitContext()
+    }
     internal enum class Result {
         PERSISTED,
         SUPPRESSED,
@@ -105,7 +118,8 @@ internal class GeofenceTransitionEmitter(
         geosetIds: List<String>,
         monitorsExit: Boolean,
         expectedUserStateGeneration: Long,
-        expectedRegionRevision: Int?
+        expectedRegionRevision: Int?,
+        visitContext: VisitContext? = null
     ): Result = emitInternal(
         geofenceId,
         transition,
@@ -117,7 +131,8 @@ internal class GeofenceTransitionEmitter(
         monitorsExit,
         retainAttempt = true,
         expectedUserStateGeneration = expectedUserStateGeneration,
-        expectedRegionRevision = expectedRegionRevision
+        expectedRegionRevision = expectedRegionRevision,
+        visitContext = visitContext
     )
 
     suspend fun recoverPendingTransitions(): Boolean = emissionMutex.withLock {
@@ -132,8 +147,10 @@ internal class GeofenceTransitionEmitter(
             // Stop at the first unavailable append. Later transitions must not overtake it.
             if (!pendingStore.appendAll(entries)) return false
             val first = entries.first()
-            first.userId?.let { userId ->
-                cooldownFilter.record(userId, first.geofenceId, first.transition)
+            if (first.transition != Event.GeofenceTransition.DWELL) {
+                first.userId?.let { userId ->
+                    cooldownFilter.record(userId, first.geofenceId, first.transition)
+                }
             }
             entries.forEach { entry ->
                 try {
@@ -162,7 +179,8 @@ internal class GeofenceTransitionEmitter(
         monitorsExit: Boolean,
         retainAttempt: Boolean,
         expectedUserStateGeneration: Long = regionStore.userStateGeneration(),
-        expectedRegionRevision: Int? = regionStore.getCachedRegion(geofenceId)?.transitionRevision()
+        expectedRegionRevision: Int? = regionStore.getCachedRegion(geofenceId)?.transitionRevision(),
+        visitContext: VisitContext? = null
     ): Result = emissionMutex.withLock {
         // Drain older attempts first. If storage is still unavailable, the new edge is staged below
         // but not appended, preserving delivery order for recovery.
@@ -184,14 +202,20 @@ internal class GeofenceTransitionEmitter(
             logger.logEnterDroppedAlreadyReported(geofenceId)
             return@withLock Result.SUPPRESSED
         }
-        val suppressedFor = if (isRecovery) null else cooldownFilter.suppressedForSeconds(userId, geofenceId, transition)
+        val suppressedFor = if (isRecovery || transition == Event.GeofenceTransition.DWELL) {
+            null
+        } else {
+            cooldownFilter.suppressedForSeconds(userId, geofenceId, transition)
+        }
         if (suppressedFor != null) {
             logger.logTransitionSuppressed(geofenceId, transition.name, suppressedFor)
             return@withLock Result.SUPPRESSED
         }
         val entries = stagedEntries.ifEmpty {
             // One transitionId shared across the per-geoset fan-out.
-            val transitionId = UUID.randomUUID().toString()
+            // A dwell retry belongs to the same continuous visit. Reusing its ID keeps a crash
+            // between outbox persistence and the emitted-state write idempotent downstream.
+            val transitionId = (visitContext as? VisitContext.Dwell)?.visitId ?: UUID.randomUUID().toString()
             val name = geofenceName?.takeIf { it.isNotEmpty() }
             // Blank and duplicate geoset ids are dropped, matching iOS.
             val geosets: List<String?> = geosetIds.filter { it.isNotEmpty() }.distinct()
@@ -208,7 +232,12 @@ internal class GeofenceTransitionEmitter(
                     metadata = metadata,
                     stateGeneration = expectedUserStateGeneration,
                     regionRevision = expectedRegionRevision,
-                    marksEnterReported = transition == Event.GeofenceTransition.ENTER && monitorsExit
+                    marksEnterReported = transition == Event.GeofenceTransition.ENTER && monitorsExit,
+                    visitId = visitContext?.visitId,
+                    enteredAt = visitContext?.enteredAt,
+                    dwellThresholdSeconds = (visitContext as? VisitContext.Dwell)?.thresholdSeconds,
+                    dwellDurationSeconds = (visitContext as? VisitContext.Dwell)?.durationSeconds,
+                    detectionSource = visitContext?.detectionSource
                 )
             }.also { created ->
                 if (!regionStore.savePendingTransitionEntries(created, expectedUserStateGeneration)) {
@@ -228,7 +257,9 @@ internal class GeofenceTransitionEmitter(
         }
         // After the write, so a failed write can't record a cooldown that suppresses its own retry.
         logger.logTransitionAccepted(geofenceId, transition.name, entries.size)
-        cooldownFilter.record(userId, geofenceId, transition)
+        if (transition != Event.GeofenceTransition.DWELL) {
+            cooldownFilter.record(userId, geofenceId, transition)
+        }
         entries.forEach { entry ->
             // Isolate the scheduler so one failure can't abandon the rest of the batch.
             try {

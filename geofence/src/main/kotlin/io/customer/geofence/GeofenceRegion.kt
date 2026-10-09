@@ -45,7 +45,10 @@ internal data class GeofenceRegion(
      * backend sent.
      */
     @SerialName("baseRadiusMeters")
-    val baseRadiusMeters: Double? = null
+    val baseRadiusMeters: Double? = null,
+    /** Zero disables dwell. Positive values are seconds inside required for one event per visit. */
+    @SerialName("dwellThresholdSeconds")
+    val dwellThresholdSeconds: Int = 0
 ) {
     val isPolygon: Boolean
         get() = polygonVertices != null
@@ -107,6 +110,12 @@ internal fun GeofenceRegion.toGmsTransitionTypes(): Int {
     }
     var mask = 0
     transitionTypes.forEach { mask = mask or it.gmsValue }
+    if (dwellThresholdSeconds > 0) {
+        mask = mask or Geofence.GEOFENCE_TRANSITION_ENTER or Geofence.GEOFENCE_TRANSITION_EXIT
+    }
+    if (dwellThresholdSeconds in 1..GeofenceConstants.MAX_DWELL_THRESHOLD_SECONDS) {
+        mask = mask or Geofence.GEOFENCE_TRANSITION_DWELL
+    }
     return mask
 }
 
@@ -120,7 +129,8 @@ internal fun GeofenceRegion.equalsForRegistration(other: GeofenceRegion): Boolea
         longitude == other.longitude &&
         radius == other.radius &&
         isPolygon == other.isPolygon &&
-        (isPolygon || transitionTypes == other.transitionTypes)
+        (isPolygon || transitionTypes == other.transitionTypes) &&
+        (isPolygon || dwellThresholdSeconds == other.dwellThresholdSeconds)
 
 /** Stable, process-independent revision for invalidating detections produced by replaced geometry. */
 internal fun GeofenceRegion.transitionRevision(): Int {
@@ -129,5 +139,6 @@ internal fun GeofenceRegion.transitionRevision(): Int {
     result = 31 * result + longitude.hashCode()
     result = 31 * result + radius.hashCode()
     result = 31 * result + (polygonVertices?.hashCode() ?: 0)
+    result = 31 * result + dwellThresholdSeconds
     return result
 }

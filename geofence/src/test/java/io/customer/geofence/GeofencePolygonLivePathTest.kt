@@ -71,6 +71,7 @@ class GeofencePolygonLivePathTest : RobolectricTest() {
         cooldownFilter = cooldownFilter,
         transitionEmitter = transitionEmitter,
         clock = clock,
+        bootSessionProvider = { "boot" },
         packageInfo = packageInfo,
         logger = mockLogger,
         polygonSupport = polygonSupport

@@ -727,6 +727,7 @@ class PolygonRecheckTest : RobolectricTest() {
         freshFixSource = NeverAnswersFreshFix,
         recheckScheduler = scheduler,
         passiveMonitor = NoopPassiveMonitor,
+        bootSessionProvider = { "boot" },
         logger = mockk(relaxed = true)
     )
 

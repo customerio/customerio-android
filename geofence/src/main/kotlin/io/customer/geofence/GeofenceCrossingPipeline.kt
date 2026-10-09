@@ -14,6 +14,7 @@ internal class GeofenceCrossingPipeline(
     private val services: GeofenceServices,
     private val registrar: GeofenceRegistrar,
     private val transitionProcessor: GeofenceBusinessTransitionProcessor,
+    private val dwellCoordinator: GeofenceDwellCoordinator,
     private val polygonController: PolygonGeofenceServiceController,
     private val logger: GeofenceLogger
 ) {
@@ -21,6 +22,11 @@ internal class GeofenceCrossingPipeline(
     suspend fun handle(crossing: GeofenceCrossing): Job? {
         // The receiver's stamp, not a fresh read; see [GeofenceCrossing.receivedAtSeconds].
         val timestamp = crossing.receivedAtSeconds
+        // The only provenance a GMS callback carries: its fix cannot postdate the transition it
+        // triggered, so dwell attribution compares it with the registration's stamp.
+        val triggeringFixElapsedMs = crossing.triggeringLocation?.elapsedRealtimeNanos
+            ?.takeIf { it > 0L }
+            ?.let { it / NANOS_PER_MILLI }
 
         // Cold-start callbacks can beat the posted launch initialization, so establish the persisted
         // user's session synchronously first.
@@ -95,6 +101,8 @@ internal class GeofenceCrossingPipeline(
                         expectedUserStateGeneration = userStateGeneration,
                         expectedRegionRevision = region.transitionRevision()
                     )
+                    GeofenceCrossingTransition.DWELL ->
+                        logger.logUnknownTransition(geofenceId, crossing.rawTransitionCode)
                     GeofenceCrossingTransition.UNSUPPORTED ->
                         logger.logUnknownTransition(geofenceId, crossing.rawTransitionCode)
                 }
@@ -103,6 +111,7 @@ internal class GeofenceCrossingPipeline(
 
             val transition = when (crossing.transition) {
                 GeofenceCrossingTransition.ENTER -> Event.GeofenceTransition.ENTER
+                GeofenceCrossingTransition.DWELL -> Event.GeofenceTransition.DWELL
                 GeofenceCrossingTransition.EXIT -> Event.GeofenceTransition.EXIT
                 GeofenceCrossingTransition.UNSUPPORTED -> {
                     logger.logUnknownTransition(geofenceId, crossing.rawTransitionCode)
@@ -110,15 +119,63 @@ internal class GeofenceCrossingPipeline(
                 }
             }
 
-            transitionProcessor.process(
-                geofenceId = geofenceId,
-                transition = transition,
-                timestampSeconds = timestamp,
-                enforceConfiguredTransition = region != null,
-                expectedRegionRevision = region?.transitionRevision(),
-                expectedUserStateGeneration = userStateGeneration,
-                requireRegistered = true
-            )
+            if (transition == Event.GeofenceTransition.DWELL) {
+                dwellCoordinator.onNativeDwell(
+                    geofenceId = geofenceId,
+                    observedAtSeconds = timestamp,
+                    triggeringFixElapsedMs = triggeringFixElapsedMs,
+                    expectedUserStateGeneration = userStateGeneration,
+                    observedAtElapsedMs = crossing.receivedAtElapsedMs
+                )
+            } else {
+                // Re-read under the transition lock just before this ENTER commits (see `admits`): a
+                // read here can predate a concurrent ENTER's commit and start a second visit.
+                var wasInside = transition == Event.GeofenceTransition.ENTER &&
+                    geofenceId in regionStore.getEnteredIds()
+                if (transition == Event.GeofenceTransition.EXIT) {
+                    val current = dwellCoordinator.onNativeExit(
+                        geofenceId = geofenceId,
+                        exitedAtSeconds = timestamp,
+                        triggeringFixElapsedMs = triggeringFixElapsedMs,
+                        expectedUserStateGeneration = userStateGeneration,
+                        exitedAtElapsedMs = crossing.receivedAtElapsedMs
+                    )
+                    // GMS reordered it behind a later inside fix, so the device is still here.
+                    if (!current) {
+                        logger.logTransitionDroppedSuperseded(geofenceId, transition.name)
+                        return@forEach
+                    }
+                }
+                transitionProcessor.process(
+                    geofenceId = geofenceId,
+                    transition = transition,
+                    timestampSeconds = timestamp,
+                    enforceConfiguredTransition = region != null,
+                    expectedRegionRevision = region?.transitionRevision(),
+                    expectedUserStateGeneration = userStateGeneration,
+                    requireRegistered = true,
+                    endsVisitByTimestamp = false,
+                    admits = {
+                        if (transition == Event.GeofenceTransition.ENTER) {
+                            wasInside = geofenceId in regionStore.getEnteredIds()
+                        }
+                        dwellCoordinator.admitsNativeEdge(geofenceId, transition, triggeringFixElapsedMs)
+                    }
+                )
+                if (
+                    transition == Event.GeofenceTransition.ENTER &&
+                    geofenceId in regionStore.getEnteredIds()
+                ) {
+                    dwellCoordinator.onEnter(
+                        geofenceId,
+                        timestamp,
+                        userStateGeneration,
+                        beginsNewVisit = !wasInside,
+                        entryFixElapsedMs = triggeringFixElapsedMs,
+                        enteredAtElapsedMs = crossing.receivedAtElapsedMs
+                    )
+                }
+            }
         }
         return movementRefreshJob
     }
@@ -128,16 +185,27 @@ internal class GeofenceCrossingPipeline(
             logger.logMovementTriggerIgnoredNonExit(crossing.transitionName)
             return null
         }
+        val triggeringLocation = crossing.triggeringLocation
         // A lambda: the polygon callback awaits GMS and must not run before the refresh job exists.
         return services.onMovementTriggerExit(
             latitude = crossing.latitude,
             longitude = crossing.longitude,
             movementTriggerRadius = {
                 polygonController.onMovementTriggerExit(
-                    triggeringLocation = crossing.triggeringLocation,
+                    triggeringLocation = triggeringLocation,
                     expectedUserStateGeneration = userStateGeneration
                 )
-            }
+            },
+            fixQuality = GeofenceFixQuality(
+                fixElapsedRealtimeMillis = triggeringLocation?.elapsedRealtimeNanos
+                    ?.takeIf { it > 0L }
+                    ?.let { it / NANOS_PER_MILLI },
+                horizontalAccuracyMeters = triggeringLocation?.takeIf { it.hasAccuracy() }?.accuracy
+            )
         )
+    }
+
+    private companion object {
+        const val NANOS_PER_MILLI = 1_000_000L
     }
 }

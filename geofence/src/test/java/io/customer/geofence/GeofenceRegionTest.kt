@@ -46,6 +46,39 @@ class GeofenceRegionTest : RobolectricTest() {
     }
 
     @Test
+    fun toGmsTransitionTypes_givenCircleDwell_expectNativeDwellBitmask() {
+        val region = buildRegion(transitionTypes = emptyList(), dwellThresholdSeconds = 300)
+
+        region.toGmsTransitionTypes() shouldBeEqualTo (
+            Geofence.GEOFENCE_TRANSITION_ENTER or
+                Geofence.GEOFENCE_TRANSITION_DWELL or
+                Geofence.GEOFENCE_TRANSITION_EXIT
+            )
+    }
+
+    @Test
+    fun toGmsTransitionTypes_givenUnrepresentableCircleDwell_expectNoNativeDwellBit() {
+        val region = buildRegion(
+            transitionTypes = emptyList(),
+            dwellThresholdSeconds = GeofenceConstants.MAX_DWELL_THRESHOLD_SECONDS + 1
+        )
+
+        region.toGmsTransitionTypes() shouldBeEqualTo
+            (Geofence.GEOFENCE_TRANSITION_ENTER or Geofence.GEOFENCE_TRANSITION_EXIT)
+    }
+
+    @Test
+    fun toGmsTransitionTypes_givenPolygonDwell_expectOnlyBoundaryWakeTransitions() {
+        val region = buildRegion(
+            polygonVertices = squareRing(),
+            dwellThresholdSeconds = 300
+        )
+
+        region.toGmsTransitionTypes() shouldBeEqualTo
+            (Geofence.GEOFENCE_TRANSITION_ENTER or Geofence.GEOFENCE_TRANSITION_EXIT)
+    }
+
+    @Test
     fun edgeDistanceToOrNull_givenCoordinatesInsideRegion_expectZero() {
         val region = buildRegion(radius = 5_000f)
 
@@ -148,12 +181,16 @@ class GeofenceRegionTest : RobolectricTest() {
             GeofenceTransitionType.ENTER,
             GeofenceTransitionType.EXIT
         ),
-        radius: Float = 100f
+        radius: Float = 100f,
+        polygonVertices: List<PolygonCoordinate>? = null,
+        dwellThresholdSeconds: Int = 0
     ) = GeofenceRegion(
         id = "test-geofence",
         latitude = 0.0,
         longitude = 0.0,
         radius = radius,
-        transitionTypes = transitionTypes
+        transitionTypes = transitionTypes,
+        polygonVertices = polygonVertices,
+        dwellThresholdSeconds = dwellThresholdSeconds
     )
 }

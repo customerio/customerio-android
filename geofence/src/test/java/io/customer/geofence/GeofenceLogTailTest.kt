@@ -198,6 +198,7 @@ class GeofenceLogTailTest : RobolectricTest() {
             Row("droppedUnknownId", "transition.dropped", listOf("id", "why"), GeofenceLogger::logTransitionDroppedUnknownId.name, io = "obs") { it.logTransitionDroppedUnknownId("notl_core") },
             Row("droppedRetiredId", "transition.dropped", listOf("id", "why"), GeofenceLogger::logTransitionDroppedRetiredId.name, pinned = mapOf("why" to "retired_id"), io = "obs") { it.logTransitionDroppedRetiredId("notl_core") },
             Row("droppedUnarmedId", "transition.dropped", listOf("id", "why"), GeofenceLogger::logTransitionDroppedUnarmedId.name, pinned = mapOf("why" to "routing_unarmed"), io = "obs") { it.logTransitionDroppedUnarmedId("notl_core") },
+            Row("droppedSuperseded", "transition.dropped", listOf("id", "t", "why"), GeofenceLogger::logTransitionDroppedSuperseded.name, pinned = mapOf("t" to "exit", "why" to "superseded_by_newer_fix"), io = "obs") { it.logTransitionDroppedSuperseded("notl_core", "EXIT") },
             Row("containmentJudged", "containment.judged", listOf("n"), GeofenceLogger::logContainmentJudged.name, io = "obs") { it.logContainmentJudged(3) },
             Row("gmsCallTimedOut", "os.error", listOf("ok", "op", "why"), GeofenceLogger::logGmsCallTimedOut.name, io = "in", pinned = mapOf("why" to "timeout", "ok" to "false")) { it.logGmsCallTimedOut("addGeofences") },
             Row("eventDeliveredNotRemoved", "delivery.sent", listOf("id", "t", "ok", "retry", "why"), GeofenceLogger::logEventDeliveredButNotRemoved.name, pinned = mapOf("why" to "not_removed", "ok" to "true", "retry" to "true"), io = "obs") { it.logEventDeliveredButNotRemoved("notl_core", "ENTER") },
@@ -216,6 +217,7 @@ class GeofenceLogTailTest : RobolectricTest() {
             Row("apiFetchFailed", "api.fetch.result", listOf("ok", "why"), GeofenceLogger::logApiFetchFailed.name, io = "in") { it.logApiFetchFailed("timeout") },
 
             Row("unknownApiTransitionType", "api.transition.unknown", listOf("ok", "why", "value"), GeofenceLogger::logUnknownApiTransitionType.name, io = "obs") { it.logUnknownApiTransitionType("dwell") },
+            Row("unsupportedDwellThreshold", "api.dwell.unsupported", listOf("id", "ok", "why", "value"), GeofenceLogger::logUnsupportedDwellThreshold.name, io = "obs") { it.logUnsupportedDwellThreshold("notl_core", -1L) },
             Row("movementRearmed", "movement.rearmed", listOf("why"), GeofenceLogger::logMovementRearmedAfterFailedRefresh.name, io = "obs") { it.logMovementRearmedAfterFailedRefresh() },
             Row("storageLoaded", "storage.loaded", listOf("n", "anchor"), GeofenceLogger::logStorageLoaded.name, io = "obs") { it.logStorageLoaded({ 30 }, true) },
             Row("persistFailed", "storage.write.failed", listOf("id", "t", "ok"), GeofenceLogger::logPersistFailed.name, io = "obs") { it.logPersistFailed("notl_core", "ENTER") },
@@ -399,6 +401,7 @@ class GeofenceLogTailTest : RobolectricTest() {
             "polygon.passive.skipped",
             "polygon.passive.failed",
             "api.transition.unknown",
+            "api.dwell.unsupported",
             "containment.judged",
             "delivery.failed",
             "delivery.flush",

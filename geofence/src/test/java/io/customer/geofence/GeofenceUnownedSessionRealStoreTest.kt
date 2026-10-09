@@ -66,6 +66,7 @@ class GeofenceUnownedSessionRealStoreTest : RobolectricTest() {
             cooldownFilter = mockk(relaxed = true),
             transitionEmitter = mockk(relaxed = true),
             clock = clock,
+            bootSessionProvider = { BOOT },
             packageInfo = packageInfo,
             logger = mockk(relaxed = true)
         )
@@ -80,6 +81,9 @@ class GeofenceUnownedSessionRealStoreTest : RobolectricTest() {
         )
         store.saveLastMovementTriggerLocation(GeofenceLocation(0.0, 0.0), 1_000f)
         store.setLastRegistrationUptime(clock.elapsedRealtime())
+        // Registered in this boot, so the OS still holds these fences: only an unarmed session needs
+        // the cache re-rank.
+        store.setLastRegistrationBootSession(BOOT)
     }
 
     @Test
@@ -215,5 +219,6 @@ class GeofenceUnownedSessionRealStoreTest : RobolectricTest() {
 
     private companion object {
         const val USER = "user-42"
+        const val BOOT = "boot"
     }
 }

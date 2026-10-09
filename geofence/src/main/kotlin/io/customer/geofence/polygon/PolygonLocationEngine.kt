@@ -4,6 +4,8 @@ import android.location.Location
 import android.os.SystemClock
 import androidx.annotation.VisibleForTesting
 import io.customer.geofence.GeofenceBusinessTransitionProcessor
+import io.customer.geofence.GeofenceConstants
+import io.customer.geofence.GeofenceDwellCoordinator
 import io.customer.geofence.GeofenceLogTail
 import io.customer.geofence.GeofenceLogger
 import io.customer.geofence.PolygonEvaluationSkip
@@ -17,15 +19,20 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
 /**
- * [undecidedPolygonIds] and [pendingArrivalPolygonIds] cue a better-fix request; an aborted pass
- * reports neither. [evaluatedPolygonIds] is every fence judged: one skipped because the fix is not
- * newer is in no set, so absence from [undecidedPolygonIds] is not a decision.
+ * [undecidedPolygonIds], [pendingArrivalPolygonIds] and [dwellUnprovenPolygonIds] cue a better-fix
+ * request; an aborted pass reports none. [evaluatedPolygonIds] is every fence judged: one skipped
+ * because the fix is not newer is in no set, so absence from [undecidedPolygonIds] is not a decision.
+ *
+ * [dwellUnprovenPolygonIds] are entered polygons whose latest judged fix kept them INSIDE without
+ * placing its whole accuracy circle inside the ring, while their unemitted visit had already lasted
+ * its dwell threshold, so only a more precise fix can show the stay.
  */
 internal data class PolygonEvaluationOutcome(
     val acceptedFix: Boolean,
     val undecidedPolygonIds: Set<String>,
     val pendingArrivalPolygonIds: Set<String> = emptySet(),
-    val evaluatedPolygonIds: Set<String> = emptySet()
+    val evaluatedPolygonIds: Set<String> = emptySet(),
+    val dwellUnprovenPolygonIds: Set<String> = emptySet()
 ) {
     internal companion object {
         val NOTHING = PolygonEvaluationOutcome(acceptedFix = false, undecidedPolygonIds = emptySet())
@@ -40,7 +47,8 @@ internal class PolygonLocationEngine(
     private val store: GeofenceRegionStore,
     private val transitionProcessor: GeofenceBusinessTransitionProcessor,
     private val clock: Clock,
-    private val logger: GeofenceLogger
+    private val logger: GeofenceLogger,
+    private val dwellCoordinator: GeofenceDwellCoordinator? = null
 ) {
     private val routeProcessor = PolygonRouteProcessor()
     private var sessionStartElapsedRealtimeNanos: Long? = null
@@ -51,9 +59,25 @@ internal class PolygonLocationEngine(
     private var cachedFenceSignature: Map<String, Int> = emptyMap()
     private var cachedFences: List<PolygonFence> = emptyList()
 
+    /**
+     * The latest fix, per polygon, that decisively placed the device outside it during the current
+     * activation. Only an ENTER soon after one is the crossing itself: without a record, committed
+     * state reads OUTSIDE, so a device already inside when the polygon activated also reports ENTER,
+     * and after a long gap without fixes the device may have arrived at any point in it.
+     * In memory, so process death forgets it and the next ENTER reports no observed entry.
+     */
+    private val provenOutside = mutableMapOf<String, ProvenOutside>()
+
+    private data class ProvenOutside(
+        val regionRevision: Int,
+        val userStateGeneration: Long,
+        val elapsedRealtimeNanos: Long
+    )
+
     fun stop(): Set<String> = synchronized(stateLock) {
         routeProcessor.clear().also {
             geometryCache.clear()
+            provenOutside.clear()
             invalidateFenceCacheLocked()
             sessionStartElapsedRealtimeNanos = null
         }
@@ -122,6 +146,7 @@ internal class PolygonLocationEngine(
     private fun resetEvidenceLocked(polygonId: String): Set<String> {
         val wasPending = routeProcessor.clear(polygonId)
         geometryCache.remove(polygonId)
+        provenOutside.remove(polygonId)
         invalidateFenceCacheLocked()
         return if (wasPending) setOf(polygonId) else emptySet()
     }
@@ -174,6 +199,7 @@ internal class PolygonLocationEngine(
         val undecidedPolygonIds = mutableSetOf<String>()
         val pendingArrivalPolygonIds = mutableSetOf<String>()
         val evaluatedPolygonIds = mutableSetOf<String>()
+        val dwellUnprovenPolygonIds = mutableSetOf<String>()
         for (location in locations.sortedBy(Location::getElapsedRealtimeNanos)) {
             if (store.userStateGeneration() != expectedUserStateGeneration) {
                 logger.logPolygonEvaluationSkipped(PolygonEvaluationSkip.USER_STATE_CHANGED)
@@ -212,7 +238,15 @@ internal class PolygonLocationEngine(
                             fixAgeSeconds = GeofenceLogTail.fixAgeSeconds(fix.elapsedRealtimeNanos),
                             committedStates = committedStates,
                             answersHeldFixAt = answersHeldFixAt
-                        )
+                        ).also { routed ->
+                            fences.filter { it.id in routed.provenOutsideIds }.forEach { fence ->
+                                provenOutside[fence.id] = ProvenOutside(
+                                    regionRevision = fence.regionRevision,
+                                    userStateGeneration = expectedUserStateGeneration,
+                                    elapsedRealtimeNanos = fix.elapsedRealtimeNanos
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -236,7 +270,21 @@ internal class PolygonLocationEngine(
             routeOutcome.records.filterIsInstance<PolygonRouteRecord.ArrivalPending>()
                 .mapTo(pendingArrivalPolygonIds, PolygonRouteRecord.ArrivalPending::geofenceId)
             // Every judged fence produces a record; a skipped fence produces none.
-            routeOutcome.records.mapTo(evaluatedPolygonIds, PolygonRouteRecord::geofenceId)
+            val evaluatedThisFix = routeOutcome.records.mapTo(mutableSetOf(), PolygonRouteRecord::geofenceId)
+            // Dwell evidence needs the fix's whole accuracy circle inside the ring, as on iOS. A point
+            // inside by less than its accuracy keeps the committed state but proves nothing.
+            val insideThisFix = routeOutcome.records
+                .filterIsInstance<PolygonRouteRecord.Unchanged>()
+                .filter { it.membership == PolygonCommittedState.INSIDE.name }
+            val decisivelyInsideThisFix = insideThisFix
+                .filter { record ->
+                    record.signedBoundaryDistanceMeters?.let { it > record.horizontalAccuracyMeters } == true
+                }
+                .mapTo(mutableSetOf(), PolygonRouteRecord::geofenceId)
+            // Kept INSIDE but proving nothing: a precise fix may still show the stay (see below).
+            val marginallyInsideThisFix =
+                insideThisFix.mapTo(mutableSetOf(), PolygonRouteRecord::geofenceId) - decisivelyInsideThisFix
+            evaluatedPolygonIds.addAll(evaluatedThisFix)
             routeOutcome.records.forEach(::emitRouteRecord)
             routeOutcome.detections.forEach { detection ->
                 if (store.userStateGeneration() != expectedUserStateGeneration) {
@@ -247,16 +295,51 @@ internal class PolygonLocationEngine(
                     PolygonTransition.ENTER -> Event.GeofenceTransition.ENTER
                     PolygonTransition.EXIT -> Event.GeofenceTransition.EXIT
                 }
+                val observedAtSeconds = observedTimestampSeconds(fix)
+                val wasInside = detection.transition == PolygonTransition.ENTER &&
+                    detection.polygonId in store.getEnteredIds()
+                val outsideObserved = detection.transition == PolygonTransition.ENTER &&
+                    synchronized(stateLock) {
+                        provenOutside[detection.polygonId]?.let {
+                            it.regionRevision == detection.regionRevision &&
+                                it.userStateGeneration == expectedUserStateGeneration &&
+                                it.elapsedRealtimeNanos < fix.elapsedRealtimeNanos &&
+                                fix.elapsedRealtimeNanos - it.elapsedRealtimeNanos <= MAX_OUTSIDE_PROOF_AGE_NANOS
+                        } == true
+                    }
                 transitionProcessor.process(
                     geofenceId = detection.polygonId,
                     transition = transition,
-                    timestampSeconds = observedTimestampSeconds(fix),
+                    timestampSeconds = observedAtSeconds,
                     enforceConfiguredTransition = true,
                     expectedRegionRevision = detection.regionRevision,
                     expectedUserStateGeneration = expectedUserStateGeneration,
                     requireRegistered = true
                 )
+                if (store.userStateGeneration() != expectedUserStateGeneration) {
+                    return@withLock PolygonEvaluationOutcome.NOTHING
+                }
+                if (
+                    detection.transition == PolygonTransition.ENTER &&
+                    detection.polygonId in store.getEnteredIds()
+                ) {
+                    dwellCoordinator?.onEnter(
+                        detection.polygonId,
+                        observedAtSeconds,
+                        expectedUserStateGeneration,
+                        beginsNewVisit = !wasInside,
+                        polygonOutsideObserved = outsideObserved,
+                        enteredAtElapsedMs = fix.elapsedRealtimeNanos / NANOS_PER_MILLISECOND
+                    )
+                }
                 if (store.userStateGeneration() != expectedUserStateGeneration) return@withLock PolygonEvaluationOutcome.NOTHING
+                if (detection.transition == PolygonTransition.EXIT && detection.polygonId !in store.getEnteredIds()) {
+                    dwellCoordinator?.onPolygonExit(
+                        detection.polygonId,
+                        exitFixElapsedMs = fix.elapsedRealtimeNanos / NANOS_PER_MILLISECOND,
+                        expectedUserStateGeneration = expectedUserStateGeneration
+                    )
+                }
                 if (detection.transition == PolygonTransition.EXIT) {
                     synchronized(stateLock) {
                         if (store.userStateGeneration() != expectedUserStateGeneration) {
@@ -275,12 +358,34 @@ internal class PolygonLocationEngine(
                     }
                 }
             }
+            val observedAtSeconds = observedTimestampSeconds(fix)
+            val enteredIds = store.getEnteredIds()
+            decisivelyInsideThisFix.filter { it in enteredIds }.forEach { geofenceId ->
+                dwellCoordinator?.onInsideEvidence(
+                    geofenceId,
+                    observedAtSeconds,
+                    expectedUserStateGeneration,
+                    observedAtElapsedMs = fix.elapsedRealtimeNanos / NANOS_PER_MILLISECOND
+                )
+            }
+            // The latest fix to judge a fence decides whether it still awaits proof, so a later fix in
+            // the batch that decided it, or found it no longer inside, withdraws an earlier cue.
+            dwellUnprovenPolygonIds.removeAll(evaluatedThisFix)
+            marginallyInsideThisFix.filter { it in enteredIds }.forEach { geofenceId ->
+                val awaitsProof = dwellCoordinator?.awaitsDwellProof(
+                    geofenceId,
+                    atElapsedMs = fix.elapsedRealtimeNanos / NANOS_PER_MILLISECOND,
+                    expectedUserStateGeneration = expectedUserStateGeneration
+                ) == true
+                if (awaitsProof) dwellUnprovenPolygonIds += geofenceId
+            }
         }
         PolygonEvaluationOutcome(
             acceptedFix = acceptedFix,
             undecidedPolygonIds = undecidedPolygonIds,
             pendingArrivalPolygonIds = pendingArrivalPolygonIds,
-            evaluatedPolygonIds = evaluatedPolygonIds
+            evaluatedPolygonIds = evaluatedPolygonIds,
+            dwellUnprovenPolygonIds = dwellUnprovenPolygonIds
         )
     }
 
@@ -367,6 +472,7 @@ internal class PolygonLocationEngine(
         const val MAX_SOURCE_CLOCK_DRIFT_MILLIS = 5 * 60 * 1_000L
         const val TRIGGER_LOCATION_GRACE_NANOS = 30_000_000_000L
         const val MAXIMUM_FIX_AGE_NANOS = 120_000_000_000L
+        const val MAX_OUTSIDE_PROOF_AGE_NANOS = GeofenceConstants.MAX_OUTSIDE_PROOF_AGE_MS * NANOS_PER_MILLISECOND
         const val FUTURE_FIX_TOLERANCE_NANOS = 5_000_000_000L
     }
 

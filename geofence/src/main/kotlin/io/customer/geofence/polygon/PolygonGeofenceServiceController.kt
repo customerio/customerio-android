@@ -18,6 +18,7 @@ import io.customer.geofence.PolygonSamplingSkip
 import io.customer.geofence.distanceTo
 import io.customer.geofence.store.GeofenceRegionStore
 import io.customer.geofence.store.getCachedConfigOrFallback
+import io.customer.geofence.store.registrationsPredateBoot
 import io.customer.geofence.transitionRevision
 import io.customer.sdk.data.store.SecureUserStore
 import kotlinx.coroutines.sync.Mutex
@@ -34,6 +35,7 @@ internal class PolygonGeofenceServiceController(
     private val freshFixSource: PolygonFreshFixSource,
     private val recheckScheduler: PolygonRecheckScheduler,
     private val passiveMonitor: PolygonPassiveMonitor,
+    private val bootSessionProvider: PolygonBootSessionProvider,
     private val logger: GeofenceLogger
 ) {
     private val movementTriggerPolicy = PolygonMovementTriggerPolicy()
@@ -82,7 +84,7 @@ internal class PolygonGeofenceServiceController(
 
     /**
      * Also runs for ENTERs GMS re-reports after an identify: the identify cleared containment, and
-     * a polygon cannot recover it at registration because the sync fix carries no accuracy.
+     * polygon membership belongs to the location evaluator rather than registration's point check.
      */
     suspend fun activate(
         polygonId: String,
@@ -536,6 +538,9 @@ internal class PolygonGeofenceServiceController(
             store.saveRegisteredIds(emptySet())
             store.saveRoutableRegisteredIds(emptySet())
             store.saveRetainedRegisteredRegions(emptyList())
+            // GMS stopped monitoring without reporting what happened meanwhile, so no visit can
+            // span the gap. Queued deliveries are outbound facts and stay as they are.
+            store.invalidateDwellContinuity()
             store.clearActivePolygonIds()
             store.retainCoarseInsidePolygonIds(emptySet())
             val holds = engine.stop()
@@ -709,11 +714,14 @@ internal class PolygonGeofenceServiceController(
         val delivered = evaluateAndRecentre(triggeringLocation, expectedUserStateGeneration)
         // GMS often answers with this callback's own fix; answersHeldFixAt lets the engine settle a
         // hold with it as not independent instead of skipping it as not newer.
-        val needing = delivered.undecidedPolygonIds + delivered.pendingArrivalPolygonIds
+        // A due visit the fix kept INSIDE without showing it is memoised like an undecided fence, so a
+        // parked device asks once per spot per FUTILE_ESCALATION_RETRY_MS rather than every wake.
+        val unresolved = delivered.undecidedPolygonIds + delivered.dwellUnprovenPolygonIds
+        val needing = unresolved + delivered.pendingArrivalPolygonIds
         if (needing.isEmpty()) return
         val fresh = preciseFixForCallback(
             polygonId,
-            delivered.undecidedPolygonIds,
+            unresolved,
             delivered.pendingArrivalPolygonIds,
             triggeringLocation
         ) ?: return
@@ -726,7 +734,8 @@ internal class PolygonGeofenceServiceController(
         if (!after.acceptedFix) return
         recordEscalationOutcomes(
             requested = needing,
-            stillUndecided = after.undecidedPolygonIds,
+            // Still unproven is futile too: clearing its memo would re-ask from the same spot next wake.
+            stillUndecided = after.undecidedPolygonIds + after.dwellUnprovenPolygonIds,
             evaluated = after.evaluatedPolygonIds,
             fix = fresh.fix,
             atElapsedMs = SystemClock.elapsedRealtime(),
@@ -942,7 +951,7 @@ internal class PolygonGeofenceServiceController(
         }
 
     private fun osStateWasWiped(): Boolean {
-        val rebooted = store.getLastRegistrationUptime()?.let { SystemClock.elapsedRealtime() < it } == true
+        val rebooted = store.registrationsPredateBoot(bootSessionProvider.currentSessionId(), SystemClock.elapsedRealtime())
         val currentPackageUpdate = runCatching {
             context.packageManager.getPackageInfo(context.packageName, 0).lastUpdateTime
         }.getOrNull()

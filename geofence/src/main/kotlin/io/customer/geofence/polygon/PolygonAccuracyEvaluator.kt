@@ -42,7 +42,12 @@ internal data class PolygonEvidenceResult(
     /** The fix's own uncertainty reaches the ring, so a second agreeing fix must settle it. */
     val requiresCorroboration: Boolean = false,
     /** Decisive and on the committed side: no transition, but still recorded. */
-    val agreedWithCommittedState: Boolean = false
+    val agreedWithCommittedState: Boolean = false,
+    /**
+     * The fix is clear of the ring by more than its accuracy plus the departure margin, outside it.
+     * Only this proves the device was outside; a committed OUTSIDE may mean no record at all.
+     */
+    val provesOutside: Boolean = false
 )
 
 internal class PolygonAccuracyEvaluator {
@@ -75,13 +80,15 @@ internal class PolygonAccuracyEvaluator {
             return if (committedState == PolygonCommittedState.INSIDE) {
                 PolygonEvidenceResult(
                     PolygonEvidence.EXIT,
-                    signedBoundaryDistanceMeters = signedBoundaryDistanceMeters
+                    signedBoundaryDistanceMeters = signedBoundaryDistanceMeters,
+                    provesOutside = true
                 )
             } else {
                 PolygonEvidenceResult(
                     PolygonEvidence.AMBIGUOUS,
                     signedBoundaryDistanceMeters = signedBoundaryDistanceMeters,
-                    agreedWithCommittedState = true
+                    agreedWithCommittedState = true,
+                    provesOutside = true
                 )
             }
         }

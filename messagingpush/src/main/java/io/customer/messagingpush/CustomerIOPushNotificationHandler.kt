@@ -12,6 +12,7 @@ import androidx.annotation.ColorInt
 import androidx.annotation.DrawableRes
 import androidx.annotation.VisibleForTesting
 import androidx.core.app.NotificationCompat
+import androidx.core.app.NotificationManagerCompat
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
 import io.customer.messagingpush.activity.NotificationClickReceiverActivity
@@ -90,6 +91,9 @@ internal class CustomerIOPushNotificationHandler(
         if (deliveryId != null && deliveryToken != null) {
             // CIO push notification
             pushLogger.logReceivedCioPushMessage()
+            pushLogger.logNotificationPermission(
+                NotificationManagerCompat.from(context).areNotificationsEnabled()
+            )
             // Use processor to track metrics properly and avoid duplication
             pushMessageProcessor.processRemoteMessageDeliveredMetrics(
                 deliveryId = deliveryId,

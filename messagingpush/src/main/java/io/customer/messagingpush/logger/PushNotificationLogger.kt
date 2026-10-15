@@ -169,6 +169,17 @@ internal class PushNotificationLogger(private val logger: Logger) {
         )
     }
 
+    /**
+     * The OS's answer on notifications for the app as one stable line, `[Push] Notification permission: <status>`,
+     * the same sentence as iOS, which support asks for in a customer's debug log and tools search for.
+     */
+    fun logNotificationPermission(granted: Boolean) {
+        logger.debug(
+            tag = TAG,
+            message = "Notification permission: ${if (granted) "granted" else "denied"}"
+        )
+    }
+
     fun logReceivedCioPushMessage() {
         logger.debug(
             tag = TAG,

@@ -11,6 +11,6 @@ internal data class EngineWebConfiguration(
     val properties: Map<String, Any?>? = null,
     val customAttributes: Map<String, Any>? = null,
     val colorScheme: String? = null,
-    // Public (wk_) API key, the renderer sends it as `?key=` alongside siteId when set
+    // Public (pk_) API key, the renderer sends it as `?key=` alongside siteId when set
     val key: String? = null
 )

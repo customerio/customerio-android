@@ -44,7 +44,7 @@ internal class GistSdk(
 
     init {
         if (siteId.isBlank() && publicKey == null) {
-            logger.error("In-app messaging needs a siteId, or the SDK set up with a public (wk_) key")
+            logger.error("In-app messaging needs a siteId, or the SDK set up with a public (pk_) key")
         }
         inAppMessagingManager.dispatch(InAppMessagingAction.Initialize(siteId = siteId, dataCenter = dataCenter, environment = environment, colorScheme = colorScheme, publicKey = publicKey))
     }

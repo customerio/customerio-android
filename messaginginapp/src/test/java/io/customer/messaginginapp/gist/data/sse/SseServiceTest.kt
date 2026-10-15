@@ -161,7 +161,7 @@ class SseServiceTest : IntegrationTest() {
                 val state =
                     InAppMessagingState(
                         siteId = "",
-                        publicKey = "wk_us_key",
+                        publicKey = "pk_us_key",
                         dataCenter = "us",
                         environment = GistEnvironment.PROD,
                         userId = "test-user",
@@ -186,7 +186,7 @@ class SseServiceTest : IntegrationTest() {
                 }
 
                 val request = server.takeRequest()
-                request.requestUrl?.queryParameter("key") shouldBeEqualTo "wk_us_key"
+                request.requestUrl?.queryParameter("key") shouldBeEqualTo "pk_us_key"
                 request.requestUrl?.queryParameter("siteId") shouldBeEqualTo null
                 request.requestUrl?.queryParameter("sessionId") shouldBeEqualTo "test-session"
                 request.requestUrl?.queryParameter("userToken") shouldBeEqualTo "dGVzdC11c2Vy"

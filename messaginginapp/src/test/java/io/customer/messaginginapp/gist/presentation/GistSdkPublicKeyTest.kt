@@ -72,7 +72,7 @@ class GistSdkPublicKeyTest : IntegrationTest() {
 
         SDKComponent.gistProvider
 
-        verify { mockLogger.error("In-app messaging needs a siteId, or the SDK set up with a public (wk_) key", any(), any()) }
+        verify { mockLogger.error("In-app messaging needs a siteId, or the SDK set up with a public (pk_) key", any(), any()) }
     }
 
     @Test
@@ -88,7 +88,7 @@ class GistSdkPublicKeyTest : IntegrationTest() {
     }
 
     private companion object {
-        const val PUBLIC_KEY = "wk_us_0123456789abcdefABCDEF0123456789_a1B2c3"
+        const val PUBLIC_KEY = "pk_us_0123456789abcdefABCDEF0123456789_a1B2c3"
         const val LEGACY_KEY = "4f3b2a1c0d9e8f7a6b5c"
     }
 }

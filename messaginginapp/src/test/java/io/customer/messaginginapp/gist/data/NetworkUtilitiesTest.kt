@@ -34,7 +34,7 @@ class NetworkUtilitiesTest : IntegrationTest() {
         includeAuthorization = includeAuthorization
     ).build().headers
 
-    private val publicKeyState = InAppMessagingState(siteId = "", dataCenter = "us", publicKey = "wk_us_key")
+    private val publicKeyState = InAppMessagingState(siteId = "", dataCenter = "us", publicKey = "pk_us_key")
 
     @Test
     fun addCommonHeaders_givenSiteIdOnly_expectSiteIdHeaderAndNoAuthorization() {
@@ -48,7 +48,7 @@ class NetworkUtilitiesTest : IntegrationTest() {
     fun addCommonHeaders_givenPublicKeyWithoutSiteId_expectBearerAndNoSiteIdHeader() {
         val headers = buildHeaders(state = publicKeyState)
 
-        headers["Authorization"] shouldBeEqualTo "Bearer wk_us_key"
+        headers["Authorization"] shouldBeEqualTo "Bearer pk_us_key"
         headers["X-CIO-Site-Id"] shouldBeEqualTo null
     }
 
@@ -56,7 +56,7 @@ class NetworkUtilitiesTest : IntegrationTest() {
     fun addCommonHeaders_givenPublicKeyAndSiteId_expectBearerAndSiteIdHeader() {
         val headers = buildHeaders(state = publicKeyState.copy(siteId = "site"))
 
-        headers["Authorization"] shouldBeEqualTo "Bearer wk_us_key"
+        headers["Authorization"] shouldBeEqualTo "Bearer pk_us_key"
         headers["X-CIO-Site-Id"] shouldBeEqualTo "site"
     }
 

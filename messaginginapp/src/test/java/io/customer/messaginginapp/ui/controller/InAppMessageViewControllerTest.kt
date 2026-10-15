@@ -481,7 +481,7 @@ class InAppMessageViewControllerTest : JUnitTest() {
 
     @Test
     fun engineSetup_givenPublicKeyAndSiteId_expectEngineConfiguredWithBoth() {
-        val givenPublicKey = "wk_us_" + String.random
+        val givenPublicKey = "pk_us_" + String.random
         val givenSiteId = String.random
         val givenStoreState = InAppMessagingState(
             siteId = givenSiteId,
@@ -504,7 +504,7 @@ class InAppMessageViewControllerTest : JUnitTest() {
 
     @Test
     fun engineSetup_givenPublicKeyWithoutSiteId_expectEngineConfiguredWithKeyOnly() {
-        val givenPublicKey = "wk_us_" + String.random
+        val givenPublicKey = "pk_us_" + String.random
         val givenStoreState = InAppMessagingState(
             siteId = "",
             publicKey = givenPublicKey,

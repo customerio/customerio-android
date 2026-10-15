@@ -13,7 +13,7 @@ import io.customer.sdk.data.model.Region
  */
 class MessagingInAppModuleConfig private constructor(
     /**
-     * Empty when not set, which is fine when the SDK is set up with a public (`wk_`) key.
+     * Empty when not set, which is fine when the SDK is set up with a public (`pk_`) key.
      */
     val siteId: String,
     val region: Region,
@@ -31,7 +31,7 @@ class MessagingInAppModuleConfig private constructor(
         private val region: Region
     ) : CustomerIOModuleConfig.Builder<MessagingInAppModuleConfig> {
         /**
-         * Use when the SDK is set up with a public (`wk_`) key, which in-app uses instead of a site ID.
+         * Use when the SDK is set up with a public (`pk_`) key, which in-app uses instead of a site ID.
          */
         constructor(region: Region) : this(siteId = null, region = region)
 

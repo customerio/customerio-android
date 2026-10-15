@@ -133,6 +133,19 @@ internal class CustomerIOPushNotificationHandlerTest : IntegrationTest() {
     }
 
     @Test
+    fun handleMessage_givenValidCioBundle_shouldLogNotificationPermission() {
+        val bundle = Bundle()
+        bundle.putString("CIO-Delivery-ID", "anyId")
+        bundle.putString("CIO-Delivery-Token", "anyToken")
+        val remoteMessage = RemoteMessage(bundle)
+        val handler = CustomerIOPushNotificationHandler(mockk(relaxed = true), remoteMessage, NotificationChannelCreator())
+
+        handler.handleMessage(contextMock, false)
+
+        assertCalledOnce { mockPushLogger.logNotificationPermission(any()) }
+    }
+
+    @Test
     fun handleMessage_givenHandleNotificationTriggerTrue_shouldLogShowingPushNotification() {
         pushNotificationHandler.handleMessage(contextMock, true)
 

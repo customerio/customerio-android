@@ -2,6 +2,7 @@ package io.customer.messagingpush
 
 import android.os.Handler
 import android.os.Looper
+import androidx.core.app.NotificationManagerCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.LifecycleOwner
@@ -190,6 +191,13 @@ class ModuleMessagingPushFCM @JvmOverloads constructor(
     private fun observeProcessForeground() {
         val newObserver = LifecycleEventObserver { _: LifecycleOwner, event: Lifecycle.Event ->
             if (event == Lifecycle.Event.ON_START) {
+                // The permission can change while the app is away (Settings), so it is logged on every return.
+                runCatching {
+                    pushLogger.logNotificationPermission(
+                        NotificationManagerCompat.from(SDKComponent.android().applicationContext)
+                            .areNotificationsEnabled()
+                    )
+                }
                 handoffPendingPushDeliveryToAnalyticsPipeline()
             }
         }

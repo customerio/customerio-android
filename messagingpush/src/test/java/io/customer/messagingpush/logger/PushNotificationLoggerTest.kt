@@ -187,6 +187,30 @@ class PushNotificationLoggerTest : JUnitTest() {
     }
 
     @Test
+    fun test_logNotificationPermission_givenGranted_forwardsCorrectCallToLogger() {
+        pushLogger.logNotificationPermission(true)
+
+        assertCalledOnce {
+            mockLogger.debug(
+                tag = "Push",
+                message = "Notification permission: granted"
+            )
+        }
+    }
+
+    @Test
+    fun test_logNotificationPermission_givenDenied_forwardsCorrectCallToLogger() {
+        pushLogger.logNotificationPermission(false)
+
+        assertCalledOnce {
+            mockLogger.debug(
+                tag = "Push",
+                message = "Notification permission: denied"
+            )
+        }
+    }
+
+    @Test
     fun test_logReceivedNonCioPushMessage_forwardsCorrectCallToLogger() {
         pushLogger.logReceivedNonCioPushMessage()
 

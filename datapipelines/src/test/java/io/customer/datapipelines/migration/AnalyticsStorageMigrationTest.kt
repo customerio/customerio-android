@@ -229,7 +229,7 @@ class AnalyticsStorageMigrationTest : RobolectricTest() {
     companion object {
         private const val LEGACY_KEY = "4f3b2a1c0d9e8f7a6b5c"
         private const val OTHER_LEGACY_KEY = "9a8b7c6d5e4f3a2b1c0d"
-        private const val PUBLIC_KEY = "wk_us_0123456789abcdefABCDEF0123456789_a1B2c3"
+        private const val PUBLIC_KEY = "pk_us_0123456789abcdefABCDEF0123456789_a1B2c3"
         private const val ANONYMOUS_ID = "anonymous-id"
         private const val USER_ID = "user-id"
     }

@@ -9,7 +9,7 @@ import java.io.File
 /**
  * Segment keeps analytics storage per write key: the `analytics-android-<key>` prefs (anonymous ID,
  * user ID, traits, event file index) and the `<key>-<index>` event files in `segment-disk-queue`.
- * When an app switches to a public (`wk_`) key, this moves that storage over from the previous key
+ * When an app switches to a public (`pk_`) key, this moves that storage over from the previous key
  * so the anonymous ID, user ID and queued events carry over instead of being reset. Finished batches
  * are rewritten to the new key, since the old key may be disabled before they upload.
  *

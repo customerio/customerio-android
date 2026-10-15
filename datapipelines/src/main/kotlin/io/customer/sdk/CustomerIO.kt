@@ -34,6 +34,7 @@ import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.module.CustomerIOModule
 import io.customer.sdk.core.pipeline.DataPipeline
 import io.customer.sdk.core.pipeline.identifyHookRegistry
+import io.customer.sdk.core.util.CioApiKey
 import io.customer.sdk.core.util.CioLogLevel
 import io.customer.sdk.core.util.Iso8601TimestampFormatter
 import io.customer.sdk.core.util.Logger
@@ -530,6 +531,12 @@ class CustomerIO private constructor(
 
             // Update the log level for the SDK
             SDKComponent.logger.logLevel = config.logLevel
+
+            // Secret keys must not ship in apps, so log and skip init instead of crashing the app
+            if (CioApiKey.isSecretKey(config.cdpApiKey)) {
+                logger.coreSdkSecretKeyRejected()
+                return
+            }
 
             logger.coreSdkInitStart()
 

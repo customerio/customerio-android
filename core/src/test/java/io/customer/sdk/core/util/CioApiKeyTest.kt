@@ -30,13 +30,13 @@ class CioApiKeyTest : JUnit5Test() {
 
     @Test
     fun isPublicKey_givenUnknownRegionPrefix_expectFalse() {
-        CioApiKey.isPublicKey("wk_ap_$KEY_BODY").shouldBeFalse()
+        CioApiKey.isPublicKey("pk_ap_$KEY_BODY").shouldBeFalse()
     }
 
     @Test
-    fun isSecretKey_givenAnyAkPrefix_expectTrue() {
-        CioApiKey.isSecretKey("ak_ap_$KEY_BODY").shouldBeTrue()
-        CioApiKey.isSecretKey("ak_$KEY_BODY").shouldBeTrue()
+    fun isSecretKey_givenAnySkPrefix_expectTrue() {
+        CioApiKey.isSecretKey("sk_ap_$KEY_BODY").shouldBeTrue()
+        CioApiKey.isSecretKey("sk_$KEY_BODY").shouldBeTrue()
     }
 
     @Test
@@ -44,6 +44,7 @@ class CioApiKeyTest : JUnit5Test() {
         CioApiKey.region(PUBLIC_EU_KEY) shouldBe Region.EU
         CioApiKey.region(PUBLIC_US_KEY) shouldBe Region.US
         CioApiKey.region(SECRET_US_KEY) shouldBe Region.US
+        CioApiKey.region("xk_eu_$KEY_BODY") shouldBe Region.EU
     }
 
     @Test
@@ -53,9 +54,9 @@ class CioApiKeyTest : JUnit5Test() {
 
     companion object {
         private const val KEY_BODY = "0123456789abcdefABCDEF0123456789_a1B2c3"
-        const val PUBLIC_US_KEY = "wk_us_$KEY_BODY"
-        const val PUBLIC_EU_KEY = "wk_eu_$KEY_BODY"
-        const val SECRET_US_KEY = "ak_us_$KEY_BODY"
+        const val PUBLIC_US_KEY = "pk_us_$KEY_BODY"
+        const val PUBLIC_EU_KEY = "pk_eu_$KEY_BODY"
+        const val SECRET_US_KEY = "sk_us_$KEY_BODY"
         const val LEGACY_KEY = "4f3b2a1c0d9e8f7a6b5c"
     }
 }

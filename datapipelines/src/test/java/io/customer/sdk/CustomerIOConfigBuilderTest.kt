@@ -378,7 +378,7 @@ class CustomerIOConfigBuilderTest : RobolectricTest() {
 
     @Test
     fun initialize_givenSecretKey_expectSdkNotInitialized() {
-        val config = createCustomerIOConfigBuilder("ak_us_$KEY_BODY").build()
+        val config = createCustomerIOConfigBuilder("sk_us_$KEY_BODY").build()
 
         CustomerIO.initialize(config)
 
@@ -387,7 +387,7 @@ class CustomerIOConfigBuilderTest : RobolectricTest() {
 
     @Test
     fun initialize_givenPublicEUKeyWithoutRegion_expectEURegionBasedHosts() {
-        val config = createCustomerIOConfigBuilder("wk_eu_$KEY_BODY").build()
+        val config = createCustomerIOConfigBuilder("pk_eu_$KEY_BODY").build()
 
         CustomerIO.initialize(config)
 
@@ -398,7 +398,7 @@ class CustomerIOConfigBuilderTest : RobolectricTest() {
 
     @Test
     fun initialize_givenPublicEUKeyWithRegionUS_expectRegionOverridesKey() {
-        val config = createCustomerIOConfigBuilder("wk_eu_$KEY_BODY")
+        val config = createCustomerIOConfigBuilder("pk_eu_$KEY_BODY")
             .region(Region.US)
             .build()
 
@@ -411,7 +411,7 @@ class CustomerIOConfigBuilderTest : RobolectricTest() {
 
     @Test
     fun initialize_givenPublicUSKey_expectKeyIsUsedAsIs() {
-        val givenKey = "wk_us_$KEY_BODY"
+        val givenKey = "pk_us_$KEY_BODY"
         val config = createCustomerIOConfigBuilder(givenKey).build()
 
         CustomerIO.initialize(config)

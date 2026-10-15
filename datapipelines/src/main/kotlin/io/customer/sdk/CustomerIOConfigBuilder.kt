@@ -107,7 +107,7 @@ class CustomerIOConfigBuilder(
 
     /**
      * Specifies the workspace region to ensure CDP requests are routed to the correct regional endpoint.
-     * Default value is the region in the key prefix (e.g. `wk_eu_` is [Region.EU]), or [Region.US] for keys without one.
+     * Default value is the region in the key prefix (e.g. `pk_eu_` is [Region.EU]), or [Region.US] for keys without one.
      * Default values for apiHost and cdnHost are determined by the region.
      * However, if apiHost or cdnHost are manually specified, those values override region-based defaults.
      */

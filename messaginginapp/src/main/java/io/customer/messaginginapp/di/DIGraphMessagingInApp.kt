@@ -29,6 +29,7 @@ import io.customer.messaginginapp.store.InAppPreferenceStore
 import io.customer.messaginginapp.store.InAppPreferenceStoreImpl
 import io.customer.sdk.CustomerIOInstance
 import io.customer.sdk.core.di.SDKComponent
+import io.customer.sdk.core.util.CioApiKey
 import java.util.concurrent.ConcurrentHashMap
 
 internal val SDKComponent.gistQueue: GistQueue
@@ -42,7 +43,9 @@ internal val SDKComponent.gistProvider: GistProvider
         GistSdk(
             siteId = inAppModuleConfig.siteId,
             dataCenter = inAppModuleConfig.region.code,
-            colorScheme = inAppModuleConfig.colorScheme
+            colorScheme = inAppModuleConfig.colorScheme,
+            // Settings hold the CDP key the SDK was initialized with, which is saved before modules initialize
+            publicKey = android().globalPreferenceStore.getSettings()?.writeKey?.takeIf { CioApiKey.isPublicKey(it) }
         )
     }
 

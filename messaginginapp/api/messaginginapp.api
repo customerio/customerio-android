@@ -9,6 +9,7 @@ public final class io/customer/messaginginapp/MessagingInAppModuleConfig : io/cu
 }
 
 public final class io/customer/messaginginapp/MessagingInAppModuleConfig$Builder : io/customer/sdk/core/module/CustomerIOModuleConfig$Builder {
+	public fun <init> (Lio/customer/sdk/data/model/Region;)V
 	public fun <init> (Ljava/lang/String;Lio/customer/sdk/data/model/Region;)V
 	public fun build ()Lio/customer/messaginginapp/MessagingInAppModuleConfig;
 	public synthetic fun build ()Lio/customer/sdk/core/module/CustomerIOModuleConfig;

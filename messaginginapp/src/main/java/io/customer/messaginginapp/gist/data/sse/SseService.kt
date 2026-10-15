@@ -160,7 +160,7 @@ internal class SseService(
                 val originalRequest = chain.request()
                 val networkRequest = originalRequest.newBuilder()
                 val currentState = inAppMessagingManager.getCurrentState()
-                NetworkUtilities.addCommonHeaders(networkRequest, currentState, includeUserToken = false) // SSE uses userToken in URL, not header
+                NetworkUtilities.addCommonHeaders(networkRequest, currentState, includeUserToken = false, includeAuthorization = false) // SSE uses userToken and key in URL, not header
                 networkRequest.addHeader(NetworkUtilities.SSE_ACCEPT_HEADER, NetworkUtilities.SSE_ACCEPT_VALUE)
                 networkRequest.addHeader(NetworkUtilities.SSE_CACHE_CONTROL_HEADER, NetworkUtilities.SSE_CACHE_CONTROL_VALUE)
                 val finalRequest = networkRequest.build()
@@ -174,15 +174,24 @@ internal class SseService(
         siteId: String
     ): Request {
         val encodedUserToken = Base64.encodeToString(userToken.toByteArray(), Base64.NO_WRAP)
-        val environment = inAppMessagingManager.getCurrentState().environment
+        val currentState = inAppMessagingManager.getCurrentState()
+        val environment = currentState.environment
 
-        val url =
+        val urlBuilder =
             environment
                 .getSseApiUrl()
                 .toHttpUrl()
                 .newBuilder()
                 .addQueryParameter(NetworkUtilities.SSE_SESSION_ID_PARAM, sessionId)
-                .addQueryParameter(NetworkUtilities.SSE_SITE_ID_PARAM, siteId)
+        // siteId is optional when the SDK is set up with a public key
+        if (siteId.isNotBlank()) {
+            urlBuilder.addQueryParameter(NetworkUtilities.SSE_SITE_ID_PARAM, siteId)
+        }
+        currentState.publicKey?.let { key ->
+            urlBuilder.addQueryParameter(NetworkUtilities.SSE_KEY_PARAM, key)
+        }
+        val url =
+            urlBuilder
                 .addQueryParameter(NetworkUtilities.SSE_USER_TOKEN_PARAM, encodedUserToken)
                 .build()
 

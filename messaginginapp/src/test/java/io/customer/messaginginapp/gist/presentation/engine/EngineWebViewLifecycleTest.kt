@@ -14,8 +14,10 @@ import io.customer.messaginginapp.gist.data.model.engine.EngineWebConfiguration
 import io.customer.messaginginapp.state.InAppMessagingManager
 import io.customer.messaginginapp.state.InAppMessagingState
 import io.customer.messaginginapp.testutils.core.IntegrationTest
+import io.customer.messaginginapp.type.InAppMessageErrorReason
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.verify
 import org.amshove.kluent.shouldBeEqualTo
 import org.amshove.kluent.shouldBeNull
 import org.amshove.kluent.shouldNotBeNull
@@ -101,20 +103,23 @@ class EngineWebViewLifecycleTest : IntegrationTest() {
     fun onAttachedToWindow_givenSetupRanWhileOwnerAlreadyDestroyed_expectInterfaceAttachedUnderNewOwner() {
         val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
         // The host Fragment's view has already been torn down when the message arrives:
-        // setup() finds a DESTROYED owner, which delivers no events, so nothing attaches.
+        // setup() finds a DESTROYED owner, which delivers no events and so can never resume us.
         val deadOwner = FakeLifecycleOwner()
         deadOwner.registry.currentState = Lifecycle.State.RESUMED
         deadOwner.registry.currentState = Lifecycle.State.DESTROYED
-        val detachedHost = FrameLayout(activity).apply { setViewTreeLifecycleOwner(deadOwner) }
+        val deadHost = FrameLayout(activity).apply { setViewTreeLifecycleOwner(deadOwner) }
         val engineWebView = EngineWebView(activity)
-        detachedHost.addView(engineWebView)
+        deadHost.addView(engineWebView)
+        activity.setContentView(deadHost)
 
         engineWebView.setup(givenConfiguration())
         val webView = shadowOf(engineWebView.getChildAt(0) as WebView)
+
+        // Leaving the window pauses the engine, detaching the interface the setup() attached.
+        deadHost.removeView(engineWebView)
         webView.getJavascriptInterface(EngineWebViewInterface.JAVASCRIPT_INTERFACE_NAME).shouldBeNull()
 
         // The Fragment comes back and the same engine is shown under its new owner.
-        detachedHost.removeView(engineWebView)
         val liveOwner = FakeLifecycleOwner()
         liveOwner.registry.currentState = Lifecycle.State.RESUMED
         val liveHost = FrameLayout(activity).apply { setViewTreeLifecycleOwner(liveOwner) }
@@ -226,6 +231,40 @@ class EngineWebViewLifecycleTest : IntegrationTest() {
         host.removeView(engineWebView)
     }
 
+    @Test
+    fun onDetachedFromWindow_givenLoadingEngineThenAppBackgrounded_expectNoTimeoutUntilShownAgain() {
+        val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
+        val owner = FakeLifecycleOwner()
+        val host = FrameLayout(activity).apply { setViewTreeLifecycleOwner(owner) }
+        val engineWebView = EngineWebView(activity)
+        val listener: EngineWebViewListener = mockk(relaxed = true)
+        engineWebView.listener = listener
+        host.addView(engineWebView)
+        activity.setContentView(host)
+        owner.registry.currentState = Lifecycle.State.RESUMED
+        // The renderer never bootstraps under Robolectric, so the engine stays mid-load.
+        engineWebView.setup(givenConfiguration())
+
+        // The inline view leaves the window while its owner is still resumed, then the app goes
+        // to the background. The engine is no longer subscribed, so it never sees this ON_PAUSE.
+        host.removeView(engineWebView)
+        owner.registry.currentState = Lifecycle.State.CREATED
+
+        // Past the bootstrap timeout: the load must stay paused rather than fail in the background.
+        Thread.sleep(BOOTSTRAP_TIMEOUT_MS + 1_000)
+        verify(exactly = 0) { listener.error(any()) }
+
+        // Back in the foreground and shown again, the load resumes, and with it the timeout.
+        owner.registry.currentState = Lifecycle.State.RESUMED
+        host.addView(engineWebView)
+        verify(timeout = BOOTSTRAP_TIMEOUT_MS + 2_000) {
+            listener.error(match { it.reason == InAppMessageErrorReason.TIMEOUT })
+        }
+
+        host.removeView(engineWebView)
+        engineWebView.releaseResources()
+    }
+
     private fun givenConfiguration() = EngineWebConfiguration(
         siteId = String.random,
         dataCenter = String.random,
@@ -233,6 +272,11 @@ class EngineWebViewLifecycleTest : IntegrationTest() {
         instanceId = String.random,
         endpoint = "https://${String.random}"
     )
+
+    private companion object {
+        // EngineWebView.TIMEOUT_DURATION
+        const val BOOTSTRAP_TIMEOUT_MS = 5_000L
+    }
 
     private class FakeLifecycleOwner : LifecycleOwner {
         val registry = LifecycleRegistry.createUnsafe(this)

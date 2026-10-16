@@ -113,23 +113,34 @@ internal class EngineWebView @JvmOverloads constructor(
      * included — until the message is re-embedded. Subscribing to the new owner replays its current
      * state, so a resumed owner re-attaches the interface immediately.
      *
-     * Temporary detaches under a live owner (a RecyclerView item scrolled off-screen, say) drop the
-     * subscription in [onDetachedFromWindow] and get it back here: the replayed `ON_RESUME` calls
-     * [onLifecycleResumed], whose `addJavascriptInterface` is idempotent and cheap, and while
-     * off-screen the engine receives no renderer events for the missed `ON_PAUSE` to matter. This
-     * mirrors what [io.customer.messaginginapp.ui.core.BaseInlineInAppMessageView] already does
-     * with its own observer.
+     * Temporary detaches under a live owner (a RecyclerView item scrolled off-screen, say) are
+     * paused in [onDetachedFromWindow] and resumed here: the replayed `ON_RESUME` calls
+     * [onLifecycleResumed], which re-attaches the interface and restarts a load timeout that the
+     * detach paused. This mirrors what [io.customer.messaginginapp.ui.core.BaseInlineInAppMessageView]
+     * already does with its own observer.
      */
     override fun onAttachedToWindow() {
         super.onAttachedToWindow()
-        if (observedLifecycle != null) {
-            observeCurrentLifecycle()
+        if (observedLifecycle != null && !observeCurrentLifecycle()) {
+            // No owner to replay a resume, so resume directly, as setup() runs without one.
+            onLifecycleResumed()
         }
     }
 
+    /**
+     * Pauses the engine while it is off the window.
+     *
+     * Detached, it receives no lifecycle events, so an `ON_PAUSE` delivered while it is away — the
+     * app going to the background — would otherwise be missed, and a message still loading would
+     * hit its bootstrap timeout and be dismissed in the background. Pausing here keeps the state
+     * the owner's `ON_PAUSE` would have left; re-attaching resumes it.
+     */
     override fun onDetachedFromWindow() {
         // Keep observedLifecycle: it records that there is a message to re-subscribe for.
-        observedLifecycle?.removeObserver(this)
+        observedLifecycle?.let {
+            it.removeObserver(this)
+            onLifecyclePaused()
+        }
         super.onDetachedFromWindow()
     }
 

@@ -1,0 +1,3 @@
+rules/actions.local.yaml
+__pycache__/
+!tool/bin/

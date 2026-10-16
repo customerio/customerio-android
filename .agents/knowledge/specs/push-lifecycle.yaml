@@ -1,0 +1,427 @@
+# owner: agent-maintained, human-reviewed. Update in the same change as the code it describes.
+spec: push-lifecycle
+title: Push notification lifecycle (Android, FCM)
+status: draft
+summary: >
+  Receives FCM messages, recognizes Customer.io pushes by CIO-Delivery-ID and CIO-Delivery-Token,
+  tracks a delivered metric once per delivery id (persisted pending entry, WorkManager job, foreground
+  handoff to the analytics pipeline), and renders the notification (standard or live). On click, a
+  transparent activity tracks the opened metric and resolves the deep link (customer callback, host
+  app link, external app, launcher) using the configured PushClickBehavior. FCM tokens reach the SDK
+  through the EventBus. Every receive and click entry point may run before CustomerIO.initialize (app
+  killed, or a wrapper that initializes from JS/Dart), so only Android components are set up and the
+  push module config falls back to defaults. Outcomes that matter are no duplicate or lost delivered
+  metrics, one notification per CIO push, and a click that always lands somewhere sensible.
+covers:
+  - messagingpush/src/main/java/io/customer/messagingpush/**
+  - messagingpush/src/main/AndroidManifest.xml
+  - core/src/main/kotlin/io/customer/sdk/core/di/SDKComponentExt.kt
+  - core/src/main/kotlin/io/customer/sdk/core/di/SDKComponent.kt
+  - core/src/main/kotlin/io/customer/sdk/communication/EventBus.kt
+  - core/src/main/kotlin/io/customer/sdk/core/network/CustomerIOHttpClient.kt
+  - core/src/main/kotlin/io/customer/sdk/data/store/PendingDeliveryClaim.kt
+  - core/src/main/kotlin/io/customer/sdk/core/util/CustomerIOWorkManagerProvider.kt
+config:
+  - key: autoTrackPushEvents
+    default: true
+    effect: When false, delivered metrics (FCM and GCM paths) and opened metrics (click activity and launcher-intent parsing) are not tracked. Ignored on any path that runs before the SDK is initialized, where the default applies.
+    code:
+      - messagingpush/src/main/java/io/customer/messagingpush/MessagingPushModuleConfig.kt#setAutoTrackPushEvents
+      - messagingpush/src/main/java/io/customer/messagingpush/processor/PushMessageProcessorImpl.kt#trackDeliveredMetrics
+      - messagingpush/src/main/java/io/customer/messagingpush/processor/PushMessageProcessorImpl.kt#trackNotificationClickMetrics
+      - messagingpush/src/main/java/io/customer/messagingpush/ModuleMessagingPushFCM.kt#subscribeToLifecycleEvents
+    tests:
+      - messagingpush/src/test/java/io/customer/messagingpush/processor/PushMessageProcessorTest.kt#processRemoteMessageDeliveredMetrics_givenAutoTrackPushEventsDisabled_expectDoNoTrackPush
+      - messagingpush/src/test/java/io/customer/messagingpush/processor/PushMessageProcessorTest.kt#processGCMMessageIntent_givenAutoTrackPushEventsDisabled_expectDoNoTrackPush
+      - messagingpush/src/test/java/io/customer/messagingpush/processor/PushMessageProcessorTest.kt#processNotificationClick_givenAutoTrackingDisabled_expectDoNotTrackOpened
+  - key: notificationCallback
+    default: null
+    effect: CustomerIOPushNotificationCallback. onNotificationComposed lets the app modify the NotificationCompat.Builder before the content intent is set; onNotificationClicked returning non-null takes over click navigation. Not invoked when config is the default.
+    code:
+      - messagingpush/src/main/java/io/customer/messagingpush/MessagingPushModuleConfig.kt#setNotificationCallback
+      - messagingpush/src/main/java/io/customer/messagingpush/data/communication/CustomerIOPushNotificationCallback.kt#CustomerIOPushNotificationCallback
+    tests:
+      - messagingpush/src/test/java/io/customer/messagingpush/processor/PushMessageProcessorTest.kt#processNotificationClick_givenCallbackWithDeepLink_expectOpenCallbackIntent
+  - key: pushClickBehavior
+    default: ACTIVITY_PREVENT_RESTART
+    effect: How the resolved host-app or launcher intent is started on click (RESET_TASK_STACK, ACTIVITY_PREVENT_RESTART, ACTIVITY_NO_FLAGS). Not applied to external-app links. RN and Flutter set it from JS/Dart.
+    code:
+      - messagingpush/src/main/java/io/customer/messagingpush/MessagingPushModuleConfig.kt#setPushClickBehavior
+      - messagingpush/src/main/java/io/customer/messagingpush/config/PushClickBehavior.kt#PushClickBehavior
+      - messagingpush/src/main/java/io/customer/messagingpush/processor/PushMessageProcessorImpl.kt#startActivityForIntent
+    tests:
+      - messagingpush/src/test/java/io/customer/messagingpush/processor/PushMessageProcessorTest.kt#processNotificationClick_givenPushBehavior_expectResetTaskStack
+      - messagingpush/src/test/java/io/customer/messagingpush/processor/PushMessageProcessorTest.kt#processNotificationClick_givenPushBehavior_expectPreventRestart
+      - messagingpush/src/test/java/io/customer/messagingpush/processor/PushMessageProcessorTest.kt#processNotificationClick_givenPushBehavior_expectNoFlags
+  - key: liveNotificationTypes
+    default: "[] (empty set)"
+    effect: Built-in (enableLiveNotificationTypes) and custom (enableCustomLiveNotificationTypes) activity types. Live pushes whose notification_type is not in the set are dropped, and the live registrar only starts when the set is non-empty.
+    code:
+      - messagingpush/src/main/java/io/customer/messagingpush/MessagingPushModuleConfig.kt#enableLiveNotificationTypes
+      - messagingpush/src/main/java/io/customer/messagingpush/MessagingPushModuleConfig.kt#enableCustomLiveNotificationTypes
+      - messagingpush/src/main/java/io/customer/messagingpush/LiveNotificationHandler.kt#liveNotificationTypes
+      - messagingpush/src/main/java/io/customer/messagingpush/ModuleMessagingPushFCM.kt#initialize
+    tests:
+      - messagingpush/src/test/java/io/customer/messagingpush/MessagingPushModuleConfigTest.kt#enableTypes_builtInAndCustom_areAdditive
+      - messagingpush/src/test/java/io/customer/messagingpush/LiveNotificationHandlerTest.kt#handle_givenUnknownActivityType_dropsAndDoesNotNotify
+  - key: liveNotificationBranding
+    default: null
+    effect: Company name, accent color, logo and small icon applied to templated live notifications. Null falls back to FCM metadata values.
+    code:
+      - messagingpush/src/main/java/io/customer/messagingpush/MessagingPushModuleConfig.kt#setLiveNotificationBranding
+      - messagingpush/src/main/java/io/customer/messagingpush/LiveNotificationHandler.kt#liveNotificationBranding
+  - key: liveNotificationCallback
+    default: null
+    effect: CustomerIOLiveNotificationsCallback that renders live notifications itself. Required for custom types. Null means built-in templates.
+    code:
+      - messagingpush/src/main/java/io/customer/messagingpush/MessagingPushModuleConfig.kt#setLiveNotificationCallback
+      - messagingpush/src/main/java/io/customer/messagingpush/LiveNotificationHandler.kt#liveNotificationCallback
+  # Manifest meta-data below is not MessagingPushModuleConfig, but it is the only push config that is
+  # readable before the SDK is initialized.
+  - key: meta-data io.customer.notification_channel_id / _name / _importance
+    default: "package name / '<app label> Notifications' / IMPORTANCE_DEFAULT"
+    effect: Standard notification channel id, name and importance. Invalid importance falls back to the default.
+    code:
+      - messagingpush/src/main/java/io/customer/messagingpush/util/NotificationChannelCreator.kt#METADATA_NOTIFICATION_CHANNEL_NAME
+      - messagingpush/src/main/java/io/customer/messagingpush/util/NotificationChannelCreator.kt#createNotificationChannelIfNeededAndReturnChannelId
+    tests:
+      - messagingpush/src/test/java/io/customer/messagingpush/util/NotificationChannelCreatorTest.kt#createNotificationChannelIfNeededAndReturnChannelId_givenMetadataWithChannelName_shouldCreateChannelWithCustomName
+      - messagingpush/src/test/java/io/customer/messagingpush/util/NotificationChannelCreatorTest.kt#createNotificationChannelIfNeededAndReturnChannelId_givenMetadataWithInvalidImportance_shouldCreateChannelWithDefaultImportance
+  - key: meta-data io.customer.live_notification_channel_id / _name / _importance
+    default: "'<package>_cio_live' / '<app label> Live Updates' / IMPORTANCE_HIGH"
+    effect: Live notification channel id, name and importance.
+    code:
+      - messagingpush/src/main/java/io/customer/messagingpush/util/NotificationChannelCreator.kt#createLiveNotificationChannelIfNeededAndReturnChannelId
+  - key: meta-data com.google.firebase.messaging.default_notification_icon / default_notification_color
+    default: app icon / no tint
+    effect: Small icon and tint used when the FCM notification block does not set them.
+    code:
+      - messagingpush/src/main/java/io/customer/messagingpush/CustomerIOPushNotificationHandler.kt#FCM_METADATA_DEFAULT_NOTIFICATION_ICON
+      - messagingpush/src/main/java/io/customer/messagingpush/CustomerIOPushNotificationHandler.kt#FCM_METADATA_DEFAULT_NOTIFICATION_COLOR
+flows:
+  - id: receive
+    trigger: FCM delivers a message to CustomerIOFirebaseMessagingService (or a host FirebaseMessagingService forwards it), in any app state including killed
+    steps:
+      - id: entry
+        does: The manifest-registered service, or the static companion onMessageReceived called from a host service, forwards to handleMessageReceived with handleNotificationTrigger (default true).
+        code:
+          - messagingpush/src/main/java/io/customer/messagingpush/CustomerIOFirebaseMessagingService.kt#onMessageReceived
+          - messagingpush/src/main/java/io/customer/messagingpush/CustomerIOFirebaseMessagingService.kt#handleMessageReceived
+          - messagingpush/src/main/AndroidManifest.xml#CustomerIOFirebaseMessagingService
+      - id: setup-android
+        does: Registers AndroidSDKComponent from the context once per process, without running CustomerIO.initialize or any module initialize.
+        code:
+          - core/src/main/kotlin/io/customer/sdk/core/di/SDKComponentExt.kt#setupAndroidComponent
+          - messagingpush/src/main/java/io/customer/messagingpush/CustomerIOFirebaseMessagingService.kt#handleMessageReceived
+      - id: config-fallback
+        does: Push module config is read from SDKComponent.modules and falls back to MessagingPushModuleConfig.default() when the module is not registered yet.
+        code:
+          - messagingpush/src/main/java/io/customer/messagingpush/di/DiGraphMessagingPush.kt#pushModuleConfig
+          - messagingpush/src/main/java/io/customer/messagingpush/MessagingPushModuleConfig.kt#default
+      - id: empty-data
+        does: Messages with an empty data payload are ignored and handleMessage returns false.
+        when: data payload is empty
+        code: [messagingpush/src/main/java/io/customer/messagingpush/CustomerIOPushNotificationHandler.kt#handleMessage]
+        tests: [messagingpush/src/test/java/io/customer/messagingpush/CustomerIOPushNotificationHandlerTest.kt#handleMessage_givenEmptyBundle_shouldLogPushMessageEmpty]
+      - id: is-cio
+        does: A message is a Customer.io push only if data has both CIO-Delivery-ID and CIO-Delivery-Token; otherwise handleMessage returns false and the host app must handle it.
+        when: CIO-Delivery-ID or CIO-Delivery-Token missing
+        code:
+          - messagingpush/src/main/java/io/customer/messagingpush/CustomerIOPushNotificationHandler.kt#handleMessage
+          - messagingpush/src/main/java/io/customer/messagingpush/util/PushTrackingUtil.kt#DELIVERY_ID_KEY
+          - messagingpush/src/main/java/io/customer/messagingpush/util/PushTrackingUtil.kt#DELIVERY_TOKEN_KEY
+        tests: [messagingpush/src/test/java/io/customer/messagingpush/CustomerIOPushNotificationHandlerTest.kt#handleMessage_givenNonCioBundle_shouldLogPushMessageEmpty]
+      - id: dedupe
+        does: Delivery ids are checked against an in-memory queue of the last 10 ids shared by the FCM and GCM paths; blank or already-seen ids skip delivered tracking.
+        code:
+          - messagingpush/src/main/java/io/customer/messagingpush/processor/PushMessageProcessorImpl.kt#getOrUpdateMessageAlreadyProcessed
+          - messagingpush/src/main/java/io/customer/messagingpush/processor/PushMessageProcessor.kt#RECENT_MESSAGES_MAX_SIZE
+        tests:
+          - messagingpush/src/test/java/io/customer/messagingpush/processor/PushMessageProcessorTest.kt#processMessage_givenMessageReceivedMultipleTimes_expectDoNoProcessPushMoreThanOnce
+          - messagingpush/src/test/java/io/customer/messagingpush/processor/PushMessageProcessorTest.kt#processMessage_givenQueueLimitReached_expectOldestToBeRemoved
+          - messagingpush/src/test/java/io/customer/messagingpush/processor/PushMessageProcessorTest.kt#processMessage_givenDeliveryDataInvalid_expectDoNoProcessPush
+      - id: delivered-gate
+        does: Delivered tracking runs only when autoTrackPushEvents is true in the config the processor was built with.
+        when: autoTrackPushEvents is false
+        code: [messagingpush/src/main/java/io/customer/messagingpush/processor/PushMessageProcessorImpl.kt#trackDeliveredMetrics]
+        tests: [messagingpush/src/test/java/io/customer/messagingpush/processor/PushMessageProcessorTest.kt#processRemoteMessageDeliveredMetrics_givenAutoTrackPushEventsDisabled_expectDoNoTrackPush]
+      - id: delivered-pending
+        does: Appends a PendingPushDeliveryMetric keyed by deliveryId to the on-disk pending store before scheduling any send.
+        code:
+          - messagingpush/src/main/java/io/customer/messagingpush/processor/PushMessageProcessorImpl.kt#trackDeliveredMetrics
+          - messagingpush/src/main/java/io/customer/messagingpush/store/PendingPushDeliveryMetric.kt#FILE_NAME
+          - messagingpush/src/main/java/io/customer/messagingpush/di/DiGraphMessagingPush.kt#pendingPushDeliveryStore
+        tests: [messagingpush/src/test/java/io/customer/messagingpush/processor/PushMessageProcessorTest.kt#processRemoteMessageDeliveredMetrics_givenAutoTrackPushEventsEnabled_expectTrackPush]
+      - id: delivered-schedule
+        does: Enqueues unique WorkManager work named by deliveryId (KEEP, network CONNECTED); if WorkManager cannot be obtained, sends once via fire-and-forget direct HTTP instead.
+        code:
+          - messagingpush/src/main/java/io/customer/messagingpush/processor/PushDeliveryMetricsBackgroundScheduler.kt#scheduleDeliveredPushMetricsReceipt
+          - messagingpush/src/main/java/io/customer/messagingpush/PushDeliveryTracker.kt#AsyncPushDeliveryTracker
+          - core/src/main/kotlin/io/customer/sdk/core/util/CustomerIOWorkManagerProvider.kt#getWorkManager
+        tests:
+          - messagingpush/src/test/java/io/customer/messagingpush/processor/PushDeliveryMetricsBackgroundSchedulerTest.kt#scheduleDeliveredPushMetricsReceipt_givenValidInputs_expectWorkRequestEnqueued
+          - messagingpush/src/test/java/io/customer/messagingpush/processor/PushDeliveryMetricsBackgroundSchedulerTest.kt#scheduleDeliveredPushMetricsReceipt_givenWorkManagerProviderReturnsNull_expectFallbackToAsyncTracker
+          - messagingpush/src/test/java/io/customer/messagingpush/PushDeliveryTrackingTest.kt#asyncTrackMetric_givenHttpFailure_expectPendingEntryPreserved
+      - id: delivered-worker
+        does: The worker claims the pending entry, POSTs a delivered metric to /track using writeKey and apiHost saved by a previous initialize, retries on IOException, fails on other errors, and restores the entry on any failure.
+        code:
+          - messagingpush/src/main/java/io/customer/messagingpush/processor/PushDeliveryMetricsBackgroundScheduler.kt#PushDeliveryMetricsWorker
+          - core/src/main/kotlin/io/customer/sdk/data/store/PendingDeliveryClaim.kt#claimSendRestore
+          - messagingpush/src/main/java/io/customer/messagingpush/PushDeliveryTracker.kt#PushDeliveryTrackerImpl
+          - core/src/main/kotlin/io/customer/sdk/core/network/CustomerIOHttpClient.kt#CustomerIOHttpClientImpl
+        tests:
+          - messagingpush/src/test/java/io/customer/messagingpush/processor/PushDeliveryMetricsWorkerTest.kt#doWork_givenValidInputData_expectSuccessfulTracking
+          - messagingpush/src/test/java/io/customer/messagingpush/processor/PushDeliveryMetricsWorkerTest.kt#doWork_givenTrackingFailsWithIOException_expectWorkerRetry
+          - messagingpush/src/test/java/io/customer/messagingpush/processor/PushDeliveryMetricsWorkerTest.kt#doWork_givenTrackingFailsWithNonIOException_expectWorkerFailure
+          - messagingpush/src/test/java/io/customer/messagingpush/processor/PushDeliveryMetricsWorkerTest.kt#doWork_givenEntryAlreadyDelivered_expectSkipWithoutTracking
+          - messagingpush/src/test/java/io/customer/messagingpush/processor/PushDeliveryMetricsWorkerTest.kt#doWork_givenHttpFailure_expectClaimRestoredByReAppend
+      - id: delivered-handoff
+        does: After the push module is initialized, every process ON_START cancels each pending entry's work, claims it, and publishes a Delivered TrackPushMetricEvent through the analytics pipeline.
+        code:
+          - messagingpush/src/main/java/io/customer/messagingpush/ModuleMessagingPushFCM.kt#observeProcessForeground
+          - messagingpush/src/main/java/io/customer/messagingpush/ModuleMessagingPushFCM.kt#handoffPendingPushDeliveryToAnalyticsPipeline
+        tests:
+          - messagingpush/src/test/java/io/customer/messagingpush/ModuleMessagingPushFCMTest.kt#handoff_givenPendingEntries_expectCancelThenClaimThenPublish
+          - messagingpush/src/test/java/io/customer/messagingpush/ModuleMessagingPushFCMTest.kt#handoff_givenEntryAlreadyClaimedByWorker_expectNoPublish
+          - messagingpush/src/test/java/io/customer/messagingpush/ModuleMessagingPushFCMTest.kt#initialize_calledTwice_expectObserverReplacedNotAccumulated
+      - id: display-gate
+        does: When handleNotificationTrigger is false the SDK tracks delivery but does not render, and returns true.
+        when: handleNotificationTrigger is false
+        code: [messagingpush/src/main/java/io/customer/messagingpush/CustomerIOPushNotificationHandler.kt#handleMessage]
+        tests: [messagingpush/src/test/java/io/customer/messagingpush/CustomerIOPushNotificationHandlerTest.kt#handleMessage_givenHandleNotificationTriggerFalse_shouldNotLogShowingPushNotification]
+      - id: live-branch
+        does: If data has cioInstanceId, creates the live channel and dispatches LiveNotificationHandler off the FCM thread; the push is dropped unless notification_type is in liveNotificationTypes, and onNotificationComposed is not called.
+        when: data contains cioInstanceId
+        code:
+          - messagingpush/src/main/java/io/customer/messagingpush/CustomerIOPushNotificationHandler.kt#handleNotification
+          - messagingpush/src/main/java/io/customer/messagingpush/livenotification/LiveNotificationManager.kt#renderFromPush
+          - messagingpush/src/main/java/io/customer/messagingpush/LiveNotificationHandler.kt#CIO_INSTANCE_ID_KEY
+        tests: [messagingpush/src/test/java/io/customer/messagingpush/LiveNotificationHandlerTest.kt#handle_givenUnknownActivityType_dropsAndDoesNotNotify]
+      - id: channel
+        does: On Android O and later, creates or renames the standard channel using manifest meta-data, defaulting to the package name as id and "<app label> Notifications" as name; an existing channel with the same name is left unchanged.
+        code: [messagingpush/src/main/java/io/customer/messagingpush/util/NotificationChannelCreator.kt#createNotificationChannelIfNeededAndReturnChannelId]
+        tests:
+          - messagingpush/src/test/java/io/customer/messagingpush/util/NotificationChannelCreatorTest.kt#createNotificationChannelIfNeededAndReturnChannelId_givenMetadataWithoutChannelName_shouldCreateChannelWithDefaultName
+          - messagingpush/src/test/java/io/customer/messagingpush/util/NotificationChannelCreatorTest.kt#createNotificationChannelIfNeededAndReturnChannelId_givenChannelExistsWithDifferentName_shouldRecreateChannel
+          - messagingpush/src/test/java/io/customer/messagingpush/util/NotificationChannelCreatorTest.kt#createNotificationChannelIfNeededAndReturnChannelId_givenChannelExistsWithSameName_shouldNotRecreateChannel
+          - messagingpush/src/test/java/io/customer/messagingpush/util/NotificationChannelCreatorTest.kt#createNotificationChannelIfNeededAndReturnChannelId_givenPreOreoDevice_shouldNotCreateChannel
+      - id: build
+        does: Builds an auto-cancel notification with default sound and BigTextStyle; title and body come from data then the FCM notification block, icon and tint from the notification block then FCM manifest meta-data then the app icon.
+        code:
+          - messagingpush/src/main/java/io/customer/messagingpush/CustomerIOPushNotificationHandler.kt#handleNotification
+          - messagingpush/src/main/java/io/customer/messagingpush/CustomerIOPushNotificationHandler.kt#FCM_METADATA_DEFAULT_NOTIFICATION_ICON
+      - id: image
+        does: If data "image" or the notification imageUrl is set, downloads it synchronously (8s budget, 5MB cap, scaled to at most 1024px) and sets BigPictureStyle plus a square large icon; any failure posts the notification without the image.
+        when: image url present
+        code:
+          - messagingpush/src/main/java/io/customer/messagingpush/CustomerIOPushNotificationHandler.kt#addImage
+          - messagingpush/src/main/java/io/customer/messagingpush/util/BitmapDownloader.kt#MAX_TRANSFER_DURATION_MS
+        tests:
+          - messagingpush/src/test/java/io/customer/messagingpush/CustomerIOPushNotificationHandlerTest.kt#handleMessage_whenRichPushImageIsWide_thenPostsSquareLargeIconAndKeepsBigPicture
+          - messagingpush/src/test/java/io/customer/messagingpush/util/BitmapDownloaderTest.kt
+      - id: composed-callback
+        does: Calls notificationCallback.onNotificationComposed with the parsed payload and builder, before the content intent is attached; skipped when no callback is configured, including whenever config is the default.
+        code: [messagingpush/src/main/java/io/customer/messagingpush/CustomerIOPushNotificationHandler.kt#onNotificationComposed]
+      - id: post
+        does: Sets an immutable PendingIntent to NotificationClickReceiverActivity carrying the parsed payload, posts with a time-based request code as notification id, and returns true.
+        code:
+          - messagingpush/src/main/java/io/customer/messagingpush/CustomerIOPushNotificationHandler.kt#createIntentForNotificationClick
+          - messagingpush/src/main/java/io/customer/messagingpush/data/model/CustomerIOParsedPushPayload.kt
+        tests: [messagingpush/src/test/java/io/customer/messagingpush/CustomerIOPushNotificationHandlerTest.kt#createIntentForNotificationClick_givenAnyPayload_shouldStartNotificationClickReceiverActivity]
+    outcomes:
+      - Non-CIO messages are untouched and handleMessage returns false so the host app can handle them.
+      - A delivered metric is sent at most once per delivery id across the WorkManager job, direct-HTTP fallback and foreground handoff.
+      - A delivered metric is not lost if the process dies after receipt, because the pending entry is on disk before any send.
+      - Exactly one notification is posted per CIO push when handleNotificationTrigger is true; a failed image download never blocks the notification.
+      - Notification channel name and importance come only from manifest meta-data or defaults, never from code config.
+      - Behavior depends only on defaults and manifest meta-data when the push arrives before CustomerIO.initialize.
+  - id: receive-gcm
+    trigger: Google Play services broadcasts com.google.android.c2dm.intent.RECEIVE to CustomerIOCloudMessagingReceiver
+    steps:
+      - id: entry
+        does: Ignores broadcasts with no extras, otherwise sets up Android components and passes the intent to the processor.
+        code:
+          - messagingpush/src/main/java/io/customer/messagingpush/CustomerIOCloudMessagingReceiver.kt#onReceive
+          - messagingpush/src/main/AndroidManifest.xml#CustomerIOCloudMessagingReceiver
+      - id: is-cio
+        does: Requires CIO-Delivery-ID and CIO-Delivery-Token in the intent extras, otherwise does nothing.
+        when: delivery id or token missing
+        code: [messagingpush/src/main/java/io/customer/messagingpush/processor/PushMessageProcessorImpl.kt#processGCMMessageIntent]
+        tests: [messagingpush/src/test/java/io/customer/messagingpush/processor/PushMessageProcessorTest.kt#processGCMMessageIntent_givenBundleWithoutDeliveryData_expectDoNoTrackPush]
+      - id: track-only
+        does: Runs the same dedupe and delivered tracking as the FCM path; this path never renders a notification.
+        code:
+          - messagingpush/src/main/java/io/customer/messagingpush/processor/PushMessageProcessorImpl.kt#processGCMMessageIntent
+          - messagingpush/src/main/java/io/customer/messagingpush/processor/PushMessageProcessorImpl.kt#trackDeliveredMetrics
+        tests: [messagingpush/src/test/java/io/customer/messagingpush/processor/PushMessageProcessorTest.kt#processGCMMessageIntent_givenAutoTrackPushEventsEnabled_expectTrackPush]
+    outcomes:
+      - Delivered is tracked for CIO pushes that FCM renders itself and never passes to onMessageReceived (notification-block pushes while backgrounded, per PushMessageProcessor docs).
+      - The shared dedupe queue prevents a second delivered metric when both the GCM receiver and the FCM service see the same delivery id in one process.
+  - id: click
+    trigger: User taps a notification posted by the SDK (standard or live)
+    steps:
+      - id: activity
+        does: Transparent NotificationClickReceiverActivity (singleTask, noHistory, excludeFromRecents, empty taskAffinity, not exported, not screen-tracked) sets up Android components, handles the intent from onCreate or onNewIntent, and always finishes.
+        code:
+          - messagingpush/src/main/java/io/customer/messagingpush/activity/NotificationClickReceiverActivity.kt#onCreate
+          - messagingpush/src/main/java/io/customer/messagingpush/activity/NotificationClickReceiverActivity.kt#handleIntent
+          - messagingpush/src/main/AndroidManifest.xml#NotificationClickReceiverActivity
+        tests: [messagingpush/src/test/java/io/customer/messagingpush/activity/NotificationClickReceiverActivityManifestTest.kt#activity_givenMergedManifest_expectExportedFalse]
+      - id: parse
+        does: Reads CustomerIOParsedPushPayload from the CIO_NotificationPayloadExtras extra; a missing payload or any exception is logged and nothing else happens.
+        when: intent has no extras or no payload
+        code:
+          - messagingpush/src/main/java/io/customer/messagingpush/processor/PushMessageProcessorImpl.kt#processNotificationClick
+          - messagingpush/src/main/java/io/customer/messagingpush/activity/NotificationClickReceiverActivity.kt#NOTIFICATION_PAYLOAD_EXTRA
+        tests: [messagingpush/src/test/java/io/customer/messagingpush/processor/PushMessageProcessorTest.kt#processNotificationClick_givenEmptyIntent_expectNoProcessing]
+      - id: opened
+        does: If autoTrackPushEvents is true and the payload has a non-blank delivery id and token, publishes an Opened TrackPushMetricEvent on the EventBus; locally started live notifications are skipped.
+        code: [messagingpush/src/main/java/io/customer/messagingpush/processor/PushMessageProcessorImpl.kt#trackNotificationClickMetrics]
+        tests:
+          - messagingpush/src/test/java/io/customer/messagingpush/processor/PushMessageProcessorTest.kt#processNotificationClick_givenPushDeliveredNotification_expectTrackOpened
+          - messagingpush/src/test/java/io/customer/messagingpush/processor/PushMessageProcessorTest.kt#processNotificationClick_givenLocallyStartedLiveNotification_expectDoNotTrackOpened
+          - messagingpush/src/test/java/io/customer/messagingpush/processor/PushMessageProcessorTest.kt#processNotificationClick_givenAutoTrackingDisabled_expectDoNotTrackOpened
+      - id: opened-delivery
+        does: DataPipelines subscribes to TrackPushMetricEvent and tracks it as a metric event; events published before it subscribes wait in the EventBus in-memory replay buffer (100 events).
+        code:
+          - datapipelines/src/main/kotlin/io/customer/sdk/CustomerIO.kt#subscribeToJourneyEvents
+          - core/src/main/kotlin/io/customer/sdk/communication/EventBus.kt#EventBusImpl
+      - id: callback
+        does: If notificationCallback.onNotificationClicked returns non-null, the SDK stops and the app owns navigation.
+        when: notificationCallback set and returns non-null
+        code: [messagingpush/src/main/java/io/customer/messagingpush/processor/PushMessageProcessorImpl.kt#handleNotificationDeepLink]
+        tests:
+          - messagingpush/src/test/java/io/customer/messagingpush/processor/PushMessageProcessorTest.kt#processNotificationClick_givenCallbackWithDeepLink_expectOpenCallbackIntent
+          - messagingpush/src/test/java/io/customer/messagingpush/processor/PushMessageProcessorTest.kt#processNotificationClick_givenCallbackWithoutDeepLink_expectOpenCallbackIntent
+      - id: host-app-link
+        does: For a non-blank link, resolves an ACTION_VIEW intent restricted to the app's own package.
+        code:
+          - messagingpush/src/main/java/io/customer/messagingpush/util/DeepLinkUtil.kt#createDeepLinkHostAppIntent
+          - messagingpush/src/main/java/io/customer/messagingpush/util/DeepLinkUtil.kt#queryDeepLinksForHostApp
+        tests: [messagingpush/src/test/java/io/customer/messagingpush/processor/PushMessageProcessorTest.kt#processNotificationClick_givenInternalLink_expectOpenInternalIntent]
+      - id: external-link
+        does: If the app cannot handle the link, resolves it in another app (first matching activity) and starts it directly without PushClickBehavior flags or the payload extra.
+        when: link not handled by host app but resolvable externally
+        code:
+          - messagingpush/src/main/java/io/customer/messagingpush/util/DeepLinkUtil.kt#createDeepLinkExternalIntent
+          - messagingpush/src/main/java/io/customer/messagingpush/util/DeepLinkUtil.kt#queryDeepLinksForThirdPartyApps
+          - messagingpush/src/main/AndroidManifest.xml#BROWSABLE
+        tests: [messagingpush/src/test/java/io/customer/messagingpush/processor/PushMessageProcessorTest.kt#processNotificationClick_givenExternalLink_expectOpenExternalIntent]
+      - id: launcher
+        does: With no link, or a link nothing can open, falls back to the app's launcher intent; if that also fails it logs and opens nothing.
+        code:
+          - messagingpush/src/main/java/io/customer/messagingpush/util/DeepLinkUtil.kt#createDefaultHostAppIntent
+          - messagingpush/src/main/java/io/customer/messagingpush/processor/PushMessageProcessorImpl.kt#handleNotificationDeepLink
+        tests:
+          - messagingpush/src/test/java/io/customer/messagingpush/processor/PushMessageProcessorTest.kt#processNotificationClick_givenNoDeepLink_expectOpenLauncherIntent
+          - messagingpush/src/test/java/io/customer/messagingpush/processor/PushMessageProcessorTest.kt#processNotificationClick_givenUnresolvableLink_expectLogNotHandled
+      - id: start
+        does: Adds the payload extra to the host-app or launcher intent and starts it per pushClickBehavior (RESET_TASK_STACK uses TaskStackBuilder with parent stack; ACTIVITY_PREVENT_RESTART adds NEW_TASK and SINGLE_TOP; ACTIVITY_NO_FLAGS adds nothing).
+        code: [messagingpush/src/main/java/io/customer/messagingpush/processor/PushMessageProcessorImpl.kt#startActivityForIntent]
+        tests:
+          - messagingpush/src/test/java/io/customer/messagingpush/processor/PushMessageProcessorTest.kt#processNotificationClick_givenPushBehavior_expectResetTaskStack
+          - messagingpush/src/test/java/io/customer/messagingpush/processor/PushMessageProcessorTest.kt#processNotificationClick_givenPushBehavior_expectPreventRestart
+          - messagingpush/src/test/java/io/customer/messagingpush/processor/PushMessageProcessorTest.kt#processNotificationClick_givenPushBehavior_expectNoFlags
+    outcomes:
+      - Deep link resolution order is callback, host app link, external app, launcher.
+      - Opened is published at most once per click and never for locally started live notifications.
+      - The trampoline activity never stays in the back stack or recents.
+      - The launched host activity receives the payload under CIO_NotificationPayloadExtras.
+  - id: click-launch-intent
+    trigger: Any app Activity is created with CIO-Delivery-ID and CIO-Delivery-Token as top-level intent extras (e.g. launcher opened from a notification the system rendered)
+    steps:
+      - id: observe
+        does: After module initialize, ON_CREATE lifecycle events are inspected for delivery extras and an Opened metric is published when autoTrackPushEvents is true.
+        code:
+          - messagingpush/src/main/java/io/customer/messagingpush/ModuleMessagingPushFCM.kt#subscribeToLifecycleEvents
+          - messagingpush/src/main/java/io/customer/messagingpush/util/PushTrackingUtil.kt#parseLaunchedActivityForTracking
+          - core/src/main/kotlin/io/customer/sdk/lifecycle/CustomerIOActivityLifecycleCallbacks.kt#lifecycleEvents
+        tests:
+          - messagingpush/src/test/java/io/customer/messagingpush/PushTrackingUtilTest.kt#parseLaunchedActivityForTracking_givenBundleWithDeliveryData_expectTrackPush
+          - messagingpush/src/test/java/io/customer/messagingpush/PushTrackingUtilTest.kt#parseLaunchedActivityForTracking_givenBundleWithoutDeliveryData_expectDoNoTrackPush
+    outcomes:
+      - Opened is tracked for system-rendered CIO notifications only if the push module subscribes before or close to the launching ON_CREATE.
+  - id: token
+    trigger: FCM issues a new token, or the push module initializes
+    steps:
+      - id: new-token
+        does: onNewToken (service or static companion) sets up Android components and publishes RegisterDeviceTokenEvent.
+        code:
+          - messagingpush/src/main/java/io/customer/messagingpush/CustomerIOFirebaseMessagingService.kt#onNewToken
+          - messagingpush/src/main/java/io/customer/messagingpush/CustomerIOFirebaseMessagingService.kt#handleNewToken
+      - id: init-fetch
+        does: Module initialize fetches the current token (after a Google Play services check) and publishes RegisterDeviceTokenEvent when non-null.
+        code:
+          - messagingpush/src/main/java/io/customer/messagingpush/ModuleMessagingPushFCM.kt#getCurrentFcmToken
+          - messagingpush/src/main/java/io/customer/messagingpush/provider/FCMTokenProviderImpl.kt#getCurrentToken
+        tests:
+          - messagingpush/src/test/java/io/customer/messagingpush/ModuleMessagingPushFCMTest.kt#initialize_givenFCMTokenAvailable_expectRegisterToken
+          - messagingpush/src/test/java/io/customer/messagingpush/ModuleMessagingPushFCMTest.kt#initialize_givenNoFCMTokenAvailable_expectDoNotRegisterToken
+          - messagingpush/src/test/java/io/customer/messagingpush/provider/FCMTokenProviderTest.kt#test_getCurrentToken_givenPlayServicesUnavailable_logUnavailable
+      - id: register
+        does: DataPipelines ignores blank tokens, saves the token in GlobalPreferenceStore and sends device attributes; tokens published before init wait in the EventBus replay buffer.
+        code:
+          - datapipelines/src/main/kotlin/io/customer/sdk/CustomerIO.kt#subscribeToJourneyEvents
+          - datapipelines/src/main/kotlin/io/customer/sdk/CustomerIO.kt#registerDeviceTokenImpl
+          - core/src/main/kotlin/io/customer/sdk/communication/EventBus.kt#EventBusImpl
+    outcomes:
+      - The current token is re-registered on every SDK init, so a missed onNewToken is recovered on next launch.
+invariants: [sdk-may-be-uninitialized, metrics-are-a-cross-platform-contract]
+open_questions:
+  - id: P1
+    status: bug
+    question: "pushMessageProcessor captures config at first access; if a push or click arrives before init, does the default config stick for the process?"
+    answer: "Yes (verified). Expected: config set at init applies to every push handled after init in that process. See known_issues P1."
+  - id: P2
+    status: bug
+    question: "Opened metric from a click before init: is it persisted like delivered?"
+    answer: "No (verified). It only lives in the in-memory EventBus replay buffer. Expected: opened survives process death before init. See known_issues P2."
+  - id: P3
+    status: answered
+    question: "Delivery worker fails without retry on first launch (no saved settings). Intended?"
+    answer: "Yes. Settings are not available yet, so an immediate retry would fail too; the foreground handoff after init is the retry path."
+  - id: P4
+    status: discuss
+    question: "Live channel is created before the live-type check, so a disabled type still registers a channel (and tracks delivered). Intended?"
+    answer: "Verified behavior; owner not sure of the intended live notification behavior. Code: CustomerIOPushNotificationHandler.kt (live detection), LiveNotificationHandler.kt (type gate), livenotification/*."
+  - id: P5
+    status: bug
+    question: "Opened tracking from launcher-intent extras with late wrapper init: do wrappers work around it?"
+    answer: "Flutter: no workaround. React Native: only onNewIntent (warm start), not cold start. Expo: early native init only when the plugin config is set. See known_issues P5."
+  - id: P6
+    status: answered
+    question: "GCM receiver and FCM service may both see a message; is the 10-entry in-memory dedupe the intended guard?"
+    answer: "Yes, intended. Added to stop duplicate delivered events; CDP now also drops duplicates, but dropping obvious duplicates locally stays."
+  - id: P7
+    status: limitation
+    question: "Notification id is a millisecond timestamp; two pushes in the same millisecond collide. Acceptable?"
+    answer: "Accepted limitation: assumes no two pushes arrive in the same millisecond."
+  - id: P8
+    status: answered
+    question: "Image download blocks the FCM thread for up to ~8s. Acceptable?"
+    answer: "Yes, intended: show the image within the OS budget (~10s before the process may be killed); on failure, post without the image."
+known_issues:
+  - id: P1
+    kind: bug
+    verified: true
+    expected: Customer push config (autoTrackPushEvents, notificationCallback, pushClickBehavior) applies to every push and click handled after CustomerIO.initialize.
+    expected_from: owner P1
+    actual: pushMessageProcessor is a singleton built on first access; if that happens before init (killed-app push, common on wrappers) it keeps MessagingPushModuleConfig.default() for the rest of the process.
+    evidence: [messagingpush/src/main/java/io/customer/messagingpush/di/DiGraphMessagingPush.kt#pushMessageProcessor, messagingpush/src/main/java/io/customer/messagingpush/processor/PushMessageProcessorImpl.kt#PushMessageProcessorImpl]
+  - id: P2
+    kind: bug
+    verified: true
+    expected: An opened metric survives process death before SDK init, like delivered does.
+    expected_from: owner P2
+    actual: Opened is only published to the in-memory EventBus (replay 100); lost if the process dies before init or init never runs in it.
+    evidence: [messagingpush/src/main/java/io/customer/messagingpush/processor/PushMessageProcessorImpl.kt#PushMessageProcessorImpl, core/src/main/kotlin/io/customer/sdk/communication/EventBus.kt#EventBusImpl]
+  - id: P5
+    kind: bug
+    verified: false
+    expected: Opened metric is tracked when a wrapper app is cold-started from a push tap and the SDK initializes later from JS/Dart.
+    expected_from: owner P5
+    actual: Launcher-intent tracking relies on lifecycle callbacks with replay=1, so the launch event is likely replaced before the module subscribes. Wrappers have no workaround on Android (Flutter none, React Native warm start only, Expo only with native init config).
+    confirm_with: In the Flutter or React Native sample, kill the app, tap a push, initialize from Dart/JS, and check whether an opened metric is sent.
+open_items:
+  - id: P4
+    question: Should a live push for a disabled or not-enabled type still create the live channel and track delivered?

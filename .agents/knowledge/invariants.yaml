@@ -1,0 +1,96 @@
+# owner: agent-maintained, human-reviewed. Update in the same change as the code it describes.
+invariants:
+  - id: sdk-may-be-uninitialized
+    priority: P0
+    statement: Every push entry point (FCM service, GCM receiver, click activity, live dismiss receiver, delivery worker) must work correctly when CustomerIO.initialize has not run in the process, using only defaults, manifest meta-data and values persisted by a previous launch.
+    why: >
+      React Native, Flutter and Expo (JS-initialized) apps initialize the SDK from UI code, so it runs late or not at all.
+      When a push arrives with the app killed, only SDKComponent.setupAndroidComponent(context) runs; SDKComponent.modules
+      is empty and pushModuleConfig falls back to MessagingPushModuleConfig.default(). Anything the customer sets in code
+      (or a wrapper sets from JS/Dart) is invisible on that path. Native apps that initialize in Application.onCreate are
+      not affected, so this breaks mainly on wrappers and is easy to miss in native-only testing.
+    applies_to:
+      - messagingpush/src/main/java/io/customer/messagingpush/**
+      - messagingpush/src/main/AndroidManifest.xml
+      - core/src/main/kotlin/io/customer/sdk/core/di/**
+      - core/src/main/kotlin/io/customer/sdk/communication/EventBus.kt
+      - core/src/main/kotlin/io/customer/sdk/core/network/CustomerIOHttpClient.kt
+      - core/src/main/kotlin/io/customer/sdk/data/store/**
+      - core/src/main/kotlin/io/customer/sdk/lifecycle/CustomerIOActivityLifecycleCallbacks.kt
+    handled_by:
+      # Entry points set up only Android components (idempotent, once per process).
+      - core/src/main/kotlin/io/customer/sdk/core/di/SDKComponentExt.kt#setupAndroidComponent
+      - messagingpush/src/main/java/io/customer/messagingpush/CustomerIOFirebaseMessagingService.kt#handleMessageReceived
+      - messagingpush/src/main/java/io/customer/messagingpush/CustomerIOFirebaseMessagingService.kt#handleNewToken
+      - messagingpush/src/main/java/io/customer/messagingpush/CustomerIOCloudMessagingReceiver.kt#onReceive
+      - messagingpush/src/main/java/io/customer/messagingpush/activity/NotificationClickReceiverActivity.kt#onCreate
+      - messagingpush/src/main/java/io/customer/messagingpush/livenotification/LiveNotificationDismissReceiver.kt#onReceive
+      # Module config read falls back to defaults instead of throwing when the module is not registered.
+      - messagingpush/src/main/java/io/customer/messagingpush/di/DiGraphMessagingPush.kt#pushModuleConfig
+      - messagingpush/src/main/java/io/customer/messagingpush/MessagingPushModuleConfig.kt#default
+      # Pre-init config comes from manifest meta-data, which is readable without init.
+      - messagingpush/src/main/java/io/customer/messagingpush/util/NotificationChannelCreator.kt#METADATA_NOTIFICATION_CHANNEL_NAME
+      - messagingpush/src/main/java/io/customer/messagingpush/util/NotificationChannelCreator.kt#METADATA_LIVE_NOTIFICATION_CHANNEL_NAME
+      - messagingpush/src/main/java/io/customer/messagingpush/CustomerIOPushNotificationHandler.kt#FCM_METADATA_DEFAULT_NOTIFICATION_ICON
+      - core/src/main/kotlin/io/customer/sdk/core/di/AndroidSDKComponent.kt#fromMetadata
+      # Delivered metric survives a missing or late init: on-disk pending entry, WorkManager, handoff after init.
+      - messagingpush/src/main/java/io/customer/messagingpush/processor/PushMessageProcessorImpl.kt#trackDeliveredMetrics
+      - messagingpush/src/main/java/io/customer/messagingpush/processor/PushDeliveryMetricsBackgroundScheduler.kt#PushDeliveryMetricsWorker
+      - messagingpush/src/main/java/io/customer/messagingpush/ModuleMessagingPushFCM.kt#handoffPendingPushDeliveryToAnalyticsPipeline
+      - core/src/main/kotlin/io/customer/sdk/core/util/CustomerIOWorkManagerProvider.kt#getWorkManager
+      # Direct HTTP uses writeKey/apiHost persisted by a previous initialize, and fails cleanly when absent.
+      - core/src/main/kotlin/io/customer/sdk/core/network/CustomerIOHttpClient.kt#getSettings
+      - datapipelines/src/main/kotlin/io/customer/sdk/CustomerIO.kt#saveSettings
+      # Token and opened events published pre-init are buffered in memory until DataPipelines subscribes.
+      - core/src/main/kotlin/io/customer/sdk/communication/EventBus.kt#EventBusImpl
+    tests:
+      # No test simulates a push or click before CustomerIO.initialize. These cover the defaults that apply in that case.
+      - messagingpush/src/test/java/io/customer/messagingpush/ModuleMessagingConfigTest.kt#initialize_givenNoConfig_expectDefaultValues
+      - messagingpush/src/test/java/io/customer/messagingpush/util/NotificationChannelCreatorTest.kt#createNotificationChannelIfNeededAndReturnChannelId_givenMetadataWithoutChannelName_shouldCreateChannelWithDefaultName
+      - messagingpush/src/test/java/io/customer/messagingpush/LiveNotificationHandlerTest.kt#handle_givenUnknownActivityType_dropsAndDoesNotNotify
+      - messagingpush/src/test/java/io/customer/messagingpush/processor/PushDeliveryMetricsWorkerTest.kt#doWork_givenTrackingFailsWithNonIOException_expectWorkerFailure
+      - messagingpush/src/test/java/io/customer/messagingpush/ModuleMessagingPushFCMTest.kt#handoff_givenPendingEntries_expectCancelThenClaimThenPublish
+    ask_before_change:
+      - Is the changed code reachable from CustomerIOFirebaseMessagingService, CustomerIOCloudMessagingReceiver, NotificationClickReceiverActivity, LiveNotificationDismissReceiver or PushDeliveryMetricsWorker? If yes, what does it do when pushModuleConfig is MessagingPushModuleConfig.default()?
+      - Does it read a MessagingPushModuleConfig option that RN, Flutter or Expo set from JS/Dart (pushClickBehavior, live notification types/branding/callback)? Then on wrappers the customer value is never seen on a killed-app push. Is that acceptable for this option?
+      - Does it create a persistent side effect from config (notification channel, file, SharedPreferences, WorkManager job) that a later init cannot correct? Android keeps channel name and importance once created.
+      - Can the value come from AndroidManifest meta-data instead (like io.customer.notification_channel_* and FCM default icon/color) so it is available before init?
+      - Does it cache config in a DI singleton? pushMessageProcessor captures pushModuleConfig at first access, so a value read before init may stay at the default for the whole process.
+      - Does it call CustomerIO.instance(), DataPipeline, or a module's initialize-time state? Those throw or are absent before init; only setupAndroidComponent is guaranteed.
+      - Does it need writeKey or apiHost? They come from GlobalPreferenceStore saved by a previous initialize and are missing on first launch.
+      - If it publishes on the EventBus, is in-memory replay (100 events, lost on process death) enough, or does it need a persisted pending store like delivered metrics?
+      - Does it change a default (autoTrackPushEvents, pushClickBehavior, channel name, importance)? A default change silently changes killed-app behavior on every wrapper, even for customers who override it in code.
+      - Was it tested with the process killed and the SDK initialized only from JS/Dart (or not at all), not just with a native Application.onCreate init?
+    examples:
+      - setAutoTrackPushEvents(false) is ignored on killed-app pushes. The default (true) applies, so delivered is persisted and sent through WorkManager anyway.
+      - notificationCallback.onNotificationComposed is not called for killed-app pushes, so customer builder changes (actions, styles) are missing on those notifications.
+      - A click handled before init uses the default ACTIVITY_PREVENT_RESTART and skips onNotificationClicked. RN (NativeMessagingPushModule) and Flutter (CustomerIOPushMessaging) set pushClickBehavior from JS/Dart.
+      - Live notification pushes are dropped before init because liveNotificationTypes defaults to empty, and the live channel is still created. The Expo native init template (customerio-expo-plugin CustomerIOSDKInitializer.kt) builds MessagingPushModuleConfig in Application code with only live-notification options.
+      - "Verified bug (push spec P1): pushMessageProcessor is a singleton built with pushModuleConfig on first access. A push or click before init pins the default config for the rest of the process, even after a wrapper initializes."
+      - "Verified bug (push spec P2): an opened metric from a click before init only lives in the in-memory EventBus and is lost if the process dies before init."
+      - "Safe pattern for settings needed before init: AndroidManifest meta-data is readable without init. The Expo plugin writes io.customer.* meta-data at build time; Flutter and bare React Native apps add it by hand."
+      - "Wrapper inline in-app views (Flutter, React Native, Expo) have no init guard; inflating before native init likely throws (in-app spec I3, unverified)."
+      - "Hypothesis, not verified (push spec P5; wrappers have no Android workaround except Expo native init): opened tracking from launcher intent extras (ModuleMessagingPushFCM.subscribeToLifecycleEvents) needs module init. CustomerIOActivityLifecycleCallbacks replays only the last event, so with late wrapper init the launching ON_CREATE is likely gone."
+
+  - id: metrics-are-a-cross-platform-contract
+    priority: P0
+    statement: Metric names and what they mean (Delivered, Opened, Converted, Clicked, and when each is sent) are a contract shared with the Customer.io backend, iOS and the wrappers. The Android SDK never adds, renames or redefines a metric on its own.
+    why: >
+      The backend turns these metrics into customer-facing delivery and engagement reports, and iOS sends the same
+      names with the same meaning. A metric the backend does not accept is dropped; a changed meaning silently
+      shifts every customer's reports and makes Android disagree with iOS. The backend or iOS side may be owned by someone else or already in progress.
+    applies_to:
+      - core/src/main/kotlin/io/customer/sdk/events/Metric.kt
+      - core/src/main/kotlin/io/customer/sdk/events/TrackMetric.kt
+      - messagingpush/src/main/java/io/customer/messagingpush/PushDeliveryTracker.kt
+      - messagingpush/src/main/java/io/customer/messagingpush/processor/PushMessageProcessorImpl.kt
+      - messagingpush/src/main/java/io/customer/messagingpush/CustomerIOPushNotificationHandler.kt
+    handled_by:
+      - core/src/main/kotlin/io/customer/sdk/events/Metric.kt#Metric
+      - core/src/main/kotlin/io/customer/sdk/events/TrackMetric.kt#TrackMetric
+      - messagingpush/src/main/java/io/customer/messagingpush/processor/PushMessageProcessorImpl.kt#trackDeliveredMetrics
+    stop_and_ask:
+      - Does the request add a metric, rename one, or change when or why one is sent? If yes, say so clearly and ask whether the backend already supports it and who owns that side. Do not implement any part (not even a "safe" subset) until the user confirms.
+    flag:
+      - iOS (customerio-ios) must ship the same metric behavior. Say so in your answer and PR; do not stop for it, iOS may be assigned to someone else.
+    examples:

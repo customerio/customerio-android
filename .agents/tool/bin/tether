@@ -1,0 +1,26 @@
+#!/bin/sh
+# tether launcher: runs the tether version pinned in ../version (line 1: commit or tag, line 2: git source).
+# Needs python3 (3.9+) and git. TETHER_DEV=<tether checkout> runs local code instead.
+TOOL="$(cd "$(dirname "$0")/.." && pwd)"
+TETHER_ROOT="$(cd "$TOOL/../.." && pwd)"; export TETHER_ROOT
+if [ -n "$TETHER_DEV" ]; then
+  LIB="$TETHER_DEV"
+elif [ -d "$TOOL/lib/tether" ]; then
+  LIB="$TOOL/lib"
+else
+  VERSION="$(sed -n 1p "$TOOL/version")"
+  SOURCE="${TETHER_SOURCE:-$(sed -n 2p "$TOOL/version")}"
+  LIB="${XDG_CACHE_HOME:-$HOME/.cache}/tether/$VERSION"
+  if [ ! -d "$LIB/tether" ]; then
+    TMP="$LIB.tmp.$$"
+    if git clone -q "$SOURCE" "$TMP" 2>/dev/null && git -C "$TMP" checkout -q "$VERSION" 2>/dev/null; then
+      mv "$TMP" "$LIB" 2>/dev/null || rm -rf "$TMP"
+    else
+      rm -rf "$TMP"
+      echo "tether: could not fetch $VERSION from $SOURCE; repo rules were not checked (CI still checks them)" >&2
+      case "$1" in hook|git-hook) exit 0 ;; esac
+      exit 1
+    fi
+  fi
+fi
+PYTHONPATH="$LIB${PYTHONPATH:+:$PYTHONPATH}" exec python3 -m tether "$@"

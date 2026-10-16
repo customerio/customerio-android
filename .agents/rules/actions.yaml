@@ -1,0 +1,27 @@
+# owner: human. Rules this repo adds on top of tether's built-ins (no force push, no push to the default branch,
+# no skipped hooks, verify.yaml checks before push and stop, specs and generated files in sync).
+# Effective rules: `.agents/tool/bin/tether rules`. Priorities: P0 blocked, P1 gate = confirm once, P2 reference.
+
+version: 1
+actions:
+  commit:
+    rules:
+      - id: conventional-commit
+        priority: P0
+        say: "Commit subject must be a conventional commit, e.g. `fix(push): retry delivered metric`. semantic-release builds the version and CHANGELOG from it."
+        check: builtin:conventional-commit
+      - id: public-api
+        priority: P1
+        gate: true
+        say: "Public API source changed. If a public signature changed, run `./gradlew :<module>:apiDump` and commit the .api file (never hand-edit it); CI runs `apiCheck`."
+        check: "! printf '%s\\n' \"$TETHER_CHANGED\" | grep -q '/src/main/' || printf '%s\\n' \"$TETHER_CHANGED\" | grep -q '/api/.*\\.api$'"
+        when: ['*/src/main/*']
+
+  pr-create:
+    description: Opening a pull request.
+    match: ['^gh\s+pr\s+create\b']
+    rules:
+      - id: pr-title
+        priority: P0
+        say: PR title must be a conventional commit; the squash merge uses it for the release.
+        check: printf '%s' "$TETHER_COMMAND" | grep -Eq -- "--title[= ]+['\"]?(feat|fix|chore|docs|refactor|test|perf|ci|build|style|revert)(\([^)]*\))?!?:[[:space:]]"

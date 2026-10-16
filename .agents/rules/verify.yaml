@@ -1,0 +1,20 @@
+# owner: human.
+# Checks `tether verify` runs for changed files. Mirrors CI (.github/workflows/{lint,binary-validator,test}.yml).
+# {module} = Gradle module of a changed file. {files:GLOB} = changed files matching GLOB.
+# `for` limits a check to some actions (stop, push); omitted = always.
+per_module:
+  - name: compile
+    run: ./gradlew -q :{module}:compileDebugUnitTestKotlin
+    when: ['*.kt', '*.java', '*.gradle']
+  - name: api-check
+    run: ./gradlew -q :{module}:apiCheck
+    public_api: true
+    when: ['*/src/main/*', '*/api/*.api', '*.gradle']
+  - name: unit-tests
+    run: ./gradlew -q :{module}:testDebugUnitTest
+    for: [push]
+    when: ['*.kt', '*.java']
+global:
+  - name: ktlint
+    run: ./ktlint --android {files:*.kt}
+    when: ['*.kt']

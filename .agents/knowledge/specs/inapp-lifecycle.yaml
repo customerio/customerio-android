@@ -1,0 +1,591 @@
+# owner: agent-maintained, human-reviewed. Update in the same change as the code it describes.
+spec: inapp-lifecycle
+title: In-app messaging lifecycle (Android)
+status: draft
+summary: >
+  The MessagingInApp module fetches in-app messages for the current user (identified or anonymous)
+  from the Gist queue API by polling, or over SSE when the server enables it for an identified user.
+  Messages go through a Redux-style store that filters out already-shown messages, sorts by priority,
+  matches route rules against the current screen, and then shows at most one modal at a time
+  (GistModalActivity) and one inline message per elementId (InlineInAppMessageView). The renderer
+  is a WebView. Showing a message sends an Opened metric, tapping an action sends Clicked (except
+  close), and errors and dismissals reach the host via InAppEventListener. Identity comes from
+  datapipelines over the EventBus. Identify and clearIdentify switch the user token, and reset wipes
+  all in-app state and local storage.
+covers:
+  - messaginginapp/src/main/java/io/customer/messaginginapp/**
+  - messaginginapp/src/main/AndroidManifest.xml
+  - core/src/main/kotlin/io/customer/sdk/communication/Event.kt
+  - core/src/main/kotlin/io/customer/sdk/communication/EventBus.kt
+  - datapipelines/src/main/kotlin/io/customer/sdk/CustomerIO.kt
+config:
+  - key: siteId
+    default: required (Builder constructor argument)
+    effect: Sent as X-CIO-Site-Id on queue requests, as the siteId query param on SSE, and in the renderer config.
+    code: messaginginapp/src/main/java/io/customer/messaginginapp/MessagingInAppModuleConfig.kt#siteId
+  - key: region
+    default: required (Builder constructor argument)
+    effect: region.code becomes the store dataCenter, sent as X-CIO-Datacenter and in the renderer config. Environment is always PROD.
+    code: messaginginapp/src/main/java/io/customer/messaginginapp/di/DIGraphMessagingInApp.kt#gistProvider
+  - key: eventListener
+    default: "null"
+    effect: When set, receives messageShown, messageDismissed, errorWithMessage and messageActionTaken for modal and inline messages. Cannot be changed after build.
+    code: messaginginapp/src/main/java/io/customer/messaginginapp/MessagingInAppModuleConfig.kt#setEventListener
+  - key: colorScheme
+    default: AUTO
+    effect: AUTO follows system night mode, while LIGHT or DARK force the renderer theme. ModuleMessagingInApp.setColorScheme changes it at runtime, including for messages already on screen.
+    code: messaginginapp/src/main/java/io/customer/messaginginapp/type/ColorScheme.kt#resolve
+  - key: inboxEventListener
+    default: "null"
+    effect: Listener for visual inbox actions. Can be replaced at runtime via ModuleMessagingInApp.setInboxEventListener. Does not affect modal or inline messages.
+    code: messaginginapp/src/main/java/io/customer/messaginginapp/ModuleMessagingInApp.kt#setInboxEventListener
+  - key: notificationInboxAccessibilityLabels
+    default: all labels null
+    effect: TalkBack labels for the visual inbox UI only. The SDK ships no default strings.
+    code: messaginginapp/src/main/java/io/customer/messaginginapp/MessagingInAppModuleConfig.kt#setNotificationInboxAccessibilityLabels
+    tests: [messaginginapp/src/test/java/io/customer/messaginginapp/MessagingInAppModuleConfigTest.kt#build_givenNoNotificationInboxAccessibilityLabels_expectAllNull]
+flows:
+  - id: setup
+    trigger: Host calls CustomerIO.initialize with ModuleMessagingInApp in config.modules
+    steps:
+      - id: register
+        does: CustomerIO creates the datapipelines instance first, registers all modules by name, then calls initialize on each.
+        code: [datapipelines/src/main/kotlin/io/customer/sdk/CustomerIO.kt#initialize]
+      - id: republish-user
+        does: The datapipelines constructor publishes UserChangedEvent with the restored userId and anonymousId, so modules initialized after it still receive the current identity.
+        code: [datapipelines/src/main/kotlin/io/customer/sdk/CustomerIO.kt#publishUserChanged]
+      - id: subscribe
+        does: ModuleMessagingInApp.initialize subscribes to ScreenViewedEvent, UserChangedEvent and ResetEvent on the EventBus.
+        code: [messaginginapp/src/main/java/io/customer/messaginginapp/ModuleMessagingInApp.kt#setupHooks]
+        tests: [messaginginapp/src/test/java/io/customer/messaginginapp/ModuleMessagingInAppTest.kt#initialize_givenNoUserChangedEvent_expectGistNoUserSetAndNoFetch]
+      - id: replay
+        does: The EventBus replays up to 100 past events to new subscribers, so a UserChangedEvent published before module init is still handled.
+        code: [core/src/main/kotlin/io/customer/sdk/communication/EventBus.kt#EventBusImpl]
+        tests: [messaginginapp/src/test/java/io/customer/messaginginapp/ModuleMessagingInAppTest.kt#initialize_givenUserChangedEventPublishedBeforeInit_expectGistSetsBothIdsAndFetches]
+      - id: lazy-di
+        does: GistSdk, the store, the Queue and both lifecycle managers are lazy SDKComponent singletons, built on the first event that touches gistProvider.
+        code: [messaginginapp/src/main/java/io/customer/messaginginapp/di/DIGraphMessagingInApp.kt#gistProvider, messaginginapp/src/main/java/io/customer/messaginginapp/di/DIGraphMessagingInApp.kt#inAppMessagingManager]
+      - id: gist-init
+        does: GistSdk dispatches Initialize with siteId, dataCenter, PROD environment and colorScheme, which sets a fresh random sessionId.
+        code: [messaginginapp/src/main/java/io/customer/messaginginapp/gist/presentation/GistSdk.kt#GistSdk, messaginginapp/src/main/java/io/customer/messaginginapp/state/InAppMessageReducer.kt#inAppMessagingReducer]
+        tests: [messaginginapp/src/test/java/io/customer/messaginginapp/ui/MessagingInAppIntegrationTest.kt#initialization_shouldSetupCorrectParameters]
+      - id: lifecycle-managers
+        does: Building GistSdk also builds PollingLifecycleManager and SseLifecycleManager, which observe ProcessLifecycleOwner on the main thread and act right away if the app is already started.
+        code: [messaginginapp/src/main/java/io/customer/messaginginapp/gist/presentation/PollingLifecycleManager.kt#PollingLifecycleManager, messaginginapp/src/main/java/io/customer/messaginginapp/gist/presentation/SseLifecycleManager.kt#SseLifecycleManager]
+        tests: [messaginginapp/src/test/java/io/customer/messaginginapp/gist/presentation/PollingLifecycleManagerTest.kt#init_whenAppStartedAndSseInactive_startsPollingAndFetches]
+      - id: store
+        does: InAppMessagingManager wraps a thread-safe redux store whose middleware chain is logger, route change, modal display, gist view logging, queue processing, inbox processing, error logger, and listener, with ModuleMessagingInApp as the GistListener.
+        code: [messaginginapp/src/main/java/io/customer/messaginginapp/state/InAppMessagingManager.kt#createStore]
+    outcomes:
+      - the module receives the current identity even if it subscribes after the event was published
+      - no in-app polling or SSE starts until something first resolves gistProvider (normally the replayed UserChangedEvent)
+      - InAppMessagingState.pollInterval starts at 600000 ms and sseEnabled starts false
+
+  - id: late-init
+    trigger: In-app code runs before CustomerIO.initialize has registered ModuleMessagingInApp (process restored into GistModalActivity, early API call, or delayed wrapper init)
+    steps:
+      - id: instance-throws
+        does: ModuleMessagingInApp.instance(), and every DI accessor built on it, throws IllegalStateException when the module is not registered.
+        code: [messaginginapp/src/main/java/io/customer/messaginginapp/ModuleMessagingInApp.kt#instance, messaginginapp/src/main/java/io/customer/messaginginapp/di/DIGraphMessagingInApp.kt#inAppMessaging]
+      - id: modal-guard
+        does: GistModalActivity resolves the store through runCatching and finishes right away without rendering if the module is not initialized.
+        code: [messaginginapp/src/main/java/io/customer/messaginginapp/gist/presentation/GistModalActivity.kt#validateAndParseIntentExtras]
+        tests: [messaginginapp/src/test/java/io/customer/messaginginapp/gist/presentation/GistModalActivityTest.kt#onCreate_givenModuleMessagingInAppNotInitialized_expectActivityFinishesEarly]
+      - id: late-events
+        does: Identity events published before the module subscribes are replayed from the EventBus buffer when initialize runs.
+        code: [core/src/main/kotlin/io/customer/sdk/communication/EventBus.kt#EventBusImpl]
+        tests: [messaginginapp/src/test/java/io/customer/messaginginapp/ModuleMessagingInAppTest.kt#initialize_givenUserChangedEventPublishedBeforeInit_expectGistSetsBothIdsAndFetches]
+    outcomes:
+      - a restored modal activity never crashes when the SDK has not initialized yet
+      - the first fetch after a late init uses the identity known at init, not a stale or missing one
+
+  - id: fetch-polling
+    trigger: App foregrounded, UserChangedEvent, persistent message closed, or poll interval changed, while SSE is not active
+    steps:
+      - id: foreground
+        does: On process onStart, polling starts with an immediate catch-up fetch unless shouldUseSse is true.
+        code: [messaginginapp/src/main/java/io/customer/messaginginapp/gist/presentation/PollingLifecycleManager.kt#handleForegrounded]
+        tests: [messaginginapp/src/test/java/io/customer/messaginginapp/gist/presentation/PollingLifecycleManagerTest.kt#onStart_whenSseInactive_startsPollingAndFetches, messaginginapp/src/test/java/io/customer/messaginginapp/gist/presentation/PollingLifecycleManagerTest.kt#onStart_whenSseActive_doesNotPoll]
+      - id: external-fetch
+        does: fetchInAppMessages restarts the timer with zero initial delay, so the fetch is immediate, and does nothing when SSE is active.
+        code: [messaginginapp/src/main/java/io/customer/messaginginapp/gist/presentation/PollingLifecycleManager.kt#fetchInAppMessages, messaginginapp/src/main/java/io/customer/messaginginapp/gist/presentation/PollingLifecycleManager.kt#startPolling]
+        tests: [messaginginapp/src/test/java/io/customer/messaginginapp/gist/presentation/PollingLifecycleManagerTest.kt#fetchInAppMessages_whenSseActive_doesNotFetch, messaginginapp/src/test/java/io/customer/messaginginapp/gist/presentation/PollingLifecycleManagerTest.kt#startPolling_underConcurrentCalls_leavesNoOrphanTimerAfterReset]
+      - id: request
+        does: Each tick sends POST /api/v4/users with sessionId, site, datacenter, client headers, X-Gist-User-Anonymous, and the base64 user token (userId, or anonymousId if there is none).
+        code: [messaginginapp/src/main/java/io/customer/messaginginapp/gist/data/listeners/Queue.kt#fetchUserMessages, messaginginapp/src/main/java/io/customer/messaginginapp/gist/data/NetworkUtilities.kt#addCommonHeaders]
+      - id: cache-304
+        does: A 200 body is cached per URL, and a 304 is turned back into a 200 from that cache, or left as an uncached 304 if there is none.
+        code: [messaginginapp/src/main/java/io/customer/messaginginapp/gist/data/listeners/Queue.kt#interceptNotModifiedResponse]
+      - id: success
+        does: On success, regular messages plus locally eligible broadcasts go to ProcessMessageQueue, and inbox messages go to ProcessInboxMessages.
+        code: [messaginginapp/src/main/java/io/customer/messaginginapp/gist/data/listeners/Queue.kt#handleSuccessfulFetch]
+        tests: [messaginginapp/src/test/java/io/customer/messaginginapp/gist/data/listeners/QueueInboxTriggerTest.kt#handleSuccessfulFetch_givenInboxMessages_expectMessagesInState]
+      - id: no-content
+        does: A 204 clears the queue, unshown inline messages and the inbox, while an uncached 304 or an error keeps only inline messages in the queue.
+        code: [messaginginapp/src/main/java/io/customer/messaginginapp/gist/data/listeners/Queue.kt#handleNoContent, messaginginapp/src/main/java/io/customer/messaginginapp/gist/data/listeners/Queue.kt#handleFailedFetch]
+        tests: [messaginginapp/src/test/java/io/customer/messaginginapp/gist/data/listeners/QueueInboxTriggerTest.kt#fetchUserMessages_givenNoContentAndReadyInlineMessage_expectAvailabilityCleared, messaginginapp/src/test/java/io/customer/messaginginapp/gist/data/listeners/QueueInboxTriggerTest.kt#fetchUserMessages_givenFailureAndMatchingRouteChange_expectMessageRetained]
+      - id: stale-guard
+        does: An HTTP result is dropped if an SSE snapshot or reset bumped sseMessageRevision after the request started.
+        code: [messaginginapp/src/main/java/io/customer/messaginginapp/state/InAppMessagingMiddlewares.kt#processMessages]
+        tests: [messaginginapp/src/test/java/io/customer/messaginginapp/gist/data/listeners/QueueInboxTriggerTest.kt#fetchUserMessages_whenSseSnapshotArrivesBeforeOlderHttpResponse_expectNewerInlineMessageRetained]
+      - id: headers
+        does: The response headers update the poll interval (X-Gist-Queue-Polling-Interval, in seconds, positive only), the SSE flag (X-CIO-Use-SSE, false if missing) and the inbox flag (X-CIO-Inbox-Enabled, unchanged if missing).
+        code: [messaginginapp/src/main/java/io/customer/messaginginapp/gist/data/listeners/Queue.kt#updatePollingInterval, messaginginapp/src/main/java/io/customer/messaginginapp/gist/data/listeners/Queue.kt#updateSseFlag, messaginginapp/src/main/java/io/customer/messaginginapp/gist/data/listeners/Queue.kt#updateInboxFlag]
+        tests: [messaginginapp/src/test/java/io/customer/messaginginapp/gist/data/listeners/QueueInboxTriggerTest.kt#updateInboxFlag_givenAbsentHeaderWhileEnabled_expectStaysEnabled]
+      - id: interval-change
+        does: A real interval change restarts the timer with initialDelay equal to the new interval, and the initial replayed value is ignored.
+        code: [messaginginapp/src/main/java/io/customer/messaginginapp/gist/presentation/PollingLifecycleManager.kt#subscribeToPollIntervalChanges]
+        tests: [messaginginapp/src/test/java/io/customer/messaginginapp/gist/presentation/PollingLifecycleManagerTest.kt#pollIntervalSubscription_initialEmissionIsSkipped_butGenuineChangeRestarts]
+      - id: background
+        does: On process onStop, the timer is cancelled.
+        code: [messaginginapp/src/main/java/io/customer/messaginginapp/gist/presentation/PollingLifecycleManager.kt#handleBackgrounded]
+        tests: [messaginginapp/src/test/java/io/customer/messaginginapp/gist/presentation/PollingLifecycleManagerTest.kt#onStop_afterForeground_stopsPolling]
+    outcomes:
+      - at most one polling timer exists at a time
+      - no polling happens while the app is in the background or while shouldUseSse is true
+      - route changes and modal dismissal (except a persistent close) never trigger a network fetch
+
+  - id: fetch-sse
+    trigger: shouldUseSse becomes true (sseEnabled from the X-CIO-Use-SSE header AND a non-empty userId) while the app is in the foreground
+    steps:
+      - id: switch
+        does: Changes to sseEnabled or isUserIdentified while in the foreground start SSE and stop polling, or the reverse.
+        code: [messaginginapp/src/main/java/io/customer/messaginginapp/gist/presentation/SseLifecycleManager.kt#subscribeToUserIdentificationChanges, messaginginapp/src/main/java/io/customer/messaginginapp/gist/presentation/PollingLifecycleManager.kt#updatePollingForSseAvailability]
+        tests: [messaginginapp/src/test/java/io/customer/messaginginapp/gist/presentation/SseLifecycleManagerTest.kt#testUserBecomesAnonymous_whenForegroundedAndSseEnabled_thenStopsConnection, messaginginapp/src/test/java/io/customer/messaginginapp/gist/presentation/PollingLifecycleManagerTest.kt#sseAvailabilityChange_whenPollingStopped_resumesPolling]
+      - id: connect
+        does: startConnection is a no-op if already CONNECTING or CONNECTED, and otherwise opens the SSE URL with sessionId, siteId and userToken query params.
+        code: [messaginginapp/src/main/java/io/customer/messaginginapp/gist/data/sse/SseConnectionManager.kt#startConnection, messaginginapp/src/main/java/io/customer/messaginginapp/gist/data/sse/SseConnectionManager.kt#establishConnection]
+        tests: [messaginginapp/src/test/java/io/customer/messaginginapp/gist/data/sse/SseConnectionManagerTest.kt#testStartConnection_whenAlreadyConnecting_thenDoesNotStartNewConnection]
+      - id: backfill
+        does: Only the server's connected event triggers one HTTP fetch to backfill existing messages, because SSE only sends messages that arrive later.
+        code: [messaginginapp/src/main/java/io/customer/messaginginapp/gist/presentation/SseLifecycleManager.kt#backfillOnConnect, messaginginapp/src/main/java/io/customer/messaginginapp/gist/data/sse/SseConnectionManager.kt#onConnectionConfirmed]
+        tests: [messaginginapp/src/test/java/io/customer/messaginginapp/gist/presentation/SseLifecycleManagerTest.kt#testConnectionConfirmed_thenBackfillsUserMessages, messaginginapp/src/test/java/io/customer/messaginginapp/gist/data/sse/SseConnectionManagerTest.kt#testStartConnection_whenOnlyTransportOpen_thenDoesNotConfirm]
+      - id: events
+        does: A messages event replaces the queue as an SSE snapshot (server broadcasts are swapped for locally eligible ones), inbox_messages updates the inbox, and ttl_exceeded reconnects.
+        code: [messaginginapp/src/main/java/io/customer/messaginginapp/gist/data/sse/SseConnectionManager.kt#handleServerEvent]
+        tests: [messaginginapp/src/test/java/io/customer/messaginginapp/gist/data/sse/SseConnectionManagerTest.kt#testHandleSseEvent_whenMessagesEvent_thenProcessesMessages, messaginginapp/src/test/java/io/customer/messaginginapp/gist/data/sse/SseConnectionManagerTest.kt#testHandleSseEvent_whenTtlExceededEvent_thenReconnects]
+      - id: heartbeat
+        does: The heartbeat timeout is the server's heartbeat value (default 30s) plus a 5s buffer, and a timeout is treated as a retryable failure.
+        code: [messaginginapp/src/main/java/io/customer/messaginginapp/gist/data/sse/HeartbeatTimer.kt#startTimer, messaginginapp/src/main/java/io/customer/messaginginapp/gist/data/NetworkUtilities.kt#DEFAULT_HEARTBEAT_TIMEOUT_MS]
+        tests: [messaginginapp/src/test/java/io/customer/messaginginapp/gist/data/sse/SseConnectionManagerTest.kt#testHeartbeatTimeout_whenTimerExpires_thenTriggersRetry]
+      - id: retry
+        does: Retryable errors (IO, timeout, 408, 429, 5xx, unknown) get up to 3 retries, the first immediately and later ones after 5s, and other 4xx errors are not retried.
+        code: [messaginginapp/src/main/java/io/customer/messaginginapp/gist/data/sse/SseRetryHelper.kt#attemptRetry, messaginginapp/src/main/java/io/customer/messaginginapp/gist/data/sse/SseError.kt#classifySseError]
+        tests: [messaginginapp/src/test/java/io/customer/messaginginapp/gist/data/sse/SseRetryHelperTest.kt#testScheduleRetry_whenFirstRetry_thenEmitsImmediately, messaginginapp/src/test/java/io/customer/messaginginapp/gist/data/sse/SseRetryHelperTest.kt#testScheduleRetry_whenMaxRetriesReached_thenEmitsMaxRetriesReached]
+      - id: fallback
+        does: When retries run out or the error is not retryable, the client sets sseEnabled to false, which resumes polling.
+        code: [messaginginapp/src/main/java/io/customer/messaginginapp/gist/data/sse/SseConnectionManager.kt#handleCompleteFailure]
+        tests: [messaginginapp/src/test/java/io/customer/messaginginapp/gist/data/sse/SseConnectionManagerTest.kt#testRetryDecisionFlow_whenMaxRetriesReached_thenFallsBackToPolling]
+      - id: background
+        does: On process onStop, the connection, heartbeat and retry jobs are stopped.
+        code: [messaginginapp/src/main/java/io/customer/messaginginapp/gist/data/sse/SseConnectionManager.kt#stopConnection]
+        tests: [messaginginapp/src/test/java/io/customer/messaginginapp/gist/presentation/SseLifecycleManagerTest.kt#testOnStop_thenStopsConnection]
+    outcomes:
+      - anonymous users never use SSE, even when the server flag is on
+      - polling and SSE are never both active while the app is in the foreground
+      - the backfill fetch runs once per server-confirmed connection and not when the connection fails
+
+  - id: queue-processing
+    trigger: ProcessMessageQueue dispatched (fetch result, SSE snapshot, route change, or dismissal while on SSE)
+    steps:
+      - id: filter-sort
+        does: Drops messages with no queueId or a queueId already in shownMessageQueueIds, de-duplicates by queueId, and sorts by priority ascending with nulls last.
+        code: [messaginginapp/src/main/java/io/customer/messaginginapp/state/InAppMessagingMiddlewares.kt#processMessages]
+        tests: [messaginginapp/src/test/java/io/customer/messaginginapp/state/InAppMessagingMiddlewaresTest.kt#processMessages_shouldPrioritizeMessagesCorrectly]
+      - id: route-match
+        does: A message matches when it has no routeRuleAndroid, or when the rule fully matches currentRoute as a regex, and a rule with a null route or an invalid regex does not match.
+        code: [messaginginapp/src/main/java/io/customer/messaginginapp/gist/data/model/Message.kt#matchesRoute]
+      - id: inline
+        does: Messages with an elementId go to reconciliation, and the first route-matching message per elementId becomes ReadyToEmbed unless that element is already Embedded.
+        code: [messaginginapp/src/main/java/io/customer/messaginginapp/state/InAppMessagingState.kt#reconcileMessages]
+        tests: [messaginginapp/src/test/java/io/customer/messaginginapp/state/InAppMessagingMiddlewaresTest.kt#processMessages_givenInlineMessages_shouldFilterAndEmbed]
+      - id: modal
+        does: The first route-matching modal is dispatched as LoadMessage, but only when no modal is Loading or Displayed.
+        code: [messaginginapp/src/main/java/io/customer/messaginginapp/state/InAppMessagingMiddlewares.kt#processMessages]
+    outcomes:
+      - at most one modal is Loading or Displayed at any time
+      - at most one inline message is active per elementId
+      - a message already marked shown is never queued again until reset
+
+  - id: route-change
+    trigger: ScreenViewedEvent from CustomerIO.screen or automatic activity screen tracking
+    steps:
+      - id: set-route
+        does: The screen name becomes currentRoute, and an unchanged route is ignored.
+        code: [datapipelines/src/main/kotlin/io/customer/sdk/CustomerIO.kt#screenImpl, messaginginapp/src/main/java/io/customer/messaginginapp/gist/presentation/GistSdk.kt#setCurrentRoute]
+        tests: [messaginginapp/src/test/java/io/customer/messaginginapp/ModuleMessagingInAppTest.kt#whenScreenViewedEventOccurs_expectGistProviderSetsCurrentRoute]
+      - id: cancel-modal
+        does: A Loading or Displayed modal whose route rule no longer matches is dismissed with shouldLog false.
+        code: [messaginginapp/src/main/java/io/customer/messaginginapp/state/InAppMessagingMiddlewares.kt#routeChangeMiddleware]
+        tests: [messaginginapp/src/test/java/io/customer/messaginginapp/state/InAppMessagingMiddlewaresTest.kt#routeChangeMiddleware_shouldDismissModalMessageIfRouteDoesNotMatch]
+      - id: reprocess
+        does: The local queue is processed again without a network fetch, so queued messages for the new route can show.
+        code: [messaginginapp/src/main/java/io/customer/messaginginapp/state/InAppMessagingMiddlewares.kt#routeChangeMiddleware]
+        tests: [messaginginapp/src/test/java/io/customer/messaginginapp/state/InAppMessagingMiddlewaresTest.kt#routeChangeMiddleware_shouldProcessMessageQueueWhenRouteChanges]
+    outcomes:
+      - the modal activity itself does not change the route (GistModalActivity returns a null screen name)
+      - screenViewUse InApp still updates the in-app route even though the screen event is not sent to the backend
+
+  - id: display-modal
+    trigger: LoadMessage dispatched for a modal message
+    steps:
+      - id: launch
+        does: If no modal is Displayed, starts GistModalActivity with NEW_TASK from the application context, passing the message JSON and position, and the state becomes Loading.
+        code: [messaginginapp/src/main/java/io/customer/messaginginapp/state/InAppMessagingMiddlewares.kt#handleModalMessageDisplay]
+      - id: activity-setup
+        does: The activity parses the extras, stays untouchable and invisible, and loads the renderer WebView for the message at the requested position.
+        code: [messaginginapp/src/main/java/io/customer/messaginginapp/gist/presentation/GistModalActivity.kt#setupMessage, messaginginapp/src/main/java/io/customer/messaginginapp/ui/controller/InAppMessageViewController.kt#loadMessage]
+        tests: [messaginginapp/src/test/java/io/customer/messaginginapp/gist/presentation/GistModalActivityTest.kt#onCreate_givenInvalidMessageWithInitializedModule_expectActivityFinishes]
+      - id: bootstrap
+        does: The renderer must bootstrap within 5s or the load fails with TIMEOUT, and the timer pauses while the view lifecycle is paused and restarts in full on resume.
+        code: [messaginginapp/src/main/java/io/customer/messaginginapp/gist/presentation/engine/EngineWebView.kt#setupTimeout]
+      - id: route-loaded
+        does: The first routeLoaded makes the WebView visible and dispatches DisplayMessage once for this message.
+        code: [messaginginapp/src/main/java/io/customer/messaginginapp/ui/controller/InAppMessageViewController.kt#routeLoaded, messaginginapp/src/main/java/io/customer/messaginginapp/ui/controller/ModalInAppMessageViewController.kt#onRouteLoaded]
+        tests: [messaginginapp/src/test/java/io/customer/messaginginapp/ui/controller/ModalMessageViewControllerTest.kt#routeLoaded_givenDisplayEventAlreadyDispatched_expectNoDispatch]
+      - id: displayed
+        does: The reducer sets Displayed and removes the message from the queue, and adds its queueId to shownMessageQueueIds only if it is not persistent.
+        code: [messaginginapp/src/main/java/io/customer/messaginginapp/state/InAppMessagingAction.kt#shouldMarkMessageAsShown]
+        tests: [messaginginapp/src/test/java/io/customer/messaginginapp/state/InAppMessageReducerTest.kt#displayMessage_givenPersistentMessage_expectMessageNotMarkedAsShown]
+      - id: animate
+        does: When the activity sees Displayed, it becomes touchable and animates in from the top or bottom over the overlay color.
+        code: [messaginginapp/src/main/java/io/customer/messaginginapp/gist/presentation/GistModalActivity.kt#onMessageShown]
+    outcomes:
+      - DisplayMessage, and so the view log, the Opened metric and messageShown, fires at most once per message load
+      - a second LoadMessage while a modal is Displayed is turned into a ReportError and does not start another activity
+
+  - id: dismiss-modal
+    trigger: gist://close action, back press, ModuleMessagingInApp.dismissMessage, route mismatch, or activity destroyed
+    steps:
+      - id: api
+        does: dismissMessage only acts when a modal is Displayed.
+        code: [messaginginapp/src/main/java/io/customer/messaginginapp/gist/presentation/GistSdk.kt#dismissMessage]
+        tests: [messaginginapp/src/test/java/io/customer/messaginginapp/GistSDKTest.kt#dismissMessage_whenNoMessageAvailable_expectNoDismissMessageActionDispatched]
+      - id: back
+        does: Back press does nothing for a persistent message, and for other messages it finishes the activity, which dismisses it in onDestroy.
+        code: [messaginginapp/src/main/java/io/customer/messaginginapp/gist/presentation/GistModalActivity.kt#setupBackPressedCallback]
+      - id: on-destroy
+        does: onDestroy dispatches DismissMessage only if this activity's message is still the Displayed one, using shouldLog false for persistent messages.
+        code: [messaginginapp/src/main/java/io/customer/messaginginapp/gist/presentation/GistModalActivity.kt#onDestroy]
+        tests: [messaginginapp/src/test/java/io/customer/messaginginapp/gist/presentation/GistModalActivityTest.kt#onDestroy_givenActivityMessageDifferentFromMessageInQueue_expectDismissNotDispatched, messaginginapp/src/test/java/io/customer/messaginginapp/gist/presentation/GistModalActivityTest.kt#onDestroy_givenPersistentMessage_expectDismissDispatchedWithShouldLogFalse]
+      - id: persistent-close
+        when: message is persistent AND shouldLog AND viaCloseAction
+        does: The message is marked shown, its view is logged to Gist, and an immediate fetch runs (skipped on SSE).
+        code: [messaginginapp/src/main/java/io/customer/messaginginapp/state/InAppMessagingMiddlewares.kt#handleMessageDismissal]
+        tests: [messaginginapp/src/test/java/io/customer/messaginginapp/state/InAppMessagingMiddlewaresTest.kt#gistLoggingMessageMiddleware_shouldFetchMessagesWhenPersistentMessageDismissed]
+      - id: reducer
+        does: The modal state becomes Dismissed, and the activity sees it, stops loading and animates out.
+        code: [messaginginapp/src/main/java/io/customer/messaginginapp/state/InAppMessagingStateExtensions.kt#withMessageDismissed, messaginginapp/src/main/java/io/customer/messaginginapp/gist/presentation/GistModalActivity.kt#cleanUp]
+      - id: next
+        when: shouldUseSse
+        does: The queue is processed again right away so the next eligible modal can show, while in polling mode the next modal waits for the next fetch or route change.
+        code: [messaginginapp/src/main/java/io/customer/messaginginapp/state/InAppMessagingMiddlewares.kt#handleMessageDismissal]
+    outcomes:
+      - InAppEventListener.messageDismissed fires on every DismissMessage, including route-mismatch and system-action dismissals
+      - no metric is sent for a dismissal
+      - a persistent message dismissed by anything other than a close action stays eligible to show again
+
+  - id: display-inline
+    trigger: An InlineInAppMessageView (or wrapper view) with an elementId is attached while an inline message is ReadyToEmbed for that elementId
+    steps:
+      - id: subscribe
+        does: On attach, the controller subscribes to the store and re-evaluates only when this element's state or its route match changes.
+        code: [messaginginapp/src/main/java/io/customer/messaginginapp/ui/core/BaseInlineInAppMessageView.kt#onAttachedToWindow, messaginginapp/src/main/java/io/customer/messaginginapp/ui/controller/InlineInAppMessageViewController.kt#subscribeToStore]
+      - id: embed
+        does: A ReadyToEmbed message is loaded into a new WebView, replacing any previous message with a collapse animation first.
+        code: [messaginginapp/src/main/java/io/customer/messaginginapp/ui/controller/InlineInAppMessageViewController.kt#embedMessage]
+        tests: [messaginginapp/src/test/java/io/customer/messaginginapp/ui/controller/InlineMessageViewControllerBehaviorTest.kt#handleMessageState_givenElementIdChanged_expectPreviousDismissedAndNewMessageShown]
+      - id: size
+        does: The view stays hidden until the renderer reports a size and then animates to that size.
+        code: [messaginginapp/src/main/java/io/customer/messaginginapp/ui/controller/InlineInAppMessageViewController.kt#onWebViewSizeUpdated]
+        tests: [messaginginapp/src/test/java/io/customer/messaginginapp/ui/controller/InlineMessageViewControllerBehaviorTest.kt#messageLoaded_givenSameSize_expectNoViewUpdate]
+      - id: displayed
+        does: routeLoaded dispatches DisplayMessage once, and the element state becomes Embedded.
+        code: [messaginginapp/src/main/java/io/customer/messaginginapp/state/InAppMessageReducer.kt#inAppMessagingReducer]
+        tests: [messaginginapp/src/test/java/io/customer/messaginginapp/ui/InlineInAppMessageIntegrationTest.kt#givenInlineMessage_whenDisplayedAndDismissed_expectCorrectStateTransitions]
+      - id: route-leaves
+        does: A message that is already displayed stays visible when the route stops matching, while a message not yet displayed is hidden.
+        code: [messaginginapp/src/main/java/io/customer/messaginginapp/ui/controller/InlineInAppMessageViewController.kt#refreshViewState]
+        tests: [messaginginapp/src/test/java/io/customer/messaginginapp/ui/controller/InlineMessageViewControllerBehaviorTest.kt#handleMessageState_givenDisplayedMessageAndRouteChanges_expectExistingViewRetained]
+      - id: availability
+        does: observeInlineMessageAvailability emits true while the element is ReadyToEmbed or Embedded and its route matches, without fetching or marking anything shown.
+        code: [messaginginapp/src/main/java/io/customer/messaginginapp/ModuleMessagingInApp.kt#observeInlineMessageAvailability]
+        tests: [messaginginapp/src/test/java/io/customer/messaginginapp/ModuleMessagingInAppTest.kt#observeInlineMessageAvailability_givenMessageStateChanges_expectCurrentAvailability]
+      - id: owner-destroyed
+        does: When the owner is really destroyed (not a configuration change), the message is dismissed with shouldLog false and viaCloseAction false.
+        code: [messaginginapp/src/main/java/io/customer/messaginginapp/ui/controller/InlineInAppMessageViewController.kt#onViewOwnerDestroyed, messaginginapp/src/main/java/io/customer/messaginginapp/ui/bridge/InAppPlatformDelegate.kt#shouldDestroyWithOwner]
+    outcomes:
+      - re-creating a view for an already Embedded message shows it again without a second display event
+      - a detached Embedded message is kept if it was already shown or is still in the server queue
+
+  - id: config-change
+    trigger: Rotation or a dark/light mode change while a message is on screen
+    steps:
+      - id: modal-uimode
+        does: GistModalActivity declares configChanges uiMode, so a night-mode change does not recreate it, and with AUTO the WebView sends the new scheme to the renderer.
+        code: [messaginginapp/src/main/AndroidManifest.xml, messaginginapp/src/main/java/io/customer/messaginginapp/gist/presentation/engine/EngineWebView.kt#onConfigurationChanged]
+      - id: runtime-scheme
+        does: setColorScheme updates the store, and every live EngineWebView pushes the newly resolved scheme to its renderer.
+        code: [messaginginapp/src/main/java/io/customer/messaginginapp/ModuleMessagingInApp.kt#setColorScheme, messaginginapp/src/main/java/io/customer/messaginginapp/gist/presentation/engine/EngineWebView.kt#subscribeToColorSchemeChanges]
+      - id: modal-rotation
+        does: Rotation is not declared in configChanges, so the activity is recreated, and its onDestroy runs the normal dismiss guard (see open_questions).
+        code: [messaginginapp/src/main/java/io/customer/messaginginapp/gist/presentation/GistModalActivity.kt#onDestroy]
+      - id: inline-recreate
+        does: For inline views, a configuration change releases the view without dismissing, and the new view re-embeds the Embedded message with no new display event.
+        code: [messaginginapp/src/main/java/io/customer/messaginginapp/ui/controller/InlineInAppMessageViewController.kt#onViewDetached]
+        tests: [messaginginapp/src/test/java/io/customer/messaginginapp/ui/controller/InlineMessageViewControllerBehaviorTest.kt#onViewOwnerDestroyed_givenConfigurationChangeAndWithdrawnPersistentMessage_expectMessageRestored, messaginginapp/src/test/java/io/customer/messaginginapp/ui/controller/InlineMessageViewControllerBehaviorTest.kt#handleMessageState_givenControllerRecreated_expectExistingMessageShown]
+    outcomes:
+      - a theme change never reloads or re-tracks a message
+      - an inline message survives rotation without a duplicate Opened metric
+
+  - id: actions
+    trigger: User taps an action in the rendered message (the renderer calls tap with name, action, system)
+    steps:
+      - id: guard
+        does: A tap is ignored until the message has loaded a route, and any exception while handling it is caught and logged.
+        code: [messaginginapp/src/main/java/io/customer/messaginginapp/ui/controller/InAppMessageViewController.kt#tap]
+        tests: [messaginginapp/src/test/java/io/customer/messaginginapp/ui/controller/InAppMessageViewControllerTest.kt#tap_givenActionAndNoCurrentRoute_expectNoMessageManagerInteraction, messaginginapp/src/test/java/io/customer/messaginginapp/ui/controller/InAppMessageViewControllerTest.kt#tap_givenTapHandlingThrows_expectNoCrash]
+      - id: notify
+        does: Every tap dispatches EngineAction.Tap, which calls InAppEventListener.messageActionTaken, and inline views also call their InlineMessageActionListener.
+        code: [messaginginapp/src/main/java/io/customer/messaginginapp/ui/controller/InAppMessageViewController.kt#handleTap, messaginginapp/src/main/java/io/customer/messaginginapp/ModuleMessagingInApp.kt#onAction]
+        tests: [messaginginapp/src/test/java/io/customer/messaginginapp/ui/controller/InAppMessageViewControllerTest.kt#tap_givenActionWithActionListener_expectDispatchToGlobalAndLocal]
+      - id: close
+        when: action host is close (gist://close)
+        does: Dispatches DismissMessage with viaCloseAction true.
+        code: [messaginginapp/src/main/java/io/customer/messaginginapp/ui/controller/InAppMessageViewController.kt#handleTap]
+        tests: [messaginginapp/src/test/java/io/customer/messaginginapp/ui/controller/InAppMessageViewControllerTest.kt#tap_givenCloseAction_expectCloseActionDispatched]
+      - id: load-page
+        when: action host is loadPage
+        does: Opens the url query param with ACTION_VIEW (leading whitespace trimmed) and keeps the message open.
+        code: [messaginginapp/src/main/java/io/customer/messaginginapp/ui/bridge/InAppPlatformDelegate.kt#openUrl]
+        tests: [messaginginapp/src/test/java/io/customer/messaginginapp/ui/controller/InAppMessageViewControllerTest.kt#tap_givenLoadPageAction_expectOpenUrlDispatched]
+      - id: show-message
+        when: action host is showMessage
+        does: Dismisses the current message with shouldLog false, then loads the messageId given in the query with its base64 properties, without a queueId.
+        code: [messaginginapp/src/main/java/io/customer/messaginginapp/ui/controller/InAppMessageViewController.kt#handleTap]
+        tests: [messaginginapp/src/test/java/io/customer/messaginginapp/ui/controller/InAppMessageViewControllerTest.kt#tap_givenShowMessageAction_expectDismissCurrentAndShowNewMessage]
+      - id: system
+        when: action is not gist:// and system is true
+        does: Opens the URL with NEW_TASK, CLEAR_TOP and SINGLE_TOP, then dismisses with shouldLog false, and if no activity handles the URL the message stays open.
+        code: [messaginginapp/src/main/java/io/customer/messaginginapp/ui/controller/InAppMessageViewController.kt#handleTap]
+        tests: [messaginginapp/src/test/java/io/customer/messaginginapp/ui/controller/InAppMessageViewControllerTest.kt#tap_givenSystemAction_expectDismissMessageAndOpenSystemIntent]
+      - id: custom
+        when: action is not gist:// and system is false
+        does: The SDK takes no navigation action, and the host handles it through the listener callbacks.
+        code: [messaginginapp/src/main/java/io/customer/messaginginapp/ui/controller/InAppMessageViewController.kt#handleTap]
+    outcomes:
+      - listener callbacks fire before the SDK runs any default action, and the host cannot stop the default action
+
+  - id: load-failure
+    trigger: The renderer fails to load (main-frame network, HTTP or TLS error, 5s bootstrap timeout, renderer-reported failure, or WebView render process gone)
+    steps:
+      - id: classify
+        does: EngineWebView maps the failure to NETWORK, TIMEOUT, RENDER_FAILED, WEB_VIEW_CRASHED or INTERNAL_ERROR and reports only the first failure per load.
+        code: [messaginginapp/src/main/java/io/customer/messaginginapp/gist/presentation/engine/EngineWebView.kt#reportFailure, messaginginapp/src/main/java/io/customer/messaginginapp/type/InAppMessageError.kt#InAppMessageErrorReason]
+        tests: [messaginginapp/src/test/java/io/customer/messaginginapp/gist/presentation/engine/EngineWebViewConcurrentFailureTest.kt#reportFailure_givenSimultaneousFailures_expectExactlyOneReachesHost, messaginginapp/src/test/java/io/customer/messaginginapp/gist/presentation/engine/EngineWebViewClientErrorTest.kt#onReceivedError_givenSubresourceFailure_expectMessageNotFailed]
+      - id: dispatch
+        does: The controller dispatches MessageLoadingFailed, and the reducer dismisses the message without marking it shown.
+        code: [messaginginapp/src/main/java/io/customer/messaginginapp/ui/controller/InAppMessageViewController.kt#error, messaginginapp/src/main/java/io/customer/messaginginapp/state/InAppMessageReducer.kt#inAppMessagingReducer]
+        tests: [messaginginapp/src/test/java/io/customer/messaginginapp/state/InAppMessageReducerTest.kt#messageLoadingFailed_givenModalMessage_expectModalMessageToBeDismissed, messaginginapp/src/test/java/io/customer/messaginginapp/ui/controller/InlineMessageViewControllerBehaviorTest.kt#messageLoadingFailed_givenLoadError_expectViewDismissed]
+      - id: callback
+        does: ModuleMessagingInApp logs the error and calls InAppEventListener.errorWithMessage(message, error), which by default delegates to the single-argument overload.
+        code: [messaginginapp/src/main/java/io/customer/messaginginapp/ModuleMessagingInApp.kt#onError, messaginginapp/src/main/java/io/customer/messaginginapp/type/InAppEventListener.kt#errorWithMessage]
+        tests: [messaginginapp/src/test/java/io/customer/messaginginapp/state/InAppMessagingMiddlewaresTest.kt#gistListenerMiddleware_shouldNotifyListenerForMessageLoadingFailed]
+    outcomes:
+      - a failed message gets no Opened metric, no view log and no messageDismissed callback
+      - a failed message stays in the queue and can be retried on the next queue processing
+
+  - id: metrics
+    trigger: A message is displayed, an action is tapped, or an inbox message is opened or clicked
+    steps:
+      - id: opened
+        does: On DisplayMessage, InAppEventListener.messageShown is called and TrackInAppMetricEvent(Opened) is published when the message has a campaignId (deliveryId).
+        code: [messaginginapp/src/main/java/io/customer/messaginginapp/ModuleMessagingInApp.kt#onMessageShown]
+        tests: [messaginginapp/src/test/java/io/customer/messaginginapp/ModuleMessagingInAppTest.kt#initialize_givenMessageShownWithValidPosition_expectEventListenerNotifiedAndMetricEventPublished]
+      - id: clicked
+        does: On every Tap except an action equal to gist://close, TrackInAppMetricEvent(Clicked) is published with actionName and actionValue params.
+        code: [messaginginapp/src/main/java/io/customer/messaginginapp/ModuleMessagingInApp.kt#onAction]
+        tests: [messaginginapp/src/test/java/io/customer/messaginginapp/ModuleMessagingInAppTest.kt#onAction_givenNonCloseAction_expectTrackInAppMetricEventPublished, messaginginapp/src/test/java/io/customer/messaginginapp/ModuleMessagingInAppTest.kt#onAction_givenCloseAction_expectNoTrackInAppMetricEventPublished]
+      - id: gist-view-log
+        does: "The Gist backend view log (POST /api/v1/logs/queue/{queueId}, or /logs/message/{messageId} without a queueId) is sent on display for non-persistent messages and on close for persistent ones."
+        code: [messaginginapp/src/main/java/io/customer/messaginginapp/state/InAppMessagingMiddlewares.kt#handleMessageDisplay, messaginginapp/src/main/java/io/customer/messaginginapp/gist/data/listeners/Queue.kt#logView]
+        tests: [messaginginapp/src/test/java/io/customer/messaginginapp/state/InAppMessagingMiddlewaresTest.kt#gistLoggingMessageMiddleware_shouldNotLogViewForPersistentMessageOnDisplay]
+      - id: delivery
+        does: Datapipelines subscribes to TrackInAppMetricEvent and sends it as an in-app TrackMetric.
+        code: [datapipelines/src/main/kotlin/io/customer/sdk/CustomerIO.kt#subscribeToJourneyEvents]
+      - id: inbox
+        does: Inbox messages send Opened only on an unopened-to-opened change and Clicked on trackMessageClicked, both only when the message is in state and has a deliveryId.
+        code: [messaginginapp/src/main/java/io/customer/messaginginapp/state/InAppMessagingMiddlewares.kt#processInboxMessages]
+        tests: [messaginginapp/src/test/java/io/customer/messaginginapp/state/InAppMessagingMiddlewaresTest.kt#processInboxMessages_givenUpdateOpenedWithOpenedTrue_shouldPublishMetricEvent]
+    outcomes:
+      - Opened is sent at most once per display of a message, including for persistent messages
+      - no Dismissed metric exists, and dismissal is reported only through InAppEventListener.messageDismissed
+      - messages without a campaignId send no metrics but still trigger listener callbacks
+
+  - id: identify
+    trigger: CustomerIO.identify(userId) (also the SDK-init republish of a restored user)
+    steps:
+      - id: publish
+        does: Datapipelines saves the userId and publishes UserChangedEvent(userId, anonymousId) after analytics.identify.
+        code: [datapipelines/src/main/kotlin/io/customer/sdk/CustomerIO.kt#publishUserChanged]
+      - id: set-ids
+        does: The module sets anonymousId, sets the cio_anonymous_id renderer custom attribute, sets userId if it is non-null, and both setters ignore unchanged values.
+        code: [messaginginapp/src/main/java/io/customer/messaginginapp/ModuleMessagingInApp.kt#setupHooks, messaginginapp/src/main/java/io/customer/messaginginapp/gist/presentation/GistSdk.kt#setUserId]
+        tests: [messaginginapp/src/test/java/io/customer/messaginginapp/ModuleMessagingInAppTest.kt#initialize_givenUserChangedWithUserId_expectGistSetsBothIdsAndFetches, messaginginapp/src/test/java/io/customer/messaginginapp/GistSDKTest.kt#setUserId_givenSameUserIdTwice_expectNoAdditionalActionsOnSecondCall]
+      - id: fetch
+        does: Every UserChangedEvent calls fetchInAppMessages, which polls right away or does nothing when SSE is active.
+        code: [messaginginapp/src/main/java/io/customer/messaginginapp/gist/presentation/GistSdk.kt#fetchInAppMessages]
+      - id: sse-upgrade
+        does: Going from anonymous to identified with sseEnabled true starts SSE and stops polling.
+        code: [messaginginapp/src/main/java/io/customer/messaginginapp/gist/presentation/SseLifecycleManager.kt#subscribeToUserIdentificationChanges]
+        tests: [messaginginapp/src/test/java/io/customer/messaginginapp/gist/presentation/SseLifecycleManagerTest.kt#testUserBecomesIdentified_whenForegroundedAndSseEnabled_thenStartsConnection]
+    outcomes:
+      - later queue requests carry the identified user token and X-Gist-User-Anonymous false
+
+  - id: clear-identify
+    trigger: CustomerIO.clearIdentify()
+    steps:
+      - id: publish
+        does: Datapipelines clears the secure user store, publishes ResetEvent, resets analytics, then publishes UserChangedEvent(null, newAnonymousId).
+        code: [datapipelines/src/main/kotlin/io/customer/sdk/CustomerIO.kt#clearIdentifyImpl]
+      - id: reset
+        does: GistSdk dispatches Reset, clears all in-app SharedPreferences, cancels the poll timer and asks SSE to restart if it should still be used, and the module clears custom attributes.
+        code: [messaginginapp/src/main/java/io/customer/messaginginapp/gist/presentation/GistSdk.kt#reset, messaginginapp/src/main/java/io/customer/messaginginapp/gist/presentation/SseLifecycleManager.kt#reset]
+        tests: [messaginginapp/src/test/java/io/customer/messaginginapp/GistSDKTest.kt#reset_whenCalled_expectResetActionDispatchedAndPreferencesCleared, messaginginapp/src/test/java/io/customer/messaginginapp/ModuleMessagingInAppTest.kt#whenResetEventOccurs_expectCustomAttributesCleared]
+      - id: reset-state
+        does: Reset clears userId, anonymousId, currentRoute, the queues, the inbox, tombstones, shown ids, and the sse and inbox flags, sets a new sessionId and bumps sseMessageRevision.
+        code: [messaginginapp/src/main/java/io/customer/messaginginapp/state/InAppMessageReducer.kt#inAppMessagingReducer]
+        tests: [messaginginapp/src/test/java/io/customer/messaginginapp/state/InAppMessageReducerTest.kt#reset_givenMessageInState_expectAllStateCleared]
+      - id: sse-stop
+        does: Because sseEnabled becomes false, the SSE subscriber stops the connection.
+        code: [messaginginapp/src/main/java/io/customer/messaginginapp/gist/presentation/SseLifecycleManager.kt#subscribeToSseFlagChanges]
+      - id: anonymous-fetch
+        does: The following UserChangedEvent sets the new anonymousId and fetches once as an anonymous user.
+        code: [messaginginapp/src/main/java/io/customer/messaginginapp/ModuleMessagingInApp.kt#setupHooks]
+        tests: [messaginginapp/src/test/java/io/customer/messaginginapp/ModuleMessagingInAppTest.kt#whenResetEventFollowedByUserChanged_expectSingleFetchAfterReset]
+    outcomes:
+      - after reset, no message shown to the previous user is treated as shown for the next user
+      - in-flight HTTP results from before reset are dropped by the sseMessageRevision guard
+      - after reset, route-gated messages wait for the next screen event because currentRoute is null
+
+  - id: anonymous-broadcasts
+    trigger: A queue response or SSE snapshot contains messages with gist.broadcast frequency settings
+    steps:
+      - id: store
+        does: Broadcasts from the HTTP response are stored locally with a 60-minute expiry, and if a response has none, all local broadcast data and tracking is cleared.
+        code: [messaginginapp/src/main/java/io/customer/messaginginapp/gist/data/AnonymousMessageManager.kt#updateAnonymousMessagesLocalStore]
+        tests: [messaginginapp/src/test/java/io/customer/messaginginapp/AnonymousMessageManagerTest.kt#updateAnonymousMessagesLocalStore_givenNoMessageFromServer_expectCompleteCleanup]
+      - id: eligible
+        does: A broadcast is eligible unless it was dismissed (and ignoreDismiss is false), is in its delay window, or has been shown count times, where count 0 means unlimited.
+        code: [messaginginapp/src/main/java/io/customer/messaginginapp/gist/data/AnonymousMessageManager.kt#getEligibleAnonymousMessages]
+        tests: [messaginginapp/src/test/java/io/customer/messaginginapp/AnonymousMessageManagerTest.kt#getEligibleAnonymousMessages_givenBroadcastInDelayPeriod_expectNotEligible]
+      - id: seen
+        does: On display the shown count goes up, and count 1 marks the broadcast dismissed for good while a positive delay sets the next allowed time.
+        code: [messaginginapp/src/main/java/io/customer/messaginginapp/gist/data/AnonymousMessageManager.kt#markAnonymousAsSeen]
+        tests: [messaginginapp/src/test/java/io/customer/messaginginapp/AnonymousMessageManagerTest.kt#markAnonymousAsSeen_givenSingleShowBroadcast_expectPermanentDismissal]
+      - id: dismissed
+        does: On dismissal the broadcast is marked dismissed unless ignoreDismiss is true.
+        code: [messaginginapp/src/main/java/io/customer/messaginginapp/gist/data/AnonymousMessageManager.kt#markAnonymousAsDismissed]
+        tests: [messaginginapp/src/test/java/io/customer/messaginginapp/AnonymousMessageManagerTest.kt#markAnonymousAsDismissed_givenIgnoreDismissTrue_expectStillEligible]
+    outcomes:
+      - server copies of broadcasts are always replaced by the locally eligible set, for both HTTP and SSE
+      - broadcast frequency tracking needs a user token (userId or anonymousId), and without one it does nothing
+
+  - id: inbox-handoff
+    trigger: Queue response or SSE inbox_messages event carries inbox messages
+    steps:
+      - id: ingest
+        does: Inbox messages are de-duplicated by queueId, filtered against local delete tombstones, and kept in state.inboxMessages for NotificationInbox and VisualInbox.
+        code: [messaginginapp/src/main/java/io/customer/messaginginapp/state/InAppMessagingMiddlewares.kt#processInboxMessages, messaginginapp/src/main/java/io/customer/messaginginapp/inbox/NotificationInbox.kt#NotificationInbox]
+        tests: [messaginginapp/src/test/java/io/customer/messaginginapp/state/InAppMessageReducerTest.kt#processInboxMessages_givenTombstonedMessageStillEchoedByServer_expectMessageStaysGone]
+      - id: visual-gate
+        does: X-CIO-Inbox-Enabled controls isInboxEnabled, and turning it on, or a missing cache while on, triggers the templates and branding fetch.
+        code: [messaginginapp/src/main/java/io/customer/messaginginapp/gist/data/listeners/Queue.kt#updateInboxFlag]
+        tests: [messaginginapp/src/test/java/io/customer/messaginginapp/gist/data/listeners/QueueInboxTriggerTest.kt#updateInboxFlag_givenEnabledHeaderTransition_expectFetchTriggered]
+    outcomes:
+      - inbox messages never go through the modal or inline display pipeline
+
+invariants: [sdk-may-be-uninitialized]
+open_questions:
+  - id: I1
+    status: bug
+    question: Rotating a modal - dismissed or re-displayed?
+    answer: "Dismissed (verified). Expected: the message stays/re-displays across rotation. See known_issues I1."
+  - id: I2
+    status: discuss
+    question: identify(A) then identify(B) while SSE is connected may keep the stream open with A's token.
+    answer: Unverified hypothesis; correct behavior needs team discussion.
+  - id: I3
+    status: answered
+    question: Inline view inflated before SDK init throws IllegalStateException?
+    answer: "Native apps are expected to create inline views after init. Note: wrapper inline components (Flutter, React Native, Expo) have no init guard either (verified), so the crash risk applies to wrappers; see known_issues I3."
+  - id: I4
+    status: bug
+    question: In polling mode, does the next queued modal show right after a dismiss?
+    answer: "No (verified): it waits for the next poll (default 10 min), a route change or app foreground. Expected: shows right after the previous one is dismissed. See known_issues I4."
+  - id: I5
+    status: limitation
+    question: Invalid route regex is never shown but also never dismissed on route change. Consistent?
+    answer: Accepted limitation; a message that was shown should already have a valid regex.
+  - id: I6
+    status: limitation
+    question: After SSE falls back to polling, does X-CIO-Use-SSE true re-enable SSE immediately with no backoff?
+    answer: Yes (verified). Accepted as a known limitation for now; see known_issues I6.
+  - id: I7
+    status: answered
+    question: Clicked is skipped only for an exact gist://close action. Correct?
+    answer: Yes, intended. Only the exact close action is a close; anything else is a click.
+  - id: I8
+    status: limitation
+    question: A persistent modal dismissed other than by its close action can show again. Intended?
+    answer: Accepted limitation.
+  - id: I9
+    status: discuss
+    question: EngineWebView allows navigation only to https://code.gist.build while the renderer loads from renderer.gist.build. What is it meant to block?
+    answer: Unclear; needs team discussion.
+  - id: I10
+    status: answered
+    question: Environment is hard-coded to PROD. Any supported way to switch?
+    answer: No. DEV and LOCAL exist for internal testing only.
+known_issues:
+  - id: I1
+    kind: bug
+    verified: true
+    expected: A displayed modal survives device rotation (re-displayed, no messageDismissed callback).
+    expected_from: owner I1
+    actual: GistModalActivity declares only configChanges=uiMode; rotation recreates it and onDestroy dispatches DismissMessage without an isChangingConfigurations guard (inline views have that guard).
+    evidence: [messaginginapp/src/main/java/io/customer/messaginginapp/gist/presentation/GistModalActivity.kt#onDestroy]
+  - id: I3
+    kind: bug
+    verified: false
+    expected: Wrapper inline in-app components do not crash when rendered before the native SDK is initialized.
+    expected_from: owner I3
+    actual: Flutter and React Native inline views always create InlineInAppMessageView, which resolves inAppMessagingManager and likely throws IllegalStateException when the module is not registered.
+    confirm_with: Render an inline view before initialize in the Flutter or React Native example app.
+  - id: I4
+    kind: bug
+    verified: true
+    expected: The next eligible modal in the local queue shows right after the previous one is dismissed, in polling and SSE mode.
+    expected_from: owner I4
+    actual: Only SSE mode re-processes the local queue on dismiss; polling waits for the next poll, a route change or app foreground.
+    evidence: [messaginginapp/src/main/java/io/customer/messaginginapp/state/InAppMessagingMiddlewares.kt#handleMessageDismissal]
+  - id: I5
+    kind: limitation
+    verified: true
+    expected: Invalid route regex handled consistently.
+    actual: Never shown by matchesRoute, but not dismissed by routeChangeMiddleware.
+  - id: I6
+    kind: limitation
+    verified: true
+    expected: SSE failures back off before SSE is retried.
+    actual: The next poll with X-CIO-Use-SSE true re-enables SSE at once; with a failing stream the connect/retry/fallback cycle repeats roughly every 10s in the foreground (cycle time inferred from code).
+  - id: I8
+    kind: limitation
+    verified: true
+    expected: A persistent modal is shown again only when intended by product.
+    actual: Dismissed by route change, system action, showMessage or activity destruction, it is not marked shown and can show again.
+open_items:
+  - id: I2
+    question: Switching identified user A to B while SSE is connected; should the stream restart with B's token? (hypothesis that it does not)
+  - id: I9
+    question: What should EngineWebView navigation allowlisting block, given the renderer host differs from the allowed host?

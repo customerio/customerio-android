@@ -1,0 +1,625 @@
+{
+  "schema": "tether/facts@1",
+  "build_system": "gradle",
+  "modules": [
+    {
+      "name": ":base",
+      "path": "base",
+      "kind": "library",
+      "namespace": null,
+      "depends_on": {},
+      "public_api_dump": null,
+      "source_roots": [
+        "base/src/main/java",
+        "base/src/test/java"
+      ]
+    },
+    {
+      "name": ":common-test",
+      "path": "common-test",
+      "kind": "test-support",
+      "namespace": "io.customer.commontest",
+      "depends_on": {
+        "implementation": [
+          ":core"
+        ]
+      },
+      "public_api_dump": null,
+      "source_roots": [
+        "common-test/src/main/java"
+      ]
+    },
+    {
+      "name": ":core",
+      "path": "core",
+      "kind": "library",
+      "namespace": "io.customer.sdk.core",
+      "depends_on": {
+        "androidTestImplementation": [
+          ":common-test"
+        ],
+        "api": [
+          ":base"
+        ],
+        "testImplementation": [
+          ":common-test"
+        ]
+      },
+      "public_api_dump": "core/api/core.api",
+      "source_roots": [
+        "core/src/androidTest/java",
+        "core/src/main/kotlin",
+        "core/src/test/java"
+      ]
+    },
+    {
+      "name": ":datapipelines",
+      "path": "datapipelines",
+      "kind": "library",
+      "namespace": "io.customer.datapipelines",
+      "depends_on": {
+        "androidTestImplementation": [
+          ":common-test"
+        ],
+        "api": [
+          ":base",
+          ":core"
+        ],
+        "implementation": [
+          ":tracking-migration"
+        ],
+        "testImplementation": [
+          ":common-test"
+        ]
+      },
+      "public_api_dump": "datapipelines/api/datapipelines.api",
+      "source_roots": [
+        "datapipelines/src/main/kotlin",
+        "datapipelines/src/test/java"
+      ]
+    },
+    {
+      "name": ":geofence",
+      "path": "geofence",
+      "kind": "library",
+      "namespace": "io.customer.geofence",
+      "depends_on": {
+        "androidTestImplementation": [
+          ":common-test"
+        ],
+        "api": [
+          ":base",
+          ":core",
+          ":location"
+        ],
+        "testImplementation": [
+          ":common-test"
+        ]
+      },
+      "public_api_dump": "geofence/api/geofence.api",
+      "source_roots": [
+        "geofence/src/main/kotlin",
+        "geofence/src/test/java"
+      ]
+    },
+    {
+      "name": ":location",
+      "path": "location",
+      "kind": "library",
+      "namespace": "io.customer.location",
+      "depends_on": {
+        "androidTestImplementation": [
+          ":common-test"
+        ],
+        "api": [
+          ":base",
+          ":core"
+        ],
+        "testImplementation": [
+          ":common-test"
+        ]
+      },
+      "public_api_dump": "location/api/location.api",
+      "source_roots": [
+        "location/src/main/kotlin",
+        "location/src/test/java"
+      ]
+    },
+    {
+      "name": ":messaginginapp",
+      "path": "messaginginapp",
+      "kind": "library",
+      "namespace": "io.customer.messaginginapp",
+      "depends_on": {
+        "androidTestImplementation": [
+          ":common-test"
+        ],
+        "api": [
+          ":base",
+          ":core"
+        ],
+        "testImplementation": [
+          ":common-test"
+        ]
+      },
+      "public_api_dump": "messaginginapp/api/messaginginapp.api",
+      "source_roots": [
+        "messaginginapp/src/main/java",
+        "messaginginapp/src/test/java"
+      ]
+    },
+    {
+      "name": ":messaginginapp-compose",
+      "path": "messaginginapp-compose",
+      "kind": "library",
+      "namespace": "io.customer.messaginginapp.compose",
+      "depends_on": {
+        "androidTestImplementation": [
+          ":common-test"
+        ],
+        "api": [
+          ":messaginginapp"
+        ],
+        "testImplementation": [
+          ":common-test"
+        ]
+      },
+      "public_api_dump": "messaginginapp-compose/api/messaginginapp-compose.api",
+      "source_roots": [
+        "messaginginapp-compose/src/main/java",
+        "messaginginapp-compose/src/test/java"
+      ]
+    },
+    {
+      "name": ":messaginginbox",
+      "path": "messaginginbox",
+      "kind": "library",
+      "namespace": "io.customer.messaginginbox",
+      "depends_on": {
+        "androidTestImplementation": [
+          ":common-test"
+        ],
+        "api": [
+          ":messaginginapp"
+        ],
+        "testImplementation": [
+          ":common-test"
+        ]
+      },
+      "public_api_dump": "messaginginbox/api/messaginginbox.api",
+      "source_roots": [
+        "messaginginbox/src/main/java",
+        "messaginginbox/src/test/java"
+      ]
+    },
+    {
+      "name": ":messagingpush",
+      "path": "messagingpush",
+      "kind": "library",
+      "namespace": "io.customer.messagingpush",
+      "depends_on": {
+        "androidTestImplementation": [
+          ":common-test"
+        ],
+        "api": [
+          ":base",
+          ":core"
+        ],
+        "testImplementation": [
+          ":common-test"
+        ]
+      },
+      "public_api_dump": "messagingpush/api/messagingpush.api",
+      "source_roots": [
+        "messagingpush/src/androidTest/java",
+        "messagingpush/src/main/java",
+        "messagingpush/src/test/java"
+      ]
+    },
+    {
+      "name": ":samples:java_layout",
+      "path": "samples/java_layout",
+      "kind": "sample",
+      "namespace": "io.customer.android.sample.java_layout",
+      "depends_on": {
+        "implementation": [
+          ":datapipelines",
+          ":geofence",
+          ":location",
+          ":messaginginapp",
+          ":messaginginapp-compose",
+          ":messaginginbox",
+          ":messagingpush"
+        ]
+      },
+      "public_api_dump": null,
+      "source_roots": [
+        "samples/java_layout/src/debug/java",
+        "samples/java_layout/src/main/java"
+      ]
+    },
+    {
+      "name": ":samples:kotlin_compose",
+      "path": "samples/kotlin_compose",
+      "kind": "sample",
+      "namespace": "io.customer.android.sample.kotlin_compose",
+      "depends_on": {},
+      "public_api_dump": null,
+      "source_roots": [
+        "samples/kotlin_compose/src/androidTest/java",
+        "samples/kotlin_compose/src/debug/java",
+        "samples/kotlin_compose/src/main/java",
+        "samples/kotlin_compose/src/test/java"
+      ]
+    },
+    {
+      "name": ":tracking-migration",
+      "path": "tracking-migration",
+      "kind": "library",
+      "namespace": "io.customer.tracking.migration",
+      "depends_on": {
+        "androidTestImplementation": [
+          ":common-test"
+        ],
+        "api": [
+          ":base",
+          ":core"
+        ],
+        "testImplementation": [
+          ":common-test"
+        ]
+      },
+      "public_api_dump": "tracking-migration/api/tracking-migration.api",
+      "source_roots": [
+        "tracking-migration/src/androidTest/java",
+        "tracking-migration/src/main/java",
+        "tracking-migration/src/test/java"
+      ]
+    }
+  ],
+  "versions": {
+    "ANDROIDX_ANNOTATIONS": "1.9.1",
+    "ANDROIDX_APPCOMPAT": "1.7.1",
+    "ANDROIDX_KTX": "1.17.0",
+    "ANDROIDX_LIFECYCLE_PROCESS": "2.9.4",
+    "ANDROIDX_TEST_JUNIT": "1.3.0",
+    "ANDROIDX_TEST_RULES": "1.7.0",
+    "ANDROIDX_TEST_RUNNER": "1.7.0",
+    "ANDROID_GRADLE_PLUGIN": "8.9.3",
+    "ANDROID_PUBLISH_PLUGIN": "0.1.0",
+    "COMPILE_SDK": "36",
+    "COMPOSE_BOM": "2025.10.00",
+    "COMPOSE_COMPILER": "2.1.21",
+    "COROUTINES": "1.10.2",
+    "DOKKA": "1.9.20",
+    "ESPRESSO": "3.7.0",
+    "FIREBASE_MESSAGING": "24.1.2",
+    "GOOGLE_PLAY_SERVICES_BASE": "18.7.2",
+    "GOOGLE_PLAY_SERVICES_LOCATION": "21.3.0",
+    "GOOGLE_SERVICES_PLUGIN": "4.4.2",
+    "GRADLE_NEXUS_PUBLISH_PLUGIN": "2.0.0",
+    "JIST": "0.1.0",
+    "JUNIT_BOM": "5.9.3",
+    "KLUENT": "1.73",
+    "KOTLIN": "2.1.21",
+    "KOTLINX_SERIALIZATION_JSON": "1.8.1",
+    "KOTLIN_BINARY_VALIDATOR": "0.16.3",
+    "MIN_SDK": "21",
+    "MOCKK": "1.13.13",
+    "OKHTTP": "4.12.0",
+    "REDUX_KOTLIN": "0.6.0",
+    "RETROFIT": "2.11.0",
+    "ROBOLECTRIC": "4.16",
+    "SEGMENT": "1.24.1!!",
+    "TARGET_SDK": "36",
+    "WORK_MANAGER": "2.10.5"
+  },
+  "public_api": {
+    "tool": "kotlinx binary-compatibility-validator",
+    "check_task": "apiCheck",
+    "update_task": "apiDump",
+    "dump_files": [
+      "core/api/core.api",
+      "datapipelines/api/datapipelines.api",
+      "geofence/api/geofence.api",
+      "location/api/location.api",
+      "messaginginapp-compose/api/messaginginapp-compose.api",
+      "messaginginapp/api/messaginginapp.api",
+      "messaginginbox/api/messaginginbox.api",
+      "messagingpush/api/messagingpush.api",
+      "tracking-migration/api/tracking-migration.api"
+    ],
+    "ignored_projects": []
+  },
+  "make_targets": {
+    "e2e": {
+      "file": "Makefile",
+      "doc": "One-command deterministic Android SDK \u2192 backend \u2192 SDK validation.",
+      "runs": [
+        "./.maestro/e2e.sh"
+      ]
+    },
+    "e2e-inbox": {
+      "file": "Makefile",
+      "doc": null,
+      "runs": [
+        "./.maestro/e2e.sh --suite message-inbox"
+      ]
+    },
+    "e2e-quick": {
+      "file": "Makefile",
+      "doc": null,
+      "runs": [
+        "./.maestro/e2e.sh --profile quick"
+      ]
+    },
+    "e2e-setup": {
+      "file": "Makefile",
+      "doc": null,
+      "runs": [
+        "./.maestro/e2e.sh setup"
+      ]
+    },
+    "format": {
+      "file": "Makefile",
+      "doc": "Run ktlint formatter to automatically fix many lint errors. Good to run this before checking for lint errors as this formatting might fix many issues.",
+      "runs": [
+        "./ktlint --format --android \"**/src/**/*.kt\" 2> /dev/null"
+      ]
+    },
+    "generate-public-api": {
+      "file": "Makefile",
+      "doc": "Generate public API binary",
+      "runs": [
+        "./gradlew apiDump"
+      ]
+    },
+    "lint": {
+      "file": "Makefile",
+      "doc": "format first, and then show lint errors that are left over.",
+      "runs": [
+        "make lint-install",
+        "make format",
+        "make lint-no-format"
+      ]
+    },
+    "lint-error-message": {
+      "file": "Makefile",
+      "doc": null,
+      "runs": [
+        "echo \"\\n\\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\\nLooks like there are lint errors to fix.\\nRead the LINT.md document in this project to learn how to fix these problems.\\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\""
+      ]
+    },
+    "lint-install": {
+      "file": "Makefile",
+      "doc": "How we install ktlint in the team.",
+      "runs": [
+        "./scripts/get-ktlint.sh"
+      ]
+    },
+    "lint-no-format": {
+      "file": "Makefile",
+      "doc": "If there are no lint errors, the command will succeed and not show any error messages.",
+      "runs": [
+        "./ktlint --android \"**/src/**/*.kt\" 2> /dev/null || (make lint-error-message && false)"
+      ]
+    },
+    "validate-public-api": {
+      "file": "Makefile",
+      "doc": "Run kotlin binary validator",
+      "runs": [
+        "./scripts/binary-validation.sh"
+      ]
+    }
+  },
+  "git_hooks": {
+    "pre-commit": [
+      {
+        "name": "lint",
+        "run": "make format && git add {staged_files}"
+      },
+      {
+        "name": "binary-validation",
+        "run": "make validate-public-api"
+      }
+    ],
+    "pre-push": [
+      {
+        "name": "lint",
+        "run": "make lint-no-format"
+      }
+    ]
+  },
+  "ci_workflows": [
+    {
+      "file": ".github/workflows/binary-validator.yml",
+      "name": "Binary-validation",
+      "triggers": [
+        "push"
+      ],
+      "runs": [
+        "./gradlew apiCheck"
+      ],
+      "reusable_workflows": [
+        "./.github/actions/setup-android"
+      ]
+    },
+    {
+      "file": ".github/workflows/build-sample-app-for-sdk-release.yml",
+      "name": "Build sample app for SDK release",
+      "triggers": [
+        "workflow_dispatch"
+      ],
+      "runs": [],
+      "reusable_workflows": [
+        "./.github/workflows/reusable_build_sample_apps.yml"
+      ]
+    },
+    {
+      "file": ".github/workflows/build-sample-apps.yml",
+      "name": "Build sample apps",
+      "triggers": [
+        "pull_request"
+      ],
+      "runs": [],
+      "reusable_workflows": [
+        "./.github/actions/update-sample-app-comment",
+        "./.github/workflows/reusable-release-policy.yml",
+        "./.github/workflows/reusable_build_sample_apps.yml"
+      ]
+    },
+    {
+      "file": ".github/workflows/deploy-sdk.yml",
+      "name": "Deploy SDK",
+      "triggers": [
+        "push"
+      ],
+      "runs": [
+        "MODULE_VERSION=${{ needs.deploy-git-tag.outputs.new_release_version }} ./scripts/deploy-code.sh"
+      ],
+      "reusable_workflows": [
+        "./.github/actions/setup-android",
+        "./.github/workflows/build-sample-app-for-sdk-release.yml"
+      ]
+    },
+    {
+      "file": ".github/workflows/geofence-replay.yml",
+      "name": "Geofence corpus replay",
+      "triggers": [
+        "pull_request"
+      ],
+      "runs": [
+        "if ! ./gradlew :geofence:testDebugUnitTest --tests 'io.customer.geofence.replay.*' > \"$RUNNER_TEMP/gradle.log\" 2>&1; then",
+        "python3 .github/scripts/geofence_replay_gate.py geofence/build/test-results/testDebugUnitTest .corpus/scenarios"
+      ],
+      "reusable_workflows": [
+        "./.github/actions/setup-android"
+      ]
+    },
+    {
+      "file": ".github/workflows/lint.yml",
+      "name": "Lint",
+      "triggers": [
+        "push"
+      ],
+      "runs": [
+        "./gradlew :${{ matrix.module }}:lintDebug",
+        "make lint-install && make lint-no-format"
+      ],
+      "reusable_workflows": [
+        "./.github/actions/setup-android"
+      ]
+    },
+    {
+      "file": ".github/workflows/maestro-e2e.yml",
+      "name": "Maestro SDK E2E",
+      "triggers": [
+        "pull_request"
+      ],
+      "runs": [
+        "python3 .e2e-harness/scripts/redact_artifacts.py artifacts/e2e",
+        "python3 .e2e-harness/scripts/redact_artifacts.py --check artifacts/e2e"
+      ],
+      "reusable_workflows": [
+        "./.github/actions/setup-android"
+      ]
+    },
+    {
+      "file": ".github/workflows/manual-deployment.yml",
+      "name": "Manual Deploy to Maven Central",
+      "triggers": [
+        "workflow_dispatch"
+      ],
+      "runs": [
+        "MODULE_VERSION=${{ env.TAG }} ./scripts/deploy-code.sh"
+      ],
+      "reusable_workflows": [
+        "./.github/actions/setup-android"
+      ]
+    },
+    {
+      "file": ".github/workflows/pr-helper.yml",
+      "name": "Semantic PR helper",
+      "triggers": [
+        "pull_request"
+      ],
+      "runs": [],
+      "reusable_workflows": []
+    },
+    {
+      "file": ".github/workflows/reusable-release-policy.yml",
+      "name": "Reusable release policy",
+      "triggers": [
+        "workflow_call"
+      ],
+      "runs": [
+        "bash .github/scripts/validate-release-policy.sh"
+      ],
+      "reusable_workflows": []
+    },
+    {
+      "file": ".github/workflows/reusable_build_sample_apps.yml",
+      "name": "Reusable build sample apps workflow",
+      "triggers": [
+        "workflow_call"
+      ],
+      "runs": [
+        "fastlane_build_args=\"{${sdk_version},${distribution_groups}}\"",
+        "fastlane_build_args=\"{${distribution_groups}}\""
+      ],
+      "reusable_workflows": [
+        "./.github/actions/setup-android",
+        "./.github/actions/update-sample-app-comment"
+      ]
+    },
+    {
+      "file": ".github/workflows/sdk-binary-size.yml",
+      "name": "SDK Binary Size",
+      "triggers": [
+        "pull_request"
+      ],
+      "runs": [
+        "./gradlew publishToMavenLocal",
+        "./gradlew generateSdkSizeReport",
+        "./gradlew publishToMavenLocal",
+        "./gradlew compareSdkSizeReports -PcompareWith=\"$RUNNER_TEMP/sdk-size-base/sdk-binary-size.json\""
+      ],
+      "reusable_workflows": [
+        "./.github/actions/setup-android"
+      ]
+    },
+    {
+      "file": ".github/workflows/snapshot-release.yml",
+      "name": "Publish Snapshot builds",
+      "triggers": [
+        "pull_request"
+      ],
+      "runs": [
+        "./gradlew publishReleasePublicationToSonatypeRepository",
+        "./scripts/update-gradle-compatibility.sh \\",
+        "./gradlew :samples:java_layout:assembleRelease :samples:kotlin_compose:assembleRelease"
+      ],
+      "reusable_workflows": [
+        "./.github/actions/setup-android"
+      ]
+    },
+    {
+      "file": ".github/workflows/test.yml",
+      "name": "Tests",
+      "triggers": [
+        "pull_request"
+      ],
+      "runs": [
+        "./gradlew :messaginginapp:testDebugUnitTest",
+        "./gradlew :${{ matrix.module }}:runJacocoTestReport"
+      ],
+      "reusable_workflows": [
+        "./.github/actions/setup-android"
+      ]
+    }
+  ],
+  "agent_docs": [
+    "AGENTS.md",
+    "CLAUDE.md"
+  ]
+}

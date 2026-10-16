@@ -3,32 +3,9 @@ covers: ['core/**', 'base/**', '*/di/*', '*EventBus*']
 ---
 # Architecture
 
-### Module Initialization Pattern
-```kotlin
-// Configure the SDK with builder pattern
-CustomerIOBuilder(application, <CDP_API_KEY>).apply {
-    // If you're in the EU, set Region.EU. Default is Region.US and optional.
-    region(Region.US)
-
-    // Optional: Enable in-app messaging by adding siteId and Region
-    addCustomerIOModule(
-        ModuleMessagingInApp(
-            // If you're in the EU, set Region.EU
-            MessagingInAppModuleConfig.Builder(<SITE_ID>, Region.US).build()
-    )
-    )
-
-    // Optional: Enable support for push notifications
-    addCustomerIOModule(ModuleMessagingPushFCM())
-
-    // Completes setup and initializes the SDK
-    build()
-}
-
-// Use the SDK
-CustomerIO.instance().identify("user-id")
-CustomerIO.instance().track("event-name")
-```
+### Setup
+- Apps configure the SDK with `CustomerIOBuilder` (`datapipelines/src/main/kotlin/io/customer/sdk/CustomerIOBuilder.kt`) and add modules with `addCustomerIOModule`
+- A real setup: `samples/java_layout/src/main/java/io/customer/android/sample/java_layout/sdk/CustomerIORepository.java`
 
 ### Dependency Injection
 - All modules use constructor-based dependency injection

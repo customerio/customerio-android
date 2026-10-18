@@ -10,6 +10,7 @@ import io.mockk.just
 import io.mockk.mockk
 import io.mockk.runs
 import io.mockk.slot
+import io.mockk.verify
 import org.amshove.kluent.internal.assertEquals
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -87,6 +88,31 @@ class DataPipelinesLoggerTest : JUnitTest() {
             mockLogger.info(
                 tag = "Init",
                 message = "CustomerIO AnotherModule module is initialized and ready to use"
+            )
+        }
+    }
+
+    @Test
+    fun test_logSdkState_forwardsCorrectLog() {
+        initLogger.logSdkState(userId = "user id", token = "fcm-token", cdpApiKey = "1a2b3c4d5e6f")
+
+        assertCalledOnce {
+            mockLogger.debug(
+                tag = "Init",
+                message = "SDK state || ev=sdk.state version=${Version.version} user=user%20id token=fcm-token key=1a2b3c4d"
+            )
+        }
+    }
+
+    @Test
+    fun test_logSdkState_givenNoUserTokenOrKey_forwardsSpecialValues() {
+        initLogger.logSdkState(userId = null, token = null, cdpApiKey = "")
+        initLogger.logSdkState(userId = "", token = "", cdpApiKey = "")
+
+        verify(exactly = 2) {
+            mockLogger.debug(
+                tag = "Init",
+                message = "SDK state || ev=sdk.state version=${Version.version} user=anonymous token=none key=none"
             )
         }
     }

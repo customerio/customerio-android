@@ -3,8 +3,13 @@ package io.customer.messagingpush.logger
 import com.google.firebase.messaging.RemoteMessage
 import io.customer.messagingpush.config.PushClickBehavior
 import io.customer.messagingpush.data.model.CustomerIOParsedPushPayload
+import io.customer.sdk.core.util.LogTail
 import io.customer.sdk.core.util.Logger
 
+/**
+ * Lines that end in a [LogTail] are read by cio-sdk-tools `verify push`: keep their sentences as
+ * they are and never rename an `ev` or a key (`PushLogContractTest` pins them).
+ */
 internal class PushNotificationLogger(private val logger: Logger) {
 
     companion object {
@@ -148,10 +153,11 @@ internal class PushNotificationLogger(private val logger: Logger) {
         )
     }
 
-    fun logShowingPushNotification(message: RemoteMessage) {
+    fun logShowingPushNotification(message: RemoteMessage, deliveryId: String, title: String) {
         logger.debug(
             tag = TAG,
-            message = "Showing notification for message: ${toString(message)}"
+            message = "Showing notification for message: ${toString(message)}" +
+                LogTail.build("push.shown", "id" to tailId(deliveryId), "title" to tailTitle(title))
         )
     }
 
@@ -166,6 +172,18 @@ internal class PushNotificationLogger(private val logger: Logger) {
         logger.debug(
             tag = TAG,
             message = "Push message received is empty"
+        )
+    }
+
+    /**
+     * The OS's answer on notifications for the app as one stable line, `[Push] Notification permission: <status>`,
+     * the same sentence as iOS, which support asks for in a customer's debug log and tools search for.
+     */
+    fun logNotificationPermission(granted: Boolean) {
+        val status = if (granted) "granted" else "denied"
+        logger.debug(
+            tag = TAG,
+            message = "Notification permission: $status" + LogTail.build("push.permission", "status" to status)
         )
     }
 
@@ -193,14 +211,16 @@ internal class PushNotificationLogger(private val logger: Logger) {
     fun logReceivedDuplicatePushMessageDeliveryId(deliveryId: String) {
         logger.debug(
             tag = TAG,
-            message = "Received duplicate message with deliveryId: $deliveryId"
+            message = "Received duplicate message with deliveryId: $deliveryId" +
+                LogTail.build("push.duplicate", "id" to tailId(deliveryId))
         )
     }
 
-    fun logReceivedNewMessageWithDeliveryId(deliveryId: String) {
+    fun logReceivedNewMessageWithDeliveryId(deliveryId: String, title: String?) {
         logger.debug(
             tag = TAG,
-            message = "Received new message with deliveryId: $deliveryId"
+            message = "Received new message with deliveryId: $deliveryId" +
+                LogTail.build("push.received", "id" to tailId(deliveryId), "title" to tailTitle(title))
         )
     }
 
@@ -214,14 +234,16 @@ internal class PushNotificationLogger(private val logger: Logger) {
     fun logTrackingPushMessageDelivered(deliveryId: String) {
         logger.debug(
             tag = TAG,
-            message = "Tracking push message delivered with deliveryId: $deliveryId"
+            message = "Tracking push message delivered with deliveryId: $deliveryId" +
+                LogTail.build("push.delivered", "id" to tailId(deliveryId))
         )
     }
 
     fun logTrackingPushMessageOpened(payload: CustomerIOParsedPushPayload) {
         logger.debug(
             tag = TAG,
-            message = "Tracking push message opened with payload: $payload"
+            message = "Tracking push message opened with payload: $payload" +
+                LogTail.build("push.opened", "id" to tailId(payload.cioDeliveryId), "title" to tailTitle(payload.title))
         )
     }
 
@@ -229,7 +251,8 @@ internal class PushNotificationLogger(private val logger: Logger) {
         logger.debug(
             tag = TAG,
             message = "Skipping opened metric for notification without a delivery id/token " +
-                "(locally started, not delivered by Customer.io): $payload"
+                "(locally started, not delivered by Customer.io): $payload" +
+                LogTail.build("push.open_skipped", "reason" to "no_delivery_id")
         )
     }
 
@@ -244,42 +267,43 @@ internal class PushNotificationLogger(private val logger: Logger) {
     fun logHandlingNotificationDeepLink(payload: CustomerIOParsedPushPayload, behavior: PushClickBehavior) {
         logger.debug(
             tag = TAG,
-            message = "Handling push notification deep link with payload: $payload - pushClickBehavior: $behavior"
+            message = "Handling push notification deep link with payload: $payload - pushClickBehavior: $behavior" +
+                LogTail.build("push.deep_link", "url" to payload.deepLink, "behavior" to behavior.name)
         )
     }
 
     fun logDeepLinkHandledByCallback() {
         logger.debug(
             tag = TAG,
-            message = "Deep link handled by host app callback implementation"
+            message = "Deep link handled by host app callback implementation" + deepLinkOutcomeTail("app_callback")
         )
     }
 
     fun logDeepLinkHandledByHostApp() {
         logger.debug(
             tag = TAG,
-            message = "Deep link handled by internal host app navigation"
+            message = "Deep link handled by internal host app navigation" + deepLinkOutcomeTail("app_navigation")
         )
     }
 
     fun logDeepLinkHandledExternally() {
         logger.debug(
             tag = TAG,
-            message = "Deep link handled by external app"
+            message = "Deep link handled by external app" + deepLinkOutcomeTail("external_app")
         )
     }
 
     fun logDeepLinkHandledDefaultHostAppLauncher() {
         logger.debug(
             tag = TAG,
-            message = "Deep link handled by opening default host app"
+            message = "Deep link handled by opening default host app" + deepLinkOutcomeTail("default_app")
         )
     }
 
     fun logDeepLinkWasNotHandled() {
         logger.debug(
             tag = TAG,
-            message = "Deep link was not handled"
+            message = "Deep link was not handled" + deepLinkOutcomeTail("not_handled")
         )
     }
 
@@ -310,6 +334,15 @@ internal class PushNotificationLogger(private val logger: Logger) {
             message = "Notification channel importance level invalid: $importanceLevel"
         )
     }
+
+    // The delivery id exactly as received; `none` keeps an empty one visible in the tail
+    private fun tailId(deliveryId: String): String = deliveryId.ifEmpty { "none" }
+
+    // A push without a title reads as "" on some paths and null on others; both omit the key
+    private fun tailTitle(title: String?): String? = title?.takeIf { it.isNotEmpty() }
+
+    private fun deepLinkOutcomeTail(outcome: String): String =
+        LogTail.build("push.deep_link_outcome", "outcome" to outcome)
 
     private fun toString(message: RemoteMessage): String {
         val notification = message.notification ?: return message.data.toString()

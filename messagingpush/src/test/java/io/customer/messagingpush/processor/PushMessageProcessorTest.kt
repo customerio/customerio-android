@@ -181,7 +181,7 @@ class PushMessageProcessorTest : IntegrationTest() {
 
         processor.getOrUpdateMessageAlreadyProcessed(givenDeliveryId)
 
-        assertCalledOnce { mockPushLogger.logReceivedNewMessageWithDeliveryId(givenDeliveryId) }
+        assertCalledOnce { mockPushLogger.logReceivedNewMessageWithDeliveryId(givenDeliveryId, null) }
     }
 
     @Test

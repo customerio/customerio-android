@@ -43,8 +43,9 @@ interface PushMessageProcessor {
      *
      * @param deliveryId received in push payload
      * @param deliveryToken received in push payload
+     * @param title the notification's title, only logged so a debug log names the push
      */
-    fun processRemoteMessageDeliveredMetrics(deliveryId: String, deliveryToken: String)
+    fun processRemoteMessageDeliveredMetrics(deliveryId: String, deliveryToken: String, title: String? = null)
 
     /**
      * Executes the necessary actions when a notification is clicked by the user.

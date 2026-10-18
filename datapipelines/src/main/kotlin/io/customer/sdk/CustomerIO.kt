@@ -157,6 +157,8 @@ class CustomerIO private constructor(
         subscribeToJourneyEvents()
         // republish profile/anonymous events for late-added modules
         publishUserChanged()
+        // analytics restored the persisted identity on creation
+        logSdkState()
     }
 
     /** Persists the userId before publishing so subscribers that read [secureUserStore] don't race the event. */
@@ -164,6 +166,15 @@ class CustomerIO private constructor(
         val anonymousId = analytics.anonymousId()
         secureUserStore.saveUserId(userId)
         eventBus.publish(Event.UserChangedEvent(userId = userId, anonymousId = anonymousId))
+    }
+
+    /** Logs the current identity, token and key; called after each change so the latest line wins. */
+    private fun logSdkState() {
+        dataPipelinesLogger.logSdkState(
+            userId = currentUserId,
+            token = registeredDeviceToken,
+            cdpApiKey = moduleConfig.cdpApiKey
+        )
     }
 
     private fun subscribeToJourneyEvents() {
@@ -329,6 +340,7 @@ class CustomerIO private constructor(
         // Update the per-session marker after a successful identify (with or without traits)
         // so that a subsequent no-traits identify of the same userId can be deduped.
         lastIdentifiedUserIdThisSession = userId
+        logSdkState()
     }
 
     /**
@@ -384,6 +396,7 @@ class CustomerIO private constructor(
 
         val newAnonymousId = analytics.anonymousId()
         eventBus.publish(Event.UserChangedEvent(userId = null, anonymousId = newAnonymousId))
+        logSdkState()
     }
 
     override val registeredDeviceToken: String?
@@ -400,6 +413,15 @@ class CustomerIO private constructor(
         // identify()/clearIdentify(); fall back to analytics for a session restored from
         // persistence, where neither was called this process. See [syncUserIdentified].
         get() = syncUserIdentified ?: !analytics.userId().isNullOrEmpty()
+
+    // The identified user as of the caller's thread; analytics.userId() lags a synchronous
+    // identify(), the same reason [isUserIdentified] prefers the mirror.
+    private val currentUserId: String?
+        get() = when (syncUserIdentified) {
+            true -> lastIdentifiedUserIdThisSession ?: analytics.userId()
+            false -> null
+            null -> analytics.userId()
+        }
 
     @Deprecated("Use setDeviceAttributes() function instead")
     @set:JvmName("setDeviceAttributesDeprecated")
@@ -424,6 +446,7 @@ class CustomerIO private constructor(
 
         dataPipelinesLogger.logRegisteringPushToken(deviceToken, this.userId)
         trackDeviceAttributes(token = deviceToken)
+        logSdkState()
     }
 
     private fun trackDeviceAttributes(token: String?, customAddedAttributes: CustomAttributes = emptyMap()) {
@@ -457,7 +480,10 @@ class CustomerIO private constructor(
         )
     }
 
-    override fun deleteDeviceTokenImpl() = deleteDeviceToken(null)
+    override fun deleteDeviceTokenImpl() {
+        deleteDeviceToken(null)
+        logSdkState()
+    }
 
     private fun deleteDeviceToken(enrichment: EnrichmentClosure?) {
         logger.info("deleting device token")
@@ -530,6 +556,8 @@ class CustomerIO private constructor(
 
             // Update the log level for the SDK
             SDKComponent.logger.logLevel = config.logLevel
+            // Persist it so a process the OS starts for a push or a tap logs at this level from launch
+            androidSDKComponent.globalPreferenceStore.saveLogLevel(config.logLevel)
 
             logger.coreSdkInitStart()
 

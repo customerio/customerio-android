@@ -44,7 +44,12 @@ object SDKComponent : DiGraph() {
     val buildEnvironment: BuildEnvironment
         get() = newInstance<BuildEnvironment> { DefaultBuildEnvironment() }
     val logger: Logger
-        get() = singleton<Logger> { LoggerImpl(buildEnvironment = buildEnvironment) }
+        get() = singleton<Logger> {
+            LoggerImpl(
+                buildEnvironment = buildEnvironment,
+                persistedLogLevelStore = { androidSDKComponent?.globalPreferenceStore }
+            )
+        }
 
     // Communication dependencies
     val eventBus: EventBus

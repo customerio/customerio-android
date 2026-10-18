@@ -1,14 +1,26 @@
 package io.customer.sdk.core.util
 
 import io.customer.sdk.core.environment.BuildEnvironment
+import io.customer.sdk.data.store.GlobalPreferenceStore
 
 internal open class LoggerImpl(
     private val buildEnvironment: BuildEnvironment,
-    private val actualLogger: LogcatLogger = LogcatLogger()
+    private val actualLogger: LogcatLogger = LogcatLogger(),
+    // Store holding the level the app's last SDK initialization persisted; null until the Android
+    // component is set up, which every SDK entry point does before its first log
+    private val persistedLogLevelStore: () -> GlobalPreferenceStore? = { null }
 ) : Logger {
 
     // Log level defined by user in configurations
     private var preferredLogLevel: CioLogLevel? = null
+
+    // Level persisted by the app's last SDK initialization. A process the OS starts for a push or a
+    // tap logs at it until the app initializes the SDK, which React Native and Flutter do late.
+    @Volatile
+    private var persistedLogLevel: CioLogLevel? = null
+
+    @Volatile
+    private var persistedLogLevelRead = false
 
     // Fallback log level to be used only if log level is not yet defined by the user
     private val fallbackLogLevel
@@ -17,12 +29,23 @@ internal open class LoggerImpl(
             else -> CioLogLevel.DEFAULT
         }
 
-    // Prefer user log level; fallback to default only till the user defined value is not received
+    // Prefer user log level, then the persisted one; fallback to default only till neither is available
     override var logLevel: CioLogLevel
-        get() = preferredLogLevel ?: fallbackLogLevel
+        get() = preferredLogLevel ?: readPersistedLogLevel() ?: fallbackLogLevel
         set(value) {
             preferredLogLevel = value
         }
+
+    // Reads storage once; the app setting a level short-circuits this, so a stale value never matters
+    private fun readPersistedLogLevel(): CioLogLevel? {
+        if (persistedLogLevelRead) return persistedLogLevel
+
+        val store = persistedLogLevelStore() ?: return null
+        // A log call must never throw, so an unreadable store counts as nothing persisted
+        persistedLogLevel = runCatching { store.getLogLevel() }.getOrNull()
+        persistedLogLevelRead = true
+        return persistedLogLevel
+    }
 
     private var logDispatcher: ((CioLogLevel, String) -> Unit)? = null
 

@@ -187,6 +187,20 @@ class CustomerIOBuilderTest : RobolectricTest() {
     }
 
     @Test
+    fun build_givenLogLevel_expectLogLevelPersistedForProcessesStartedBeforeInit() {
+        createCustomerIOBuilder().logLevel(CioLogLevel.INFO).build()
+
+        SDKComponent.android().globalPreferenceStore.getLogLevel() shouldBe CioLogLevel.INFO
+    }
+
+    @Test
+    fun build_givenNoLogLevel_expectDefaultLogLevelPersisted() {
+        createCustomerIOBuilder().build()
+
+        SDKComponent.android().globalPreferenceStore.getLogLevel() shouldBe CioLogLevel.DEFAULT
+    }
+
+    @Test
     fun build_givenAutoTrackActivityScreensEnabled_expectCorrectPluginsToBeAdded() {
         val givenCdpApiKey = String.random
         createCustomerIOBuilder(givenCdpApiKey)

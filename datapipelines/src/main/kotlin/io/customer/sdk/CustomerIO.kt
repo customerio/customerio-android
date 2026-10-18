@@ -556,6 +556,8 @@ class CustomerIO private constructor(
 
             // Update the log level for the SDK
             SDKComponent.logger.logLevel = config.logLevel
+            // Persist it so a process the OS starts for a push or a tap logs at this level from launch
+            androidSDKComponent.globalPreferenceStore.saveLogLevel(config.logLevel)
 
             logger.coreSdkInitStart()
 

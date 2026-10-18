@@ -11,6 +11,7 @@ import io.mockk.every
 import io.mockk.just
 import io.mockk.mockk
 import io.mockk.runs
+import io.mockk.verify
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 
@@ -117,7 +118,7 @@ class PushNotificationLoggerTest : JUnitTest() {
         every { message.notification } returns notification
         every { message.data } returns data
 
-        pushLogger.logShowingPushNotification(message)
+        pushLogger.logShowingPushNotification(message, deliveryId = "delivery-id", title = "testTitle")
 
         assertCalledOnce {
             mockLogger.debug(
@@ -128,7 +129,8 @@ class PushNotificationLoggerTest : JUnitTest() {
                     "  icon = testIcon\n" +
                     "  color = testColor\n" +
                     "  imageUrl = null\n" +
-                    "Data: {testKey=testValue}\n"
+                    "Data: {testKey=testValue}\n" +
+                    " || ev=push.shown id=delivery-id title=testTitle"
             )
         }
     }
@@ -193,7 +195,7 @@ class PushNotificationLoggerTest : JUnitTest() {
         assertCalledOnce {
             mockLogger.debug(
                 tag = "Push",
-                message = "Notification permission: granted"
+                message = "Notification permission: granted || ev=push.permission status=granted"
             )
         }
     }
@@ -205,7 +207,7 @@ class PushNotificationLoggerTest : JUnitTest() {
         assertCalledOnce {
             mockLogger.debug(
                 tag = "Push",
-                message = "Notification permission: denied"
+                message = "Notification permission: denied || ev=push.permission status=denied"
             )
         }
     }
@@ -242,7 +244,7 @@ class PushNotificationLoggerTest : JUnitTest() {
         assertCalledOnce {
             mockLogger.debug(
                 tag = "Push",
-                message = "Received duplicate message with deliveryId: $deliveryId"
+                message = "Received duplicate message with deliveryId: $deliveryId || ev=push.duplicate id=$deliveryId"
             )
         }
     }
@@ -250,12 +252,26 @@ class PushNotificationLoggerTest : JUnitTest() {
     @Test
     fun test_logReceivedNewMessageWithDeliveryId_forwardsCorrectCallToLogger() {
         val deliveryId = "delivery-id"
-        pushLogger.logReceivedNewMessageWithDeliveryId(deliveryId)
+        pushLogger.logReceivedNewMessageWithDeliveryId(deliveryId, "Sale today")
 
         assertCalledOnce {
             mockLogger.debug(
                 tag = "Push",
-                message = "Received new message with deliveryId: $deliveryId"
+                message = "Received new message with deliveryId: $deliveryId || ev=push.received id=$deliveryId title=Sale%20today"
+            )
+        }
+    }
+
+    @Test
+    fun test_logReceivedNewMessageWithDeliveryId_givenNoTitle_omitsTitleKey() {
+        val deliveryId = "delivery-id"
+        pushLogger.logReceivedNewMessageWithDeliveryId(deliveryId, null)
+        pushLogger.logReceivedNewMessageWithDeliveryId(deliveryId, "")
+
+        verify(exactly = 2) {
+            mockLogger.debug(
+                tag = "Push",
+                message = "Received new message with deliveryId: $deliveryId || ev=push.received id=$deliveryId"
             )
         }
     }
@@ -280,7 +296,7 @@ class PushNotificationLoggerTest : JUnitTest() {
         assertCalledOnce {
             mockLogger.debug(
                 tag = "Push",
-                message = "Tracking push message delivered with deliveryId: $deliveryId"
+                message = "Tracking push message delivered with deliveryId: $deliveryId || ev=push.delivered id=$deliveryId"
             )
         }
     }
@@ -301,7 +317,29 @@ class PushNotificationLoggerTest : JUnitTest() {
         assertCalledOnce {
             mockLogger.debug(
                 tag = "Push",
-                message = "Tracking push message opened with payload: $payload"
+                message = "Tracking push message opened with payload: $payload || ev=push.opened id=deliveryId title=title"
+            )
+        }
+    }
+
+    @Test
+    fun test_logNotificationClickMetricsSkippedForLocalNotification_forwardsCorrectCallToLogger() {
+        val payload = CustomerIOParsedPushPayload(
+            extras = mockk<Bundle>(),
+            deepLink = null,
+            cioDeliveryId = "",
+            cioDeliveryToken = "",
+            title = "title",
+            body = "body",
+            activityId = "activity-id"
+        )
+        pushLogger.logNotificationClickMetricsSkippedForLocalNotification(payload)
+
+        assertCalledOnce {
+            mockLogger.debug(
+                tag = "Push",
+                message = "Skipping opened metric for notification without a delivery id/token " +
+                    "(locally started, not delivered by Customer.io): $payload || ev=push.open_skipped reason=no_delivery_id"
             )
         }
     }
@@ -323,6 +361,7 @@ class PushNotificationLoggerTest : JUnitTest() {
     @Test
     fun test_logHandlingNotificationDeepLink_forwardsCorrectCallToLogger() {
         val payload = mockk<CustomerIOParsedPushPayload>(relaxed = true)
+        every { payload.deepLink } returns "https://cio.example.com/a?b=c"
         val behavior = PushClickBehavior.ACTIVITY_NO_FLAGS
 
         pushLogger.logHandlingNotificationDeepLink(payload, behavior)
@@ -330,7 +369,25 @@ class PushNotificationLoggerTest : JUnitTest() {
         assertCalledOnce {
             mockLogger.debug(
                 tag = "Push",
-                message = "Handling push notification deep link with payload: $payload - pushClickBehavior: $behavior"
+                message = "Handling push notification deep link with payload: $payload - pushClickBehavior: $behavior" +
+                    " || ev=push.deep_link url=https://cio.example.com/a?b=c behavior=ACTIVITY_NO_FLAGS"
+            )
+        }
+    }
+
+    @Test
+    fun test_logHandlingNotificationDeepLink_givenNoDeepLink_omitsUrlKey() {
+        val payload = mockk<CustomerIOParsedPushPayload>(relaxed = true)
+        every { payload.deepLink } returns null
+        val behavior = PushClickBehavior.RESET_TASK_STACK
+
+        pushLogger.logHandlingNotificationDeepLink(payload, behavior)
+
+        assertCalledOnce {
+            mockLogger.debug(
+                tag = "Push",
+                message = "Handling push notification deep link with payload: $payload - pushClickBehavior: $behavior" +
+                    " || ev=push.deep_link behavior=RESET_TASK_STACK"
             )
         }
     }
@@ -342,7 +399,7 @@ class PushNotificationLoggerTest : JUnitTest() {
         assertCalledOnce {
             mockLogger.debug(
                 tag = "Push",
-                message = "Deep link handled by host app callback implementation"
+                message = "Deep link handled by host app callback implementation || ev=push.deep_link_outcome outcome=app_callback"
             )
         }
     }
@@ -354,7 +411,7 @@ class PushNotificationLoggerTest : JUnitTest() {
         assertCalledOnce {
             mockLogger.debug(
                 tag = "Push",
-                message = "Deep link handled by internal host app navigation"
+                message = "Deep link handled by internal host app navigation || ev=push.deep_link_outcome outcome=app_navigation"
             )
         }
     }
@@ -366,7 +423,7 @@ class PushNotificationLoggerTest : JUnitTest() {
         assertCalledOnce {
             mockLogger.debug(
                 tag = "Push",
-                message = "Deep link handled by external app"
+                message = "Deep link handled by external app || ev=push.deep_link_outcome outcome=external_app"
             )
         }
     }
@@ -378,7 +435,7 @@ class PushNotificationLoggerTest : JUnitTest() {
         assertCalledOnce {
             mockLogger.debug(
                 tag = "Push",
-                message = "Deep link handled by opening default host app"
+                message = "Deep link handled by opening default host app || ev=push.deep_link_outcome outcome=default_app"
             )
         }
     }
@@ -390,7 +447,7 @@ class PushNotificationLoggerTest : JUnitTest() {
         assertCalledOnce {
             mockLogger.debug(
                 tag = "Push",
-                message = "Deep link was not handled"
+                message = "Deep link was not handled || ev=push.deep_link_outcome outcome=not_handled"
             )
         }
     }

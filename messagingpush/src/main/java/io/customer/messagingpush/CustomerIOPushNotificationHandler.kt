@@ -71,6 +71,11 @@ internal class CustomerIOPushNotificationHandler(
         }
     }
 
+    // The title the notification shows, which the push log lines also carry
+    private val title: String by lazy {
+        bundle.getString(TITLE_KEY) ?: remoteMessage.notification?.title ?: ""
+    }
+
     fun handleMessage(
         context: Context,
         handleNotificationTrigger: Boolean = true
@@ -97,7 +102,8 @@ internal class CustomerIOPushNotificationHandler(
             // Use processor to track metrics properly and avoid duplication
             pushMessageProcessor.processRemoteMessageDeliveredMetrics(
                 deliveryId = deliveryId,
-                deliveryToken = deliveryToken
+                deliveryToken = deliveryToken,
+                title = title
             )
         } else {
             pushLogger.logReceivedNonCioPushMessage()
@@ -118,7 +124,7 @@ internal class CustomerIOPushNotificationHandler(
         deliveryId: String,
         deliveryToken: String
     ) {
-        pushLogger.logShowingPushNotification(remoteMessage)
+        pushLogger.logShowingPushNotification(remoteMessage, deliveryId, title)
 
         val applicationName = context.applicationInfo.loadLabel(context.packageManager).toString()
 
@@ -138,8 +144,7 @@ internal class CustomerIOPushNotificationHandler(
                 ?: appMetaData?.getMetaDataString(name = FCM_METADATA_DEFAULT_NOTIFICATION_COLOR)
                     ?.toColorOrNull()
 
-        // set title and body
-        val title = bundle.getString(TITLE_KEY) ?: remoteMessage.notification?.title ?: ""
+        // set body; title is read once for both the notification and the log lines
         val body = bundle.getString(BODY_KEY) ?: remoteMessage.notification?.body ?: ""
 
         val notificationManager =

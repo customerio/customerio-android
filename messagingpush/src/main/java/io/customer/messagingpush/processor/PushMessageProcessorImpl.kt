@@ -2,8 +2,11 @@ package io.customer.messagingpush.processor
 
 import android.content.Context
 import android.content.Intent
+import android.os.Bundle
 import androidx.annotation.VisibleForTesting
 import androidx.core.app.TaskStackBuilder
+import com.google.firebase.messaging.RemoteMessage
+import io.customer.messagingpush.CustomerIOPushNotificationHandler
 import io.customer.messagingpush.MessagingPushModuleConfig
 import io.customer.messagingpush.activity.NotificationClickReceiverActivity
 import io.customer.messagingpush.config.PushClickBehavior
@@ -33,12 +36,13 @@ internal class PushMessageProcessorImpl(
      * that the notification is processed already.
      *
      * @param deliveryId unique message id received in push payload.
+     * @param title the notification's title, only logged with a new message.
      * @return true if the message was processed previously; false otherwise.
      * Callers should generally process notifications only if false was returned.
      */
     @Synchronized
     @VisibleForTesting
-    internal fun getOrUpdateMessageAlreadyProcessed(deliveryId: String?): Boolean {
+    internal fun getOrUpdateMessageAlreadyProcessed(deliveryId: String?, title: String? = null): Boolean {
         when {
             deliveryId.isNullOrBlank() -> {
                 // Ignore messages with empty/invalid deliveryId
@@ -58,7 +62,7 @@ internal class PushMessageProcessorImpl(
                     PushMessageProcessor.recentMessagesQueue.removeLast()
                 }
                 PushMessageProcessor.recentMessagesQueue.addFirst(deliveryId)
-                pushLogger.logReceivedNewMessageWithDeliveryId(deliveryId)
+                pushLogger.logReceivedNewMessageWithDeliveryId(deliveryId, title)
                 return false
             }
         }
@@ -71,14 +75,21 @@ internal class PushMessageProcessorImpl(
         // Not a CIO push notification
         if (deliveryId == null || deliveryToken == null) return
 
-        if (!getOrUpdateMessageAlreadyProcessed(deliveryId = deliveryId)) {
+        if (!getOrUpdateMessageAlreadyProcessed(deliveryId = deliveryId, title = bundle?.let(::notificationTitle))) {
             // We only track delivered metrics from GCM right now
             trackDeliveredMetrics(deliveryId, deliveryToken)
         }
     }
 
-    override fun processRemoteMessageDeliveredMetrics(deliveryId: String, deliveryToken: String) {
-        if (!getOrUpdateMessageAlreadyProcessed(deliveryId = deliveryId)) {
+    // Read the way the notification handler reads it: data payload first, then notification
+    // payload. RemoteMessage parses the raw broadcast extras the same way FirebaseMessagingService does.
+    private fun notificationTitle(extras: Bundle): String? = runCatching {
+        val message = RemoteMessage(extras)
+        message.data[CustomerIOPushNotificationHandler.TITLE_KEY] ?: message.notification?.title
+    }.getOrNull()
+
+    override fun processRemoteMessageDeliveredMetrics(deliveryId: String, deliveryToken: String, title: String?) {
+        if (!getOrUpdateMessageAlreadyProcessed(deliveryId = deliveryId, title = title)) {
             // We only track delivered metrics here for Firebase messages as the caller
             // processes and displays the notification already and FCM guarantees to send
             // callbacks only once for each notification, so duplication is not possible within

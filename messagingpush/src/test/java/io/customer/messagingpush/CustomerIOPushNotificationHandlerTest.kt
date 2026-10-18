@@ -90,7 +90,7 @@ internal class CustomerIOPushNotificationHandlerTest : IntegrationTest() {
     fun handleMessage_shouldLogShowingPushNotification() {
         pushNotificationHandler.handleMessage(contextMock, true)
 
-        assertCalledOnce { mockPushLogger.logShowingPushNotification(any()) }
+        assertCalledOnce { mockPushLogger.logShowingPushNotification(any(), any(), any()) }
     }
 
     @Test
@@ -149,14 +149,14 @@ internal class CustomerIOPushNotificationHandlerTest : IntegrationTest() {
     fun handleMessage_givenHandleNotificationTriggerTrue_shouldLogShowingPushNotification() {
         pushNotificationHandler.handleMessage(contextMock, true)
 
-        assertCalledOnce { mockPushLogger.logShowingPushNotification(any()) }
+        assertCalledOnce { mockPushLogger.logShowingPushNotification(any(), any(), any()) }
     }
 
     @Test
     fun handleMessage_givenHandleNotificationTriggerFalse_shouldNotLogShowingPushNotification() {
         pushNotificationHandler.handleMessage(contextMock, false)
 
-        assertCalledNever { mockPushLogger.logShowingPushNotification(any()) }
+        assertCalledNever { mockPushLogger.logShowingPushNotification(any(), any(), any()) }
     }
 
     @Test

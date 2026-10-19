@@ -13,11 +13,13 @@ import io.mockk.slot
 import io.mockk.verify
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
+import kotlin.system.measureTimeMillis
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import org.amshove.kluent.shouldBeEmpty
 import org.amshove.kluent.shouldBeEqualTo
+import org.amshove.kluent.shouldBeLessThan
 import org.amshove.kluent.shouldBeNull
 import org.amshove.kluent.shouldBeTrue
 import org.amshove.kluent.shouldNotBeEmpty
@@ -290,6 +292,25 @@ class LocationTrackerTest {
 
         tracker.trackedLocation shouldBeEqualTo LocationCoordinates(latitude = 1.0, longitude = 2.0)
         tracker.lastKnownLocation shouldBeEqualTo LocationCoordinates(latitude = 37.7749, longitude = -122.4194)
+    }
+
+    @Test
+    fun givenRestoreStalledPastDeadline_expectOneBoundedWaitNotOnePerReader() {
+        val stalledTracker = LocationTracker(dataPipeline, store, syncFilter, mockEventBus, logger, restoreWaitMillis = 300)
+        val (restoreEntered, releaseRestore) = blockRestoreAt(37.7749, -122.4194)
+        stalledTracker.restorePersistedLocationInBackground(restoreScope)
+        restoreEntered.await(5, TimeUnit.SECONDS).shouldBeTrue()
+
+        val firstWait = measureTimeMillis { stalledTracker.getIdentifyContext().shouldBeEmpty() }
+        val laterWaits = measureTimeMillis {
+            stalledTracker.getIdentifyContext().shouldBeEmpty()
+            stalledTracker.awaitLastKnownLocation().shouldBeNull()
+            runBlocking { stalledTracker.awaitRestore() }
+        }
+
+        firstWait shouldBeLessThan 2_000L
+        laterWaits shouldBeLessThan 100L
+        releaseRestore.countDown()
     }
 
     // -- getIdentifyContext --

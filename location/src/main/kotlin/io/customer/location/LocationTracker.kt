@@ -10,6 +10,7 @@ import io.customer.sdk.core.pipeline.IdentifyHook
 import io.customer.sdk.core.util.Logger
 import io.customer.sdk.util.EventNames
 import java.lang.ref.WeakReference
+import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
@@ -43,7 +44,8 @@ internal class LocationTracker(
     private val locationPreferenceStore: LocationPreferenceStore,
     private val locationSyncFilter: LocationSyncFilter,
     private val eventBus: EventBus,
-    private val logger: Logger
+    private val logger: Logger,
+    private val restoreWaitMillis: Long = RESTORE_WAIT_MILLIS
 ) : IdentifyHook {
 
     // WeakReference prevents this hook (retained by IdentifyHookRegistry
@@ -69,14 +71,17 @@ internal class LocationTracker(
     private val stateLock = Any()
     private var resetCount = 0
 
-    // The background restore started at init; readers that need its result wait on it.
+    // The background restore started at init; readers that need its result wait on it, but only
+    // until the deadline. A stalled Keystore then costs one bounded wait, not one per reader.
     @Volatile
     private var restoreJob: Job? = null
 
+    @Volatile
+    private var restoreDeadlineNanos = 0L
+
     override fun getIdentifyContext(): Map<String, Any> {
         // Runs on Segment's pipeline thread, so an identify right after init still gets the
-        // persisted location. Capped like Segment's own WaitingPlugin; a stalled Keystore
-        // couldn't decrypt it anyway.
+        // persisted location. Past the deadline a stalled Keystore couldn't decrypt it anyway.
         awaitRestoreBlocking()
         val location = trackedLocation ?: return emptyMap()
         return mapOf(
@@ -107,12 +112,14 @@ internal class LocationTracker(
 
     /** Runs [restorePersistedLocation] in [scope], keeping its Keystore decrypts off the caller's thread. */
     fun restorePersistedLocationInBackground(scope: CoroutineScope) {
+        restoreDeadlineNanos = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(restoreWaitMillis)
         restoreJob = scope.launch { restorePersistedLocation() }
     }
 
-    /** Waits for the restore started by [restorePersistedLocationInBackground], if any. */
+    /** Waits for the restore started by [restorePersistedLocationInBackground], until its deadline. */
     suspend fun awaitRestore() {
-        restoreJob?.join()
+        val job = restoreJob ?: return
+        withTimeoutOrNull(remainingRestoreWaitMillis()) { job.join() }
     }
 
     /** [lastKnownLocation] once the init restore has landed. Blocks, so never call it on the main thread. */
@@ -124,8 +131,13 @@ internal class LocationTracker(
     private fun awaitRestoreBlocking() {
         val job = restoreJob ?: return
         if (job.isCompleted) return
-        runBlocking { withTimeoutOrNull(RESTORE_WAIT_MILLIS) { job.join() } }
+        val remaining = remainingRestoreWaitMillis()
+        if (remaining <= 0) return
+        runBlocking { withTimeoutOrNull(remaining) { job.join() } }
     }
+
+    private fun remainingRestoreWaitMillis(): Long =
+        TimeUnit.NANOSECONDS.toMillis(restoreDeadlineNanos - System.nanoTime())
 
     /**
      * Reads persisted cached location from the preference store and sets the
@@ -251,7 +263,7 @@ internal class LocationTracker(
     }
 
     private companion object {
-        // Segment's WaitingPlugin default.
+        // Total time readers wait for the init restore, from its start. Segment's WaitingPlugin default.
         const val RESTORE_WAIT_MILLIS = 30_000L
     }
 }

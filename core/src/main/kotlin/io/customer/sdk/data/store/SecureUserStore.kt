@@ -32,7 +32,10 @@ interface SecureUserStore {
      * [onPersisted] runs now or once that write lands. A later save or [clearAll] that supersedes
      * this one drops both the write and [onPersisted].
      */
-    fun saveUserId(userId: String?, onPersisted: () -> Unit = {})
+    fun saveUserId(userId: String?, onPersisted: () -> Unit)
+
+    /** [saveUserId] with no callback. Kept so modules built against this signature still link. */
+    fun saveUserId(userId: String?) = saveUserId(userId) {}
 
     /**
      * Same as [saveUserId], but encrypts on a background thread so the caller never waits on the
@@ -46,7 +49,7 @@ interface SecureUserStore {
 
 internal class SecureUserStoreImpl(
     context: Context,
-    logger: Logger,
+    private val logger: Logger,
     backgroundDispatcher: CoroutineDispatcher,
     private val crypto: PreferenceCrypto = PreferenceCrypto(KEY_ALIAS, logger)
 ) : PreferenceStore(context), SecureUserStore {
@@ -84,8 +87,19 @@ internal class SecureUserStoreImpl(
         writeScope.launch {
             // Superseded before it started: skip the Keystore call rather than hold the key ahead of the newer save.
             if (synchronized(lock) { write.version != version }) return@launch
-            finishWrite(write, crypto.encrypt(write.userId))
+            finishWrite(write, encryptOrFallback(write.userId))
         }
+    }
+
+    // PreferenceCrypto already stores plaintext when the Keystore throws an Exception. An Error from
+    // a broken Keystore gets the same fallback, so the write and its callbacks are never stranded.
+    private fun encryptOrFallback(userId: String): String = try {
+        crypto.encrypt(userId)
+    } catch (e: VirtualMachineError) {
+        throw e
+    } catch (t: Throwable) {
+        logger.error("Keystore encryption failed, storing without encryption: $t", throwable = t)
+        userId
     }
 
     /** Returns the write to encrypt, or null when [userId] needs no Keystore call. */

@@ -15,6 +15,7 @@ import org.amshove.kluent.shouldBeEqualTo
 import org.amshove.kluent.shouldBeFalse
 import org.amshove.kluent.shouldBeNull
 import org.amshove.kluent.shouldBeTrue
+import org.amshove.kluent.shouldNotBeNull
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -176,6 +177,30 @@ class SecureUserStoreTest : RobolectricTest() {
 
         store.getUserId() shouldBeEqualTo "user-42"
         verify(exactly = 2) { crypto.encrypt("user-42") }
+    }
+
+    @Test
+    fun saveUserIdInBackground_whenEncryptionThrowsError_expectWriteLandsAndCallbacksRun() {
+        val brokenCrypto: PreferenceCrypto = mockk {
+            every { encrypt(any()) } throws ExceptionInInitializerError("broken Keystore provider")
+            every { decrypt(any()) } answers { firstArg() }
+        }
+        val store = newStoreWithPendingWrites(crypto = brokenCrypto)
+        val published = mutableListOf<String>()
+        store.saveUserIdInBackground("user-42") { published += "init" }
+        // Attaches to the pending write; must not be stranded when that write fails.
+        store.saveUserId("user-42") { published += "identify" }
+
+        writer.scheduler.advanceUntilIdle()
+
+        published shouldBeEqualTo listOf("init", "identify")
+        store.getUserId() shouldBeEqualTo "user-42"
+    }
+
+    @Test
+    fun saveUserId_expectSingleArgumentFormStillOnTheInterface() {
+        // Modules built against the one-argument form call it directly; removing it breaks linking.
+        SecureUserStore::class.java.getMethod("saveUserId", String::class.java).shouldNotBeNull()
     }
 
     @Test

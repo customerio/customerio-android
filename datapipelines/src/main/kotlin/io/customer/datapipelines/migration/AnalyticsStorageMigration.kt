@@ -25,13 +25,14 @@ internal class AnalyticsStorageMigration(
 
         val pendingEventsKey = "$PENDING_EVENTS_PREFIX$newKey"
         runCatching {
-            if (!previousKey.isNullOrEmpty() && previousKey != newKey && movePrefs(previousKey, newKey)) {
-                migrationPrefs.edit().putString(pendingEventsKey, previousKey).commit()
+            var movedFromKey: String? = null
+            if (!previousKey.isNullOrEmpty() && previousKey != newKey && movePrefs(previousKey, newKey, pendingEventsKey)) {
+                movedFromKey = previousKey
                 logger.debug("Moved analytics storage from previous key to new public key")
             }
 
             // Retried on every launch until all queued events have moved
-            val pendingFromKey = migrationPrefs.getString(pendingEventsKey, null) ?: return
+            val pendingFromKey = migrationPrefs.getString(pendingEventsKey, null) ?: movedFromKey ?: return
             if (moveEventFiles(pendingFromKey, newKey)) {
                 migrationPrefs.edit().remove(pendingEventsKey).commit()
             } else {
@@ -45,7 +46,7 @@ internal class AnalyticsStorageMigration(
     /**
      * Returns true if prefs were moved. Never overwrites storage the new key already has.
      */
-    private fun movePrefs(previousKey: String, newKey: String): Boolean {
+    private fun movePrefs(previousKey: String, newKey: String, pendingEventsKey: String): Boolean {
         val previousPrefs = prefs(previousKey)
         val previousValues = previousPrefs.all
         if (previousValues.isEmpty()) return false
@@ -60,6 +61,8 @@ internal class AnalyticsStorageMigration(
             val newPrefKey = if (key == fileIndexKey(previousKey)) fileIndexKey(newKey) else key
             editor.put(newPrefKey, value)
         }
+        // Mark events pending before touching prefs, so a crash part way still moves them next launch
+        migrationPrefs.edit().putString(pendingEventsKey, previousKey).commit()
         editor.commit()
         previousPrefs.edit().clear().commit()
         return true

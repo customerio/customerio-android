@@ -17,6 +17,7 @@ import org.amshove.kluent.shouldBeEmpty
 import org.amshove.kluent.shouldBeEqualTo
 import org.amshove.kluent.shouldBeNull
 import org.amshove.kluent.shouldContain
+import org.amshove.kluent.shouldNotBeEmpty
 import org.amshove.kluent.shouldNotContain
 import org.junit.Before
 import org.junit.Test
@@ -159,6 +160,20 @@ class AnalyticsStorageMigrationTest : RobolectricTest() {
         blocker.deleteRecursively()
         migration.migrate(previousKey = PUBLIC_KEY, newKey = PUBLIC_KEY)
 
+        eventsDirectory().list()!!.forEach { it shouldNotContain LEGACY_KEY }
+    }
+
+    @Test
+    fun migrate_givenMoveInterruptedAfterPrefsCopied_expectQueuedEventsMovedOnNextLaunch() = runBlocking<Unit> {
+        givenStorageForKey(LEGACY_KEY, finishedBatch = true)
+        // State left by a crash after the pending marker and new prefs were saved, before events moved
+        applicationMock.getSharedPreferences(AnalyticsStorageMigration.MIGRATION_PREFS_NAME, Context.MODE_PRIVATE).edit()
+            .putString("${AnalyticsStorageMigration.PENDING_EVENTS_PREFIX}$PUBLIC_KEY", LEGACY_KEY).commit()
+        segmentStorage(PUBLIC_KEY).write(Storage.Constants.AnonymousId, ANONYMOUS_ID)
+
+        migration.migrate(previousKey = PUBLIC_KEY, newKey = PUBLIC_KEY)
+
+        eventsDirectory().list()!!.toList().shouldNotBeEmpty()
         eventsDirectory().list()!!.forEach { it shouldNotContain LEGACY_KEY }
     }
 

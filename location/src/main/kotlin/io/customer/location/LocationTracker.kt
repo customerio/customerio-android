@@ -10,6 +10,11 @@ import io.customer.sdk.core.pipeline.IdentifyHook
 import io.customer.sdk.core.util.Logger
 import io.customer.sdk.util.EventNames
 import java.lang.ref.WeakReference
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeoutOrNull
 
 /**
  * Coordinates all location state management: persistence, restoration,
@@ -59,7 +64,20 @@ internal class LocationTracker(
     internal var lastKnownLocation: LocationCoordinates? = null
         private set
 
+    // Guards the two locations against a background restore landing after a newer fix or a
+    // sign-out. Never held across a Keystore call.
+    private val stateLock = Any()
+    private var resetCount = 0
+
+    // The background restore started at init; readers that need its result wait on it.
+    @Volatile
+    private var restoreJob: Job? = null
+
     override fun getIdentifyContext(): Map<String, Any> {
+        // Runs on Segment's pipeline thread, so an identify right after init still gets the
+        // persisted location. Capped like Segment's own WaitingPlugin; a stalled Keystore
+        // couldn't decrypt it anyway.
+        awaitRestoreBlocking()
         val location = trackedLocation ?: return emptyMap()
         return mapOf(
             "location_latitude" to location.latitude,
@@ -75,11 +93,36 @@ internal class LocationTracker(
      * guaranteeing no stale data is available for a subsequent identify().
      */
     override fun resetContext() {
-        trackedLocation = null
-        lastKnownLocation = null
+        synchronized(stateLock) {
+            resetCount++
+            trackedLocation = null
+            lastKnownLocation = null
+        }
         locationPreferenceStore.clearCachedLocation()
         locationSyncFilter.clearSyncedData()
         logger.debug("Location state reset")
+    }
+
+    /** Runs [restorePersistedLocation] in [scope], keeping its Keystore decrypts off the caller's thread. */
+    fun restorePersistedLocationInBackground(scope: CoroutineScope) {
+        restoreJob = scope.launch { restorePersistedLocation() }
+    }
+
+    /** Waits for the restore started by [restorePersistedLocationInBackground], if any. */
+    suspend fun awaitRestore() {
+        restoreJob?.join()
+    }
+
+    /** [lastKnownLocation] once the init restore has landed. Blocks, so never call it on the main thread. */
+    fun awaitLastKnownLocation(): LocationCoordinates? {
+        awaitRestoreBlocking()
+        return lastKnownLocation
+    }
+
+    private fun awaitRestoreBlocking() {
+        val job = restoreJob ?: return
+        if (job.isCompleted) return
+        runBlocking { withTimeoutOrNull(RESTORE_WAIT_MILLIS) { job.join() } }
     }
 
     /**
@@ -88,11 +131,17 @@ internal class LocationTracker(
      * immediately after SDK restart.
      */
     fun restorePersistedLocation() {
+        val resetsAtStart = synchronized(stateLock) { resetCount }
         val lat = locationPreferenceStore.getCachedLatitude() ?: return
         val lng = locationPreferenceStore.getCachedLongitude() ?: return
         val restored = LocationCoordinates(latitude = lat, longitude = lng)
-        trackedLocation = restored
-        lastKnownLocation = restored
+        synchronized(stateLock) {
+            // A sign-out while decrypting must not bring the old user's location back, and a
+            // fix that arrived meanwhile is newer than the persisted one.
+            if (resetCount != resetsAtStart) return
+            if (trackedLocation == null) trackedLocation = restored
+            if (lastKnownLocation == null) lastKnownLocation = restored
+        }
         logger.debug("Restored persisted location: lat=$lat, lng=$lng")
     }
 
@@ -108,8 +157,10 @@ internal class LocationTracker(
         logger.debug("Location update received: lat=$latitude, lng=$longitude")
 
         val location = LocationCoordinates(latitude = latitude, longitude = longitude)
-        trackedLocation = location
-        lastKnownLocation = location
+        synchronized(stateLock) {
+            trackedLocation = location
+            lastKnownLocation = location
+        }
         locationPreferenceStore.saveCachedLocation(latitude, longitude)
 
         trySendLocationTrack(latitude, longitude)
@@ -137,7 +188,9 @@ internal class LocationTracker(
     ) {
         logger.debug("Location update received (geofence-only, not tracked): lat=$latitude, lng=$longitude")
 
-        lastKnownLocation = LocationCoordinates(latitude = latitude, longitude = longitude)
+        synchronized(stateLock) {
+            lastKnownLocation = LocationCoordinates(latitude = latitude, longitude = longitude)
+        }
         eventBus.publish(
             Event.LocationAcquired(latitude = latitude, longitude = longitude)
         )
@@ -193,6 +246,11 @@ internal class LocationTracker(
                 "longitude" to longitude
             )
         )
+    }
+
+    private companion object {
+        // Segment's WaitingPlugin default.
+        const val RESTORE_WAIT_MILLIS = 30_000L
     }
 }
 

@@ -11,9 +11,15 @@ import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
 import io.mockk.verify
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.runBlocking
 import org.amshove.kluent.shouldBeEmpty
 import org.amshove.kluent.shouldBeEqualTo
 import org.amshove.kluent.shouldBeNull
+import org.amshove.kluent.shouldBeTrue
 import org.amshove.kluent.shouldNotBeEmpty
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -209,6 +215,81 @@ class LocationTrackerTest {
         tracker.restorePersistedLocation()
 
         tracker.getIdentifyContext().shouldBeEmpty()
+    }
+
+    // -- restorePersistedLocationInBackground --
+
+    private val restoreScope = CoroutineScope(Dispatchers.IO)
+
+    // Holds the restore inside its Keystore read until released.
+    private fun blockRestoreAt(latitude: Double, longitude: Double): Pair<CountDownLatch, CountDownLatch> {
+        val restoreEntered = CountDownLatch(1)
+        val releaseRestore = CountDownLatch(1)
+        every { store.getCachedLatitude() } answers {
+            restoreEntered.countDown()
+            releaseRestore.await()
+            latitude
+        }
+        every { store.getCachedLongitude() } returns longitude
+        return restoreEntered to releaseRestore
+    }
+
+    @Test
+    fun givenRestoreInBackground_expectIdentifyContextWaitsForRestoredLocation() {
+        val (restoreEntered, releaseRestore) = blockRestoreAt(37.7749, -122.4194)
+        tracker.restorePersistedLocationInBackground(restoreScope)
+        restoreEntered.await(5, TimeUnit.SECONDS).shouldBeTrue()
+
+        Thread {
+            Thread.sleep(200)
+            releaseRestore.countDown()
+        }.start()
+
+        tracker.getIdentifyContext()["location_latitude"] shouldBeEqualTo 37.7749
+    }
+
+    @Test
+    fun givenFixArrivesWhileRestoring_expectRestoreDoesNotOverwriteIt() {
+        val (restoreEntered, releaseRestore) = blockRestoreAt(1.0, 2.0)
+        tracker.restorePersistedLocationInBackground(restoreScope)
+        restoreEntered.await(5, TimeUnit.SECONDS).shouldBeTrue()
+
+        tracker.onLocationReceived(37.7749, -122.4194)
+        releaseRestore.countDown()
+        runBlocking { tracker.awaitRestore() }
+
+        val fresh = LocationCoordinates(latitude = 37.7749, longitude = -122.4194)
+        tracker.trackedLocation shouldBeEqualTo fresh
+        tracker.lastKnownLocation shouldBeEqualTo fresh
+    }
+
+    @Test
+    fun givenResetWhileRestoring_expectRestoreDoesNotBringLocationBack() {
+        val (restoreEntered, releaseRestore) = blockRestoreAt(37.7749, -122.4194)
+        tracker.restorePersistedLocationInBackground(restoreScope)
+        restoreEntered.await(5, TimeUnit.SECONDS).shouldBeTrue()
+
+        tracker.resetContext()
+        releaseRestore.countDown()
+        runBlocking { tracker.awaitRestore() }
+
+        tracker.trackedLocation.shouldBeNull()
+        tracker.lastKnownLocation.shouldBeNull()
+        tracker.getIdentifyContext().shouldBeEmpty()
+    }
+
+    @Test
+    fun givenSilentFixWhileRestoring_expectTrackedRestoredAndLastKnownKeepsFix() {
+        val (restoreEntered, releaseRestore) = blockRestoreAt(1.0, 2.0)
+        tracker.restorePersistedLocationInBackground(restoreScope)
+        restoreEntered.await(5, TimeUnit.SECONDS).shouldBeTrue()
+
+        tracker.onLocationReceivedWithoutTracking(37.7749, -122.4194)
+        releaseRestore.countDown()
+        runBlocking { tracker.awaitRestore() }
+
+        tracker.trackedLocation shouldBeEqualTo LocationCoordinates(latitude = 1.0, longitude = 2.0)
+        tracker.lastKnownLocation shouldBeEqualTo LocationCoordinates(latitude = 37.7749, longitude = -122.4194)
     }
 
     // -- getIdentifyContext --

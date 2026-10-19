@@ -395,6 +395,31 @@ class CustomerIOConfigBuilderTest : RobolectricTest() {
     }
 
     @Test
+    fun initialize_givenPublicKeyAfterSecretKey_expectSdkSetUpWithPublicKey() {
+        val givenPublicKey = "pk_us_$KEY_BODY"
+        CustomerIO.initialize(createCustomerIOConfigBuilder("sk_us_$KEY_BODY").build())
+
+        CustomerIO.initialize(createCustomerIOConfigBuilder(givenPublicKey).build())
+
+        val sdk = CustomerIO.instance()
+        sdk.moduleConfig.cdpApiKey shouldBe givenPublicKey
+        sdk.analytics.enabled shouldBe true
+    }
+
+    @Test
+    fun initialize_givenSecretKeyAfterPublicKey_expectSdkStaysEnabled() {
+        val givenPublicKey = "pk_us_$KEY_BODY"
+        CustomerIO.initialize(createCustomerIOConfigBuilder(givenPublicKey).build())
+
+        CustomerIO.initialize(createCustomerIOConfigBuilder("sk_us_$KEY_BODY").build())
+
+        assertCalledOnce { mockLogger.coreSdkSecretKeyRejected() }
+        val sdk = CustomerIO.instance()
+        sdk.moduleConfig.cdpApiKey shouldBe givenPublicKey
+        sdk.analytics.enabled shouldBe true
+    }
+
+    @Test
     fun initialize_givenPublicEUKeyWithoutRegion_expectEURegionBasedHosts() {
         val config = createCustomerIOConfigBuilder("pk_eu_$KEY_BODY").build()
 

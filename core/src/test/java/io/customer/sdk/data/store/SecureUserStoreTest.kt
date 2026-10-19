@@ -1,9 +1,12 @@
 package io.customer.sdk.data.store
 
 import io.customer.commontest.core.RobolectricTest
+import io.customer.sdk.core.di.SDKComponent
+import io.customer.sdk.core.di.setupAndroidComponent
 import io.customer.sdk.core.util.Logger
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.spyk
 import io.mockk.verify
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
@@ -231,5 +234,41 @@ class SecureUserStoreTest : RobolectricTest() {
         published.await(1, TimeUnit.SECONDS).shouldBeFalse()
         store.getUserId().shouldBeNull()
         verify(exactly = 1) { blockedCrypto.encrypt("user-42") }
+    }
+
+    @Test
+    fun cancelPendingWrites_whileEncryptionBlocked_expectWriteAndCallbackDropped() {
+        val encryptEntered = CountDownLatch(1)
+        val releaseEncrypt = CountDownLatch(1)
+        var blockEncrypt = false
+        val blockedCrypto = fakeCrypto {
+            if (blockEncrypt) {
+                encryptEntered.countDown()
+                releaseEncrypt.await()
+            }
+        }
+        val store = newStoreWithPendingWrites(crypto = blockedCrypto, dispatcher = Dispatchers.IO)
+        store.saveUserId("previous-user")
+        blockEncrypt = true
+        val published = CountDownLatch(1)
+        store.saveUserIdInBackground("user-42") { published.countDown() }
+        encryptEntered.await(5, TimeUnit.SECONDS).shouldBeTrue()
+
+        store.cancelPendingWrites()
+        releaseEncrypt.countDown()
+
+        // The Keystore call finishes, but the write it was for no longer lands.
+        published.await(1, TimeUnit.SECONDS).shouldBeFalse()
+        store.getUserId() shouldBeEqualTo "previous-user"
+    }
+
+    @Test
+    fun sdkReset_expectPendingWritesOfTheGraphStoreCancelled() {
+        val store = spyk(newStoreWithPendingWrites())
+        SDKComponent.setupAndroidComponent(contextMock).overrideDependency<SecureUserStore>(store)
+
+        SDKComponent.reset()
+
+        verify(exactly = 1) { store.cancelPendingWrites() }
     }
 }

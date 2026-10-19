@@ -9,6 +9,7 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 
 /**
@@ -144,6 +145,19 @@ internal class SecureUserStoreImpl(
 
     override fun clearAll() = synchronized(lock) {
         resetLocked { clear() }
+    }
+
+    /**
+     * Drops the pending write and its callbacks and stops the writer, for when the SDK is reset and
+     * this instance is discarded. A write already inside the Keystore can't be interrupted, but it
+     * no longer lands, so it can't overwrite what a later instance stores.
+     */
+    fun cancelPendingWrites() {
+        synchronized(lock) {
+            version++
+            pendingWrite = null
+        }
+        writeScope.cancel()
     }
 
     private fun resetLocked(edit: SharedPreferences.Editor.() -> Unit) {

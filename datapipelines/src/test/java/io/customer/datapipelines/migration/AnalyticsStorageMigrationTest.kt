@@ -256,8 +256,8 @@ class AnalyticsStorageMigrationTest : RobolectricTest() {
     }
 
     @Test
-    fun migrate_givenNewPrefsFailToSave_expectPreviousPrefsKeptUntilSaved() = runBlocking<Unit> {
-        givenStorageForKey(LEGACY_KEY)
+    fun migrate_givenNewPrefsFailToSave_expectPreviousStorageKeptUntilSaved() = runBlocking<Unit> {
+        givenStorageForKey(LEGACY_KEY, finishedBatch = true)
         val newPrefsName = "analytics-android-$PUBLIC_KEY"
         val realNewPrefs = applicationMock.getSharedPreferences(newPrefsName, Context.MODE_PRIVATE)
         // Saving the copy fails, so nothing reaches the new key's prefs
@@ -274,12 +274,16 @@ class AnalyticsStorageMigrationTest : RobolectricTest() {
         AnalyticsStorageMigration(failingContext, mockLogger).migrate(previousKey = LEGACY_KEY, newKey = PUBLIC_KEY)
 
         segmentStorage(LEGACY_KEY).read(Storage.Constants.AnonymousId) shouldBeEqualTo ANONYMOUS_ID
+        // Events wait for their prefs to be saved
+        eventsDirectory().list()!!.forEach { it shouldContain LEGACY_KEY }
+        verify { mockLogger.error("Failed to save analytics storage for new public key, will retry on next launch", any(), any()) }
 
-        // Next launch, the copy is saved and the previous prefs are cleared
+        // Next launch, the copy is saved, then the previous prefs are cleared and events move
         migration.migrate(previousKey = PUBLIC_KEY, newKey = PUBLIC_KEY)
 
         segmentStorage(PUBLIC_KEY).read(Storage.Constants.AnonymousId) shouldBeEqualTo ANONYMOUS_ID
         segmentStorage(LEGACY_KEY).read(Storage.Constants.AnonymousId).shouldBeNull()
+        eventsDirectory().list()!!.forEach { it shouldNotContain LEGACY_KEY }
         applicationMock.getSharedPreferences(AnalyticsStorageMigration.MIGRATION_PREFS_NAME, Context.MODE_PRIVATE).all.shouldBeEmpty()
     }
 

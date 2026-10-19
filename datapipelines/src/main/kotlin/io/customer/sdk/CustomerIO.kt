@@ -547,9 +547,11 @@ class CustomerIO private constructor(
             // Secret keys must not ship in apps, so log and set up a disabled SDK instead of crashing the app
             if (CioApiKey.isSecretKey(config.cdpApiKey)) {
                 logger.coreSdkSecretKeyRejected()
-                initializeDisabled(androidSDKComponent, config)
+                // Never disable an SDK that is already set up
+                if (instance == null) initializeDisabled(androidSDKComponent, config)
                 return
             }
+            releaseDisabledInstance()
 
             logger.coreSdkInitStart()
 
@@ -609,6 +611,16 @@ class CustomerIO private constructor(
             )
             createInstance(androidSDKComponent = androidSDKComponent, moduleConfig = disabledConfig)
                 .analytics.enabled = false
+        }
+
+        /**
+         * Drops the disabled instance left by a refused secret key, so a valid key can still set up the SDK.
+         */
+        @Synchronized
+        private fun releaseDisabledInstance() {
+            val disabledInstance = instance?.takeIf { it.moduleConfig.cdpApiKey == DISABLED_CDP_API_KEY } ?: return
+            runCatching { disabledInstance.analytics.shutdown() }
+            instance = null
         }
 
         /**

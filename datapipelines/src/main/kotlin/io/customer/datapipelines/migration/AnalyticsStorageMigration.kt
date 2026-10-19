@@ -25,27 +25,32 @@ internal class AnalyticsStorageMigration(
         if (!CioApiKey.isPublicKey(newKey)) return
 
         runCatching {
-            var movedFromKey: String? = null
-            if (!previousKey.isNullOrEmpty() && previousKey != newKey && movePrefs(previousKey, newKey)) {
-                movedFromKey = previousKey
-                logger.debug("Moved analytics storage from previous key to new public key")
+            val prefsSaved = if (!previousKey.isNullOrEmpty() && previousKey != newKey) movePrefs(previousKey, newKey) else null
+            when (prefsSaved) {
+                true -> logger.debug("Moved analytics storage from previous key to new public key")
+                false -> logger.error("Failed to save analytics storage for new public key, will retry on next launch")
+                null -> Unit
             }
+            // Copied this launch, so its prefs are in memory even if saving failed
+            val copiedFromKey = previousKey.takeIf { prefsSaved != null }
 
             // Retried on every launch until all queued events have moved. Moves left from an earlier
             // key change are included, so their events follow the newest key.
             val pendingFromKeys = migrationPrefs.all.keys
                 .filter { it.startsWith(PENDING_EVENTS_PREFIX) }
                 .map { it.removePrefix(PENDING_EVENTS_PREFIX) }
-                .plus(listOfNotNull(movedFromKey))
+                .plus(listOfNotNull(copiedFromKey))
                 .distinct()
             pendingFromKeys.forEach { fromKey ->
                 if (fromKey == newKey) {
                     migrationPrefs.edit().remove(pendingEventsKey(fromKey)).commit()
                     return@forEach
                 }
-                // A copy saved this launch is only in memory, so only retry copies from earlier launches
-                if (fromKey != movedFromKey && !isPrefsSaved(fromKey)) retryPrefsSave(fromKey, newKey)
-                if (moveEventFiles(fromKey, newKey) && isPrefsSaved(fromKey)) {
+                // A copy that failed this launch can't be retried until next launch, as the new prefs
+                // in memory would look saved
+                if (fromKey != copiedFromKey && !isPrefsSaved(fromKey)) retryPrefsSave(fromKey, newKey)
+                // Events only follow once the prefs they belong with are saved
+                if (isPrefsSaved(fromKey) && moveEventFiles(fromKey, newKey)) {
                     migrationPrefs.edit().remove(pendingEventsKey(fromKey)).commit()
                 } else {
                     logger.error("Failed to move queued analytics events to new public key, will retry on next launch")
@@ -57,15 +62,16 @@ internal class AnalyticsStorageMigration(
     }
 
     /**
-     * Returns true if prefs were moved. Never overwrites storage the new key already has.
+     * Returns true if prefs were copied and saved, false if saving failed, or null if there was
+     * nothing to move. Never overwrites storage the new key already has.
      */
-    private fun movePrefs(previousKey: String, newKey: String): Boolean {
+    private fun movePrefs(previousKey: String, newKey: String): Boolean? {
         val previousPrefs = prefs(previousKey)
         val previousValues = previousPrefs.all
-        if (previousValues.isEmpty()) return false
+        if (previousValues.isEmpty()) return null
 
         val newPrefs = prefs(newKey)
-        if (newPrefs.all.isNotEmpty()) return false
+        if (newPrefs.all.isNotEmpty()) return null
 
         val editor = newPrefs.edit()
         previousValues.forEach { (key, value) ->
@@ -77,7 +83,8 @@ internal class AnalyticsStorageMigration(
         // Mark the move pending before touching prefs, so a crash part way still finishes it next launch
         setPrefsSaved(previousKey, saved = false)
         // Previous prefs are kept until the copy is saved, a failed save is retried next launch
-        if (editor.commit()) clearMovedPrefs(previousKey)
+        if (!editor.commit()) return false
+        clearMovedPrefs(previousKey)
         return true
     }
 

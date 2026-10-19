@@ -17,6 +17,7 @@ import org.amshove.kluent.shouldBeEmpty
 import org.amshove.kluent.shouldBeEqualTo
 import org.amshove.kluent.shouldBeNull
 import org.amshove.kluent.shouldContain
+import org.amshove.kluent.shouldEndWith
 import org.amshove.kluent.shouldNotBeEmpty
 import org.amshove.kluent.shouldNotContain
 import org.junit.Before
@@ -38,7 +39,7 @@ class AnalyticsStorageMigrationTest : RobolectricTest() {
     }
 
     override fun teardown() {
-        listOf(LEGACY_KEY, PUBLIC_KEY, OTHER_LEGACY_KEY).forEach { key ->
+        listOf(LEGACY_KEY, PUBLIC_KEY, OTHER_LEGACY_KEY, OTHER_PUBLIC_KEY).forEach { key ->
             applicationMock.getSharedPreferences("analytics-android-$key", Context.MODE_PRIVATE).edit().clear().commit()
         }
         applicationMock.getSharedPreferences(AnalyticsStorageMigration.MIGRATION_PREFS_NAME, Context.MODE_PRIVATE).edit().clear().commit()
@@ -168,13 +169,68 @@ class AnalyticsStorageMigrationTest : RobolectricTest() {
         givenStorageForKey(LEGACY_KEY, finishedBatch = true)
         // State left by a crash after the pending marker and new prefs were saved, before events moved
         applicationMock.getSharedPreferences(AnalyticsStorageMigration.MIGRATION_PREFS_NAME, Context.MODE_PRIVATE).edit()
-            .putString("${AnalyticsStorageMigration.PENDING_EVENTS_PREFIX}$PUBLIC_KEY", LEGACY_KEY).commit()
+            .putBoolean("${AnalyticsStorageMigration.PENDING_EVENTS_PREFIX}$LEGACY_KEY", true).commit()
         segmentStorage(PUBLIC_KEY).write(Storage.Constants.AnonymousId, ANONYMOUS_ID)
 
         migration.migrate(previousKey = PUBLIC_KEY, newKey = PUBLIC_KEY)
 
         eventsDirectory().list()!!.toList().shouldNotBeEmpty()
         eventsDirectory().list()!!.forEach { it shouldNotContain LEGACY_KEY }
+    }
+
+    @Test
+    fun migrate_givenEventPropertyMatchesPreviousKey_expectOnlyBatchKeyRewritten() = runBlocking<Unit> {
+        val eventWithKey = """{"event":"keyed","properties":{"writeKey":"$LEGACY_KEY"}}"""
+        segmentStorage(LEGACY_KEY).apply {
+            write(Storage.Constants.AnonymousId, ANONYMOUS_ID)
+            write(Storage.Constants.Events, eventWithKey)
+            rollover()
+            // Left in the unfinished (.tmp) batch
+            write(Storage.Constants.Events, eventWithKey)
+        }
+
+        migration.migrate(previousKey = LEGACY_KEY, newKey = PUBLIC_KEY)
+
+        val files = eventsDirectory().listFiles()!!.toList()
+        files.size shouldBeEqualTo 2
+        files.forEach { file ->
+            file.name shouldContain "$PUBLIC_KEY-"
+            file.readText() shouldContain eventWithKey
+        }
+        val finished = files.first { !it.name.endsWith(".tmp") }.readText()
+        finished shouldEndWith "\"writeKey\":\"$PUBLIC_KEY\"}"
+    }
+
+    @Test
+    fun migrate_givenUnfinishedMoveThenSecondKeyChange_expectAllBatchesMoveToNewestKey() = runBlocking<Unit> {
+        givenStorageForKey(LEGACY_KEY, finishedBatch = true)
+        val finishedBatch = eventsDirectory().list()!!.first { !it.endsWith(".tmp") }
+        // Blocks the finished batch's rename, after its batch key was already rewritten to PUBLIC_KEY
+        val blocker = java.io.File(eventsDirectory(), finishedBatch.replace(LEGACY_KEY, PUBLIC_KEY)).apply {
+            mkdirs()
+            java.io.File(this, "file").writeText("")
+        }
+        migration.migrate(previousKey = LEGACY_KEY, newKey = PUBLIC_KEY)
+        eventsDirectory().list()!!.toList() shouldContain finishedBatch
+        blocker.deleteRecursively()
+
+        migration.migrate(previousKey = PUBLIC_KEY, newKey = OTHER_PUBLIC_KEY)
+
+        val newStorage = segmentStorage(OTHER_PUBLIC_KEY)
+        newStorage.read(Storage.Constants.AnonymousId) shouldBeEqualTo ANONYMOUS_ID
+        newStorage.write(Storage.Constants.Events, """{"event":"third"}""")
+        newStorage.rollover()
+        val files = eventsDirectory().listFiles()!!.toList()
+        files.size shouldBeEqualTo 2
+        files.forEach { file ->
+            file.name shouldContain "$OTHER_PUBLIC_KEY-"
+            file.readText() shouldEndWith "\"writeKey\":\"$OTHER_PUBLIC_KEY\"}"
+        }
+        files.joinToString { it.readText() }.let { content ->
+            content shouldContain "first"
+            content shouldContain "second"
+            content shouldContain "third"
+        }
     }
 
     @Test
@@ -245,6 +301,7 @@ class AnalyticsStorageMigrationTest : RobolectricTest() {
         private const val LEGACY_KEY = "4f3b2a1c0d9e8f7a6b5c"
         private const val OTHER_LEGACY_KEY = "9a8b7c6d5e4f3a2b1c0d"
         private const val PUBLIC_KEY = "pk_us_0123456789abcdefABCDEF0123456789_a1B2c3"
+        private const val OTHER_PUBLIC_KEY = "pk_eu_9876543210abcdefABCDEF9876543210_c3B2a1"
         private const val ANONYMOUS_ID = "anonymous-id"
         private const val USER_ID = "user-id"
     }

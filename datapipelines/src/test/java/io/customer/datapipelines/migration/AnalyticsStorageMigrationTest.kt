@@ -1,6 +1,8 @@
 package io.customer.datapipelines.migration
 
 import android.content.Context
+import android.content.ContextWrapper
+import android.content.SharedPreferences
 import com.segment.analytics.kotlin.android.AndroidStorageImpl
 import com.segment.analytics.kotlin.android.utilities.AndroidKVS
 import com.segment.analytics.kotlin.core.Storage
@@ -59,6 +61,12 @@ class AnalyticsStorageMigrationTest : RobolectricTest() {
         fileIndexKey = "segment.events.file.index.$writeKey",
         ioDispatcher = Dispatchers.Unconfined
     )
+
+    // A non-empty directory where the rewrite is staged makes rewriting a finished batch fail
+    private fun blockBatchRewrite() = java.io.File(eventsDirectory(), AnalyticsStorageMigration.REWRITE_FILE_NAME).apply {
+        mkdirs()
+        java.io.File(this, "file").writeText("")
+    }
 
     private fun givenStorageForKey(writeKey: String, finishedBatch: Boolean = false) = runBlocking {
         segmentStorage(writeKey).apply {
@@ -147,15 +155,14 @@ class AnalyticsStorageMigrationTest : RobolectricTest() {
     fun migrate_givenEventFileFailsToMove_expectRetriedOnNextLaunch() = runBlocking<Unit> {
         givenStorageForKey(LEGACY_KEY, finishedBatch = true)
         val finishedBatch = eventsDirectory().list()!!.first { !it.endsWith(".tmp") }
-        // A non-empty directory at the target name makes the rename fail
-        val blocker = java.io.File(eventsDirectory(), finishedBatch.replace(LEGACY_KEY, PUBLIC_KEY)).apply {
-            mkdirs()
-            java.io.File(this, "file").writeText("")
-        }
+        val originalContents = java.io.File(eventsDirectory(), finishedBatch).readText()
+        val blocker = blockBatchRewrite()
 
         migration.migrate(previousKey = LEGACY_KEY, newKey = PUBLIC_KEY)
 
+        // The failed rewrite leaves the batch whole and in place
         eventsDirectory().list()!!.toList() shouldContain finishedBatch
+        java.io.File(eventsDirectory(), finishedBatch).readText() shouldBeEqualTo originalContents
         segmentStorage(PUBLIC_KEY).read(Storage.Constants.AnonymousId) shouldBeEqualTo ANONYMOUS_ID
 
         blocker.deleteRecursively()
@@ -205,11 +212,7 @@ class AnalyticsStorageMigrationTest : RobolectricTest() {
     fun migrate_givenUnfinishedMoveThenSecondKeyChange_expectAllBatchesMoveToNewestKey() = runBlocking<Unit> {
         givenStorageForKey(LEGACY_KEY, finishedBatch = true)
         val finishedBatch = eventsDirectory().list()!!.first { !it.endsWith(".tmp") }
-        // Blocks the finished batch's rename, after its batch key was already rewritten to PUBLIC_KEY
-        val blocker = java.io.File(eventsDirectory(), finishedBatch.replace(LEGACY_KEY, PUBLIC_KEY)).apply {
-            mkdirs()
-            java.io.File(this, "file").writeText("")
-        }
+        val blocker = blockBatchRewrite()
         migration.migrate(previousKey = LEGACY_KEY, newKey = PUBLIC_KEY)
         eventsDirectory().list()!!.toList() shouldContain finishedBatch
         blocker.deleteRecursively()
@@ -231,6 +234,53 @@ class AnalyticsStorageMigrationTest : RobolectricTest() {
             content shouldContain "second"
             content shouldContain "third"
         }
+    }
+
+    @Test
+    fun migrate_givenNewKeyAlreadyUsedBatchNumbers_expectMovedBatchesTakeFreeNumbers() = runBlocking<Unit> {
+        // Leftover batches from a move that didn't finish
+        givenStorageForKey(LEGACY_KEY, finishedBatch = true)
+        applicationMock.getSharedPreferences(AnalyticsStorageMigration.MIGRATION_PREFS_NAME, Context.MODE_PRIVATE).edit()
+            .putBoolean("${AnalyticsStorageMigration.PENDING_EVENTS_PREFIX}$LEGACY_KEY", true).commit()
+        // The new key already finished batch 1 and has batch 2 open
+        java.io.File(eventsDirectory(), "$PUBLIC_KEY-1").writeText("finished by new key")
+        java.io.File(eventsDirectory(), "$PUBLIC_KEY-2.tmp").writeText("open in new key")
+
+        migration.migrate(previousKey = PUBLIC_KEY, newKey = PUBLIC_KEY)
+
+        java.io.File(eventsDirectory(), "$PUBLIC_KEY-1").readText() shouldBeEqualTo "finished by new key"
+        java.io.File(eventsDirectory(), "$PUBLIC_KEY-2.tmp").readText() shouldBeEqualTo "open in new key"
+        java.io.File(eventsDirectory(), "$PUBLIC_KEY-0").readText() shouldContain "first"
+        java.io.File(eventsDirectory(), "$PUBLIC_KEY-3.tmp").readText() shouldContain "second"
+        eventsDirectory().list()!!.forEach { it shouldNotContain LEGACY_KEY }
+    }
+
+    @Test
+    fun migrate_givenNewPrefsFailToSave_expectPreviousPrefsKeptUntilSaved() = runBlocking<Unit> {
+        givenStorageForKey(LEGACY_KEY)
+        val newPrefsName = "analytics-android-$PUBLIC_KEY"
+        val realNewPrefs = applicationMock.getSharedPreferences(newPrefsName, Context.MODE_PRIVATE)
+        // Saving the copy fails, so nothing reaches the new key's prefs
+        val failingNewPrefs = object : SharedPreferences by realNewPrefs {
+            override fun edit(): SharedPreferences.Editor = object : SharedPreferences.Editor by realNewPrefs.edit() {
+                override fun commit(): Boolean = false
+            }
+        }
+        val failingContext = object : ContextWrapper(applicationMock) {
+            override fun getSharedPreferences(name: String?, mode: Int): SharedPreferences =
+                if (name == newPrefsName) failingNewPrefs else super.getSharedPreferences(name, mode)
+        }
+
+        AnalyticsStorageMigration(failingContext, mockLogger).migrate(previousKey = LEGACY_KEY, newKey = PUBLIC_KEY)
+
+        segmentStorage(LEGACY_KEY).read(Storage.Constants.AnonymousId) shouldBeEqualTo ANONYMOUS_ID
+
+        // Next launch, the copy is saved and the previous prefs are cleared
+        migration.migrate(previousKey = PUBLIC_KEY, newKey = PUBLIC_KEY)
+
+        segmentStorage(PUBLIC_KEY).read(Storage.Constants.AnonymousId) shouldBeEqualTo ANONYMOUS_ID
+        segmentStorage(LEGACY_KEY).read(Storage.Constants.AnonymousId).shouldBeNull()
+        applicationMock.getSharedPreferences(AnalyticsStorageMigration.MIGRATION_PREFS_NAME, Context.MODE_PRIVATE).all.shouldBeEmpty()
     }
 
     @Test

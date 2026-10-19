@@ -147,6 +147,39 @@ class PollingLifecycleManagerTest : JUnitTest() {
     }
 
     @Test
+    fun identificationChange_whenIdentityArrivesBeforeItsFetch_expectExactlyOneFetch() {
+        state = InAppMessagingState(pollInterval = 600000L)
+        val manager = createManager()
+        captureObserver().onStart(processLifecycleOwner)
+
+        // The isUserIdentified subscription can fire before ModuleMessagingInApp's own fetch.
+        state = state.copy(userId = "user-123", anonymousId = "anon-123")
+        userIdentifiedListener(true)
+        manager.fetchInAppMessages()
+
+        verify(exactly = 1, timeout = 2000) { gistQueue.fetchUserMessages() }
+        Thread.sleep(200) // a second immediate tick would land well within this
+        verify(exactly = 1) { gistQueue.fetchUserMessages() }
+    }
+
+    @Test
+    fun sseAvailabilityChange_whenIdentityArrivedWhileSseActive_expectPollingResumesWhenSseStops() {
+        state = InAppMessagingState(pollInterval = 600000L)
+        val manager = createManager()
+        captureObserver().onStart(processLifecycleOwner)
+
+        state = state.copy(userId = "user-123", anonymousId = "anon-123", sseEnabled = true)
+        userIdentifiedListener(true)
+        manager.fetchInAppMessages()
+        verify(exactly = 0) { gistQueue.fetchUserMessages() }
+
+        state = state.copy(sseEnabled = false)
+        sseEnabledListener(false)
+
+        verify(timeout = 2000) { gistQueue.fetchUserMessages() }
+    }
+
+    @Test
     fun onStart_whenAlreadyForegrounded_skipsSecondTime() {
         createManager()
         val observer = captureObserver()

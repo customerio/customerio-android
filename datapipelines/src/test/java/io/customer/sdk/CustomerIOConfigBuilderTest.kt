@@ -20,11 +20,9 @@ import io.customer.sdk.data.model.Region
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verifyOrder
-import org.amshove.kluent.invoking
 import org.amshove.kluent.shouldBe
 import org.amshove.kluent.shouldNotBe
 import org.amshove.kluent.shouldNotBeEqualTo
-import org.amshove.kluent.shouldThrow
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -377,12 +375,23 @@ class CustomerIOConfigBuilderTest : RobolectricTest() {
     }
 
     @Test
-    fun initialize_givenSecretKey_expectSdkNotInitialized() {
-        val config = createCustomerIOConfigBuilder("sk_us_$KEY_BODY").build()
+    fun initialize_givenSecretKey_expectErrorLoggedAndDisabledInstance() {
+        val givenSecretKey = "sk_us_$KEY_BODY"
+        val givenModule = mockGenericModule()
+        val config = createCustomerIOConfigBuilder(givenSecretKey)
+            .addCustomerIOModule(givenModule)
+            .build()
 
         CustomerIO.initialize(config)
 
-        invoking { CustomerIO.instance() } shouldThrow IllegalStateException::class
+        assertCalledOnce { mockLogger.coreSdkSecretKeyRejected() }
+        assertCalledNever { givenModule.initialize() }
+        val sdk = CustomerIO.instance()
+        sdk.moduleConfig.cdpApiKey shouldNotBeEqualTo givenSecretKey
+        sdk.analytics.enabled shouldBe false
+        // Calls are ignored instead of crashing
+        sdk.identify("user-id")
+        sdk.track("event")
     }
 
     @Test

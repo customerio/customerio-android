@@ -5,6 +5,7 @@ import android.content.SharedPreferences
 import io.customer.sdk.core.util.CioApiKey
 import io.customer.sdk.core.util.Logger
 import java.io.File
+import java.io.IOException
 
 /**
  * Segment keeps analytics storage per write key: the `analytics-android-<key>` prefs (anonymous ID,
@@ -38,7 +39,13 @@ internal class AnalyticsStorageMigration(
                 .plus(listOfNotNull(movedFromKey))
                 .distinct()
             pendingFromKeys.forEach { fromKey ->
-                if (fromKey == newKey || moveEventFiles(fromKey, newKey)) {
+                if (fromKey == newKey) {
+                    migrationPrefs.edit().remove(pendingEventsKey(fromKey)).commit()
+                    return@forEach
+                }
+                // A copy saved this launch is only in memory, so only retry copies from earlier launches
+                if (fromKey != movedFromKey && !isPrefsSaved(fromKey)) retryPrefsSave(fromKey, newKey)
+                if (moveEventFiles(fromKey, newKey) && isPrefsSaved(fromKey)) {
                     migrationPrefs.edit().remove(pendingEventsKey(fromKey)).commit()
                 } else {
                     logger.error("Failed to move queued analytics events to new public key, will retry on next launch")
@@ -67,11 +74,33 @@ internal class AnalyticsStorageMigration(
             val newPrefKey = if (key == fileIndexKey(previousKey)) fileIndexKey(newKey) else key
             editor.put(newPrefKey, value)
         }
-        // Mark events pending before touching prefs, so a crash part way still moves them next launch
-        migrationPrefs.edit().putBoolean(pendingEventsKey(previousKey), true).commit()
-        editor.commit()
-        previousPrefs.edit().clear().commit()
+        // Mark the move pending before touching prefs, so a crash part way still finishes it next launch
+        setPrefsSaved(previousKey, saved = false)
+        // Previous prefs are kept until the copy is saved, a failed save is retried next launch
+        if (editor.commit()) clearMovedPrefs(previousKey)
         return true
+    }
+
+    /**
+     * A copy that failed to save may since have been saved with analytics' own writes, so finish the
+     * move if the new key has prefs now, or copy again if it doesn't.
+     */
+    private fun retryPrefsSave(fromKey: String, newKey: String) {
+        if (prefs(newKey).all.isNotEmpty() || prefs(fromKey).all.isEmpty()) {
+            clearMovedPrefs(fromKey)
+        } else {
+            movePrefs(fromKey, newKey)
+        }
+    }
+
+    private fun clearMovedPrefs(previousKey: String) {
+        if (prefs(previousKey).edit().clear().commit()) setPrefsSaved(previousKey, saved = true)
+    }
+
+    private fun isPrefsSaved(fromKey: String): Boolean = migrationPrefs.getBoolean(pendingEventsKey(fromKey), true)
+
+    private fun setPrefsSaved(fromKey: String, saved: Boolean) {
+        migrationPrefs.edit().putBoolean(pendingEventsKey(fromKey), saved).commit()
     }
 
     /**
@@ -84,9 +113,26 @@ internal class AnalyticsStorageMigration(
         return files.all { file ->
             runCatching {
                 rewriteBatchKey(file, newKey)
-                val newName = "$newKey-" + file.name.removePrefix(previousPrefix)
-                file.renameTo(File(eventsDirectory, newName))
+                val target = freeTarget(eventsDirectory, newKey, file.name.removePrefix(previousPrefix))
+                target != null && file.renameTo(target)
             }.getOrDefault(false)
+        }
+    }
+
+    /**
+     * Keeps the batch's own number if the new key hasn't used it, or else takes the next free one,
+     * so a moved batch never replaces one the new key already wrote.
+     */
+    private fun freeTarget(eventsDirectory: File, newKey: String, batchName: String): File? {
+        val isUnfinished = batchName.endsWith(TMP_SUFFIX)
+        var index = batchName.removeSuffix(TMP_SUFFIX).toIntOrNull()
+            ?: return File(eventsDirectory, "$newKey-$batchName").takeIf { !it.exists() }
+        while (true) {
+            val name = "$newKey-$index"
+            if (!File(eventsDirectory, name).exists() && !File(eventsDirectory, "$name$TMP_SUFFIX").exists()) {
+                return File(eventsDirectory, if (isUnfinished) "$name$TMP_SUFFIX" else name)
+            }
+            index++
         }
     }
 
@@ -96,12 +142,16 @@ internal class AnalyticsStorageMigration(
      * get the new key when analytics finishes them.
      */
     private fun rewriteBatchKey(file: File, newKey: String) {
-        if (file.name.endsWith(".tmp")) return
+        if (file.name.endsWith(TMP_SUFFIX)) return
         val contents = file.readText()
         val batchKeyField = BATCH_WRITE_KEY_REGEX.find(contents) ?: return
         val newField = "\"writeKey\":\"$newKey\"}"
         if (batchKeyField.value == newField) return
-        file.writeText(contents.replaceRange(batchKeyField.range, newField))
+        // Written beside the batch then renamed over it, so a failed write never leaves a partial batch.
+        // It ends in .tmp so analytics never uploads a leftover one.
+        val rewritten = File(file.parentFile, REWRITE_FILE_NAME)
+        rewritten.writeText(contents.replaceRange(batchKeyField.range, newField))
+        if (!rewritten.renameTo(file)) throw IOException("Failed to replace batch ${file.name}")
     }
 
     private val migrationPrefs: SharedPreferences
@@ -135,8 +185,11 @@ internal class AnalyticsStorageMigration(
 
         const val MIGRATION_PREFS_NAME = "io.customer.sdk.analytics_storage_migration"
 
-        // Marks a previous key whose queued events still need moving to the current key
+        // Marks a previous key whose storage still needs moving to the current key, true once its prefs are saved
         const val PENDING_EVENTS_PREFIX = "pending_events_from."
+
+        private const val TMP_SUFFIX = ".tmp"
+        internal const val REWRITE_FILE_NAME = "cio-batch-rewrite.tmp"
 
         // The batch's own key, last field of a finished batch file
         private val BATCH_WRITE_KEY_REGEX = Regex("\"writeKey\":\"[^\"]*\"\\}\\s*$")

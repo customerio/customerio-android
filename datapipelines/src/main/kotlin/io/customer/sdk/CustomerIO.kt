@@ -501,6 +501,9 @@ class CustomerIO private constructor(
         @Volatile
         private var instance: CustomerIO? = null
 
+        // Placeholder used instead of a rejected secret key, so the secret never leaves the app
+        private const val DISABLED_CDP_API_KEY = "disabled"
+
         /**
          * Returns the instance of CustomerIO SDK.
          * If the instance is not initialized, it will throw an exception.
@@ -541,9 +544,10 @@ class CustomerIO private constructor(
             // Update the log level for the SDK
             SDKComponent.logger.logLevel = config.logLevel
 
-            // Secret keys must not ship in apps, so log and skip init instead of crashing the app
+            // Secret keys must not ship in apps, so log and set up a disabled SDK instead of crashing the app
             if (CioApiKey.isSecretKey(config.cdpApiKey)) {
                 logger.coreSdkSecretKeyRejected()
+                initializeDisabled(androidSDKComponent, config)
                 return
             }
 
@@ -584,6 +588,27 @@ class CustomerIO private constructor(
 
             SDKComponent.eventBus.publish(Event.SdkInitializedEvent)
             logger.coreSdkInitSuccess()
+        }
+
+        /**
+         * Sets up an instance that never holds the secret key and ignores calls, so a later
+         * [instance] call doesn't crash somewhere unrelated. No modules are initialized.
+         */
+        private fun initializeDisabled(androidSDKComponent: AndroidSDKComponent, config: CustomerIOConfig) {
+            val disabledConfig = DataPipelinesModuleConfig(
+                cdpApiKey = DISABLED_CDP_API_KEY,
+                region = config.region,
+                flushAt = config.flushAt,
+                flushInterval = config.flushInterval,
+                flushPolicies = config.flushPolicies,
+                autoAddCustomerIODestination = false,
+                trackApplicationLifecycleEvents = false,
+                autoTrackDeviceAttributes = false,
+                autoTrackActivityScreens = false,
+                screenViewUse = config.screenViewUse
+            )
+            createInstance(androidSDKComponent = androidSDKComponent, moduleConfig = disabledConfig)
+                .analytics.enabled = false
         }
 
         /**

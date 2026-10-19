@@ -53,19 +53,20 @@ class NetworkUtilitiesTest : IntegrationTest() {
     }
 
     @Test
-    fun addCommonHeaders_givenPublicKeyAndSiteId_expectBearerAndSiteIdHeader() {
+    fun addCommonHeaders_givenPublicKeyAndSiteId_expectOnlyBearer() {
         val headers = buildHeaders(state = publicKeyState.copy(siteId = "site"))
 
         headers["Authorization"] shouldBeEqualTo "Bearer pk_us_key"
-        headers["X-CIO-Site-Id"] shouldBeEqualTo "site"
+        headers["X-CIO-Site-Id"] shouldBeEqualTo null
     }
 
     @Test
     fun addCommonHeaders_givenPublicKeyOnSseRequest_expectNoAuthorization() {
         // SSE passes the key in the URL instead
-        val headers = buildHeaders(includeUserToken = false, includeAuthorization = false, state = publicKeyState)
+        val headers = buildHeaders(includeUserToken = false, includeAuthorization = false, state = publicKeyState.copy(siteId = "site"))
 
         headers["Authorization"] shouldBeEqualTo null
+        headers["X-CIO-Site-Id"] shouldBeEqualTo null
     }
 
     @Test

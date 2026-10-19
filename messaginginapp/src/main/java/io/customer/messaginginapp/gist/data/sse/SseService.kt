@@ -183,12 +183,12 @@ internal class SseService(
                 .toHttpUrl()
                 .newBuilder()
                 .addQueryParameter(NetworkUtilities.SSE_SESSION_ID_PARAM, sessionId)
-        // siteId is optional when the SDK is set up with a public key
-        if (siteId.isNotBlank()) {
+        // The public key identifies the workspace when set, so siteId is only sent without one
+        val publicKey = currentState.publicKey
+        if (publicKey != null) {
+            urlBuilder.addQueryParameter(NetworkUtilities.SSE_KEY_PARAM, publicKey)
+        } else if (siteId.isNotBlank()) {
             urlBuilder.addQueryParameter(NetworkUtilities.SSE_SITE_ID_PARAM, siteId)
-        }
-        currentState.publicKey?.let { key ->
-            urlBuilder.addQueryParameter(NetworkUtilities.SSE_KEY_PARAM, key)
         }
         val url =
             urlBuilder

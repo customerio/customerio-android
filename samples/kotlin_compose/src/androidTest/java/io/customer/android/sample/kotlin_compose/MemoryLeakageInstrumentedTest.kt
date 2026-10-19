@@ -20,7 +20,6 @@ import io.customer.messaginginapp.ModuleMessagingInApp
 import io.customer.messagingpush.ModuleMessagingPushFCM
 import io.customer.sdk.CustomerIO
 import io.customer.sdk.CustomerIOConfigBuilder
-import io.customer.sdk.data.model.Region
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import leakcanary.AppWatcher
@@ -66,8 +65,7 @@ class MemoryLeakageInstrumentedTest {
             .addCustomerIOModule(
                 ModuleMessagingInApp(
                     config = MessagingInAppModuleConfig.Builder(
-                        siteId = configuration.siteId,
-                        region = Region.US
+                        siteId = configuration.siteId
                     ).setEventListener(InAppMessageEventListener()).build()
                 )
             )

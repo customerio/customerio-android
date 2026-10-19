@@ -10,9 +10,11 @@ import io.customer.messaginginapp.di.inAppMessagingManager
 import io.customer.messaginginapp.state.InAppMessagingAction
 import io.customer.messaginginapp.testutils.core.IntegrationTest
 import io.customer.sdk.core.di.SDKComponent
+import io.customer.sdk.core.pipeline.DataPipeline
 import io.customer.sdk.core.util.Logger
 import io.customer.sdk.data.model.Region
 import io.customer.sdk.data.model.Settings
+import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
 import org.amshove.kluent.shouldBeEqualTo
@@ -47,15 +49,19 @@ class GistSdkPublicKeyTest : IntegrationTest() {
         super.teardown()
     }
 
-    private fun givenSdkInitializedWithKey(key: String) {
-        // CustomerIO saves these settings during initialize, before in-app initializes
-        SDKComponent.android().globalPreferenceStore.saveSettings(Settings(writeKey = key, apiHost = "cdp.customer.io/v1"))
+    // CustomerIO registers itself as the DataPipeline during init, before in-app initializes
+    private fun givenSdkInitializedWithKey(key: String, region: Region = Region.US) {
+        val dataPipeline = mockk<DataPipeline>(relaxed = true) {
+            every { cdpApiKey } returns key
+            every { this@mockk.region } returns region
+        }
+        SDKComponent.registerDependency<DataPipeline> { dataPipeline }
     }
 
     @Test
     fun gistProvider_givenPublicKeyAndNoSiteId_expectStateHasPublicKey() {
         givenSdkInitializedWithKey(PUBLIC_KEY)
-        ModuleMessagingInApp(MessagingInAppModuleConfig.Builder(Region.US).build()).attachToSDKComponent()
+        ModuleMessagingInApp(MessagingInAppModuleConfig.Builder().build()).attachToSDKComponent()
 
         SDKComponent.gistProvider
 
@@ -68,7 +74,7 @@ class GistSdkPublicKeyTest : IntegrationTest() {
     @Test
     fun gistProvider_givenLegacyKeyAndNoSiteId_expectErrorLogged() {
         givenSdkInitializedWithKey(LEGACY_KEY)
-        ModuleMessagingInApp(MessagingInAppModuleConfig.Builder(Region.US).build()).attachToSDKComponent()
+        ModuleMessagingInApp(MessagingInAppModuleConfig.Builder().build()).attachToSDKComponent()
 
         SDKComponent.gistProvider
 
@@ -78,7 +84,7 @@ class GistSdkPublicKeyTest : IntegrationTest() {
     @Test
     fun gistProvider_givenLegacyKeyAndSiteId_expectNoPublicKey() {
         givenSdkInitializedWithKey(LEGACY_KEY)
-        ModuleMessagingInApp(MessagingInAppModuleConfig.Builder("site-id", Region.US).build()).attachToSDKComponent()
+        ModuleMessagingInApp(MessagingInAppModuleConfig.Builder("site-id").build()).attachToSDKComponent()
 
         SDKComponent.gistProvider
 
@@ -87,8 +93,23 @@ class GistSdkPublicKeyTest : IntegrationTest() {
         state.siteId shouldBeEqualTo "site-id"
     }
 
+    @Test
+    fun gistProvider_givenStaleSavedSettings_expectKeyAndRegionFromSdkInit() {
+        // Settings saved by an earlier launch must not decide the key or region
+        SDKComponent.android().globalPreferenceStore.saveSettings(Settings(writeKey = LEGACY_KEY, apiHost = "cdp.customer.io/v1"))
+        givenSdkInitializedWithKey(PUBLIC_EU_KEY, Region.EU)
+        ModuleMessagingInApp(MessagingInAppModuleConfig.Builder().build()).attachToSDKComponent()
+
+        SDKComponent.gistProvider
+
+        val state = SDKComponent.inAppMessagingManager.getCurrentState()
+        state.publicKey shouldBeEqualTo PUBLIC_EU_KEY
+        state.dataCenter shouldBeEqualTo "eu"
+    }
+
     private companion object {
         const val PUBLIC_KEY = "pk_us_0123456789abcdefABCDEF0123456789_a1B2c3"
+        const val PUBLIC_EU_KEY = "pk_eu_0123456789abcdefABCDEF0123456789_a1B2c3"
         const val LEGACY_KEY = "4f3b2a1c0d9e8f7a6b5c"
     }
 }

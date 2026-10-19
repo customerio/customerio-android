@@ -40,6 +40,7 @@ import io.customer.sdk.core.util.CioLogLevel
 import io.customer.sdk.core.util.Iso8601TimestampFormatter
 import io.customer.sdk.core.util.Logger
 import io.customer.sdk.data.model.CustomAttributes
+import io.customer.sdk.data.model.Region
 import io.customer.sdk.data.model.Settings
 import io.customer.sdk.events.TrackMetric
 import io.customer.sdk.util.EventNames
@@ -412,6 +413,14 @@ class CustomerIO private constructor(
 
     override val userId: String?
         get() = analytics.userId()
+
+    @InternalCustomerIOApi
+    override val cdpApiKey: String
+        get() = moduleConfig.cdpApiKey
+
+    @InternalCustomerIOApi
+    override val region: Region
+        get() = moduleConfig.region
 
     override val isUserIdentified: Boolean
         // Prefer the caller-thread mirror so this is correct synchronously right after

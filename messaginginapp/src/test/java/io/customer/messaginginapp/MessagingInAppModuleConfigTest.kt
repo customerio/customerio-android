@@ -10,7 +10,7 @@ class MessagingInAppModuleConfigTest {
 
     @Test
     fun build_givenNoNotificationInboxAccessibilityLabels_expectAllNull() {
-        val config = MessagingInAppModuleConfig.Builder(siteId = "site", region = Region.US).build()
+        val config = MessagingInAppModuleConfig.Builder(siteId = "site").build()
 
         config.notificationInboxAccessibilityLabels.bell.shouldBeNull()
         config.notificationInboxAccessibilityLabels.bellWithUnreadCount.shouldBeNull()
@@ -20,15 +20,25 @@ class MessagingInAppModuleConfigTest {
 
     @Test
     fun build_givenNoSiteId_expectEmptySiteId() {
-        val config = MessagingInAppModuleConfig.Builder(region = Region.EU).build()
+        val config = MessagingInAppModuleConfig.Builder().build()
 
         config.siteId shouldBeEqualTo ""
+    }
+
+    @Test
+    @Suppress("DEPRECATION")
+    fun build_givenDeprecatedRegion_expectSiteIdKeptAndRegionIgnored() {
+        val config = MessagingInAppModuleConfig.Builder("site", Region.EU).build()
+
+        config.siteId shouldBeEqualTo "site"
         config.region shouldBeEqualTo Region.EU
+        // In-app uses the SDK's region, US when the SDK isn't set up
+        config.dataCenter shouldBeEqualTo "us"
     }
 
     @Test
     fun setNotificationInboxAccessibilityLabels_expectLabelsOnConfig() {
-        val config = MessagingInAppModuleConfig.Builder(siteId = "site", region = Region.US)
+        val config = MessagingInAppModuleConfig.Builder(siteId = "site")
             .setNotificationInboxAccessibilityLabels(
                 NotificationInboxAccessibilityLabels(
                     bell = "Aviseringar",

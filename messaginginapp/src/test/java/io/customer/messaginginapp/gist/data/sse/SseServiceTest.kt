@@ -142,7 +142,7 @@ class SseServiceTest : IntegrationTest() {
     }
 
     @Test
-    fun testConnectSse_givenPublicKeyWithoutSiteId_thenSendsKeyParamAndNoSiteId() {
+    fun testConnectSse_givenPublicKeyAndSiteId_thenSendsOnlyKeyParam() {
         runBlocking {
             val server = MockWebServer()
             server.enqueue(
@@ -160,7 +160,7 @@ class SseServiceTest : IntegrationTest() {
 
                 val state =
                     InAppMessagingState(
-                        siteId = "",
+                        siteId = "test-site",
                         publicKey = "pk_us_key",
                         dataCenter = "us",
                         environment = GistEnvironment.PROD,

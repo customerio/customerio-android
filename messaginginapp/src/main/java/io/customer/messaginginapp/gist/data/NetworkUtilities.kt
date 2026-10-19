@@ -50,8 +50,8 @@ class NetworkUtilities {
             includeUserToken: Boolean = true,
             includeAuthorization: Boolean = true
         ): Request.Builder {
-            // siteId is optional when the SDK is set up with a public key
-            if (state.siteId.isNotBlank()) {
+            // The public key identifies the workspace when set, so siteId is only sent without one
+            if (state.publicKey == null && state.siteId.isNotBlank()) {
                 builder.addHeader(CIO_SITE_ID_HEADER, state.siteId)
             }
             if (includeAuthorization) {

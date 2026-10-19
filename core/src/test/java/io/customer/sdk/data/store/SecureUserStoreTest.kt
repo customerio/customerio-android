@@ -119,6 +119,8 @@ class SecureUserStoreTest : RobolectricTest() {
 
         callbackRan.shouldBeFalse()
         store.getUserId().shouldBeNull()
+        // Superseded before the writer ran, so it never touched the Keystore.
+        verify(exactly = 0) { crypto.encrypt(any()) }
     }
 
     @Test

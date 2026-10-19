@@ -81,7 +81,11 @@ internal class SecureUserStoreImpl(
 
     override fun saveUserIdInBackground(userId: String?, onPersisted: () -> Unit) {
         val write = startWrite(userId, onPersisted) ?: return
-        writeScope.launch { finishWrite(write, crypto.encrypt(write.userId)) }
+        writeScope.launch {
+            // Superseded before it started: skip the Keystore call rather than hold the key ahead of the newer save.
+            if (synchronized(lock) { write.version != version }) return@launch
+            finishWrite(write, crypto.encrypt(write.userId))
+        }
     }
 
     /** Returns the write to encrypt, or null when [userId] needs no Keystore call. */

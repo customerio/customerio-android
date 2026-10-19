@@ -7,6 +7,7 @@ import io.customer.commontest.util.ScopeProviderStub
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.util.ScopeProvider
 import io.customer.sdk.events.Metric
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.runBlocking
@@ -271,6 +272,30 @@ class EventBusTest : JUnit5Test() {
         }
 
         job.cancel()
+    }
+
+    @Test
+    fun givenSubscriberStalledFullBufferBehind_expectNoEventDropped() = runBlocking {
+        val releaseSlowSubscriber = CompletableDeferred<Unit>()
+        val slowEvents = mutableListOf<Event>()
+        val otherEvents = mutableListOf<Event>()
+        val slowJob = eventBus.subscribe(Event.ScreenViewedEvent::class) { event ->
+            releaseSlowSubscriber.await()
+            slowEvents.add(event)
+        }
+        val otherJob = eventBus.subscribe<Event.ScreenViewedEvent> { otherEvents.add(it) }
+
+        // More than the 100-event buffer while one subscriber is stuck (e.g. on a slow Keystore).
+        repeat(150) { index -> eventBus.publish(Event.ScreenViewedEvent(name = "screen$index")) }
+        yield()
+        releaseSlowSubscriber.complete(Unit)
+        yield()
+
+        otherEvents.map { (it as Event.ScreenViewedEvent).name } shouldBeEqualTo (0 until 150).map { "screen$it" }
+        slowEvents.size shouldBeEqualTo 150
+
+        slowJob.cancel()
+        otherJob.cancel()
     }
 
     @Test

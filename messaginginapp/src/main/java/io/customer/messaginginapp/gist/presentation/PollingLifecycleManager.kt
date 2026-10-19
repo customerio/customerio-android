@@ -183,15 +183,20 @@ internal class PollingLifecycleManager(
         }
     }
 
-    // Synchronized with startPolling, so the identity fetch can't start polling between the checks below.
-    @Synchronized
     private fun updatePollingForSseAvailability(reason: String) {
         // Only manage polling when app is foregrounded
         if (!isForegrounded.get()) {
             return
         }
 
+        // Read before taking this manager's monitor: dispatch holds the store's monitor while it
+        // calls into startPolling, so reading state under ours would invert that lock order.
         val currentState = state
+        // Synchronized with startPolling, so the identity fetch can't start polling between the checks below.
+        synchronized(this) { updatePollingLocked(currentState, reason) }
+    }
+
+    private fun updatePollingLocked(currentState: InAppMessagingState, reason: String) {
         if (currentState.shouldUseSse) {
             logger.debug("[Polling] $reason - SSE now active, stopping polling")
             resetTimer()

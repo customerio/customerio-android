@@ -2,203 +2,128 @@ package io.customer.datapipelines.migration
 
 import android.content.Context
 import android.content.SharedPreferences
+import com.segment.analytics.kotlin.core.Storage
 import io.customer.sdk.core.util.CioApiKey
 import io.customer.sdk.core.util.Logger
 import java.io.File
-import java.io.IOException
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.launch
 
 /**
- * Segment keeps analytics storage per write key: the `analytics-android-<key>` prefs (anonymous ID,
- * user ID, traits, event file index) and the `<key>-<index>` event files in `segment-disk-queue`.
- * When an app switches to a public (`pk_`) key, this moves that storage over from the previous key
- * so the anonymous ID, user ID and queued events carry over instead of being reset. Finished batches
- * are rewritten to the new key, since the old key may be disabled before they upload.
+ * Segment keeps analytics storage per write key: identity in the `analytics-android-<key>` prefs and
+ * queued events in `<key>-<index>` files in the shared `segment-disk-queue` folder. When an app
+ * switches to a public (`pk_`) key, this keeps the user's identity and their unsent events.
  *
- * Must run before the Analytics instance for the new key is created.
+ * Finished batches need nothing: analytics uploads every finished file in the folder, and each one
+ * carries the key it was written with. Only the previous key's unfinished batch is moved, since
+ * analytics only ever finishes the current key's batch.
  */
 internal class AnalyticsStorageMigration(
     private val context: Context,
     private val logger: Logger
 ) {
-    fun migrate(previousKey: String?, newKey: String) {
-        // Only move storage when switching to a public key, legacy key changes behave as before
-        if (!CioApiKey.isPublicKey(newKey)) return
+    /**
+     * Copies the previous key's identity to the new key, keeping it for the previous key too.
+     * Must run before the Analytics instance for the new key is created, as it reads identity then.
+     */
+    fun copyIdentity(previousKey: String?, newKey: String) {
+        if (!shouldMigrate(previousKey, newKey)) return
 
         runCatching {
-            val prefsSaved = if (!previousKey.isNullOrEmpty() && previousKey != newKey) movePrefs(previousKey, newKey) else null
-            when (prefsSaved) {
-                true -> logger.debug("Moved analytics storage from previous key to new public key")
-                false -> logger.error("Failed to save analytics storage for new public key, will retry on next launch")
-                null -> Unit
-            }
-            // Copied this launch, so its prefs are in memory even if saving failed
-            val copiedFromKey = previousKey.takeIf { prefsSaved != null }
+            val newPrefs = prefs(newKey)
+            // Never replace an identity the new key already has
+            if (IDENTITY_KEYS.any { newPrefs.contains(it) }) return
 
-            // Retried on every launch until all queued events have moved. Moves left from an earlier
-            // key change are included, so their events follow the newest key.
-            val pendingFromKeys = migrationPrefs.all.keys
-                .filter { it.startsWith(PENDING_EVENTS_PREFIX) }
-                .map { it.removePrefix(PENDING_EVENTS_PREFIX) }
-                .plus(listOfNotNull(copiedFromKey))
-                .distinct()
-            pendingFromKeys.forEach { fromKey ->
-                if (fromKey == newKey) {
-                    migrationPrefs.edit().remove(pendingEventsKey(fromKey)).commit()
-                    return@forEach
-                }
-                // A copy that failed this launch can't be retried until next launch, as the new prefs
-                // in memory would look saved
-                if (fromKey != copiedFromKey && !isPrefsSaved(fromKey)) retryPrefsSave(fromKey, newKey)
-                // Events only follow once the prefs they belong with are saved
-                if (isPrefsSaved(fromKey) && moveEventFiles(fromKey, newKey)) {
-                    migrationPrefs.edit().remove(pendingEventsKey(fromKey)).commit()
-                } else {
-                    logger.error("Failed to move queued analytics events to new public key, will retry on next launch")
-                }
-            }
+            val previousPrefs = prefs(previousKey)
+            val editor = newPrefs.edit()
+            IDENTITY_KEYS.forEach { key -> previousPrefs.getString(key, null)?.let { editor.putString(key, it) } }
+            editor.commit()
         }.onFailure { ex ->
-            logger.error("Failed to move analytics storage to new public key: ${ex.message}")
+            logger.error("Failed to copy analytics identity to new public key: ${ex.message}")
         }
     }
 
     /**
-     * Returns true if prefs were copied and saved, false if saving failed, or null if there was
-     * nothing to move. Never overwrites storage the new key already has.
+     * Adds the events from the previous key's unfinished batch to the new key's queue as they are,
+     * keeping their messageId, timestamp and userId, then deletes that batch. Runs on [dispatcher].
      */
-    private fun movePrefs(previousKey: String, newKey: String): Boolean? {
-        val previousPrefs = prefs(previousKey)
-        val previousValues = previousPrefs.all
-        if (previousValues.isEmpty()) return null
+    fun moveUnfinishedEvents(
+        previousKey: String?,
+        newKey: String,
+        scope: CoroutineScope,
+        dispatcher: CoroutineDispatcher,
+        storage: Storage
+    ) {
+        if (!shouldMigrate(previousKey, newKey)) return
 
-        val newPrefs = prefs(newKey)
-        if (newPrefs.all.isNotEmpty()) return null
-
-        val editor = newPrefs.edit()
-        previousValues.forEach { (key, value) ->
-            // Settings are fetched per key, so let the new key fetch its own
-            if (key == KEY_SETTINGS) return@forEach
-            val newPrefKey = if (key == fileIndexKey(previousKey)) fileIndexKey(newKey) else key
-            editor.put(newPrefKey, value)
-        }
-        // Mark the move pending before touching prefs, so a crash part way still finishes it next launch
-        setPrefsSaved(previousKey, saved = false)
-        // Previous prefs are kept until the copy is saved, a failed save is retried next launch
-        if (!editor.commit()) return false
-        clearMovedPrefs(previousKey)
-        return true
-    }
-
-    /**
-     * A copy that failed to save may since have been saved with analytics' own writes, so finish the
-     * move if the new key has prefs now, or copy again if it doesn't.
-     */
-    private fun retryPrefsSave(fromKey: String, newKey: String) {
-        if (prefs(newKey).all.isNotEmpty() || prefs(fromKey).all.isEmpty()) {
-            clearMovedPrefs(fromKey)
-        } else {
-            movePrefs(fromKey, newKey)
-        }
-    }
-
-    private fun clearMovedPrefs(previousKey: String) {
-        if (prefs(previousKey).edit().clear().commit()) setPrefsSaved(previousKey, saved = true)
-    }
-
-    private fun isPrefsSaved(fromKey: String): Boolean = migrationPrefs.getBoolean(pendingEventsKey(fromKey), true)
-
-    private fun setPrefsSaved(fromKey: String, saved: Boolean) {
-        migrationPrefs.edit().putBoolean(pendingEventsKey(fromKey), saved).commit()
-    }
-
-    /**
-     * Returns false if any file couldn't be moved, so the move is retried later.
-     */
-    private fun moveEventFiles(previousKey: String, newKey: String): Boolean {
-        val eventsDirectory = context.getDir(EVENTS_DIRECTORY, Context.MODE_PRIVATE)
-        val previousPrefix = "$previousKey-"
-        val files = eventsDirectory.listFiles()?.filter { file -> file.name.startsWith(previousPrefix) }.orEmpty()
-        return files.all { file ->
+        scope.launch(dispatcher) {
             runCatching {
-                rewriteBatchKey(file, newKey)
-                val target = freeTarget(eventsDirectory, newKey, file.name.removePrefix(previousPrefix))
-                target != null && file.renameTo(target)
-            }.getOrDefault(false)
-        }
-    }
-
-    /**
-     * Keeps the batch's own number if the new key hasn't used it, or else takes the next free one,
-     * so a moved batch never replaces one the new key already wrote.
-     */
-    private fun freeTarget(eventsDirectory: File, newKey: String, batchName: String): File? {
-        val isUnfinished = batchName.endsWith(TMP_SUFFIX)
-        var index = batchName.removeSuffix(TMP_SUFFIX).toIntOrNull()
-            ?: return File(eventsDirectory, "$newKey-$batchName").takeIf { !it.exists() }
-        while (true) {
-            val name = "$newKey-$index"
-            if (!File(eventsDirectory, name).exists() && !File(eventsDirectory, "$name$TMP_SUFFIX").exists()) {
-                return File(eventsDirectory, if (isUnfinished) "$name$TMP_SUFFIX" else name)
+                val eventsDirectory = context.getDir(EVENTS_DIRECTORY, Context.MODE_PRIVATE)
+                val unfinishedBatches = eventsDirectory.listFiles()
+                    ?.filter { file -> file.name.startsWith("$previousKey-") && file.name.endsWith(TMP_SUFFIX) }
+                    .orEmpty()
+                unfinishedBatches.forEach { file ->
+                    completeEvents(file).forEach { event -> storage.write(Storage.Constants.Events, event) }
+                    file.delete()
+                }
+            }.onFailure { ex ->
+                logger.error("Failed to move queued analytics events to new public key: ${ex.message}")
             }
-            index++
         }
     }
+
+    // Only when switching to a public key, legacy key changes behave as before
+    private fun shouldMigrate(previousKey: String?, newKey: String): Boolean =
+        CioApiKey.isPublicKey(newKey) && !previousKey.isNullOrEmpty() && previousKey != newKey
 
     /**
-     * Finished batches end with `"writeKey":"<key>"}`, which the upload sends. Only that trailing field
-     * is rewritten, so event data is never changed. Unfinished (`.tmp`) ones have no batch key yet and
-     * get the new key when analytics finishes them.
+     * An unfinished batch is `{"batch":[` then events split by commas, with no closing yet. Returns
+     * each complete event as written, dropping a last event cut off part way.
      */
-    private fun rewriteBatchKey(file: File, newKey: String) {
-        if (file.name.endsWith(TMP_SUFFIX)) return
+    private fun completeEvents(file: File): List<String> {
         val contents = file.readText()
-        val batchKeyField = BATCH_WRITE_KEY_REGEX.find(contents) ?: return
-        val newField = "\"writeKey\":\"$newKey\"}"
-        if (batchKeyField.value == newField) return
-        // Written beside the batch then renamed over it, so a failed write never leaves a partial batch.
-        // It ends in .tmp so analytics never uploads a leftover one.
-        val rewritten = File(file.parentFile, REWRITE_FILE_NAME)
-        rewritten.writeText(contents.replaceRange(batchKeyField.range, newField))
-        if (!rewritten.renameTo(file)) throw IOException("Failed to replace batch ${file.name}")
-    }
+        if (!contents.startsWith(BATCH_START)) return emptyList()
 
-    private val migrationPrefs: SharedPreferences
-        get() = context.getSharedPreferences(MIGRATION_PREFS_NAME, Context.MODE_PRIVATE)
-
-    private fun prefs(key: String): SharedPreferences =
-        context.getSharedPreferences("$PREFS_PREFIX$key", Context.MODE_PRIVATE)
-
-    private fun fileIndexKey(key: String): String = "$FILE_INDEX_KEY_PREFIX$key"
-
-    private fun pendingEventsKey(fromKey: String): String = "$PENDING_EVENTS_PREFIX$fromKey"
-
-    @Suppress("UNCHECKED_CAST")
-    private fun SharedPreferences.Editor.put(key: String, value: Any?) {
-        when (value) {
-            is String -> putString(key, value)
-            is Int -> putInt(key, value)
-            is Long -> putLong(key, value)
-            is Float -> putFloat(key, value)
-            is Boolean -> putBoolean(key, value)
-            is Set<*> -> putStringSet(key, value as Set<String>)
+        val events = mutableListOf<String>()
+        var depth = 0
+        var inString = false
+        var escaped = false
+        var eventStart = -1
+        for (index in BATCH_START.length until contents.length) {
+            val char = contents[index]
+            when {
+                escaped -> escaped = false
+                inString && char == '\\' -> escaped = true
+                char == '"' -> inString = !inString
+                inString -> Unit
+                char == '{' -> {
+                    if (depth == 0) eventStart = index
+                    depth++
+                }
+                char == '}' -> {
+                    depth--
+                    if (depth == 0) events.add(contents.substring(eventStart, index + 1))
+                }
+            }
         }
+        return events
     }
+
+    private fun prefs(key: String?): SharedPreferences =
+        context.getSharedPreferences("$PREFS_PREFIX$key", Context.MODE_PRIVATE)
 
     internal companion object {
         // Names used by Segment's AndroidStorageProvider
         const val PREFS_PREFIX = "analytics-android-"
         const val EVENTS_DIRECTORY = "segment-disk-queue"
-        const val FILE_INDEX_KEY_PREFIX = "segment.events.file.index."
-        const val KEY_SETTINGS = "segment.settings"
-
-        const val MIGRATION_PREFS_NAME = "io.customer.sdk.analytics_storage_migration"
-
-        // Marks a previous key whose storage still needs moving to the current key, true once its prefs are saved
-        const val PENDING_EVENTS_PREFIX = "pending_events_from."
-
         private const val TMP_SUFFIX = ".tmp"
-        internal const val REWRITE_FILE_NAME = "cio-batch-rewrite.tmp"
+        private const val BATCH_START = "{\"batch\":["
 
-        // The batch's own key, last field of a finished batch file
-        private val BATCH_WRITE_KEY_REGEX = Regex("\"writeKey\":\"[^\"]*\"\\}\\s*$")
+        private val IDENTITY_KEYS = listOf(
+            Storage.Constants.AnonymousId.rawVal,
+            Storage.Constants.UserId.rawVal,
+            Storage.Constants.Traits.rawVal
+        )
     }
 }

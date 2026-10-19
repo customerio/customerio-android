@@ -11,7 +11,7 @@ import io.customer.sdk.data.model.Region
  */
 @InternalCustomerIOApi
 object CioApiKey {
-    private val prefixRegex = Regex("^([a-z]{2})_(us|eu)_")
+    private val prefixRegex = Regex("^[a-z]{2}_(us|eu)_")
 
     const val SECRET_KEY_ERROR = "Secret (sk_) keys must not be used in apps. Use your public key in apps."
 
@@ -20,15 +20,13 @@ object CioApiKey {
      */
     fun isSecretKey(key: String): Boolean = key.startsWith("sk_")
 
-    fun isPublicKey(key: String): Boolean = kind(key) == "pk"
+    fun isPublicKey(key: String): Boolean = key.startsWith("pk_")
 
     /**
      * Region encoded in the key prefix, or null for legacy keys.
      */
     fun region(key: String): Region? {
-        val code = prefixRegex.find(key)?.groupValues?.get(2) ?: return null
+        val code = prefixRegex.find(key)?.groupValues?.get(1) ?: return null
         return Region.getRegion(code)
     }
-
-    private fun kind(key: String): String? = prefixRegex.find(key)?.groupValues?.get(1)
 }

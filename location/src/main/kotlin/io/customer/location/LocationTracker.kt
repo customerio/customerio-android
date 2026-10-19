@@ -97,8 +97,10 @@ internal class LocationTracker(
             resetCount++
             trackedLocation = null
             lastKnownLocation = null
+            // Under the lock (no Keystore call), so a restore can't read the old values after the
+            // count it checks has already moved on.
+            locationPreferenceStore.clearCachedLocation()
         }
-        locationPreferenceStore.clearCachedLocation()
         locationSyncFilter.clearSyncedData()
         logger.debug("Location state reset")
     }

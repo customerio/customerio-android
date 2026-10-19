@@ -118,6 +118,12 @@ internal class PollingLifecycleManager(
             logger.debug("[Polling] Skipping polling - SSE is active (sseEnabled=${currentState.sseEnabled}, isUserIdentified=${currentState.isUserIdentified})")
             return
         }
+        // No identity yet: an identified cold start delivers it once the userId is persisted, and a
+        // fetch now would go out without a user token. The fetch on UserChangedEvent starts polling.
+        if (currentState.userId == null && currentState.anonymousId == null) {
+            logger.debug("[Polling] Skipping polling - no user identity yet")
+            return
+        }
 
         logger.debug("[Polling] Starting polling (sseEnabled=${currentState.sseEnabled}, isUserIdentified=${currentState.isUserIdentified}, interval=${duration}ms, initialDelay=${initialDelay}ms)")
         timer?.cancel()

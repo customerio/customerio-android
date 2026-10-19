@@ -52,7 +52,7 @@ class DataPipelineEventBusInteractionTest : JUnitTest() {
         // passes only if the write happens in identify() itself, not via event dispatch.
         sdkInstance.identify("user-sync")
 
-        verify(exactly = 1) { mockSecureUserStore.saveUserId("user-sync") }
+        verify(exactly = 1) { mockSecureUserStore.saveUserId("user-sync", any()) }
     }
 
     @Test

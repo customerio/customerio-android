@@ -30,8 +30,9 @@ class PollingLifecycleManagerTest : JUnitTest() {
     private val logger = mockk<Logger>(relaxed = true)
     private val mainThreadPoster = mockk<MainThreadPoster>(relaxed = true)
 
-    // SSE inactive by default (sseEnabled=false), so polling is the active transport.
-    private var state = InAppMessagingState(pollInterval = 600000L)
+    // SSE inactive by default (sseEnabled=false), so polling is the active transport. An anonymous
+    // identity is present, as it is once the SDK publishes the first UserChangedEvent.
+    private var state = InAppMessagingState(pollInterval = 600000L, anonymousId = "anon-123")
 
     // Captured attribute-subscription listeners, in registration order:
     // 0 = pollInterval, 1 = sseEnabled, 2 = isUserIdentified. They are captured (not auto-invoked)
@@ -89,7 +90,7 @@ class PollingLifecycleManagerTest : JUnitTest() {
     @Test
     fun init_whenAppStartedAndSseInactive_startsPollingAndFetches() {
         every { lifecycle.currentState } returns Lifecycle.State.STARTED
-        state = InAppMessagingState(pollInterval = 600000L, sseEnabled = false)
+        state = InAppMessagingState(pollInterval = 600000L, sseEnabled = false, anonymousId = "anon-123")
 
         createManager()
 
@@ -117,6 +118,32 @@ class PollingLifecycleManagerTest : JUnitTest() {
 
         verify(exactly = 0) { gistQueue.fetchUserMessages() }
         verify { logger.debug(match { it.contains("Not starting polling") }) }
+    }
+
+    @Test
+    fun onStart_whenNoIdentityYet_doesNotPoll() {
+        // Identified cold start: UserChangedEvent arrives only once the userId is persisted.
+        state = InAppMessagingState(pollInterval = 600000L)
+        createManager()
+        val observer = captureObserver()
+
+        observer.onStart(processLifecycleOwner)
+
+        verify(exactly = 0) { gistQueue.fetchUserMessages() }
+        verify { logger.debug(match { it.contains("no user identity yet") }) }
+    }
+
+    @Test
+    fun fetchInAppMessages_whenIdentityArrivesAfterSkippedForeground_startsPolling() {
+        state = InAppMessagingState(pollInterval = 600000L)
+        val manager = createManager()
+        captureObserver().onStart(processLifecycleOwner)
+
+        // ModuleMessagingInApp sets the identity, then fetches, on UserChangedEvent.
+        state = state.copy(userId = "user-123", anonymousId = "anon-123")
+        manager.fetchInAppMessages()
+
+        verify(exactly = 1, timeout = 2000) { gistQueue.fetchUserMessages() }
     }
 
     @Test
@@ -199,7 +226,7 @@ class PollingLifecycleManagerTest : JUnitTest() {
         // Timer alive after reset(). A fast interval surfaces orphans quickly.
         val fetchCount = AtomicInteger(0)
         every { gistQueue.fetchUserMessages() } answers { fetchCount.incrementAndGet() }
-        state = InAppMessagingState(pollInterval = 30L)
+        state = InAppMessagingState(pollInterval = 30L, anonymousId = "anon-123")
         val manager = createManager()
 
         val threads = (1..8).map { Thread { repeat(25) { manager.fetchInAppMessages() } } }

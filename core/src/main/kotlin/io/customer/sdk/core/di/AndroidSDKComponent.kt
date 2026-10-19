@@ -61,7 +61,9 @@ class AndroidSDKComponentImpl(
     override val globalPreferenceStore: GlobalPreferenceStore
         get() = singleton<GlobalPreferenceStore> { GlobalPreferenceStoreImpl(applicationContext) }
     override val secureUserStore: SecureUserStore
-        get() = singleton<SecureUserStore> { SecureUserStoreImpl(applicationContext, SDKComponent.logger) }
+        get() = singleton<SecureUserStore> {
+            SecureUserStoreImpl(applicationContext, SDKComponent.logger, SDKComponent.dispatchersProvider.background)
+        }
 
     override fun reset() {
         super.reset()

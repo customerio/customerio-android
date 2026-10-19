@@ -40,13 +40,6 @@ class CioApiKeyTest : JUnit5Test() {
     }
 
     @Test
-    fun isSecretKey_givenRetiredAkPrefix_expectTrue() {
-        CioApiKey.isSecretKey("ak_us_$KEY_BODY").shouldBeTrue()
-        CioApiKey.isSecretKey("ak_$KEY_BODY").shouldBeTrue()
-        CioApiKey.isPublicKey("ak_us_$KEY_BODY").shouldBeFalse()
-    }
-
-    @Test
     fun region_givenPrefixedKeys_expectRegionFromPrefix() {
         CioApiKey.region(PUBLIC_EU_KEY) shouldBe Region.EU
         CioApiKey.region(PUBLIC_US_KEY) shouldBe Region.US

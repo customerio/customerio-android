@@ -45,8 +45,9 @@ internal class AnalyticsStorageMigration(
     }
 
     /**
-     * Adds the events from the previous key's unfinished batch to the new key's queue as they are,
-     * keeping their messageId, timestamp and userId, then deletes that batch. Runs on [dispatcher].
+     * Adds the events from other keys' unfinished batches to the new key's queue as they are, keeping
+     * their messageId, timestamp and userId, then deletes those batches. Includes batches left by an
+     * earlier key change that didn't finish. Runs on [dispatcher].
      */
     fun moveUnfinishedEvents(
         previousKey: String?,
@@ -60,11 +61,14 @@ internal class AnalyticsStorageMigration(
         scope.launch(dispatcher) {
             runCatching {
                 val eventsDirectory = context.getDir(EVENTS_DIRECTORY, Context.MODE_PRIVATE)
+                // Analytics only finishes the current key's batch, so any other key's is left over
                 val unfinishedBatches = eventsDirectory.listFiles()
-                    ?.filter { file -> file.name.startsWith("$previousKey-") && file.name.endsWith(TMP_SUFFIX) }
+                    ?.filter { file -> !file.name.startsWith("$newKey-") && file.name.endsWith(TMP_SUFFIX) }
                     .orEmpty()
                 unfinishedBatches.forEach { file ->
-                    completeEvents(file).forEach { event -> storage.write(Storage.Constants.Events, event) }
+                    // Unknown formats are kept rather than deleted without moving their events
+                    val events = completeEvents(file) ?: return@forEach
+                    events.forEach { event -> storage.write(Storage.Constants.Events, event) }
                     file.delete()
                 }
             }.onFailure { ex ->
@@ -79,11 +83,11 @@ internal class AnalyticsStorageMigration(
 
     /**
      * An unfinished batch is `{"batch":[` then events split by commas, with no closing yet. Returns
-     * each complete event as written, dropping a last event cut off part way.
+     * each complete event as written, dropping a last event cut off part way, or null for any other format.
      */
-    private fun completeEvents(file: File): List<String> {
+    private fun completeEvents(file: File): List<String>? {
         val contents = file.readText()
-        if (!contents.startsWith(BATCH_START)) return emptyList()
+        if (!contents.startsWith(BATCH_START)) return null
 
         val events = mutableListOf<String>()
         var depth = 0

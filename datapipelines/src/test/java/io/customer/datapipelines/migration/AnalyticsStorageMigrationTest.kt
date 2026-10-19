@@ -149,6 +149,31 @@ class AnalyticsStorageMigrationTest : RobolectricTest() {
     }
 
     @Test
+    fun moveUnfinishedEvents_givenBatchLeftByEarlierKeyChange_expectItMovedToo() {
+        eventsFile("$OTHER_LEGACY_KEY-4.tmp").writeText("""{"batch":[$SECOND_EVENT""")
+        eventsFile("$LEGACY_KEY-1.tmp").writeText("""{"batch":[$FIRST_EVENT""")
+        val newStorage = segmentStorage(PUBLIC_KEY)
+
+        moveUnfinishedEvents(previousKey = LEGACY_KEY, newKey = PUBLIC_KEY, newStorage = newStorage)
+
+        eventsFile("$OTHER_LEGACY_KEY-4.tmp").exists().shouldBeFalse()
+        eventsFile("$LEGACY_KEY-1.tmp").exists().shouldBeFalse()
+        uploadedEvents(newStorage).let { uploaded ->
+            uploaded shouldContain FIRST_EVENT
+            uploaded shouldContain SECOND_EVENT
+        }
+    }
+
+    @Test
+    fun moveUnfinishedEvents_givenUnknownBatchFormat_expectFileKept() {
+        eventsFile("$LEGACY_KEY-1.tmp").writeText("not a batch")
+
+        moveUnfinishedEvents(previousKey = LEGACY_KEY, newKey = PUBLIC_KEY, newStorage = segmentStorage(PUBLIC_KEY))
+
+        eventsFile("$LEGACY_KEY-1.tmp").readText() shouldBeEqualTo "not a batch"
+    }
+
+    @Test
     fun migrate_givenSameKey_expectNothingChanged() {
         givenIdentityForKey(LEGACY_KEY)
         eventsFile("$PUBLIC_KEY-1.tmp").writeText("""{"batch":[$FIRST_EVENT""")

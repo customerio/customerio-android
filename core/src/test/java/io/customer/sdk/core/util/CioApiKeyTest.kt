@@ -29,8 +29,9 @@ class CioApiKeyTest : JUnit5Test() {
     }
 
     @Test
-    fun isPublicKey_givenUnknownRegionPrefix_expectFalse() {
-        CioApiKey.isPublicKey("pk_ap_$KEY_BODY").shouldBeFalse()
+    fun isPublicKey_givenAnyPkPrefix_expectTrue() {
+        CioApiKey.isPublicKey("pk_ap_$KEY_BODY").shouldBeTrue()
+        CioApiKey.isPublicKey("pk_$KEY_BODY").shouldBeTrue()
     }
 
     @Test

@@ -70,6 +70,10 @@ internal class GistSdk(
             logger.debug("Current user id is already set to: ${state.userId}, ignoring new user id")
             return
         }
+        // Switching users without clearIdentify: reset first so it behaves like clearIdentify -> identify
+        if (state.isUserIdentified) {
+            reset()
+        }
         inAppMessagingManager.dispatch(InAppMessagingAction.SetUserIdentifier(userId))
         // Note: fetch is now controlled by the event handler, not here
     }

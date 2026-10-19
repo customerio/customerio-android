@@ -24,6 +24,7 @@ import io.mockk.clearMocks
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
+import io.mockk.verifyOrder
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Test
@@ -89,6 +90,27 @@ class GistSDKTest : JUnitTest() {
         assertCalledOnce { mockInAppMessagingManager.dispatch(InAppMessagingAction.SetUserIdentifier(givenUserId)) }
         // fetch is now controlled by event handler, not setUserId
         verify(exactly = 0) { mockGistQueue.fetchUserMessages() }
+    }
+
+    @Test
+    fun setUserId_givenNoIdentifiedUser_expectNoReset() = runTest {
+        gistSdk.setUserId(String.random)
+
+        verify(exactly = 0) { mockInAppMessagingManager.dispatch(InAppMessagingAction.Reset) }
+        verify(exactly = 0) { mockInAppPreferenceStore.clearAll() }
+    }
+
+    @Test
+    fun setUserId_givenDifferentUserIdentified_expectResetBeforeSettingNewUser() = runTest {
+        every { mockInAppMessagingManager.getCurrentState() } returns testState.copy(userId = "user-a")
+
+        gistSdk.setUserId("user-b")
+
+        verifyOrder {
+            mockInAppMessagingManager.dispatch(InAppMessagingAction.Reset)
+            mockInAppPreferenceStore.clearAll()
+            mockInAppMessagingManager.dispatch(InAppMessagingAction.SetUserIdentifier("user-b"))
+        }
     }
 
     @Test

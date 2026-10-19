@@ -16,9 +16,9 @@ object CioApiKey {
     const val SECRET_KEY_ERROR = "Secret (sk_) keys must not be used in apps. Use your public key in apps."
 
     /**
-     * Any `sk_` key, or a retired `ak_` secret key, is secret even with an unknown region, so it is never sent from an app.
+     * Any `sk_` key is secret, even with an unknown region, so it is never sent from an app.
      */
-    fun isSecretKey(key: String): Boolean = key.startsWith("sk_") || key.startsWith("ak_")
+    fun isSecretKey(key: String): Boolean = key.startsWith("sk_")
 
     fun isPublicKey(key: String): Boolean = kind(key) == "pk"
 

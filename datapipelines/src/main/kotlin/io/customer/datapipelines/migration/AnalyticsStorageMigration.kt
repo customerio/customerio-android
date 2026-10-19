@@ -23,20 +23,26 @@ internal class AnalyticsStorageMigration(
         // Only move storage when switching to a public key, legacy key changes behave as before
         if (!CioApiKey.isPublicKey(newKey)) return
 
-        val pendingEventsKey = "$PENDING_EVENTS_PREFIX$newKey"
         runCatching {
             var movedFromKey: String? = null
-            if (!previousKey.isNullOrEmpty() && previousKey != newKey && movePrefs(previousKey, newKey, pendingEventsKey)) {
+            if (!previousKey.isNullOrEmpty() && previousKey != newKey && movePrefs(previousKey, newKey)) {
                 movedFromKey = previousKey
                 logger.debug("Moved analytics storage from previous key to new public key")
             }
 
-            // Retried on every launch until all queued events have moved
-            val pendingFromKey = migrationPrefs.getString(pendingEventsKey, null) ?: movedFromKey ?: return
-            if (moveEventFiles(pendingFromKey, newKey)) {
-                migrationPrefs.edit().remove(pendingEventsKey).commit()
-            } else {
-                logger.error("Failed to move queued analytics events to new public key, will retry on next launch")
+            // Retried on every launch until all queued events have moved. Moves left from an earlier
+            // key change are included, so their events follow the newest key.
+            val pendingFromKeys = migrationPrefs.all.keys
+                .filter { it.startsWith(PENDING_EVENTS_PREFIX) }
+                .map { it.removePrefix(PENDING_EVENTS_PREFIX) }
+                .plus(listOfNotNull(movedFromKey))
+                .distinct()
+            pendingFromKeys.forEach { fromKey ->
+                if (fromKey == newKey || moveEventFiles(fromKey, newKey)) {
+                    migrationPrefs.edit().remove(pendingEventsKey(fromKey)).commit()
+                } else {
+                    logger.error("Failed to move queued analytics events to new public key, will retry on next launch")
+                }
             }
         }.onFailure { ex ->
             logger.error("Failed to move analytics storage to new public key: ${ex.message}")
@@ -46,7 +52,7 @@ internal class AnalyticsStorageMigration(
     /**
      * Returns true if prefs were moved. Never overwrites storage the new key already has.
      */
-    private fun movePrefs(previousKey: String, newKey: String, pendingEventsKey: String): Boolean {
+    private fun movePrefs(previousKey: String, newKey: String): Boolean {
         val previousPrefs = prefs(previousKey)
         val previousValues = previousPrefs.all
         if (previousValues.isEmpty()) return false
@@ -62,7 +68,7 @@ internal class AnalyticsStorageMigration(
             editor.put(newPrefKey, value)
         }
         // Mark events pending before touching prefs, so a crash part way still moves them next launch
-        migrationPrefs.edit().putString(pendingEventsKey, previousKey).commit()
+        migrationPrefs.edit().putBoolean(pendingEventsKey(previousKey), true).commit()
         editor.commit()
         previousPrefs.edit().clear().commit()
         return true
@@ -77,7 +83,7 @@ internal class AnalyticsStorageMigration(
         val files = eventsDirectory.listFiles()?.filter { file -> file.name.startsWith(previousPrefix) }.orEmpty()
         return files.all { file ->
             runCatching {
-                rewriteBatchKey(file, previousKey, newKey)
+                rewriteBatchKey(file, newKey)
                 val newName = "$newKey-" + file.name.removePrefix(previousPrefix)
                 file.renameTo(File(eventsDirectory, newName))
             }.getOrDefault(false)
@@ -85,14 +91,17 @@ internal class AnalyticsStorageMigration(
     }
 
     /**
-     * Finished batches end with `"writeKey":"<key>"`, which the upload sends. Unfinished (`.tmp`)
-     * ones get the new key when analytics finishes them.
+     * Finished batches end with `"writeKey":"<key>"}`, which the upload sends. Only that trailing field
+     * is rewritten, so event data is never changed. Unfinished (`.tmp`) ones have no batch key yet and
+     * get the new key when analytics finishes them.
      */
-    private fun rewriteBatchKey(file: File, previousKey: String, newKey: String) {
-        val previousField = "\"writeKey\":\"$previousKey\""
+    private fun rewriteBatchKey(file: File, newKey: String) {
+        if (file.name.endsWith(".tmp")) return
         val contents = file.readText()
-        if (!contents.contains(previousField)) return
-        file.writeText(contents.replace(previousField, "\"writeKey\":\"$newKey\""))
+        val batchKeyField = BATCH_WRITE_KEY_REGEX.find(contents) ?: return
+        val newField = "\"writeKey\":\"$newKey\"}"
+        if (batchKeyField.value == newField) return
+        file.writeText(contents.replaceRange(batchKeyField.range, newField))
     }
 
     private val migrationPrefs: SharedPreferences
@@ -102,6 +111,8 @@ internal class AnalyticsStorageMigration(
         context.getSharedPreferences("$PREFS_PREFIX$key", Context.MODE_PRIVATE)
 
     private fun fileIndexKey(key: String): String = "$FILE_INDEX_KEY_PREFIX$key"
+
+    private fun pendingEventsKey(fromKey: String): String = "$PENDING_EVENTS_PREFIX$fromKey"
 
     @Suppress("UNCHECKED_CAST")
     private fun SharedPreferences.Editor.put(key: String, value: Any?) {
@@ -124,7 +135,10 @@ internal class AnalyticsStorageMigration(
 
         const val MIGRATION_PREFS_NAME = "io.customer.sdk.analytics_storage_migration"
 
-        // Previous key whose queued events still need moving to the new key
+        // Marks a previous key whose queued events still need moving to the current key
         const val PENDING_EVENTS_PREFIX = "pending_events_from."
+
+        // The batch's own key, last field of a finished batch file
+        private val BATCH_WRITE_KEY_REGEX = Regex("\"writeKey\":\"[^\"]*\"\\}\\s*$")
     }
 }

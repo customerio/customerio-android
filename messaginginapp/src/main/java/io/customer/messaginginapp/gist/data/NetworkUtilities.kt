@@ -2,7 +2,9 @@ package io.customer.messaginginapp.gist.data
 
 import android.util.Base64
 import io.customer.messaginginapp.state.InAppMessagingState
+import io.customer.sdk.core.di.AndroidSDKComponent
 import io.customer.sdk.core.di.SDKComponent
+import java.io.IOException
 import okhttp3.Request
 
 class NetworkUtilities {
@@ -14,6 +16,8 @@ class NetworkUtilities {
         internal const val CIO_CLIENT_VERSION = "X-CIO-Client-Version"
         internal const val CIO_CLIENT_APP_IDENTIFIER = "X-CIO-Client-App-Identifier"
         internal const val GIST_USER_ANONYMOUS_HEADER = "X-Gist-User-Anonymous"
+        internal const val SDK_NOT_INITIALIZED_MESSAGE =
+            "Customer.io SDK is not initialized or was reset; in-app request aborted"
 
         // SSE-specific headers
         internal const val SSE_ACCEPT_HEADER = "Accept"
@@ -40,16 +44,20 @@ class NetworkUtilities {
          * @param state Current in-app messaging state
          * @param includeUserToken Whether to include user token header (default: true)
          * @return Request.Builder with common headers applied
+         * @throws IOException if the SDK graph is unavailable. OkHttp reports this to the call's
+         * callback without rethrowing an unchecked exception on its dispatcher thread.
          */
+        @Throws(IOException::class)
         internal fun addCommonHeaders(
             builder: Request.Builder,
             state: InAppMessagingState,
             includeUserToken: Boolean = true
         ): Request.Builder {
+            val androidSDKComponent = SDKComponent.getOrNull<AndroidSDKComponent>()
+                ?: throw IOException(SDK_NOT_INITIALIZED_MESSAGE)
             builder.addHeader(CIO_SITE_ID_HEADER, state.siteId)
             builder.addHeader(CIO_DATACENTER_HEADER, state.dataCenter)
 
-            val androidSDKComponent = SDKComponent.android()
             builder.addHeader(CIO_CLIENT_PLATFORM, androidSDKComponent.client.source.lowercase() + "-android")
             builder.addHeader(CIO_CLIENT_VERSION, androidSDKComponent.client.sdkVersion)
             builder.addHeader(CIO_CLIENT_APP_IDENTIFIER, androidSDKComponent.applicationStore.customerPackageName)

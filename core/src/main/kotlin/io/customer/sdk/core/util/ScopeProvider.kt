@@ -23,14 +23,17 @@ class SdkScopeProvider(private val dispatchers: DispatchersProvider) : ScopeProv
         SDKComponent.logger.error("Uncaught exception in SDK coroutine: $throwable", throwable = throwable)
     }
 
+    // Event bus, location and geofence work blocks on disk and Keystore calls, so it runs on the
+    // background (IO) dispatcher. On Default, which has as few threads as the device has cores, a
+    // slow Keystore would stall event delivery, including the metrics carried by the bus.
     override val eventBusScope: CoroutineScope
-        get() = CoroutineScope(dispatchers.default + SupervisorJob() + exceptionHandler)
+        get() = CoroutineScope(dispatchers.background + SupervisorJob() + exceptionHandler)
     override val lifecycleListenerScope: CoroutineScope
         get() = CoroutineScope(dispatchers.default + SupervisorJob() + exceptionHandler)
     override val inAppLifecycleScope: CoroutineScope
         get() = CoroutineScope(dispatchers.default + SupervisorJob() + exceptionHandler)
     override val locationScope: CoroutineScope
-        get() = CoroutineScope(dispatchers.default + SupervisorJob() + exceptionHandler)
+        get() = CoroutineScope(dispatchers.background + SupervisorJob() + exceptionHandler)
     override val geofenceScope: CoroutineScope
-        get() = CoroutineScope(dispatchers.default + SupervisorJob() + exceptionHandler)
+        get() = CoroutineScope(dispatchers.background + SupervisorJob() + exceptionHandler)
 }

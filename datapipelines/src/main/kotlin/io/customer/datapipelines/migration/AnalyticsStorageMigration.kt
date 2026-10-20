@@ -84,19 +84,15 @@ internal class AnalyticsStorageMigration(
 
         runCatching {
             val newPrefs = prefs(newKey)
-            // Never replace values the new key already has
-            if (COPIED_KEYS.any { newPrefs.contains(it) }) return
-
             val previousValues = prefs(previousKey).all
             val editor = newPrefs.edit()
-            COPIED_KEYS.forEach { key ->
-                // Kept as the same type, since the legacy build is saved as a number
-                when (val value = previousValues[key]) {
-                    is String -> editor.putString(key, value)
-                    is Int -> editor.putInt(key, value)
-                    is Long -> editor.putLong(key, value)
-                }
+            // Identity is all or nothing on purpose: if the new key has any of it, all of it is kept,
+            // since one key's anonymousId with another key's userId would be a different user
+            if (IDENTITY_KEYS.none { newPrefs.contains(it) }) {
+                IDENTITY_KEYS.forEach { key -> editor.putValue(key, previousValues[key]) }
             }
+            // App and device values stand alone, so each missing one is filled in
+            APP_KEYS.filterNot { newPrefs.contains(it) }.forEach { key -> editor.putValue(key, previousValues[key]) }
             editor.commit()
         }.onFailure { ex ->
             logger.error("Failed to copy analytics identity to new public key: ${ex.message}")
@@ -180,6 +176,15 @@ internal class AnalyticsStorageMigration(
         return events
     }
 
+    // Kept as the same type, since the legacy build is saved as a number
+    private fun SharedPreferences.Editor.putValue(key: String, value: Any?) {
+        when (value) {
+            is String -> putString(key, value)
+            is Int -> putInt(key, value)
+            is Long -> putLong(key, value)
+        }
+    }
+
     private fun prefs(key: String?): SharedPreferences =
         context.getSharedPreferences("$PREFS_PREFIX$key", Context.MODE_PRIVATE)
 
@@ -193,10 +198,14 @@ internal class AnalyticsStorageMigration(
         private const val TMP_SUFFIX = ".tmp"
         private const val BATCH_START = "{\"batch\":["
 
-        private val COPIED_KEYS = listOf(
+        private val IDENTITY_KEYS = listOf(
             Storage.Constants.AnonymousId.rawVal,
             Storage.Constants.UserId.rawVal,
-            Storage.Constants.Traits.rawVal,
+            Storage.Constants.Traits.rawVal
+        )
+
+        // Read by analytics to tell an install from an update, and to keep the same device id
+        private val APP_KEYS = listOf(
             Storage.Constants.AppVersion.rawVal,
             Storage.Constants.AppBuild.rawVal,
             Storage.Constants.LegacyAppBuild.rawVal,

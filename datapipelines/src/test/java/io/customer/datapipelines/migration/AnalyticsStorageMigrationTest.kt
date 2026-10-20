@@ -255,6 +255,44 @@ class AnalyticsStorageMigrationTest : RobolectricTest() {
     }
 
     @Test
+    fun copyIdentity_givenPublicKeyHasOnlyUserId_expectNoIdentityMixedIn() = runBlocking<Unit> {
+        givenIdentityForKey(LEGACY_KEY)
+        segmentStorage(PUBLIC_KEY).write(Storage.Constants.UserId, "existing-user-id")
+
+        migration.copyIdentity(previousKey = LEGACY_KEY, newKey = PUBLIC_KEY)
+
+        val newStorage = segmentStorage(PUBLIC_KEY)
+        newStorage.read(Storage.Constants.UserId) shouldBeEqualTo "existing-user-id"
+        newStorage.read(Storage.Constants.AnonymousId).shouldBeNull()
+        newStorage.read(Storage.Constants.Traits).shouldBeNull()
+    }
+
+    @Test
+    fun copyIdentity_givenPublicKeyHasSomeAppValues_expectOnlyMissingOnesFilledIn() = runBlocking<Unit> {
+        givenIdentityForKey(LEGACY_KEY)
+        segmentStorage(LEGACY_KEY).apply {
+            write(Storage.Constants.AppVersion, "0.9.0")
+            write(Storage.Constants.AppBuild, "90")
+            write(Storage.Constants.DeviceId, "device-id")
+        }
+        // Left by an earlier run that stopped part way
+        segmentStorage(PUBLIC_KEY).apply {
+            write(Storage.Constants.AnonymousId, "existing-anonymous-id")
+            write(Storage.Constants.DeviceId, "existing-device-id")
+        }
+
+        migration.copyIdentity(previousKey = LEGACY_KEY, newKey = PUBLIC_KEY)
+
+        val newStorage = segmentStorage(PUBLIC_KEY)
+        newStorage.read(Storage.Constants.AnonymousId) shouldBeEqualTo "existing-anonymous-id"
+        newStorage.read(Storage.Constants.UserId).shouldBeNull()
+        newStorage.read(Storage.Constants.DeviceId) shouldBeEqualTo "existing-device-id"
+        newStorage.read(Storage.Constants.AppVersion) shouldBeEqualTo "0.9.0"
+        newStorage.read(Storage.Constants.AppBuild) shouldBeEqualTo "90"
+        lifecycleEventsOnLaunch(PUBLIC_KEY).map { it.event } shouldBeEqualTo listOf("Application Updated")
+    }
+
+    @Test
     fun copyIdentity_givenSwitchToPublicKeyInUpdatedApp_expectApplicationUpdatedNotInstalled() = runBlocking<Unit> {
         givenIdentityForKey(LEGACY_KEY)
         // The app was on an older build when it last ran with the previous key

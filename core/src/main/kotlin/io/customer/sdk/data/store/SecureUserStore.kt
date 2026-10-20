@@ -1,6 +1,7 @@
 package io.customer.sdk.data.store
 
 import android.content.Context
+import android.content.SharedPreferences
 import androidx.core.content.edit
 import io.customer.base.internal.InternalCustomerIOApi
 import io.customer.sdk.core.util.Logger
@@ -30,13 +31,12 @@ interface SecureUserStore {
 internal class SecureUserStoreImpl(
     context: Context,
     private val logger: Logger,
-    private val writeExecutor: Executor = Executors.newSingleThreadExecutor { Thread(it, "cio-secure-user-store") }
+    private val writeExecutor: Executor = Executors.newSingleThreadExecutor { Thread(it, "cio-secure-user-store") },
+    private val crypto: PreferenceCrypto = PreferenceCrypto(KEY_ALIAS, logger)
 ) : PreferenceStore(context), SecureUserStore {
 
-    private val crypto = PreferenceCrypto(KEY_ALIAS, logger)
-
-    // Latest value this process wrote; null until the first write. Readers see a write before
-    // its encrypted copy reaches disk.
+    // Latest write in this process; null until the first one. Readers see a write before its
+    // encrypted copy reaches disk, and a queued encrypt lands only while its write is still this one.
     private val current = AtomicReference<StoredUserId?>(null)
     private val writeLock = Any()
 
@@ -44,14 +44,19 @@ internal class SecureUserStoreImpl(
         "io.customer.sdk.secure_user.${context.packageName}"
     }
 
-    override fun saveUserId(userId: String?) = enqueueWrite(userId) {
-        prefs.edit(commit = true) {
-            if (userId != null) {
-                putString(KEY_USER_ID, crypto.encrypt(userId))
-            } else {
-                remove(KEY_USER_ID)
-            }
+    // Writes come from the host's thread (init, identify) and Keystore calls can block for seconds,
+    // so encrypting runs on writeExecutor.
+    override fun saveUserId(userId: String?) {
+        if (userId == null) return clearUserId { remove(KEY_USER_ID) }
+        val write = StoredUserId(userId)
+        synchronized(writeLock) {
+            // Switching users: drop the old id from disk now, so a kill before the encrypt lands
+            // leaves no user rather than the previous one.
+            val previous = current.get()
+            if (previous != null && previous.userId != userId) prefs.edit { remove(KEY_USER_ID) }
+            current.set(write)
         }
+        writeExecutor.execute { persist(write, userId) }
     }
 
     override fun getUserId(): String? {
@@ -61,20 +66,23 @@ internal class SecureUserStoreImpl(
         }
     }
 
-    override fun clearAll() = enqueueWrite(null) {
-        prefs.edit(commit = true) { clear() }
+    override fun clearAll() = clearUserId { clear() }
+
+    // No Keystore call, so this stays on the caller's thread and reaches disk right away.
+    private fun clearUserId(edit: SharedPreferences.Editor.() -> Unit) = synchronized(writeLock) {
+        current.set(StoredUserId(null))
+        prefs.edit(action = edit)
     }
 
-    // Writes come from the host's thread (init, identify) and Keystore calls can block for seconds,
-    // so persisting runs on writeExecutor. One lock keeps the queue order matching memory order.
-    private fun enqueueWrite(userId: String?, persist: () -> Unit) = synchronized(writeLock) {
-        current.set(StoredUserId(userId))
-        writeExecutor.execute {
-            try {
-                persist()
-            } catch (e: Exception) {
-                logger.error("Failed to persist secure user store: ${e.message}")
+    private fun persist(write: StoredUserId, userId: String) {
+        try {
+            if (current.get() !== write) return
+            val encrypted = crypto.encrypt(userId)
+            synchronized(writeLock) {
+                if (current.get() === write) prefs.edit { putString(KEY_USER_ID, encrypted) }
             }
+        } catch (e: Exception) {
+            logger.error("Failed to persist secure user store: ${e.message}")
         }
     }
 

@@ -24,6 +24,11 @@ updates:
       github-action-dependencies:
         patterns:
         - "*"
+    ignore:
+      # gradle/actions v6 moves caching into a separately licensed component; adopting it is a
+      # deliberate decision, not a routine bump.
+      - dependency-name: "gradle/actions*"
+        versions: [">= 6.0.0"]
 
   # Gradle dependencies (main project)
   - package-ecosystem: "gradle"

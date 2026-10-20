@@ -83,6 +83,19 @@ internal class ModuleMessagingInAppTest : JUnitTest() {
     }
 
     @Test
+    fun instance_givenRegisteredButNotInitialized_expectCallsDoNothingInsteadOfCrashing() = runTest {
+        // The SDK registers modules without setting them up when it refuses a secret key
+        val inbox = ModuleMessagingInApp.instance().inbox()
+
+        assertEquals(emptyList<Any>(), inbox.getMessages())
+        ModuleMessagingInApp.instance().dismissMessage()
+        eventBus.publish(Event.UserChangedEvent(userId = String.random, anonymousId = String.random))
+
+        assertCalledNever { inAppMessagesProviderMock.setUserId(any()) }
+        assertCalledNever { inAppMessagesProviderMock.fetchInAppMessages() }
+    }
+
+    @Test
     fun initialize_givenUserChangedWithUserId_expectGistSetsBothIdsAndFetches() {
         val givenUserId = String.random
         val givenAnonymousId = String.random

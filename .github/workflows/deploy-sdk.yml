@@ -34,9 +34,10 @@ jobs:
         with:
           token: ${{ steps.generate_token.outputs.token }}
 
-      # If using sd on macos, "brew install" works great. for Linux, this is the recommended way.
+      # sd replaces strings in files (scripts/update-version.sh). Ubuntu packages it in universe;
+      # kenji-miyake/setup-sd has no Node 24 release. On macOS, use `brew install sd`.
       - name: Install sd CLI to use later in the workflow
-        uses: kenji-miyake/setup-sd@08c14e27d65a1c215342ef00c81583ae67f4c5ef # v2.0.0
+        run: sudo apt-get update && sudo apt-get install -y sd
 
       # Setup Android SDK as it's needed to generate the SDK size report.
       - name: Setup Android SDK

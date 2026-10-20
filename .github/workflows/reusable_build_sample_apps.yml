@@ -89,10 +89,10 @@ jobs:
 
       - uses: ./.github/actions/setup-android
 
-      # CLI to replace strings in files. The CLI recommends using `cargo install` which is slow. This Action is fast because it downloads pre-built binaries.
-      # If using sd on macos, "brew install" works great. for Linux, this is the recommended way.
+      # sd replaces strings in files (scripts/update-version.sh, run by samples/fastlane/Fastfile).
+      # Ubuntu packages it in universe; kenji-miyake/setup-sd has no Node 24 release.
       - name: Install sd CLI to use later in the workflow
-        uses: kenji-miyake/setup-sd@08c14e27d65a1c215342ef00c81583ae67f4c5ef # v2.0.0
+        run: sudo apt-get update && sudo apt-get install -y sd
 
       - name: Install tools from Gemfile (ruby language) used for building our apps with
         uses: ruby/setup-ruby@95ef2b042f9d7a56d8268cba8559e2842e2ad01b # v1.321.0

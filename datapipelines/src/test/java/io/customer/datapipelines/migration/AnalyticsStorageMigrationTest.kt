@@ -3,15 +3,21 @@ package io.customer.datapipelines.migration
 import android.content.Context
 import com.segment.analytics.kotlin.android.AndroidStorageImpl
 import com.segment.analytics.kotlin.android.utilities.AndroidKVS
+import com.segment.analytics.kotlin.core.Settings
 import com.segment.analytics.kotlin.core.Storage
 import com.segment.analytics.kotlin.core.utilities.FileEventStream
 import io.customer.commontest.config.testConfigurationDefault
 import io.customer.commontest.core.RobolectricTest
 import io.customer.sdk.core.util.Logger
 import io.mockk.mockk
+import io.mockk.verify
 import java.io.File
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import org.amshove.kluent.shouldBeEqualTo
 import org.amshove.kluent.shouldBeFalse
 import org.amshove.kluent.shouldBeNull
@@ -36,8 +42,9 @@ class AnalyticsStorageMigrationTest : RobolectricTest() {
     }
 
     override fun teardown() {
-        listOf(LEGACY_KEY, PUBLIC_KEY, OTHER_LEGACY_KEY).forEach { key ->
+        listOf(LEGACY_KEY, PUBLIC_KEY, OTHER_LEGACY_KEY, SEGMENT_KEY).forEach { key ->
             applicationMock.getSharedPreferences("analytics-android-$key", Context.MODE_PRIVATE).edit().clear().commit()
+            prefsFile(key).delete()
         }
         eventsDirectory().listFiles()?.forEach { it.deleteRecursively() }
 
@@ -66,6 +73,32 @@ class AnalyticsStorageMigrationTest : RobolectricTest() {
 
     private fun eventsFile(name: String) = File(eventsDirectory(), name)
 
+    private fun prefsFile(writeKey: String) =
+        File(applicationMock.applicationInfo.dataDir, "shared_prefs/analytics-android-$writeKey.xml")
+
+    // Storage as analytics leaves it for a key, with the settings it saved naming these destinations
+    private fun givenStorageForKey(writeKey: String, destinations: List<String>?, lastUsed: Long) {
+        val editor = applicationMock.getSharedPreferences("analytics-android-$writeKey", Context.MODE_PRIVATE).edit()
+            .putString(Storage.Constants.AnonymousId.rawVal, "anonymous-$writeKey")
+        destinations?.let {
+            val settings = Settings(
+                integrations = buildJsonObject {
+                    destinations.forEach { destination ->
+                        if (destination == SEGMENT_DESTINATION) {
+                            put(destination, buildJsonObject { put("apiKey", writeKey) })
+                        } else {
+                            // Earlier SDK versions add their destination to the settings as `true`
+                            put(destination, JsonPrimitive(true))
+                        }
+                    }
+                }
+            )
+            editor.putString(Storage.Constants.Settings.rawVal, Json.encodeToString(Settings.serializer(), settings))
+        }
+        editor.commit()
+        prefsFile(writeKey).setLastModified(lastUsed)
+    }
+
     private fun moveUnfinishedEvents(previousKey: String, newKey: String, newStorage: Storage) = runBlocking {
         migration.moveUnfinishedEvents(
             previousKey = previousKey,
@@ -81,6 +114,69 @@ class AnalyticsStorageMigrationTest : RobolectricTest() {
         storage.rollover()
         storage.read(Storage.Constants.Events).orEmpty().split(", ").filter { it.isNotEmpty() }
             .joinToString { storage.readAsStream(it)!!.bufferedReader().readText() }
+    }
+
+    @Test
+    fun previousKey_givenSavedKey_expectSavedKeyUsed() {
+        givenStorageForKey(OTHER_LEGACY_KEY, destinations = listOf(CUSTOMER_IO_DESTINATION), lastUsed = 2_000_000L)
+
+        migration.previousKey(savedKey = LEGACY_KEY, newKey = PUBLIC_KEY) shouldBeEqualTo LEGACY_KEY
+    }
+
+    @Test
+    fun previousKey_givenSettingsNamingCustomerIODestination_expectThatKey() {
+        // Before fetching, analytics also lists Segment's destination in this SDK's settings
+        givenStorageForKey(LEGACY_KEY, destinations = listOf(SEGMENT_DESTINATION, CUSTOMER_IO_DESTINATION), lastUsed = 1_000_000L)
+        givenStorageForKey(OTHER_LEGACY_KEY, destinations = null, lastUsed = 2_000_000L)
+
+        val previousKey = migration.previousKey(savedKey = null, newKey = PUBLIC_KEY)
+        migration.copyIdentity(previousKey = previousKey, newKey = PUBLIC_KEY)
+
+        previousKey shouldBeEqualTo LEGACY_KEY
+        segmentStorage(PUBLIC_KEY).read(Storage.Constants.AnonymousId) shouldBeEqualTo "anonymous-$LEGACY_KEY"
+    }
+
+    @Test
+    fun previousKey_givenSeveralKeysNamingCustomerIODestination_expectMostRecentlyUsed() {
+        givenStorageForKey(LEGACY_KEY, destinations = listOf(CUSTOMER_IO_DESTINATION), lastUsed = 1_000_000L)
+        givenStorageForKey(OTHER_LEGACY_KEY, destinations = listOf(CUSTOMER_IO_DESTINATION), lastUsed = 3_000_000L)
+
+        migration.previousKey(savedKey = null, newKey = PUBLIC_KEY) shouldBeEqualTo OTHER_LEGACY_KEY
+    }
+
+    @Test
+    fun previousKey_givenNoSettingsAndOneOtherKey_expectThatKey() {
+        givenStorageForKey(LEGACY_KEY, destinations = null, lastUsed = 1_000_000L)
+
+        migration.previousKey(savedKey = null, newKey = PUBLIC_KEY) shouldBeEqualTo LEGACY_KEY
+    }
+
+    @Test
+    fun previousKey_givenSeveralUnknownKeys_expectNoneTakenAndLogged() {
+        givenStorageForKey(LEGACY_KEY, destinations = null, lastUsed = 1_000_000L)
+        givenStorageForKey(OTHER_LEGACY_KEY, destinations = null, lastUsed = 2_000_000L)
+
+        migration.previousKey(savedKey = null, newKey = PUBLIC_KEY).shouldBeNull()
+        verify { mockLogger.info(match { it.contains("none were moved") }, any()) }
+    }
+
+    // Apps can also run Segment's own SDK with the same storage names
+    @Test
+    fun previousKey_givenSegmentOwnedStorage_expectItIgnored() {
+        givenStorageForKey(SEGMENT_KEY, destinations = listOf(SEGMENT_DESTINATION), lastUsed = 3_000_000L)
+
+        migration.previousKey(savedKey = null, newKey = PUBLIC_KEY).shouldBeNull()
+
+        givenStorageForKey(LEGACY_KEY, destinations = listOf(CUSTOMER_IO_DESTINATION), lastUsed = 1_000_000L)
+
+        migration.previousKey(savedKey = null, newKey = PUBLIC_KEY) shouldBeEqualTo LEGACY_KEY
+    }
+
+    @Test
+    fun previousKey_givenSwitchToLegacyKey_expectNoneFound() {
+        givenStorageForKey(LEGACY_KEY, destinations = listOf(CUSTOMER_IO_DESTINATION), lastUsed = 1_000_000L)
+
+        migration.previousKey(savedKey = null, newKey = OTHER_LEGACY_KEY).shouldBeNull()
     }
 
     @Test
@@ -200,6 +296,9 @@ class AnalyticsStorageMigrationTest : RobolectricTest() {
     companion object {
         private const val LEGACY_KEY = "4f3b2a1c0d9e8f7a6b5c"
         private const val OTHER_LEGACY_KEY = "9a8b7c6d5e4f3a2b1c0d"
+        private const val SEGMENT_KEY = "SeGmEnTwRiTeKeY0123456789"
+        private const val SEGMENT_DESTINATION = "Segment.io"
+        private const val CUSTOMER_IO_DESTINATION = "Customer.io Data Pipelines"
         private const val PUBLIC_KEY = "pk_us_0123456789abcdefABCDEF0123456789_a1B2c3"
         private const val ANONYMOUS_ID = "anonymous-id"
         private const val USER_ID = "user-id"

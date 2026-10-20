@@ -107,9 +107,12 @@ class CustomerIO private constructor(
     internal val analytics: Analytics = overrideAnalytics ?: run {
         // Keep identity and unsent events when the app switches to a public key.
         // Settings still hold the key from the last launch as they're saved in initialize().
-        val previousKey = globalPreferenceStore.getSettings()?.writeKey
         val newKey = moduleConfig.cdpApiKey
         val storageMigration = AnalyticsStorageMigration(androidSDKComponent.applicationContext, logger)
+        val previousKey = storageMigration.previousKey(
+            savedKey = globalPreferenceStore.getSettings()?.writeKey,
+            newKey = newKey
+        )
         storageMigration.copyIdentity(previousKey = previousKey, newKey = newKey)
         Analytics(
             writeKey = newKey,

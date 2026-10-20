@@ -3,12 +3,15 @@ package io.customer.datapipelines.migration
 import android.content.Context
 import android.content.SharedPreferences
 import com.segment.analytics.kotlin.core.Storage
+import io.customer.datapipelines.plugins.CUSTOMER_IO_DATA_PIPELINES
 import io.customer.sdk.core.util.CioApiKey
 import io.customer.sdk.core.util.Logger
 import java.io.File
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonObject
 
 /**
  * Segment keeps analytics storage per write key: identity in the `analytics-android-<key>` prefs and
@@ -23,6 +26,53 @@ internal class AnalyticsStorageMigration(
     private val context: Context,
     private val logger: Logger
 ) {
+    /**
+     * Returns the key the SDK ran with before [newKey]. Uses [savedKey] when there is one. SDK versions
+     * before 4.5.3 didn't save their key, so on a switch to a public key this looks through the keys
+     * with analytics storage instead. Keys whose saved analytics settings name the Customer.io
+     * destination are this SDK's, and the most recently used one is taken. Segment's own SDK, which
+     * an app can run too, never names ours there, so its storage is never taken. If
+     * none name ours, a single other key is taken, and several are left alone.
+     */
+    fun previousKey(savedKey: String?, newKey: String): String? {
+        if (!savedKey.isNullOrEmpty() || !CioApiKey.isPublicKey(newKey)) return savedKey
+
+        return runCatching {
+            val prefsFiles = File(context.applicationInfo.dataDir, PREFS_DIRECTORY).listFiles()
+                ?.filter { file -> file.name.startsWith(PREFS_PREFIX) && file.name.endsWith(PREFS_SUFFIX) }
+                .orEmpty()
+            val keysByLastUse = prefsFiles
+                .sortedByDescending { file -> file.lastModified() }
+                .map { file -> file.name.removePrefix(PREFS_PREFIX).removeSuffix(PREFS_SUFFIX) }
+                .filter { key -> key.isNotEmpty() && key != newKey }
+            val keysBySettings = keysByLastUse.groupBy { key -> savedSettingsOwner(key) }
+            val ownKeys = keysBySettings[SettingsOwner.CUSTOMER_IO].orEmpty()
+            val unknownKeys = keysBySettings[SettingsOwner.UNKNOWN].orEmpty()
+            when {
+                ownKeys.isNotEmpty() -> ownKeys.first()
+                unknownKeys.size == 1 -> unknownKeys.first()
+                else -> {
+                    if (keysByLastUse.isNotEmpty()) {
+                        logger.info("Found ${keysByLastUse.size} earlier analytics storages and none known to be this SDK's, so none were moved to the new public key")
+                    }
+                    null
+                }
+            }
+        }.onFailure { ex ->
+            logger.error("Failed to find previous analytics key: ${ex.message}")
+        }.getOrNull()
+    }
+
+    // Analytics saves the settings it has for each key, and this SDK always lists its destination there
+    private fun savedSettingsOwner(key: String): SettingsOwner {
+        val settings = prefs(key).getString(Storage.Constants.Settings.rawVal, null) ?: return SettingsOwner.UNKNOWN
+        val integrations = runCatching { Json.parseToJsonElement(settings).jsonObject[INTEGRATIONS]?.jsonObject }
+            .getOrNull() ?: return SettingsOwner.UNKNOWN
+        return if (integrations.containsKey(CUSTOMER_IO_DATA_PIPELINES)) SettingsOwner.CUSTOMER_IO else SettingsOwner.OTHER
+    }
+
+    private enum class SettingsOwner { CUSTOMER_IO, OTHER, UNKNOWN }
+
     /**
      * Copies the previous key's identity to the new key, keeping it for the previous key too.
      * Must run before the Analytics instance for the new key is created, as it reads identity then.
@@ -121,6 +171,9 @@ internal class AnalyticsStorageMigration(
         // Names used by Segment's AndroidStorageProvider
         const val PREFS_PREFIX = "analytics-android-"
         const val EVENTS_DIRECTORY = "segment-disk-queue"
+        private const val PREFS_DIRECTORY = "shared_prefs"
+        private const val PREFS_SUFFIX = ".xml"
+        private const val INTEGRATIONS = "integrations"
         private const val TMP_SUFFIX = ".tmp"
         private const val BATCH_START = "{\"batch\":["
 

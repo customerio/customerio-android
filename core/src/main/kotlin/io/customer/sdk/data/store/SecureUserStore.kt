@@ -30,7 +30,6 @@ interface SecureUserStore {
 internal class SecureUserStoreImpl(
     context: Context,
     private val logger: Logger,
-    // Keystore calls can block for seconds, and writes come from the host's thread (init, identify).
     private val writeExecutor: Executor = Executors.newSingleThreadExecutor { Thread(it, "cio-secure-user-store") }
 ) : PreferenceStore(context), SecureUserStore {
 
@@ -66,7 +65,8 @@ internal class SecureUserStoreImpl(
         prefs.edit(commit = true) { clear() }
     }
 
-    // One lock so the queue order always matches the in-memory order.
+    // Writes come from the host's thread (init, identify) and Keystore calls can block for seconds,
+    // so persisting runs on writeExecutor. One lock keeps the queue order matching memory order.
     private fun enqueueWrite(userId: String?, persist: () -> Unit) = synchronized(writeLock) {
         current.set(StoredUserId(userId))
         writeExecutor.execute {

@@ -28,8 +28,13 @@ class LocationTrackerTest {
 
     private lateinit var tracker: LocationTracker
 
+    // Stands in for the persisted cache, which resetContext() clears.
+    private var hasCachedLocation = true
+
     @BeforeEach
     fun setup() {
+        every { store.hasCachedLocation() } answers { hasCachedLocation }
+        every { store.clearCachedLocation() } answers { hasCachedLocation = false }
         every { dataPipeline.isUserIdentified } returns true
         every { syncFilter.filterAndRecord(any(), any()) } returns true
         tracker = LocationTracker(dataPipeline, store, syncFilter, mockEventBus, logger)
@@ -209,6 +214,48 @@ class LocationTrackerTest {
         tracker.restorePersistedLocation()
 
         tracker.getIdentifyContext().shouldBeEmpty()
+    }
+
+    @Test
+    fun givenSignOutDuringRestore_expectOldLocationNotRestored() {
+        every { store.getCachedLatitude() } answers {
+            tracker.resetContext()
+            37.7749
+        }
+        every { store.getCachedLongitude() } returns -122.4194
+
+        tracker.restorePersistedLocation()
+
+        tracker.getIdentifyContext().shouldBeEmpty()
+        tracker.lastKnownLocation.shouldBeNull()
+    }
+
+    @Test
+    fun givenFixDuringRestore_expectNewerFixKept() {
+        every { store.getCachedLatitude() } answers {
+            tracker.onLocationReceived(51.5074, -0.1278)
+            37.7749
+        }
+        every { store.getCachedLongitude() } returns -122.4194
+
+        tracker.restorePersistedLocation()
+
+        tracker.trackedLocation shouldBeEqualTo LocationCoordinates(latitude = 51.5074, longitude = -0.1278)
+        tracker.lastKnownLocation shouldBeEqualTo LocationCoordinates(latitude = 51.5074, longitude = -0.1278)
+    }
+
+    @Test
+    fun givenSilentFixDuringRestore_expectSilentFixKeptAndRestoredLocationTracked() {
+        every { store.getCachedLatitude() } answers {
+            tracker.onLocationReceivedWithoutTracking(51.5074, -0.1278)
+            37.7749
+        }
+        every { store.getCachedLongitude() } returns -122.4194
+
+        tracker.restorePersistedLocation()
+
+        tracker.trackedLocation shouldBeEqualTo LocationCoordinates(latitude = 37.7749, longitude = -122.4194)
+        tracker.lastKnownLocation shouldBeEqualTo LocationCoordinates(latitude = 51.5074, longitude = -0.1278)
     }
 
     // -- getIdentifyContext --

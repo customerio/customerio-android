@@ -47,6 +47,10 @@ internal class LocationTracker(
     // as the SDK is initialized, the weak ref is valid.
     private val dataPipelineRef = WeakReference(dataPipeline)
 
+    // Guards the two locations against a background restore landing after a newer fix or a
+    // sign-out. Never held across a Keystore call.
+    private val stateLock = Any()
+
     // Analytics location: enriches identify context, gates the ON_APP_START re-fetch,
     // and is persisted. Set only by the tracking path, so silent fixes stay out of analytics.
     @Volatile
@@ -75,9 +79,12 @@ internal class LocationTracker(
      * guaranteeing no stale data is available for a subsequent identify().
      */
     override fun resetContext() {
-        trackedLocation = null
-        lastKnownLocation = null
-        locationPreferenceStore.clearCachedLocation()
+        synchronized(stateLock) {
+            trackedLocation = null
+            lastKnownLocation = null
+            // Under the lock, so a restore checking for the cache sees it gone.
+            locationPreferenceStore.clearCachedLocation()
+        }
         locationSyncFilter.clearSyncedData()
         logger.debug("Location state reset")
     }
@@ -85,14 +92,20 @@ internal class LocationTracker(
     /**
      * Reads persisted cached location from the preference store and sets the
      * in-memory cache so that identify events have location context
-     * immediately after SDK restart.
+     * immediately after SDK restart. Decrypts with the Keystore, so call it
+     * off the main thread.
      */
     fun restorePersistedLocation() {
         val lat = locationPreferenceStore.getCachedLatitude() ?: return
         val lng = locationPreferenceStore.getCachedLongitude() ?: return
         val restored = LocationCoordinates(latitude = lat, longitude = lng)
-        trackedLocation = restored
-        lastKnownLocation = restored
+        synchronized(stateLock) {
+            // A sign-out while decrypting cleared the cache: don't bring the old user's location
+            // back. A fix that arrived meanwhile is newer than the persisted one.
+            if (!locationPreferenceStore.hasCachedLocation()) return
+            if (trackedLocation == null) trackedLocation = restored
+            if (lastKnownLocation == null) lastKnownLocation = restored
+        }
         logger.debug("Restored persisted location: lat=$lat, lng=$lng")
     }
 
@@ -108,8 +121,10 @@ internal class LocationTracker(
         logger.debug("Location update received: lat=$latitude, lng=$longitude")
 
         val location = LocationCoordinates(latitude = latitude, longitude = longitude)
-        trackedLocation = location
-        lastKnownLocation = location
+        synchronized(stateLock) {
+            trackedLocation = location
+            lastKnownLocation = location
+        }
         locationPreferenceStore.saveCachedLocation(latitude, longitude)
 
         trySendLocationTrack(latitude, longitude)
@@ -137,7 +152,9 @@ internal class LocationTracker(
     ) {
         logger.debug("Location update received (geofence-only, not tracked): lat=$latitude, lng=$longitude")
 
-        lastKnownLocation = LocationCoordinates(latitude = latitude, longitude = longitude)
+        synchronized(stateLock) {
+            lastKnownLocation = LocationCoordinates(latitude = latitude, longitude = longitude)
+        }
         eventBus.publish(
             Event.LocationAcquired(latitude = latitude, longitude = longitude)
         )

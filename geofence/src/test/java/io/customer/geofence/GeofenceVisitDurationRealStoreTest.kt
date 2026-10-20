@@ -18,6 +18,7 @@ import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.spyk
+import java.io.File
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.launch
@@ -69,7 +70,7 @@ class GeofenceVisitDurationRealStoreTest : RobolectricTest() {
         coEvery { manager.replaceGeofences(any(), any()) } returns Result.success(Unit)
         outbox = PendingDeliveryStore(
             context = applicationMock,
-            fileName = "cio_test_visit_duration_outbox.json",
+            fileName = OUTBOX_FILE_NAME,
             elementSerializer = PendingGeofenceDelivery.serializer(),
             logger = mockk(relaxed = true)
         ).also { it.removeAll() }
@@ -291,14 +292,14 @@ class GeofenceVisitDurationRealStoreTest : RobolectricTest() {
     }
 
     @Test
-    fun exit_givenAReEntryHandledBetweenTheExitsVisitCheckAndItsCommit_expectNoStaleDurationAndTheNewVisitKept() = runTest {
+    fun exit_givenAReEntryHandledBeforeItsAdmission_expectTheNewVisitMeasured() = runTest {
         arm(enterExitRegion(), outsideProven = true)
         val coordinator = spyk(coordinator())
         val pipeline = pipeline(coordinator = coordinator)
         pipeline.handle(crossing(GeofenceCrossingTransition.ENTER, fixMs = 1_000L))
         val firstVisitId = regionStore.getDwellVisit(GEOFENCE_ID).shouldNotBeNull().visitId
         var reEntryRan = false
-        // The EXIT at 76 000 has ended its visit; an ENTER at 80 000 completes before the EXIT commits.
+        // An ENTER at 80 000 completes after the EXIT's visit check but before its admission.
         coEvery { coordinator.onNativeExit(any(), any(), any(), any(), any()) } coAnswers {
             val exit = callOriginal()
             if (!reEntryRan) {
@@ -316,15 +317,63 @@ class GeofenceVisitDurationRealStoreTest : RobolectricTest() {
         regionStore.getEnteredIds() shouldContainSame setOf(GEOFENCE_ID)
         val newerVisit = regionStore.getDwellVisit(GEOFENCE_ID).shouldNotBeNull()
         newerVisit.visitId shouldNotBeEqualTo firstVisitId
-        // Its entry could not be told apart from the old stay, so it stays unknown.
-        newerVisit.entryWasObserved shouldBeEqualTo false
-
         pipeline.handle(crossing(GeofenceCrossingTransition.EXIT, fixMs = 140_000L))
 
-        val exit = outbox.loadAll().last()
-        exit.transition shouldBeEqualTo Event.GeofenceTransition.EXIT
-        exit.visitDurationSeconds.shouldBeNull()
+        val exit = outbox.loadAll().single { it.transition == Event.GeofenceTransition.EXIT }
+        exit.visitId shouldBeEqualTo newerVisit.visitId
+        exit.enteredAt shouldBeEqualTo wallSecondsAt(80_000L)
+        exit.visitDurationSeconds shouldBeEqualTo 60L
+        newerVisit.entryWasObserved shouldBeEqualTo true
         regionStore.getDwellVisit(GEOFENCE_ID).shouldBeNull()
+    }
+
+    @Test
+    fun exit_givenOutboxAppendFailsAfterStaging_expectVisitEndedAndItsFactsRecovered() = runTest {
+        arm(enterExitRegion(), outsideProven = true)
+        val pipeline = pipeline()
+        pipeline.handle(crossing(GeofenceCrossingTransition.ENTER, fixMs = 1_000L))
+        val visitId = regionStore.getDwellVisit(GEOFENCE_ID).shouldNotBeNull().visitId
+        val file = File(applicationMock.filesDir, OUTBOX_FILE_NAME)
+        check(file.delete())
+        check(file.mkdir())
+        val staged = try {
+            pipeline.handle(crossing(GeofenceCrossingTransition.EXIT, fixMs = 76_000L))
+
+            regionStore.getEnteredIds().shouldBeEmpty()
+            regionStore.getDwellVisit(GEOFENCE_ID).shouldBeNull()
+            regionStore.getAllPendingTransitionEntries().single().also {
+                it.transition shouldBeEqualTo Event.GeofenceTransition.EXIT
+                it.visitId shouldBeEqualTo visitId
+                it.enteredAt shouldBeEqualTo wallSecondsAt(1_000L)
+                it.visitDurationSeconds shouldBeEqualTo 75L
+            }
+        } finally {
+            check(file.delete())
+        }
+
+        processor().recoverPendingTransitions().shouldBeTrue()
+
+        outbox.loadAll().single() shouldBeEqualTo staged
+        regionStore.getAllPendingTransitionEntries().shouldBeEmpty()
+    }
+
+    @Test
+    fun exit_givenCooldownSuppressesDelivery_expectVisitEndedAndNextEntryObserved() = runTest {
+        arm(enterExitRegion(), outsideProven = true)
+        val pipeline = pipeline()
+        pipeline.handle(crossing(GeofenceCrossingTransition.ENTER, fixMs = 1_000L))
+        val firstVisitId = regionStore.getDwellVisit(GEOFENCE_ID).shouldNotBeNull().visitId
+        every { cooldownFilter.suppressedForSeconds(USER_ID, GEOFENCE_ID, Event.GeofenceTransition.EXIT) } returns 60.0
+
+        pipeline.handle(crossing(GeofenceCrossingTransition.EXIT, fixMs = 76_000L))
+
+        outbox.loadAll().filter { it.transition == Event.GeofenceTransition.EXIT }.shouldBeEmpty()
+        regionStore.getEnteredIds().shouldBeEmpty()
+        regionStore.getDwellVisit(GEOFENCE_ID).shouldBeNull()
+        pipeline.handle(crossing(GeofenceCrossingTransition.ENTER, fixMs = 80_000L))
+        val next = regionStore.getDwellVisit(GEOFENCE_ID).shouldNotBeNull()
+        next.visitId shouldNotBeEqualTo firstVisitId
+        next.entryWasObserved.shouldBeTrue()
     }
 
     @Test
@@ -800,5 +849,6 @@ class GeofenceVisitDurationRealStoreTest : RobolectricTest() {
         const val GEOFENCE_ID = "biz-1"
         const val BOOT = "boot"
         const val HOUR = 3_600L
+        const val OUTBOX_FILE_NAME = "cio_test_visit_duration_outbox.json"
     }
 }

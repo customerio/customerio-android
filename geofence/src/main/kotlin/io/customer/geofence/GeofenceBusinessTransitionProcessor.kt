@@ -26,7 +26,7 @@ internal class GeofenceBusinessTransitionProcessor(
         expectedUserStateGeneration: Long? = null,
         requireRegistered: Boolean = false,
         visitContext: GeofenceTransitionEmitter.VisitContext? = null,
-        // False when the caller already ended the visit this EXIT provably belongs to. A native
+        // False when the caller owns cleanup by the captured visit's identity. A native
         // callback's receipt time cannot order it against a newer visit, so ending by timestamp
         // here could clear that newer visit.
         endsVisitByTimestamp: Boolean = true,

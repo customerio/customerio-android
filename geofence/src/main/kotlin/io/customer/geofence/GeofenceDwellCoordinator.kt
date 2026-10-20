@@ -366,9 +366,9 @@ internal class GeofenceDwellCoordinator(
     }
 
     /**
-     * Ends the visit a native EXIT provably belongs to, and describes it (see [exitContext]). Both are
-     * read under this lock before the visit is removed, so a re-entry handled before the EXIT commits
-     * cannot be described in its place.
+     * Identifies and describes the visit a native EXIT provably belongs to (see [exitContext]). Both
+     * are read under this lock, so a re-entry handled before the EXIT commits cannot be described in
+     * its place. [onNativeExitHandled] ends the captured visit after containment records the departure.
      *
      * An EXIT that cannot be attributed leaves the visit alone. It may belong to a replaced
      * registration or an earlier visit, and a genuine departure is followed by a fresh ENTER, which
@@ -431,9 +431,9 @@ internal class GeofenceDwellCoordinator(
             }
             return@withLock NativeExit(current = true)
         }
-        store.removeDwellVisit(geofenceId)
         NativeExit(
             current = true,
+            endedVisitId = visit.visitId,
             // The proof as it stood before this EXIT recorded its own fix.
             visitContext = exitContext(
                 visit,
@@ -444,6 +444,22 @@ internal class GeofenceDwellCoordinator(
                 "native"
             )
         )
+    }
+
+    /** Ends only the captured visit, once the native EXIT has moved containment outside. */
+    suspend fun onNativeExitHandled(
+        geofenceId: String,
+        endedVisitId: String,
+        expectedUserStateGeneration: Long = store.userStateGeneration()
+    ) = mutex.withLock {
+        if (store.userStateGeneration() != expectedUserStateGeneration) return@withLock
+        // A rejected EXIT leaves containment inside. Keep the visit so the next ENTER can order
+        // itself against this EXIT's outside proof (see [departedSince]).
+        if (geofenceId in store.getEnteredIds()) return@withLock
+        val region = store.getCachedRegion(geofenceId)?.takeIf { !it.isPolygon } ?: return@withLock
+        val visit = currentVisit(region, bootSessionProvider.currentSessionId()) ?: return@withLock
+        if (visit.visitId != endedVisitId) return@withLock
+        store.removeDwellVisit(geofenceId)
     }
 
     /**
@@ -758,13 +774,15 @@ internal class GeofenceDwellCoordinator(
      * What a native EXIT meant for its visit.
      *
      * @property current false when the EXIT is older than evidence already placing the device inside.
+     * @property endedVisitId the attributed visit to end after processing, even when its context is null.
      * @property visitContext the visit this EXIT ended: always its ID, with entry time and duration
      * only when observed timing is known. Null when no visit is attributed, or outside proof shows the
      * visit had already ended. A current EXIT without one is still delivered.
      */
     internal data class NativeExit(
         val current: Boolean,
-        val visitContext: GeofenceTransitionEmitter.VisitContext.Exit? = null
+        val visitContext: GeofenceTransitionEmitter.VisitContext.Exit? = null,
+        val endedVisitId: String? = null
     )
 
     /**

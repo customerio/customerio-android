@@ -132,7 +132,7 @@ internal class GeofenceCrossingPipeline(
                 // read here can predate a concurrent ENTER's commit and start a second visit.
                 var wasInside = transition == Event.GeofenceTransition.ENTER &&
                     geofenceId in regionStore.getEnteredIds()
-                val visitContext = if (transition == Event.GeofenceTransition.EXIT) {
+                val nativeExit = if (transition == Event.GeofenceTransition.EXIT) {
                     val exit = dwellCoordinator.onNativeExit(
                         geofenceId = geofenceId,
                         exitedAtSeconds = timestamp,
@@ -145,8 +145,8 @@ internal class GeofenceCrossingPipeline(
                         logger.logTransitionDroppedSuperseded(geofenceId, transition.name)
                         return@forEach
                     }
-                    // Captured under the coordinator lock, before the visit was removed.
-                    exit.visitContext
+                    // Capture now; remove only this visit once processing records the departure.
+                    exit
                 } else {
                     null
                 }
@@ -158,7 +158,7 @@ internal class GeofenceCrossingPipeline(
                     expectedRegionRevision = region?.transitionRevision(),
                     expectedUserStateGeneration = userStateGeneration,
                     requireRegistered = true,
-                    visitContext = visitContext,
+                    visitContext = nativeExit?.visitContext,
                     endsVisitByTimestamp = false,
                     admits = {
                         if (transition == Event.GeofenceTransition.ENTER) {
@@ -167,6 +167,10 @@ internal class GeofenceCrossingPipeline(
                         dwellCoordinator.admitsNativeEdge(geofenceId, transition, triggeringFixElapsedMs)
                     }
                 )
+                // Outside the transition lock: a DWELL holds the coordinator lock across process.
+                nativeExit?.endedVisitId?.let { endedVisitId ->
+                    dwellCoordinator.onNativeExitHandled(geofenceId, endedVisitId, userStateGeneration)
+                }
                 if (
                     transition == Event.GeofenceTransition.ENTER &&
                     geofenceId in regionStore.getEnteredIds()

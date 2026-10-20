@@ -1,0 +1,24 @@
+// Init script: fails the build unless the Android Gradle plugin that actually loads is
+// $EXPECTED_AGP_VERSION. A declared version is not proof: anything on buildSrc's classpath is the
+// parent of every build script's, and an AGP there silently wins over Versions.ANDROID_GRADLE_PLUGIN.
+//
+// Usage: EXPECTED_AGP_VERSION=8.9.1 ./gradlew --init-script .github/scripts/assert-agp-version.gradle <tasks>
+def expected = System.getenv('EXPECTED_AGP_VERSION')
+
+gradle.projectsEvaluated { g ->
+    // Init scripts also run for buildSrc, which is a nested build with no Android project.
+    if (g.parent != null) return
+    if (!expected) {
+        throw new GradleException('EXPECTED_AGP_VERSION is not set')
+    }
+    def android = g.rootProject.allprojects.findResult { it.extensions.findByName('android') }
+    if (android == null) {
+        throw new GradleException('No project applies the Android Gradle plugin')
+    }
+    def version = android.class.classLoader.loadClass('com.android.Version')
+            .getField('ANDROID_GRADLE_PLUGIN_VERSION').get(null)
+    if (version != expected) {
+        throw new GradleException("Expected Android Gradle plugin $expected, but $version is loaded")
+    }
+    println "Loaded Android Gradle plugin $version"
+}

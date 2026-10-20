@@ -45,6 +45,9 @@ dependencies {
     def lifecycle_version = "2.6.1"
 
     // Existing dependencies
+    // BaseActivity calls enableEdgeToEdge(). AGP 9 no longer aligns compile and runtime classpaths,
+    // so the version the SDK brings in at runtime has to be declared to be visible at compile time.
+    implementation "androidx.activity:activity:1.8.2"
     implementation "androidx.annotation:annotation:1.6.0"
     implementation "androidx.appcompat:appcompat:1.6.1"
     implementation "androidx.constraintlayout:constraintlayout:2.1.4"

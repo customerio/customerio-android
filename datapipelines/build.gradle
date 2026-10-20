@@ -31,11 +31,9 @@ android {
     }
 }
 
-tasks.withType(KotlinCompile).all {
-    kotlinOptions {
-        freeCompilerArgs += [
-                '-opt-in=io.customer.base.internal.InternalCustomerIOApi',
-        ]
+tasks.withType(KotlinCompile).configureEach {
+    compilerOptions {
+        optIn.add('io.customer.base.internal.InternalCustomerIOApi')
     }
 }
 

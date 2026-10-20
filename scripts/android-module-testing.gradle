@@ -28,6 +28,8 @@ dependencies {
 
     // Enables running JUnit 4 tests within the JUnit 5 (jupiter) platform.
     testRuntimeOnly Dependencies.junitVintageEngine
+    // Gradle 9 no longer provides the launcher; tests fail with "Failed to load JUnit Platform" without it.
+    testRuntimeOnly Dependencies.junitPlatformLauncher
 
     androidTestImplementation Dependencies.androidxTestRunner
     androidTestImplementation Dependencies.androidxTestRules

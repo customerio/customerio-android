@@ -585,7 +585,8 @@ class CustomerIO private constructor(
 
         /**
          * Sets up an instance that never holds the secret key and ignores calls, so a later
-         * [instance] call doesn't crash somewhere unrelated. No modules are initialized.
+         * [instance] call doesn't crash somewhere unrelated. The configured modules are registered
+         * so their accessors work too, but none are initialized, so their calls do nothing.
          */
         private fun initializeDisabled(androidSDKComponent: AndroidSDKComponent, config: CustomerIOConfig) {
             val disabledConfig = DataPipelinesModuleConfig(
@@ -602,6 +603,7 @@ class CustomerIO private constructor(
             )
             createInstance(androidSDKComponent = androidSDKComponent, moduleConfig = disabledConfig)
                 .analytics.enabled = false
+            SDKComponent.modules.putAll(config.modules.associateBy { module -> module.moduleName })
         }
 
         /**
@@ -611,6 +613,8 @@ class CustomerIO private constructor(
         private fun releaseDisabledInstance() {
             val disabledInstance = instance?.takeIf { it.moduleConfig.cdpApiKey == DISABLED_CDP_API_KEY } ?: return
             runCatching { disabledInstance.analytics.shutdown() }
+            // Drop the modules registered while disabled so only the new config's modules get set up
+            SDKComponent.modules.clear()
             instance = null
         }
 

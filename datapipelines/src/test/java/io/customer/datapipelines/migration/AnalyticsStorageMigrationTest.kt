@@ -1,22 +1,33 @@
 package io.customer.datapipelines.migration
 
+import android.app.Activity
 import android.content.Context
 import com.segment.analytics.kotlin.android.AndroidStorageImpl
+import com.segment.analytics.kotlin.android.AndroidStorageProvider
+import com.segment.analytics.kotlin.android.plugins.AndroidLifecyclePlugin
 import com.segment.analytics.kotlin.android.utilities.AndroidKVS
+import com.segment.analytics.kotlin.core.Analytics
+import com.segment.analytics.kotlin.core.Configuration
 import com.segment.analytics.kotlin.core.Settings
 import com.segment.analytics.kotlin.core.Storage
+import com.segment.analytics.kotlin.core.TrackEvent
 import com.segment.analytics.kotlin.core.utilities.FileEventStream
 import io.customer.commontest.config.testConfigurationDefault
 import io.customer.commontest.core.RobolectricTest
+import io.customer.datapipelines.testutils.stubs.TestCoroutineConfiguration
+import io.customer.datapipelines.testutils.utils.TestRunPlugin
 import io.customer.sdk.core.util.Logger
 import io.mockk.mockk
 import io.mockk.verify
 import java.io.File
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 import org.amshove.kluent.shouldBeEqualTo
 import org.amshove.kluent.shouldBeFalse
@@ -116,6 +127,25 @@ class AnalyticsStorageMigrationTest : RobolectricTest() {
             .joinToString { storage.readAsStream(it)!!.bufferedReader().readText() }
     }
 
+    // Starts analytics for the key with Segment's own lifecycle plugin and returns the events it tracks on launch
+    @OptIn(ExperimentalCoroutinesApi::class)
+    private fun lifecycleEventsOnLaunch(writeKey: String): List<TrackEvent> {
+        val configuration = Configuration(writeKey = writeKey, application = applicationMock).apply {
+            storageProvider = AndroidStorageProvider
+            trackApplicationLifecycleEvents = true
+            autoAddSegmentDestination = false
+        }
+        val analytics = object : Analytics(configuration, TestCoroutineConfiguration(UnconfinedTestDispatcher())) {}
+        val lifecyclePlugin = AndroidLifecyclePlugin()
+        analytics.add(lifecyclePlugin)
+        val tracks = mutableListOf<TrackEvent>()
+        analytics.add(TestRunPlugin { event -> (event as? TrackEvent)?.let(tracks::add) })
+
+        lifecyclePlugin.onActivityCreated(mockk<Activity>(), null)
+
+        return tracks
+    }
+
     @Test
     fun previousKey_givenSavedKey_expectSavedKeyUsed() {
         givenStorageForKey(OTHER_LEGACY_KEY, destinations = listOf(CUSTOMER_IO_DESTINATION), lastUsed = 2_000_000L)
@@ -205,6 +235,49 @@ class AnalyticsStorageMigrationTest : RobolectricTest() {
     }
 
     @Test
+    fun copyIdentity_givenSwitchToPublicKey_expectAppBuildAndDeviceIdCopied() = runBlocking<Unit> {
+        segmentStorage(LEGACY_KEY).apply {
+            write(Storage.Constants.AppVersion, "0.9.0")
+            write(Storage.Constants.AppBuild, "90")
+            write(Storage.Constants.DeviceId, "device-id")
+        }
+        // Saved as a number by Segment's older SDK
+        applicationMock.getSharedPreferences("analytics-android-$LEGACY_KEY", Context.MODE_PRIVATE).edit()
+            .putInt(Storage.Constants.LegacyAppBuild.rawVal, 80).commit()
+
+        migration.copyIdentity(previousKey = LEGACY_KEY, newKey = PUBLIC_KEY)
+
+        val newStorage = segmentStorage(PUBLIC_KEY)
+        newStorage.read(Storage.Constants.AppVersion) shouldBeEqualTo "0.9.0"
+        newStorage.read(Storage.Constants.AppBuild) shouldBeEqualTo "90"
+        newStorage.read(Storage.Constants.LegacyAppBuild) shouldBeEqualTo "80"
+        newStorage.read(Storage.Constants.DeviceId) shouldBeEqualTo "device-id"
+    }
+
+    @Test
+    fun copyIdentity_givenSwitchToPublicKeyInUpdatedApp_expectApplicationUpdatedNotInstalled() = runBlocking<Unit> {
+        givenIdentityForKey(LEGACY_KEY)
+        // The app was on an older build when it last ran with the previous key
+        segmentStorage(LEGACY_KEY).apply {
+            write(Storage.Constants.AppVersion, "0.9.0")
+            write(Storage.Constants.AppBuild, "90")
+        }
+
+        migration.copyIdentity(previousKey = LEGACY_KEY, newKey = PUBLIC_KEY)
+        val tracks = lifecycleEventsOnLaunch(PUBLIC_KEY)
+
+        tracks.map { it.event } shouldBeEqualTo listOf("Application Updated")
+        tracks.first().properties["previous_build"]?.jsonPrimitive?.content shouldBeEqualTo "90"
+        tracks.first().anonymousId shouldBeEqualTo ANONYMOUS_ID
+    }
+
+    @Test
+    fun copyIdentity_givenNoCopy_expectApplicationInstalled() {
+        // Shows the launch check above would report a fresh install without the copy
+        lifecycleEventsOnLaunch(PUBLIC_KEY).map { it.event } shouldBeEqualTo listOf("Application Installed")
+    }
+
+    @Test
     fun moveUnfinishedEvents_givenFinishedBatches_expectFilesUntouched() {
         eventsFile("$LEGACY_KEY-0").writeText(FINISHED_BATCH)
 
@@ -246,6 +319,7 @@ class AnalyticsStorageMigrationTest : RobolectricTest() {
 
     @Test
     fun moveUnfinishedEvents_givenBatchLeftByEarlierKeyChange_expectItMovedToo() {
+        givenStorageForKey(OTHER_LEGACY_KEY, destinations = listOf(CUSTOMER_IO_DESTINATION), lastUsed = 1_000_000L)
         eventsFile("$OTHER_LEGACY_KEY-4.tmp").writeText("""{"batch":[$SECOND_EVENT""")
         eventsFile("$LEGACY_KEY-1.tmp").writeText("""{"batch":[$FIRST_EVENT""")
         val newStorage = segmentStorage(PUBLIC_KEY)
@@ -257,6 +331,27 @@ class AnalyticsStorageMigrationTest : RobolectricTest() {
         uploadedEvents(newStorage).let { uploaded ->
             uploaded shouldContain FIRST_EVENT
             uploaded shouldContain SECOND_EVENT
+        }
+    }
+
+    // Apps can also run Segment's own SDK, which keeps its open batch in the same folder
+    @Test
+    fun moveUnfinishedEvents_givenOtherSdksUnfinishedBatch_expectItUntouched() {
+        givenStorageForKey(SEGMENT_KEY, destinations = listOf(SEGMENT_DESTINATION), lastUsed = 3_000_000L)
+        givenStorageForKey(OTHER_LEGACY_KEY, destinations = null, lastUsed = 2_000_000L)
+        eventsFile("$SEGMENT_KEY-2.tmp").writeText("""{"batch":[$SECOND_EVENT""")
+        eventsFile("$OTHER_LEGACY_KEY-3.tmp").writeText("""{"batch":[$SECOND_EVENT""")
+        eventsFile("$LEGACY_KEY-1.tmp").writeText("""{"batch":[$FIRST_EVENT""")
+        val newStorage = segmentStorage(PUBLIC_KEY)
+
+        moveUnfinishedEvents(previousKey = LEGACY_KEY, newKey = PUBLIC_KEY, newStorage = newStorage)
+
+        eventsFile("$SEGMENT_KEY-2.tmp").readText() shouldBeEqualTo """{"batch":[$SECOND_EVENT"""
+        eventsFile("$OTHER_LEGACY_KEY-3.tmp").readText() shouldBeEqualTo """{"batch":[$SECOND_EVENT"""
+        eventsFile("$LEGACY_KEY-1.tmp").exists().shouldBeFalse()
+        uploadedEvents(newStorage).let { uploaded ->
+            uploaded shouldContain FIRST_EVENT
+            uploaded shouldNotContain SECOND_EVENT
         }
     }
 

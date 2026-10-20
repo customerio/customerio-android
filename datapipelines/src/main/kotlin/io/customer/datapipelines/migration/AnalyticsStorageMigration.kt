@@ -19,8 +19,8 @@ import kotlinx.serialization.json.jsonObject
  * switches to a public (`pk_`) key, this keeps the user's identity and their unsent events.
  *
  * Finished batches need nothing: analytics uploads every finished file in the folder, and each one
- * carries the key it was written with. Only the previous key's unfinished batch is moved, since
- * analytics only ever finishes the current key's batch.
+ * carries the key it was written with. Only unfinished batches of this SDK's earlier keys are moved,
+ * since analytics only ever finishes the current key's batch.
  */
 internal class AnalyticsStorageMigration(
     private val context: Context,
@@ -74,20 +74,29 @@ internal class AnalyticsStorageMigration(
     private enum class SettingsOwner { CUSTOMER_IO, OTHER, UNKNOWN }
 
     /**
-     * Copies the previous key's identity to the new key, keeping it for the previous key too.
-     * Must run before the Analytics instance for the new key is created, as it reads identity then.
+     * Copies the previous key's identity, app version and build, and device id to the new key, keeping
+     * them for the previous key too. Analytics compares the saved build to tell "Application Installed"
+     * from "Application Updated", so without it every switching user would look newly installed.
+     * Must run before the Analytics instance for the new key is created, as it reads these then.
      */
     fun copyIdentity(previousKey: String?, newKey: String) {
         if (!shouldMigrate(previousKey, newKey)) return
 
         runCatching {
             val newPrefs = prefs(newKey)
-            // Never replace an identity the new key already has
-            if (IDENTITY_KEYS.any { newPrefs.contains(it) }) return
+            // Never replace values the new key already has
+            if (COPIED_KEYS.any { newPrefs.contains(it) }) return
 
-            val previousPrefs = prefs(previousKey)
+            val previousValues = prefs(previousKey).all
             val editor = newPrefs.edit()
-            IDENTITY_KEYS.forEach { key -> previousPrefs.getString(key, null)?.let { editor.putString(key, it) } }
+            COPIED_KEYS.forEach { key ->
+                // Kept as the same type, since the legacy build is saved as a number
+                when (val value = previousValues[key]) {
+                    is String -> editor.putString(key, value)
+                    is Int -> editor.putInt(key, value)
+                    is Long -> editor.putLong(key, value)
+                }
+            }
             editor.commit()
         }.onFailure { ex ->
             logger.error("Failed to copy analytics identity to new public key: ${ex.message}")
@@ -95,9 +104,11 @@ internal class AnalyticsStorageMigration(
     }
 
     /**
-     * Adds the events from other keys' unfinished batches to the new key's queue as they are, keeping
-     * their messageId, timestamp and userId, then deletes those batches. Includes batches left by an
-     * earlier key change that didn't finish. Runs on [dispatcher].
+     * Adds the events from the unfinished batches of [previousKey] and other keys known to be this
+     * SDK's to the new key's queue as they are, keeping their messageId, timestamp and userId, then
+     * deletes those batches. Includes batches left by an earlier key change that didn't finish. Other
+     * keys' batches, like those of Segment's own SDK running in the same app, are left alone. Runs on
+     * [dispatcher].
      */
     fun moveUnfinishedEvents(
         previousKey: String?,
@@ -113,7 +124,12 @@ internal class AnalyticsStorageMigration(
                 val eventsDirectory = context.getDir(EVENTS_DIRECTORY, Context.MODE_PRIVATE)
                 // Analytics only finishes the current key's batch, so any other key's is left over
                 val unfinishedBatches = eventsDirectory.listFiles()
-                    ?.filter { file -> !file.name.startsWith("$newKey-") && file.name.endsWith(TMP_SUFFIX) }
+                    ?.filter { file -> file.name.endsWith(TMP_SUFFIX) }
+                    ?.filter { file ->
+                        val batchKey = file.name.removeSuffix(TMP_SUFFIX).substringBeforeLast('-')
+                        batchKey != newKey &&
+                            (batchKey == previousKey || savedSettingsOwner(batchKey) == SettingsOwner.CUSTOMER_IO)
+                    }
                     .orEmpty()
                 unfinishedBatches.forEach { file ->
                     // Unknown formats are kept rather than deleted without moving their events
@@ -177,10 +193,14 @@ internal class AnalyticsStorageMigration(
         private const val TMP_SUFFIX = ".tmp"
         private const val BATCH_START = "{\"batch\":["
 
-        private val IDENTITY_KEYS = listOf(
+        private val COPIED_KEYS = listOf(
             Storage.Constants.AnonymousId.rawVal,
             Storage.Constants.UserId.rawVal,
-            Storage.Constants.Traits.rawVal
+            Storage.Constants.Traits.rawVal,
+            Storage.Constants.AppVersion.rawVal,
+            Storage.Constants.AppBuild.rawVal,
+            Storage.Constants.LegacyAppBuild.rawVal,
+            Storage.Constants.DeviceId.rawVal
         )
     }
 }

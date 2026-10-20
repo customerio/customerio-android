@@ -377,7 +377,9 @@ class CustomerIOConfigBuilderTest : RobolectricTest() {
     @Test
     fun initialize_givenSecretKey_expectErrorLoggedAndDisabledInstance() {
         val givenSecretKey = "sk_us_$KEY_BODY"
-        val givenModule = mockGenericModule()
+        val givenModule = mockGenericModule().apply {
+            every { moduleName } returns String.random
+        }
         val config = createCustomerIOConfigBuilder(givenSecretKey)
             .addCustomerIOModule(givenModule)
             .build()
@@ -386,6 +388,8 @@ class CustomerIOConfigBuilderTest : RobolectricTest() {
 
         assertCalledOnce { mockLogger.coreSdkSecretKeyRejected() }
         assertCalledNever { givenModule.initialize() }
+        // Registered so module accessors don't crash, but never set up
+        SDKComponent.modules[givenModule.moduleName] shouldBe givenModule
         val sdk = CustomerIO.instance()
         sdk.moduleConfig.cdpApiKey shouldNotBeEqualTo givenSecretKey
         sdk.analytics.enabled shouldBe false
@@ -404,6 +408,28 @@ class CustomerIOConfigBuilderTest : RobolectricTest() {
         val sdk = CustomerIO.instance()
         sdk.moduleConfig.cdpApiKey shouldBe givenPublicKey
         sdk.analytics.enabled shouldBe true
+    }
+
+    @Test
+    fun initialize_givenPublicKeyAfterSecretKey_expectOnlyNewModulesInitialized() {
+        val givenDisabledModule = mockGenericModule().apply {
+            every { moduleName } returns String.random
+        }
+        val givenModule = mockGenericModule().apply {
+            every { moduleName } returns String.random
+        }
+        CustomerIO.initialize(
+            createCustomerIOConfigBuilder("sk_us_$KEY_BODY").addCustomerIOModule(givenDisabledModule).build()
+        )
+
+        CustomerIO.initialize(
+            createCustomerIOConfigBuilder("pk_us_$KEY_BODY").addCustomerIOModule(givenModule).build()
+        )
+
+        assertCalledNever { givenDisabledModule.initialize() }
+        assertCalledOnce { givenModule.initialize() }
+        SDKComponent.modules[givenDisabledModule.moduleName] shouldBe null
+        SDKComponent.modules[givenModule.moduleName] shouldBe givenModule
     }
 
     @Test

@@ -4,9 +4,11 @@ import io.customer.messaginginapp.state.InAppMessagingState
 
 /**
  * The identity a queue request is made for, resolved the same way
- * [io.customer.messaginginapp.gist.data.NetworkUtilities.addCommonHeaders] picks the user token header.
+ * [io.customer.messaginginapp.gist.data.NetworkUtilities.addCommonHeaders] picks the user token header,
+ * within the session it was made in. Reset starts a new session, so a request from before a logout is
+ * never shared with, or applied to, the session after it, even for the same user.
  */
-internal data class QueueFetchKey(val userToken: String, val isAnonymous: Boolean) {
+internal data class QueueFetchKey(val userToken: String, val isAnonymous: Boolean, val sessionId: String = "") {
     /** Stored next to the cached queue response, so a 304 only reuses a body fetched for this identity. */
     val cacheOwner: String
         get() = "${if (isAnonymous) "anonymous" else "identified"}:$userToken"
@@ -14,7 +16,7 @@ internal data class QueueFetchKey(val userToken: String, val isAnonymous: Boolea
     companion object {
         fun from(state: InAppMessagingState): QueueFetchKey? {
             val userToken = state.userId ?: state.anonymousId ?: return null
-            return QueueFetchKey(userToken = userToken, isAnonymous = state.userId == null)
+            return QueueFetchKey(userToken = userToken, isAnonymous = state.userId == null, sessionId = state.sessionId)
         }
     }
 }

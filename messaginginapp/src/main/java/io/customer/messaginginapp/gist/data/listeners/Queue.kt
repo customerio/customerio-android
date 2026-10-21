@@ -88,6 +88,10 @@ internal class Queue(
         get() = SDKComponent.anonymousMessageManager
     private val queueFetches = QueueFetchCoordinator()
 
+    // The cached queue body and its owner are read and written as a pair, so two overlapping responses
+    // can't leave one response's body stored under the other's owner.
+    private val queueCacheLock = Any()
+
     // Visual-inbox data layer: templates/branding fetch orchestration.
     private val inboxRepository
         get() = SDKComponent.inboxRepository
@@ -153,9 +157,18 @@ internal class Queue(
         response.body?.let { responseBody ->
             val responseBodyString = responseBody.string()
             val url = originalRequest.url.toString()
-            inAppPreferenceStore.saveNetworkResponse(url, responseBodyString)
-            if (isQueueRequest(originalRequest)) {
-                inAppPreferenceStore.saveNetworkResponse(cacheOwnerKey(url), QueueFetchKey.from(requestState)?.cacheOwner.orEmpty())
+            if (!isQueueRequest(originalRequest)) {
+                inAppPreferenceStore.saveNetworkResponse(url, responseBodyString)
+            } else {
+                val requestKey = QueueFetchKey.from(requestState)
+                // A response for an identity that is no longer current is discarded by fetchUserMessages,
+                // so it must not become the body the current identity's 304s replay either.
+                if (requestKey == QueueFetchKey.from(state)) {
+                    synchronized(queueCacheLock) {
+                        inAppPreferenceStore.saveNetworkResponse(url, responseBodyString)
+                        inAppPreferenceStore.saveNetworkResponse(cacheOwnerKey(url), requestKey?.cacheOwner.orEmpty())
+                    }
+                }
             }
             return response.newBuilder()
                 .body(responseBodyString.toResponseBody(responseBody.contentType()))
@@ -173,15 +186,17 @@ internal class Queue(
         requestState: InAppMessagingState
     ): okhttp3.Response {
         val url = originalRequest.url.toString()
-        // The queue body belongs to the identity it was fetched for: after a user switch it holds the
-        // previous user's messages, so only that identity may reuse it.
-        if (isQueueRequest(originalRequest)) {
+        // The server answers 304 per user ("nothing changed since this user was last sent their queue"),
+        // so a queue body fetched for anyone else is never the answer.
+        val cachedResponse = if (!isQueueRequest(originalRequest)) {
+            inAppPreferenceStore.getNetworkResponse(url)
+        } else {
             val requestOwner = QueueFetchKey.from(requestState)?.cacheOwner
-            if (requestOwner == null || inAppPreferenceStore.getNetworkResponse(cacheOwnerKey(url)) != requestOwner) {
-                return response
+            synchronized(queueCacheLock) {
+                inAppPreferenceStore.getNetworkResponse(url)
+                    ?.takeIf { requestOwner != null && inAppPreferenceStore.getNetworkResponse(cacheOwnerKey(url)) == requestOwner }
             }
         }
-        val cachedResponse = inAppPreferenceStore.getNetworkResponse(url)
         return cachedResponse?.let {
             response.newBuilder()
                 .body(it.toResponseBody(null))

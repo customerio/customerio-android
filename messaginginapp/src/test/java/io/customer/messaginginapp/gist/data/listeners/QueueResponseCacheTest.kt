@@ -4,10 +4,15 @@ import io.customer.commontest.config.TestConfig
 import io.customer.commontest.config.testConfigurationDefault
 import io.customer.commontest.core.TestConstants
 import io.customer.commontest.extensions.attachToSDKComponent
+import io.customer.commontest.extensions.flushCoroutines
 import io.customer.commontest.util.ScopeProviderStub
 import io.customer.messaginginapp.MessagingInAppModuleConfig
 import io.customer.messaginginapp.ModuleMessagingInApp
+import io.customer.messaginginapp.di.inAppMessagingManager
 import io.customer.messaginginapp.di.inAppPreferenceStore
+import io.customer.messaginginapp.gist.GistEnvironment
+import io.customer.messaginginapp.state.InAppMessagingAction
+import io.customer.messaginginapp.state.InAppMessagingManager
 import io.customer.messaginginapp.state.InAppMessagingState
 import io.customer.messaginginapp.testutils.core.IntegrationTest
 import io.customer.sdk.core.di.SDKComponent
@@ -23,22 +28,21 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 
 /**
- * A 304 replays the last cached 200 body. The queue body belongs to the identity it was fetched for,
- * so after a user switch a 304 must not serve the previous user's messages. Other responses on the
- * shared client are workspace scoped and keep plain URL caching.
+ * A 304 replays the last cached 200 body. The server answers 304 per user, so the queue body belongs
+ * to the identity it was fetched for: after a user switch a 304 must not serve the previous user's
+ * messages, and a response that arrives after the switch must not become the cached body. Other
+ * responses on the shared client are workspace scoped and keep plain URL caching.
  */
 @RunWith(RobolectricTestRunner::class)
 class QueueResponseCacheTest : IntegrationTest() {
 
     private val scopeProviderStub = ScopeProviderStub.Unconfined()
+    private lateinit var manager: InAppMessagingManager
     private lateinit var queue: Queue
 
     private val queueUrl = "https://gist.example.com/api/v4/users?sessionId=session-1"
     private val templatesUrl = "https://gist.example.com/api/v1/inbox/templates"
     private val body = """{"inAppMessages":[],"inboxMessages":[]}"""
-
-    private val userA = InAppMessagingState(userId = "user-a")
-    private val userB = InAppMessagingState(userId = "user-b")
 
     override fun setup(testConfig: TestConfig) {
         super.setup(
@@ -58,10 +62,25 @@ class QueueResponseCacheTest : IntegrationTest() {
             ).build()
         ).attachToSDKComponent()
 
+        manager = SDKComponent.inAppMessagingManager
+        manager.dispatch(InAppMessagingAction.Initialize(siteId = "site", dataCenter = "us", environment = GistEnvironment.PROD))
         queue = Queue(queueServiceOverride = mockk(relaxed = true))
     }
 
-    private fun intercept(url: String, code: Int, requestState: InAppMessagingState): Response {
+    override fun teardown() {
+        manager.dispatch(InAppMessagingAction.Reset)
+        super.teardown()
+    }
+
+    private fun identify(userId: String) = dispatch(InAppMessagingAction.SetUserIdentifier(userId))
+
+    private fun dispatch(action: InAppMessagingAction) {
+        manager.dispatch(action)
+        flushCoroutines(scopeProviderStub.inAppLifecycleScope)
+    }
+
+    /** Intercepts a response to a request sent with [requestState], the state the interceptor snapshots. */
+    private fun intercept(url: String, code: Int, requestState: InAppMessagingState = manager.getCurrentState()): Response {
         val request = Request.Builder().url(url).post("{}".toRequestBody()).build()
         val response = Response.Builder()
             .request(request)
@@ -82,9 +101,10 @@ class QueueResponseCacheTest : IntegrationTest() {
 
     @Test
     fun notModified_givenSameUser_expectCachedBodyServed() {
-        intercept(queueUrl, 200, userA)
+        identify("user-a")
+        intercept(queueUrl, 200)
 
-        val response = intercept(queueUrl, 304, userA)
+        val response = intercept(queueUrl, 304)
 
         assert(response.code == 200) { "expected the cached body to be served, got ${response.code}" }
         assert(response.body?.string() == body)
@@ -92,18 +112,22 @@ class QueueResponseCacheTest : IntegrationTest() {
 
     @Test
     fun notModified_givenAnotherUser_expectPassedThrough() {
-        intercept(queueUrl, 200, userA)
+        identify("user-a")
+        intercept(queueUrl, 200)
 
-        val response = intercept(queueUrl, 304, userB)
+        identify("user-b")
+        val response = intercept(queueUrl, 304)
 
         assert(response.code == 304) { "expected the previous user's body not to be served, got ${response.code}" }
     }
 
     @Test
     fun notModified_givenAnonymousUserIdentified_expectPassedThrough() {
-        intercept(queueUrl, 200, InAppMessagingState(anonymousId = "anon-1"))
+        dispatch(InAppMessagingAction.SetAnonymousIdentifier("anon-1"))
+        intercept(queueUrl, 200)
 
-        val response = intercept(queueUrl, 304, InAppMessagingState(userId = "user-a", anonymousId = "anon-1"))
+        identify("user-a")
+        val response = intercept(queueUrl, 304)
 
         assert(response.code == 304) { "expected the anonymous body not to be served, got ${response.code}" }
     }
@@ -112,17 +136,33 @@ class QueueResponseCacheTest : IntegrationTest() {
     fun notModified_givenBodyCachedWithoutOwner_expectPassedThrough() {
         // A body cached before its owner was recorded; whose it is can't be told.
         SDKComponent.inAppPreferenceStore.saveNetworkResponse(queueUrl, body)
+        identify("user-a")
 
-        val response = intercept(queueUrl, 304, userA)
+        val response = intercept(queueUrl, 304)
 
         assert(response.code == 304) { "expected an ownerless body not to be served, got ${response.code}" }
     }
 
     @Test
-    fun notModified_givenNonQueueRequest_expectUrlCachingUnchanged() {
-        intercept(templatesUrl, 200, userA)
+    fun ok_givenUserChangedWhileInFlight_expectNotCached() {
+        identify("user-a")
+        val requestState = manager.getCurrentState()
 
-        val response = intercept(templatesUrl, 304, userB)
+        identify("user-b")
+        intercept(queueUrl, 200, requestState)
+
+        assert(SDKComponent.inAppPreferenceStore.getNetworkResponse(queueUrl) == null) {
+            "expected the previous user's response not to be cached"
+        }
+    }
+
+    @Test
+    fun notModified_givenNonQueueRequest_expectUrlCachingUnchanged() {
+        identify("user-a")
+        intercept(templatesUrl, 200)
+
+        identify("user-b")
+        val response = intercept(templatesUrl, 304)
 
         assert(response.code == 200) { "expected workspace-scoped responses to stay URL cached, got ${response.code}" }
     }

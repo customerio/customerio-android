@@ -417,6 +417,8 @@ class SseLifecycleManagerTest : JUnitTest() {
         connectionConfirmed.captured.invoke()
 
         verify(exactly = 1) { gistQueue.fetchUserMessages(any()) }
+        // The stream just opened, so an older request in flight can't stand in for the backfill.
+        verify(exactly = 1) { gistQueue.fetchUserMessages(mustBeFresh = true) }
     }
 
     @Test

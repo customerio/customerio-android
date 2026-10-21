@@ -158,6 +158,27 @@ class QueueFetchSharingTest : IntegrationTest() {
     }
 
     @Test
+    fun fetchUserMessages_givenSameUserLoggedBackInWhileInFlight_expectNewRequestAndOldResponseDiscarded() {
+        val message = regularMessage("promotion")
+        queue.fetchUserMessages()
+
+        // Logout starts a new session; logging the same user straight back in must not reuse the
+        // request from before it.
+        manager.dispatch(InAppMessagingAction.Reset)
+        manager.dispatch(InAppMessagingAction.SetUserIdentifier("user-1"))
+        flushCoroutines(scopeProviderStub.inAppLifecycleScope)
+        queue.fetchUserMessages()
+        coVerify(exactly = 2) { mockQueueService.fetchMessagesForUser(any(), any()) }
+
+        completeRequest(0, successResponse(listOf(message)))
+
+        assert(manager.getCurrentState().messagesInQueue.none { it.queueId == message.queueId }) {
+            "expected the pre-logout response to be discarded"
+        }
+        completeRequest(1)
+    }
+
+    @Test
     fun fetchUserMessages_givenUserChangedWhileInFlight_expectResponseDiscarded() {
         val message = regularMessage("promotion")
         queue.fetchUserMessages()

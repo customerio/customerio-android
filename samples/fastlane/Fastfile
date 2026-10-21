@@ -39,6 +39,8 @@ private_lane :build_sample_app do |options|
 
     build_android_app(
       task: ":samples:#{name_of_sample_app_module}:assemble",
+      # java_layout ships its FCM token flavor; the fid flavor is for local testing
+      flavor: name_of_sample_app_module == 'java_layout' ? 'Token' : nil,
       build_type: 'Release',
       gradle_path: '../../gradlew' # path to root directory of the SDK. Where gradlew is located
     )

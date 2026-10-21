@@ -18,6 +18,7 @@ import io.customer.datapipelines.extensions.asMap
 import io.customer.datapipelines.extensions.sanitizeForJson
 import io.customer.datapipelines.extensions.type
 import io.customer.datapipelines.extensions.updateAnalyticsConfig
+import io.customer.datapipelines.migration.AnalyticsStorageMigration
 import io.customer.datapipelines.migration.TrackingMigrationProcessor
 import io.customer.datapipelines.plugins.ApplicationLifecyclePlugin
 import io.customer.datapipelines.plugins.AutoTrackDeviceAttributesPlugin
@@ -39,6 +40,7 @@ import io.customer.sdk.core.util.CioLogLevel
 import io.customer.sdk.core.util.Iso8601TimestampFormatter
 import io.customer.sdk.core.util.Logger
 import io.customer.sdk.data.model.CustomAttributes
+import io.customer.sdk.data.model.Region
 import io.customer.sdk.data.model.Settings
 import io.customer.sdk.events.TrackMetric
 import io.customer.sdk.util.EventNames
@@ -103,14 +105,33 @@ class CustomerIO private constructor(
         }
     }
 
-    internal val analytics: Analytics = overrideAnalytics ?: Analytics(
-        writeKey = moduleConfig.cdpApiKey,
-        context = androidSDKComponent.applicationContext,
-        configs = updateAnalyticsConfig(
-            moduleConfig = moduleConfig,
-            errorHandler = errorLogger
+    internal val analytics: Analytics = overrideAnalytics ?: run {
+        // Keep identity and unsent events when the app switches to a public key.
+        // Settings still hold the key from the last launch as they're saved in initialize().
+        val newKey = moduleConfig.cdpApiKey
+        val storageMigration = AnalyticsStorageMigration(androidSDKComponent.applicationContext, logger)
+        val previousKey = storageMigration.previousKey(
+            savedKey = globalPreferenceStore.getSettings()?.writeKey,
+            newKey = newKey
         )
-    )
+        storageMigration.copyIdentity(previousKey = previousKey, newKey = newKey)
+        Analytics(
+            writeKey = newKey,
+            context = androidSDKComponent.applicationContext,
+            configs = updateAnalyticsConfig(
+                moduleConfig = moduleConfig,
+                errorHandler = errorLogger
+            )
+        ).also { analytics ->
+            storageMigration.moveUnfinishedEvents(
+                previousKey = previousKey,
+                newKey = newKey,
+                scope = analytics.analyticsScope,
+                dispatcher = analytics.fileIODispatcher,
+                storage = analytics.storage
+            )
+        }
+    }
 
     private val contextPlugin: ContextPlugin = ContextPlugin(deviceStore)
 
@@ -395,6 +416,14 @@ class CustomerIO private constructor(
 
     override val userId: String?
         get() = analytics.userId()
+
+    @InternalCustomerIOApi
+    override val cdpApiKey: String
+        get() = moduleConfig.cdpApiKey
+
+    @InternalCustomerIOApi
+    override val region: Region
+        get() = moduleConfig.region
 
     override val isUserIdentified: Boolean
         // Prefer the caller-thread mirror so this is correct synchronously right after

@@ -4,8 +4,10 @@ import io.customer.messaginginapp.state.InAppMessagingState
 import io.customer.messaginginapp.testutils.core.IntegrationTest
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.data.store.Client
+import java.io.IOException
 import okhttp3.Request
 import org.amshove.kluent.shouldBeEqualTo
+import org.amshove.kluent.shouldBeInstanceOf
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -95,5 +97,17 @@ class NetworkUtilitiesTest : IntegrationTest() {
 
         headers[appIdentifierHeader] shouldBeEqualTo hostPackageName
         headers[NetworkUtilities.CIO_CLIENT_PLATFORM] shouldBeEqualTo "reactnative-android"
+    }
+
+    @Test
+    fun addCommonHeaders_whenSdkResetDuringRequest_thenThrowsIOException() {
+        // A request still in flight when the SDK is reset must fail as an IOException, which
+        // OkHttp reports to the caller. Any other exception crashes the OkHttp dispatcher thread.
+        SDKComponent.reset()
+
+        val error = runCatching { buildHeaders() }.exceptionOrNull()
+
+        error shouldBeInstanceOf IOException::class
+        error?.cause shouldBeInstanceOf IllegalStateException::class
     }
 }

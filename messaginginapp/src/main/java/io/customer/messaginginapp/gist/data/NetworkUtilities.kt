@@ -3,6 +3,7 @@ package io.customer.messaginginapp.gist.data
 import android.util.Base64
 import io.customer.messaginginapp.state.InAppMessagingState
 import io.customer.sdk.core.di.SDKComponent
+import java.io.IOException
 import okhttp3.Request
 
 class NetworkUtilities {
@@ -59,7 +60,15 @@ class NetworkUtilities {
             }
             builder.addHeader(CIO_DATACENTER_HEADER, state.dataCenter)
 
-            val androidSDKComponent = SDKComponent.android()
+            // Both callers run this inside an OkHttp interceptor. If the SDK is reset while a
+            // request is in flight, the IllegalStateException from SDKComponent.android() would
+            // escape on the OkHttp dispatcher thread and crash the app. An IOException fails
+            // just this call, which the callers already handle.
+            val androidSDKComponent = try {
+                SDKComponent.android()
+            } catch (e: IllegalStateException) {
+                throw IOException("Customer.io SDK is not initialized; dropping in-app request", e)
+            }
             builder.addHeader(CIO_CLIENT_PLATFORM, androidSDKComponent.client.source.lowercase() + "-android")
             builder.addHeader(CIO_CLIENT_VERSION, androidSDKComponent.client.sdkVersion)
             builder.addHeader(CIO_CLIENT_APP_IDENTIFIER, androidSDKComponent.applicationStore.customerPackageName)

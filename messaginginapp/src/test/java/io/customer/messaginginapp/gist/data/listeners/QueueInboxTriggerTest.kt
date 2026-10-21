@@ -75,8 +75,7 @@ class QueueInboxTriggerTest : IntegrationTest() {
 
         ModuleMessagingInApp(
             config = MessagingInAppModuleConfig.Builder(
-                siteId = TestConstants.Keys.SITE_ID,
-                region = io.customer.sdk.data.model.Region.US
+                siteId = TestConstants.Keys.SITE_ID
             ).build()
         ).attachToSDKComponent()
 

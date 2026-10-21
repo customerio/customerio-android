@@ -1,6 +1,7 @@
 package io.customer.sdk.core.pipeline
 
 import io.customer.base.internal.InternalCustomerIOApi
+import io.customer.sdk.data.model.Region
 
 /**
  * Abstraction for sending track events to the data pipeline.
@@ -18,5 +19,10 @@ interface DataPipeline {
      * a consumer may gate on it immediately after identify() without racing async propagation.
      */
     val isUserIdentified: Boolean
+
+    // The API key and region the SDK was set up with, so modules use the same ones
+    val cdpApiKey: String
+    val region: Region
+
     fun track(name: String, properties: Map<String, Any?>)
 }

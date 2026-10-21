@@ -4,7 +4,10 @@ import io.customer.messaginginapp.type.ColorScheme
 import io.customer.messaginginapp.type.InAppEventListener
 import io.customer.messaginginapp.type.InboxEventListener
 import io.customer.messaginginapp.type.NotificationInboxAccessibilityLabels
+import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.module.CustomerIOModuleConfig
+import io.customer.sdk.core.pipeline.DataPipeline
+import io.customer.sdk.core.util.CioApiKey
 import io.customer.sdk.data.model.Region
 
 /**
@@ -12,7 +15,11 @@ import io.customer.sdk.data.model.Region
  * experience based on the provided configurations
  */
 class MessagingInAppModuleConfig private constructor(
+    /**
+     * Empty when not set, which is fine when the SDK is set up with a public (`pk_`) key.
+     */
     val siteId: String,
+    @Deprecated("Ignored, in-app uses the region the SDK is set up with")
     val region: Region,
     val eventListener: InAppEventListener?,
     val colorScheme: ColorScheme,
@@ -23,10 +30,40 @@ class MessagingInAppModuleConfig private constructor(
      */
     val notificationInboxAccessibilityLabels: NotificationInboxAccessibilityLabels
 ) : CustomerIOModuleConfig {
-    class Builder(
-        private val siteId: String,
-        private val region: Region
-    ) : CustomerIOModuleConfig.Builder<MessagingInAppModuleConfig> {
+    // Read from the SDK as it was set up in CustomerIO init, so they always match it
+    private val dataPipeline: DataPipeline?
+        get() = SDKComponent.getOrNull<DataPipeline>()
+
+    /**
+     * Public (`pk_`) key the SDK is set up with, which in-app uses instead of the site ID, or null.
+     */
+    internal val publicKey: String?
+        get() = dataPipeline?.cdpApiKey?.takeIf { CioApiKey.isPublicKey(it) }
+
+    internal val dataCenter: String
+        get() = (dataPipeline?.region ?: Region.US).code
+
+    /**
+     * Use without a site ID when the SDK is set up with a public (`pk_`) key.
+     */
+    class Builder() : CustomerIOModuleConfig.Builder<MessagingInAppModuleConfig> {
+        private var siteId: String? = null
+
+        // Only kept for the deprecated [MessagingInAppModuleConfig.region]
+        private var region: Region = Region.US
+
+        constructor(siteId: String) : this() {
+            this.siteId = siteId
+        }
+
+        @Deprecated(
+            "Ignored, in-app uses the region the SDK is set up with",
+            ReplaceWith("Builder(siteId)")
+        )
+        constructor(siteId: String, region: Region) : this(siteId) {
+            this.region = region
+        }
+
         private var eventListener: InAppEventListener? = null
         private var colorScheme: ColorScheme = ColorScheme.AUTO
         private var inboxEventListener: InboxEventListener? = null
@@ -65,7 +102,7 @@ class MessagingInAppModuleConfig private constructor(
 
         override fun build(): MessagingInAppModuleConfig {
             return MessagingInAppModuleConfig(
-                siteId = siteId,
+                siteId = siteId.orEmpty(),
                 region = region,
                 eventListener = eventListener,
                 colorScheme = colorScheme,

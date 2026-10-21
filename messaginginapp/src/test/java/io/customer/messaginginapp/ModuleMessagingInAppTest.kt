@@ -25,7 +25,6 @@ import io.customer.sdk.communication.Event
 import io.customer.sdk.communication.EventBus
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.util.ScopeProvider
-import io.customer.sdk.data.model.Region
 import io.customer.sdk.events.Metric
 import io.mockk.every
 import io.mockk.mockk
@@ -71,8 +70,7 @@ internal class ModuleMessagingInAppTest : JUnitTest() {
 
         module = ModuleMessagingInApp(
             config = MessagingInAppModuleConfig.Builder(
-                siteId = TestConstants.Keys.SITE_ID,
-                region = Region.US
+                siteId = TestConstants.Keys.SITE_ID
             ).setEventListener(inAppEventListenerMock).build()
         ).attachToSDKComponent()
     }

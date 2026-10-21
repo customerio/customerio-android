@@ -4,7 +4,7 @@ object Versions {
     // Android SDK versions
     const val COMPILE_SDK = 36
     const val TARGET_SDK = 36
-    const val MIN_SDK = 23
+    const val MIN_SDK = 24
 
     // Repository default. CI's gradle-compatibility-builds job in snapshot-release.yml
     // overrides this and gradle-wrapper.properties to the compatibility floor:

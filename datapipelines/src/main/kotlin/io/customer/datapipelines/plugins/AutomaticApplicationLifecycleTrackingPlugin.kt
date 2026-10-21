@@ -15,6 +15,7 @@ import io.customer.sdk.util.EventNames
 import java.util.Collections
 import java.util.WeakHashMap
 import kotlinx.coroutines.launch
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 
@@ -57,14 +58,17 @@ internal class AutomaticApplicationLifecycleTrackingPlugin @VisibleForTesting co
 
     override fun setup(analytics: Analytics) {
         super.setup(analytics)
+        // Read before taking the lock, so Activity callbacks on main thread don't wait on package info and storage
+        val installOrUpdateEvent = installOrUpdateEvent()
         synchronized(lock) {
             // Registered first so no transition is missed; callbacks wait for the lock until the initial state is set
             application.registerActivityLifecycleCallbacks(this)
-            trackInstallOrUpdate()
+            installOrUpdateEvent?.let { (name, properties) -> analytics.track(name, properties) }
             if (isAppInForeground()) {
                 moveToForeground()
             }
         }
+        storeAppVersion()
     }
 
     override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) = Unit
@@ -115,31 +119,28 @@ internal class AutomaticApplicationLifecycleTrackingPlugin @VisibleForTesting co
         analytics.track(APPLICATION_FOREGROUNDED)
     }
 
-    private fun trackInstallOrUpdate() {
+    /** Application Installed or Application Updated with its properties, or null when the build hasn't changed. */
+    private fun installOrUpdateEvent(): Pair<String, JsonObject>? {
         val storage = analytics.storage
         val previousVersion = storage.read(Storage.Constants.AppVersion)
         val previousBuild = storage.read(Storage.Constants.AppBuild) ?: storage.read(Storage.Constants.LegacyAppBuild)
 
-        if (previousBuild == null) {
-            analytics.track(
-                APPLICATION_INSTALLED,
-                buildJsonObject {
-                    put(VERSION_KEY, appVersion.version)
-                    put(BUILD_KEY, appVersion.build)
-                }
-            )
-        } else if (previousBuild != appVersion.build) {
-            analytics.track(
-                APPLICATION_UPDATED,
-                buildJsonObject {
-                    put(VERSION_KEY, appVersion.version)
-                    put(BUILD_KEY, appVersion.build)
-                    put("previous_$VERSION_KEY", previousVersion)
-                    put("previous_$BUILD_KEY", previousBuild)
-                }
-            )
+        return when (previousBuild) {
+            null -> APPLICATION_INSTALLED to buildJsonObject {
+                put(VERSION_KEY, appVersion.version)
+                put(BUILD_KEY, appVersion.build)
+            }
+            appVersion.build -> null
+            else -> APPLICATION_UPDATED to buildJsonObject {
+                put(VERSION_KEY, appVersion.version)
+                put(BUILD_KEY, appVersion.build)
+                put("previous_$VERSION_KEY", previousVersion)
+                put("previous_$BUILD_KEY", previousBuild)
+            }
         }
+    }
 
+    private fun storeAppVersion() {
         // Same keys Segment's lifecycle tracking used, so existing installs keep their recorded version
         with(analytics) {
             analyticsScope.launch(analyticsDispatcher) {
@@ -179,9 +180,14 @@ private fun isProcessInForeground(): Boolean {
     // (a secondary process, or an app that removed the androidx.startup initializer).
     val processState = ProcessLifecycleOwner.get().lifecycle.currentState
     if (processState != Lifecycle.State.INITIALIZED) {
+        // Known limitation: the process lifecycle reports a stop about 700 ms after the last Activity stopped. An SDK
+        // initialized within that window counts the app as in foreground and never sees that Activity stop, so the
+        // next return to the app tracks no Application Opened, and Application Backgrounded waits until it's left.
         return processState.isAtLeast(Lifecycle.State.STARTED)
     }
     val processInfo = ActivityManager.RunningAppProcessInfo()
     ActivityManager.getMyMemoryState(processInfo)
-    return processInfo.importance <= ActivityManager.RunningAppProcessInfo.IMPORTANCE_VISIBLE
+    // Importances in between, such as a foreground service, don't mean an Activity is started
+    return processInfo.importance == ActivityManager.RunningAppProcessInfo.IMPORTANCE_FOREGROUND ||
+        processInfo.importance == ActivityManager.RunningAppProcessInfo.IMPORTANCE_VISIBLE
 }

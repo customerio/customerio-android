@@ -7,8 +7,20 @@ name: 16 KB page size
 on:
   pull_request:
     types: [opened, synchronize, reopened]
-    paths-ignore:
-      - '**/*.md'
+    # Only dependency, build and native-library changes can change what this checks.
+    paths:
+      - '**/*.gradle'
+      - '**/*.gradle.kts'
+      - '**/gradle.properties'
+      - '**/*.versions.toml'
+      - 'gradlew'
+      - 'gradle/**'
+      - 'buildSrc/**'
+      - 'samples/**/AndroidManifest.xml'
+      - '**/*.so'
+      - '.github/actions/setup-android/**'
+      - '.github/scripts/check_16kb_page_size.py'
+      - '.github/workflows/page-size-check.yml'
   workflow_dispatch:
 
 concurrency:

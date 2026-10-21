@@ -50,7 +50,12 @@ internal interface GistQueueService {
 }
 
 internal interface GistQueue {
-    fun fetchUserMessages()
+    /**
+     * @param mustBeFresh set by callers that need data from after they fired. When a request for the
+     * same identity is already in flight, they get one follow-up fetch after it completes; every
+     * other caller simply shares the in-flight request (see [QueueFetchCoordinator]).
+     */
+    fun fetchUserMessages(mustBeFresh: Boolean = false)
     fun logView(message: Message)
     fun logOpenedStatus(message: InboxMessage, opened: Boolean)
     fun logDeleted(message: InboxMessage)
@@ -81,6 +86,7 @@ internal class Queue(
         get() = SDKComponent.inAppPreferenceStore
     private val anonymousMessageManager: AnonymousMessageManager
         get() = SDKComponent.anonymousMessageManager
+    private val queueFetches = QueueFetchCoordinator()
 
     // Visual-inbox data layer: templates/branding fetch orchestration.
     private val inboxRepository
@@ -106,12 +112,14 @@ internal class Queue(
             .cache(cache)
             .addInterceptor { chain ->
                 val originalRequest = chain.request()
+                // One state read, so the user token sent and the cache owner recorded always agree.
+                val requestState = state
                 val networkRequest = originalRequest.newBuilder()
-                NetworkUtilities.addCommonHeaders(networkRequest, state)
+                NetworkUtilities.addCommonHeaders(networkRequest, requestState)
                 networkRequest.header("Cache-Control", "no-cache")
                 val finalRequest = networkRequest.build()
 
-                interceptResponse(chain.proceed(finalRequest), originalRequest)
+                interceptResponse(chain.proceed(finalRequest), originalRequest, requestState)
             }
             .build()
     }
@@ -125,18 +133,30 @@ internal class Queue(
             .create(GistQueueService::class.java)
     }
 
-    private fun interceptResponse(response: okhttp3.Response, originalRequest: okhttp3.Request): okhttp3.Response {
+    private fun interceptResponse(
+        response: okhttp3.Response,
+        originalRequest: okhttp3.Request,
+        requestState: InAppMessagingState
+    ): okhttp3.Response {
         return when (response.code) {
-            200 -> interceptSuccessfulResponse(response, originalRequest)
-            304 -> interceptNotModifiedResponse(response, originalRequest)
+            200 -> interceptSuccessfulResponse(response, originalRequest, requestState)
+            304 -> interceptNotModifiedResponse(response, originalRequest, requestState)
             else -> response
         }
     }
 
-    private fun interceptSuccessfulResponse(response: okhttp3.Response, originalRequest: okhttp3.Request): okhttp3.Response {
+    private fun interceptSuccessfulResponse(
+        response: okhttp3.Response,
+        originalRequest: okhttp3.Request,
+        requestState: InAppMessagingState
+    ): okhttp3.Response {
         response.body?.let { responseBody ->
             val responseBodyString = responseBody.string()
-            inAppPreferenceStore.saveNetworkResponse(originalRequest.url.toString(), responseBodyString)
+            val url = originalRequest.url.toString()
+            inAppPreferenceStore.saveNetworkResponse(url, responseBodyString)
+            if (isQueueRequest(originalRequest)) {
+                inAppPreferenceStore.saveNetworkResponse(cacheOwnerKey(url), QueueFetchKey.from(requestState)?.cacheOwner.orEmpty())
+            }
             return response.newBuilder()
                 .body(responseBodyString.toResponseBody(responseBody.contentType()))
                 .build()
@@ -147,8 +167,21 @@ internal class Queue(
     // Populates 304 response body with cached data and converts to 200 for Retrofit compatibility.
     // Retrofit only populates body() for 2xx responses, so we must convert 304->200.
     // Adds custom header to track that this was originally a 304 response.
-    private fun interceptNotModifiedResponse(response: okhttp3.Response, originalRequest: okhttp3.Request): okhttp3.Response {
-        val cachedResponse = inAppPreferenceStore.getNetworkResponse(originalRequest.url.toString())
+    private fun interceptNotModifiedResponse(
+        response: okhttp3.Response,
+        originalRequest: okhttp3.Request,
+        requestState: InAppMessagingState
+    ): okhttp3.Response {
+        val url = originalRequest.url.toString()
+        // The queue body belongs to the identity it was fetched for: after a user switch it holds the
+        // previous user's messages, so only that identity may reuse it.
+        if (isQueueRequest(originalRequest)) {
+            val requestOwner = QueueFetchKey.from(requestState)?.cacheOwner
+            if (requestOwner == null || inAppPreferenceStore.getNetworkResponse(cacheOwnerKey(url)) != requestOwner) {
+                return response
+            }
+        }
+        val cachedResponse = inAppPreferenceStore.getNetworkResponse(url)
         return cachedResponse?.let {
             response.newBuilder()
                 .body(it.toResponseBody(null))
@@ -158,7 +191,15 @@ internal class Queue(
         } ?: response
     }
 
-    override fun fetchUserMessages() {
+    override fun fetchUserMessages(mustBeFresh: Boolean) {
+        // Without an identity the request carries no user token; it goes out uncoordinated, as before.
+        val key = QueueFetchKey.from(state)
+        val ticket = key?.let { queueFetches.begin(it, mustBeFresh) }
+        if (key != null && ticket == null) {
+            logger.debug("Queue fetch already in flight for this user, sharing it (mustBeFresh: $mustBeFresh)")
+            return
+        }
+
         scope.launch {
             try {
                 logger.debug("Fetching user messages")
@@ -168,6 +209,9 @@ internal class Queue(
                 val code = latestMessagesResponse.code()
                 val fromCache = latestMessagesResponse.headers()[HEADER_FROM_CACHE] == "true"
                 when {
+                    // The identity changed while the request was in flight (logout, or another user
+                    // identified), so these messages belong to the previous one.
+                    key != null && QueueFetchKey.from(state) != key -> logger.debug("Discarding queue response for a previous user")
                     (code == 204 || code == 304) -> handleNoContent(code, sseRevisionAtFetchStart)
                     latestMessagesResponse.isSuccessful -> handleSuccessfulFetch(
                         responseBody = latestMessagesResponse.body(),
@@ -183,6 +227,11 @@ internal class Queue(
                 updateInboxFlag(latestMessagesResponse.headers())
             } catch (e: Exception) {
                 logger.debug("Error fetching messages: ${e.message}")
+            } finally {
+                if (ticket != null && queueFetches.finish(ticket)) {
+                    logger.debug("Fetching queue again for a caller that needed newer data")
+                    fetchUserMessages()
+                }
             }
         }
     }
@@ -388,9 +437,21 @@ internal class Queue(
         }
     }
 
+    // Only the queue response is per identity; the visual-inbox templates/branding sharing this
+    // client are workspace scoped and keep plain URL caching.
+    private fun isQueueRequest(request: okhttp3.Request): Boolean = request.url.encodedPath == QUEUE_PATH
+
+    private fun cacheOwnerKey(url: String): String = "$url$CACHE_OWNER_SUFFIX"
+
     companion object {
         // Custom header to distinguish 304 responses (converted to 200) from genuine 200 responses
         private const val HEADER_FROM_CACHE = "X-CIO-MOBILE-SDK-Cache"
+
+        // Path of [GistQueueService.fetchMessagesForUser].
+        private const val QUEUE_PATH = "/api/v4/users"
+
+        // Stored next to a cached queue body: the identity it was fetched for.
+        private const val CACHE_OWNER_SUFFIX = "#owner"
 
         // Server-driven enablement gate for the visual notification inbox.
         private const val HEADER_INBOX_ENABLED = "X-CIO-Inbox-Enabled"

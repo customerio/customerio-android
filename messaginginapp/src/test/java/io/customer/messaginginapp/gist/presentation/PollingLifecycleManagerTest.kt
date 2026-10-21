@@ -83,7 +83,7 @@ class PollingLifecycleManagerTest : JUnitTest() {
         createManager()
 
         verify { lifecycle.addObserver(any()) }
-        verify(exactly = 0) { gistQueue.fetchUserMessages() }
+        verify(exactly = 0) { gistQueue.fetchUserMessages(any()) }
     }
 
     @Test
@@ -93,7 +93,7 @@ class PollingLifecycleManagerTest : JUnitTest() {
 
         createManager()
 
-        verify(timeout = 2000) { gistQueue.fetchUserMessages() }
+        verify(timeout = 2000) { gistQueue.fetchUserMessages(any()) }
     }
 
     @Test
@@ -103,7 +103,31 @@ class PollingLifecycleManagerTest : JUnitTest() {
 
         observer.onStart(processLifecycleOwner)
 
-        verify(timeout = 2000) { gistQueue.fetchUserMessages() }
+        verify(timeout = 2000) { gistQueue.fetchUserMessages(any()) }
+    }
+
+    @Test
+    fun onStart_givenFirstForegroundSinceLaunch_expectCatchUpMayShareInFlightFetch() {
+        createManager()
+        val observer = captureObserver()
+
+        observer.onStart(processLifecycleOwner)
+
+        verify(timeout = 2000) { gistQueue.fetchUserMessages(mustBeFresh = false) }
+        verify(exactly = 0) { gistQueue.fetchUserMessages(mustBeFresh = true) }
+    }
+
+    @Test
+    fun onStart_givenReturningFromBackground_expectCatchUpNeedsFreshData() {
+        createManager()
+        val observer = captureObserver()
+        observer.onStart(processLifecycleOwner)
+        verify(timeout = 2000) { gistQueue.fetchUserMessages(mustBeFresh = false) }
+
+        observer.onStop(processLifecycleOwner)
+        observer.onStart(processLifecycleOwner)
+
+        verify(timeout = 2000) { gistQueue.fetchUserMessages(mustBeFresh = true) }
     }
 
     @Test
@@ -115,7 +139,7 @@ class PollingLifecycleManagerTest : JUnitTest() {
 
         observer.onStart(processLifecycleOwner)
 
-        verify(exactly = 0) { gistQueue.fetchUserMessages() }
+        verify(exactly = 0) { gistQueue.fetchUserMessages(any()) }
         verify { logger.debug(match { it.contains("Not starting polling") }) }
     }
 
@@ -147,7 +171,7 @@ class PollingLifecycleManagerTest : JUnitTest() {
 
         manager.fetchInAppMessages()
 
-        verify(timeout = 2000) { gistQueue.fetchUserMessages() }
+        verify(timeout = 2000) { gistQueue.fetchUserMessages(any()) }
     }
 
     @Test
@@ -157,7 +181,7 @@ class PollingLifecycleManagerTest : JUnitTest() {
 
         manager.fetchInAppMessages()
 
-        verify(exactly = 0) { gistQueue.fetchUserMessages() }
+        verify(exactly = 0) { gistQueue.fetchUserMessages(any()) }
     }
 
     @Test
@@ -198,7 +222,7 @@ class PollingLifecycleManagerTest : JUnitTest() {
         // foreground + subscription coroutines + dismiss/identify fetch) must not leave any
         // Timer alive after reset(). A fast interval surfaces orphans quickly.
         val fetchCount = AtomicInteger(0)
-        every { gistQueue.fetchUserMessages() } answers { fetchCount.incrementAndGet() }
+        every { gistQueue.fetchUserMessages(any()) } answers { fetchCount.incrementAndGet() }
         state = InAppMessagingState(pollInterval = 30L)
         val manager = createManager()
 
@@ -222,12 +246,12 @@ class PollingLifecycleManagerTest : JUnitTest() {
         createManager()
         val observer = captureObserver()
         observer.onStart(processLifecycleOwner)
-        verify(exactly = 0) { gistQueue.fetchUserMessages() }
+        verify(exactly = 0) { gistQueue.fetchUserMessages(any()) }
 
         // SSE flag flips off while foregrounded+identified -> shouldUseSse false, timer null -> resume.
         state = state.copy(sseEnabled = false)
         sseEnabledListener(false)
 
-        verify(timeout = 2000) { gistQueue.fetchUserMessages() }
+        verify(timeout = 2000) { gistQueue.fetchUserMessages(any()) }
     }
 }

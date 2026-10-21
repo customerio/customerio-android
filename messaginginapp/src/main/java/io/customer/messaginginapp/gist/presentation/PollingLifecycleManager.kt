@@ -30,6 +30,10 @@ internal class PollingLifecycleManager(
 ) {
     private val isForegrounded = AtomicBoolean(false)
 
+    // Set by the first real background transition. Until then a foreground belongs to launch, so its
+    // catch-up fetch may share a launch request already in flight.
+    private val hasBeenBackgrounded = AtomicBoolean(false)
+
     // @Volatile for cross-thread visibility: written on the main thread (foreground/background) and
     // read from the attribute-subscription coroutines that guard against redundant restarts.
     @Volatile
@@ -93,7 +97,9 @@ internal class PollingLifecycleManager(
             return
         }
         // Start polling with an immediate catch-up fetch for messages received while backgrounded.
-        startPolling(duration = currentState.pollInterval)
+        // Returning from the background needs data from after it; the launch foreground can share a
+        // launch fetch that is already in flight.
+        startPolling(duration = currentState.pollInterval, firstFetchMustBeFresh = hasBeenBackgrounded.get())
     }
 
     private fun handleBackgrounded() {
@@ -101,6 +107,7 @@ internal class PollingLifecycleManager(
             logger.debug("[Polling] App background event ignored - already backgrounded")
             return
         }
+        hasBeenBackgrounded.set(true)
         logger.debug("[Polling] App backgrounded - stopping polling")
         resetTimer()
     }
@@ -111,7 +118,7 @@ internal class PollingLifecycleManager(
     // only the last is retained in `timer`, orphaning the other so it keeps polling forever and
     // resetTimer() can never cancel it.
     @Synchronized
-    private fun startPolling(duration: Long, initialDelay: Long = 0) {
+    private fun startPolling(duration: Long, initialDelay: Long = 0, firstFetchMustBeFresh: Boolean = false) {
         val currentState = state
         // Only skip polling if SSE should be used (both flag enabled AND user identified)
         if (currentState.shouldUseSse) {
@@ -121,10 +128,13 @@ internal class PollingLifecycleManager(
 
         logger.debug("[Polling] Starting polling (sseEnabled=${currentState.sseEnabled}, isUserIdentified=${currentState.isUserIdentified}, interval=${duration}ms, initialDelay=${initialDelay}ms)")
         timer?.cancel()
+        // Only touched from the timer's own thread.
+        var nextFetchMustBeFresh = firstFetchMustBeFresh
         // create a timer to run the task after the initial run
         timer = timer(name = "GistPolling", daemon = true, initialDelay = initialDelay, period = duration) {
             logger.debug("[Polling] Poll tick - fetching user messages")
-            gistQueue.fetchUserMessages()
+            gistQueue.fetchUserMessages(mustBeFresh = nextFetchMustBeFresh)
+            nextFetchMustBeFresh = false
         }
     }
 

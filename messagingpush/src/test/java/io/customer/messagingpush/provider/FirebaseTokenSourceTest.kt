@@ -132,12 +132,15 @@ class FirebaseTokenSourceTest : JUnit5Test() {
         assertCalledNever { mockFirebaseMessaging.token }
     }
 
-    // Unit tests compile against firebase-messaging 24.1.2, which has no register(): the case of an
-    // app that opted in but still ships older Firebase.
+    // Unit tests compile against firebase-messaging 26, so the default reflective lookup must find register().
     @Test
-    fun fetchToken_givenOptedInOnFirebaseWithoutRegister_expectLegacyToken() {
+    fun fetchToken_givenOptedInWithDefaultRegister_expectRegisterCalled() {
         givenMetaData(optedIn = true)
-        givenTokenListeners()
+        val registration = mockk<Task<Void>>()
+        val chained = mockk<Task<String>>()
+        every { mockFirebaseMessaging.register() } returns registration
+        every { registration.onSuccessTask(any<SuccessContinuation<Void, String>>()) } returns chained
+        givenTyped(chained)
         val tokenSource = FirebaseTokenSource(
             context = contextMock,
             firebaseMessaging = { mockFirebaseMessaging },
@@ -146,9 +149,9 @@ class FirebaseTokenSourceTest : JUnit5Test() {
         )
 
         tokenSource.fetchToken() shouldBeEqualTo typedTask
-        tokenSuccess.captured.onSuccess("legacy-token")
-        assertTyped("legacy-token", DeviceTokenType.TOKEN)
-        assertCalledOnce { mockPushLogger.logInstallationIdUnsupported() }
+        assertCalledOnce { mockFirebaseMessaging.register() }
+        assertCalledNever { mockFirebaseMessaging.token }
+        assertCalledNever { mockPushLogger.logInstallationIdUnsupported() }
     }
 
     private fun givenTokenListeners() {

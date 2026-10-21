@@ -42,8 +42,6 @@ android {
         // Registers with the Firebase Installation ID (firebase-messaging 25.1.0+ and the flag in src/fid)
         fid {
             dimension "push"
-            // Required by firebase-messaging 25
-            minSdk 23
         }
     }
     buildFeatures {

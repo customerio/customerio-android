@@ -125,6 +125,36 @@ class PolygonDwellPrecisionTest : RobolectricTest() {
     }
 
     @Test
+    fun activate_givenASpurredVenueAndACoarseFixWhoseWholeCircleIsInsideItsBody_expectTheDwellWithoutAPreciseFix() = runTest {
+        // Before the controller exists, so it only ever sees the spurred ring.
+        store.saveCachedRegions(listOf(spurredVenueRegion()))
+        store.saveRegisteredIds(setOf(VENUE_ID))
+        store.saveRoutableRegisteredIds(setOf(VENUE_ID))
+        val freshFix = RecordingFreshFix()
+        val controller = controller(freshFix)
+
+        arriveClearly(controller)
+        val visit = store.getDwellVisit(VENUE_ID).shouldNotBeNull()
+
+        ShadowSystemClock.advanceBy(Duration.ofSeconds(70))
+        // ~110 m deep at 100 m of error: clear of the ring by ~10 m, while the spur drags the
+        // ring's scale (~63 m) under the accuracy.
+        val coarse = coarseFixInsideTheSpurredBody(SystemClock.elapsedRealtimeNanos() - 1_000_000_000L)
+        controller.activate(
+            polygonId = VENUE_ID,
+            triggeringLocation = coarse,
+            expectedUserStateGeneration = store.userStateGeneration(),
+            expectedRegionRevision = null
+        )
+
+        val dwells = dwells()
+        (dwells.map { it.transitionId } to freshFix.priorities.toList()) shouldBeEqualTo
+            (listOf(visit.visitId) to emptyList<PolygonFixPriority>())
+        dwells.single().timestamp shouldBeEqualTo coarse.time / MILLIS_PER_SECOND
+        store.getDwellVisit(VENUE_ID).shouldNotBeNull().emitted shouldBeEqualTo true
+    }
+
+    @Test
     fun activate_givenADueVisitAndAFixInsideByLessThanItsAccuracy_expectOnePreciseFixQualifiesTheDwell() = runTest {
         val freshFix = RecordingFreshFix()
         val controller = controller(freshFix)
@@ -847,6 +877,33 @@ class PolygonDwellPrecisionTest : RobolectricTest() {
         ),
         dwellThresholdSeconds = 60
     )
+
+    /**
+     * A ~300 m square body round the venue centre with a ~1 km x 10 m spur off its east side. The
+     * spur adds perimeter faster than area: scale ~63 m, body centre ~150 m deep.
+     */
+    private fun spurredVenueRegion() = GeofenceRegion(
+        id = VENUE_ID,
+        latitude = 37.7750,
+        longitude = -122.4194,
+        // Covers the spur's far end, ~1.15 km out.
+        radius = 1_200f,
+        polygonVertices = listOf(
+            PolygonCoordinate(37.77365, -122.42111),
+            PolygonCoordinate(37.77365, -122.41769),
+            PolygonCoordinate(37.774955, -122.41769),
+            PolygonCoordinate(37.774955, -122.40631),
+            PolygonCoordinate(37.775045, -122.40631),
+            PolygonCoordinate(37.775045, -122.41769),
+            PolygonCoordinate(37.77635, -122.41769),
+            PolygonCoordinate(37.77635, -122.42111)
+        ),
+        dwellThresholdSeconds = 60
+    )
+
+    /** ~110 m inside the body's southern edge, ~150 m from the others, at 100 m of error. */
+    private fun coarseFixInsideTheSpurredBody(elapsedRealtimeNanos: Long) =
+        fix(37.77464, -122.4194, accuracyMeters = 100f, elapsedRealtimeNanos = elapsedRealtimeNanos)
 
     private companion object {
         const val USER_ID = "user-1"

@@ -92,8 +92,27 @@ internal class PolygonAccuracyEvaluator {
                 )
             }
         }
-        // Governs arrivals only. Scales with venue depth so a coarse fix deep in a large venue
-        // counts, floored so a shallow ring still admits a coarse fix.
+        // A whole accuracy circle inside has shown the side, using the engine's strict stay rule.
+        // A thin appendage can pull the whole-ring scale below this fix's actual edge clearance.
+        if (
+            relation == PolygonPointRelation.INSIDE &&
+            boundaryDistanceMeters > sample.horizontalAccuracyMeters
+        ) {
+            return if (committedState == PolygonCommittedState.OUTSIDE) {
+                PolygonEvidenceResult(
+                    PolygonEvidence.ENTER,
+                    signedBoundaryDistanceMeters = signedBoundaryDistanceMeters
+                )
+            } else {
+                PolygonEvidenceResult(
+                    PolygonEvidence.AMBIGUOUS,
+                    signedBoundaryDistanceMeters = signedBoundaryDistanceMeters,
+                    agreedWithCommittedState = true
+                )
+            }
+        }
+        // Governs fixes whose accuracy reaches the ring. Scales with venue depth, floored so a
+        // shallow ring still admits a coarse fix.
         val arrivalCeilingMeters = max(MINIMUM_ARRIVAL_CEILING_METERS, geometry.venueScaleMeters)
         if (sample.horizontalAccuracyMeters >= arrivalCeilingMeters) {
             return undecided(

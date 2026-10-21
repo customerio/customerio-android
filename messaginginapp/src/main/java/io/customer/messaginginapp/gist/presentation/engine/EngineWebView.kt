@@ -263,21 +263,6 @@ internal class EngineWebView @JvmOverloads constructor(
                     return !url.startsWith("https://code.gist.build")
                 }
 
-                override fun onReceivedError(
-                    view: WebView?,
-                    errorCod: Int,
-                    description: String,
-                    failingUrl: String?
-                ) {
-                    reportFailure(
-                        InAppMessageError(
-                            reason = InAppMessageErrorReason.NETWORK,
-                            detail = description,
-                            code = errorCod
-                        )
-                    )
-                }
-
                 override fun onReceivedSslError(
                     view: WebView?,
                     handler: SslErrorHandler?,
@@ -332,18 +317,14 @@ internal class EngineWebView @JvmOverloads constructor(
                 ) {
                     // Fired for every resource, not just the page — images, fonts, iframes. Only a
                     // main-frame failure means the message cannot render; reporting a subresource
-                    // would dismiss a message that was otherwise fine. The deprecated overload
-                    // above is main-frame-only already, so this also keeps API 21-22 consistent.
+                    // would dismiss a message that was otherwise fine.
                     if (request?.isForMainFrame != true) return
 
-                    // description/errorCode are API 23+; below that the deprecated overload above
-                    // is the one the platform calls, and it carries the same detail.
-                    val hasDetail = Build.VERSION.SDK_INT >= Build.VERSION_CODES.M
                     reportFailure(
                         InAppMessageError(
                             reason = InAppMessageErrorReason.NETWORK,
-                            detail = if (hasDetail) error?.description?.toString() else null,
-                            code = if (hasDetail) error?.errorCode else null
+                            detail = error?.description?.toString(),
+                            code = error?.errorCode
                         )
                     )
                 }

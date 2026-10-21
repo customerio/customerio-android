@@ -181,7 +181,7 @@ internal class PolygonApproachMonitor(
      * unarmed entry, which [removeUpdates] does not report again.
      */
     fun recordSampleDelivered(sessionDeadlineElapsedRealtimeMs: Long) {
-        // putIfAbsent rather than merge or compute: those are API 24 and minSdk here is 21.
+        // putIfAbsent rather than merge or compute: those need API 24.
         val entry = samplesByDeadline.putIfAbsent(
             sessionDeadlineElapsedRealtimeMs,
             SessionSamples(armedHere = false)

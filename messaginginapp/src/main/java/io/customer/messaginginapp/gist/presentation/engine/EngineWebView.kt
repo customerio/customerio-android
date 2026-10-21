@@ -115,8 +115,8 @@ internal class EngineWebView @JvmOverloads constructor(
      *
      * Temporary detaches under a live owner (a RecyclerView item scrolled off-screen, say) drop the
      * subscription in [onDetachedFromWindow] and get it back here: the replayed `ON_RESUME` calls
-     * [onLifecycleResumed], whose `addJavascriptInterface` is idempotent and cheap, and restarts
-     * the load timeout paused on detach. This mirrors what
+     * [onLifecycleResumed], which re-attaches the JavaScript interface and restarts the load
+     * timeout, both paused on detach. This mirrors what
      * [io.customer.messaginginapp.ui.core.BaseInlineInAppMessageView] already does with its own
      * observer.
      */
@@ -130,9 +130,10 @@ internal class EngineWebView @JvmOverloads constructor(
     override fun onDetachedFromWindow() {
         // Keep observedLifecycle: it records that there is a message to re-subscribe for.
         observedLifecycle?.let {
-            // Without the subscription this engine misses a later ON_PAUSE, so pause the load
-            // timeout now or it can dismiss a loading message while the app is in the background.
-            pauseTimer()
+            // Without the subscription this engine misses a later ON_PAUSE, so pause now: otherwise
+            // the bridge stays attached and the load timeout can dismiss a loading message while the
+            // app is in the background. A resumed owner re-attaches both on the next window attach.
+            onLifecyclePaused()
             it.removeObserver(this)
         }
         super.onDetachedFromWindow()

@@ -257,6 +257,42 @@ class EngineWebViewLifecycleTest : IntegrationTest() {
         engineWebView.releaseResources()
     }
 
+    @Test
+    fun onDetachedFromWindow_givenOwnerPausesWhileDetached_expectInterfaceStaysDetachedUntilResumed() {
+        val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
+        val owner = FakeLifecycleOwner()
+        val host = FrameLayout(activity).apply { setViewTreeLifecycleOwner(owner) }
+        val engineWebView = EngineWebView(activity)
+        host.addView(engineWebView)
+        activity.setContentView(host)
+        owner.registry.currentState = Lifecycle.State.RESUMED
+        engineWebView.setup(givenConfiguration())
+        val webView = shadowOf(engineWebView.getChildAt(0) as WebView)
+        webView.getJavascriptInterface(EngineWebViewInterface.JAVASCRIPT_INTERFACE_NAME).shouldNotBeNull()
+
+        // Leaving the window detaches the bridge, since the engine no longer hears ON_PAUSE.
+        host.removeView(engineWebView)
+        webView.getJavascriptInterface(EngineWebViewInterface.JAVASCRIPT_INTERFACE_NAME).shouldBeNull()
+
+        // Backgrounded and back while off-window: still detached, nothing re-armed it.
+        owner.registry.currentState = Lifecycle.State.CREATED
+        owner.registry.currentState = Lifecycle.State.RESUMED
+        webView.getJavascriptInterface(EngineWebViewInterface.JAVASCRIPT_INTERFACE_NAME).shouldBeNull()
+
+        // Re-attached under a paused owner: no ON_RESUME is replayed, so it stays detached.
+        owner.registry.currentState = Lifecycle.State.STARTED
+        host.addView(engineWebView)
+        webView.getJavascriptInterface(EngineWebViewInterface.JAVASCRIPT_INTERFACE_NAME).shouldBeNull()
+
+        // The owner resuming re-attaches it.
+        owner.registry.currentState = Lifecycle.State.RESUMED
+        webView.getJavascriptInterface(EngineWebViewInterface.JAVASCRIPT_INTERFACE_NAME).shouldNotBeNull()
+
+        engineWebView.stopLoading()
+        host.removeView(engineWebView)
+        engineWebView.releaseResources()
+    }
+
     private fun EngineWebView.timeoutTimer(): Any? = ReflectionHelpers.getField(this, "timer")
 
     private fun givenConfiguration() = EngineWebConfiguration(

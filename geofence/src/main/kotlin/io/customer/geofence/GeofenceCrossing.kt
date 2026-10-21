@@ -22,7 +22,10 @@ internal data class GeofenceCrossing(
     val receivedAtElapsedMs: Long
 )
 
-/** GMS reports DWELL only for circles configured with a loitering delay. */
+/**
+ * GMS reports DWELL for circles configured with a loitering delay, and for a polygon's enclosing
+ * circle only while its experimental dwell wake is armed.
+ */
 internal enum class GeofenceCrossingTransition {
     ENTER,
     DWELL,

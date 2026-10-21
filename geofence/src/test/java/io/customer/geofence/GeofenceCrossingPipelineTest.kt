@@ -8,6 +8,7 @@ import io.customer.commontest.config.testConfigurationDefault
 import io.customer.commontest.core.RobolectricTest
 import io.customer.geofence.di.geofenceCrossingPipeline
 import io.customer.geofence.di.pendingGeofenceDeliveryStore
+import io.customer.geofence.polygon.PolygonCoordinate
 import io.customer.geofence.polygon.PolygonGeofenceServiceController
 import io.customer.geofence.store.GeofenceRegionStore
 import io.customer.geofence.store.PendingGeofenceDelivery
@@ -28,6 +29,7 @@ import io.mockk.slot
 import io.mockk.verify
 import java.io.File
 import java.util.concurrent.atomic.AtomicInteger
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -73,6 +75,64 @@ class GeofenceCrossingPipelineTest : RobolectricTest() {
     fun resetDiagnostics() {
         // null restores the manifest value; false would pin the gate off for later test classes.
         GeofenceDiagnostics.setEnabledForTesting(null)
+    }
+
+    @Test
+    fun handle_givenAPolygonDwell_expectAcquisitionRouteAndNeverNativeCircleQualification() = runTest {
+        val region = GeofenceRegion(
+            "polygon",
+            0.0,
+            0.0,
+            100f,
+            polygonVertices = listOf(
+                PolygonCoordinate(-0.001, -0.001),
+                PolygonCoordinate(-0.001, 0.001),
+                PolygonCoordinate(0.001, 0.001),
+                PolygonCoordinate(0.001, -0.001)
+            ),
+            dwellThresholdSeconds = 60
+        )
+        every { mockStore.getCachedRegions() } returns listOf(region)
+        every { mockStore.getCachedRegion(region.id) } returns region
+        every { mockStore.getRegisteredIds() } returns setOf(region.id)
+        val circleDwell = mockk<GeofenceDwellCoordinator>(relaxed = true)
+        var teardown = 3L
+        every { mockPolygonController.teardownGeneration() } answers { teardown }
+        val processor = mockk<GeofenceBusinessTransitionProcessor>(relaxed = true)
+        val enteredRecovery = CompletableDeferred<Unit>()
+        val releaseRecovery = CompletableDeferred<Unit>()
+        coEvery { processor.recoverPendingTransitions() } coAnswers {
+            enteredRecovery.complete(Unit)
+            releaseRecovery.await()
+            true
+        }
+        val subject = GeofenceCrossingPipeline(
+            regionStore = mockStore,
+            services = mockServices,
+            registrar = mockManager,
+            transitionProcessor = processor,
+            dwellCoordinator = circleDwell,
+            polygonController = mockPolygonController,
+            logger = mockk(relaxed = true)
+        )
+
+        val handling = launch {
+            subject.handle(
+                GeofenceCrossing(
+                    listOf(region.id), GeofenceCrossingTransition.DWELL, "DWELL", Geofence.GEOFENCE_TRANSITION_DWELL,
+                    null, null, null, 100L, 100_000L
+                )
+            )
+        }
+        enteredRecovery.await()
+        teardown = 4L
+        releaseRecovery.complete(Unit)
+        handling.join()
+
+        coVerify(exactly = 1) {
+            mockPolygonController.onDwellWake(region.id, null, 0L, region.transitionRevision(), 3L)
+        }
+        coVerify(exactly = 0) { circleDwell.onNativeDwell(any(), any(), any(), any(), any()) }
     }
 
     private fun expectRecorded(ev: String, why: String) {

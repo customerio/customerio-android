@@ -29,4 +29,17 @@ internal interface GeofenceRegistrar {
 
     /** No `@RequiresPermission`, as for [removeGeofencesByIds]. */
     suspend fun clearAll(): Result<Unit>
+
+    /**
+     * Re-adds one polygon's enclosing circle under its own id with a native DWELL wake after
+     * [loiteringDelayMillis]. In place: the slot count is unchanged and a failed add leaves the prior
+     * registration live. The wake is not polygon presence proof. Any failure, timeout included,
+     * leaves the OS state unknown, so callers must still disarm later.
+     */
+    suspend fun armPolygonDwellWake(region: GeofenceRegion, loiteringDelayMillis: Long): Result<Unit> =
+        Result.failure(UnsupportedOperationException("Polygon dwell wake is not supported"))
+
+    /** Restores [region]'s normal ENTER|EXIT registration in place, with no initial trigger. */
+    suspend fun disarmPolygonDwellWake(region: GeofenceRegion): Result<Unit> =
+        Result.failure(UnsupportedOperationException("Polygon dwell wake is not supported"))
 }

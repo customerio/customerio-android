@@ -105,7 +105,8 @@ internal class GeofenceServicesImpl(
     override fun onUserIdentified(latitude: Double?, longitude: Double?) {
         // Here, not on the first OS callback: beginUserSession clears the sync stamp, so the refresh
         // goes REMOTE and arms routing first. Else the first callback removes every live fence.
-        secureUserStore.getUserId()?.takeIf { it.isNotEmpty() }?.let(regionStore::beginUserSession)
+        // The controller reads the id under the lock that opens the session and fences the old one.
+        polygonController.beginUserSessionForCurrentUser()
         triggerSync(
             reason = REASON_USER_IDENTIFIED,
             latitude = latitude,
@@ -115,10 +116,9 @@ internal class GeofenceServicesImpl(
     }
 
     override fun onAppLaunch(latitude: Double?, longitude: Double?) {
-        // Never redefine a session: an identify can land meanwhile, and reopening the older user
-        // would clear the routing that identify's refresh just armed.
-        secureUserStore.getUserId()?.takeIf { it.isNotEmpty() }
-            ?.let(regionStore::beginUserSessionIfAbsent)
+        // The id is read under the lock that opens the session, never captured earlier: a launch after
+        // an identify finds that user's session unchanged, and stale persisted state adopts the current user.
+        polygonController.beginUserSessionForCurrentUser()
         triggerSync(
             reason = REASON_APP_LAUNCH,
             latitude = latitude,

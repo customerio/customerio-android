@@ -46,10 +46,30 @@ The suite covers positive dwell delivery, no delivery from elapsed time alone, d
 missing or stale attributing fixes, leave-before-threshold, re-entry, shared DWELL/EXIT visit IDs,
 EXIT duration, geoset fan-out and omitted facts for an unobserved arrival.
 
-A native Play Services DWELL callback qualifies dwell independently of the app's observed ENTER
+A native Play Services DWELL callback for a circle qualifies dwell independently of the app's observed ENTER
 receipt time. An early callback relative to that receipt can therefore qualify dwell while its
 duration remains omitted. Observed arrival fixtures first establish outside membership through a
 real callback; registration coordinates alone do not establish it.
 
 Replay checks SDK decisions and queued payloads. Physical device delivery timing and live backend
 ingestion require separate validation.
+
+## Suspension inputs
+
+An authored scenario can freeze execution independently of backgrounding:
+
+```json
+{"k":"when","at":40,"ev":"app.suspend"}
+{"k":"then","at":150,"ev":"delivery.queued","id":"B","t":"dwell","count":0}
+{"k":"when","at":200,"ev":"app.resume"}
+```
+
+While suspended, wall time and elapsed realtime advance, and SDK work and external answers remain
+held. Answers become available at resume time, without changing their original fix timestamps.
+Coroutine delays retain their remaining uptime, modeling deep device sleep. This does not model
+every Android process-freezing mechanism. `app.background` alone does not freeze execution.
+
+A scenario may end frozen; pending answers remain held. A `process.start` while frozen replaces the
+runtime and cancels the old work. Inputs that require SDK execution while frozen are unsupported.
+The polygon cases exercise both a precise inside fix and a fix outside the polygon but inside its
+wake circle after resume. They check the actual queued events through the real polygon route.

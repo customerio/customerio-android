@@ -75,6 +75,46 @@ internal class GeofenceManager(
         )
     }
 
+    /** Same-id add with no prior removal, for the reason on [replaceMovementTrigger]. */
+    @RequiresPermission(Manifest.permission.ACCESS_FINE_LOCATION)
+    override suspend fun armPolygonDwellWake(
+        region: GeofenceRegion,
+        loiteringDelayMillis: Long
+    ): Result<Unit> {
+        if (loiteringDelayMillis !in 1L..Int.MAX_VALUE.toLong()) {
+            return rejectDwellWake("dwell wake delay must be 1..Int.MAX_VALUE ms")
+        }
+        validatePolygonDwellWake(region)?.let { return it }
+        return registerBatch(
+            regions = listOf(region),
+            initialTrigger = GeofencingRequest.INITIAL_TRIGGER_DWELL,
+            dwellWakeLoiteringMillis = loiteringDelayMillis.toInt()
+        )
+    }
+
+    @RequiresPermission(Manifest.permission.ACCESS_FINE_LOCATION)
+    override suspend fun disarmPolygonDwellWake(region: GeofenceRegion): Result<Unit> {
+        validatePolygonDwellWake(region)?.let { return it }
+        // No initial trigger, so the in-place re-add does not replay ENTER for an open visit.
+        return registerBatch(listOf(region), initialTrigger = NO_INITIAL_TRIGGER)
+    }
+
+    /** Null when valid: a usable polygon not using the reserved movement id, which a same-id add would overwrite. */
+    private fun validatePolygonDwellWake(region: GeofenceRegion): Result<Unit>? = when {
+        region.id == GeofenceConstants.MOVEMENT_TRIGGER_ID -> rejectDwellWake("reserved movement trigger id")
+        region.polygonGeometryOrNull() == null -> rejectDwellWake("dwell wake needs a usable polygon")
+        !permissionChecker.hasRequiredLocationPermissions() -> {
+            logger.logMissingPermission("ACCESS_FINE_LOCATION")
+            Result.failure(SecurityException("Required location permissions not granted"))
+        }
+        else -> null
+    }
+
+    private fun rejectDwellWake(message: String): Result<Unit> {
+        logger.logRegistrationFailed(message)
+        return Result.failure(IllegalArgumentException(message))
+    }
+
     @RequiresPermission(Manifest.permission.ACCESS_FINE_LOCATION)
     private suspend fun replaceGeofencesInternal(
         regions: List<GeofenceRegion>,
@@ -129,13 +169,14 @@ internal class GeofenceManager(
     @RequiresPermission(Manifest.permission.ACCESS_FINE_LOCATION)
     private suspend fun registerBatch(
         regions: List<GeofenceRegion>,
-        initialTrigger: Int
+        initialTrigger: Int,
+        dwellWakeLoiteringMillis: Int? = null
     ): Result<Unit> {
         // A GMS rejection must fail the sync, never crash the host.
         val request = try {
             GeofencingRequest.Builder()
                 .setInitialTrigger(initialTrigger)
-                .addGeofences(regions.map { it.toGmsGeofence() })
+                .addGeofences(regions.map { it.toGmsGeofence(dwellWakeLoiteringMillis) })
                 .build()
         } catch (e: IllegalArgumentException) {
             logger.logRegistrationFailed(e.message)
@@ -216,13 +257,17 @@ internal class GeofenceManager(
                 Result.failure(TimeoutException("GMS $description gave no callback within $GMS_CALL_TIMEOUT"))
             }
 
-    private fun GeofenceRegion.toGmsGeofence(): Geofence {
+    /** A non-null [dwellWakeLoiteringMillis] adds the dwell wake; null keeps normal registration. */
+    private fun GeofenceRegion.toGmsGeofence(dwellWakeLoiteringMillis: Int? = null): Geofence {
+        val dwellWake = if (dwellWakeLoiteringMillis != null) Geofence.GEOFENCE_TRANSITION_DWELL else 0
         return Geofence.Builder()
             .setRequestId(id)
             .setCircularRegion(latitude, longitude, radius)
-            .setTransitionTypes(toGmsTransitionTypes())
+            .setTransitionTypes(toGmsTransitionTypes() or dwellWake)
             .apply {
-                if (
+                if (dwellWakeLoiteringMillis != null) {
+                    setLoiteringDelay(dwellWakeLoiteringMillis)
+                } else if (
                     !isPolygon &&
                     dwellThresholdSeconds in 1..GeofenceConstants.MAX_DWELL_THRESHOLD_SECONDS
                 ) {
@@ -237,5 +282,8 @@ internal class GeofenceManager(
         // Per call. replaceGeofences chains up to four, so a wedged GMS can outlast the receiver's
         // 8s goAsync budget; that join is best-effort.
         val GMS_CALL_TIMEOUT = 5.seconds
+
+        // GMS initial triggers are flags; zero adds the geofence with no initial notification.
+        const val NO_INITIAL_TRIGGER = 0
     }
 }

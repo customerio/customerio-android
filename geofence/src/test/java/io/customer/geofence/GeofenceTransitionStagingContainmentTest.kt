@@ -773,7 +773,12 @@ class GeofenceTransitionStagingContainmentTest : RobolectricTest() {
     private fun coordinator(
         store: GeofenceRegionStoreImpl,
         processor: GeofenceBusinessTransitionProcessor = processor()
-    ) = GeofenceDwellCoordinator(store, processor, mockk<Clock>(relaxed = true), PolygonBootSessionProvider { "boot" })
+    ) = GeofenceDwellCoordinator(
+        store,
+        processor,
+        mockk<Clock>(relaxed = true),
+        bootSessionProvider = PolygonBootSessionProvider { "boot" }
+    )
 
     private fun pipeline(
         store: GeofenceRegionStoreImpl,

@@ -7,6 +7,8 @@ import io.customer.geofence.api.GeofenceApiResponse
 import io.customer.geofence.api.GeofenceApiService
 import io.customer.geofence.api.toDomainRegions
 import io.customer.geofence.polygon.PolygonCoordinate
+import io.customer.geofence.polygon.PolygonDwellWakeOwner
+import io.customer.geofence.polygon.PolygonDwellWakeRestore
 import io.customer.geofence.polygon.PolygonGeofenceServiceController
 import io.customer.geofence.polygon.PolygonSupport
 import io.customer.geofence.store.GeofenceRegionStore
@@ -91,7 +93,7 @@ class GeofenceRepositoryTest : RobolectricTest() {
         repository = buildRepository()
     }
 
-    private fun buildRepository() = GeofenceRepositoryImpl(
+    private fun buildRepository(dwellWakeOwner: PolygonDwellWakeOwner? = null) = GeofenceRepositoryImpl(
         apiService = apiService,
         store = store,
         distanceFilter = distanceFilter,
@@ -106,8 +108,90 @@ class GeofenceRepositoryTest : RobolectricTest() {
         polygonController = polygonController,
         dwellCoordinator = dwellCoordinator,
         // Matches the production graph; otherwise polygon tests take the fail-closed path.
-        polygonSupport = PolygonSupport.Enabled
+        polygonSupport = PolygonSupport.Enabled,
+        dwellWakeOwner = dwellWakeOwner
     )
+
+    @Test
+    fun refresh_givenCleanupNeededWithAFreshAnchor_expectLocalBaselineInsteadOfSkip() = runTest {
+        val region = prepareDwellWakeRefresh()
+        val owner = mockk<PolygonDwellWakeOwner>(relaxed = true)
+        every { owner.needsRestorePass() } returns true
+        coEvery { owner.restoreStaleHoldingGate(any(), any()) } returns
+            PolygonDwellWakeRestore.Known(setOf(region.id))
+        val skipped = slot<Set<String>>()
+        coEvery { manager.replaceGeofences(any(), capture(skipped)) } returns Result.success(Unit)
+
+        buildRepository(owner).refresh(0.0, 0.0).isSuccess shouldBeEqualTo true
+
+        coVerify(exactly = 0) { apiService.fetchGeofences(any()) }
+        skipped.captured shouldNotContain region.id
+        coVerify { owner.restoreStaleHoldingGate(null, match { it?.get(region.id) == region }) }
+        verify { owner.forgetHoldingGate(setOf(region.id)) }
+    }
+
+    @Test
+    fun refresh_givenUnreadableWakeRecordsAndFailedStaleRemoval_expectRecoveryKeptUntilRemovalSucceeds() = runTest {
+        val region = prepareDwellWakeRefresh()
+        every { store.getRegisteredIds() } returns setOf(region.id, "retired", GeofenceConstants.MOVEMENT_TRIGGER_ID)
+        val owner = mockk<PolygonDwellWakeOwner>(relaxed = true)
+        every { owner.needsRestorePass() } returns true
+        coEvery { owner.restoreStaleHoldingGate(any(), any()) } returns PolygonDwellWakeRestore.Unknown
+        val skipped = slot<Set<String>>()
+        coEvery { manager.replaceGeofences(any(), capture(skipped)) } returns Result.success(Unit)
+        var removalSucceeds = false
+        coEvery { manager.removeGeofencesByIds(listOf("retired")) } answers {
+            if (removalSucceeds) Result.success(Unit) else Result.failure(IOException("no GMS confirmation"))
+        }
+        val subject = buildRepository(owner)
+
+        subject.refresh(0.0, 0.0).isSuccess shouldBeEqualTo true
+
+        skipped.captured shouldNotContain region.id
+        verify(exactly = 0) { owner.forgetHoldingGate(null) }
+        removalSucceeds = true
+        subject.refresh(0.0, 0.0).isSuccess shouldBeEqualTo true
+        verify(exactly = 1) { owner.forgetHoldingGate(null) }
+    }
+
+    @Test
+    fun refresh_givenAWantedWakeAndFreshAnchor_expectNativeTimerUntouched() = runTest {
+        prepareDwellWakeRefresh()
+        val owner = mockk<PolygonDwellWakeOwner>(relaxed = true)
+        every { owner.needsRestorePass() } returns false
+
+        buildRepository(owner).refresh(0.0, 0.0).isSuccess shouldBeEqualTo true
+
+        coVerify(exactly = 0) { manager.replaceGeofences(any(), any()) }
+        coVerify(exactly = 0) { manager.removeGeofencesByIds(any()) }
+        coVerify(exactly = 0) { owner.restoreStaleHoldingGate(any(), any()) }
+        verify(exactly = 0) { owner.forgetHoldingGate(any()) }
+    }
+
+    private fun prepareDwellWakeRefresh(): GeofenceRegion {
+        val region = GeofenceRegion(
+            "dwell-polygon",
+            0.002,
+            0.0,
+            100f,
+            polygonVertices = listOf(
+                PolygonCoordinate(0.0015, -0.0005),
+                PolygonCoordinate(0.0015, 0.0005),
+                PolygonCoordinate(0.0025, 0.0005),
+                PolygonCoordinate(0.0025, -0.0005)
+            ),
+            dwellThresholdSeconds = 60
+        )
+        every { secureUserStore.getUserId() } returns "user-42"
+        every { store.getLastSyncTimestamp() } returns System.currentTimeMillis() - 60_000L
+        every { store.getCachedConfig() } returns sampleConfig()
+        every { store.getCachedRegions() } returns listOf(region)
+        every { store.getRegisteredIds() } returns setOf(region.id, GeofenceConstants.MOVEMENT_TRIGGER_ID)
+        every { store.getLastApiFetchLocation() } returns GeofenceLocation(0.0, 0.0)
+        every { store.getLastMovementTriggerLocation() } returns GeofenceLocation(0.0, 0.0)
+        every { distanceFilter.nearest(any(), any(), any(), any(), any()) } returns listOf(region)
+        return region
+    }
 
     @Test
     fun refresh_givenRecentSuccessfulSyncAndNotForced_expectSkipApiCall() = runTest {

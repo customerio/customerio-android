@@ -226,14 +226,65 @@ class DwellReplayTest : ReplayTestSupport() {
         rows.single { it.transition == Event.GeofenceTransition.EXIT }.visitId shouldBeEqualTo dwellVisitId
     }
 
+    @Test
+    fun replay_whenSuspendedPastPolygonThreshold_thenWakeOutsidePolygonInsideCircleEmitsNoDwell() = runTest {
+        polygonWakeAfterSuspension(
+            OUTSIDE_SQUARE_LATITUDE,
+            queued(292, "dwell", 0),
+            // The wake fix was judged, not ignored: it ends the visit at its own time.
+            queued(292, "exit", 1, "\"timestampAt\":290,\"enteredAtAt\":30,\"visitDurationSeconds\":260,\"hasVisitId\":true")
+        )
+    }
+
+    @Test
+    fun replay_whenSuspendedPastPolygonThreshold_thenPreciseInsideWakeEmitsOneDwellAtFixTime() = runTest {
+        val rows = polygonWakeAfterSuspension(
+            CENTRE_LATITUDE,
+            queued(292, "dwell", 1, "\"timestampAt\":290,\"enteredAtAt\":30,\"dwellThresholdSeconds\":60,\"dwellDurationSeconds\":260,\"hasVisitId\":true"),
+            // A later decisive inside fix in the same visit adds nothing.
+            passive(300, CENTRE_LATITUDE),
+            queued(300, "dwell", 1, "\"timestampAt\":290")
+        )
+        // ENTER is queued before the coordinator opens the visit, so only DWELL carries its ID.
+        val dwellVisitId = checkNotNull(rows.single { it.transition == Event.GeofenceTransition.DWELL }.visitId)
+        dwellVisitId shouldBeEqualTo checkNotNull(SDKComponent.android().geofenceRegionStore.getDwellVisit("B")).visitId
+    }
+
+    /**
+     * Arrival observed through the polygon route: the coarse ENTER at 20 carries a fix inside the wake
+     * circle but decisively outside the ring, which is outside proof; a precise inside fix enters at 30.
+     * Suspended 40 to 200, so the 90 s deadline passes while the app cannot run; 280 is past any delay
+     * resumed with its remaining time. No fix arrives between 30 and 292, so only the wake fix may prove dwell.
+     */
+    private suspend fun polygonWakeAfterSuspension(wakeLatitude: Double, vararg outcome: String) = replay(
+        callback(20, "enter", latitude = OUTSIDE_SQUARE_LATITUDE),
+        // Circle presence is not polygon presence.
+        queued(20, "enter", 0),
+        passive(30, CENTRE_LATITUDE),
+        queued(30, "enter", 1, "\"timestampAt\":30"),
+        """{"k":"when","at":40,"ev":"app.suspend"}""",
+        queued(150, "dwell", 0),
+        """{"k":"when","at":200,"ev":"app.resume"}""",
+        queued(280, "dwell", 0),
+        // Received at 292, taken at 290.
+        passive(292, wakeLatitude, age = 2),
+        *outcome,
+        // A circle EXIT 5 km away is not polygon outside proof; the fix at 20 supplies it.
+        outsideProven = false,
+        polygon = SQUARE
+    )
+
     private suspend fun replay(
         vararg records: String,
         threshold: Long? = 60,
         geosets: String = "[\"7\"]",
-        outsideProven: Boolean = true
+        outsideProven: Boolean = true,
+        // GeoJSON outer ring; latitude/longitude/radius then serve as its enclosing wake circle.
+        polygon: String? = null
     ): List<PendingGeofenceDelivery> {
+        val shape = polygon?.let { ",\"geometry\":{\"type\":\"Polygon\",\"coordinates\":[$it]}" } ?: ""
         val dwell = threshold?.let { ",\"dwellThresholdSeconds\":$it" } ?: ""
-        val fence = """{"id":"B","name":"Synthetic dwell","latitude":10.04510,"longitude":20.0,"radius":250,"transitionTypes":["enter","exit"],"geosetIds":$geosets$dwell}"""
+        val fence = """{"id":"B","name":"Synthetic dwell","latitude":10.04510,"longitude":20.0,"radius":250,"transitionTypes":["enter","exit"],"geosetIds":$geosets$dwell$shape}"""
         val scenario = ScenarioLoader.load(
             scenarioFile(
                 header("synthetic-dwell", sourceKind = "authored"),
@@ -254,6 +305,8 @@ class DwellReplayTest : ReplayTestSupport() {
         assertTrue(result.assertionFailures.joinToString("\n"), result.assertionFailures.isEmpty())
         api.fetchAccounting() shouldBeEqualTo null
         SDKComponent.android().geofenceRegionStore.getCachedRegion("B")?.dwellThresholdSeconds shouldBeEqualTo (threshold?.toInt() ?: 0)
+        // A polygon fixture that silently fell back to the circle path would pass for the wrong reason.
+        SDKComponent.android().geofenceRegionStore.getCachedRegion("B")?.isPolygon shouldBeEqualTo (polygon != null)
         return SDKComponent.android().pendingGeofenceDeliveryStore.loadAll()
     }
 
@@ -265,5 +318,19 @@ class DwellReplayTest : ReplayTestSupport() {
     private fun queued(at: Int, transition: String, count: Int, properties: String = ""): String {
         val fields = properties.takeIf { it.isNotEmpty() }?.let { ",$it" } ?: ""
         return """{"k":"then","at":$at,"ev":"delivery.queued","id":"B","t":"$transition","count":$count$fields}"""
+    }
+
+    private fun passive(at: Int, latitude: Double, age: Int = 0) =
+        """{"k":"when","at":$at,"ev":"polygon.passive.received","lat":$latitude,"lon":20.0,"acc":10,"age":$age}"""
+
+    private companion object {
+        const val CENTRE_LATITUDE = 10.04510
+
+        // 66 m north of the ring and 232 m from B's centre: outside the polygon, inside its 250 m wake circle.
+        const val OUTSIDE_SQUARE_LATITUDE = 10.04720
+
+        // GeoJSON [lon, lat] outer ring, closed and counter-clockwise: a ~330 m square on B's centre, about
+        // 164 m from it to each edge, whose ~234 m half-diagonal fits the 250 m wake circle.
+        const val SQUARE = "[[19.9985,10.0436],[20.0015,10.0436],[20.0015,10.0466],[19.9985,10.0466],[19.9985,10.0436]]"
     }
 }

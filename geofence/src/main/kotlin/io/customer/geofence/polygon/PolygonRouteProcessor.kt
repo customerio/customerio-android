@@ -86,7 +86,12 @@ internal data class PolygonRouteOutcome(
     val detections: List<PolygonTransitionDetection>,
     val records: List<PolygonRouteRecord>,
     /** Fences this fix decisively placed the device outside of. See [PolygonEvidenceResult.provesOutside]. */
-    val provenOutsideIds: Set<String> = emptySet()
+    val provenOutsideIds: Set<String> = emptySet(),
+    /**
+     * Fences skipped because this fix answers a request (`answersHeldFixAt`) with the very fix they
+     * last judged, so it shows them nothing new. A fence that a newer fix has judged since is not listed.
+     */
+    val echoedFixIds: Set<String> = emptySet()
 )
 
 internal class PolygonRouteProcessor(
@@ -134,10 +139,18 @@ internal class PolygonRouteProcessor(
 
         val records = mutableListOf<PolygonRouteRecord>()
         val provenOutsideIds = mutableSetOf<String>()
+        val echoedFixIds = mutableSetOf<String>()
         val detections = fences.mapNotNull { fence ->
             val latest = latestElapsedRealtimeNanos[fence.id]
             val answersHold = answersHeldFixAt == elapsedRealtimeNanos && isHeldFix(fence.id, elapsedRealtimeNanos)
-            if (latest != null && elapsedRealtimeNanos <= latest && !answersHold) return@mapNotNull null
+            if (latest != null && elapsedRealtimeNanos <= latest && !answersHold) {
+                // The stamps must be equal, not merely not newer: once another fix has been judged,
+                // this fence's verdict no longer rests on the echoed fix.
+                if (answersHeldFixAt == elapsedRealtimeNanos && latest == elapsedRealtimeNanos) {
+                    echoedFixIds += fence.id
+                }
+                return@mapNotNull null
+            }
             latestElapsedRealtimeNanos[fence.id] = elapsedRealtimeNanos
             val committedState = committedStates[fence.id] ?: PolygonCommittedState.OUTSIDE
             val result = accuracyEvaluator.decisiveEvidenceFor(fence.geometry, sample, committedState)
@@ -241,7 +254,7 @@ internal class PolygonRouteProcessor(
             )
             PolygonTransitionDetection(fence.id, transition, fence.regionRevision)
         }
-        return PolygonRouteOutcome(detections, records, provenOutsideIds)
+        return PolygonRouteOutcome(detections, records, provenOutsideIds, echoedFixIds)
     }
 
     /** Returns the ids that were still holding an arrival. */

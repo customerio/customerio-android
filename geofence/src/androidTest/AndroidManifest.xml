@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Instrumentation only: merged into this module's test APK, never into the library AAR or a host app. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <!-- Geofencing needs it from API 29. Granted only to this test APK, by the probe run. -->
+    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
+
+    <application>
+        <!-- Not exported: only GMS, through this APK's own PendingIntent, delivers to it. -->
+        <receiver
+            android:name="io.customer.geofence.probe.NativeDwellProbeReceiver"
+            android:exported="false" />
+    </application>
+</manifest>

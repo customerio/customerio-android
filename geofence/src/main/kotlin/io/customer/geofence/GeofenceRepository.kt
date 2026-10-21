@@ -7,6 +7,8 @@ import io.customer.geofence.api.toCatalogEntries
 import io.customer.geofence.api.toDomainConfig
 import io.customer.geofence.api.toDomainRegions
 import io.customer.geofence.polygon.PolygonBootSessionProvider
+import io.customer.geofence.polygon.PolygonDwellWakeOwner
+import io.customer.geofence.polygon.PolygonDwellWakeRestore
 import io.customer.geofence.polygon.PolygonGeofenceServiceController
 import io.customer.geofence.polygon.PolygonSupport
 import io.customer.geofence.store.GeofenceRegionStore
@@ -78,7 +80,11 @@ internal class GeofenceRepositoryImpl(
     private val dwellCoordinator: GeofenceDwellCoordinator? = null,
     // Same instance the request builder and the ranker hold, so a polygon that is asked for is also
     // mapped, ranked and registered, or none of the three.
-    private val polygonSupport: PolygonSupport = PolygonSupport.Disabled
+    private val polygonSupport: PolygonSupport = PolygonSupport.Disabled,
+    // Shared with polygon dwell wakes, whose GMS writes must not interleave with registration.
+    private val registrationGate: GeofenceRegistrationGate = GeofenceRegistrationGate(),
+    // Null leaves dwell wakes out: nothing arms one, so registration has none to undo.
+    private val dwellWakeOwner: PolygonDwellWakeOwner? = null
 ) : GeofenceRepository {
 
     // One pass at a time: a duplicate for the in-flight session drops, others wait. Released in
@@ -88,8 +94,13 @@ internal class GeofenceRepositoryImpl(
     // A pass only arms routing for its own generation, so a newer session must not treat it as theirs.
     private val inFlightUserStateGeneration = AtomicLong(NO_SESSION)
 
-    // Serializes state writes against reset(). Never held across the API call.
-    private val stateMutex = Mutex()
+    // Serializes state writes against reset(), and registration writes against dwell wakes. Never
+    // held across the API call.
+    private val stateMutex: Mutex = registrationGate.mutex
+
+    // Polygons the pass holding stateMutex must re-add however unchanged: their circle may still
+    // carry a dwell wake no longer wanted. Written and read only under stateMutex.
+    private var dwellWakeBaselineForDiff: Set<String> = emptySet()
 
     private fun tryTakeRefreshSlot(): Boolean = refreshInProgress.compareAndSet(false, true)
 
@@ -228,6 +239,9 @@ internal class GeofenceRepositoryImpl(
             // Else a fresh-cache launch after a reboot or app update would SKIP: registeredIds
             // survive but GMS state doesn't.
             osStateWiped() -> RefreshAction.LOCAL
+            // Only a registration pass undoes a dwell wake no longer wanted, or one unreadable records
+            // may hide, so an opted-out fresh launch must not skip. A wanted wake still skips.
+            dwellWakeOwner?.needsRestorePass() == true -> RefreshAction.LOCAL
             else -> RefreshAction.SKIP
         }
     }
@@ -437,8 +451,25 @@ internal class GeofenceRepositoryImpl(
             containmentEpoch = store.containmentEpoch(),
             // The device may have moved while off.
             fixSource = FixSource.ANCHOR,
-            register = manager::replaceGeofencesForBootRestore
+            register = ::registerForBootRestore
         )
+    }
+
+    /**
+     * Unlike the business diff, this re-sends every requested region even when no wipe is detected,
+     * so each requested polygon GMS confirmed re-added normally lost any dwell wake. Forgotten here,
+     * holding the gate as the diff's pre-removal does, because the pass's own forget counts only what
+     * the diff would send. Stale-removal and unreadable records wait for the pass's confirmed removals.
+     */
+    @RequiresPermission(Manifest.permission.ACCESS_FINE_LOCATION)
+    private suspend fun registerForBootRestore(regions: List<GeofenceRegion>): Result<Unit> {
+        val result = manager.replaceGeofencesForBootRestore(regions)
+        if (result.isSuccess) {
+            dwellWakeOwner?.forgetHoldingGate(
+                regions.filter(GeofenceRegion::isPolygon).mapTo(mutableSetOf(), GeofenceRegion::id)
+            )
+        }
+        return result
     }
 
     @RequiresPermission(Manifest.permission.ACCESS_FINE_LOCATION)
@@ -544,7 +575,8 @@ internal class GeofenceRepositoryImpl(
         val existingBusinessIds = if (osStateWiped) {
             emptySet()
         } else {
-            unchangedRegisteredIds(regions)
+            // A circle that may still carry an unwanted dwell wake is re-added, however unchanged.
+            unchangedRegisteredIds(regions) - dwellWakeBaselineForDiff
         }
         if (!osStateWiped) {
             val registeredBusinessIds = store.getRegisteredIds() - GeofenceConstants.MOVEMENT_TRIGGER_ID
@@ -563,6 +595,8 @@ internal class GeofenceRepositoryImpl(
             if (preRemove.isNotEmpty()) {
                 val removal = manager.removeGeofencesByIds(preRemove)
                 if (removal.isFailure) return removal
+                // Confirmed gone, so any dwell wake these circles carried went with them.
+                dwellWakeOwner?.forgetHoldingGate(preRemove.toSet())
                 // Persisted now, not on add success like the stale cleanup below: GMS has already
                 // dropped these, and the store must mirror the OS whatever the add does next.
                 val remainingIds = store.getRegisteredIds() - preRemove.toSet()
@@ -693,6 +727,20 @@ internal class GeofenceRepositoryImpl(
                 store.saveRoutableRegisteredIds(emptySet())
                 polygonController?.stopAll()
             }
+            // Before the diff: a circle may still carry a dwell wake no longer wanted, which the
+            // restore undoes or names, and unreadable records may hide one on any polygon. Wakes
+            // still wanted are kept, so an unchanged sync leaves them armed.
+            val requestedPolygonIds = regionsToRegister.filter(GeofenceRegion::isPolygon)
+                .mapTo(mutableSetOf(), GeofenceRegion::id)
+            // Also judged against this pass's selection: the cache still holds the previous catalog.
+            val dwellWakeRestore = dwellWakeOwner?.restoreStaleHoldingGate(
+                incoming = regionsToRegister.filter(GeofenceRegion::isPolygon).associateBy(GeofenceRegion::id)
+            )
+            val dwellWakeBaselineIds: Set<String> = when (dwellWakeRestore) {
+                null -> emptySet()
+                PolygonDwellWakeRestore.Unknown -> requestedPolygonIds
+                is PolygonDwellWakeRestore.Known -> dwellWakeRestore.needingBaseline
+            }
             // Synthesis baseline, before register/persist mutate the store. No reboot override: a
             // reboot re-registers with INITIAL_TRIGGER_ENTER, so the OS re-reports these itself.
             val unchangedRegistered = unchangedRegisteredIds(nearest)
@@ -719,8 +767,21 @@ internal class GeofenceRepositoryImpl(
             val reRegisteredIds = nearest.map { it.id }
                 .filter { it in previouslyRegistered && it !in unchangedRegistered }
                 .toSet()
-            val registrationResult = register(regionsToRegister)
+            // What the business diff sends; boot restore sends every polygon, so this never overclaims.
+            val reAddedPolygonIds: Set<String> = when {
+                dwellWakeOwner == null -> emptySet()
+                osStateWasWiped -> requestedPolygonIds
+                else -> requestedPolygonIds - (unchangedRegisteredIds(regionsToRegister) - dwellWakeBaselineIds)
+            }
+            dwellWakeBaselineForDiff = dwellWakeBaselineIds
+            val registrationResult = try {
+                register(regionsToRegister)
+            } finally {
+                dwellWakeBaselineForDiff = emptySet()
+            }
             if (registrationResult.isSuccess) {
+                // GMS confirmed these re-added normally, which drops any wake they carried.
+                dwellWakeOwner?.forgetHoldingGate(reAddedPolygonIds)
                 val newIds = regionsToRegister.map { it.id }.toSet()
                 // Stamped only now that GMS has confirmed the add, and whoever owns the session: a
                 // callback the replaced registration produced must carry an older triggering fix.
@@ -775,6 +836,13 @@ internal class GeofenceRepositoryImpl(
                     manager.removeGeofencesByIds(staleIds.toList()).isSuccess
                 } else {
                     true
+                }
+                // Confirmed removals take their wakes with them. Unreadable records go only now, once
+                // every polygon the store holds was re-added normally or removed.
+                if (staleRemovalSucceeded && dwellWakeRestore == PolygonDwellWakeRestore.Unknown) {
+                    dwellWakeOwner?.forgetHoldingGate(null)
+                } else if (staleRemovalSucceeded && staleIds.isNotEmpty()) {
+                    dwellWakeOwner?.forgetHoldingGate(staleIds)
                 }
                 if (!sessionStillCurrent()) {
                     retainCleanupOnly(newIds + if (staleRemovalSucceeded) emptySet() else staleIds)
@@ -1027,6 +1095,9 @@ internal class GeofenceRepositoryImpl(
         // removal. Cached regions and config survive; the freshness stamp is dropped so the next
         // login re-fetches.
         manager.clearAll().also { result ->
+            // A confirmed clear takes every wake with it; on failure the records stay for a later
+            // restore to undo.
+            if (result.isSuccess) dwellWakeOwner?.forgetHoldingGate(null)
             if (polygonController != null) {
                 polygonController.completeUserReset(
                     expectedUserStateGeneration = resetGeneration,

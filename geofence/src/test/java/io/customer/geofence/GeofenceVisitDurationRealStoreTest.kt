@@ -781,7 +781,7 @@ class GeofenceVisitDurationRealStoreTest : RobolectricTest() {
         regionStore,
         processor(),
         mockk<Clock>(relaxed = true),
-        PolygonBootSessionProvider { bootSessionId }
+        bootSessionProvider = PolygonBootSessionProvider { bootSessionId }
     )
 
     private fun pipeline(

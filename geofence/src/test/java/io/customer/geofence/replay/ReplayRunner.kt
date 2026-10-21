@@ -95,8 +95,18 @@ internal class ReplayRunner(
                 assertDelivery(record)?.let(assertionFailures::add)
                 continue
             }
+            // A suspended app takes no input. Queuing one for resume would misdate it, so it is
+            // reported, not delivered.
+            if (gate.suspended && record.ev !in EXECUTION_STARTS) {
+                unsupported.add(Unsupported(record.ev, record.at))
+                continue
+            }
             when (record.ev) {
                 "process.start" -> {
+                    // Clocks first: a process started while suspended begins at the current time.
+                    // The closing pump runs the old coroutines' cancellation, which withdraws
+                    // their held answers.
+                    if (gate.suspended) resumeRuntime()
                     if (processStarted) runtime = reenterProcess()
                     processStarted = true
                 }
@@ -122,8 +132,20 @@ internal class ReplayRunner(
 
                 "app.foreground" -> runtime.foreground.onForeground()
 
-                // Host background cancellation is not modeled by this composition.
+                // Host background cancellation is not modeled by this composition. Backgrounding
+                // never suspends execution; only `app.suspend` does.
                 "app.background" -> Unit
+
+                "app.suspend" -> gate.suspendExecution()
+
+                "app.resume" ->
+                    if (gate.suspended) {
+                        resumeRuntime()
+                        // Answers that came due while suspended arrive now, in recorded order.
+                        gate.advanceTo(gate.virtualNow()) { pump() }
+                    } else {
+                        unsupported.add(Unsupported(record.ev, record.at))
+                    }
 
                 "identity.changed" -> {
                     val signedIn = record.boolean("ok") ?: true
@@ -167,8 +189,7 @@ internal class ReplayRunner(
                         if (!freshFix.deliver(fix)) unanswered.add(record.at)
                     }
 
-                // A fix another app requested, on the geofence scope as `PolygonPassiveReceiver`
-                // runs it.
+                // A passively observed fix, on the geofence scope as `PolygonPassiveReceiver` runs it.
                 "polygon.passive.received" ->
                     record.triggeringFix(gate.clock.elapsedRealtime())?.let { fix ->
                         runtime.scope.launch { PolygonPassiveReceiver().handleFix(fix) }
@@ -193,6 +214,8 @@ internal class ReplayRunner(
      * own clock, so the scheduler advances by the same amount; otherwise a `delay()` never resumes.
      */
     private fun pump() {
+        // Suspended: nothing runs and the scheduler stands still (see [resumeRuntime]).
+        if (gate.suspended) return
         val now = gate.virtualNow()
         val advanceMillis = ((now - pumpedThrough) * 1000).toLong()
         // `advanceTimeBy` stops short of the instant it lands on; `runCurrent` takes what is due there.
@@ -203,6 +226,22 @@ internal class ReplayRunner(
         }
         syncSystemClock()
         scheduler.runCurrent()
+    }
+
+    /**
+     * Ends a suspension, clocks first, so answers that came due meanwhile read resume time.
+     *
+     * Narrow model: delays are monotonic, as in Android deep sleep, where Handler and coroutine
+     * `delay` follow uptime/CLOCK_MONOTONIC while wall time and `elapsedRealtime` keep counting.
+     * The scheduler skips the suspended gap: a pending delay keeps its remaining time, and any
+     * delay scheduled from here starts at resume. Catching up with `advanceTimeBy` would run each
+     * overdue task, and every retry it schedules, at pre-resume deadlines. Freezer-style overdue
+     * firing, where uptime keeps counting, is not modeled.
+     */
+    private fun resumeRuntime() {
+        gate.resumeExecution()
+        pumpedThrough = gate.virtualNow()
+        syncSystemClock()
     }
 
     /**
@@ -226,5 +265,8 @@ internal class ReplayRunner(
 
         // `GeofenceLogTail.FixSource` has no member for it: `GeofenceLogger` logs it as a literal.
         const val ARRIVAL_FIX_SOURCE = "bus"
+
+        /** A suspended app takes only these: one resumes it, the other replaces its process. */
+        val EXECUTION_STARTS = setOf("app.resume", "process.start")
     }
 }

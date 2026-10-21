@@ -22,6 +22,8 @@ import kotlinx.coroutines.sync.withLock
  * [undecidedPolygonIds], [pendingArrivalPolygonIds] and [dwellUnprovenPolygonIds] cue a better-fix
  * request; an aborted pass reports none. [evaluatedPolygonIds] is every fence judged: one skipped
  * because the fix is not newer is in no set, so absence from [undecidedPolygonIds] is not a decision.
+ * The exception is [echoedFixPolygonIds]: fences skipped because a requested fix (`answersHeldFixAt`)
+ * came back as the very fix they last judged, with no newer fix judged since.
  *
  * [dwellUnprovenPolygonIds] are entered polygons whose latest judged fix kept them INSIDE without
  * placing its whole accuracy circle inside the ring, while their unemitted visit had already lasted
@@ -32,7 +34,8 @@ internal data class PolygonEvaluationOutcome(
     val undecidedPolygonIds: Set<String>,
     val pendingArrivalPolygonIds: Set<String> = emptySet(),
     val evaluatedPolygonIds: Set<String> = emptySet(),
-    val dwellUnprovenPolygonIds: Set<String> = emptySet()
+    val dwellUnprovenPolygonIds: Set<String> = emptySet(),
+    val echoedFixPolygonIds: Set<String> = emptySet()
 ) {
     internal companion object {
         val NOTHING = PolygonEvaluationOutcome(acceptedFix = false, undecidedPolygonIds = emptySet())
@@ -48,7 +51,9 @@ internal class PolygonLocationEngine(
     private val transitionProcessor: GeofenceBusinessTransitionProcessor,
     private val clock: Clock,
     private val logger: GeofenceLogger,
-    private val dwellCoordinator: GeofenceDwellCoordinator? = null
+    private val dwellCoordinator: GeofenceDwellCoordinator? = null,
+    /** Experimental dwell wake. Null skips its cues and the visit reads that feed them. */
+    private val dwellWakeOwner: PolygonDwellWakeOwner? = null
 ) {
     private val routeProcessor = PolygonRouteProcessor()
     private var sessionStartElapsedRealtimeNanos: Long? = null
@@ -74,7 +79,25 @@ internal class PolygonLocationEngine(
         val elapsedRealtimeNanos: Long
     )
 
+    /**
+     * Bumped by every [stop]. A pass tied to a session through `expectedStopEpoch` refuses to act once
+     * it moves. A stop and a re-activation while that pass waited for the processing mutex or the
+     * outbox recovery leave the user generation and the active set unchanged, so neither reveals it.
+     */
+    private var stopEpoch: Long = 0L
+
+    /** Callers read it under their own lock with their teardown check, so both name one session. */
+    fun stopEpoch(): Long = synchronized(stateLock) { stopEpoch }
+
+    /** Null never refuses: ordinary passes are not tied to a session and behave as before. */
+    private fun stoppedSinceLocked(expectedStopEpoch: Long?): Boolean =
+        expectedStopEpoch != null && expectedStopEpoch != stopEpoch
+
+    private fun stoppedSince(expectedStopEpoch: Long?): Boolean =
+        expectedStopEpoch != null && synchronized(stateLock) { stoppedSinceLocked(expectedStopEpoch) }
+
     fun stop(): Set<String> = synchronized(stateLock) {
+        stopEpoch += 1
         routeProcessor.clear().also {
             geometryCache.clear()
             provenOutside.clear()
@@ -154,23 +177,32 @@ internal class PolygonLocationEngine(
     fun deactivate(polygonId: String): Set<String> =
         synchronized(stateLock) { resetEvidenceLocked(polygonId) }
 
+    /**
+     * [expectedStopEpoch], read from [stopEpoch], ties the pass to the session its caller validated:
+     * any [stop] since then refuses it at every later check, including after the outbox recovery it
+     * awaits. Null for ordinary passes, which behave as before.
+     */
     suspend fun processResponsiveLocation(
         location: Location,
         expectedUserStateGeneration: Long = store.userStateGeneration(),
-        answersHeldFixAt: Long? = null
+        answersHeldFixAt: Long? = null,
+        expectedStopEpoch: Long? = null
     ): PolygonEvaluationOutcome = processLocations(
         locations = listOf(location),
         expectedUserStateGeneration = expectedUserStateGeneration,
-        answersHeldFixAt = answersHeldFixAt
+        answersHeldFixAt = answersHeldFixAt,
+        expectedStopEpoch = expectedStopEpoch
     )
 
+    // A refusal after a stop is logged as a session change: the stop ended the session the pass began in.
     private suspend fun processLocations(
         locations: List<Location>,
         expectedUserStateGeneration: Long,
-        answersHeldFixAt: Long?
+        answersHeldFixAt: Long?,
+        expectedStopEpoch: Long?
     ): PolygonEvaluationOutcome = processingMutex.withLock {
         if (locations.isEmpty()) return@withLock PolygonEvaluationOutcome.NOTHING
-        if (store.userStateGeneration() != expectedUserStateGeneration) {
+        if (store.userStateGeneration() != expectedUserStateGeneration || stoppedSince(expectedStopEpoch)) {
             logger.logPolygonEvaluationSkipped(PolygonEvaluationSkip.USER_STATE_CHANGED)
             return@withLock PolygonEvaluationOutcome.NOTHING
         }
@@ -184,7 +216,11 @@ internal class PolygonLocationEngine(
             return@withLock PolygonEvaluationOutcome.NOTHING
         }
         val sessionArmed = synchronized(stateLock) {
-            if (store.userStateGeneration() != expectedUserStateGeneration) {
+            // The recovery above awaits, so a stop may have landed during it. Refused before arming,
+            // because arming would restart the session that stop ended.
+            if (store.userStateGeneration() != expectedUserStateGeneration ||
+                stoppedSinceLocked(expectedStopEpoch)
+            ) {
                 false
             } else {
                 armSessionLocked()
@@ -200,6 +236,7 @@ internal class PolygonLocationEngine(
         val pendingArrivalPolygonIds = mutableSetOf<String>()
         val evaluatedPolygonIds = mutableSetOf<String>()
         val dwellUnprovenPolygonIds = mutableSetOf<String>()
+        val echoedFixPolygonIds = mutableSetOf<String>()
         for (location in locations.sortedBy(Location::getElapsedRealtimeNanos)) {
             if (store.userStateGeneration() != expectedUserStateGeneration) {
                 logger.logPolygonEvaluationSkipped(PolygonEvaluationSkip.USER_STATE_CHANGED)
@@ -216,7 +253,9 @@ internal class PolygonLocationEngine(
             var fixTooOld = false
             var noEvaluableFences = false
             val outcome = synchronized(stateLock) {
-                if (store.userStateGeneration() != expectedUserStateGeneration) {
+                if (store.userStateGeneration() != expectedUserStateGeneration ||
+                    stoppedSinceLocked(expectedStopEpoch)
+                ) {
                     userStateChanged = true
                     null
                 } else if (!isCurrentSessionFixLocked(fix.elapsedRealtimeNanos)) {
@@ -285,9 +324,15 @@ internal class PolygonLocationEngine(
             val marginallyInsideThisFix =
                 insideThisFix.mapTo(mutableSetOf(), PolygonRouteRecord::geofenceId) - decisivelyInsideThisFix
             evaluatedPolygonIds.addAll(evaluatedThisFix)
+            echoedFixPolygonIds.addAll(routeOutcome.echoedFixIds)
             routeOutcome.records.forEach(::emitRouteRecord)
+            // Only a visit this fix starts, emits or ends cues the wake owner; an ordinary fix queues nothing.
+            val dwellWakeCues = DwellWakeCues()
             routeOutcome.detections.forEach { detection ->
-                if (store.userStateGeneration() != expectedUserStateGeneration) {
+                val visitBefore = visitMarkerOrNull(detection.polygonId)
+                if (store.userStateGeneration() != expectedUserStateGeneration ||
+                    stoppedSince(expectedStopEpoch)
+                ) {
                     logger.logPolygonEvaluationSkipped(PolygonEvaluationSkip.USER_STATE_CHANGED)
                     return@withLock PolygonEvaluationOutcome.NOTHING
                 }
@@ -372,16 +417,24 @@ internal class PolygonLocationEngine(
                         }
                     }
                 }
+                dwellWakeCues.compare(detection.polygonId, visitBefore)
             }
             val observedAtSeconds = observedTimestampSeconds(fix)
             val enteredIds = store.getEnteredIds()
             decisivelyInsideThisFix.filter { it in enteredIds }.forEach { geofenceId ->
+                // Re-checked per fence: the detection commits above await, and this evidence may qualify a dwell.
+                if (stoppedSince(expectedStopEpoch)) {
+                    logger.logPolygonEvaluationSkipped(PolygonEvaluationSkip.USER_STATE_CHANGED)
+                    return@withLock PolygonEvaluationOutcome.NOTHING
+                }
+                val visitBefore = visitMarkerOrNull(geofenceId)
                 dwellCoordinator?.onInsideEvidence(
                     geofenceId,
                     observedAtSeconds,
                     expectedUserStateGeneration,
                     observedAtElapsedMs = fix.elapsedRealtimeNanos / NANOS_PER_MILLISECOND
                 )
+                dwellWakeCues.compare(geofenceId, visitBefore)
             }
             // The latest fix to judge a fence decides whether it still awaits proof, so a later fix in
             // the batch that decided it, or found it no longer inside, withdraws an earlier cue.
@@ -394,14 +447,59 @@ internal class PolygonLocationEngine(
                 ) == true
                 if (awaitsProof) dwellUnprovenPolygonIds += geofenceId
             }
+            // Launched, never joined: this pass holds the processing mutex. An aborted pass cues nothing;
+            // a moved generation fails the owner's own checks, and its teardown restores what was armed.
+            dwellWakeCues.dispatch()
         }
         PolygonEvaluationOutcome(
             acceptedFix = acceptedFix,
             undecidedPolygonIds = undecidedPolygonIds,
             pendingArrivalPolygonIds = pendingArrivalPolygonIds,
             evaluatedPolygonIds = evaluatedPolygonIds,
-            dwellUnprovenPolygonIds = dwellUnprovenPolygonIds
+            dwellUnprovenPolygonIds = dwellUnprovenPolygonIds,
+            // A fence that another fix in the batch judged has a verdict of its own.
+            echoedFixPolygonIds = echoedFixPolygonIds - evaluatedPolygonIds
         )
+    }
+
+    /**
+     * A visit as the wake owner's cues compare it. [awaitsDwell] reads as the owner's pending check
+     * does: a reserved dwell no longer awaits, whether or not its emit mark has landed.
+     */
+    private data class VisitMarker(val visitId: String, val awaitsDwell: Boolean)
+
+    /** What one fix changed for [dwellWakeOwner], so an unchanged visit queues nothing. */
+    private class DwellWakeCues {
+        val pending = mutableSetOf<String>()
+        val settled = mutableSetOf<String>()
+    }
+
+    private fun visitMarkerOrNull(polygonId: String): VisitMarker? {
+        if (dwellWakeOwner == null) return null
+        val visit = store.getDwellVisit(polygonId) ?: return null
+        return VisitMarker(visit.visitId, awaitsDwell = !visit.emitted && visit.dwellReservation == null)
+    }
+
+    /**
+     * A visit that appeared awaiting its dwell is pending. One that existed before and then ended,
+     * stopped awaiting (its first reservation or emit mark), or was replaced is settled; a replacement
+     * is both, so the old wake is undone and the new visit may arm. The owner re-checks both against
+     * the store under its gate.
+     */
+    private fun DwellWakeCues.compare(polygonId: String, before: VisitMarker?) {
+        if (dwellWakeOwner == null) return
+        val after = visitMarkerOrNull(polygonId)
+        if (after != null && after.awaitsDwell && after.visitId != before?.visitId) pending += polygonId
+        val stoppedAwaiting = after?.awaitsDwell == false && before?.awaitsDwell == true
+        if (before != null && (after?.visitId != before.visitId || stoppedAwaiting)) {
+            settled += polygonId
+        }
+    }
+
+    private fun DwellWakeCues.dispatch() {
+        val owner = dwellWakeOwner ?: return
+        settled.forEach { owner.onVisitSettled(it) }
+        pending.forEach { owner.onVisitPending(it) }
     }
 
     private fun observedTimestampSeconds(fix: AndroidPolygonLocationFix): Long {

@@ -2,13 +2,17 @@ package io.customer.geofence.polygon
 
 import android.content.Context
 import android.content.pm.PackageManager
+import android.os.SystemClock
 import androidx.core.content.ContextCompat
 import androidx.work.CoroutineWorker
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkerParameters
+import io.customer.geofence.DwellDiagnosticEvent
+import io.customer.geofence.DwellDiagnosticRecord
 import io.customer.geofence.GeofenceRegion
 import io.customer.geofence.PolygonRecheckSkip
+import io.customer.geofence.di.dwellDiagnosticRecorder
 import io.customer.geofence.di.geofenceLogger
 import io.customer.geofence.di.geofenceRegionStore
 import io.customer.geofence.di.polygonFreshFixSource
@@ -80,6 +84,8 @@ internal class PolygonRecheckWorker(
 ) : CoroutineWorker(appContext, params) {
     override suspend fun doWork(): Result {
         SDKComponent.setupAndroidComponent(context = applicationContext)
+        // First after setup, before any read or await: one record per run, bound to the owner at dispatch.
+        recordWake()
         val logger = SDKComponent.geofenceLogger
         val store = SDKComponent.android().geofenceRegionStore
         // Snapshot before any work, or a teardown or identify landing mid-run would read as current
@@ -152,6 +158,19 @@ internal class PolygonRecheckWorker(
             )
         }
         return Result.success()
+    }
+
+    /** Observational only: a diagnostics failure must not change what this run does. */
+    private fun recordWake() {
+        runCatching {
+            val recorder = SDKComponent.android().dwellDiagnosticRecorder
+            recorder.record(
+                DwellDiagnosticRecord(
+                    event = DwellDiagnosticEvent.WAKE_WORKER,
+                    atElapsedMs = SystemClock.elapsedRealtime()
+                )
+            )
+        }
     }
 
     private fun registeredPolygons(store: GeofenceRegionStore): List<GeofenceRegion> {

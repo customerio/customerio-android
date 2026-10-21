@@ -36,6 +36,25 @@ internal class ReplayBoundaryGate(val clock: VirtualClock) {
     var abandonedAtEnd: List<String> = emptyList()
         private set
 
+    /**
+     * Between `app.suspend` and `app.resume`. Wall and boot time pass but nothing executes, so an
+     * answer due meanwhile is released at resume time, never back-dated to its recorded moment.
+     */
+    var suspended: Boolean = false
+        private set
+
+    /** Boundaries still parked when a scenario ended suspended. Never answered; diagnostic. */
+    var heldAtEnd: List<String> = emptyList()
+        private set
+
+    fun suspendExecution() {
+        suspended = true
+    }
+
+    fun resumeExecution() {
+        suspended = false
+    }
+
     /** An already-due boundary must not park: that keeps [advanceTo] from looping on a re-park. */
     suspend fun awaitVirtual(releaseAt: Double, what: String) {
         if (releaseAt <= clock.elapsedSeconds) return
@@ -56,7 +75,8 @@ internal class ReplayBoundaryGate(val clock: VirtualClock) {
      */
     fun advanceTo(target: Double, pump: () -> Unit) {
         var guard = 0
-        while (true) {
+        // Suspended, the clock still reaches [target], but every answer stays parked until resume.
+        while (!suspended) {
             val next = parked.filter { it.releaseAt <= target }.minByOrNull { it.releaseAt } ?: break
             check(guard++ < MAX_RELEASE_ROUNDS) {
                 "replay: boundary releases did not settle after $MAX_RELEASE_ROUNDS rounds (${next.what})"
@@ -72,6 +92,11 @@ internal class ReplayBoundaryGate(val clock: VirtualClock) {
 
     /** Answers whatever is still parked so the run finishes; a capture can end mid-sync. */
     fun releaseAll(pump: () -> Unit) {
+        // A capture can end suspended: answering now would wake an app the recording never woke.
+        if (suspended) {
+            heldAtEnd = parked.sortedBy { it.releaseAt }.map { it.what }
+            return
+        }
         var guard = 0
         val abandoned = mutableListOf<String>()
         while (parked.isNotEmpty()) {
@@ -93,6 +118,8 @@ internal class ReplayBoundaryGate(val clock: VirtualClock) {
         parked.toList().forEach { it.gate.complete(Unit) }
         parked.clear()
         abandonedAtEnd = emptyList()
+        heldAtEnd = emptyList()
+        suspended = false
     }
 
     companion object {

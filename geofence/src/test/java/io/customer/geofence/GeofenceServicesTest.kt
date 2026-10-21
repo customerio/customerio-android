@@ -179,8 +179,8 @@ class GeofenceServicesTest : RobolectricTest() {
 
     @Test
     fun onUserIdentified_expectSessionOpenedBeforeTheRefresh() = runTest(StandardTestDispatcher()) {
-        // beginUserSession clears routing and the last-sync stamp, so it must run first or the first
-        // OS callback reads an empty routable set and removes every live fence.
+        // The shared session path clears routing, fences acquisition and retires diagnostic tokens
+        // before the refresh. A direct store write would bypass the controller's lifecycle work.
         every { secureUserStore.getUserId() } returns "user-b"
         coEvery { repository.refresh(any(), any()) } returns Result.success(Unit)
         val services = servicesWith(this)
@@ -189,7 +189,7 @@ class GeofenceServicesTest : RobolectricTest() {
         advanceUntilIdle()
 
         coVerifyOrder {
-            regionStore.beginUserSession("user-b")
+            polygonController.beginUserSessionForCurrentUser()
             repository.refresh(1.0, 2.0)
         }
     }
@@ -218,7 +218,7 @@ class GeofenceServicesTest : RobolectricTest() {
         advanceUntilIdle()
 
         coVerifyOrder {
-            regionStore.beginUserSessionIfAbsent("user-a")
+            polygonController.beginUserSessionForCurrentUser()
             repository.refresh(1.0, 2.0)
         }
         verify(exactly = 0) { regionStore.beginUserSession(any()) }

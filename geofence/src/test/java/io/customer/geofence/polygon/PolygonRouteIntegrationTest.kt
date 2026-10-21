@@ -175,6 +175,64 @@ class PolygonRouteIntegrationTest {
     }
 
     @Test
+    fun process_givenARequestedFixThatIsTheFixTheFenceLastJudged_expectItSkippedAsAnEcho() {
+        val processor = PolygonRouteProcessor()
+        val inside = PolygonLocationSample(point(37.7750, -122.4194), 5.0)
+        val committed = mapOf("campus" to PolygonCommittedState.INSIDE)
+        processor.process(
+            fences = listOf(campus),
+            sample = inside,
+            elapsedRealtimeNanos = 1L,
+            fixAgeSeconds = 0.0,
+            committedStates = committed
+        )
+
+        // A request answered with the very fix the fence was judged on shows it nothing new.
+        val answer = processor.process(
+            fences = listOf(campus),
+            sample = inside,
+            elapsedRealtimeNanos = 1L,
+            fixAgeSeconds = 0.0,
+            committedStates = committed,
+            answersHeldFixAt = 1L
+        )
+
+        answer.echoedFixIds shouldBeEqualTo setOf("campus")
+        answer.records.shouldBeEmpty()
+        answer.detections.shouldBeEmpty()
+    }
+
+    @Test
+    fun process_givenARequestedFixAnsweredAfterANewerFixWasJudged_expectNoEcho() {
+        // The request went out for the fix at 1, but a fix at 2 reached the fence first. The verdict
+        // rests on that newer fix, so the late answer is merely old, not proof the spot is futile.
+        val processor = PolygonRouteProcessor()
+        val inside = PolygonLocationSample(point(37.7750, -122.4194), 5.0)
+        val committed = mapOf("campus" to PolygonCommittedState.INSIDE)
+        listOf(1L to inside, 2L to inside.resampled()).forEach { (elapsed, fix) ->
+            processor.process(
+                fences = listOf(campus),
+                sample = fix,
+                elapsedRealtimeNanos = elapsed,
+                fixAgeSeconds = 0.0,
+                committedStates = committed
+            )
+        }
+
+        val answer = processor.process(
+            fences = listOf(campus),
+            sample = inside,
+            elapsedRealtimeNanos = 1L,
+            fixAgeSeconds = 0.0,
+            committedStates = committed,
+            answersHeldFixAt = 1L
+        )
+
+        answer.echoedFixIds.shouldBeEmpty()
+        answer.records.shouldBeEmpty()
+    }
+
+    @Test
     fun process_givenAnArrivalThatDecidesAlone_expectADecidedRecordWithItsEvidence() {
         val record = PolygonRouteProcessor().process(
             fences = listOf(campus),

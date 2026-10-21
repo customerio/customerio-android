@@ -1,5 +1,6 @@
 package io.customer.geofence.replay
 
+import io.customer.geofence.di.geofenceRegionStore
 import io.customer.geofence.di.pendingGeofenceDeliveryStore
 import io.customer.sdk.core.di.SDKComponent
 import kotlinx.coroutines.test.runTest
@@ -196,6 +197,84 @@ class ReplayHarnessTest : ReplayTestSupport() {
         val dropped = replayLogger.emitted().filter { it.ev == "transition.dropped" }
         dropped.any { it.fields["id"] == "GHOST" && it.fields["why"] == "unknown_id" }.shouldBeTrue()
         registrar.calls.any { it == "remove(GHOST)" }.shouldBeTrue()
+    }
+
+    @Test
+    fun replay_givenSuspendedApp_expectHeldFetchAndCallbackNotDeliveredUntilResume() = runTest {
+        val scenario = ScenarioLoader.load(
+            scenarioFile(
+                header("suspended-resume"),
+                """{"k":"when","at":1.0,"ev":"identity.changed","ok":true}""",
+                """{"k":"when","at":1.5,"ev":"location.fix","lat":10.00000,"lon":20.00000,"prov":"bus"}""",
+                """{"k":"when","at":4.0,"ev":"app.suspend"}""",
+                // Answered at 5, while suspended, so the registration waits for resume.
+                """{"k":"given","at":5.0,"ev":"fixture.api.fetch","ok":true,"n":1,"body":[${fenceFarAway("B")}]}""",
+                // A broadcast would have woken the app, so with no recorded resume it is reported.
+                """{"k":"when","at":60.0,"ev":"os.callback","ids":"B","n":1,"t":"enter","lat":10.04510,"lon":20.00000}""",
+                """{"k":"when","at":100.0,"ev":"app.resume"}""",
+                """{"k":"when","at":120.0,"ev":"os.callback","ids":"B","n":1,"t":"enter","lat":10.04510,"lon":20.00000}"""
+            )
+        )
+
+        val result = runner().run(scenario)
+
+        result.unsupported.map { it.ev to it.at } shouldBeEqualTo listOf("os.callback" to 60.0)
+        val emitted = replayLogger.emitted()
+        emitted.count { it.ev == "registration.applied" } shouldBeEqualTo 1
+        // Delivered at 60, the callback would have been dropped: B was not registered until resume.
+        emitted.none { it.ev == "transition.dropped" }.shouldBeTrue()
+        emitted.filter { it.ev == "transition.accepted" }.map { it.fields["id"] } shouldBeEqualTo listOf("B")
+    }
+
+    @Test
+    fun replay_givenCaptureEndsSuspended_expectHeldFetchNeverAnswered() = runTest {
+        val scenario = ScenarioLoader.load(
+            scenarioFile(
+                header("ends-suspended"),
+                """{"k":"when","at":1.0,"ev":"identity.changed","ok":true}""",
+                """{"k":"when","at":1.5,"ev":"location.fix","lat":10.00000,"lon":20.00000,"prov":"bus"}""",
+                """{"k":"when","at":4.0,"ev":"app.suspend"}""",
+                """{"k":"given","at":5.0,"ev":"fixture.api.fetch","ok":true,"n":1,"body":[${fenceFarAway("B")}]}"""
+            )
+        )
+
+        val result = runner().run(scenario)
+
+        result.unsupported shouldBeEqualTo emptyList()
+        // Precondition: a fetch was in flight, so this is not a request never made.
+        boundaryGate.heldAtEnd.isNotEmpty().shouldBeTrue()
+        replayLogger.emitted().none { it.ev == "registration.applied" }.shouldBeTrue()
+    }
+
+    @Test
+    fun replay_givenProcessStartsWhileSuspended_expectOldRuntimeHeldFetchNeverApplied() = runTest {
+        val scenario = ScenarioLoader.load(
+            scenarioFile(
+                header("relaunch-while-suspended"),
+                """{"k":"when","at":0,"ev":"process.start"}""",
+                """{"k":"when","at":0.1,"ev":"module.init","launch":"app_start"}""",
+                """{"k":"when","at":1,"ev":"identity.changed","ok":true}""",
+                """{"k":"when","at":1.5,"ev":"location.fix","lat":10,"lon":20,"prov":"bus"}""",
+                """{"k":"when","at":4,"ev":"app.suspend"}""",
+                // Due while suspended, so held; the process is replaced before any resume.
+                """{"k":"given","at":5,"ev":"fixture.api.fetch","ok":true,"body":[${fenceFarAway("B")}]}""",
+                """{"k":"when","at":10,"ev":"process.start"}""",
+                """{"k":"when","at":10.1,"ev":"module.init","launch":"app_start"}""",
+                """{"k":"when","at":11,"ev":"location.fix","lat":10,"lon":20,"prov":"bus"}""",
+                """{"k":"given","at":13,"ev":"fixture.api.fetch","ok":true,"body":[${fenceFarAway("C")}]}"""
+            )
+        )
+
+        val result = runner().run(scenario)
+
+        result.unsupported shouldBeEqualTo emptyList()
+        // Precondition: the new process fetched and registered, so B's absence is not a dead pipeline.
+        api.fetchAccounting() shouldBeEqualTo null
+        api.fetchCount shouldBeEqualTo 2
+        replayLogger.emitted().filter { it.ev == "registration.applied" }.map { it.geofenceIds() } shouldBeEqualTo listOf(listOf("C"))
+        // The dead runtime's answer reached neither the OS port nor persisted state.
+        registrar.calls.count { it.startsWith("replace(") } shouldBeEqualTo 1
+        SDKComponent.android().geofenceRegionStore.getCachedRegion("B") shouldBeEqualTo null
     }
 
     @Test

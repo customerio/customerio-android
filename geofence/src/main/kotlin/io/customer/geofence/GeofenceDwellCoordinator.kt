@@ -26,8 +26,16 @@ internal class GeofenceDwellCoordinator(
     private val store: GeofenceRegionStore,
     private val transitionProcessor: GeofenceBusinessTransitionProcessor,
     private val clock: Clock,
+    /** Null journals nothing. Before [bootSessionProvider], so a trailing provider lambda still binds to it. */
+    private val diagnosticRecorder: DwellDiagnosticRecorder? = null,
     private val bootSessionProvider: PolygonBootSessionProvider
 ) {
+    /**
+     * The visit and reason [journalUnqualifiedEvidence] last journaled per fence, read and written under
+     * [mutex]. In memory only: it bounds a parked device's per-sample evidence to one record per visit.
+     */
+    private val unqualifiedJournaled = mutableMapOf<String, Pair<String, DwellDiagnosticReason>>()
+
     /**
      * Starts or keeps the visit an ENTER describes. A repeated ENTER keeps the current visit unless
      * it provably follows a lost EXIT (see [departedSince]).
@@ -156,7 +164,7 @@ internal class GeofenceDwellCoordinator(
         triggeringFixElapsedMs: Long?,
         expectedUserStateGeneration: Long = store.userStateGeneration(),
         observedAtElapsedMs: Long? = null
-    ) = mutex.withLock {
+    ) = withLockAndDiagnosticToken withLock@{ diagnosticToken ->
         if (store.userStateGeneration() != expectedUserStateGeneration) return@withLock
         val region = store.getCachedRegion(geofenceId) ?: return@withLock
         if (region.isPolygon || region.dwellThresholdSeconds <= 0) return@withLock
@@ -169,7 +177,7 @@ internal class GeofenceDwellCoordinator(
         }
         val bootSessionId = bootSessionProvider.currentSessionId()
         val atElapsedMs = observedAtElapsedMs ?: clock.elapsedRealtime()
-        var visit = currentVisit(region, bootSessionId)
+        var visit = currentVisit(region, bootSessionId, diagnosticToken)
         // This registration saw the device decisively outside after everything that placed it inside
         // the stored visit, so that stay has ended even though GMS reported no EXIT.
         val outsideAt = incarnation.outsideProvenAtElapsedMs
@@ -183,6 +191,7 @@ internal class GeofenceDwellCoordinator(
                 // so this cannot qualify the new stay. A later EXIT must not date it from that
                 // ENTER either.
                 if (visit != null && visit.entryWasObserved) store.saveDwellVisit(visit.copy(entryWasObserved = false))
+                journalNotAttributed(diagnosticToken, expectedUserStateGeneration, geofenceId)
                 return@withLock
             }
             // GMS delivered dwell only after its loitering delay, so this callback is qualifying
@@ -209,7 +218,10 @@ internal class GeofenceDwellCoordinator(
         // Only a DWELL attributed to this visit shows the device is still here. Elapsed time alone
         // does not: an unattributed EXIT deliberately leaves the visit in place, so the device may
         // have left long ago.
-        if (!belongsTo(visit, triggeringFixElapsedMs)) return@withLock
+        if (!belongsTo(visit, triggeringFixElapsedMs)) {
+            journalNotAttributed(diagnosticToken, expectedUserStateGeneration, geofenceId)
+            return@withLock
+        }
         // belongsTo guarantees a fix. Recorded even once emitted: the device is inside at this fix,
         // so only outside proof after it can end the visit (see [departedSince] and above).
         val insideFix = triggeringFixElapsedMs ?: return@withLock
@@ -224,7 +236,8 @@ internal class GeofenceDwellCoordinator(
             observedAtElapsedMs = atElapsedMs,
             bootSessionId = bootSessionId,
             detectionSource = "native",
-            nativeDwellProvesThreshold = true
+            nativeDwellProvesThreshold = true,
+            diagnosticToken = diagnosticToken
         )
     }
 
@@ -237,13 +250,13 @@ internal class GeofenceDwellCoordinator(
         observedAtSeconds: Long,
         expectedUserStateGeneration: Long = store.userStateGeneration(),
         observedAtElapsedMs: Long? = null
-    ) = mutex.withLock {
+    ) = withLockAndDiagnosticToken withLock@{ diagnosticToken ->
         if (store.userStateGeneration() != expectedUserStateGeneration) return@withLock
         val region = store.getCachedRegion(geofenceId) ?: return@withLock
         if (!region.isPolygon || region.dwellThresholdSeconds <= 0) return@withLock
         val bootSessionId = bootSessionProvider.currentSessionId()
         val atElapsedMs = observedAtElapsedMs ?: clock.elapsedRealtime()
-        var visit = currentVisit(region, bootSessionId)
+        var visit = currentVisit(region, bootSessionId, diagnosticToken)
         if (visit != null && !visit.emitted && visit.enteredAtElapsedMs == null) {
             // Predates timing provenance, so how long it has lasted is unknown. Restart it as a
             // candidate from this evidence rather than trust its wall-clock entry.
@@ -271,12 +284,23 @@ internal class GeofenceDwellCoordinator(
             if (!store.saveDwellVisit(visit)) return@withLock
         }
         // A fix older than the visit's start describes an earlier stay.
-        if (atElapsedMs < (visit.enteredAtElapsedMs ?: atElapsedMs)) return@withLock
+        if (atElapsedMs < (visit.enteredAtElapsedMs ?: atElapsedMs)) {
+            journalNotAttributed(diagnosticToken, expectedUserStateGeneration, geofenceId)
+            return@withLock
+        }
         // Once this visit emitted, later evidence cannot turn it back into a candidate. In
         // particular, a long evidence gap after emission must not reset `emitted` and create a
         // second dwell for the same continuous visit.
         if (visit.emitted) return@withLock
-        emitIfDue(region, visit, observedAtSeconds, atElapsedMs, bootSessionId, "location_evidence")
+        emitIfDue(
+            region,
+            visit,
+            observedAtSeconds,
+            atElapsedMs,
+            bootSessionId,
+            "location_evidence",
+            diagnosticToken = diagnosticToken
+        )
     }
 
     /**
@@ -536,7 +560,12 @@ internal class GeofenceDwellCoordinator(
                 it.bootSessionId == bootSessionProvider.currentSessionId()
         }
 
-    private fun currentVisit(region: GeofenceRegion, bootSessionId: String): GeofenceDwellVisit? {
+    /** With a [diagnosticToken], journals the unemitted candidate this read ends; without one, journals nothing. */
+    private fun currentVisit(
+        region: GeofenceRegion,
+        bootSessionId: String,
+        diagnosticToken: Long? = null
+    ): GeofenceDwellVisit? {
         val visit = store.getDwellVisit(region.id) ?: return null
         val registrationChanged = !region.isPolygon &&
             (
@@ -551,6 +580,16 @@ internal class GeofenceDwellCoordinator(
             GeofenceVisitTiming.isFromAnotherBoot(visit, bootSessionId)
         ) {
             store.removeDwellVisit(region.id)
+            // At the visit's own generation, so one from an earlier session is never journaled into this one.
+            if (!visit.emitted && region.dwellThresholdSeconds > 0) {
+                recordDwellOutcome(
+                    diagnosticToken,
+                    visit.userStateGeneration,
+                    DwellDiagnosticEvent.DWELL_REJECTED,
+                    region.id,
+                    DwellDiagnosticReason.CONTINUITY_LOST
+                )
+            }
             return null
         }
         return visit
@@ -681,6 +720,103 @@ internal class GeofenceDwellCoordinator(
         return durationSeconds
     }
 
+    /**
+     * [mutex], with the diagnostic token read before its await. Callers label the block `withLock@`, so their
+     * bodies return as they did under [withLock]. A clear that retires the token while the call waits for the
+     * lock, or later awaits the processor, drops every record the call makes.
+     */
+    private suspend inline fun <T> withLockAndDiagnosticToken(block: (diagnosticToken: Long?) -> T): T {
+        val diagnosticToken = diagnosticRecorder?.currentToken()
+        return mutex.withLock { block(diagnosticToken) }
+    }
+
+    /**
+     * Journals a dwell outcome for the session at [expectedUserStateGeneration]. Records nothing without a
+     * recorder or token, or once that generation has moved on. Never suspends, logs or calls customer code, so
+     * it runs under [mutex], and a diagnostics failure leaves the decision that reached it unchanged.
+     */
+    private fun recordDwellOutcome(
+        diagnosticToken: Long?,
+        expectedUserStateGeneration: Long,
+        event: DwellDiagnosticEvent,
+        geofenceId: String,
+        reason: DwellDiagnosticReason? = null,
+        dueElapsedMs: Long? = null
+    ) {
+        val recorder = diagnosticRecorder ?: return
+        val token = diagnosticToken ?: return
+        try {
+            if (store.userStateGeneration() != expectedUserStateGeneration) return
+            recorder.record(
+                DwellDiagnosticRecord(
+                    event = event,
+                    atElapsedMs = clock.elapsedRealtime(),
+                    fenceId = geofenceId,
+                    dueElapsedMs = dueElapsedMs,
+                    reason = reason
+                ),
+                token
+            )
+        } catch (e: Exception) {
+            // Diagnostics only: the outcome stands whether or not it is journaled.
+        }
+    }
+
+    /** Evidence, or a native DWELL, that cannot be tied to the current stay, so it proves nothing for its dwell. */
+    private fun journalNotAttributed(diagnosticToken: Long?, expectedUserStateGeneration: Long, geofenceId: String) {
+        recordDwellOutcome(
+            diagnosticToken,
+            expectedUserStateGeneration,
+            DwellDiagnosticEvent.DWELL_REJECTED,
+            geofenceId,
+            DwellDiagnosticReason.NOT_ATTRIBUTED
+        )
+    }
+
+    /**
+     * Why location evidence reserved no dwell, classified from the inputs [reserveDwell] decides on: before the
+     * threshold, or with no duration on this boot's clock. A qualified visit whose reservation failed to save
+     * is a storage outcome, so it is not journaled. Once per visit and reason, as a parked device reports
+     * inside evidence on every sample.
+     */
+    private fun journalUnqualifiedEvidence(
+        region: GeofenceRegion,
+        visit: GeofenceDwellVisit,
+        bootSessionId: String,
+        observedAtElapsedMs: Long,
+        diagnosticToken: Long?
+    ) {
+        if (diagnosticRecorder == null || diagnosticToken == null) return
+        val thresholdMs = region.dwellThresholdSeconds * MILLIS_PER_SECOND
+        val elapsedMs = GeofenceVisitTiming.elapsedMs(visit, bootSessionId, observedAtElapsedMs)
+        val reason = when {
+            elapsedMs == null -> DwellDiagnosticReason.UNTIMED
+            elapsedMs < thresholdMs -> DwellDiagnosticReason.BELOW_THRESHOLD
+            else -> return
+        }
+        val journaled = visit.visitId to reason
+        if (unqualifiedJournaled[region.id] == journaled) return
+        if (unqualifiedJournaled.size >= MAX_UNQUALIFIED_JOURNALED) unqualifiedJournaled.clear()
+        unqualifiedJournaled[region.id] = journaled
+        recordDwellOutcome(
+            diagnosticToken,
+            visit.userStateGeneration,
+            DwellDiagnosticEvent.DWELL_REJECTED,
+            region.id,
+            reason,
+            elapsedMs?.let { observedAtElapsedMs - it + thresholdMs }
+        )
+    }
+
+    /** When [visit] reaches its threshold, on the timeline [reserveDwell] measures; null when unmeasurable. */
+    private fun dueElapsedMs(
+        region: GeofenceRegion,
+        visit: GeofenceDwellVisit,
+        bootSessionId: String,
+        atElapsedMs: Long
+    ): Long? = GeofenceVisitTiming.elapsedMs(visit, bootSessionId, atElapsedMs)
+        ?.let { atElapsedMs - it + region.dwellThresholdSeconds * MILLIS_PER_SECOND }
+
     private suspend fun emitIfDue(
         region: GeofenceRegion,
         visit: GeofenceDwellVisit,
@@ -688,7 +824,8 @@ internal class GeofenceDwellCoordinator(
         observedAtElapsedMs: Long,
         bootSessionId: String,
         detectionSource: String,
-        nativeDwellProvesThreshold: Boolean = false
+        nativeDwellProvesThreshold: Boolean = false,
+        diagnosticToken: Long? = null
     ) {
         if (visit.emitted) return
         val reserved = if (visit.dwellReservation != null) {
@@ -702,7 +839,13 @@ internal class GeofenceDwellCoordinator(
                 bootSessionId,
                 detectionSource,
                 nativeDwellProvesThreshold
-            ) ?: return
+            ) ?: run {
+                // Native proof reserves unless its save fails, a storage outcome rather than a rejection.
+                if (!nativeDwellProvesThreshold) {
+                    journalUnqualifiedEvidence(region, visit, bootSessionId, observedAtElapsedMs, diagnosticToken)
+                }
+                return
+            }
         }
         val reservation = reserved.dwellReservation ?: return
         val result = transitionProcessor.process(
@@ -726,6 +869,18 @@ internal class GeofenceDwellCoordinator(
         }
         if (result == GeofenceTransitionEmitter.Result.PERSISTED || staged) {
             store.saveDwellVisit(reserved.copy(emitted = true))
+            // A durable on-device fact from here: the outbox persisted this DWELL, or the processor staged it
+            // for recovery. Backend delivery is not implied, and whether the mark above saved changes neither
+            // fact; an unmarked reservation processed again is journaled again.
+            recordDwellOutcome(
+                diagnosticToken,
+                reserved.userStateGeneration,
+                DwellDiagnosticEvent.DWELL_EMITTED,
+                region.id,
+                // Native proof can start a recovered visit at the proof itself, so no due time follows from it.
+                dueElapsedMs = dueElapsedMs(region, reserved, bootSessionId, observedAtElapsedMs)
+                    ?.takeUnless { nativeDwellProvesThreshold }
+            )
         }
     }
 
@@ -798,6 +953,9 @@ internal class GeofenceDwellCoordinator(
 
     private companion object {
         const val MILLIS_PER_SECOND = 1_000L
+
+        // Above the 100 geofences GMS allows per app, so a clear never drops a live fence's mark in practice.
+        const val MAX_UNQUALIFIED_JOURNALED = 128
         val mutex = Mutex()
     }
 }

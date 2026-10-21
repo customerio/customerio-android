@@ -1275,7 +1275,7 @@ internal class GeofenceLogger(private val logger: Logger) {
 
     fun logPolygonPassiveStarted() {
         logger.debug(
-            "Listening for location other apps request; no sensor is turned on for this." +
+            "Listening passively for location other requests compute; no sensor is turned on for this." +
                 tail("polygon.passive.started", GeofenceLogIo.OBSERVATION, emptyList()),
             tag = TAG
         )
@@ -1283,12 +1283,13 @@ internal class GeofenceLogger(private val logger: Logger) {
 
     fun logPolygonPassiveStopped() {
         logger.debug(
-            "Stopped listening for other apps' location." +
+            "Stopped listening passively for location." +
                 tail("polygon.passive.stopped", GeofenceLogIo.OBSERVATION, emptyList()),
             tag = TAG
         )
     }
 
+    /** The passive delivery does not identify whose request computed the fix. */
     fun logPolygonPassiveReceived(
         location: Location,
         candidateCount: Int,
@@ -1296,7 +1297,7 @@ internal class GeofenceLogger(private val logger: Logger) {
         clearedIds: List<String>
     ) {
         logger.debug(
-            "A fix arrived from another app's request: ${admittedIds.size} of $candidateCount registered polygon(s) " +
+            "A passively observed fix arrived: ${admittedIds.size} of $candidateCount registered polygon(s) " +
                 "are within their wake circle, ${clearedIds.size} left." +
                 tail(
                     "polygon.passive.received",
@@ -1307,7 +1308,7 @@ internal class GeofenceLogger(private val logger: Logger) {
                         "ids" to list(admittedIds),
                         "ncleared" to int(clearedIds.size),
                         "cleared" to list(clearedIds)
-                    ) + GeofenceLogTail.fixQuality(location, GeofenceLogTail.FixSource.CACHED) +
+                    ) + GeofenceLogTail.fixQuality(location, GeofenceLogTail.FixSource.PASSIVE) +
                         GeofenceLogTail.position(location)
                 ),
             tag = TAG

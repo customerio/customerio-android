@@ -47,6 +47,7 @@ class PolygonDwellWakeOwnerTest : RobolectricTest() {
     private val os = mutableMapOf<String, String>()
     private val heldArms = mutableMapOf<String, CompletableDeferred<Unit>>()
     private var disarmFails = false
+    private var nowMs = NOW_MS
 
     override fun setup(testConfig: TestConfig) {
         super.setup(testConfigurationDefault { argument(ApplicationArgument(applicationMock)) })
@@ -240,6 +241,60 @@ class PolygonDwellWakeOwnerTest : RobolectricTest() {
         reopened.admitNativeWake(SECOND) shouldBeEqualTo PolygonDwellWakeAdmission.Admitted("visit-$SECOND")
     }
 
+    @Test
+    fun arm_givenTheRecordCommitFails_expectNoGmsWriteAndOneArmOnALaterCue() =
+        runTest { assertUnpersistedRecordSpendsNoArm(keepFailedEdit = false) }
+
+    @Test
+    fun arm_givenTheRecordCommitFailsWithTheEditLeftInMemory_expectNoGmsWriteAndOneArmOnALaterCue() =
+        runTest { assertUnpersistedRecordSpendsNoArm(keepFailedEdit = true) }
+
+    @Test
+    fun arm_givenAFenceWhileTheRecordIsWritten_expectSupersededAndOneArmInTheNewEpoch() = runTest {
+        val prefs = ScriptedCommitPreferences(recordPrefs())
+        records = PolygonDwellWakeRecordStore(prefs)
+        val owner = owner()
+        // Model a teardown fencing the owner while the arm's record is being written.
+        prefs.beforeNextCommit = { owner.fence() }
+
+        owner.arm(FIRST, expectedEpoch = 0L) shouldBeEqualTo PolygonDwellWakeArm.SUPERSEDED
+        os shouldBeEqualTo mapOf(FIRST to BASELINE)
+        knownRecordIds() shouldBeEqualTo emptySet<String>()
+
+        // The fence undid that arm, so the visit, still pending, may arm once in the new epoch.
+        owner.arm(FIRST, expectedEpoch = 1L) shouldBeEqualTo PolygonDwellWakeArm.ARMED
+        os shouldBeEqualTo mapOf(FIRST to DUE_WAKE)
+    }
+
+    /**
+     * A write-ahead record that did not persist asked GMS for nothing, so it must not spend the
+     * visit's one arm: the next cue arms, and only that one.
+     */
+    private suspend fun TestScope.assertUnpersistedRecordSpendsNoArm(keepFailedEdit: Boolean) {
+        records = PolygonDwellWakeRecordStore(
+            ScriptedCommitPreferences(recordPrefs()).apply {
+                failNextCommits = if (keepFailedEdit) 2 else 1
+                keepFailedEdits = keepFailedEdit
+            }
+        )
+        val owner = owner()
+
+        owner.arm(FIRST, expectedEpoch = 0L) shouldBeEqualTo PolygonDwellWakeArm.RECORD_NOT_WRITTEN
+        os shouldBeEqualTo emptyMap<String, String>()
+        knownRecordIds() shouldBeEqualTo emptySet<String>()
+
+        owner.arm(FIRST, expectedEpoch = 0L) shouldBeEqualTo PolygonDwellWakeArm.ARMED
+        os shouldBeEqualTo mapOf(FIRST to DUE_WAKE)
+        knownRecordIds() shouldBeEqualTo setOf(FIRST)
+
+        // A second add at the later clock would write a 210 s delay and restart GMS's timer.
+        nowMs = NOW_MS + 50_000L
+        owner.arm(FIRST, expectedEpoch = 0L) shouldBeEqualTo PolygonDwellWakeArm.ALREADY_ATTEMPTED
+        os shouldBeEqualTo mapOf(FIRST to DUE_WAKE)
+    }
+
+    private fun recordPrefs() = applicationMock.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+
     private fun TestScope.owner() = PolygonDwellWakeOwner(
         store = store,
         registrar = registrar,
@@ -248,7 +303,7 @@ class PolygonDwellWakeOwnerTest : RobolectricTest() {
         secureUserStore = secureUserStore,
         bootSessionProvider = bootSessionProvider,
         enabled = { true },
-        elapsedRealtimeMs = { NOW_MS },
+        elapsedRealtimeMs = { nowMs },
         scope = this,
         ioContext = StandardTestDispatcher(testScheduler)
     )

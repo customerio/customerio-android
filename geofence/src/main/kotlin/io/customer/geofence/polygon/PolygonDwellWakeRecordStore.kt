@@ -23,8 +23,9 @@ internal sealed interface PolygonDwellWakeRecords {
 /**
  * Write-ahead record of dwell wakes, so a crash, timeout or failed disarm cannot leave a DWELL
  * registration nothing restores. Written before the GMS add; removed only after a disarm, a full
- * re-registration or a clearAll succeeded. A commit that fails after updating the in-memory map can
- * only overstate what is armed, which costs one extra disarm.
+ * re-registration or a clearAll succeeded. A failed [put] attempts to write back what it read, so a refused arm does not normally
+ * leave a record behind. If that rollback also fails, ownership remains conservative. A commit that
+ * fails after updating the in-memory map can only overstate what is armed, which costs one extra disarm.
  *
  * Synchronous disk I/O: call off the main thread. It never logs, so any lock may be held.
  */
@@ -33,11 +34,19 @@ internal class PolygonDwellWakeRecordStore(private val prefs: SharedPreferences)
 
     fun read(): PolygonDwellWakeRecords = synchronized(lock) { readLocked() }
 
-    /** False, and the caller must not arm, when unwritable, unreadable, full or out of bounds. */
+    /**
+     * False, and the caller must not arm, when unwritable, unreadable, full or out of bounds. A failed
+     * commit can leave the record in the in-memory map, where it would show an arm that never ran and
+     * refuse the visit's retry, so the records read are written back, any older visit's included.
+     */
     fun put(record: PolygonDwellWakeRecord): Boolean = synchronized(lock) {
-        val known = readLocked() as? PolygonDwellWakeRecords.Known
-        val records = known?.byPolygonId?.plus(record.polygonId to record)
-        record.isWithinBounds() && records != null && records.size <= MAX_RECORDS && write(records)
+        val known = (readLocked() as? PolygonDwellWakeRecords.Known)?.byPolygonId
+            ?: return@synchronized false
+        val records = known + (record.polygonId to record)
+        if (!record.isWithinBounds() || records.size > MAX_RECORDS) return@synchronized false
+        if (write(records)) return@synchronized true
+        write(known)
+        false
     }
 
     /** Only while the record is still [visitId]'s, so an older disarm cannot drop a newer arm. */

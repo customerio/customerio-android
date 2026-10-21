@@ -289,7 +289,7 @@ internal class PolygonDwellWakeOwner(
         val known = records.read() as? PolygonDwellWakeRecords.Known
             ?: return PolygonDwellWakeArm.RECORDS_UNKNOWN
         val visitId = pending.visit.visitId
-        if (known.byPolygonId[polygonId]?.visitId == visitId || !markAttempted(visitId)) {
+        if (known.byPolygonId[polygonId]?.visitId == visitId || wasAttempted(visitId)) {
             return PolygonDwellWakeArm.ALREADY_ATTEMPTED
         }
         val record = PolygonDwellWakeRecord(
@@ -300,7 +300,9 @@ internal class PolygonDwellWakeOwner(
             bootSessionId = pending.bootSessionId,
             entryElapsedMs = pending.enteredAtElapsedMs
         )
+        // A record that did not persist asked GMS for nothing, so it spends nothing: a later cue may arm.
         if (!records.put(record)) return PolygonDwellWakeArm.RECORD_NOT_WRITTEN
+        markAttempted(visitId, expectedEpoch)
         markArmed(visitId, expectedEpoch)
         val dueElapsedMs = nowMs + delayMs
         trace(DwellDiagnosticEvent.ARM_REQUESTED, record, token, dueElapsedMs)
@@ -464,10 +466,20 @@ internal class PolygonDwellWakeOwner(
 
     private fun isFenced(expectedEpoch: Long): Boolean = synchronized(lock) { epoch != expectedEpoch }
 
-    /** False when this process already tried [visitId]. Bounded: ids are random per visit. */
-    private fun markAttempted(visitId: String): Boolean = synchronized(lock) {
-        if (attemptedVisitIds.size >= MAX_ATTEMPTED_VISITS) attemptedVisitIds.clear()
-        attemptedVisitIds.add(visitId)
+    /** Whether this process already spent [visitId]'s arm since the latest fence. */
+    private fun wasAttempted(visitId: String): Boolean = synchronized(lock) { visitId in attemptedVisitIds }
+
+    /**
+     * Spends [visitId]'s arm once its record is durable. Bounded: ids are random per visit. Skipped once
+     * a fence has passed [armEpoch]: the fence supersedes this arm and cleared every earlier mark, so the
+     * visit may arm once more in the new epoch.
+     */
+    private fun markAttempted(visitId: String, armEpoch: Long) {
+        synchronized(lock) {
+            if (epoch != armEpoch) return
+            if (attemptedVisitIds.size >= MAX_ATTEMPTED_VISITS) attemptedVisitIds.clear()
+            attemptedVisitIds.add(visitId)
+        }
     }
 
     /**

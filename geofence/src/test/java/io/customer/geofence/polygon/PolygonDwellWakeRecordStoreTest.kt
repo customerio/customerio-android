@@ -99,6 +99,23 @@ class PolygonDwellWakeRecordStoreTest : RobolectricTest() {
         store.read() shouldBeEqualTo PolygonDwellWakeRecords.Known(accepted)
     }
 
+    @Test
+    fun put_givenCommitFailsWithTheEditLeftInMemory_expectWhatWasReadWrittenBack() {
+        val older = record("p", visitId = "older")
+        store.put(older).shouldBeTrue()
+        val failing = PolygonDwellWakeRecordStore(
+            ScriptedCommitPreferences(prefs).apply {
+                failNextCommits = 1
+                keepFailedEdits = true
+            }
+        )
+
+        failing.put(record("p", visitId = "newer")).shouldBeFalse()
+
+        // The newer visit was never armed, while the older visit's wake may still be live.
+        failing.read() shouldBeEqualTo PolygonDwellWakeRecords.Known(mapOf("p" to older))
+    }
+
     private fun record(polygonId: String, visitId: String = "v") = PolygonDwellWakeRecord(
         polygonId = polygonId,
         visitId = visitId,

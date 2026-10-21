@@ -2,6 +2,7 @@ package io.customer.messaginginapp.gist.data.sse
 
 import android.util.Base64
 import io.customer.messaginginapp.gist.data.NetworkUtilities
+import io.customer.messaginginapp.gist.data.withCertificateDenylist
 import io.customer.messaginginapp.state.InAppMessagingManager
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.channels.Channel
@@ -167,6 +168,7 @@ internal class SseService(
 
                 chain.proceed(finalRequest)
             }.build()
+            .withCertificateDenylist()
 
     private fun createSseRequest(
         sessionId: String,

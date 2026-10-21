@@ -7,6 +7,7 @@ import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.Rect
 import io.customer.sdk.core.di.SDKComponent
+import io.customer.sdk.core.network.applyCertificateDenylist
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.IOException
@@ -27,6 +28,7 @@ internal object BitmapDownloader {
             try {
                 val deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(MAX_TRANSFER_DURATION_MS)
                 val connection = URL(imageUrl).openConnection().apply {
+                    applyCertificateDenylist()
                     connectTimeout = MAX_TRANSFER_DURATION_MS.toInt()
                     readTimeout = MAX_TRANSFER_DURATION_MS.toInt()
                 }

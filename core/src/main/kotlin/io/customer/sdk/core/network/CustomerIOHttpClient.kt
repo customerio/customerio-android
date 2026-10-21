@@ -58,7 +58,7 @@ internal class CustomerIOHttpClientImpl : CustomerIOHttpClient {
 
         val connection = try {
             val urlObj = URL(urlString)
-            urlObj.openConnection() as HttpURLConnection
+            (urlObj.openConnection() as HttpURLConnection).apply { applyCertificateDenylist() }
         } catch (e: MalformedURLException) {
             return Result.failure(IOException("Malformed URL: $urlString", e))
         } catch (e: IOException) {

@@ -14,6 +14,7 @@ import io.customer.messaginginapp.gist.data.model.isMessageAnonymous
 import io.customer.messaginginapp.gist.data.model.response.InboxMessageFactory
 import io.customer.messaginginapp.gist.data.model.response.QueueMessagesResponse
 import io.customer.messaginginapp.gist.data.model.response.toLogString
+import io.customer.messaginginapp.gist.data.withCertificateDenylist
 import io.customer.messaginginapp.state.InAppMessagingAction
 import io.customer.messaginginapp.state.InAppMessagingState
 import io.customer.messaginginapp.store.InAppPreferenceStore
@@ -114,6 +115,7 @@ internal class Queue(
                 interceptResponse(chain.proceed(finalRequest), originalRequest)
             }
             .build()
+            .withCertificateDenylist()
     }
 
     private fun createGistQueueService(): GistQueueService {

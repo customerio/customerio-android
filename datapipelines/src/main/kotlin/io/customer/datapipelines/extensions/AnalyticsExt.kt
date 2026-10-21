@@ -5,6 +5,7 @@ import com.segment.analytics.kotlin.core.ErrorHandler
 import com.segment.analytics.kotlin.core.Settings
 import com.segment.analytics.kotlin.core.emptyJsonObject
 import io.customer.datapipelines.config.DataPipelinesModuleConfig
+import io.customer.datapipelines.network.createTrackingRequestFactory
 import io.customer.datapipelines.plugins.CUSTOMER_IO_DATA_PIPELINES
 import kotlinx.serialization.json.buildJsonObject
 
@@ -33,5 +34,6 @@ internal fun updateAnalyticsConfig(
     this.trackApplicationLifecycleEvents = moduleConfig.trackApplicationLifecycleEvents
     this.apiHost = moduleConfig.apiHost
     this.cdnHost = moduleConfig.cdnHost
+    this.requestFactory = createTrackingRequestFactory()
     this.errorHandler = errorHandler
 }

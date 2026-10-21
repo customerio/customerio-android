@@ -885,8 +885,8 @@ internal class GeofenceRegionStoreImpl(
     ): Boolean {
         val plaintext = jsonSerializer.encode(serializer, value)
         val encrypted = locationCrypto.encrypt(plaintext)
-        // Exact route history must never take PreferenceCrypto's plaintext fallback (pre-API 23 or
-        // Keystore failure); the receiver evaluates the batch in-process instead.
+        // Exact route history must never take PreferenceCrypto's plaintext fallback (Keystore
+        // failure); the receiver evaluates the batch in-process instead.
         if (encrypted == plaintext) return false
         // Explicit commit, not the KTX edit {}: this returns whether the write reached disk.
         @Suppress("UseKtx")

@@ -35,11 +35,11 @@ After making changes to Unit Tests, ALWAYS test the changed test classes. Avoid 
 - DO NOT modify root `build.gradle` or module `build.gradle` files unless specifically asked
 - DO NOT commit configuration files with actual credentials
 - DO NOT include files with credentials in generated code
-- DO NOT use Android features unavailable in API 23+ unless compatibility checks are included
+- DO NOT use Android features unavailable in API 24+ unless compatibility checks are included
 - DO NOT bypass the DI system with direct instantiation of internal classes
 
 ## Android-Specific Considerations
-- **Minimum SDK**: API 23 (Android 6.0)
+- **Minimum SDK**: API 24 (Android 7.0)
 - **Target SDK**: API 36 (compileSdk 36, targetSdk 36)
 - **Kotlin Version**: 2.1.21 - when adding new dependencies, ensure they're compatible with this Kotlin version
 - **Compose BOM**: 2025.10.00 (compatible with compileSdk 36)

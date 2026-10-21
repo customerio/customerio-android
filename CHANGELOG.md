@@ -1,3 +1,9 @@
+## [4.24.0](https://github.com/customerio/customerio-android/compare/4.23.2...4.24.0) (2026-10-21)
+
+### Features
+
+* **messagingpush:** support Firebase Installation IDs ([#934](https://github.com/customerio/customerio-android/issues/934)) ([d1574e1](https://github.com/customerio/customerio-android/commit/d1574e19978be6792bec760b0b374892f5b47cd3))
+
 ## [4.23.2](https://github.com/customerio/customerio-android/compare/4.23.1...4.23.2) (2026-09-29)
 
 ### Bug Fixes

@@ -152,6 +152,7 @@ class PolygonAccuracyEvaluatorTest {
         // fit inside either ring. Only the spur differs, pulling 2A/P from ~150 m to ~62.5 m.
         val sample = sample(latitude = 0.0, longitude = 0.0, accuracyMeters = 100.0)
         (spurGeometry.boundaryDistanceMeters(sample.coordinate) > 120.0) shouldBeEqualTo true
+        (spurGeometry.venueScaleMeters < sample.horizontalAccuracyMeters) shouldBeEqualTo true
 
         val bodyOnly = evaluator.decisiveEvidenceFor(squareBodyGeometry, sample, PolygonCommittedState.OUTSIDE)
         val withSpur = evaluator.decisiveEvidenceFor(spurGeometry, sample, PolygonCommittedState.OUTSIDE)

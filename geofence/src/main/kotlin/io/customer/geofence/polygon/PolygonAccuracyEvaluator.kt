@@ -111,7 +111,7 @@ internal class PolygonAccuracyEvaluator {
                 )
             }
         }
-        // Governs fixes whose accuracy reaches the ring. Scales with venue depth, floored so a
+        // Governs fixes the branches above have not settled. Scales with venue depth, floored so a
         // shallow ring still admits a coarse fix.
         val arrivalCeilingMeters = max(MINIMUM_ARRIVAL_CEILING_METERS, geometry.venueScaleMeters)
         if (sample.horizontalAccuracyMeters >= arrivalCeilingMeters) {

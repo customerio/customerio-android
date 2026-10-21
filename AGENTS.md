@@ -114,8 +114,7 @@ CustomerIOBuilder(application, <CDP_API_KEY>).apply {
     // Optional: Enable in-app messaging by adding siteId and Region
     addCustomerIOModule(
         ModuleMessagingInApp(
-            // If you're in the EU, set Region.EU
-            MessagingInAppModuleConfig.Builder(<SITE_ID>, Region.US).build()
+            MessagingInAppModuleConfig.Builder(<SITE_ID>).build()
     )
     )
 

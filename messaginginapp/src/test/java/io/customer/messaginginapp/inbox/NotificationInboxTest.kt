@@ -25,7 +25,6 @@ import io.customer.sdk.communication.EventBus
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.util.DispatchersProvider
 import io.customer.sdk.core.util.ScopeProvider
-import io.customer.sdk.data.model.Region
 import io.customer.sdk.events.Metric
 import io.mockk.Runs
 import io.mockk.every
@@ -71,8 +70,7 @@ class NotificationInboxTest : IntegrationTest() {
         )
         module = ModuleMessagingInApp(
             config = MessagingInAppModuleConfig.Builder(
-                siteId = TestConstants.Keys.SITE_ID,
-                region = Region.US
+                siteId = TestConstants.Keys.SITE_ID
             ).build()
         ).attachToSDKComponent()
         manager = SDKComponent.inAppMessagingManager

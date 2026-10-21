@@ -14,7 +14,7 @@ package io.customer.messaginginapp.type
  * `strings.xml`.
  *
  * ```kotlin
- * MessagingInAppModuleConfig.Builder(siteId, Region.US)
+ * MessagingInAppModuleConfig.Builder(siteId)
  *     .setNotificationInboxAccessibilityLabels(
  *         NotificationInboxAccessibilityLabels(
  *             bell = context.getString(R.string.inbox_bell),

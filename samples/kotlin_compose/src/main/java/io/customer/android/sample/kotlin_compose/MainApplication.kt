@@ -13,7 +13,6 @@ import io.customer.messaginginapp.type.NotificationInboxAccessibilityLabels
 import io.customer.messagingpush.ModuleMessagingPushFCM
 import io.customer.sdk.CustomerIO
 import io.customer.sdk.CustomerIOConfigBuilder
-import io.customer.sdk.data.model.Region
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 
@@ -35,8 +34,7 @@ class MainApplication : Application() {
             .addCustomerIOModule(
                 ModuleMessagingInApp(
                     config = MessagingInAppModuleConfig.Builder(
-                        siteId = configuration.siteId,
-                        region = Region.US
+                        siteId = configuration.siteId
                     ).setEventListener(InAppMessageEventListener())
                         .setInboxEventListener(SampleInboxEventListener())
                         // Visual Notification Inbox TalkBack labels. The SDK ships none of its own (so no

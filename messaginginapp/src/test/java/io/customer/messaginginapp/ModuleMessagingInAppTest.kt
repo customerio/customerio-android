@@ -25,7 +25,6 @@ import io.customer.sdk.communication.Event
 import io.customer.sdk.communication.EventBus
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.util.ScopeProvider
-import io.customer.sdk.data.model.Region
 import io.customer.sdk.events.Metric
 import io.mockk.every
 import io.mockk.mockk
@@ -71,8 +70,7 @@ internal class ModuleMessagingInAppTest : JUnitTest() {
 
         module = ModuleMessagingInApp(
             config = MessagingInAppModuleConfig.Builder(
-                siteId = TestConstants.Keys.SITE_ID,
-                region = Region.US
+                siteId = TestConstants.Keys.SITE_ID
             ).setEventListener(inAppEventListenerMock).build()
         ).attachToSDKComponent()
     }
@@ -82,6 +80,19 @@ internal class ModuleMessagingInAppTest : JUnitTest() {
         SDKComponent.gistCustomAttributes.clear()
 
         super.teardown()
+    }
+
+    @Test
+    fun instance_givenRegisteredButNotInitialized_expectCallsDoNothingInsteadOfCrashing() = runTest {
+        // The SDK registers modules without setting them up when it refuses a secret key
+        val inbox = ModuleMessagingInApp.instance().inbox()
+
+        assertEquals(emptyList<Any>(), inbox.getMessages())
+        ModuleMessagingInApp.instance().dismissMessage()
+        eventBus.publish(Event.UserChangedEvent(userId = String.random, anonymousId = String.random))
+
+        assertCalledNever { inAppMessagesProviderMock.setUserId(any()) }
+        assertCalledNever { inAppMessagesProviderMock.fetchInAppMessages() }
     }
 
     @Test

@@ -92,4 +92,9 @@ fi
 
 echo "Starting instrumentation tests for $SAMPLE_MODULE..."
 # Run tests. Exit code 0 = pass, non-zero = test failure (NOT startup failure)
-./gradlew ":samples:${SAMPLE_MODULE}:connectedDebugAndroidTest" --no-daemon --stacktrace -PuseKsp=true
+# java_layout has push flavors; test the default token one
+TEST_VARIANT="Debug"
+if [ "$SAMPLE_MODULE" = "java_layout" ]; then
+    TEST_VARIANT="TokenDebug"
+fi
+./gradlew ":samples:${SAMPLE_MODULE}:connected${TEST_VARIANT}AndroidTest" --no-daemon --stacktrace -PuseKsp=true

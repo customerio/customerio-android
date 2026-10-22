@@ -51,8 +51,14 @@ internal enum class DwellDiagnosticReason {
     /** Evidence, or a native DWELL, that cannot be tied to the current stay, so it proves nothing for it. */
     NOT_ATTRIBUTED,
 
-    /** The visit already spent its dwell-proof requests, or its last one too recently; nothing was asked. */
-    BUDGET_EXHAUSTED
+    /** The visit already spent every dwell-proof request; nothing was asked. */
+    BUDGET_EXHAUSTED,
+
+    /** The visit's last dwell-proof request was too recent; nothing was asked, and it may ask later. */
+    PROOF_SPACING,
+
+    /** The request's charge to the visit's budget could not be saved, so the request was not made. */
+    CHARGE_NOT_SAVED
 }
 
 /**

@@ -121,7 +121,13 @@ internal class PolygonRouteProcessor(
         elapsedRealtimeNanos: Long,
         fixAgeSeconds: Double,
         committedStates: Map<String, PolygonCommittedState>,
-        answersHeldFixAt: Long? = null
+        answersHeldFixAt: Long? = null,
+        /**
+         * False for a fix requested for dwell proof alone: it was asked for no held arrival, so it
+         * neither settles nor replaces one. Only a fix that decides alone still commits that fence's
+         * ENTER; a hold awaits its own corroboration.
+         */
+        settlesHeldArrivals: Boolean = true
     ): PolygonRouteOutcome {
         require(elapsedRealtimeNanos >= 0L) { "elapsed realtime must be non-negative" }
         require(fences.map(PolygonFence::id).distinct().size == fences.size) {
@@ -175,14 +181,13 @@ internal class PolygonRouteProcessor(
                 )
             }
             // Settle a held arrival before judging this fix.
+            val keepsHold = !settlesHeldArrivals && heldArrivals.containsKey(fence.id)
             when (
-                val held = resolveHeldArrival(
-                    fence.id,
-                    result,
-                    sample,
-                    elapsedRealtimeNanos,
-                    records
-                )
+                val held = if (keepsHold) {
+                    HeldArrivalOutcome.NotCommitted
+                } else {
+                    resolveHeldArrival(fence.id, result, sample, elapsedRealtimeNanos, records)
+                }
             ) {
                 is HeldArrivalOutcome.Committed -> {
                     records += PolygonRouteRecord.Decided(
@@ -216,6 +221,8 @@ internal class PolygonRouteProcessor(
                         clearHold(fence.id)
                         PolygonTransition.ENTER
                     }
+                    // A hold this fix may not settle stays as it is, awaiting its own corroboration.
+                    keepsHold -> return@mapNotNull null
                     else -> {
                         // Any open hold was settled above, so this always opens a new one.
                         openHold(

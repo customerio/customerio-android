@@ -519,6 +519,27 @@ class PolygonDwellPrecisionTest : RobolectricTest() {
     }
 
     @Test
+    fun onDwellCheck_givenTheLastRequestTooRecent_expectSpacingRecordedNotAnExhaustedBudget() = runTest {
+        val (journal, recorder) = diagnosticHistory()
+        val freshFix = RecordingFreshFix()
+        val controller = controller(freshFix, diagnosticRecorder = recorder)
+        arriveClearly(controller)
+        val visit = store.getDwellVisit(VENUE_ID).shouldNotBeNull()
+        ShadowSystemClock.advanceBy(Duration.ofSeconds(70))
+        dwellCheck(controller, visit.visitId) shouldBeEqualTo PolygonDwellCheckResult.Charged
+
+        // Inside the 2-minute spacing, with three requests left.
+        ShadowSystemClock.advanceBy(Duration.ofSeconds(30))
+        dwellCheck(controller, visit.visitId) shouldBeEqualTo PolygonDwellCheckResult.Uncharged
+
+        val reasons = journal.snapshot().orEmpty()
+            .filter { it.event == DwellDiagnosticEvent.DWELL_REJECTED && it.fenceId == VENUE_ID }
+            .map { it.reason }
+        reasons shouldContain io.customer.geofence.DwellDiagnosticReason.PROOF_SPACING
+        (io.customer.geofence.DwellDiagnosticReason.BUDGET_EXHAUSTED in reasons) shouldBeEqualTo false
+    }
+
+    @Test
     fun onDwellCheck_givenAnotherVisitOrASpentBudget_expectNothingRequested() = runTest {
         val freshFix = RecordingFreshFix()
         val controller = controller(freshFix)

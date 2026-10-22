@@ -427,7 +427,11 @@ class GeofenceContainmentRealStoreTest : RobolectricTest() {
             GeofenceTransitionEmitter.Result.PERSISTED
         val coordinator = GeofenceDwellCoordinator(store, processor, clock) { "boot" }
         coordinator.onEnter(dwellFence.id, enteredAtSeconds = 100L, beginsNewVisit = true, entryFixElapsedMs = 2_000L)
+        // GMS decides a DWELL no sooner than the threshold after the registration, though a still
+        // device's triggering fix can be much older.
+        every { clock.elapsedRealtime() } returns 61_000L
         coordinator.onNativeDwell(dwellFence.id, observedAtSeconds = 160L, triggeringFixElapsedMs = 5_000L)
+        every { clock.elapsedRealtime() } returns 10_000L
         store.getDwellVisit(dwellFence.id)?.emitted shouldBeEqualTo true
         return processor
     }

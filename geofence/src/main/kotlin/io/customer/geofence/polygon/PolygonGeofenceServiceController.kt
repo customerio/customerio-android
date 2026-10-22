@@ -216,7 +216,9 @@ internal class PolygonGeofenceServiceController(
             evaluateAndRecentre(
                 fresh.fix,
                 expectedUserStateGeneration,
-                expectedTeardownGeneration = expectedTeardownGeneration
+                expectedTeardownGeneration = expectedTeardownGeneration,
+                // Asked for this visit's proof alone: it must not corroborate any held arrival.
+                settlesHeldArrivals = false
             )
         }
         return result()
@@ -1012,7 +1014,9 @@ internal class PolygonGeofenceServiceController(
         val after = evaluateAndRecentre(
             fresh.fix,
             expectedUserStateGeneration,
-            answersHeldFixAt = triggeringLocation.elapsedRealtimeNanos
+            answersHeldFixAt = triggeringLocation.elapsedRealtimeNanos,
+            // A request for dwell proof alone was made for no held arrival, so its answer settles none.
+            settlesHeldArrivals = membershipNeedsIt
         )
         // An aborted pass reports nothing undecided, so it must not clear the memos.
         if (!after.acceptedFix) return
@@ -1077,7 +1081,7 @@ internal class PolygonGeofenceServiceController(
         // Not an answer to the sample's held arrivals: this request asked only for dwell proof, so an
         // echo of the sample must not settle a neighbour's borderline arrival as corroborated. A newer,
         // independent fix still judges every fence as usual.
-        val after = processTriggeredLocation(fresh.fix, expectedUserStateGeneration)
+        val after = processTriggeredLocation(fresh.fix, expectedUserStateGeneration, settlesHeldArrivals = false)
         // An aborted pass reports nothing undecided, so it must not clear the memos.
         if (!after.acceptedFix) return null
         val echoed = after.echoedFixPolygonIds intersect unproven
@@ -1106,12 +1110,18 @@ internal class PolygonGeofenceServiceController(
      */
     /**
      * Why [polygonId] got no budget: its visit was removed or replaced (by one other than
-     * [expectedVisitId], when given), which is no budget question, or it really spent it.
+     * [expectedVisitId], when given), which is no budget question; it spent every request; or its
+     * last request was too recent, with requests still left.
      */
     private fun dwellBudgetRefusal(polygonId: String, expectedVisitId: String? = null): DwellDiagnosticReason {
         val visit = store.getDwellVisit(polygonId)
-        val attributed = visit != null && (expectedVisitId == null || visit.visitId == expectedVisitId)
-        return if (attributed) DwellDiagnosticReason.BUDGET_EXHAUSTED else DwellDiagnosticReason.NOT_ATTRIBUTED
+        return when {
+            visit == null || (expectedVisitId != null && visit.visitId != expectedVisitId) ->
+                DwellDiagnosticReason.NOT_ATTRIBUTED
+            visit.dwellProofRequests >= GeofenceConstants.MAX_DWELL_PROOF_REQUESTS_PER_VISIT ->
+                DwellDiagnosticReason.BUDGET_EXHAUSTED
+            else -> DwellDiagnosticReason.PROOF_SPACING
+        }
     }
 
     private fun withinDwellProofBudget(polygonIds: Set<String>): Map<String, String> {
@@ -1155,7 +1165,8 @@ internal class PolygonGeofenceServiceController(
         fix: Location,
         expectedUserStateGeneration: Long,
         answersHeldFixAt: Long? = null,
-        expectedTeardownGeneration: Long? = null
+        expectedTeardownGeneration: Long? = null,
+        settlesHeldArrivals: Boolean = true
     ): PolygonEvaluationOutcome {
         // Read together with the teardown check under one lock. Every teardown stops the engine under
         // that lock, so the epoch belongs to the session this token names. The engine then refuses the
@@ -1171,7 +1182,8 @@ internal class PolygonGeofenceServiceController(
             fix,
             expectedUserStateGeneration,
             answersHeldFixAt,
-            expectedEngineStopEpoch = engineStopEpoch
+            expectedEngineStopEpoch = engineStopEpoch,
+            settlesHeldArrivals = settlesHeldArrivals
         )
         if (outcome.acceptedFix && !isAfterTeardown(expectedTeardownGeneration)) {
             updateMovementTriggerFromAcceptedFix(fix, expectedUserStateGeneration, expectedTeardownGeneration)
@@ -1251,7 +1263,7 @@ internal class PolygonGeofenceServiceController(
                     lastFreshFixRequestElapsedMs = cooldownBefore
                 }
             }
-            onSkipped(DwellDiagnosticReason.BUDGET_EXHAUSTED)
+            onSkipped(DwellDiagnosticReason.CHARGE_NOT_SAVED)
             return null
         }
         logger.logPolygonFreshFixRequested(needingPolygonIds.sorted())
@@ -1353,12 +1365,14 @@ internal class PolygonGeofenceServiceController(
         location: Location,
         expectedUserStateGeneration: Long,
         answersHeldFixAt: Long? = null,
-        expectedEngineStopEpoch: Long? = null
+        expectedEngineStopEpoch: Long? = null,
+        settlesHeldArrivals: Boolean = true
     ): PolygonEvaluationOutcome = engine.processResponsiveLocation(
         location,
         expectedUserStateGeneration,
         answersHeldFixAt,
-        expectedEngineStopEpoch
+        expectedEngineStopEpoch,
+        settlesHeldArrivals
     )
 
     // replaceMovementTrigger checks the permission itself and fails when it is missing.

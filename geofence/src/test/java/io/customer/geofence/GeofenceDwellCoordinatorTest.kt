@@ -22,9 +22,15 @@ import org.junit.Test
 class GeofenceDwellCoordinatorTest {
     private val store: GeofenceRegionStore = mockk(relaxed = true)
     private val processor: GeofenceBusinessTransitionProcessor = mockk(relaxed = true)
-    private var nowElapsedMs = 0L
+
+    // Past the circles' registration plus their 60 s threshold: a genuine GMS DWELL arrives no sooner.
+    private var nowElapsedMs = REGISTERED_AT_MS + 90_000L
+
+    // Wall time near the fixtures' second-scale timestamps, well inside a reservation's delivery window.
+    private var nowWallSeconds = 2_000L
     private val clock: Clock = mockk {
         every { elapsedRealtime() } answers { nowElapsedMs }
+        every { currentTimeSeconds() } answers { nowWallSeconds }
     }
     private var bootSessionId = "boot-a"
     private val bootSessions = PolygonBootSessionProvider { bootSessionId }
@@ -1894,6 +1900,31 @@ class GeofenceDwellCoordinatorTest {
     }
 
     @Test
+    fun polygonExit_givenASubSecondGapAfterTheLastInsideProof_expectTheUncertaintyRoundedUp() = runTest {
+        // Last inside at 110.1 s, outside at 111 s: rounded down to 0, a departure at 110.2 s would
+        // make the true stay shorter than duration minus uncertainty.
+        val region = polygon()
+        statefulVisitStore(region)
+        coEvery { processor.process(any(), any(), any(), any(), any(), any(), any(), any()) } returns
+            GeofenceTransitionEmitter.Result.PERSISTED
+        val coordinator = GeofenceDwellCoordinator(store, processor, clock, bootSessionProvider = bootSessions)
+        coordinator.onEnter(
+            "polygon",
+            enteredAtSeconds = WALL_ENTRY_SECONDS,
+            beginsNewVisit = true,
+            polygonOutsideObserved = true,
+            enteredAtElapsedMs = 100_000L
+        )
+        coordinator.onInsideEvidence("polygon", observedAtSeconds = WALL_ENTRY_SECONDS + 10L, observedAtElapsedMs = 110_100L)
+
+        val exit = coordinator.capturePolygonExit("polygon", exitedAtSeconds = WALL_ENTRY_SECONDS + 11L, exitFixElapsedMs = 111_000L)
+
+        val context = checkNotNull(exit.visitContext)
+        context.durationSeconds shouldBeEqualTo 11L
+        context.durationUncertaintySeconds shouldBeEqualTo 1L
+    }
+
+    @Test
     fun polygonExitSoonAfterTheLastInsideProof_reportsTheObservedDuration() = runTest {
         val region = polygon()
         statefulVisitStore(region)
@@ -2204,6 +2235,71 @@ class GeofenceDwellCoordinatorTest {
         coordinator.recoverPendingReservations()
 
         orphans.map { it.visitId } shouldBeEqualTo listOf("outbox-full")
+    }
+
+    @Test
+    fun nativeDwell_givenSecondsAfterTheRegistration_expectNoDwellUntilTheThresholdCouldHavePassed() = runTest {
+        // Re-adding a fence the device is inside makes GMS fire DWELL within seconds, whatever the
+        // loitering delay. Registered at 10 s with a 60 s threshold, a genuine DWELL comes at 70 s at the
+        // earliest.
+        val region = circle()
+        val visit = statefulVisitStore(region)
+        coEvery { processor.process(any(), any(), any(), any(), any(), any(), any(), any()) } returns
+            GeofenceTransitionEmitter.Result.PERSISTED
+        val coordinator = GeofenceDwellCoordinator(store, processor, clock, bootSessionProvider = bootSessions)
+        nowElapsedMs = REGISTERED_AT_MS + 1_000L
+        coordinator.onEnter("circle", enteredAtSeconds = 100L, beginsNewVisit = true, entryFixElapsedMs = REGISTERED_AT_MS + 500L)
+
+        nowElapsedMs = REGISTERED_AT_MS + 6_000L
+        coordinator.onNativeDwell("circle", observedAtSeconds = 105L, triggeringFixElapsedMs = REGISTERED_AT_MS + 5_000L)
+
+        coVerify(exactly = 0) { processor.process(any(), Event.GeofenceTransition.DWELL, any(), any(), any(), any(), any(), any()) }
+        visit()?.emitted shouldBeEqualTo false
+        // Still inside evidence for the visit.
+        visit()?.lastInsideFixElapsedMs shouldBeEqualTo REGISTERED_AT_MS + 5_000L
+
+        nowElapsedMs = REGISTERED_AT_MS + 61_000L
+        coordinator.onNativeDwell("circle", observedAtSeconds = 160L, triggeringFixElapsedMs = REGISTERED_AT_MS + 60_500L)
+
+        coVerify(exactly = 1) { processor.process(any(), Event.GeofenceTransition.DWELL, any(), any(), any(), any(), any(), any()) }
+    }
+
+    @Test
+    fun recoverPendingReservations_givenADayOldReservation_expectItGivenUpNotDelivered() = runTest {
+        val region = circle()
+        val reserved = GeofenceDwellVisit(
+            geofenceId = "circle",
+            visitId = "visit",
+            enteredAtSeconds = 100L,
+            regionRevision = region.transitionRevision(),
+            userStateGeneration = 7L,
+            registrationElapsedMs = REGISTERED_AT_MS,
+            entryFixElapsedMs = FRESH_FIX_MS,
+            bootSessionId = "boot-a",
+            enteredAtElapsedMs = FRESH_FIX_MS,
+            dwellReservation = GeofenceDwellReservation(160L, null, 60, null, "native")
+        )
+        val visit = statefulVisitStore(region, reserved)
+        every { store.getDwellVisits() } answers { listOfNotNull(visit()) }
+        var orphans = listOf(reserved.copy(visitId = "orphan"))
+        every { store.getOrphanedDwellReservations() } answers { orphans }
+        every { store.removeOrphanedDwellReservation(any()) } answers {
+            val id = firstArg<String>()
+            orphans = orphans.filterNot { it.visitId == id }
+        }
+        every { store.getAllPendingTransitionEntries() } returns emptyList()
+        coEvery { processor.process(any(), any(), any(), any(), any(), any(), any(), any()) } returns
+            GeofenceTransitionEmitter.Result.PERSISTED
+        val coordinator = GeofenceDwellCoordinator(store, processor, clock, bootSessionProvider = bootSessions)
+        // The outbox refused both for over a day.
+        nowWallSeconds = 160L + 24L * 60 * 60 + 1L
+
+        coordinator.recoverPendingReservations()
+
+        coVerify(exactly = 0) { processor.process(any(), any(), any(), any(), any(), any(), any(), any()) }
+        orphans.shouldBeEmpty()
+        // The live visit continues, but must never qualify a second DWELL.
+        visit()?.emitted shouldBeEqualTo true
     }
 
     @Test

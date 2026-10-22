@@ -186,12 +186,15 @@ internal class PolygonLocationEngine(
         location: Location,
         expectedUserStateGeneration: Long = store.userStateGeneration(),
         answersHeldFixAt: Long? = null,
-        expectedStopEpoch: Long? = null
+        expectedStopEpoch: Long? = null,
+        /** False for a fix requested for dwell proof alone; see [PolygonRouteProcessor.process]. */
+        settlesHeldArrivals: Boolean = true
     ): PolygonEvaluationOutcome = processLocations(
         locations = listOf(location),
         expectedUserStateGeneration = expectedUserStateGeneration,
         answersHeldFixAt = answersHeldFixAt,
-        expectedStopEpoch = expectedStopEpoch
+        expectedStopEpoch = expectedStopEpoch,
+        settlesHeldArrivals = settlesHeldArrivals
     )
 
     // A refusal after a stop is logged as a session change: the stop ended the session the pass began in.
@@ -199,7 +202,8 @@ internal class PolygonLocationEngine(
         locations: List<Location>,
         expectedUserStateGeneration: Long,
         answersHeldFixAt: Long?,
-        expectedStopEpoch: Long?
+        expectedStopEpoch: Long?,
+        settlesHeldArrivals: Boolean = true
     ): PolygonEvaluationOutcome = processingMutex.withLock {
         if (locations.isEmpty()) return@withLock PolygonEvaluationOutcome.NOTHING
         if (store.userStateGeneration() != expectedUserStateGeneration || stoppedSince(expectedStopEpoch)) {
@@ -276,7 +280,8 @@ internal class PolygonLocationEngine(
                             elapsedRealtimeNanos = fix.elapsedRealtimeNanos,
                             fixAgeSeconds = GeofenceLogTail.fixAgeSeconds(fix.elapsedRealtimeNanos),
                             committedStates = committedStates,
-                            answersHeldFixAt = answersHeldFixAt
+                            answersHeldFixAt = answersHeldFixAt,
+                            settlesHeldArrivals = settlesHeldArrivals
                         ).also { routed ->
                             fences.filter { it.id in routed.provenOutsideIds }.forEach { fence ->
                                 provenOutside[fence.id] = ProvenOutside(

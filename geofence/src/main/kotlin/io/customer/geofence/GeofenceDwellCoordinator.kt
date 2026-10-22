@@ -254,6 +254,22 @@ internal class GeofenceDwellCoordinator(
             visit = visit.copy(lastInsideFixElapsedMs = insideFix)
             if (!store.saveDwellVisit(visit)) return@withLock
         }
+        // GMS fires DWELL within seconds of re-adding a fence the device is inside, whatever the
+        // loitering delay (seen on GMS 26.37: a threshold or geometry change re-adds under the same id).
+        // A genuine one cannot come sooner than the threshold after the registration it loitered on was
+        // added, so an earlier one is still inside evidence but proves no threshold. GMS decided it no
+        // later than its receipt, nor before its fix, so it is refused only when even the later is early.
+        val thresholdSinceRegistrationMs = maxOf(atElapsedMs, insideFix) - incarnation.registeredAtElapsedMs
+        if (thresholdSinceRegistrationMs < region.dwellThresholdSeconds * MILLIS_PER_SECOND - REGISTRATION_STAMP_SLACK_MS) {
+            recordDwellOutcome(
+                diagnosticToken,
+                expectedUserStateGeneration,
+                DwellDiagnosticEvent.DWELL_REJECTED,
+                geofenceId,
+                DwellDiagnosticReason.BELOW_THRESHOLD
+            )
+            return@withLock
+        }
         emitIfDue(
             region = region,
             visit = visit,
@@ -751,7 +767,8 @@ internal class GeofenceDwellCoordinator(
         )
         val uncertaintySeconds = span?.let { observed ->
             departureNoEarlierThanElapsedMs
-                ?.let { ((exitDecidedAtElapsedMs - it) / MILLIS_PER_SECOND).coerceIn(0L, observed.durationSeconds) }
+                // Rounded up: rounding down would put the true stay outside the reported bound.
+                ?.let { ((exitDecidedAtElapsedMs - it + MILLIS_PER_SECOND - 1) / MILLIS_PER_SECOND).coerceIn(0L, observed.durationSeconds) }
                 ?: observed.durationSeconds
         }
         return GeofenceTransitionEmitter.VisitContext.Exit(
@@ -791,7 +808,8 @@ internal class GeofenceDwellCoordinator(
      * reservation and its staging, or an EXIT found the outbox refusing the write and kept the
      * visit. Nothing else revisits such a reservation: GMS sends a circle no second DWELL, and a
      * polygon gets no inside evidence once the device has left. A visit that no longer holds is
-     * dropped as [currentVisit] drops it.
+     * dropped as [currentVisit] drops it. A reservation older than [MAX_RESERVATION_AGE_SECONDS] is
+     * given up rather than delivered: so late, it would trigger campaigns for a stay long over.
      */
     suspend fun recoverPendingReservations() = mutex.withLock {
         val bootSessionId = bootSessionProvider.currentSessionId()
@@ -800,6 +818,11 @@ internal class GeofenceDwellCoordinator(
             if (stored.emitted) return@forEach
             val region = store.getCachedRegion(stored.geofenceId) ?: return@forEach
             val visit = currentVisit(region, bootSessionId) ?: return@forEach
+            if (isTooOldToDeliver(reservation)) {
+                // Marked emitted, not removed: the visit continues, and must not qualify a second DWELL.
+                store.saveDwellVisit(visit.copy(emitted = true))
+                return@forEach
+            }
             emitIfDue(
                 region,
                 visit,
@@ -817,12 +840,17 @@ internal class GeofenceDwellCoordinator(
             val region = store.getCachedRegion(orphan.geofenceId)
             val deliverable = region != null &&
                 orphan.regionRevision == region.transitionRevision() &&
-                orphan.userStateGeneration == store.userStateGeneration()
+                orphan.userStateGeneration == store.userStateGeneration() &&
+                orphan.dwellReservation?.let(::isTooOldToDeliver) != true
             if (!deliverable || deliverReservation(region, orphan) != ReservationDelivery.RETRY) {
                 store.removeOrphanedDwellReservation(orphan.visitId)
             }
         }
     }
+
+    /** On the wall clock, the only one a reservation from an earlier boot can be compared on. */
+    private fun isTooOldToDeliver(reservation: GeofenceDwellReservation): Boolean =
+        clock.currentTimeSeconds() - reservation.timestampSeconds > MAX_RESERVATION_AGE_SECONDS
 
     /** The entry time and duration an EXIT reports, dated at the fixes the transitions were decided on. */
     private data class ObservedSpan(val enteredAtSeconds: Long, val durationSeconds: Long)
@@ -1134,6 +1162,18 @@ internal class GeofenceDwellCoordinator(
 
     private companion object {
         const val MILLIS_PER_SECOND = 1_000L
+
+        /**
+         * A registration is stamped once GMS confirms the add, which can come up to its 5 s call
+         * timeout after GMS began loitering on it.
+         */
+        const val REGISTRATION_STAMP_SLACK_MS = 5_000L
+
+        /**
+         * How long a DWELL the outbox kept refusing may still be delivered. A day covers an outage the
+         * device recovers from; after that the stay is history and a campaign it triggers would be wrong.
+         */
+        const val MAX_RESERVATION_AGE_SECONDS = 24L * 60 * 60
 
         // Above the 100 geofences GMS allows per app, so a clear never drops a live fence's mark in practice.
         const val MAX_UNQUALIFIED_JOURNALED = 128

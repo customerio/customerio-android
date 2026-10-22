@@ -425,6 +425,20 @@ class GeofenceManagerTest : RobolectricTest() {
         requestSlot.captured.geofences.single().transitionTypes shouldBeEqualTo ENTER_EXIT
     }
 
+    @Test
+    fun replaceGeofences_givenCircleWithDwellThreshold_expectNativeDwellLoiteringForThatThreshold() = runTest {
+        grantAllPermissions()
+        val requestSlot = slot<GeofencingRequest>()
+        stubClientAddSuccess(requestSlot)
+
+        manager.replaceGeofences(listOf(buildRegion(id = "circle").copy(dwellThresholdSeconds = 300)))
+
+        // A circle's DWELL comes from GMS loitering, so it must be asked for, with the threshold.
+        val geofence = requestSlot.captured.geofences.single()
+        geofence.transitionTypes shouldBeEqualTo (ENTER_EXIT or Geofence.GEOFENCE_TRANSITION_DWELL)
+        geofence.loiteringDelay shouldBeEqualTo 300_000
+    }
+
     private fun buildPolygon(dwellThresholdSeconds: Int = 0) = buildRegion(id = "polygon").copy(
         polygonVertices = POLYGON_VERTICES,
         dwellThresholdSeconds = dwellThresholdSeconds

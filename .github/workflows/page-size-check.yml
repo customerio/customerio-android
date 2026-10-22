@@ -59,7 +59,8 @@ jobs:
           echo "Using $zipalign"
           status=0
           for apk in \
-            samples/java_layout/build/outputs/apk/release/java_layout-release.apk \
+            samples/java_layout/build/outputs/apk/token/release/java_layout-token-release.apk \
+            samples/java_layout/build/outputs/apk/fid/release/java_layout-fid-release.apk \
             samples/kotlin_compose/build/outputs/apk/release/kotlin_compose-release.apk; do
             echo "::group::$apk"
             "$zipalign" -c -P 16 -v 4 "$apk" || status=1
@@ -70,7 +71,9 @@ jobs:
       - name: Check ELF segment alignment of native libraries
         run: >-
           python3 .github/scripts/check_16kb_page_size.py
-          samples/java_layout/build/outputs/apk/release/java_layout-release.apk
-          samples/java_layout/build/outputs/bundle/release/java_layout-release.aab
+          samples/java_layout/build/outputs/apk/token/release/java_layout-token-release.apk
+          samples/java_layout/build/outputs/apk/fid/release/java_layout-fid-release.apk
+          samples/java_layout/build/outputs/bundle/tokenRelease/java_layout-token-release.aab
+          samples/java_layout/build/outputs/bundle/fidRelease/java_layout-fid-release.aab
           samples/kotlin_compose/build/outputs/apk/release/kotlin_compose-release.apk
           samples/kotlin_compose/build/outputs/bundle/release/kotlin_compose-release.aab

@@ -32,12 +32,14 @@ establish that proof. A host fix stamped only on wall time keeps its age estimat
 but supplies no outside proof. An already-inside visit keeps its entry measurements
 unknown.
 
-A polygon departure is noticed by the first decisive outside fix, not at the moment
-it happens. The EXIT still reports `visitDurationSeconds` as exit minus entry, and
-adds `visitDurationUncertaintySeconds`: how long before that fix the device was last
-proven inside the ring. The true stay lies between the duration minus the uncertainty
-and the duration. A circle EXIT decided by the OS reports 0. The `visitId` is sent on
-every EXIT attributed to a visit, timed or not.
+A departure is noticed by the first fix that shows it, not at the moment it happens:
+the first decisive outside fix for a polygon, GMS's own fix for a circle, and GMS
+samples location sparsely, minutes apart when the device is still. The EXIT still
+reports `visitDurationSeconds` as exit minus entry, and adds
+`visitDurationUncertaintySeconds`: how long before that fix the device was last known
+inside (its entry fix, a native DWELL's fix or a decisive polygon fix). The true stay
+lies between the duration minus the uncertainty and the duration. The `visitId` is
+sent on every EXIT attributed to a visit, timed or not.
 
 Polygon DWELL still requires a later fix whose entire accuracy circle is inside
 the polygon. If a due visit stays INSIDE but the fix's uncertainty crosses the
@@ -56,10 +58,13 @@ can still miss DWELL. A late check still needs the same strict fix.
 The SDK spends at most 4 precise location requests per visit on proving its
 DWELL, at least 2 minutes apart, persisted with the visit so a relaunch or a later
 wake does not replenish them. Requests the SDK makes anyway for ENTER and EXIT are
-not charged, and any fix they return can still prove the stay. A polygon whose
-largest interior clearance is under about 10 m may therefore miss DWELL, especially
-indoors, where a phone fix rarely fits its whole accuracy circle inside so small a
-ring. Prefer a larger shape for such venues if DWELL matters.
+not charged, and any fix they return can still prove the stay.
+
+Background polygon DWELL is best effort at any polygon size. A phone left still,
+especially indoors, often gets no fix whose whole accuracy circle fits inside the ring
+before its requests run out: on the 2026-10-21 trip every background fix at Pulse was
+100 m accurate although the stay was 73.9 m inside the edge. Small polygons miss more
+often, since fewer fixes can fit inside them.
 
 `GeofenceLiveFixVisitTest` covers entry measurements through remote refresh,
 local ranking, offline fallback, and a fresh-cache pass. `PolygonDwellPrecisionTest`

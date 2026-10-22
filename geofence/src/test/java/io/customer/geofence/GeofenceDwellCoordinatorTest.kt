@@ -495,9 +495,57 @@ class GeofenceDwellCoordinatorTest {
         context?.visitId shouldBeEqualTo visitId
         context?.enteredAt shouldBeEqualTo 100L
         context?.durationSeconds shouldBeEqualTo 75L
-        // GMS decided the departure at its fix and delivered it at once, so the span is exact.
-        context?.durationUncertaintySeconds shouldBeEqualTo 0L
+        // GMS samples sparsely: with nothing between the entry fix and the exit fix, the departure
+        // may have been any time in those 75 s.
+        context?.durationUncertaintySeconds shouldBeEqualTo 75L
         context?.detectionSource shouldBeEqualTo "native"
+    }
+
+    @Test
+    fun nativeExit_givenALaterInsideFix_expectTheUncertaintyToRunFromIt() = runTest {
+        // A native DWELL's fix 60 s in shows the device still inside, so only the last 15 s before the
+        // exit fix are uncertain.
+        val region = circle().copy(
+            transitionTypes = listOf(GeofenceTransitionType.ENTER, GeofenceTransitionType.EXIT),
+            dwellThresholdSeconds = 60
+        )
+        var visit: GeofenceDwellVisit? = null
+        every { store.getCachedRegion("circle") } returns region
+        every { store.getRegistrationIncarnation("circle") } returns
+            liveRegistration(region).copy(outsideProvenAtElapsedMs = REGISTERED_AT_MS)
+        every { store.userStateGeneration() } returns 7L
+        every { store.getDwellVisit("circle") } answers { visit }
+        every { store.saveDwellVisit(any()) } answers {
+            visit = firstArg()
+            true
+        }
+        coEvery { processor.process(any(), any(), any(), any(), any(), any(), any(), any()) } returns
+            GeofenceTransitionEmitter.Result.PERSISTED
+        val coordinator = GeofenceDwellCoordinator(store, processor, clock, bootSessionProvider = bootSessions)
+        coordinator.onEnter(
+            "circle",
+            enteredAtSeconds = 100L,
+            beginsNewVisit = true,
+            entryFixElapsedMs = FRESH_FIX_MS,
+            enteredAtElapsedMs = FRESH_FIX_MS + 100L
+        )
+        coordinator.onNativeDwell(
+            "circle",
+            observedAtSeconds = 160L,
+            triggeringFixElapsedMs = FRESH_FIX_MS + 60_000L,
+            observedAtElapsedMs = FRESH_FIX_MS + 60_100L
+        )
+        visit?.lastInsideFixElapsedMs shouldBeEqualTo FRESH_FIX_MS + 60_000L
+
+        val context = coordinator.onNativeExit(
+            geofenceId = "circle",
+            exitedAtSeconds = 175L,
+            triggeringFixElapsedMs = FRESH_FIX_MS + 75_000L,
+            exitedAtElapsedMs = FRESH_FIX_MS + 75_100L
+        ).visitContext
+
+        context?.durationSeconds shouldBeEqualTo 75L
+        context?.durationUncertaintySeconds shouldBeEqualTo 15L
     }
 
     @Test
@@ -533,7 +581,9 @@ class GeofenceDwellCoordinatorTest {
 
         context?.enteredAt shouldBeEqualTo 100L
         context?.durationSeconds shouldBeEqualTo 60L
-        context?.durationUncertaintySeconds shouldBeEqualTo 0L
+        // Dated at the fixes, not the receipts: the late delivery adds no uncertainty, but the span
+        // between the entry fix and the exit fix still could hold the departure.
+        context?.durationUncertaintySeconds shouldBeEqualTo 60L
     }
 
     @Test
@@ -569,7 +619,8 @@ class GeofenceDwellCoordinatorTest {
 
         context?.enteredAt shouldBeEqualTo 100L
         context?.durationSeconds shouldBeEqualTo 180L
-        context?.durationUncertaintySeconds shouldBeEqualTo 0L
+        // No inside fix after the entry's, so the whole span to the exit fix could hold the departure.
+        context?.durationUncertaintySeconds shouldBeEqualTo 180L
     }
 
     @Test
@@ -2079,6 +2130,80 @@ class GeofenceDwellCoordinatorTest {
         exit.endedVisitId.shouldBeNull()
         visit()?.emitted shouldBeEqualTo false
         visit()?.dwellReservation?.timestampSeconds shouldBeEqualTo 160L
+    }
+
+    @Test
+    fun polygonExitWhoseReservationTheOutboxRefuses_keepsTheVisitForRecovery() = runTest {
+        val region = polygon()
+        val reserved = GeofenceDwellVisit(
+            geofenceId = "polygon",
+            visitId = "visit",
+            enteredAtSeconds = 100L,
+            regionRevision = region.transitionRevision(),
+            userStateGeneration = 7L,
+            bootSessionId = "boot-a",
+            enteredAtElapsedMs = FRESH_FIX_MS,
+            dwellReservation = GeofenceDwellReservation(
+                timestampSeconds = 160L,
+                enteredAt = null,
+                thresholdSeconds = 60,
+                durationSeconds = null,
+                detectionSource = "location_evidence"
+            )
+        )
+        val visit = statefulVisitStore(region, reserved)
+        every { store.getAllPendingTransitionEntries() } returns emptyList()
+        coEvery { processor.process(any(), any(), any(), any(), any(), any(), any(), any()) } returns
+            GeofenceTransitionEmitter.Result.PERSIST_FAILED
+        val coordinator = GeofenceDwellCoordinator(store, processor, clock, bootSessionProvider = bootSessions)
+
+        val exit = coordinator.capturePolygonExit("polygon", exitedAtSeconds = 400L, exitFixElapsedMs = FRESH_FIX_MS + 300_000L)
+
+        // The EXIT is still reported for this visit, but nothing ends it: the launch sweep retries.
+        exit.visitContext?.visitId shouldBeEqualTo "visit"
+        exit.endedVisitId.shouldBeNull()
+        visit()?.emitted shouldBeEqualTo false
+        visit()?.dwellReservation?.timestampSeconds shouldBeEqualTo 160L
+    }
+
+    @Test
+    fun recoverPendingReservations_givenAnOrphanRefusedForGood_expectItForgottenButAFailedWriteKept() = runTest {
+        // Both orphans match the fence's revision and user, so only the processor can refuse them.
+        val region = circle()
+        fun orphan(id: String) = GeofenceDwellVisit(
+            geofenceId = "circle",
+            visitId = id,
+            enteredAtSeconds = 100L,
+            regionRevision = region.transitionRevision(),
+            userStateGeneration = 7L,
+            registrationElapsedMs = REGISTERED_AT_MS,
+            bootSessionId = "boot-a",
+            enteredAtElapsedMs = FRESH_FIX_MS,
+            dwellReservation = GeofenceDwellReservation(160L, null, 60, null, "native")
+        )
+        var orphans = listOf(orphan("unroutable"), orphan("outbox-full"))
+        every { store.getCachedRegion("circle") } returns region
+        every { store.userStateGeneration() } returns 7L
+        every { store.getDwellVisits() } returns emptyList()
+        every { store.getOrphanedDwellReservations() } answers { orphans }
+        every { store.removeOrphanedDwellReservation(any()) } answers {
+            val id = firstArg<String>()
+            orphans = orphans.filterNot { it.visitId == id }
+        }
+        every { store.getAllPendingTransitionEntries() } returns emptyList()
+        coEvery { processor.process(any(), any(), any(), any(), any(), any(), any(), any()) } coAnswers {
+            when ((args[7] as GeofenceTransitionEmitter.VisitContext.Dwell).visitId) {
+                // The fence left routing: refused with no result, and would only be routed again
+                // with a stale DWELL weeks later.
+                "unroutable" -> null
+                else -> GeofenceTransitionEmitter.Result.PERSIST_FAILED
+            }
+        }
+        val coordinator = GeofenceDwellCoordinator(store, processor, clock, bootSessionProvider = bootSessions)
+
+        coordinator.recoverPendingReservations()
+
+        orphans.map { it.visitId } shouldBeEqualTo listOf("outbox-full")
     }
 
     @Test

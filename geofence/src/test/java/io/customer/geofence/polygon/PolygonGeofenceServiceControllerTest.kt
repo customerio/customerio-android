@@ -493,7 +493,7 @@ class PolygonGeofenceServiceControllerTest {
             evaluatedPolygonIds = setOf("campus"),
             dwellUnprovenPolygonIds = setOf("campus")
         )
-        coEvery { engine.processResponsiveLocation(precise, 0L, 100L) } returns PolygonEvaluationOutcome(
+        coEvery { engine.processResponsiveLocation(precise, 0L) } returns PolygonEvaluationOutcome(
             acceptedFix = true,
             undecidedPolygonIds = emptySet(),
             evaluatedPolygonIds = setOf("campus")
@@ -502,7 +502,7 @@ class PolygonGeofenceServiceControllerTest {
         escalating.processApproachLocations(listOf(sample), 0L, 0L)
 
         coVerify(exactly = 1) { freshFixSource.awaitFreshFix(any(), any()) }
-        coVerify(exactly = 1) { engine.processResponsiveLocation(precise, 0L, 100L) }
+        coVerify(exactly = 1) { engine.processResponsiveLocation(precise, 0L) }
     }
 
     @Test
@@ -527,7 +527,7 @@ class PolygonGeofenceServiceControllerTest {
         )
         coEvery { engine.processResponsiveLocation(first, 0L) } returns unproven
         coEvery { engine.processResponsiveLocation(second, 0L) } returns unproven
-        coEvery { engine.processResponsiveLocation(precise, 0L, 200L) } returns PolygonEvaluationOutcome(
+        coEvery { engine.processResponsiveLocation(precise, 0L) } returns PolygonEvaluationOutcome(
             acceptedFix = true,
             undecidedPolygonIds = emptySet(),
             evaluatedPolygonIds = setOf("campus")
@@ -539,8 +539,11 @@ class PolygonGeofenceServiceControllerTest {
         coVerifyOrder {
             engine.processResponsiveLocation(first, 0L)
             engine.processResponsiveLocation(second, 0L)
-            engine.processResponsiveLocation(precise, 0L, 200L)
+            engine.processResponsiveLocation(precise, 0L)
         }
+        // Asked for dwell proof alone, so its answer is no reply to the samples' held arrivals: an
+        // echo of a sample must not settle a neighbouring polygon's borderline arrival.
+        coVerify(exactly = 0) { engine.processResponsiveLocation(precise, 0L, 200L) }
     }
 
     @Test

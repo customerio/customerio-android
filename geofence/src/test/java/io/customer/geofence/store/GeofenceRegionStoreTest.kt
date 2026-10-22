@@ -357,6 +357,31 @@ class GeofenceRegionStoreTest : RobolectricTest() {
     }
 
     @Test
+    fun saveDwellVisit_givenMoreOrphansThanTheCap_expectTheOldestDropped() {
+        val region = GeofenceRegion(id = "biz-1", latitude = 1.0, longitude = 2.0, radius = 100f, dwellThresholdSeconds = 60)
+        store.saveCachedRegions(listOf(region))
+        store.recordRegistrationIncarnations(listOf(region), registeredAtElapsedMs = 10L, bootSessionId = "boot")
+        store.saveRoutableRegisteredIds(setOf(region.id))
+        fun owing(index: Int) = GeofenceDwellVisit(
+            geofenceId = "biz-1",
+            visitId = "owing-$index",
+            enteredAtSeconds = 100L + index,
+            regionRevision = region.transitionRevision(),
+            userStateGeneration = store.userStateGeneration(),
+            registrationElapsedMs = 10L,
+            dwellReservation = GeofenceDwellReservation(160L + index, null, 60, null, "native")
+        )
+
+        // Each new stay replaces one still owing its dwell, which is kept aside: 17 in all.
+        (0..17).forEach { store.saveDwellVisit(owing(it)).shouldBeTrue() }
+
+        val kept = store.getOrphanedDwellReservations().map { it.visitId }
+        kept.size shouldBeEqualTo 16
+        kept.first() shouldBeEqualTo "owing-1"
+        kept.last() shouldBeEqualTo "owing-16"
+    }
+
+    @Test
     fun reserveDwellProofRequest_givenCapAndSpacing_expectPersistedChargesAndRefusals() {
         val region = GeofenceRegion(
             id = "biz-1",

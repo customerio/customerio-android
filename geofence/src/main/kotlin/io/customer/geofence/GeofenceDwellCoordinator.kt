@@ -515,7 +515,9 @@ internal class GeofenceDwellCoordinator(
                 // belongsTo guarantees the fix; the fallback only satisfies the type.
                 exitDecidedAtElapsedMs = triggeringFixElapsedMs ?: receivedAtElapsedMs,
                 "native",
-                departureNoEarlierThanElapsedMs = triggeringFixElapsedMs
+                // GMS samples location sparsely, minutes apart when still, so the departure may be
+                // any time since the device was last known inside, as for a polygon.
+                departureNoEarlierThanElapsedMs = latestInsideFix(visit) ?: visit.enteredAtElapsedMs
             )
         )
     }
@@ -723,10 +725,10 @@ internal class GeofenceDwellCoordinator(
      * GMS's triggering fix for a native EXIT, the outside fix itself for a polygon.
      * @param departureNoEarlierThanElapsedMs the earliest the departure could have happened, on the
      * boot clock; null when unknown, which reports the whole span as uncertain. The gap up to
-     * [exitDecidedAtElapsedMs] is reported with the duration, never used to withhold it. GMS watches
-     * a circle continuously, so its EXIT fix is the departure and the gap is zero; a polygon
-     * departure is noticed by the first decisive outside fix, so the gap runs from the latest
-     * decisive inside fix (a decisive entry included), or the entry when it holds none.
+     * [exitDecidedAtElapsedMs] is reported with the duration, never used to withhold it. Neither a
+     * circle's GMS EXIT nor a polygon's first decisive outside fix is the moment of departure: GMS
+     * samples location sparsely, so the gap runs from the latest inside fix the visit holds (its
+     * entry fix, a native DWELL's or a decisive polygon fix), or the entry when it holds none.
      */
     private fun exitContext(
         visit: GeofenceDwellVisit,
@@ -808,14 +810,15 @@ internal class GeofenceDwellCoordinator(
             )
         }
         // Visits a replacement or removal dropped while they still owed their dwell. The stay is
-        // over, so the only checks are the processor's own: the fence's current revision and the
-        // user generation. One that fails them can never be delivered and is forgotten.
+        // over, so the only checks are the processor's own: the fence's current revision, the user
+        // generation and routability. Only a failed outbox write is worth another launch; any other
+        // refusal is final, or a fence routed again weeks later would get a DWELL with a stale date.
         store.getOrphanedDwellReservations().forEach { orphan ->
             val region = store.getCachedRegion(orphan.geofenceId)
             val deliverable = region != null &&
                 orphan.regionRevision == region.transitionRevision() &&
                 orphan.userStateGeneration == store.userStateGeneration()
-            if (!deliverable || processReservation(region, orphan)) {
+            if (!deliverable || deliverReservation(region, orphan) != ReservationDelivery.RETRY) {
                 store.removeOrphanedDwellReservation(orphan.visitId)
             }
         }
@@ -1015,8 +1018,22 @@ internal class GeofenceDwellCoordinator(
      * delivery is not implied. The reservation is resent unchanged on every call, so a retry after a
      * partial emission stays idempotent downstream.
      */
-    private suspend fun processReservation(region: GeofenceRegion, reserved: GeofenceDwellVisit): Boolean {
-        val reservation = reserved.dwellReservation ?: return false
+    private suspend fun processReservation(region: GeofenceRegion, reserved: GeofenceDwellVisit): Boolean =
+        deliverReservation(region, reserved) == ReservationDelivery.DELIVERED
+
+    private enum class ReservationDelivery {
+        /** Persisted to the outbox, or staged for its recovery. */
+        DELIVERED,
+
+        /** The outbox write failed: the same DWELL can be tried again. */
+        RETRY,
+
+        /** Refused for good: the fence, revision, routing or user no longer match. */
+        REFUSED
+    }
+
+    private suspend fun deliverReservation(region: GeofenceRegion, reserved: GeofenceDwellVisit): ReservationDelivery {
+        val reservation = reserved.dwellReservation ?: return ReservationDelivery.REFUSED
         val result = transitionProcessor.process(
             geofenceId = region.id,
             transition = Event.GeofenceTransition.DWELL,
@@ -1036,7 +1053,11 @@ internal class GeofenceDwellCoordinator(
         val staged = store.getAllPendingTransitionEntries().any {
             it.geofenceId == region.id && it.transition == Event.GeofenceTransition.DWELL && it.visitId == reserved.visitId
         }
-        return result == GeofenceTransitionEmitter.Result.PERSISTED || staged
+        return when {
+            result == GeofenceTransitionEmitter.Result.PERSISTED || staged -> ReservationDelivery.DELIVERED
+            result == GeofenceTransitionEmitter.Result.PERSIST_FAILED -> ReservationDelivery.RETRY
+            else -> ReservationDelivery.REFUSED
+        }
     }
 
     /**

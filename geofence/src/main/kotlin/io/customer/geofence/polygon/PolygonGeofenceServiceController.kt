@@ -183,7 +183,7 @@ internal class PolygonGeofenceServiceController(
         // store refuses the charge if the visit changed after this read too.
         val budget = withinDwellProofBudget(setOf(polygonId)).filterValues { it == visitId }
         if (budget.isEmpty()) {
-            recordDwellRejected(DwellDiagnosticReason.BUDGET_EXHAUSTED)
+            recordDwellRejected(dwellBudgetRefusal(polygonId, visitId))
             return PolygonDwellCheckResult.Uncharged
         }
         var skipped: DwellDiagnosticReason? = null
@@ -994,7 +994,7 @@ internal class PolygonGeofenceServiceController(
         // undecided needs it for the edge as well, so it is neither budgeted nor charged.
         val dwellServed = delivered.dwellUnprovenPolygonIds - delivered.undecidedPolygonIds
         val dwellBudgeted = withinDwellProofBudget(dwellServed)
-        recordDwellRejected(dwellServed - dwellBudgeted.keys, DwellDiagnosticReason.BUDGET_EXHAUSTED)
+        (dwellServed - dwellBudgeted.keys).forEach { id -> recordDwellRejected(setOf(id), dwellBudgetRefusal(id)) }
         val unresolvedInBudget = unresolved - (dwellServed - dwellBudgeted.keys)
         if (unresolvedInBudget.isEmpty() && delivered.pendingArrivalPolygonIds.isEmpty()) return
         // A request membership or a held arrival needs anyway goes out uncharged; its answer can still
@@ -1074,11 +1074,10 @@ internal class PolygonGeofenceServiceController(
             onSkipped = { reason -> recordDwellRejected(unproven, reason) },
             onRequesting = { at -> chargeDwellProofRequests(budgeted, at) }
         ) ?: return null
-        val after = processTriggeredLocation(
-            fresh.fix,
-            expectedUserStateGeneration,
-            answersHeldFixAt = sample.elapsedRealtimeNanos
-        )
+        // Not an answer to the sample's held arrivals: this request asked only for dwell proof, so an
+        // echo of the sample must not settle a neighbour's borderline arrival as corroborated. A newer,
+        // independent fix still judges every fence as usual.
+        val after = processTriggeredLocation(fresh.fix, expectedUserStateGeneration)
         // An aborted pass reports nothing undecided, so it must not clear the memos.
         if (!after.acceptedFix) return null
         val echoed = after.echoedFixPolygonIds intersect unproven
@@ -1105,6 +1104,16 @@ internal class PolygonGeofenceServiceController(
      * visit the budget belongs to, so a charge can never land on a visit that replaced it meanwhile.
      * A polygon with no stored visit has nothing to prove and is dropped.
      */
+    /**
+     * Why [polygonId] got no budget: its visit was removed or replaced (by one other than
+     * [expectedVisitId], when given), which is no budget question, or it really spent it.
+     */
+    private fun dwellBudgetRefusal(polygonId: String, expectedVisitId: String? = null): DwellDiagnosticReason {
+        val visit = store.getDwellVisit(polygonId)
+        val attributed = visit != null && (expectedVisitId == null || visit.visitId == expectedVisitId)
+        return if (attributed) DwellDiagnosticReason.BUDGET_EXHAUSTED else DwellDiagnosticReason.NOT_ATTRIBUTED
+    }
+
     private fun withinDwellProofBudget(polygonIds: Set<String>): Map<String, String> {
         if (polygonIds.isEmpty()) return emptyMap()
         val now = SystemClock.elapsedRealtime()

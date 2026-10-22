@@ -123,6 +123,10 @@ class EngineWebViewLifecycleTest : IntegrationTest() {
 
         webView.getJavascriptInterface(EngineWebViewInterface.JAVASCRIPT_INTERFACE_NAME).shouldNotBeNull()
 
+        // The live owner now drives the engine: pausing it detaches the bridge.
+        liveOwner.registry.currentState = Lifecycle.State.STARTED
+        webView.getJavascriptInterface(EngineWebViewInterface.JAVASCRIPT_INTERFACE_NAME).shouldBeNull()
+
         liveHost.removeView(engineWebView)
         engineWebView.releaseResources()
     }
@@ -177,30 +181,26 @@ class EngineWebViewLifecycleTest : IntegrationTest() {
     fun stopLoading_givenOwnerReplacedSinceSetup_expectUnsubscribedFromTheOwnerActuallyObserved() {
         val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
         val firstOwner = FakeLifecycleOwner()
-        val firstHost = FrameLayout(activity).apply { setViewTreeLifecycleOwner(firstOwner) }
+        val host = FrameLayout(activity).apply { setViewTreeLifecycleOwner(firstOwner) }
         val engineWebView = EngineWebView(activity)
-        firstHost.addView(engineWebView)
-        activity.setContentView(firstHost)
+        host.addView(engineWebView)
+        activity.setContentView(host)
         firstOwner.registry.currentState = Lifecycle.State.RESUMED
         engineWebView.setup(givenConfiguration())
         firstOwner.registry.observerCount shouldBeEqualTo 1
 
-        firstHost.removeView(engineWebView)
-        firstOwner.registry.observerCount shouldBeEqualTo 0
+        // The tree now reports a different owner, but no detach has moved the subscription.
         val secondOwner = FakeLifecycleOwner()
         secondOwner.registry.currentState = Lifecycle.State.RESUMED
-        val secondHost = FrameLayout(activity).apply { setViewTreeLifecycleOwner(secondOwner) }
-        secondHost.addView(engineWebView)
-        activity.setContentView(secondHost)
-        secondOwner.registry.observerCount shouldBeEqualTo 1
+        host.setViewTreeLifecycleOwner(secondOwner)
 
         engineWebView.stopLoading()
 
-        // Removed from the owner it was actually observing, and nothing lingers on the old one.
-        secondOwner.registry.observerCount shouldBeEqualTo 0
+        // Removed from the owner it was actually observing, not the one the tree reports now.
         firstOwner.registry.observerCount shouldBeEqualTo 0
+        secondOwner.registry.observerCount shouldBeEqualTo 0
 
-        secondHost.removeView(engineWebView)
+        host.removeView(engineWebView)
         engineWebView.releaseResources()
     }
 
@@ -241,11 +241,14 @@ class EngineWebViewLifecycleTest : IntegrationTest() {
         // Leave the window while the owner is still resumed, then background the app. The engine
         // is no longer subscribed, so it never sees this ON_PAUSE.
         host.removeView(engineWebView)
-        owner.registry.currentState = Lifecycle.State.CREATED
 
-        // Paused on detach, with the load still pending, so the timeout cannot dismiss it.
+        // Paused at detach time, while the owner is still resumed, with the load still pending.
         engineWebView.timeoutTimer().shouldBeNull()
         ReflectionHelpers.getField<Any?>(engineWebView, "timerTask").shouldNotBeNull()
+
+        // Backgrounding afterwards cannot restart it either.
+        owner.registry.currentState = Lifecycle.State.CREATED
+        engineWebView.timeoutTimer().shouldBeNull()
 
         // Coming back resumes the timeout through the replayed ON_RESUME.
         owner.registry.currentState = Lifecycle.State.RESUMED
@@ -279,8 +282,8 @@ class EngineWebViewLifecycleTest : IntegrationTest() {
         owner.registry.currentState = Lifecycle.State.RESUMED
         webView.getJavascriptInterface(EngineWebViewInterface.JAVASCRIPT_INTERFACE_NAME).shouldBeNull()
 
-        // Re-attached under a paused owner: no ON_RESUME is replayed, so it stays detached.
-        owner.registry.currentState = Lifecycle.State.STARTED
+        // Re-attached while the app is in the background: stays detached.
+        owner.registry.currentState = Lifecycle.State.CREATED
         host.addView(engineWebView)
         webView.getJavascriptInterface(EngineWebViewInterface.JAVASCRIPT_INTERFACE_NAME).shouldBeNull()
 
@@ -291,6 +294,91 @@ class EngineWebViewLifecycleTest : IntegrationTest() {
         engineWebView.stopLoading()
         host.removeView(engineWebView)
         engineWebView.releaseResources()
+    }
+
+    @Test
+    fun onAttachedToWindow_givenOwnerStartedButNotResumed_expectInterfaceAttached() {
+        val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
+        val owner = FakeLifecycleOwner()
+        val host = FrameLayout(activity).apply { setViewTreeLifecycleOwner(owner) }
+        val engineWebView = EngineWebView(activity)
+        host.addView(engineWebView)
+        activity.setContentView(host)
+        owner.registry.currentState = Lifecycle.State.RESUMED
+        engineWebView.setup(givenConfiguration())
+        val webView = shadowOf(engineWebView.getChildAt(0) as WebView)
+
+        host.removeView(engineWebView)
+        webView.getJavascriptInterface(EngineWebViewInterface.JAVASCRIPT_INTERFACE_NAME).shouldBeNull()
+
+        // Re-attached under an owner that is visible but not resumed (or capped at STARTED):
+        // setup() attaches the bridge early for this case, and re-attaching does the same.
+        val startedOwner = FakeLifecycleOwner()
+        startedOwner.registry.currentState = Lifecycle.State.STARTED
+        val startedHost = FrameLayout(activity).apply { setViewTreeLifecycleOwner(startedOwner) }
+        startedHost.addView(engineWebView)
+        activity.setContentView(startedHost)
+
+        webView.getJavascriptInterface(EngineWebViewInterface.JAVASCRIPT_INTERFACE_NAME).shouldNotBeNull()
+        engineWebView.timeoutTimer().shouldNotBeNull()
+        startedOwner.registry.observerCount shouldBeEqualTo 1
+
+        engineWebView.stopLoading()
+        startedHost.removeView(engineWebView)
+        engineWebView.releaseResources()
+    }
+
+    @Test
+    fun onAttachedToWindow_givenTreeWithoutLifecycleOwner_expectInterfaceAttached() {
+        val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
+        val owner = FakeLifecycleOwner()
+        val host = FrameLayout(activity).apply { setViewTreeLifecycleOwner(owner) }
+        val engineWebView = EngineWebView(activity)
+        host.addView(engineWebView)
+        activity.setContentView(host)
+        owner.registry.currentState = Lifecycle.State.RESUMED
+        engineWebView.setup(givenConfiguration())
+        val webView = shadowOf(engineWebView.getChildAt(0) as WebView)
+
+        host.removeView(engineWebView)
+
+        // Moved into a tree with no owner, like a plain Dialog or PopupWindow: nothing would ever
+        // resume it, so it resumes itself, as setup() does without an owner.
+        val ownerlessHost = FrameLayout(activity)
+        ownerlessHost.addView(engineWebView)
+        activity.setContentView(ownerlessHost)
+
+        webView.getJavascriptInterface(EngineWebViewInterface.JAVASCRIPT_INTERFACE_NAME).shouldNotBeNull()
+        engineWebView.timeoutTimer().shouldNotBeNull()
+
+        engineWebView.stopLoading()
+        ownerlessHost.removeView(engineWebView)
+        engineWebView.releaseResources()
+    }
+
+    @Test
+    fun releaseResources_givenWebViewAlreadyReleased_expectUnsubscribed() {
+        val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
+        val owner = FakeLifecycleOwner()
+        val host = FrameLayout(activity).apply { setViewTreeLifecycleOwner(owner) }
+        val engineWebView = EngineWebView(activity)
+        host.addView(engineWebView)
+        activity.setContentView(host)
+        owner.registry.currentState = Lifecycle.State.RESUMED
+        engineWebView.setup(givenConfiguration())
+        host.removeView(engineWebView)
+        host.addView(engineWebView)
+        owner.registry.observerCount shouldBeEqualTo 1
+
+        // As after a renderer crash: the WebView is gone before releaseResources() runs.
+        host.removeView(engineWebView)
+        ReflectionHelpers.setField(engineWebView, "webView", null)
+        engineWebView.releaseResources()
+
+        ReflectionHelpers.getField<Any?>(engineWebView, "observedLifecycle").shouldBeNull()
+        host.addView(engineWebView)
+        owner.registry.observerCount shouldBeEqualTo 0
+        host.removeView(engineWebView)
     }
 
     private fun EngineWebView.timeoutTimer(): Any? = ReflectionHelpers.getField(this, "timer")

@@ -119,11 +119,20 @@ internal class EngineWebView @JvmOverloads constructor(
      * timeout, both paused on detach. This mirrors what
      * [io.customer.messaginginapp.ui.core.BaseInlineInAppMessageView] already does with its own
      * observer.
+     *
+     * Two cases get no `ON_RESUME` replay, so they resume here directly, the same way [setup]
+     * keeps the bridge attached before the owner resumes:
+     * - no owner in the new tree (a plain `Dialog` or `PopupWindow`), so nothing would resume it;
+     * - an owner that is visible but not resumed yet (`STARTED`).
+     *
+     * An owner below `STARTED` (the app is in the background) leaves the bridge detached until it
+     * resumes.
      */
     override fun onAttachedToWindow() {
         super.onAttachedToWindow()
-        if (observedLifecycle != null) {
-            observeCurrentLifecycle()
+        if (observedLifecycle == null) return
+        if (!observeCurrentLifecycle() || observedLifecycle?.currentState == Lifecycle.State.STARTED) {
+            onLifecycleResumed()
         }
     }
 
@@ -196,15 +205,17 @@ internal class EngineWebView @JvmOverloads constructor(
         colorSchemeJob?.cancel()
         colorSchemeJob = null
         try {
-            val view = webView ?: return
-            logger.debug("Cleaning up EngineWebView")
             if (this.parent != null) {
                 logger.debug("EngineWebView is still attached to parent, skipping cleanup")
                 return
             }
+            // Before the early return below: a WebView already released after a renderer crash
+            // must not leave this engine subscribed.
+            stopObservingLifecycle()
+            val view = webView ?: return
+            logger.debug("Cleaning up EngineWebView")
 
             webView = null
-            stopObservingLifecycle()
             if (view.parent != null) {
                 logger.debug("Removing WebView from parent before cleanup")
                 this.removeView(view)

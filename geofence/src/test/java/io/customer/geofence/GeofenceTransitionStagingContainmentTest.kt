@@ -208,11 +208,8 @@ class GeofenceTransitionStagingContainmentTest : RobolectricTest() {
         val pipeline = pipeline(regionStore, coordinator)
 
         pipeline.handle(crossing(GeofenceCrossingTransition.ENTER, fixMs = 1_000L, wallSeconds = 1_000L))
-        // Received past the threshold after the registration, as a genuine GMS DWELL is, though a
-        // still device's triggering fix can be much older.
-        pipeline.handle(
-            crossing(GeofenceCrossingTransition.DWELL, fixMs = 5_000L, receivedAtElapsedMs = 61_000L, wallSeconds = 1_070L)
-        )
+        // Decided no sooner than the 60 s threshold after the registration, as a genuine GMS DWELL is.
+        pipeline.handle(crossing(GeofenceCrossingTransition.DWELL, fixMs = 61_000L, wallSeconds = 1_070L))
         val visit = regionStore.getDwellVisit(GEOFENCE_ID).shouldNotBeNull()
         visit.emitted.shouldBeTrue()
 

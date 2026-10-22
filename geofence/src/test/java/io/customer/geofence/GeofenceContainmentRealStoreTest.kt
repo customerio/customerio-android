@@ -157,20 +157,21 @@ class GeofenceContainmentRealStoreTest : RobolectricTest() {
 
         // The device left (EXIT lost) and travelled far enough to trip the movement trigger. That
         // pass keeps the fence registered, and its fix clears the edge by more than its accuracy.
+        every { clock.elapsedRealtime() } returns 70_000L
         repository.handleMovement(
             latitude = 0.003,
             longitude = 0.0,
             movementTriggerRadius = { null },
-            fixQuality = GeofenceFixQuality(fixElapsedRealtimeMillis = 9_000L, horizontalAccuracyMeters = 30f)
+            fixQuality = GeofenceFixQuality(fixElapsedRealtimeMillis = 69_000L, horizontalAccuracyMeters = 30f)
         )
         store.getRegistrationIncarnation(dwellFence.id)?.registeredAtElapsedMs shouldBeEqualTo 1_000L
-        store.getRegistrationIncarnation(dwellFence.id)?.outsideProvenAtElapsedMs shouldBeEqualTo 9_000L
+        store.getRegistrationIncarnation(dwellFence.id)?.outsideProvenAtElapsedMs shouldBeEqualTo 69_000L
         // The premise: nothing on this path retires the stale containment record.
         store.getEnteredIds() shouldContainSame setOf(dwellFence.id)
 
         val coordinator = GeofenceDwellCoordinator(store, processor, clock) { "boot" }
-        coordinator.onEnter(dwellFence.id, enteredAtSeconds = 900L, entryFixElapsedMs = 12_000L)
-        coordinator.onNativeDwell(dwellFence.id, observedAtSeconds = 960L, triggeringFixElapsedMs = 72_000L)
+        coordinator.onEnter(dwellFence.id, enteredAtSeconds = 900L, entryFixElapsedMs = 72_000L)
+        coordinator.onNativeDwell(dwellFence.id, observedAtSeconds = 960L, triggeringFixElapsedMs = 132_000L)
 
         coVerify(exactly = 2) {
             processor.process(any(), Event.GeofenceTransition.DWELL, any(), any(), any(), any(), any(), any(), any())
@@ -182,24 +183,25 @@ class GeofenceContainmentRealStoreTest : RobolectricTest() {
     fun movementProofThenGmsDwellThenReEnter_expectTheDwellIgnoredAndTheReEntryDwells() = runTest {
         val processor = lostExitVisit()
         // The kept fence's movement fix proves the device left, as above; GMS reports no EXIT.
+        every { clock.elapsedRealtime() } returns 70_000L
         repository.handleMovement(
             latitude = 0.003,
             longitude = 0.0,
             movementTriggerRadius = { null },
-            fixQuality = GeofenceFixQuality(fixElapsedRealtimeMillis = 9_000L, horizontalAccuracyMeters = 30f)
+            fixQuality = GeofenceFixQuality(fixElapsedRealtimeMillis = 69_000L, horizontalAccuracyMeters = 30f)
         )
-        store.getRegistrationIncarnation(dwellFence.id)?.outsideProvenAtElapsedMs shouldBeEqualTo 9_000L
+        store.getRegistrationIncarnation(dwellFence.id)?.outsideProvenAtElapsedMs shouldBeEqualTo 69_000L
         val coordinator = GeofenceDwellCoordinator(store, processor, clock) { "boot" }
 
         // GMS never noticed the departure, so this DWELL may still describe the first stay.
-        coordinator.onNativeDwell(dwellFence.id, observedAtSeconds = 960L, triggeringFixElapsedMs = 72_000L)
-        coordinator.onEnter(dwellFence.id, enteredAtSeconds = 980L, entryFixElapsedMs = 80_000L)
-        coordinator.onNativeDwell(dwellFence.id, observedAtSeconds = 1_040L, triggeringFixElapsedMs = 140_000L)
+        coordinator.onNativeDwell(dwellFence.id, observedAtSeconds = 960L, triggeringFixElapsedMs = 132_000L)
+        coordinator.onEnter(dwellFence.id, enteredAtSeconds = 980L, entryFixElapsedMs = 140_000L)
+        coordinator.onNativeDwell(dwellFence.id, observedAtSeconds = 1_040L, triggeringFixElapsedMs = 200_000L)
 
         coVerify(exactly = 2) {
             processor.process(any(), Event.GeofenceTransition.DWELL, any(), any(), any(), any(), any(), any(), any())
         }
-        store.getDwellVisit(dwellFence.id)?.entryFixElapsedMs shouldBeEqualTo 80_000L
+        store.getDwellVisit(dwellFence.id)?.entryFixElapsedMs shouldBeEqualTo 140_000L
     }
 
     @Test
@@ -339,8 +341,8 @@ class GeofenceContainmentRealStoreTest : RobolectricTest() {
         val processor = lostExitVisit()
         val coordinator = GeofenceDwellCoordinator(store, processor, clock) { "boot" }
 
-        coordinator.onEnter(dwellFence.id, enteredAtSeconds = 900L, entryFixElapsedMs = 12_000L)
-        coordinator.onNativeDwell(dwellFence.id, observedAtSeconds = 960L, triggeringFixElapsedMs = 72_000L)
+        coordinator.onEnter(dwellFence.id, enteredAtSeconds = 900L, entryFixElapsedMs = 72_000L)
+        coordinator.onNativeDwell(dwellFence.id, observedAtSeconds = 960L, triggeringFixElapsedMs = 132_000L)
 
         coVerify(exactly = 1) {
             processor.process(any(), Event.GeofenceTransition.DWELL, any(), any(), any(), any(), any(), any(), any())
@@ -427,11 +429,9 @@ class GeofenceContainmentRealStoreTest : RobolectricTest() {
             GeofenceTransitionEmitter.Result.PERSISTED
         val coordinator = GeofenceDwellCoordinator(store, processor, clock) { "boot" }
         coordinator.onEnter(dwellFence.id, enteredAtSeconds = 100L, beginsNewVisit = true, entryFixElapsedMs = 2_000L)
-        // GMS decides a DWELL no sooner than the threshold after the registration, though a still
-        // device's triggering fix can be much older.
-        every { clock.elapsedRealtime() } returns 61_000L
-        coordinator.onNativeDwell(dwellFence.id, observedAtSeconds = 160L, triggeringFixElapsedMs = 5_000L)
-        every { clock.elapsedRealtime() } returns 10_000L
+        // A genuine GMS DWELL's fix comes no sooner than the 60 s threshold after the registration.
+        every { clock.elapsedRealtime() } returns 62_000L
+        coordinator.onNativeDwell(dwellFence.id, observedAtSeconds = 160L, triggeringFixElapsedMs = 61_000L)
         store.getDwellVisit(dwellFence.id)?.emitted shouldBeEqualTo true
         return processor
     }

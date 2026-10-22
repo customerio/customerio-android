@@ -171,7 +171,8 @@ class GeofenceDwellCoordinatorTest {
         coordinator.onNativeDwell(
             "circle",
             observedAtSeconds = 100L + 86_401L,
-            triggeringFixElapsedMs = FRESH_FIX_MS,
+            // GMS loitered the whole day after the registration, so its fix is that late too.
+            triggeringFixElapsedMs = (100L + 86_401L) * 1_000L - 1_000L,
             observedAtElapsedMs = (100L + 86_401L) * 1_000L
         )
 
@@ -1195,13 +1196,13 @@ class GeofenceDwellCoordinatorTest {
             enteredAtSeconds = 100L,
             beginsNewVisit = true,
             entryFixElapsedMs = FRESH_FIX_MS,
-            enteredAtElapsedMs = 100_000L
+            enteredAtElapsedMs = FRESH_FIX_MS + 80_000L
         )
         coordinator.onNativeDwell(
             "circle",
             observedAtSeconds = 170L,
             triggeringFixElapsedMs = FRESH_FIX_MS + 60_000L,
-            observedAtElapsedMs = 170_000L
+            observedAtElapsedMs = FRESH_FIX_MS + 150_000L
         )
 
         coVerify(exactly = 1) {
@@ -1286,7 +1287,7 @@ class GeofenceDwellCoordinatorTest {
             "circle",
             enteredAtSeconds = 900L,
             entryFixElapsedMs = FRESH_FIX_MS + 20_000L,
-            enteredAtElapsedMs = 900_000L
+            enteredAtElapsedMs = FRESH_FIX_MS + 880_000L
         )
 
         val restarted = state.visit
@@ -1300,7 +1301,7 @@ class GeofenceDwellCoordinatorTest {
             "circle",
             observedAtSeconds = 960L,
             triggeringFixElapsedMs = FRESH_FIX_MS + 80_000L,
-            observedAtElapsedMs = 960_000L
+            observedAtElapsedMs = FRESH_FIX_MS + 940_000L
         )
 
         val context = slot<GeofenceTransitionEmitter.VisitContext.Dwell>()
@@ -1925,6 +1926,68 @@ class GeofenceDwellCoordinatorTest {
     }
 
     @Test
+    fun polygonExit_givenAnOutsideFixOlderThanTheVisitsInsideProof_expectTheVisitEndedWithoutTiming() = runTest {
+        // After a restart the engine lost its ordering: an outside fix from 190 s is judged after
+        // inside proof from 200 s. The stay ends, but no span can honestly be reported.
+        val region = polygon()
+        statefulVisitStore(region)
+        coEvery { processor.process(any(), any(), any(), any(), any(), any(), any(), any()) } returns
+            GeofenceTransitionEmitter.Result.PERSISTED
+        val coordinator = GeofenceDwellCoordinator(store, processor, clock, bootSessionProvider = bootSessions)
+        coordinator.onEnter(
+            "polygon",
+            enteredAtSeconds = WALL_ENTRY_SECONDS,
+            beginsNewVisit = true,
+            polygonOutsideObserved = true,
+            enteredAtElapsedMs = 100_000L
+        )
+        coordinator.onInsideEvidence("polygon", observedAtSeconds = WALL_ENTRY_SECONDS + 100L, observedAtElapsedMs = 200_000L)
+
+        val exit = coordinator.capturePolygonExit("polygon", exitedAtSeconds = WALL_ENTRY_SECONDS + 90L, exitFixElapsedMs = 190_000L)
+
+        val context = checkNotNull(exit.visitContext)
+        exit.endedVisitId shouldBeEqualTo context.visitId
+        context.durationSeconds.shouldBeNull()
+        context.durationUncertaintySeconds.shouldBeNull()
+        context.enteredAt.shouldBeNull()
+    }
+
+    @Test
+    fun nativeExit_givenADayOldReservationTheOutboxRefused_expectItGivenUpAndTheVisitEnded() = runTest {
+        val region = circle()
+        val reserved = GeofenceDwellVisit(
+            geofenceId = "circle",
+            visitId = "visit",
+            enteredAtSeconds = 100L,
+            regionRevision = region.transitionRevision(),
+            userStateGeneration = 7L,
+            registrationElapsedMs = REGISTERED_AT_MS,
+            entryFixElapsedMs = FRESH_FIX_MS,
+            bootSessionId = "boot-a",
+            enteredAtElapsedMs = FRESH_FIX_MS + 100L,
+            dwellReservation = GeofenceDwellReservation(160L, null, 60, null, "native")
+        )
+        val visit = statefulVisitStore(region, reserved)
+        every { store.getAllPendingTransitionEntries() } returns emptyList()
+        coEvery { processor.process(any(), any(), any(), any(), any(), any(), any(), any()) } returns
+            GeofenceTransitionEmitter.Result.PERSISTED
+        val coordinator = GeofenceDwellCoordinator(store, processor, clock, bootSessionProvider = bootSessions)
+        nowWallSeconds = 160L + 24L * 60 * 60 + 1L
+
+        val exit = coordinator.onNativeExit(
+            geofenceId = "circle",
+            exitedAtSeconds = nowWallSeconds,
+            triggeringFixElapsedMs = FRESH_FIX_MS + 300_000L,
+            exitedAtElapsedMs = FRESH_FIX_MS + 300_100L
+        )
+
+        // Not delivered a day late through the EXIT either; given up, so the EXIT ends the visit.
+        coVerify(exactly = 0) { processor.process(any(), Event.GeofenceTransition.DWELL, any(), any(), any(), any(), any(), any()) }
+        exit.endedVisitId shouldBeEqualTo "visit"
+        visit()?.emitted shouldBeEqualTo true
+    }
+
+    @Test
     fun polygonExitSoonAfterTheLastInsideProof_reportsTheObservedDuration() = runTest {
         val region = polygon()
         statefulVisitStore(region)
@@ -2250,16 +2313,18 @@ class GeofenceDwellCoordinatorTest {
         nowElapsedMs = REGISTERED_AT_MS + 1_000L
         coordinator.onEnter("circle", enteredAtSeconds = 100L, beginsNewVisit = true, entryFixElapsedMs = REGISTERED_AT_MS + 500L)
 
-        nowElapsedMs = REGISTERED_AT_MS + 6_000L
-        coordinator.onNativeDwell("circle", observedAtSeconds = 105L, triggeringFixElapsedMs = REGISTERED_AT_MS + 5_000L)
+        // Fired seconds after the re-add, but delivered late (Doze, a cold start): the receipt must not
+        // turn it into proof, and the device may have left meanwhile.
+        nowElapsedMs = REGISTERED_AT_MS + 120_000L
+        coordinator.onNativeDwell("circle", observedAtSeconds = 225L, triggeringFixElapsedMs = REGISTERED_AT_MS + 5_000L)
 
         coVerify(exactly = 0) { processor.process(any(), Event.GeofenceTransition.DWELL, any(), any(), any(), any(), any(), any()) }
         visit()?.emitted shouldBeEqualTo false
         // Still inside evidence for the visit.
         visit()?.lastInsideFixElapsedMs shouldBeEqualTo REGISTERED_AT_MS + 5_000L
 
-        nowElapsedMs = REGISTERED_AT_MS + 61_000L
-        coordinator.onNativeDwell("circle", observedAtSeconds = 160L, triggeringFixElapsedMs = REGISTERED_AT_MS + 60_500L)
+        nowElapsedMs = REGISTERED_AT_MS + 181_000L
+        coordinator.onNativeDwell("circle", observedAtSeconds = 280L, triggeringFixElapsedMs = REGISTERED_AT_MS + 180_000L)
 
         coVerify(exactly = 1) { processor.process(any(), Event.GeofenceTransition.DWELL, any(), any(), any(), any(), any(), any()) }
     }
@@ -2590,7 +2655,9 @@ class GeofenceDwellCoordinatorTest {
 
     private companion object {
         const val REGISTERED_AT_MS = 10_000L
-        const val FRESH_FIX_MS = 20_000L
+
+        // After a registration at 10 s plus the 60 s threshold: a genuine GMS DWELL fix is no earlier.
+        const val FRESH_FIX_MS = 70_000L
         const val WALL_ENTRY_SECONDS = 1_000_000L
     }
 }

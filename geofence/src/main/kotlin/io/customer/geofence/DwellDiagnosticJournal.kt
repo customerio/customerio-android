@@ -58,7 +58,10 @@ internal enum class DwellDiagnosticReason {
     PROOF_SPACING,
 
     /** The request's charge to the visit's budget could not be saved, so the request was not made. */
-    CHARGE_NOT_SAVED
+    CHARGE_NOT_SAVED,
+
+    /** A DWELL the outbox kept refusing was given up as too old to deliver. */
+    RESERVATION_EXPIRED
 }
 
 /**

@@ -257,9 +257,10 @@ internal class GeofenceDwellCoordinator(
         // GMS fires DWELL within seconds of re-adding a fence the device is inside, whatever the
         // loitering delay (seen on GMS 26.37: a threshold or geometry change re-adds under the same id).
         // A genuine one cannot come sooner than the threshold after the registration it loitered on was
-        // added, so an earlier one is still inside evidence but proves no threshold. GMS decided it no
-        // later than its receipt, nor before its fix, so it is refused only when even the later is early.
-        val thresholdSinceRegistrationMs = maxOf(atElapsedMs, insideFix) - incarnation.registeredAtElapsedMs
+        // added, so an earlier one is still inside evidence but proves no threshold. Judged on GMS's fix,
+        // never the receipt: a delayed delivery must not turn an early callback into proof, and GMS
+        // re-serves a still device's last position with a fresh stamp, so a genuine one's fix is current.
+        val thresholdSinceRegistrationMs = insideFix - incarnation.registeredAtElapsedMs
         if (thresholdSinceRegistrationMs < region.dwellThresholdSeconds * MILLIS_PER_SECOND - REGISTRATION_STAMP_SLACK_MS) {
             recordDwellOutcome(
                 diagnosticToken,
@@ -411,6 +412,21 @@ internal class GeofenceDwellCoordinator(
             ?: false
         if (startedAfterExit) return@withLock PolygonExit()
         val dwellDurable = flushPendingReservation(region, visit, bootSessionId, exitedAtSeconds, exitFixElapsedMs, "location_evidence")
+        // An outside fix older than inside proof the visit already holds (the engine's ordering of the
+        // two was lost with a restart): the stay ends, but its span would include time inside after
+        // this fix, so no timing is reported rather than a span with a falsely certain end.
+        val predatesInsideProof = latestInsideFix(visit)?.let { exitFixElapsedMs < it } == true
+        if (predatesInsideProof) {
+            return@withLock PolygonExit(
+                endedVisitId = visit.visitId.takeIf { dwellDurable },
+                visitContext = GeofenceTransitionEmitter.VisitContext.Exit(
+                    visitId = visit.visitId,
+                    enteredAt = null,
+                    durationSeconds = null,
+                    detectionSource = "location_evidence"
+                )
+            )
+        }
         PolygonExit(
             // A reservation the outbox refused keeps its visit for the launch sweep to retry.
             endedVisitId = visit.visitId.takeIf { dwellDurable },
@@ -818,11 +834,6 @@ internal class GeofenceDwellCoordinator(
             if (stored.emitted) return@forEach
             val region = store.getCachedRegion(stored.geofenceId) ?: return@forEach
             val visit = currentVisit(region, bootSessionId) ?: return@forEach
-            if (isTooOldToDeliver(reservation)) {
-                // Marked emitted, not removed: the visit continues, and must not qualify a second DWELL.
-                store.saveDwellVisit(visit.copy(emitted = true))
-                return@forEach
-            }
             emitIfDue(
                 region,
                 visit,
@@ -1022,7 +1033,21 @@ internal class GeofenceDwellCoordinator(
                 return
             }
         }
-        if (reserved.dwellReservation == null) return
+        val reservation = reserved.dwellReservation ?: return
+        // Enforced here, where every path delivers: a DWELL the outbox kept refusing for a day is given
+        // up, not delivered for a stay long over. Marked emitted so the visit cannot qualify again, and
+        // so an EXIT or replacement waiting on it can proceed.
+        if (isTooOldToDeliver(reservation)) {
+            store.saveDwellVisit(reserved.copy(emitted = true))
+            recordDwellOutcome(
+                diagnosticToken,
+                reserved.userStateGeneration,
+                DwellDiagnosticEvent.DWELL_REJECTED,
+                region.id,
+                DwellDiagnosticReason.RESERVATION_EXPIRED
+            )
+            return
+        }
         if (processReservation(region, reserved)) {
             store.saveDwellVisit(reserved.copy(emitted = true))
             // A durable on-device fact from here: the outbox persisted this DWELL, or the processor staged it

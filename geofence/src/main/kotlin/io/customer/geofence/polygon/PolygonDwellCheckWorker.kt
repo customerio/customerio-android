@@ -20,6 +20,18 @@ import io.customer.sdk.core.util.CustomerIOWorkManagerProvider
 import io.customer.sdk.data.store.SecureUserStore
 import java.util.concurrent.TimeUnit
 
+/** What one scheduled check did, which decides how the scheduler counts it. */
+internal sealed interface PolygonDwellCheckResult {
+    /** A request was charged to the visit; its stored budget bounds the checks that follow. */
+    data object Charged : PolygonDwellCheckResult
+
+    /** Nothing was charged: a reused fix, a check its visit no longer needed, or a refusal. */
+    data object Uncharged : PolygonDwellCheckResult
+
+    /** Another request's cooldown refused it: uncharged, and worth trying again after [delayMs]. */
+    data class RetryAfter(val delayMs: Long) : PolygonDwellCheckResult
+}
+
 /** A pending polygon visit's next background look, on [PolygonBootSessionProvider]'s boot clock. */
 internal data class PolygonDwellCheck(
     val polygonId: String,
@@ -97,15 +109,13 @@ internal interface PolygonDwellCheckScheduler {
      */
     fun reconcile()
 
-    /** The checks due now. Each is counted as attempted, so a check that asks nothing is not repeated at once. */
+    /**
+     * The checks due now, each spaced from this run and counted as uncharged until [recordResult] says
+     * otherwise, so a check that never reports is not repeated at once or forever.
+     */
     fun takeDueChecks(): List<PolygonDwellCheck>
 
-    /**
-     * [check] was refused by another request's cooldown: it runs again after [delayMs], uncounted for
-     * the first [WorkManagerPolygonDwellCheckScheduler.MAX_UNCOUNTED_RETRIES_PER_VISIT] such refusals of a visit, since edge requests,
-     * which no budget bounds, could otherwise renew the cooldown before every retry.
-     */
-    fun retryUncounted(check: PolygonDwellCheck, delayMs: Long)
+    fun recordResult(check: PolygonDwellCheck, result: PolygonDwellCheckResult)
 
     /** Brackets a job's run: calls meanwhile wait for its end, which reconciles once. */
     fun beginRun()
@@ -118,7 +128,7 @@ internal class WorkManagerPolygonDwellCheckScheduler(
     private val planner: PolygonDwellCheckPlanner,
     private val elapsedRealtimeMs: () -> Long = SystemClock::elapsedRealtime
 ) : PolygonDwellCheckScheduler {
-    private data class Attempts(val count: Int, val notBeforeElapsedMs: Long, val uncounted: Int = 0)
+    private data class Attempts(val uncharged: Int, val notBeforeElapsedMs: Long)
 
     /**
      * Held across planning and the WorkManager call, so a reconcile working from an older plan can
@@ -132,8 +142,9 @@ internal class WorkManagerPolygonDwellCheckScheduler(
     private var scheduledKnown = false
 
     /**
-     * Checks a job made, by visit, whether or not their request was charged: one that asked nothing,
-     * say because a fix had just been requested, must still wait the spacing. In memory: a new process
+     * By visit: when it may next be checked, and how many of its checks charged nothing. Charged
+     * checks are bounded by the visit's stored budget; these by [MAX_UNCHARGED_CHECKS_PER_VISIT], so
+     * a visit that something keeps from requesting stops waking the app. In memory: a new process
      * starts without them, but then nothing in it can have refused a request.
      */
     private val attempts = mutableMapOf<String, Attempts>()
@@ -145,23 +156,21 @@ internal class WorkManagerPolygonDwellCheckScheduler(
     override fun takeDueChecks(): List<PolygonDwellCheck> = synchronized(lock) {
         val now = elapsedRealtimeMs()
         nextChecksLocked().filter { it.atElapsedMs <= now }.onEach { check ->
-            val tried = attempts[check.visitId]
             attempts[check.visitId] = Attempts(
-                count = (tried?.count ?: 0) + 1,
-                notBeforeElapsedMs = now + GeofenceConstants.DWELL_PROOF_REQUEST_SPACING_MS,
-                uncounted = tried?.uncounted ?: 0
+                uncharged = (attempts[check.visitId]?.uncharged ?: 0) + 1,
+                notBeforeElapsedMs = now + GeofenceConstants.DWELL_PROOF_REQUEST_SPACING_MS
             )
         }
     }
 
-    override fun retryUncounted(check: PolygonDwellCheck, delayMs: Long) = synchronized(lock) {
+    override fun recordResult(check: PolygonDwellCheck, result: PolygonDwellCheckResult) = synchronized(lock) {
         val tried = attempts[check.visitId] ?: return@synchronized
-        val refund = tried.uncounted < MAX_UNCOUNTED_RETRIES_PER_VISIT
-        attempts[check.visitId] = Attempts(
-            count = if (refund) tried.count - 1 else tried.count,
-            notBeforeElapsedMs = elapsedRealtimeMs() + delayMs,
-            uncounted = if (refund) tried.uncounted + 1 else tried.uncounted
-        )
+        attempts[check.visitId] = when (result) {
+            PolygonDwellCheckResult.Charged -> tried.copy(uncharged = tried.uncharged - 1)
+            PolygonDwellCheckResult.Uncharged -> tried
+            is PolygonDwellCheckResult.RetryAfter ->
+                tried.copy(notBeforeElapsedMs = elapsedRealtimeMs() + result.delayMs)
+        }
     }
 
     override fun beginRun() = synchronized(lock) {
@@ -180,7 +189,7 @@ internal class WorkManagerPolygonDwellCheckScheduler(
         attempts.keys.retainAll(planned.mapTo(mutableSetOf(), PolygonDwellCheck::visitId))
         return planned.mapNotNull { check ->
             val tried = attempts[check.visitId] ?: return@mapNotNull check
-            if (tried.count >= GeofenceConstants.MAX_DWELL_PROOF_REQUESTS_PER_VISIT) return@mapNotNull null
+            if (tried.uncharged >= MAX_UNCHARGED_CHECKS_PER_VISIT) return@mapNotNull null
             check.copy(atElapsedMs = maxOf(check.atElapsedMs, tried.notBeforeElapsedMs))
         }
     }
@@ -213,8 +222,11 @@ internal class WorkManagerPolygonDwellCheckScheduler(
         const val WORK_MANAGER_TAG_CIO = "cio-requests"
         const val WORK_MANAGER_TAG_POLYGON_DWELL_CHECK = "cio-polygon-dwell-check"
 
-        /** Per visit and process; past it a cooldown refusal counts as an attempt. */
-        const val MAX_UNCOUNTED_RETRIES_PER_VISIT = 8
+        /**
+         * Per visit and process. Above the request budget, so another visit's requests (at most that
+         * budget) cannot refuse this one's checks away through their cooldown.
+         */
+        const val MAX_UNCHARGED_CHECKS_PER_VISIT = 8
     }
 }
 
@@ -240,12 +252,13 @@ internal class PolygonDwellCheckWorker(
             // Cancellable: a stop mid-check can waste at most that check's charged request, which the
             // visit's budget already bounds, while the evaluation after it may wait on the outbox.
             scheduler.takeDueChecks().forEach { check ->
-                controller.onDwellCheck(
+                val result = controller.onDwellCheck(
                     polygonId = check.polygonId,
                     visitId = check.visitId,
                     expectedUserStateGeneration = expectedUserStateGeneration,
                     expectedTeardownGeneration = expectedTeardownGeneration
-                )?.let { delayMs -> scheduler.retryUncounted(check, delayMs) }
+                )
+                scheduler.recordResult(check, result)
             }
         } finally {
             scheduler.endRun()

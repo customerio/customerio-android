@@ -137,16 +137,13 @@ internal class PolygonGeofenceServiceController(
      * A scheduled check of [visitId], the polygon's visit when it was planned. It may only look for the
      * strict proof the engine already requires, with one precise fix charged to the visit's budget. It
      * takes no coarse state or ordering slot, so later ENTERs and EXITs are judged as before.
-     *
-     * @return how long to wait before checking again without counting this check, when another
-     *   request's cooldown refused it; null when the check ran, or the visit needs no more.
      */
     suspend fun onDwellCheck(
         polygonId: String,
         visitId: String,
         expectedUserStateGeneration: Long,
         expectedTeardownGeneration: Long
-    ): Long? {
+    ): PolygonDwellCheckResult {
         recordDiagnostic(expectedUserStateGeneration, DwellDiagnosticEvent.WAKE_DWELL_CHECK, polygonId, null)
         return coarseTransitionMutex.withLock {
             val visit = store.getDwellVisit(polygonId)
@@ -156,11 +153,9 @@ internal class PolygonGeofenceServiceController(
                 !activateForDwellCheck(polygonId, expectedUserStateGeneration, expectedTeardownGeneration)
             ) {
                 logger.logPolygonCallbackDropped(PolygonCallbackDrop.NOT_ROUTABLE, polygonId)
-                return@withLock null
+                return@withLock PolygonDwellCheckResult.Uncharged
             }
-            val skipped = requestDwellProof(polygonId, expectedUserStateGeneration, expectedTeardownGeneration)
-            // Another visit's request started the shared cooldown: not this visit's attempt.
-            FRESH_FIX_COOLDOWN_MS.takeIf { skipped == DwellDiagnosticReason.WITHIN_COOLDOWN }
+            requestDwellProof(polygonId, expectedUserStateGeneration, expectedTeardownGeneration)
         }
     }
 
@@ -168,14 +163,12 @@ internal class PolygonGeofenceServiceController(
      * One precise fix for a dwell check, charged to the visit's budget before it is requested. The
      * teardown token is re-checked after every await: teardown keeps the visit and a later callback can
      * re-activate the engine, so a late answer would otherwise still qualify it.
-     *
-     * @return why no fix was obtained, or null when one was.
      */
     private suspend fun requestDwellProof(
         polygonId: String,
         expectedUserStateGeneration: Long,
         expectedTeardownGeneration: Long
-    ): DwellDiagnosticReason? {
+    ): PolygonDwellCheckResult {
         // Taken before any await, so a reset while a request is out retires what its answer records.
         val diagnosticToken = diagnosticRecorder?.currentToken()
         fun recordDwellRejected(reason: DwellDiagnosticReason) = recordDiagnostic(
@@ -188,9 +181,18 @@ internal class PolygonGeofenceServiceController(
         val budget = withinDwellProofBudget(setOf(polygonId))
         if (budget.isEmpty()) {
             recordDwellRejected(DwellDiagnosticReason.BUDGET_EXHAUSTED)
-            return DwellDiagnosticReason.BUDGET_EXHAUSTED
+            return PolygonDwellCheckResult.Uncharged
         }
         var skipped: DwellDiagnosticReason? = null
+        var charged = false
+
+        // Charged decides how the scheduler counts this check, whatever the answer: a timeout spends it too.
+        fun result() = when {
+            charged -> PolygonDwellCheckResult.Charged
+            // Another visit's request started the shared cooldown: worth retrying once it passes.
+            skipped == DwellDiagnosticReason.WITHIN_COOLDOWN -> PolygonDwellCheckResult.RetryAfter(FRESH_FIX_COOLDOWN_MS)
+            else -> PolygonDwellCheckResult.Uncharged
+        }
         val fresh = preciseFixForCallback(
             polygonId,
             undecidedPolygonIds = setOf(polygonId),
@@ -201,15 +203,16 @@ internal class PolygonGeofenceServiceController(
                 skipped = reason
                 recordDwellRejected(reason)
             },
-            onRequesting = { at -> chargeDwellProofRequests(budget, at) }
-        ) ?: return skipped ?: DwellDiagnosticReason.NOT_CURRENT_SESSION
-        if (isAfterTeardown(expectedTeardownGeneration)) return DwellDiagnosticReason.NOT_CURRENT_SESSION
-        evaluateAndRecentre(
-            fresh.fix,
-            expectedUserStateGeneration,
-            expectedTeardownGeneration = expectedTeardownGeneration
-        )
-        return null
+            onRequesting = { at -> chargeDwellProofRequests(budget, at).also { charged = it } }
+        ) ?: return result()
+        if (!isAfterTeardown(expectedTeardownGeneration)) {
+            evaluateAndRecentre(
+                fresh.fix,
+                expectedUserStateGeneration,
+                expectedTeardownGeneration = expectedTeardownGeneration
+            )
+        }
+        return result()
     }
 
     /**

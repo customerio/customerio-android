@@ -196,9 +196,9 @@ class PolygonDwellCheckTest : RobolectricTest() {
     }
 
     @Test
-    fun takeDueChecks_givenEveryAttemptRefusedWithoutACharge_expectAtMostTheBudgetThenCancel() {
+    fun takeDueChecks_givenChecksThatNeverReport_expectAtMostTheUnchargedCapThenCancel() {
         nowMs = DUE_AT_MS
-        repeat(GeofenceConstants.MAX_DWELL_PROOF_REQUESTS_PER_VISIT) {
+        repeat(WorkManagerPolygonDwellCheckScheduler.MAX_UNCHARGED_CHECKS_PER_VISIT) {
             scheduler.beginRun()
             scheduler.takeDueChecks().size shouldBeEqualTo 1
             scheduler.endRun()
@@ -210,11 +210,28 @@ class PolygonDwellCheckTest : RobolectricTest() {
     }
 
     @Test
+    fun doWork_givenChargedChecks_expectOnlyTheStoredBudgetToEndThem() = runTest {
+        // The store still shows budget left (this mock never records the charges), so only an
+        // in-memory count could stop the checks; charged ones must never feed it.
+        nowMs = DUE_AT_MS
+        coEvery { controller.onDwellCheck(any(), any(), any(), any()) } returns PolygonDwellCheckResult.Charged
+        val runs = WorkManagerPolygonDwellCheckScheduler.MAX_UNCHARGED_CHECKS_PER_VISIT + 4
+
+        repeat(runs) {
+            TestListenableWorkerBuilder<PolygonDwellCheckWorker>(applicationMock).build().doWork()
+            nowMs += GeofenceConstants.DWELL_PROOF_REQUEST_SPACING_MS
+        }
+
+        coVerify(exactly = runs) { controller.onDwellCheck(POLYGON.id, VISIT, any(), any()) }
+        verify(exactly = 0) { workManager.cancelUniqueWork(any()) }
+    }
+
+    @Test
     fun doWork_givenADueVisit_expectOneCheckWithTheTokensTakenFirstThenTheNextScheduled() = runTest {
         nowMs = DUE_AT_MS
         coEvery { controller.onDwellCheck(any(), any(), any(), any()) } answers {
             nowMs += 1_000L
-            null
+            PolygonDwellCheckResult.Charged
         }
 
         val result = TestListenableWorkerBuilder<PolygonDwellCheckWorker>(applicationMock).build().doWork()
@@ -230,22 +247,21 @@ class PolygonDwellCheckTest : RobolectricTest() {
     }
 
     @Test
-    fun doWork_givenTheCheckRefusedByAnotherRequestsCooldown_expectARetryThatDoesNotSpendAnAttempt() = runTest {
+    fun doWork_givenTheCheckRefusedByAnotherRequestsCooldown_expectRetriesAfterItUpToTheUnchargedCap() = runTest {
         nowMs = DUE_AT_MS
-        coEvery { controller.onDwellCheck(any(), any(), any(), any()) } returns 30_000L
+        coEvery { controller.onDwellCheck(any(), any(), any(), any()) } returns PolygonDwellCheckResult.RetryAfter(30_000L)
+        val cap = WorkManagerPolygonDwellCheckScheduler.MAX_UNCHARGED_CHECKS_PER_VISIT
 
-        val uncounted = WorkManagerPolygonDwellCheckScheduler.MAX_UNCOUNTED_RETRIES_PER_VISIT
-        val budget = GeofenceConstants.MAX_DWELL_PROOF_REQUESTS_PER_VISIT
-        repeat(uncounted + budget) {
+        repeat(cap) {
             TestListenableWorkerBuilder<PolygonDwellCheckWorker>(applicationMock).build().doWork()
+            if (it < cap - 1) requests.last().workSpec.initialDelay shouldBeEqualTo 30_000L
             nowMs += 30_000L
         }
 
-        // Refusals by another request's cooldown spend no attempt at first, so they cannot exhaust
-        // this visit's checks; past the cap they count, so edge requests cannot renew it forever.
-        coVerify(exactly = uncounted + budget) { controller.onDwellCheck(POLYGON.id, VISIT, any(), any()) }
+        // Another visit's budget bounds its requests below the cap, so its cooldown cannot use up this
+        // visit's checks; edge requests, which no budget bounds, cannot renew it past the cap.
+        coVerify(exactly = cap) { controller.onDwellCheck(POLYGON.id, VISIT, any(), any()) }
         verify { workManager.cancelUniqueWork(WorkManagerPolygonDwellCheckScheduler.POLYGON_DWELL_CHECK_WORK) }
-        scheduler.takeDueChecks().shouldBeEmpty()
     }
 
     @Test

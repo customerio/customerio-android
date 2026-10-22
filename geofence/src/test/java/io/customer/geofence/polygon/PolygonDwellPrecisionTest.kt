@@ -391,7 +391,7 @@ class PolygonDwellPrecisionTest : RobolectricTest() {
 
         // Due, but no precise fix comes. A check is not proof: no DWELL, and the request is spent.
         ShadowSystemClock.advanceBy(Duration.ofSeconds(70))
-        dwellCheck(controller, visit.visitId)
+        dwellCheck(controller, visit.visitId) shouldBeEqualTo PolygonDwellCheckResult.Charged
         freshFix.priorities shouldBeEqualTo listOf(PolygonFixPriority.HIGH_ACCURACY)
         dwells().shouldBeEmpty()
         store.getDwellVisit(VENUE_ID).shouldNotBeNull().dwellProofRequests shouldBeEqualTo 1
@@ -433,9 +433,9 @@ class PolygonDwellPrecisionTest : RobolectricTest() {
         requestsBefore shouldBeEqualTo 1
         val spentBefore = store.getDwellVisit(VENUE_ID).shouldNotBeNull().dwellProofRequests
 
-        val retryAfterMs = dwellCheck(controller, visit.visitId)
+        val result = dwellCheck(controller, visit.visitId)
 
-        retryAfterMs shouldBeEqualTo 30_000L
+        result shouldBeEqualTo PolygonDwellCheckResult.RetryAfter(30_000L)
         freshFix.priorities.size shouldBeEqualTo requestsBefore
         store.getDwellVisit(VENUE_ID).shouldNotBeNull().dwellProofRequests shouldBeEqualTo spentBefore
     }
@@ -450,7 +450,7 @@ class PolygonDwellPrecisionTest : RobolectricTest() {
         freshFix.answer = fixAtTheVenueCentre(SystemClock.elapsedRealtimeNanos())
 
         // Planned for a visit that has since been replaced.
-        dwellCheck(controller, "an-earlier-visit")
+        dwellCheck(controller, "an-earlier-visit") shouldBeEqualTo PolygonDwellCheckResult.Uncharged
         freshFix.priorities.shouldBeEmpty()
 
         // The visit already spent every request.
@@ -652,7 +652,10 @@ class PolygonDwellPrecisionTest : RobolectricTest() {
     }
 
     /** The worker's call for a check planned for [visitId], with the tokens it snapshots first. */
-    private suspend fun TestScope.dwellCheck(controller: PolygonGeofenceServiceController, visitId: String): Long? =
+    private suspend fun TestScope.dwellCheck(
+        controller: PolygonGeofenceServiceController,
+        visitId: String
+    ): PolygonDwellCheckResult =
         controller.onDwellCheck(
             polygonId = VENUE_ID,
             visitId = visitId,
@@ -740,7 +743,7 @@ class PolygonDwellPrecisionTest : RobolectricTest() {
             reconciles += 1
         }
         override fun takeDueChecks(): List<PolygonDwellCheck> = emptyList()
-        override fun retryUncounted(check: PolygonDwellCheck, delayMs: Long) = Unit
+        override fun recordResult(check: PolygonDwellCheck, result: PolygonDwellCheckResult) = Unit
         override fun beginRun() = Unit
         override fun endRun() = Unit
     }

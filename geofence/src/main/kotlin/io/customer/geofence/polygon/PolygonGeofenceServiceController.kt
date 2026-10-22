@@ -1080,8 +1080,15 @@ internal class PolygonGeofenceServiceController(
         ) ?: return null
         // Not an answer to the sample's held arrivals: this request asked only for dwell proof, so an
         // echo of the sample must not settle a neighbour's borderline arrival as corroborated. A newer,
-        // independent fix still judges every fence as usual.
-        val after = processTriggeredLocation(fresh.fix, expectedUserStateGeneration, settlesHeldArrivals = false)
+        // independent fix still judges every fence as usual. Marked as answering the sample all the
+        // same, so an echo is recorded and memoised rather than skipped, which would let a parked
+        // device spend every proof request on the same position.
+        val after = processTriggeredLocation(
+            fresh.fix,
+            expectedUserStateGeneration,
+            answersHeldFixAt = sample.elapsedRealtimeNanos,
+            settlesHeldArrivals = false
+        )
         // An aborted pass reports nothing undecided, so it must not clear the memos.
         if (!after.acceptedFix) return null
         val echoed = after.echoedFixPolygonIds intersect unproven

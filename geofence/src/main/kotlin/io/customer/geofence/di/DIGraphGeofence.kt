@@ -96,7 +96,6 @@ internal val AndroidSDKComponent.polygonRecheckScheduler: PolygonRecheckSchedule
 internal val AndroidSDKComponent.polygonDwellCheckScheduler: PolygonDwellCheckScheduler
     // Keyed by the interface type, so an override registered for the interface takes effect.
     get() = singleton<PolygonDwellCheckScheduler> {
-        deleteRetiredDwellWakeRecords(applicationContext)
         val store = geofenceRegionStore
         val bootSessionProvider = polygonBootSessionProvider
         val packageInfo = geofencePackageInfo
@@ -118,20 +117,6 @@ internal val AndroidSDKComponent.polygonDwellCheckScheduler: PolygonDwellCheckSc
             elapsedRealtimeMs = SDKComponent.clock::elapsedRealtime
         )
     }
-
-/**
- * The retired experimental dwell wake kept its records here. An app update re-registers every polygon
- * normally, so they describe nothing GMS still holds. Deleted from disk without opening, as for
- * [dwellDiagnosticJournalFileExists]; best effort.
- */
-private fun deleteRetiredDwellWakeRecords(context: Context) {
-    runCatching {
-        val prefsDir = File(context.applicationInfo.dataDir, "shared_prefs")
-        val name = "io.customer.geofence.dwell_wake_records.xml"
-        File(prefsDir, name).delete()
-        File(prefsDir, "$name.bak").delete()
-    }
-}
 
 internal val AndroidSDKComponent.polygonPassiveMonitor: PolygonPassiveMonitor
     get() = singleton<PolygonPassiveMonitor> {

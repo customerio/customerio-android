@@ -540,6 +540,32 @@ class PolygonDwellPrecisionTest : RobolectricTest() {
     }
 
     @Test
+    fun processApproachLocations_givenAParkedDeviceAnsweredWithItsOwnSample_expectOneRequestNotTheWholeBudget() = runTest {
+        val freshFix = RecordingFreshFix()
+        val controller = controller(freshFix)
+        arriveClearly(controller)
+        ShadowSystemClock.advanceBy(Duration.ofSeconds(70))
+
+        // A due visit kept INSIDE by a sample that cannot prove it; GMS answers the precise request
+        // with that same sample, as it does for a parked device.
+        val sample = marginalFixInsideTheVenue(SystemClock.elapsedRealtimeNanos())
+        freshFix.answer = sample
+        controller.processApproachLocations(listOf(sample), store.userStateGeneration(), Long.MAX_VALUE)
+        advanceUntilIdle()
+        freshFix.priorities.size shouldBeEqualTo 1
+
+        // Same spot, past the 2-minute spacing: the echo was memoised, so nothing is asked again.
+        ShadowSystemClock.advanceBy(Duration.ofMinutes(3))
+        val next = marginalFixInsideTheVenue(SystemClock.elapsedRealtimeNanos())
+        freshFix.answer = next
+        controller.processApproachLocations(listOf(next), store.userStateGeneration(), Long.MAX_VALUE)
+        advanceUntilIdle()
+
+        freshFix.priorities.size shouldBeEqualTo 1
+        store.getDwellVisit(VENUE_ID).shouldNotBeNull().dwellProofRequests shouldBeEqualTo 1
+    }
+
+    @Test
     fun onDwellCheck_givenAnotherVisitOrASpentBudget_expectNothingRequested() = runTest {
         val freshFix = RecordingFreshFix()
         val controller = controller(freshFix)

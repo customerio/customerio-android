@@ -789,10 +789,10 @@ internal class GeofenceDwellCoordinator(
                 // Derived from the reported duration, so the whole-second rounding of the span's ends
                 // is covered too: duration minus uncertainty is never more than the shortest the stay
                 // can have been, from the entry fix to the last inside proof, on the boot clock.
+                // With the duration rounded up, this also covers the departure gap rounded up.
                 val entryAt = visit.entryFixElapsedMs ?: visit.enteredAtElapsedMs
                 val shortestStaySeconds = entryAt?.let { (departureNoEarlier - it).coerceAtLeast(0L) / MILLIS_PER_SECOND }
-                val gapSeconds = (exitDecidedAtElapsedMs - departureNoEarlier + MILLIS_PER_SECOND - 1) / MILLIS_PER_SECOND
-                maxOf(gapSeconds, shortestStaySeconds?.let { observed.durationSeconds - it } ?: observed.durationSeconds)
+                (shortestStaySeconds?.let { observed.durationSeconds - it } ?: observed.durationSeconds)
                     .coerceIn(0L, observed.durationSeconds)
             } ?: observed.durationSeconds
         }
@@ -861,7 +861,7 @@ internal class GeofenceDwellCoordinator(
             val deliverable = region != null &&
                 orphan.regionRevision == region.transitionRevision() &&
                 orphan.userStateGeneration == store.userStateGeneration() &&
-                orphan.dwellReservation?.let(::isTooOldToDeliver) != true
+                orphan.dwellReservation?.let { isTooOldToDeliver(orphan, it) } != true
             if (!deliverable || deliverReservation(region, orphan) != ReservationDelivery.RETRY) {
                 store.removeOrphanedDwellReservation(orphan.visitId)
             }
@@ -871,9 +871,17 @@ internal class GeofenceDwellCoordinator(
     /** Whole seconds, rounded up; negative spans read as zero. */
     private fun ceilSeconds(spanMs: Long): Long = (spanMs.coerceAtLeast(0L) + MILLIS_PER_SECOND - 1) / MILLIS_PER_SECOND
 
-    /** On the wall clock, the only one a reservation from an earlier boot can be compared on. */
-    private fun isTooOldToDeliver(reservation: GeofenceDwellReservation): Boolean =
-        clock.currentTimeSeconds() - reservation.timestampSeconds > MAX_RESERVATION_AGE_SECONDS
+    /**
+     * On the boot clock when [reservation] was made in this boot, which no clock change moves; else on
+     * the wall clock, the only one a reservation from an earlier boot can be compared on.
+     */
+    private fun isTooOldToDeliver(visit: GeofenceDwellVisit, reservation: GeofenceDwellReservation): Boolean {
+        val reservedAt = reservation.reservedAtElapsedMs
+        if (reservedAt != null && visit.bootSessionId == bootSessionProvider.currentSessionId()) {
+            return clock.elapsedRealtime() - reservedAt > MAX_RESERVATION_AGE_SECONDS * MILLIS_PER_SECOND
+        }
+        return clock.currentTimeSeconds() - reservation.timestampSeconds > MAX_RESERVATION_AGE_SECONDS
+    }
 
     /** The entry time and duration an EXIT reports, dated at the fixes the transitions were decided on. */
     private data class ObservedSpan(val enteredAtSeconds: Long, val durationSeconds: Long)
@@ -1051,7 +1059,7 @@ internal class GeofenceDwellCoordinator(
         // Enforced here, where every path delivers: a DWELL the outbox kept refusing for a day is given
         // up, not delivered for a stay long over. Marked emitted so the visit cannot qualify again, and
         // so an EXIT or replacement waiting on it can proceed.
-        if (isTooOldToDeliver(reservation)) {
+        if (isTooOldToDeliver(reserved, reservation)) {
             store.saveDwellVisit(reserved.copy(emitted = true))
             recordDwellOutcome(
                 diagnosticToken,
@@ -1177,7 +1185,8 @@ internal class GeofenceDwellCoordinator(
                 enteredAt = (visit.enteredAtSeconds - entryDelaySeconds).takeIf { reportsEntry },
                 thresholdSeconds = thresholdSeconds,
                 durationSeconds = durationSeconds?.takeIf { reportsEntry && it >= thresholdSeconds },
-                detectionSource = detectionSource
+                detectionSource = detectionSource,
+                reservedAtElapsedMs = observedAtElapsedMs
             )
         )
         return reserved.takeIf { store.saveDwellVisit(it) }

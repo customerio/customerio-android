@@ -2023,6 +2023,44 @@ class GeofenceDwellCoordinatorTest {
     }
 
     @Test
+    fun recoverPendingReservations_givenASameBootReservation_expectItsAgeMeasuredOnTheBootClock() = runTest {
+        val region = circle()
+        fun reserved(reservedAtElapsedMs: Long) = GeofenceDwellVisit(
+            geofenceId = "circle",
+            visitId = "visit",
+            enteredAtSeconds = 100L,
+            regionRevision = region.transitionRevision(),
+            userStateGeneration = 7L,
+            registrationElapsedMs = REGISTERED_AT_MS,
+            entryFixElapsedMs = FRESH_FIX_MS,
+            bootSessionId = "boot-a",
+            enteredAtElapsedMs = FRESH_FIX_MS,
+            dwellReservation = GeofenceDwellReservation(160L, null, 60, null, "native", reservedAtElapsedMs)
+        )
+        every { store.getAllPendingTransitionEntries() } returns emptyList()
+        every { store.getOrphanedDwellReservations() } returns emptyList()
+        coEvery { processor.process(any(), any(), any(), any(), any(), any(), any(), any()) } returns
+            GeofenceTransitionEmitter.Result.PERSISTED
+        val coordinator = GeofenceDwellCoordinator(store, processor, clock, bootSessionProvider = bootSessions)
+
+        // The wall clock jumped two days ahead, but only an hour passed: still delivered.
+        var visit = statefulVisitStore(region, reserved(reservedAtElapsedMs = nowElapsedMs))
+        every { store.getDwellVisits() } answers { listOfNotNull(visit()) }
+        nowWallSeconds = 160L + 2L * 24 * 60 * 60
+        nowElapsedMs += 60L * 60 * 1_000
+        coordinator.recoverPendingReservations()
+        coVerify(exactly = 1) { processor.process(any(), Event.GeofenceTransition.DWELL, any(), any(), any(), any(), any(), any()) }
+
+        // A day and more on the boot clock, though the wall clock was set back: given up.
+        visit = statefulVisitStore(region, reserved(reservedAtElapsedMs = nowElapsedMs - 25L * 60 * 60 * 1_000))
+        every { store.getDwellVisits() } answers { listOfNotNull(visit()) }
+        nowWallSeconds = 170L
+        coordinator.recoverPendingReservations()
+        coVerify(exactly = 1) { processor.process(any(), Event.GeofenceTransition.DWELL, any(), any(), any(), any(), any(), any()) }
+        visit()?.emitted shouldBeEqualTo true
+    }
+
+    @Test
     fun nativeExit_givenADayOldReservationTheOutboxRefused_expectItGivenUpAndTheVisitEnded() = runTest {
         val region = circle()
         val reserved = GeofenceDwellVisit(

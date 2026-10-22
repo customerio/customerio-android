@@ -62,7 +62,9 @@ internal data class GeofenceDwellReservation(
     val enteredAt: Long?,
     val thresholdSeconds: Int,
     val durationSeconds: Long?,
-    val detectionSource: String
+    val detectionSource: String,
+    /** When it was reserved, on the boot clock of the visit's boot; null on one reserved before this field. */
+    val reservedAtElapsedMs: Long? = null
 )
 
 /**

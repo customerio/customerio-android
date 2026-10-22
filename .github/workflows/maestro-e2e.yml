@@ -76,6 +76,13 @@ jobs:
           esac
           echo "suites=$suites" >> "$GITHUB_OUTPUT"
 
+      - name: Notify #squad-mobile-alerts of a scheduled failure
+        if: failure() && github.event_name == 'schedule'
+        uses: customerio/mobile-ci-tools/github-actions/slack-notify-scheduled-failure/v1@main
+        with:
+          slack_webhook_url: ${{ secrets.SLACK_NOTIFY_RELEASES_WEBHOOK_URL }}
+          label: suite selection
+
   e2e:
     name: Android ${{ matrix.suite }}
     needs: prepare
@@ -185,3 +192,10 @@ jobs:
           path: artifacts/e2e/
           if-no-files-found: warn
           retention-days: 14
+
+      - name: Notify #squad-mobile-alerts of a scheduled failure
+        if: failure() && github.event_name == 'schedule'
+        uses: customerio/mobile-ci-tools/github-actions/slack-notify-scheduled-failure/v1@main
+        with:
+          slack_webhook_url: ${{ secrets.SLACK_NOTIFY_RELEASES_WEBHOOK_URL }}
+          label: ${{ matrix.suite }}

@@ -1617,7 +1617,10 @@ class GeofenceDwellCoordinatorTest {
     }
 
     @Test
-    fun nativeExitOlderThanTheVisitsLatestDwellFix_isSupersededAndKeepsTheVisit() = runTest {
+    fun nativeExitOlderThanTheVisitsLatestDwellFix_endsTheVisitUntimed() = runTest {
+        // GMS may stamp a still device's last position fresh for a DWELL, newer than the outside
+        // sample it decides a later EXIT from. Only an ENTER's fix overrules an EXIT, so this one
+        // ends the stay; its span would include time inside after the fix, so it carries no timing.
         val region = circle()
         val current = GeofenceDwellVisit(
             geofenceId = "circle",
@@ -1625,6 +1628,7 @@ class GeofenceDwellCoordinatorTest {
             enteredAtSeconds = WALL_ENTRY_SECONDS,
             regionRevision = region.transitionRevision(),
             userStateGeneration = 7L,
+            entryWasObserved = true,
             registrationElapsedMs = 500L,
             entryFixElapsedMs = 1_000L,
             lastInsideFixElapsedMs = 5_000L,
@@ -1636,27 +1640,22 @@ class GeofenceDwellCoordinatorTest {
             liveRegistration(region).copy(registeredAtElapsedMs = 500L)
         val coordinator = GeofenceDwellCoordinator(store, processor, clock, bootSessionProvider = bootSessions)
 
-        coordinator.onNativeExit(
+        val exit = coordinator.onNativeExit(
             "circle",
             WALL_ENTRY_SECONDS + 80L,
             triggeringFixElapsedMs = 2_000L,
             exitedAtElapsedMs = 80_000L
-        ).current shouldBeEqualTo false
-
-        // Kept, with only the entry withdrawn: the device was outside between it and the DWELL.
-        visit() shouldBeEqualTo current.copy(entryWasObserved = false)
-        verify(exactly = 0) { store.recordNativeExitFix(any(), any(), any()) }
-
-        // A departure decided after the latest inside fix still ends the visit.
-        val exit = coordinator.onNativeExit(
-            "circle",
-            WALL_ENTRY_SECONDS + 90L,
-            triggeringFixElapsedMs = 6_000L,
-            exitedAtElapsedMs = 90_000L
         )
-        exit.current shouldBeEqualTo true
-        coordinator.onNativeExitHandled("circle", checkNotNull(exit.endedVisitId))
 
+        exit.current shouldBeEqualTo true
+        exit.visitContext shouldBeEqualTo GeofenceTransitionEmitter.VisitContext.Exit(
+            visitId = "current",
+            enteredAt = null,
+            durationSeconds = null,
+            detectionSource = "native"
+        )
+        verify { store.recordNativeExitFix("circle", 500L, 2_000L) }
+        coordinator.onNativeExitHandled("circle", checkNotNull(exit.endedVisitId))
         visit().shouldBeNull()
     }
 
@@ -1701,9 +1700,9 @@ class GeofenceDwellCoordinatorTest {
     }
 
     @Test
-    fun supersededExitBetweenTheEntryAndANewerInsideFix_withdrawsOnlyTheObservedEntry() = runTest {
+    fun supersededExitTiedWithTheEntryFix_withdrawsOnlyTheObservedEntry() = runTest {
         // A tie with the entry fix is ambiguous, so it withdraws the entry too.
-        for (exitFix in listOf(2_000L, 1_000L)) {
+        for (exitFix in listOf(1_000L)) {
             val region = circle()
             val reservation = GeofenceDwellReservation(
                 timestampSeconds = WALL_ENTRY_SECONDS + 70L,

@@ -201,7 +201,7 @@ class GeofenceTransitionStagingContainmentTest : RobolectricTest() {
     }
 
     @Test
-    fun pipeline_givenExitDelayedBehindALaterDwell_expectVisitAndContainmentKept() = runTest {
+    fun pipeline_givenExitDelayedBehindALaterDwell_expectTheStayEndedUntimed() = runTest {
         val dwellRegion = dwellRegion()
         armDwellRegion(dwellRegion)
         val coordinator = coordinator(regionStore)
@@ -213,20 +213,18 @@ class GeofenceTransitionStagingContainmentTest : RobolectricTest() {
         val visit = regionStore.getDwellVisit(GEOFENCE_ID).shouldNotBeNull()
         visit.emitted.shouldBeTrue()
 
-        // GMS decided this EXIT at 2 000, before the DWELL that still placed the device inside.
+        // GMS decided this EXIT at 2 000, before the DWELL's fix. A DWELL's fix may be GMS re-serving
+        // a still device's last position, and GMS sends no second EXIT, so only an ENTER overrules it.
         pipeline.handle(crossing(GeofenceCrossingTransition.EXIT, fixMs = 2_000L, wallSeconds = 1_080L))
-
-        regionStore.getDwellVisit(GEOFENCE_ID) shouldBeEqualTo visit
-        regionStore.getEnteredIds() shouldContainSame setOf(GEOFENCE_ID)
-        outbox.loadAll().map { it.transition } shouldBeEqualTo
-            listOf(Event.GeofenceTransition.ENTER, Event.GeofenceTransition.DWELL)
-
-        pipeline.handle(crossing(GeofenceCrossingTransition.EXIT, fixMs = 90_000L, wallSeconds = 1_090L))
 
         regionStore.getDwellVisit(GEOFENCE_ID).shouldBeNull()
         regionStore.getEnteredIds().shouldBeEmpty()
         outbox.loadAll().map { it.transition } shouldBeEqualTo
             listOf(Event.GeofenceTransition.ENTER, Event.GeofenceTransition.DWELL, Event.GeofenceTransition.EXIT)
+        val exit = outbox.loadAll().last()
+        exit.visitId shouldBeEqualTo visit.visitId
+        exit.visitDurationSeconds.shouldBeNull()
+        exit.enteredAt.shouldBeNull()
     }
 
     @Test

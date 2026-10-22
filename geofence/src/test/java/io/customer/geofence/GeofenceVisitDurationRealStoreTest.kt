@@ -649,6 +649,29 @@ class GeofenceVisitDurationRealStoreTest : RobolectricTest() {
     }
 
     @Test
+    fun exit_givenDecidedBeforeItsDwellsRestampedFix_expectExitDeliveredUntimed() = runTest {
+        arm(enterExitRegion().copy(dwellThresholdSeconds = 60), outsideProven = true)
+        val pipeline = pipeline()
+        pipeline.handle(crossing(GeofenceCrossingTransition.ENTER, fixMs = 10_000L))
+        val visit = regionStore.getDwellVisit(GEOFENCE_ID).shouldNotBeNull()
+        // GMS stamps the still device's last position fresh for the DWELL, while the outside sample
+        // it decides the EXIT from is older; GMS sends no second EXIT for that departure.
+        pipeline.handle(crossing(GeofenceCrossingTransition.DWELL, fixMs = 111_000L))
+        pipeline.handle(
+            crossing(GeofenceCrossingTransition.EXIT, fixMs = 100_000L, wallSeconds = wallSecondsAt(112_000L), receivedAtElapsedMs = 112_100L)
+        )
+
+        outbox.loadAll().map { it.transition } shouldBeEqualTo listOf(
+            Event.GeofenceTransition.ENTER,
+            Event.GeofenceTransition.DWELL,
+            Event.GeofenceTransition.EXIT
+        )
+        assertLastExitUntimed(expectedVisitId = visit.visitId)
+        regionStore.getDwellVisit(GEOFENCE_ID).shouldBeNull()
+        regionStore.getEnteredIds() shouldNotContain GEOFENCE_ID
+    }
+
+    @Test
     fun delayedExitAndEnter_givenNewerSdkOutsideProof_expectNoDwellAndUntimedExits() = runTest {
         arm(enterExitRegion().copy(dwellThresholdSeconds = 60), outsideProven = true)
         val coordinator = coordinator()

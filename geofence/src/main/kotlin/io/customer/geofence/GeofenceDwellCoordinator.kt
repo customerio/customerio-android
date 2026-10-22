@@ -492,11 +492,12 @@ internal class GeofenceDwellCoordinator(
         val incarnation = currentIncarnation(region)
         val bootSessionId = bootSessionProvider.currentSessionId()
         val visit = currentVisit(region, bootSessionId)
-        // GMS decided this EXIT no later than a fix that placed the device inside, this visit's or a
-        // newer ENTER's, so it describes a departure already overruled. It must not end the visit or
-        // move containment.
-        val latestInsideFix = listOfNotNull(visit?.let(::latestInsideFix), incarnation?.lastEnterFixElapsedMs).maxOrNull()
-        if (triggeringFixElapsedMs != null && latestInsideFix != null && triggeringFixElapsedMs <= latestInsideFix) {
+        // GMS decided this EXIT no later than an ENTER's fix, this visit's or a newer one, so it
+        // describes a departure already overruled. It must not end the visit or move containment.
+        // Only ENTER fixes overrule: a DWELL's fix may be GMS re-serving a still device's last
+        // position with a fresh stamp, newer than the sample this EXIT was decided from.
+        val latestEnterFix = listOfNotNull(visit?.entryFixElapsedMs, incarnation?.lastEnterFixElapsedMs).maxOrNull()
+        if (triggeringFixElapsedMs != null && latestEnterFix != null && triggeringFixElapsedMs <= latestEnterFix) {
             if (incarnation != null && triggeringFixElapsedMs >= incarnation.registeredAtElapsedMs) {
                 // Still a fix this registration judged outside, so no ENTER decided before it can
                 // later count as the start of the current stay.
@@ -536,6 +537,21 @@ internal class GeofenceDwellCoordinator(
             return@withLock NativeExit(current = true)
         }
         val dwellDurable = flushPendingReservation(region, visit, bootSessionId, exitedAtSeconds, receivedAtElapsedMs, "native")
+        // Decided no later than other inside proof the visit holds: the stay ends, but its span would
+        // include time inside after this fix, so no timing is reported, as for a polygon.
+        val predatesInsideProof = latestInsideFix(visit)?.let { triggeringFixElapsedMs != null && triggeringFixElapsedMs <= it } == true
+        if (predatesInsideProof) {
+            return@withLock NativeExit(
+                current = true,
+                endedVisitId = visit.visitId.takeIf { dwellDurable },
+                visitContext = GeofenceTransitionEmitter.VisitContext.Exit(
+                    visitId = visit.visitId,
+                    enteredAt = null,
+                    durationSeconds = null,
+                    detectionSource = "native"
+                )
+            )
+        }
         NativeExit(
             current = true,
             // A reservation the outbox refused keeps its visit for the launch sweep to retry.

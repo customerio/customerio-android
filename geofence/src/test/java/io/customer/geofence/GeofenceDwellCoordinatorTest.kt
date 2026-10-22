@@ -722,6 +722,56 @@ class GeofenceDwellCoordinatorTest {
     }
 
     @Test
+    fun unattributedExitWhileEntered_withdrawsTheObservedEntryFromTheNextExit() = runTest {
+        // A native EXIT with no fix cannot be tied to the visit, so it leaves it, but it still moves
+        // containment outside: the device may have left and come back unobserved. The next EXIT
+        // that is attributed names the visit and reports no duration, since the entry no longer
+        // dates the current stay.
+        val region = circle().copy(transitionTypes = listOf(GeofenceTransitionType.EXIT), dwellThresholdSeconds = 0)
+        var visit: GeofenceDwellVisit? = null
+        every { store.getCachedRegion("circle") } returns region
+        every { store.getRegistrationIncarnation("circle") } returns
+            liveRegistration(region).copy(outsideProvenAtElapsedMs = REGISTERED_AT_MS)
+        every { store.userStateGeneration() } returns 7L
+        every { store.getEnteredIds() } returns setOf("circle")
+        every { store.getDwellVisit("circle") } answers { visit }
+        every { store.saveDwellVisit(any()) } answers {
+            visit = firstArg()
+            true
+        }
+        val coordinator = GeofenceDwellCoordinator(store, processor, clock, bootSessionProvider = bootSessions)
+        coordinator.onEnter(
+            "circle",
+            enteredAtSeconds = 100L,
+            beginsNewVisit = true,
+            entryFixElapsedMs = FRESH_FIX_MS,
+            enteredAtElapsedMs = FRESH_FIX_MS
+        )
+        val visitId = visit?.visitId
+        visit?.entryWasObserved shouldBeEqualTo true
+
+        coordinator.onNativeExit(
+            "circle",
+            exitedAtSeconds = 150L,
+            triggeringFixElapsedMs = null,
+            exitedAtElapsedMs = FRESH_FIX_MS + 50_000L
+        )
+        visit?.visitId shouldBeEqualTo visitId
+        visit?.entryWasObserved shouldBeEqualTo false
+
+        val context = coordinator.onNativeExit(
+            "circle",
+            exitedAtSeconds = 200L,
+            triggeringFixElapsedMs = FRESH_FIX_MS + 100_000L,
+            exitedAtElapsedMs = FRESH_FIX_MS + 100_000L
+        ).visitContext
+        context?.visitId shouldBeEqualTo visitId
+        context?.enteredAt.shouldBeNull()
+        context?.durationSeconds.shouldBeNull()
+        context?.durationUncertaintySeconds.shouldBeNull()
+    }
+
+    @Test
     fun exitWithoutTriggeringFix_cannotBeAttributedAndLeavesTheVisit() = runTest {
         val region = circle().copy(transitionTypes = listOf(GeofenceTransitionType.EXIT))
         val visit = GeofenceDwellVisit(

@@ -44,6 +44,14 @@ internal object GeofenceConstants {
     // does not, and its entry time is honestly unknown to within minutes.
     const val MAX_OUTSIDE_PROOF_AGE_MS = 2L * 60 * 1_000L
 
+    // Precise location requests the SDK may spend on proving one visit's dwell, across every wake and
+    // relaunch, and the least time between two of them. A polygon too small for the fixes the device
+    // gets indoors would otherwise ask again and again; after the budget only fixes requested for
+    // other reasons (ENTER/EXIT, rechecks, other apps) can still prove the stay. Requests the SDK
+    // needs anyway for membership are never charged here.
+    const val MAX_DWELL_PROOF_REQUESTS_PER_VISIT = 4
+    const val DWELL_PROOF_REQUEST_SPACING_MS = 2L * 60 * 1_000L
+
     // Clearance, beyond a fix's own accuracy, before it proves the device outside a fence. The
     // same value the polygon evaluator requires of a departure.
     const val OUTSIDE_PROOF_MARGIN_METERS = 20f

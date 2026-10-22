@@ -259,6 +259,7 @@ class GeofenceLogTailTest : RobolectricTest() {
             Row("polygonApproachRequestFailed", "polygon.approach.failed", listOf("ok", "op", "why"), GeofenceLogger::logPolygonApproachRequestFailed.name, io = "in") { it.logPolygonApproachRequestFailed("no permission", operation = "request_updates") },
             Row("polygonApproachProcessingFailed", "polygon.approach.dropped", listOf("ok", "op", "why"), GeofenceLogger::logPolygonApproachProcessingFailed.name, io = "obs") { it.logPolygonApproachProcessingFailed("boom", operation = "deliver") },
             Row("polygonFreshFixRequested", "polygon.freshfix.requested", listOf("ids", "n"), GeofenceLogger::logPolygonFreshFixRequested.name, io = "obs") { it.logPolygonFreshFixRequested(listOf("notl_core")) },
+            Row("dwellProofBudgetSpent", "dwell.proof.budget_spent", listOf("id", "n"), GeofenceLogger::logDwellProofBudgetSpent.name, io = "obs") { it.logDwellProofBudgetSpent("notl_core", 4) },
             Row("polygonFreshFixReceived", "polygon.freshfix.received", listOf("waited", "fixsrc", "acc", "age"), GeofenceLogger::logPolygonFreshFixReceived.name, io = "in") { it.logPolygonFreshFixReceived(fix, waitedSeconds = 1.4) },
             Row("polygonFreshFixSkipped", "polygon.freshfix.skipped", listOf("why"), GeofenceLogger::logPolygonFreshFixSkipped.name, pinned = mapOf("why" to "none_arrived"), io = "obs") { it.logPolygonFreshFixSkipped(PolygonFreshFixSkip.NONE_ARRIVED) },
             Row("polygonRecheckRan", "polygon.recheck.ran", listOf("cand", "n", "ids", "ncleared", "cleared", "fixsrc", "acc", "age"), GeofenceLogger::logPolygonRecheckRan.name, io = "in") { it.logPolygonRecheckRan(fix, candidateCount = 3, admittedIds = listOf("notl_core"), clearedIds = listOf("notl_annex")) },
@@ -384,6 +385,7 @@ class GeofenceLogTailTest : RobolectricTest() {
         val expected = setOf(
             "api.fetch.result",
             "dispatch.ready",
+            "dwell.proof.budget_spent",
             "polygon.arrival.pending",
             "polygon.arrival.expired",
             "polygon.evaluation.skipped",

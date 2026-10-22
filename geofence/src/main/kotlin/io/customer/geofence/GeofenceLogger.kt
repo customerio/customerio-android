@@ -1234,6 +1234,18 @@ internal class GeofenceLogger(private val logger: Logger) {
         )
     }
 
+    fun logDwellProofBudgetSpent(geofenceId: String, requests: Int) {
+        logger.debug(
+            "Geofence '$geofenceId' spent its $requests precise location requests for dwell proof on this visit; only fixes requested for other reasons can prove the stay now." +
+                tail(
+                    "dwell.proof.budget_spent",
+                    GeofenceLogIo.OBSERVATION,
+                    listOf("id" to token(geofenceId), "n" to int(requests))
+                ),
+            tag = TAG
+        )
+    }
+
     fun logPolygonFreshFixReceived(location: Location, waitedSeconds: Double) {
         logger.debug(
             "Precise fix received; evaluating the callback against it." +

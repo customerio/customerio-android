@@ -59,6 +59,7 @@ import io.customer.sdk.core.di.httpClient
 import io.customer.sdk.core.di.workManagerProvider
 import io.customer.sdk.data.store.PendingDeliveryFlusher
 import io.customer.sdk.data.store.PendingDeliveryStore
+import java.io.File
 
 internal val SDKComponent.geofenceLogger: GeofenceLogger
     get() = singleton { GeofenceLogger(logger) }
@@ -290,10 +291,27 @@ internal val AndroidSDKComponent.dwellDiagnosticRecorder: DwellDiagnosticRecorde
             // An unreadable flag counts as off, as the journal treats it.
             val enabledAtStart = runCatching(experiments::dwellDiagnosticJournalEnabled).getOrDefault(false)
             // On: history a process kept past a session change and died before clearing, or kept with
-            // nobody signed in, goes before the first record rather than at it.
-            if (enabledAtStart) recorder.prepareOwner() else recorder.invalidateAndClear()
+            // nobody signed in, goes before the first record rather than at it. Off: only a journal some
+            // earlier process wrote is cleared, so a host that never opted in never opens its file.
+            if (enabledAtStart) {
+                recorder.prepareOwner()
+            } else if (dwellDiagnosticJournalFileExists(applicationContext)) {
+                recorder.invalidateAndClear()
+            }
         }
     }
+
+/**
+ * Whether the diagnostics preferences file was ever created, read from disk without opening it:
+ * opening it through [Context.getSharedPreferences] would load, and keep, the very file this check
+ * avoids for a host that never turned the journal on. The `.bak` an interrupted write leaves counts
+ * too, since Android restores it on the next open. Unreadable counts as present, so the clear runs.
+ */
+private fun dwellDiagnosticJournalFileExists(context: Context): Boolean = runCatching {
+    val prefsDir = File(context.applicationInfo.dataDir, "shared_prefs")
+    val name = "${DwellDiagnosticJournal.PREFS_NAME}.xml"
+    File(prefsDir, name).exists() || File(prefsDir, "$name.bak").exists()
+}.getOrDefault(true)
 
 // One per process: repository registration and dwell wakes stay ordered only by sharing it.
 internal val AndroidSDKComponent.geofenceRegistrationGate: GeofenceRegistrationGate

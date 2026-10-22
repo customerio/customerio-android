@@ -12,6 +12,7 @@ import io.customer.geofence.DwellDiagnosticJournal
 import io.customer.geofence.DwellDiagnosticRecord
 import io.customer.geofence.DwellDiagnosticRecorder
 import io.customer.geofence.GeofenceBusinessTransitionProcessor
+import io.customer.geofence.GeofenceConstants
 import io.customer.geofence.GeofenceCooldownFilter
 import io.customer.geofence.GeofenceDwellCoordinator
 import io.customer.geofence.GeofenceJsonSerializer
@@ -231,6 +232,39 @@ class PolygonDwellPrecisionTest : RobolectricTest() {
 
         freshFix.priorities shouldBeEqualTo listOf(PolygonFixPriority.HIGH_ACCURACY)
         dwells().size shouldBeEqualTo 1
+    }
+
+    @Test
+    fun activate_givenEveryPreciseFixStaysMarginal_expectTheVisitStopsAskingAfterItsBudget() = runTest {
+        // A venue the device's fixes can never fit inside: each retry window would otherwise buy one more
+        // high-accuracy request for as long as the device stays parked.
+        val freshFix = RecordingFreshFix()
+        val controller = controller(freshFix)
+        arriveClearly(controller)
+        ShadowSystemClock.advanceBy(Duration.ofSeconds(70))
+        repeat(GeofenceConstants.MAX_DWELL_PROOF_REQUESTS_PER_VISIT + 2) {
+            freshFix.answer = marginalFixInsideTheVenue(SystemClock.elapsedRealtimeNanos())
+            wakeWithMarginalFix(controller)
+            ShadowSystemClock.advanceBy(Duration.ofMinutes(31))
+        }
+
+        freshFix.priorities.size shouldBeEqualTo GeofenceConstants.MAX_DWELL_PROOF_REQUESTS_PER_VISIT
+        val visit = store.getDwellVisit(VENUE_ID).shouldNotBeNull()
+        visit.dwellProofRequests shouldBeEqualTo GeofenceConstants.MAX_DWELL_PROOF_REQUESTS_PER_VISIT
+        verify(exactly = 1) {
+            logger.logDwellProofBudgetSpent(VENUE_ID, GeofenceConstants.MAX_DWELL_PROOF_REQUESTS_PER_VISIT)
+        }
+        dwells().shouldBeEmpty()
+
+        // Spent, the visit can still be proven by a fix that arrives for any other reason.
+        controller.activate(
+            polygonId = VENUE_ID,
+            triggeringLocation = fixAtTheVenueCentre(SystemClock.elapsedRealtimeNanos()),
+            expectedUserStateGeneration = store.userStateGeneration(),
+            expectedRegionRevision = null
+        )
+        freshFix.priorities.size shouldBeEqualTo GeofenceConstants.MAX_DWELL_PROOF_REQUESTS_PER_VISIT
+        dwells().map { it.visitId } shouldBeEqualTo listOf(visit.visitId)
     }
 
     @Test

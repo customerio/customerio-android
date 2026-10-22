@@ -21,6 +21,7 @@ import io.customer.geofence.PolygonFreshFixSkip
 import io.customer.geofence.PolygonSamplingSkip
 import io.customer.geofence.distanceTo
 import io.customer.geofence.store.GeofenceRegionStore
+import io.customer.geofence.store.dwellProofBudgetAllows
 import io.customer.geofence.store.getCachedConfigOrFallback
 import io.customer.geofence.store.registrationsPredateBoot
 import io.customer.geofence.transitionRevision
@@ -955,14 +956,26 @@ internal class PolygonGeofenceServiceController(
             )
         }
         if (triggeringLocation == null) {
+            // Only a dwell wake's request serves its visit, so only it is budgeted; another callback's
+            // serves the edge and is never charged.
+            val wakeBudget = if (memoBypassVisitId != null) {
+                withinDwellProofBudget(setOf(polygonId)).also { budgeted ->
+                    if (budgeted.isEmpty()) {
+                        recordDwellRejected(setOf(polygonId), DwellDiagnosticReason.BUDGET_EXHAUSTED)
+                        return
+                    }
+                }
+            } else {
+                emptyMap()
+            }
             val only = preciseFixForCallback(
                 polygonId,
                 undecidedPolygonIds = setOf(polygonId),
                 pendingArrivalPolygonIds = emptySet(),
                 triggeringLocation = null,
                 expectedTeardownGeneration = expectedTeardownGeneration,
-                // Only a dwell wake's request serves its visit; another callback's serves the edge.
-                onSkipped = { reason -> if (memoBypassVisitId != null) recordDwellRejected(setOf(polygonId), reason) }
+                onSkipped = { reason -> if (memoBypassVisitId != null) recordDwellRejected(setOf(polygonId), reason) },
+                onRequesting = { at -> wakeBudget.isEmpty() || chargeDwellProofRequests(wakeBudget, at) }
             ) ?: return
             if (isAfterTeardown(expectedTeardownGeneration)) return
             evaluateAndRecentre(
@@ -982,24 +995,33 @@ internal class PolygonGeofenceServiceController(
         // hold with it as not independent instead of skipping it as not newer.
         // A due visit the fix kept INSIDE without showing it is memoised like an undecided fence, so a
         // parked device asks once per spot per FUTILE_ESCALATION_RETRY_MS rather than every wake.
-        val unresolved = delivered.undecidedPolygonIds + delivered.dwellUnprovenPolygonIds +
-            unjudgedWakeVisit(polygonId, memoBypassVisitId, delivered, expectedUserStateGeneration)
+        val unjudgedWake = unjudgedWakeVisit(polygonId, memoBypassVisitId, delivered, expectedUserStateGeneration)
+        val unresolved = delivered.undecidedPolygonIds + delivered.dwellUnprovenPolygonIds + unjudgedWake
         val needing = unresolved + delivered.pendingArrivalPolygonIds
         // Before asking too: a torn-down wake's request would start the cooldown the next session needs.
         if (needing.isEmpty() || isAfterTeardown(expectedTeardownGeneration)) return
-        // Diagnostics only: the fences whose dwell this request serves. A skip that served only an edge
-        // verdict or a held arrival rejected no dwell.
-        val dwellServed = unresolved.filterTo(mutableSetOf()) {
-            it in delivered.dwellUnprovenPolygonIds || (it == polygonId && memoBypassVisitId != null)
-        }
+        // The fences that need this request for their dwell proof alone. One whose membership is still
+        // undecided needs it for the edge as well, so it is neither budgeted nor charged.
+        val wakeDwell = if (memoBypassVisitId != null) setOf(polygonId) else emptySet()
+        val dwellServed = ((delivered.dwellUnprovenPolygonIds + unjudgedWake + wakeDwell) intersect unresolved) -
+            delivered.undecidedPolygonIds
+        val dwellBudgeted = withinDwellProofBudget(dwellServed)
+        recordDwellRejected(dwellServed - dwellBudgeted.keys, DwellDiagnosticReason.BUDGET_EXHAUSTED)
+        val unresolvedInBudget = unresolved - (dwellServed - dwellBudgeted.keys)
+        if (unresolvedInBudget.isEmpty() && delivered.pendingArrivalPolygonIds.isEmpty()) return
+        // A request membership or a held arrival needs anyway goes out uncharged; its answer can still
+        // prove a dwell. Only a request for dwell proof alone spends budget, and only if the charge lands.
+        val membershipNeedsIt = (unresolvedInBudget - dwellServed).isNotEmpty() ||
+            delivered.pendingArrivalPolygonIds.isNotEmpty()
         val fresh = preciseFixForCallback(
             polygonId,
-            unresolved,
+            unresolvedInBudget,
             delivered.pendingArrivalPolygonIds,
             triggeringLocation,
-            memoBypassVisitId,
+            memoBypassVisitId.takeIf { polygonId in dwellBudgeted },
             expectedTeardownGeneration = expectedTeardownGeneration,
-            onSkipped = { reason -> recordDwellRejected(dwellServed, reason) }
+            onSkipped = { reason -> recordDwellRejected(dwellBudgeted.keys, reason) },
+            onRequesting = { at -> membershipNeedsIt || chargeDwellProofRequests(dwellBudgeted, at) }
         ) ?: return
         if (isAfterTeardown(expectedTeardownGeneration)) return
         val after = evaluateAndRecentre(
@@ -1047,7 +1069,8 @@ internal class PolygonGeofenceServiceController(
         delivered: PolygonEvaluationOutcome,
         expectedUserStateGeneration: Long
     ): Location? {
-        val unproven = delivered.dwellUnprovenPolygonIds
+        val budgeted = withinDwellProofBudget(delivered.dwellUnprovenPolygonIds)
+        val unproven = budgeted.keys
         if (unproven.isEmpty()) return null
         val diagnosticToken = diagnosticRecorder?.currentToken()
         fun recordDwellRejected(polygonIds: Set<String>, reason: DwellDiagnosticReason) = polygonIds.forEach {
@@ -1064,7 +1087,8 @@ internal class PolygonGeofenceServiceController(
             undecidedPolygonIds = unproven,
             pendingArrivalPolygonIds = emptySet(),
             triggeringLocation = sample,
-            onSkipped = { reason -> recordDwellRejected(unproven, reason) }
+            onSkipped = { reason -> recordDwellRejected(unproven, reason) },
+            onRequesting = { at -> chargeDwellProofRequests(budgeted, at) }
         ) ?: return null
         val after = processTriggeredLocation(
             fresh.fix,
@@ -1089,6 +1113,47 @@ internal class PolygonGeofenceServiceController(
             requestSessionElapsedMs = fresh.requestSessionElapsedMs
         )
         return fresh.fix
+    }
+
+    /**
+     * The polygons in [polygonIds] whose stored visit may still spend a precise request on its dwell
+     * proof now (see [GeofenceConstants.MAX_DWELL_PROOF_REQUESTS_PER_VISIT]), each with the id of the
+     * visit the budget belongs to, so a charge can never land on a visit that replaced it meanwhile.
+     * A polygon with no stored visit has nothing to prove and is dropped.
+     */
+    private fun withinDwellProofBudget(polygonIds: Set<String>): Map<String, String> {
+        if (polygonIds.isEmpty()) return emptyMap()
+        val now = SystemClock.elapsedRealtime()
+        return polygonIds.mapNotNull { id ->
+            store.getDwellVisit(id)?.takeIf { dwellProofBudgetAllows(it, now) }?.let { id to it.visitId }
+        }.toMap()
+    }
+
+    /**
+     * Charges one request to each visit in [budgeted] (polygon id to visit id), persisted before the
+     * request is issued, so neither a timeout nor a relaunch gives it back. Logged once per visit, on
+     * its last request. True when at least one charge landed: a request none could pay for is not made.
+     */
+    private fun chargeDwellProofRequests(budgeted: Map<String, String>, atElapsedMs: Long): Boolean {
+        var charged = false
+        budgeted.forEach { (id, visitId) ->
+            if (!store.reserveDwellProofRequest(
+                    geofenceId = id,
+                    visitId = visitId,
+                    atElapsedMs = atElapsedMs,
+                    maxRequests = GeofenceConstants.MAX_DWELL_PROOF_REQUESTS_PER_VISIT,
+                    minSpacingMs = GeofenceConstants.DWELL_PROOF_REQUEST_SPACING_MS
+                )
+            ) {
+                return@forEach
+            }
+            charged = true
+            val spent = store.getDwellVisit(id)?.takeIf { it.visitId == visitId }?.dwellProofRequests
+            if (spent != null && spent >= GeofenceConstants.MAX_DWELL_PROOF_REQUESTS_PER_VISIT) {
+                logger.logDwellProofBudgetSpent(id, GeofenceConstants.MAX_DWELL_PROOF_REQUESTS_PER_VISIT)
+            }
+        }
+        return charged
     }
 
     /**
@@ -1155,10 +1220,18 @@ internal class PolygonGeofenceServiceController(
         /** Told why no fix was obtained, outside [controllerLock]. Observational: it decides nothing. */
         onSkipped: (DwellDiagnosticReason) -> Unit = {},
         /** Checked atomically with the request decision. */
-        expectedTeardownGeneration: Long? = null
+        expectedTeardownGeneration: Long? = null,
+        /**
+         * Asked, outside [controllerLock], when a new request is about to be issued (not on a reuse,
+         * cooldown or memo refusal), with its elapsedRealtime: the moment a budget is charged. False
+         * cancels the request before it is made, and gives back the cooldown it would have started.
+         */
+        onRequesting: (requestedAtElapsedMs: Long) -> Boolean = { true }
     ): CallbackFix? {
         val needingPolygonIds = undecidedPolygonIds + pendingArrivalPolygonIds
         val requestedAt = SystemClock.elapsedRealtime()
+        var cooldownBefore: Long? = null
+        var requestTeardownGeneration = 0L
         val decision = synchronized(controllerLock) {
             if (isAfterTeardownLocked(expectedTeardownGeneration)) return null
             val reusable = lastFreshFix?.takeIf {
@@ -1178,6 +1251,8 @@ internal class PolygonGeofenceServiceController(
                     memoBypassVisitId
                 ) -> CallbackFixDecision.UnchangedPosition
                 else -> {
+                    cooldownBefore = previous
+                    requestTeardownGeneration = teardownGeneration
                     lastFreshFixRequestElapsedMs = requestedAt
                     CallbackFixDecision.Request
                 }
@@ -1197,6 +1272,17 @@ internal class PolygonGeofenceServiceController(
                 return null
             }
             CallbackFixDecision.Request -> Unit
+        }
+        if (!onRequesting(requestedAt)) {
+            // Only while this request still owns the stamp: no teardown cleared it, and no later request
+            // (one started in the same millisecond after a teardown included) has stamped its own.
+            synchronized(controllerLock) {
+                if (teardownGeneration == requestTeardownGeneration && lastFreshFixRequestElapsedMs == requestedAt) {
+                    lastFreshFixRequestElapsedMs = cooldownBefore
+                }
+            }
+            onSkipped(DwellDiagnosticReason.BUDGET_EXHAUSTED)
+            return null
         }
         logger.logPolygonFreshFixRequested(needingPolygonIds.sorted())
         val fix = freshFixSource.awaitFreshFix(FRESH_FIX_TIMEOUT_MS)

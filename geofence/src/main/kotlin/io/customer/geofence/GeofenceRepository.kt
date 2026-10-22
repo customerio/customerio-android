@@ -230,7 +230,9 @@ internal class GeofenceRepositoryImpl(
 
         return when {
             // A catalog cached before fields the server now sends (dwell) re-fetches whatever its
-            // age; only publishing a current response clears this.
+            // age; only publishing a current response clears this. Cost: until one fetch succeeds,
+            // every pass (launch, live fix, movement) tries the network, unthrottled by the freshness
+            // window. It ends with the first successful fetch after the upgrade and never recurs.
             store.cachedCatalogNeedsRefresh() -> RefreshAction.REMOTE
             isStaleInTime(config) -> RefreshAction.REMOTE
             movedBeyondFetchRadius(distanceFromLastFetch, config) -> RefreshAction.REMOTE

@@ -46,6 +46,14 @@ uses the existing 3-second timeout, 30-second request cooldown, and 30-minute
 retry window for unsuccessful requests from the same position. It adds no timer
 at the dwell threshold and cannot guarantee when a qualifying fix will arrive.
 
+The SDK spends at most 4 precise location requests per visit on proving its
+DWELL, at least 2 minutes apart, persisted with the visit so a relaunch or a later
+wake does not replenish them. Requests the SDK makes anyway for ENTER and EXIT are
+not charged, and any fix they return can still prove the stay. A polygon whose
+largest interior clearance is under about 10 m may therefore miss DWELL, especially
+indoors, where a phone fix rarely fits its whole accuracy circle inside so small a
+ring. Prefer a larger shape for such venues if DWELL matters.
+
 `GeofenceLiveFixVisitTest` covers entry measurements through remote refresh,
 local ranking, offline fallback, and a fresh-cache pass. `PolygonDwellPrecisionTest`
 covers qualification, early and already-emitted visits, and unsuccessful requests.
@@ -57,6 +65,18 @@ off, and in Doze. Record fix accuracy, request counts, missed or duplicate DWELL
 and time from the threshold to delivery. Repeat with coarse location permission
 and after a process restart. These automated regressions do not establish GPS,
 background wake, or battery reliability.
+
+---
+
+### Catalog refetch after an SDK upgrade
+
+A catalog cached by an SDK that predates `dwell_threshold_seconds` is treated as stale
+whatever its age, so dwell thresholds reach devices without waiting for the normal
+freshness window. Until one fetch succeeds after the upgrade, every geofence pass
+(launch, live fix, movement trigger) tries the network: an offline device retries on
+each pass instead of once per freshness window. The first successful fetch clears it
+for good. The cache is still re-registered locally while offline, so monitoring
+continues meanwhile.
 
 ---
 

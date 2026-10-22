@@ -357,6 +357,44 @@ class GeofenceRegionStoreTest : RobolectricTest() {
     }
 
     @Test
+    fun reserveDwellProofRequest_givenCapAndSpacing_expectPersistedChargesAndRefusals() {
+        val region = GeofenceRegion(
+            id = "biz-1",
+            latitude = 1.0,
+            longitude = 2.0,
+            radius = 100f,
+            dwellThresholdSeconds = 60
+        )
+        store.saveCachedRegions(listOf(region))
+        store.recordRegistrationIncarnations(listOf(region), registeredAtElapsedMs = 10L, bootSessionId = "boot")
+        store.saveRoutableRegisteredIds(setOf(region.id))
+        val visit = GeofenceDwellVisit(
+            geofenceId = "biz-1",
+            visitId = "v",
+            enteredAtSeconds = 100L,
+            regionRevision = region.transitionRevision(),
+            userStateGeneration = store.userStateGeneration(),
+            registrationElapsedMs = 10L
+        )
+        store.saveDwellVisit(visit).shouldBeTrue()
+        fun reserve(at: Long, visitId: String = "v") =
+            store.reserveDwellProofRequest("biz-1", visitId, at, maxRequests = 2, minSpacingMs = 1_000L)
+
+        reserve(10_000L).shouldBeTrue()
+        // Too soon after the first, and for a visit that is no longer the stored one.
+        reserve(10_500L).shouldBeFalse()
+        reserve(20_000L, visitId = "other").shouldBeFalse()
+        reserve(11_000L).shouldBeTrue()
+        // The cap holds however much time passes.
+        reserve(99_000L).shouldBeFalse()
+
+        val stored = checkNotNull(store.getDwellVisit("biz-1"))
+        stored.dwellProofRequests shouldBeEqualTo 2
+        stored.lastDwellProofRequestElapsedMs shouldBeEqualTo 11_000L
+        stored.visitId shouldBeEqualTo "v"
+    }
+
+    @Test
     fun commitBusinessTransition_givenStagedEnterThatMarksReported_expectContainmentAndMarkCommittedTogether() {
         val generation = store.userStateGeneration()
         val staged = PendingGeofenceDelivery(

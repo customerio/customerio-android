@@ -121,7 +121,8 @@ class GeofenceUnownedSessionRealStoreTest : RobolectricTest() {
 
     @Test
     fun armedSessionWithNoNetwork_expectNoLocalReRank() = runTest {
-        // The re-rank only recovers an unarmed session; it is not a general fallback.
+        // The cache re-rank after a failed fetch recovers an unarmed session, or an OS registration a
+        // reboot or app update wiped. An armed session with neither keeps what GMS already holds.
         store.beginUserSession(USER)
         store.saveRoutableRegisteredIdsIfCurrent(store.getRegisteredIds(), store.userStateGeneration())
             .shouldBeTrue()

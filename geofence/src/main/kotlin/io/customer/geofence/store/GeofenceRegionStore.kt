@@ -45,7 +45,14 @@ internal data class GeofenceDwellVisit(
     /** elapsedRealtime when [enteredAtSeconds] was stamped. */
     val enteredAtElapsedMs: Long? = null,
     /** The first qualified dwell evidence, persisted before emission so every retry repeats it. */
-    val dwellReservation: GeofenceDwellReservation? = null
+    val dwellReservation: GeofenceDwellReservation? = null,
+    /**
+     * Precise location requests already spent on proving this visit's dwell, and when the last one was
+     * issued (elapsedRealtime of this visit's boot). Persisted so a relaunch or a later wake cannot
+     * replenish the budget (see [GeofenceConstants.MAX_DWELL_PROOF_REQUESTS_PER_VISIT]).
+     */
+    val dwellProofRequests: Int = 0,
+    val lastDwellProofRequestElapsedMs: Long? = null
 )
 
 /** Immutable once saved: a retry after a partial emission resends exactly this evidence. */
@@ -96,6 +103,19 @@ internal interface GeofenceRegionStore {
 
     /** Every stored visit, for a launch-time sweep of reservations that never reached the outbox. */
     fun getDwellVisits(): List<GeofenceDwellVisit>
+
+    /**
+     * Charges one precise location request to [visitId]'s dwell-proof budget, before it is issued.
+     * Refused (false) when the fence's stored visit is no longer [visitId], has emitted, has spent
+     * [maxRequests], or spent one less than [minSpacingMs] before [atElapsedMs].
+     */
+    fun reserveDwellProofRequest(
+        geofenceId: String,
+        visitId: String,
+        atElapsedMs: Long,
+        maxRequests: Int,
+        minSpacingMs: Long
+    ): Boolean
 
     /**
      * Visits dropped from storage while still holding a dwell reservation the outbox had not taken:
@@ -372,6 +392,22 @@ internal interface GeofenceRegionStore {
 
 internal fun GeofenceRegionStore.getCachedConfigOrFallback(): GeofenceConfig =
     getCachedConfig() ?: GeofenceConfig.fallback()
+
+/**
+ * Whether [visit] may spend another precise request on its dwell proof at [atElapsedMs]: under
+ * [maxRequests], and at least [minSpacingMs] since its last one. A last stamp after [atElapsedMs]
+ * belongs to a clock this one cannot order against, so it does not hold the request back.
+ */
+internal fun dwellProofBudgetAllows(
+    visit: GeofenceDwellVisit,
+    atElapsedMs: Long,
+    maxRequests: Int = GeofenceConstants.MAX_DWELL_PROOF_REQUESTS_PER_VISIT,
+    minSpacingMs: Long = GeofenceConstants.DWELL_PROOF_REQUEST_SPACING_MS
+): Boolean {
+    if (visit.dwellProofRequests >= maxRequests) return false
+    val last = visit.lastDwellProofRequestElapsedMs ?: return true
+    return atElapsedMs < last || atElapsedMs - last >= minSpacingMs
+}
 
 /**
  * Whether the recorded OS registrations come from an earlier boot, which wiped them, whether or not
@@ -833,6 +869,26 @@ internal class GeofenceRegionStoreImpl(
     }
 
     override fun getDwellVisits(): List<GeofenceDwellVisit> = synchronized(enteredLock) { readDwellVisits() }
+
+    override fun reserveDwellProofRequest(
+        geofenceId: String,
+        visitId: String,
+        atElapsedMs: Long,
+        maxRequests: Int,
+        minSpacingMs: Long
+    ): Boolean = synchronized(enteredLock) {
+        val visits = readDwellVisits()
+        val visit = visits.firstOrNull { it.geofenceId == geofenceId }
+            ?.takeIf { it.visitId == visitId && !it.emitted }
+            ?: return@synchronized false
+        if (!dwellProofBudgetAllows(visit, atElapsedMs, maxRequests, minSpacingMs)) return@synchronized false
+        val charged = visit.copy(
+            dwellProofRequests = visit.dwellProofRequests + 1,
+            lastDwellProofRequestElapsedMs = atElapsedMs
+        )
+        @Suppress("UseKtx")
+        prefs.edit().putDwellVisitsLocked(visits.map { if (it.geofenceId == geofenceId) charged else it }).commit()
+    }
 
     override fun getOrphanedDwellReservations(): List<GeofenceDwellVisit> = synchronized(enteredLock) {
         readOrphanedDwellReservations()

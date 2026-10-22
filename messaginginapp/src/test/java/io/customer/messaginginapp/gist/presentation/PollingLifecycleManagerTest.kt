@@ -185,6 +185,51 @@ class PollingLifecycleManagerTest : JUnitTest() {
     }
 
     @Test
+    fun fetchInAppMessages_givenPendingFreshPoll_expectReplacementFetchIsFreshOnlyOnce() {
+        val manager = createManager()
+        try {
+            startDelayedFreshPoll(manager)
+
+            manager.fetchInAppMessages()
+            verify(timeout = 2000, exactly = 1) { gistQueue.fetchUserMessages(mustBeFresh = true) }
+
+            manager.fetchInAppMessages()
+            verify(timeout = 2000, exactly = 1) { gistQueue.fetchUserMessages(mustBeFresh = false) }
+            verify(exactly = 1) { gistQueue.fetchUserMessages(mustBeFresh = true) }
+        } finally {
+            manager.reset()
+        }
+    }
+
+    @Test
+    fun reset_givenPendingFreshPoll_expectRequirementCleared() {
+        val manager = createManager()
+        try {
+            startDelayedFreshPoll(manager)
+
+            manager.reset()
+            manager.fetchInAppMessages()
+
+            verify(timeout = 2000) { gistQueue.fetchUserMessages(mustBeFresh = false) }
+            verify(exactly = 0) { gistQueue.fetchUserMessages(mustBeFresh = true) }
+        } finally {
+            manager.reset()
+        }
+    }
+
+    // Delay the foreground timer so replacement always happens before its first tick.
+    private fun startDelayedFreshPoll(manager: PollingLifecycleManager) {
+        val startPolling = PollingLifecycleManager::class.java.getDeclaredMethod(
+            "startPolling",
+            Long::class.java,
+            Long::class.java,
+            Boolean::class.java
+        )
+        startPolling.isAccessible = true
+        startPolling.invoke(manager, 600000L, 60000L, true)
+    }
+
+    @Test
     fun pollIntervalSubscription_initialEmissionIsSkipped_butGenuineChangeRestarts() {
         createManager()
         val observer = captureObserver()

@@ -26,6 +26,9 @@ import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.CompletableDeferred
 import okhttp3.Headers
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -195,5 +198,53 @@ class QueueFetchSharingTest : IntegrationTest() {
             "expected the previous user's response to be discarded"
         }
         completeRequest(1)
+    }
+
+    @Test
+    fun fetchUserMessages_givenUserChangedWhileInFlight_expectHeadersDiscardedAndTicketReleased() {
+        manager.dispatch(InAppMessagingAction.SetPollingInterval(12000L))
+        manager.dispatch(InAppMessagingAction.SetSseEnabled(true))
+        queue.fetchUserMessages()
+
+        manager.dispatch(InAppMessagingAction.SetUserIdentifier("user-2"))
+        val staleHeaders = Headers.headersOf(
+            "X-Gist-Queue-Polling-Interval",
+            "99",
+            "X-CIO-Use-SSE",
+            "false",
+            "X-CIO-Inbox-Enabled",
+            "true"
+        )
+        completeRequest(0, Response.success(QueueMessagesResponse(), staleHeaders))
+
+        val state = manager.getCurrentState()
+        assertEquals(12000L, state.pollInterval)
+        assertTrue(state.sseEnabled)
+        assertFalse(state.isInboxEnabled)
+        coVerify(exactly = 0) { mockRepository.loadTemplatesAndBranding() }
+
+        // An early return must still run finally and release the coordinator ticket.
+        manager.dispatch(InAppMessagingAction.SetUserIdentifier("user-1"))
+        queue.fetchUserMessages()
+        coVerify(exactly = 2) { mockQueueService.fetchMessagesForUser(any(), any()) }
+        completeRequest(1)
+    }
+
+    @Test
+    fun fetchUserMessages_givenLogoutWhileInFlight_expectInboxNotReenabled() {
+        queue.fetchUserMessages()
+        manager.dispatch(InAppMessagingAction.Reset)
+        val staleHeaders = Headers.headersOf(
+            "X-CIO-Use-SSE",
+            "true",
+            "X-CIO-Inbox-Enabled",
+            "true"
+        )
+
+        completeRequest(0, Response.success(QueueMessagesResponse(), staleHeaders))
+
+        assertFalse(manager.getCurrentState().sseEnabled)
+        assertFalse(manager.getCurrentState().isInboxEnabled)
+        coVerify(exactly = 0) { mockRepository.loadTemplatesAndBranding() }
     }
 }

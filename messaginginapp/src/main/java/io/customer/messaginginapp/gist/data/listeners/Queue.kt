@@ -226,7 +226,10 @@ internal class Queue(
                 when {
                     // The identity changed while the request was in flight (logout, or another user
                     // identified), so these messages belong to the previous one.
-                    key != null && QueueFetchKey.from(state) != key -> logger.debug("Discarding queue response for a previous user")
+                    key != null && QueueFetchKey.from(state) != key -> {
+                        logger.debug("Discarding queue response for a previous user")
+                        return@launch
+                    }
                     (code == 204 || code == 304) -> handleNoContent(code, sseRevisionAtFetchStart)
                     latestMessagesResponse.isSuccessful -> handleSuccessfulFetch(
                         responseBody = latestMessagesResponse.body(),

@@ -34,6 +34,9 @@ internal class PollingLifecycleManager(
     // catch-up fetch may share a launch request already in flight.
     private val hasBeenBackgrounded = AtomicBoolean(false)
 
+    // A replacement timer must still satisfy a foreground catch-up that has not ticked yet.
+    private val nextFetchMustBeFresh = AtomicBoolean(false)
+
     // @Volatile for cross-thread visibility: written on the main thread (foreground/background) and
     // read from the attribute-subscription coroutines that guard against redundant restarts.
     @Volatile
@@ -128,13 +131,13 @@ internal class PollingLifecycleManager(
 
         logger.debug("[Polling] Starting polling (sseEnabled=${currentState.sseEnabled}, isUserIdentified=${currentState.isUserIdentified}, interval=${duration}ms, initialDelay=${initialDelay}ms)")
         timer?.cancel()
-        // Only touched from the timer's own thread.
-        var nextFetchMustBeFresh = firstFetchMustBeFresh
+        if (firstFetchMustBeFresh) {
+            nextFetchMustBeFresh.set(true)
+        }
         // create a timer to run the task after the initial run
         timer = timer(name = "GistPolling", daemon = true, initialDelay = initialDelay, period = duration) {
             logger.debug("[Polling] Poll tick - fetching user messages")
-            gistQueue.fetchUserMessages(mustBeFresh = nextFetchMustBeFresh)
-            nextFetchMustBeFresh = false
+            gistQueue.fetchUserMessages(mustBeFresh = nextFetchMustBeFresh.getAndSet(false))
         }
     }
 
@@ -142,6 +145,7 @@ internal class PollingLifecycleManager(
     private fun resetTimer() {
         timer?.cancel()
         timer = null
+        nextFetchMustBeFresh.set(false)
     }
 
     private fun subscribeToPollIntervalChanges() {

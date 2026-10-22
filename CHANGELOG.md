@@ -1,3 +1,9 @@
+## [4.25.0](https://github.com/customerio/customerio-android/compare/4.24.0...4.25.0) (2026-10-21)
+
+### Features
+
+* **MBL-2543:** reject secret keys and pick region from key ([#925](https://github.com/customerio/customerio-android/issues/925)) ([b5bc060](https://github.com/customerio/customerio-android/commit/b5bc06002e75b02d82632cf9ee643d459207b278))
+
 ## [4.24.0](https://github.com/customerio/customerio-android/compare/4.23.2...4.24.0) (2026-10-21)
 
 ### Features

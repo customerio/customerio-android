@@ -19,6 +19,7 @@ import io.customer.datapipelines.extensions.sanitizeForJson
 import io.customer.datapipelines.extensions.type
 import io.customer.datapipelines.extensions.updateAnalyticsConfig
 import io.customer.datapipelines.extensions.withDeviceTokenType
+import io.customer.datapipelines.migration.AnalyticsStorageMigration
 import io.customer.datapipelines.migration.TrackingMigrationProcessor
 import io.customer.datapipelines.plugins.ApplicationLifecyclePlugin
 import io.customer.datapipelines.plugins.AutoTrackDeviceAttributesPlugin
@@ -35,11 +36,13 @@ import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.module.CustomerIOModule
 import io.customer.sdk.core.pipeline.DataPipeline
 import io.customer.sdk.core.pipeline.identifyHookRegistry
+import io.customer.sdk.core.util.CioApiKey
 import io.customer.sdk.core.util.CioLogLevel
 import io.customer.sdk.core.util.Iso8601TimestampFormatter
 import io.customer.sdk.core.util.Logger
 import io.customer.sdk.data.model.CustomAttributes
 import io.customer.sdk.data.model.DeviceTokenType
+import io.customer.sdk.data.model.Region
 import io.customer.sdk.data.model.Settings
 import io.customer.sdk.events.TrackMetric
 import io.customer.sdk.util.EventNames
@@ -104,14 +107,33 @@ class CustomerIO private constructor(
         }
     }
 
-    internal val analytics: Analytics = overrideAnalytics ?: Analytics(
-        writeKey = moduleConfig.cdpApiKey,
-        context = androidSDKComponent.applicationContext,
-        configs = updateAnalyticsConfig(
-            moduleConfig = moduleConfig,
-            errorHandler = errorLogger
+    internal val analytics: Analytics = overrideAnalytics ?: run {
+        // Keep identity and unsent events when the app switches to a public key.
+        // Settings still hold the key from the last launch as they're saved in initialize().
+        val newKey = moduleConfig.cdpApiKey
+        val storageMigration = AnalyticsStorageMigration(androidSDKComponent.applicationContext, logger)
+        val previousKey = storageMigration.previousKey(
+            savedKey = globalPreferenceStore.getSettings()?.writeKey,
+            newKey = newKey
         )
-    )
+        storageMigration.copyIdentity(previousKey = previousKey, newKey = newKey)
+        Analytics(
+            writeKey = newKey,
+            context = androidSDKComponent.applicationContext,
+            configs = updateAnalyticsConfig(
+                moduleConfig = moduleConfig,
+                errorHandler = errorLogger
+            )
+        ).also { analytics ->
+            storageMigration.moveUnfinishedEvents(
+                previousKey = previousKey,
+                newKey = newKey,
+                scope = analytics.analyticsScope,
+                dispatcher = analytics.fileIODispatcher,
+                storage = analytics.storage
+            )
+        }
+    }
 
     // Seeded from storage so a cold start can delete the stored device (token change, profile
     // switch, clearIdentify) before the token is registered again.
@@ -405,6 +427,14 @@ class CustomerIO private constructor(
     override val userId: String?
         get() = analytics.userId()
 
+    @InternalCustomerIOApi
+    override val cdpApiKey: String
+        get() = moduleConfig.cdpApiKey
+
+    @InternalCustomerIOApi
+    override val region: Region
+        get() = moduleConfig.region
+
     override val isUserIdentified: Boolean
         // Prefer the caller-thread mirror so this is correct synchronously right after
         // identify()/clearIdentify(); fall back to analytics for a session restored from
@@ -527,6 +557,9 @@ class CustomerIO private constructor(
         @Volatile
         private var instance: CustomerIO? = null
 
+        // Placeholder used instead of a rejected secret key, so the secret never leaves the app
+        private const val DISABLED_CDP_API_KEY = "disabled"
+
         /**
          * Returns the instance of CustomerIO SDK.
          * If the instance is not initialized, it will throw an exception.
@@ -567,6 +600,15 @@ class CustomerIO private constructor(
             // Update the log level for the SDK
             SDKComponent.logger.logLevel = config.logLevel
 
+            // Secret keys must not ship in apps, so log and set up a disabled SDK instead of crashing the app
+            if (CioApiKey.isSecretKey(config.cdpApiKey)) {
+                logger.coreSdkSecretKeyRejected()
+                // Never disable an SDK that is already set up
+                if (instance == null) initializeDisabled(androidSDKComponent, config)
+                return
+            }
+            releaseDisabledInstance()
+
             logger.coreSdkInitStart()
 
             // Initialize DataPipelinesModule with the provided configuration
@@ -604,6 +646,41 @@ class CustomerIO private constructor(
 
             SDKComponent.eventBus.publish(Event.SdkInitializedEvent)
             logger.coreSdkInitSuccess()
+        }
+
+        /**
+         * Sets up an instance that never holds the secret key and ignores calls, so a later
+         * [instance] call doesn't crash somewhere unrelated. The configured modules are registered
+         * so their accessors work too, but none are initialized, so their calls do nothing.
+         */
+        private fun initializeDisabled(androidSDKComponent: AndroidSDKComponent, config: CustomerIOConfig) {
+            val disabledConfig = DataPipelinesModuleConfig(
+                cdpApiKey = DISABLED_CDP_API_KEY,
+                region = config.region,
+                flushAt = config.flushAt,
+                flushInterval = config.flushInterval,
+                flushPolicies = config.flushPolicies,
+                autoAddCustomerIODestination = false,
+                trackApplicationLifecycleEvents = false,
+                autoTrackDeviceAttributes = false,
+                autoTrackActivityScreens = false,
+                screenViewUse = config.screenViewUse
+            )
+            createInstance(androidSDKComponent = androidSDKComponent, moduleConfig = disabledConfig)
+                .analytics.enabled = false
+            SDKComponent.modules.putAll(config.modules.associateBy { module -> module.moduleName })
+        }
+
+        /**
+         * Drops the disabled instance left by a refused secret key, so a valid key can still set up the SDK.
+         */
+        @Synchronized
+        private fun releaseDisabledInstance() {
+            val disabledInstance = instance?.takeIf { it.moduleConfig.cdpApiKey == DISABLED_CDP_API_KEY } ?: return
+            runCatching { disabledInstance.analytics.shutdown() }
+            // Drop the modules registered while disabled so only the new config's modules get set up
+            SDKComponent.modules.clear()
+            instance = null
         }
 
         /**

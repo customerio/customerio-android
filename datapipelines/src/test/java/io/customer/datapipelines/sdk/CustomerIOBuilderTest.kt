@@ -249,6 +249,15 @@ class CustomerIOBuilderTest : RobolectricTest() {
         dataPipelinesUSModuleConfig.cdnHost shouldBe givenUSCdnHost
     }
 
+    @Test
+    fun build_givenSecretKey_expectNoCrashAndErrorLogged() {
+        val sdk = createCustomerIOBuilder("sk_us_0123456789abcdefABCDEF0123456789_a1B2c3").build()
+
+        assertCalledOnce { mockLogger.coreSdkSecretKeyRejected() }
+        CustomerIO.instance() shouldBe sdk
+        sdk.track("event")
+    }
+
     private fun createCustomerIOBuilder(givenCdpApiKey: String? = null): CustomerIOBuilder = CustomerIOBuilder(
         applicationContext = applicationMock,
         cdpApiKey = givenCdpApiKey ?: String.random

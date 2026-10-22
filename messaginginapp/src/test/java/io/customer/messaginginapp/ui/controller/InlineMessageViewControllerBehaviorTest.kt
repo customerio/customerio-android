@@ -34,7 +34,6 @@ import io.customer.messaginginapp.ui.bridge.InAppPlatformDelegate
 import io.customer.messaginginapp.ui.bridge.InlineInAppMessageViewCallback
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.util.ScopeProvider
-import io.customer.sdk.data.model.Region
 import io.customer.sdk.lifecycle.CustomerIOActivityLifecycleCallbacks
 import io.mockk.Runs
 import io.mockk.clearMocks
@@ -57,10 +56,9 @@ class InlineMessageViewControllerBehaviorTest : JUnitTest() {
     private val scopeProviderStub = ScopeProviderStub.Standard()
 
     private val moduleConfig = MessagingInAppModuleConfig.Builder(
-        siteId = TestConstants.Keys.SITE_ID,
-        region = Region.US
+        siteId = TestConstants.Keys.SITE_ID
     ).build()
-    private val gistDataCenter = moduleConfig.region.code
+    private val gistDataCenter = moduleConfig.dataCenter
     private val gistEnvironment = GistEnvironment.LOCAL
     private val screenDensity = Double.random(1.0, 3.0)
 

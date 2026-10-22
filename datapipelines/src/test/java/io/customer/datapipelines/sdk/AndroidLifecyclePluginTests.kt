@@ -4,28 +4,22 @@ import android.app.Activity
 import android.os.Bundle
 import com.segment.analytics.kotlin.android.plugins.AndroidLifecyclePlugin
 import com.segment.analytics.kotlin.core.Storage
-import com.segment.analytics.kotlin.core.TrackEvent
 import io.customer.commontest.config.TestConfig
 import io.customer.commontest.extensions.random
 import io.customer.datapipelines.testutils.core.DataPipelinesTestConfig
 import io.customer.datapipelines.testutils.core.IntegrationTest
 import io.customer.datapipelines.testutils.core.testConfiguration
 import io.customer.datapipelines.testutils.utils.TestRunPlugin
-import io.customer.sdk.util.EventNames
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkStatic
-import io.mockk.slot
 import io.mockk.spyk
 import io.mockk.verify
 import java.time.Instant
 import java.util.Date
 import java.util.UUID
-import junit.framework.TestCase.assertEquals
 import junit.framework.TestCase.assertFalse
 import kotlinx.coroutines.test.runTest
-import kotlinx.serialization.json.buildJsonObject
-import kotlinx.serialization.json.put
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -60,118 +54,18 @@ class AndroidLifecyclePluginTests : IntegrationTest() {
     }
 
     @Test
-    fun track_verifyApplicationOpenedIsTracked() {
+    fun track_givenApplicationLifecycleEnabled_expectSegmentPluginToTrackNothing() = runTest {
+        // Lifecycle events come from AutomaticApplicationLifecycleTrackingPlugin, so Segment's plugin must stay
+        // silent or every lifecycle event would be sent twice
         setupTestEnvironmentWithLifecyclePlugin()
-
-        val mockPlugin = spyk(TestRunPlugin {})
-        analytics.add(mockPlugin)
-
-        val mockActivity = mockk<Activity>()
-        val mockBundle = mockk<Bundle>()
-
-        lifecyclePlugin.onActivityCreated(mockActivity, mockBundle)
-        lifecyclePlugin.onActivityStarted(mockActivity)
-        lifecyclePlugin.onActivityResumed(mockActivity)
-
-        verify { mockPlugin.updateState(true) }
-        val tracks = mutableListOf<TrackEvent>()
-        verify { mockPlugin.track(capture(tracks)) }
-        // 1. Application Installed
-        // 2. Application Opened
-        assertEquals(2, tracks.size)
-        with(tracks.last()) {
-            assertEquals("Application Opened", event)
-            assertEquals(
-                buildJsonObject {
-                    put("version", "1.0.0")
-                    put("build", "100")
-                    put("from_background", false)
-                },
-                properties
-            )
-        }
-    }
-
-    @Test
-    fun track_verifyApplicationBackgroundIsTracked() {
-        setupTestEnvironmentWithLifecyclePlugin()
-
-        val mockPlugin = spyk(TestRunPlugin {})
-        analytics.add(mockPlugin)
-
-        val mockActivity = mockk<Activity>()
-
-        simulateActivityPauseAndStop(mockActivity)
-
-        verify { mockPlugin.updateState(true) }
-        val track = slot<TrackEvent>()
-        verify { mockPlugin.track(capture(track)) }
-        with(track.captured) {
-            assertEquals(EventNames.APPLICATION_BACKGROUNDED, event)
-        }
-    }
-
-    @Test
-    fun track_verifyApplicationInstalledIsTracked() = runTest {
-        setupTestEnvironmentWithLifecyclePlugin()
-
         analytics.storage.remove(Storage.Constants.AppBuild)
 
         val mockPlugin = spyk(TestRunPlugin {})
         analytics.add(mockPlugin)
 
-        val mockActivity = mockk<Activity>()
-        val mockBundle = mockk<Bundle>()
+        simulateFullActivityLifecycle(mockk(), mockk(), mockk(), lifecyclePlugin)
 
-        // Simulate activity startup
-        lifecyclePlugin.onActivityCreated(mockActivity, mockBundle)
-
-        verify { mockPlugin.updateState(true) }
-        val track = slot<TrackEvent>()
-        verify { mockPlugin.track(capture(track)) }
-        with(track.captured) {
-            assertEquals("Application Installed", event)
-            assertEquals(
-                buildJsonObject {
-                    put("version", "1.0.0")
-                    put("build", "100")
-                },
-                properties
-            )
-        }
-    }
-
-    @Test
-    fun track_verifyApplicationUpdatedIsTracked() = runTest {
-        setupTestEnvironmentWithLifecyclePlugin()
-
-        analytics.storage.write(Storage.Constants.AppVersion, "0.9")
-        analytics.storage.write(Storage.Constants.AppBuild, "9")
-
-        val mockPlugin = spyk(TestRunPlugin {})
-        analytics.add(mockPlugin)
-
-        val mockActivity = mockk<Activity>()
-        val mockBundle = mockk<Bundle>()
-
-        // Simulate activity startup
-        lifecyclePlugin.onActivityCreated(mockActivity, mockBundle)
-
-        verify { mockPlugin.updateState(true) }
-        val track = slot<TrackEvent>()
-        verify { mockPlugin.track(capture(track)) }
-        with(track.captured) {
-            assertEquals("Application Updated", event)
-            assertEquals(
-                buildJsonObject {
-                    put("version", "1.0.0")
-                    put("build", "100")
-                    put("previous_version", "0.9")
-                    put("previous_build", "9")
-                },
-                properties
-            )
-        }
+        assertFalse(mockPlugin.ran)
     }
 
     @Test
@@ -231,12 +125,6 @@ class AndroidLifecyclePluginTests : IntegrationTest() {
         verify { spyLifecyclePlugin.onActivityStopped(mockActivity) }
         verify { spyLifecyclePlugin.onActivitySaveInstanceState(mockActivity, mockOutBundle) }
         verify { spyLifecyclePlugin.onActivityDestroyed(mockActivity) }
-    }
-
-    private fun simulateActivityPauseAndStop(mockActivity: Activity) {
-        lifecyclePlugin.onActivityPaused(mockActivity)
-        lifecyclePlugin.onActivityStopped(mockActivity)
-        lifecyclePlugin.onActivityDestroyed(mockActivity)
     }
 
     private fun simulateFullActivityLifecycle(mockActivity: Activity, mockBundle: Bundle, mockOutBundle: Bundle, plugin: AndroidLifecyclePlugin) {

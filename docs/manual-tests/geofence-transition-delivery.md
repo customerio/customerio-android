@@ -41,6 +41,12 @@ inside (its entry fix, a native DWELL's fix or a decisive polygon fix). The true
 lies between the duration minus the uncertainty and the duration. The `visitId` is
 sent on every EXIT attributed to a visit, timed or not.
 
+A circle's DWELL comes from GMS loitering for the fence's dwell threshold. GMS fires
+DWELL within seconds when a fence the device is inside is re-added under the same id,
+which a catalog edit to that fence's threshold or geometry does, so a DWELL sooner
+than the threshold after the registration is not taken as proof. That stay gets no
+DWELL; the next one does.
+
 Polygon DWELL still requires a later fix whose entire accuracy circle is inside
 the polygon. If a due visit stays INSIDE but the fix's uncertainty crosses the
 boundary, the next eligible callback or recheck can request a precise fix. This

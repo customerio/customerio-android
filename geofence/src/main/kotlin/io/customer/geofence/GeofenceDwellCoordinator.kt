@@ -256,6 +256,8 @@ internal class GeofenceDwellCoordinator(
         }
         // GMS fires DWELL within seconds of re-adding a fence the device is inside, whatever the
         // loitering delay (seen on GMS 26.37: a threshold or geometry change re-adds under the same id).
+        // That stay then gets no DWELL: GMS does not loiter again, and removing the fence before its
+        // re-add instead would open a window in which its ENTER and EXIT can be lost.
         // A genuine one cannot come sooner than the threshold after the registration it loitered on was
         // added, so an earlier one is still inside evidence but proves no threshold. Judged on GMS's fix,
         // never the receipt: a delayed delivery must not turn an early callback into proof, and GMS

@@ -19,7 +19,6 @@ import io.customer.geofence.GeofenceJsonSerializer
 import io.customer.geofence.GeofenceLogger
 import io.customer.geofence.GeofenceManager
 import io.customer.geofence.GeofenceRegion
-import io.customer.geofence.GeofenceRegistrationGate
 import io.customer.geofence.GeofenceTransitionEmitter
 import io.customer.geofence.PolygonFreshFixSkip
 import io.customer.geofence.store.GeofenceDwellReservation
@@ -32,7 +31,6 @@ import io.customer.sdk.core.util.Clock
 import io.customer.sdk.data.store.PendingDeliveryStore
 import io.customer.sdk.data.store.SecureUserStore
 import io.mockk.coEvery
-import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
@@ -72,11 +70,7 @@ class PolygonDwellPrecisionTest : RobolectricTest() {
 
     private lateinit var store: GeofenceRegionStoreImpl
     private lateinit var outbox: PendingDeliveryStore<PendingGeofenceDelivery>
-    private lateinit var wakeRecords: PolygonDwellWakeRecordStore
-    private val registrationGate = GeofenceRegistrationGate()
-
-    /** What GMS holds per id: the DWELL loitering delay, or null for the plain ENTER|EXIT circle. */
-    private val gmsLoiteringMs = mutableMapOf<String, Long?>()
+    private val dwellChecks = RecordingDwellCheckScheduler()
 
     override fun setup(testConfig: TestConfig) {
         super.setup(testConfigurationDefault { argument(ApplicationArgument(applicationMock)) })
@@ -91,9 +85,6 @@ class PolygonDwellPrecisionTest : RobolectricTest() {
             elementSerializer = PendingGeofenceDelivery.serializer(),
             logger = mockk(relaxed = true)
         ).also { it.removeAll() }
-        wakeRecords = PolygonDwellWakeRecordStore(
-            applicationMock.getSharedPreferences(PolygonDwellWakeRecordStore.PREFS_NAME, Context.MODE_PRIVATE)
-        ).also { it.clear() }
         ShadowSystemClock.advanceBy(Duration.ofMinutes(1))
 
         every { secureUserStore.getUserId() } returns USER_ID
@@ -103,26 +94,12 @@ class PolygonDwellPrecisionTest : RobolectricTest() {
         every { clock.currentTimeSeconds() } answers { wallNowMs() / MILLIS_PER_SECOND }
         every { cooldownFilter.suppressedForSeconds(any(), any(), any()) } returns null
         coEvery { manager.replaceMovementTrigger(any()) } returns Result.success(Unit)
-        // A fake of what GMS holds, so tests read registration state rather than call order.
-        coEvery { manager.armPolygonDwellWake(any(), any()) } answers {
-            gmsLoiteringMs[firstArg<GeofenceRegion>().id] = secondArg<Long>()
-            Result.success(Unit)
-        }
-        coEvery { manager.disarmPolygonDwellWake(any()) } answers {
-            gmsLoiteringMs[firstArg<GeofenceRegion>().id] = null
-            Result.success(Unit)
-        }
-        coEvery { manager.removeGeofencesByIds(any()) } answers {
-            firstArg<List<String>>().forEach { gmsLoiteringMs.remove(it) }
-            Result.success(Unit)
-        }
+        coEvery { manager.removeGeofencesByIds(any()) } returns Result.success(Unit)
 
         store.beginUserSession(USER_ID)
         store.saveCachedRegions(listOf(venueRegion()))
         store.saveRegisteredIds(setOf(VENUE_ID))
         store.saveRoutableRegisteredIds(setOf(VENUE_ID))
-        // Sync registered the venue's circle normally.
-        gmsLoiteringMs[VENUE_ID] = null
     }
 
     @Test
@@ -403,131 +380,90 @@ class PolygonDwellPrecisionTest : RobolectricTest() {
     }
 
     @Test
-    fun onDwellWake_givenAnArmedDueVisit_expectOnlyAPreciseFixQualifiesAndTheCircleIsRestored() = runTest {
+    fun onDwellCheck_givenADueVisit_expectOnlyAPreciseFixQualifiesAndEachCheckIsCharged() = runTest {
         val freshFix = RecordingFreshFix()
-        val controller = controller(freshFix, wakeOwner(enabled = true))
+        val controller = controller(freshFix)
         arriveClearly(controller)
         val visit = store.getDwellVisit(VENUE_ID).shouldNotBeNull()
+        // The visit's start re-plans the background checks.
+        val afterArrival = dwellChecks.reconciles
+        (afterArrival > 0) shouldBeEqualTo true
 
-        // The engine's entry cue arms once, with the delay counted from the original entry, not the arm.
-        ShadowSystemClock.advanceBy(Duration.ofSeconds(20))
-        advanceUntilIdle()
-        val armedDelayMs = venueRegion().dwellThresholdSeconds * MILLIS_PER_SECOND -
-            (SystemClock.elapsedRealtime() - visit.enteredAtElapsedMs.shouldNotBeNull()) +
-            PolygonDwellWakeOwner.DEFAULT_GRACE_MS
-        gmsLoiteringMs shouldBeEqualTo mapOf<String, Long?>(VENUE_ID to armedDelayMs)
-        armedVisitIds() shouldBeEqualTo mapOf(VENUE_ID to visit.visitId)
-
-        // Due, but the wake's fix cannot show the stay and no precise fix comes. A wake is not proof:
-        // no DWELL, and the visit keeps its wake and record.
-        ShadowSystemClock.advanceBy(Duration.ofSeconds(50))
-        dwellWake(controller)
-        advanceUntilIdle()
+        // Due, but no precise fix comes. A check is not proof: no DWELL, and the request is spent.
+        ShadowSystemClock.advanceBy(Duration.ofSeconds(70))
+        dwellCheck(controller, visit.visitId)
         freshFix.priorities shouldBeEqualTo listOf(PolygonFixPriority.HIGH_ACCURACY)
         dwells().shouldBeEmpty()
-        gmsLoiteringMs shouldBeEqualTo mapOf<String, Long?>(VENUE_ID to armedDelayMs)
-        armedVisitIds() shouldBeEqualTo mapOf(VENUE_ID to visit.visitId)
+        store.getDwellVisit(VENUE_ID).shouldNotBeNull().dwellProofRequests shouldBeEqualTo 1
+        // The charge moved the next check past the spacing, so it re-planned.
+        dwellChecks.reconciles shouldBeEqualTo afterArrival + 1
 
-        // Same spot past the cooldown: the futile memo refuses an ordinary callback...
+        // The next check, past the spacing: its precise fix shows the stay.
         ShadowSystemClock.advanceBy(Duration.ofMinutes(2))
         val precise = fixAtTheVenueCentre(SystemClock.elapsedRealtimeNanos())
         freshFix.answer = precise
-        wakeWithMarginalFix(controller)
-        freshFix.priorities.size shouldBeEqualTo 1
-        // ...but the armed wake gets its one precise request, which shows the stay.
-        dwellWake(controller)
-        advanceUntilIdle()
+        dwellCheck(controller, visit.visitId)
 
         freshFix.priorities.size shouldBeEqualTo 2
         val dwell = dwells().single()
         dwell.visitId shouldBeEqualTo visit.visitId
         dwell.timestamp shouldBeEqualTo precise.time / MILLIS_PER_SECOND
-        // Qualified by the precise fix, not by GMS's loitering.
         dwell.detectionSource shouldBeEqualTo "location_evidence"
-        // Disarmed in place to the plain circle, not removed, and the record is gone.
-        gmsLoiteringMs shouldBeEqualTo mapOf<String, Long?>(VENUE_ID to null)
-        armedVisitIds() shouldBeEqualTo emptyMap()
+        store.getDwellVisit(VENUE_ID).shouldNotBeNull().dwellProofRequests shouldBeEqualTo 2
 
-        // A duplicate delivery finds no record: no request, no second DWELL, no re-arm.
+        // A late duplicate of the same check finds the visit settled: no request, no second DWELL.
         ShadowSystemClock.advanceBy(Duration.ofMinutes(2))
-        dwellWake(controller)
-        advanceUntilIdle()
+        dwellCheck(controller, visit.visitId)
         freshFix.priorities.size shouldBeEqualTo 2
         dwells().size shouldBeEqualTo 1
-        coVerify(exactly = 1) { manager.armPolygonDwellWake(any(), any()) }
     }
 
     @Test
-    fun onDwellWake_givenTheExperimentOff_expectNoArmAndAPreciseWakeDecidesNothing() = runTest {
+    fun onDwellCheck_givenAnotherRequestsCooldown_expectAnUncountedRetryAndNoCharge() = runTest {
         val freshFix = RecordingFreshFix()
-        val controller = controller(freshFix, wakeOwner(enabled = false))
+        val controller = controller(freshFix)
         arriveClearly(controller)
+        val visit = store.getDwellVisit(VENUE_ID).shouldNotBeNull()
+        ShadowSystemClock.advanceBy(Duration.ofSeconds(70))
+        // A callback with no fix asks for the edge, uncharged, and starts the shared cooldown, as a
+        // neighbouring fence's request would.
+        controller.activate(VENUE_ID, triggeringLocation = null, expectedUserStateGeneration = store.userStateGeneration())
         advanceUntilIdle()
+        val requestsBefore = freshFix.priorities.size
+        requestsBefore shouldBeEqualTo 1
+        val spentBefore = store.getDwellVisit(VENUE_ID).shouldNotBeNull().dwellProofRequests
+
+        val retryAfterMs = dwellCheck(controller, visit.visitId)
+
+        retryAfterMs shouldBeEqualTo 30_000L
+        freshFix.priorities.size shouldBeEqualTo requestsBefore
+        store.getDwellVisit(VENUE_ID).shouldNotBeNull().dwellProofRequests shouldBeEqualTo spentBefore
+    }
+
+    @Test
+    fun onDwellCheck_givenAnotherVisitOrASpentBudget_expectNothingRequested() = runTest {
+        val freshFix = RecordingFreshFix()
+        val controller = controller(freshFix)
+        arriveClearly(controller)
+        val visit = store.getDwellVisit(VENUE_ID).shouldNotBeNull()
         ShadowSystemClock.advanceBy(Duration.ofSeconds(70))
         freshFix.answer = fixAtTheVenueCentre(SystemClock.elapsedRealtimeNanos())
-        val preciseWake = fixAtTheVenueCentre(SystemClock.elapsedRealtimeNanos() - 1_000_000_000L)
 
-        dwellWake(controller, preciseWake)
-        advanceUntilIdle()
+        // Planned for a visit that has since been replaced.
+        dwellCheck(controller, "an-earlier-visit")
+        freshFix.priorities.shouldBeEmpty()
 
+        // The visit already spent every request.
+        store.saveDwellVisit(visit.copy(dwellProofRequests = GeofenceConstants.MAX_DWELL_PROOF_REQUESTS_PER_VISIT)) shouldBeEqualTo true
+        dwellCheck(controller, visit.visitId)
         freshFix.priorities.shouldBeEmpty()
         dwells().shouldBeEmpty()
-        armedVisitIds() shouldBeEqualTo emptyMap()
-        gmsLoiteringMs shouldBeEqualTo mapOf<String, Long?>(VENUE_ID to null)
-        coVerify(exactly = 0) { manager.armPolygonDwellWake(any(), any()) }
-        coVerify(exactly = 0) { manager.disarmPolygonDwellWake(any()) }
-
-        // Control: the same fix through the ordinary callback qualifies, so only the off switch kept the
-        // wake inert, and the wake left no coarse dedup state to refuse it.
-        controller.activate(
-            polygonId = VENUE_ID,
-            triggeringLocation = preciseWake,
-            expectedUserStateGeneration = store.userStateGeneration(),
-            expectedRegionRevision = null
-        )
-        val visitId = store.getDwellVisit(VENUE_ID).shouldNotBeNull().visitId
-        dwells().map { it.visitId } shouldBeEqualTo listOf(visitId)
-    }
-
-    @Test
-    fun onDwellWake_givenAPreciseDeliveredFix_expectDwellWithoutAnotherFixRequest() = runTest {
-        val fresh = RecordingFreshFix()
-        val controller = controller(fresh, wakeOwner(enabled = true))
-        arriveClearly(controller)
-        advanceUntilIdle()
-        val visitId = store.getDwellVisit(VENUE_ID).shouldNotBeNull().visitId
-        ShadowSystemClock.advanceBy(Duration.ofSeconds(70))
-
-        dwellWake(controller, fixAtTheVenueCentre(SystemClock.elapsedRealtimeNanos()))
-        advanceUntilIdle()
-
-        dwells().map { it.visitId } shouldBeEqualTo listOf(visitId)
-        fresh.priorities.shouldBeEmpty()
-        gmsLoiteringMs shouldBeEqualTo mapOf<String, Long?>(VENUE_ID to null)
-        armedVisitIds() shouldBeEqualTo emptyMap()
-    }
-
-    @Test
-    fun onDwellWake_givenOptOutAfterArming_expectCleanupWithoutRequestingOrEmitting() = runTest {
-        val fresh = RecordingFreshFix()
-        arriveClearly(controller(fresh, wakeOwner(enabled = true)))
-        advanceUntilIdle()
-        armedVisitIds().keys shouldBeEqualTo setOf(VENUE_ID)
-
-        dwellWake(controller(fresh, wakeOwner(enabled = false)))
-        advanceUntilIdle()
-
-        fresh.priorities.shouldBeEmpty()
-        dwells().shouldBeEmpty()
-        gmsLoiteringMs shouldBeEqualTo mapOf<String, Long?>(VENUE_ID to null)
-        armedVisitIds() shouldBeEqualTo emptyMap()
     }
 
     @Test
     fun processFix_givenDwellReservedButNotStaged_expectEngineReleasesAcquisitionBeforeDelivery() = runTest {
         val fresh = RecordingFreshFix()
-        val owner = wakeOwner(enabled = true)
-        arriveClearly(controller(fresh, owner))
+        arriveClearly(controller(fresh))
         advanceUntilIdle()
         val visitId = store.getDwellVisit(VENUE_ID).shouldNotBeNull().visitId
         val blocked = mockk<GeofenceBusinessTransitionProcessor>(relaxed = true)
@@ -536,8 +472,9 @@ class PolygonDwellPrecisionTest : RobolectricTest() {
             GeofenceTransitionEmitter.Result.PERSIST_FAILED
         ShadowSystemClock.advanceBy(Duration.ofSeconds(70))
 
-        // An ordinary precise callback must release acquisition at reservation, without a native wake's settle.
-        controller(fresh, owner, blocked).activate(
+        // An ordinary precise callback re-plans the checks at reservation, before delivery lands.
+        val reconcilesBefore = dwellChecks.reconciles
+        controller(fresh, processorOverride = blocked).activate(
             VENUE_ID,
             fixAtTheVenueCentre(SystemClock.elapsedRealtimeNanos()),
             store.userStateGeneration()
@@ -550,8 +487,7 @@ class PolygonDwellPrecisionTest : RobolectricTest() {
         reserved.emitted shouldBeEqualTo false
         dwells().shouldBeEmpty()
         fresh.priorities.shouldBeEmpty()
-        gmsLoiteringMs shouldBeEqualTo mapOf<String, Long?>(VENUE_ID to null)
-        armedVisitIds() shouldBeEqualTo emptyMap()
+        dwellChecks.reconciles shouldBeEqualTo reconcilesBefore + 1
     }
 
     @Test
@@ -599,10 +535,10 @@ class PolygonDwellPrecisionTest : RobolectricTest() {
     }
 
     @Test
-    fun onDwellWake_givenTeardownAndReactivationWhileEngineRecoversOutbox_expectRetiredPassDropped() = runTest {
-        val owner = wakeOwner(enabled = true)
-        arriveClearly(controller(RecordingFreshFix(), owner))
+    fun onDwellCheck_givenTeardownAndReactivationWhileEngineRecoversOutbox_expectRetiredPassDropped() = runTest {
+        arriveClearly(controller(RecordingFreshFix()))
         advanceUntilIdle()
+        val visitId = store.getDwellVisit(VENUE_ID).shouldNotBeNull().visitId
         ShadowSystemClock.advanceBy(Duration.ofSeconds(70))
         val enteredRecovery = CompletableDeferred<Unit>()
         val releaseRecovery = CompletableDeferred<Unit>()
@@ -614,11 +550,9 @@ class PolygonDwellPrecisionTest : RobolectricTest() {
         }
         coEvery { blocked.process(any(), any(), any(), any(), any(), any(), any(), any(), any()) } returns
             GeofenceTransitionEmitter.Result.PERSISTED
-        val controller = controller(RecordingFreshFix(), owner, blocked)
         val precise = fixAtTheVenueCentre(SystemClock.elapsedRealtimeNanos())
-        val wake = launch {
-            controller.onDwellWake(VENUE_ID, precise, store.userStateGeneration())
-        }
+        val controller = controller(RecordingFreshFix().apply { answer = precise }, processorOverride = blocked)
+        val wake = launch { dwellCheck(controller, visitId) }
         enteredRecovery.await()
         controller.stopAll()
         controller.activate(VENUE_ID, expectedUserStateGeneration = store.userStateGeneration()) shouldBeEqualTo true
@@ -634,13 +568,14 @@ class PolygonDwellPrecisionTest : RobolectricTest() {
     }
 
     @Test
-    fun onDwellWake_givenTeardownAndReactivationWhileAwaitingFix_expectOldAnswerDropped() = runTest {
+    fun onDwellCheck_givenTeardownAndReactivationWhileAwaitingFix_expectOldAnswerDropped() = runTest {
         val fresh = HoldingFreshFix()
-        val controller = controller(fresh, wakeOwner(enabled = true))
+        val controller = controller(fresh)
         arriveClearly(controller)
         advanceUntilIdle()
+        val visitId = store.getDwellVisit(VENUE_ID).shouldNotBeNull().visitId
         ShadowSystemClock.advanceBy(Duration.ofSeconds(70))
-        val oldWake = launch { dwellWake(controller) }
+        val oldWake = launch { dwellCheck(controller, visitId) }
         fresh.requested.await()
 
         controller.stopAll()
@@ -653,7 +588,7 @@ class PolygonDwellPrecisionTest : RobolectricTest() {
 
         dwells().shouldBeEmpty()
         store.getActivePolygonIds() shouldContain VENUE_ID
-        // The current session can use the same fix through its own callback; only the retired wake is refused.
+        // The current session can use the same fix through its own callback; only the retired check is refused.
         controller.activate(VENUE_ID, precise, store.userStateGeneration())
         advanceUntilIdle()
         dwells().size shouldBeEqualTo 1
@@ -709,37 +644,6 @@ class PolygonDwellPrecisionTest : RobolectricTest() {
         journal.snapshot() shouldBeEqualTo emptyList()
     }
 
-    @Test
-    fun diagnostics_givenNativeArmAndConfirmedStop_expectOriginalDueTimeAndCleanupRecorded() = runTest {
-        val (journal, recorder) = diagnosticHistory()
-        val controller = controller(RecordingFreshFix(), wakeOwner(true, recorder), diagnosticRecorder = recorder)
-        arriveClearly(controller)
-        advanceUntilIdle()
-        val visit = store.getDwellVisit(VENUE_ID).shouldNotBeNull()
-        val scheduled = journal.snapshot().shouldNotBeNull()
-        scheduled.filter {
-            it.event in setOf(DwellDiagnosticEvent.ARM_REQUESTED, DwellDiagnosticEvent.ARM_SUCCEEDED, DwellDiagnosticEvent.DEADLINE_SCHEDULED)
-        }.map { it.event } shouldBeEqualTo listOf(
-            DwellDiagnosticEvent.ARM_REQUESTED,
-            DwellDiagnosticEvent.ARM_SUCCEEDED,
-            DwellDiagnosticEvent.DEADLINE_SCHEDULED
-        )
-        scheduled.single { it.event == DwellDiagnosticEvent.DEADLINE_SCHEDULED }.dueElapsedMs shouldBeEqualTo
-            visit.enteredAtElapsedMs.shouldNotBeNull() + venueRegion().dwellThresholdSeconds * MILLIS_PER_SECOND +
-            PolygonDwellWakeOwner.DEFAULT_GRACE_MS
-
-        controller.stopAll()
-        advanceUntilIdle()
-
-        journal.snapshot().shouldNotBeNull().filter {
-            it.event in setOf(DwellDiagnosticEvent.DISARM_REQUESTED, DwellDiagnosticEvent.DISARM_SUCCEEDED, DwellDiagnosticEvent.DEADLINE_CANCELLED)
-        }.map { it.event } shouldBeEqualTo listOf(
-            DwellDiagnosticEvent.DISARM_REQUESTED,
-            DwellDiagnosticEvent.DISARM_SUCCEEDED,
-            DwellDiagnosticEvent.DEADLINE_CANCELLED
-        )
-    }
-
     private fun TestScope.diagnosticHistory(): Pair<DwellDiagnosticJournal, DwellDiagnosticRecorder> {
         val prefs = applicationMock.getSharedPreferences("cio_test_dwell_controller_history", Context.MODE_PRIVATE)
         prefs.edit().clear().commit()
@@ -747,36 +651,14 @@ class PolygonDwellPrecisionTest : RobolectricTest() {
         return journal to DwellDiagnosticRecorder(journal, { true }, this)
     }
 
-    /** The real owner on this test's scheduler, writing real records. */
-    private fun TestScope.wakeOwner(enabled: Boolean, diagnosticRecorder: DwellDiagnosticRecorder? = null) = PolygonDwellWakeOwner(
-        store = store,
-        registrar = manager,
-        records = wakeRecords,
-        gate = registrationGate,
-        secureUserStore = secureUserStore,
-        bootSessionProvider = { BOOT_SESSION_ID },
-        enabled = { enabled },
-        elapsedRealtimeMs = { SystemClock.elapsedRealtime() },
-        scope = this,
-        ioContext = StandardTestDispatcher(testScheduler),
-        diagnostics = diagnosticRecorder
-    )
-
-    private fun armedVisitIds(): Map<String, String> =
-        (wakeRecords.read() as PolygonDwellWakeRecords.Known).byPolygonId.mapValues { it.value.visitId }
-
-    /** A native DWELL on the venue's circle; by default with a parked fix that cannot show the stay. */
-    private suspend fun dwellWake(
-        controller: PolygonGeofenceServiceController,
-        fix: Location = marginalFixInsideTheVenue(SystemClock.elapsedRealtimeNanos() - 5_000_000_000L)
-    ) {
-        controller.onDwellWake(
+    /** The worker's call for a check planned for [visitId], with the tokens it snapshots first. */
+    private suspend fun TestScope.dwellCheck(controller: PolygonGeofenceServiceController, visitId: String): Long? =
+        controller.onDwellCheck(
             polygonId = VENUE_ID,
-            triggeringLocation = fix,
+            visitId = visitId,
             expectedUserStateGeneration = store.userStateGeneration(),
-            expectedRegionRevision = venueRegion().transitionRevision()
-        )
-    }
+            expectedTeardownGeneration = controller.teardownGeneration()
+        ).also { advanceUntilIdle() }
 
     /** A clear arrival that decides alone, so the visit starts without any request. */
     private suspend fun arriveClearly(controller: PolygonGeofenceServiceController) {
@@ -813,7 +695,6 @@ class PolygonDwellPrecisionTest : RobolectricTest() {
 
     private fun controller(
         freshFixSource: PolygonFreshFixSource,
-        owner: PolygonDwellWakeOwner? = null,
         processorOverride: GeofenceBusinessTransitionProcessor? = null,
         diagnosticRecorder: DwellDiagnosticRecorder? = null
     ): PolygonGeofenceServiceController {
@@ -837,7 +718,7 @@ class PolygonDwellPrecisionTest : RobolectricTest() {
                     clock,
                     diagnosticRecorder = diagnosticRecorder
                 ) { BOOT_SESSION_ID },
-                dwellWakeOwner = owner
+                dwellCheckScheduler = dwellChecks
             ),
             approachMonitor = approachMonitor,
             manager = manager,
@@ -847,9 +728,21 @@ class PolygonDwellPrecisionTest : RobolectricTest() {
             passiveMonitor = NoopPassiveMonitor,
             bootSessionProvider = { BOOT_SESSION_ID },
             logger = logger,
-            dwellWakeOwner = owner,
+            dwellCheckScheduler = dwellChecks,
             diagnosticRecorder = diagnosticRecorder
         )
+    }
+
+    /** Counts re-plans; the checks themselves are driven through [dwellCheck]. */
+    private class RecordingDwellCheckScheduler : PolygonDwellCheckScheduler {
+        var reconciles = 0
+        override fun reconcile() {
+            reconciles += 1
+        }
+        override fun takeDueChecks(): List<PolygonDwellCheck> = emptyList()
+        override fun retryUncounted(check: PolygonDwellCheck, delayMs: Long) = Unit
+        override fun beginRun() = Unit
+        override fun endRun() = Unit
     }
 
     private class HoldingFreshFix : PolygonFreshFixSource {

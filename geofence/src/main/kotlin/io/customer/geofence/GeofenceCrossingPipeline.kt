@@ -31,9 +31,6 @@ internal class GeofenceCrossingPipeline(
         // Cold-start callbacks can beat the posted launch initialization, so establish the persisted
         // user's session synchronously first.
         polygonController.beginUserSessionForCurrentUser()
-        // Read before the recovery await: a teardown and re-arm while it is suspended must not lend
-        // this older callback the newer token. Only the polygon DWELL wake is checked against it.
-        val polygonTeardownGeneration = polygonController.teardownGeneration()
         // A previous callback can have staged a transition before the file outbox was writable.
         // Recover it before interpreting this edge so an ENTER followed by EXIT stays ordered.
         transitionProcessor.recoverPendingTransitions()
@@ -104,15 +101,10 @@ internal class GeofenceCrossingPipeline(
                         expectedUserStateGeneration = userStateGeneration,
                         expectedRegionRevision = region.transitionRevision()
                     )
-                    // Never onNativeDwell, which takes a DWELL as proof of the threshold: a polygon's
-                    // enclosing circle proves nothing about the polygon.
-                    GeofenceCrossingTransition.DWELL -> polygonController.onDwellWake(
-                        polygonId = geofenceId,
-                        triggeringLocation = crossing.triggeringLocation,
-                        expectedUserStateGeneration = userStateGeneration,
-                        expectedRegionRevision = region.transitionRevision(),
-                        expectedTeardownGeneration = polygonTeardownGeneration
-                    )
+                    // Polygons never register DWELL; an enclosing circle's would prove nothing about
+                    // the polygon anyway.
+                    GeofenceCrossingTransition.DWELL ->
+                        logger.logUnknownTransition(geofenceId, crossing.rawTransitionCode)
                     GeofenceCrossingTransition.UNSUPPORTED ->
                         logger.logUnknownTransition(geofenceId, crossing.rawTransitionCode)
                 }

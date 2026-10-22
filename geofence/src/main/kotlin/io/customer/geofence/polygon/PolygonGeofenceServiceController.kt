@@ -42,8 +42,8 @@ internal class PolygonGeofenceServiceController(
     private val passiveMonitor: PolygonPassiveMonitor,
     private val bootSessionProvider: PolygonBootSessionProvider,
     private val logger: GeofenceLogger,
-    /** Experimental dwell wake. Called only outside [controllerLock]: it launches GMS work. */
-    private val dwellWakeOwner: PolygonDwellWakeOwner? = null,
+    /** Background checks at pending polygon visits' thresholds. Called only outside [controllerLock]. */
+    private val dwellCheckScheduler: PolygonDwellCheckScheduler? = null,
     /** Opt-in dwell diagnostics. Invalidation only queues its wipe, so it may run under [controllerLock]. */
     private val diagnosticRecorder: DwellDiagnosticRecorder? = null
 ) {
@@ -74,14 +74,11 @@ internal class PolygonGeofenceServiceController(
      * Called by every teardown: the fix memos are not keyed by user, so a previous session's fix or
      * rate limit would otherwise leak into the next user's callbacks.
      */
-    private fun forgetRequestedFix(): Long? {
+    private fun forgetRequestedFix() {
         lastFreshFix = null
         lastFreshFixRequestElapsedMs = null
         teardownGeneration += 1
         futileEscalations.clear()
-        // Fenced here, under the lock the teardown or new session changes state under, so no arm for
-        // the new state can begin before the fence. Returns the epoch, for the owner call after unlock.
-        return dwellWakeOwner?.fence()
     }
 
     /** A requested precise fix that still could not decide its polygon. */
@@ -93,12 +90,6 @@ internal class PolygonGeofenceServiceController(
     private val futileEscalations = mutableMapOf<String, FutileEscalation>()
     private val coarseTransitionMutex = Mutex()
     private val lastCoarseTransitionElapsedNanos = mutableMapOf<String, Long>()
-
-    /**
-     * Dwell-wake visits that spent their one pass of the futile memo. Kept across teardowns: the ids
-     * are random per visit, so none carries over to another user.
-     */
-    private val memoBypassedWakeVisitIds = mutableSetOf<String>()
 
     /**
      * Also runs for ENTERs GMS re-reports after an identify: the identify cleared containment, and
@@ -143,77 +134,97 @@ internal class PolygonGeofenceServiceController(
     }
 
     /**
-     * A native DWELL on a polygon's enclosing circle, which only the experimental dwell wake arms. It
-     * proves nothing: it may only look for the strict proof the engine already requires, for the
-     * pending visit its write-ahead record names. It takes no coarse state or ordering slot, so later
-     * ENTERs and EXITs are judged as before. [expectedTeardownGeneration] defaults to the token at the
-     * call, before the mutex, so a teardown while this waits still fences it.
+     * A scheduled check of [visitId], the polygon's visit when it was planned. It may only look for the
+     * strict proof the engine already requires, with one precise fix charged to the visit's budget. It
+     * takes no coarse state or ordering slot, so later ENTERs and EXITs are judged as before.
+     *
+     * @return how long to wait before checking again without counting this check, when another
+     *   request's cooldown refused it; null when the check ran, or the visit needs no more.
      */
-    suspend fun onDwellWake(
+    suspend fun onDwellCheck(
         polygonId: String,
-        triggeringLocation: Location?,
-        expectedUserStateGeneration: Long = store.userStateGeneration(),
-        expectedRegionRevision: Int? = null,
-        expectedTeardownGeneration: Long = teardownGeneration()
-    ) {
-        recordDiagnostic(
-            expectedUserStateGeneration,
-            DwellDiagnosticEvent.WAKE_NATIVE_DWELL,
-            polygonId,
-            triggeringLocation
-        )
-        val wakeOwner = dwellWakeOwner
-        val settle = coarseTransitionMutex.withLock {
-            if (wakeOwner == null || isAfterTeardown(expectedTeardownGeneration)) {
+        visitId: String,
+        expectedUserStateGeneration: Long,
+        expectedTeardownGeneration: Long
+    ): Long? {
+        recordDiagnostic(expectedUserStateGeneration, DwellDiagnosticEvent.WAKE_DWELL_CHECK, polygonId, null)
+        return coarseTransitionMutex.withLock {
+            val visit = store.getDwellVisit(polygonId)
+            val stillPending = visit != null && visit.visitId == visitId && !visit.emitted &&
+                visit.dwellReservation == null
+            if (!stillPending || isAfterTeardown(expectedTeardownGeneration) ||
+                !activateForDwellCheck(polygonId, expectedUserStateGeneration, expectedTeardownGeneration)
+            ) {
                 logger.logPolygonCallbackDropped(PolygonCallbackDrop.NOT_ROUTABLE, polygonId)
-                return@withLock false
+                return@withLock null
             }
-            val visitId = when (val admission = wakeOwner.admitNativeWake(polygonId)) {
-                is PolygonDwellWakeAdmission.Admitted -> admission.visitId
-                else -> {
-                    logger.logPolygonCallbackDropped(PolygonCallbackDrop.NOT_ROUTABLE, polygonId)
-                    return@withLock admission == PolygonDwellWakeAdmission.Stale
-                }
-            }
-            val routable = activateForDwellWake(
-                polygonId,
-                expectedUserStateGeneration,
-                expectedRegionRevision,
-                expectedTeardownGeneration
-            )
-            if (!routable) {
-                logger.logPolygonCallbackDropped(PolygonCallbackDrop.NOT_ROUTABLE, polygonId)
-                return@withLock true
-            }
-            evaluateCallbackFix(
-                polygonId,
-                triggeringLocation,
-                expectedUserStateGeneration,
-                memoBypassVisitId = visitId,
-                expectedTeardownGeneration = expectedTeardownGeneration
-            )
-            // A teardown during the awaits restores every wake itself.
-            !isAfterTeardown(expectedTeardownGeneration)
+            val skipped = requestDwellProof(polygonId, expectedUserStateGeneration, expectedTeardownGeneration)
+            // Another visit's request started the shared cooldown: not this visit's attempt.
+            FRESH_FIX_COOLDOWN_MS.takeIf { skipped == DwellDiagnosticReason.WITHIN_COOLDOWN }
         }
-        // Outside both locks: the restore does GMS work, which an inline dispatcher would run here. A
-        // visit still pending keeps its wake and record; one that ended or emitted gets its circle back.
-        if (settle) wakeOwner?.onVisitSettled(polygonId)
+    }
+
+    /**
+     * One precise fix for a dwell check, charged to the visit's budget before it is requested. The
+     * teardown token is re-checked after every await: teardown keeps the visit and a later callback can
+     * re-activate the engine, so a late answer would otherwise still qualify it.
+     *
+     * @return why no fix was obtained, or null when one was.
+     */
+    private suspend fun requestDwellProof(
+        polygonId: String,
+        expectedUserStateGeneration: Long,
+        expectedTeardownGeneration: Long
+    ): DwellDiagnosticReason? {
+        // Taken before any await, so a reset while a request is out retires what its answer records.
+        val diagnosticToken = diagnosticRecorder?.currentToken()
+        fun recordDwellRejected(reason: DwellDiagnosticReason) = recordDiagnostic(
+            expectedUserStateGeneration,
+            DwellDiagnosticEvent.DWELL_REJECTED,
+            fenceId = polygonId,
+            reason = reason,
+            diagnosticToken = diagnosticToken
+        )
+        val budget = withinDwellProofBudget(setOf(polygonId))
+        if (budget.isEmpty()) {
+            recordDwellRejected(DwellDiagnosticReason.BUDGET_EXHAUSTED)
+            return DwellDiagnosticReason.BUDGET_EXHAUSTED
+        }
+        var skipped: DwellDiagnosticReason? = null
+        val fresh = preciseFixForCallback(
+            polygonId,
+            undecidedPolygonIds = setOf(polygonId),
+            pendingArrivalPolygonIds = emptySet(),
+            triggeringLocation = null,
+            expectedTeardownGeneration = expectedTeardownGeneration,
+            onSkipped = { reason ->
+                skipped = reason
+                recordDwellRejected(reason)
+            },
+            onRequesting = { at -> chargeDwellProofRequests(budget, at) }
+        ) ?: return skipped ?: DwellDiagnosticReason.NOT_CURRENT_SESSION
+        if (isAfterTeardown(expectedTeardownGeneration)) return DwellDiagnosticReason.NOT_CURRENT_SESSION
+        evaluateAndRecentre(
+            fresh.fix,
+            expectedUserStateGeneration,
+            expectedTeardownGeneration = expectedTeardownGeneration
+        )
+        return null
     }
 
     /**
      * Has the engine evaluate the polygon, as [onMovementTriggerExit] does for an entered one. No
      * coarse-inside write: a DWELL is no coarse edge.
      */
-    private fun activateForDwellWake(
+    private fun activateForDwellCheck(
         polygonId: String,
         expectedUserStateGeneration: Long,
-        expectedRegionRevision: Int?,
         expectedTeardownGeneration: Long
     ): Boolean {
         val discarded = mutableSetOf<String>()
         val routable = synchronized(controllerLock) {
             if (isAfterTeardownLocked(expectedTeardownGeneration) ||
-                !isCurrentRegisteredPolygonLocked(polygonId, expectedUserStateGeneration, expectedRegionRevision)
+                !isCurrentRegisteredPolygonLocked(polygonId, expectedUserStateGeneration, expectedRegionRevision = null)
             ) {
                 return@synchronized false
             }
@@ -471,9 +482,8 @@ internal class PolygonGeofenceServiceController(
             }
         }
         reportDiscardedArrivals(discarded)
-        // Once per recovery, not per fix: a visit an earlier process left pending gets the single arm
-        // its write-ahead record allows. With the experiment off this launches nothing.
-        enteredPolygonIds.forEach { dwellWakeOwner?.onVisitPending(it) }
+        // Once per recovery, not per fix: a visit an earlier process left pending gets its check.
+        if (enteredPolygonIds.isNotEmpty()) dwellCheckScheduler?.reconcile()
     }
 
     suspend fun processApproachLocations(
@@ -634,9 +644,6 @@ internal class PolygonGeofenceServiceController(
         /** How long a futile escalation suppresses a repeat for the same polygon and position. */
         const val FUTILE_ESCALATION_RETRY_MS = 30 * 60_000L
 
-        /** Bounds the wake memo passes; clearing only lets an old visit pass once more. */
-        const val MAX_MEMO_BYPASS_VISITS = 256
-
         /**
          * How long an obtained fix may answer later callbacks from the same GMS batch. Kept short:
          * a reused fix bypasses the cooldown, so a longer window could decide from a position left.
@@ -690,7 +697,6 @@ internal class PolygonGeofenceServiceController(
 
     fun invalidateOsRegistrationState() {
         stopScheduledWakes()
-        var lossEpoch: Long? = null
         val discarded = synchronized(controllerLock) {
             val generation = store.userStateGeneration()
             store.saveRegisteredIds(emptySet())
@@ -703,13 +709,11 @@ internal class PolygonGeofenceServiceController(
             store.retainCoarseInsidePolygonIds(emptySet())
             val holds = engine.stop()
             lastCoarseTransitionElapsedNanos.clear()
-            lossEpoch = forgetRequestedFix()
+            forgetRequestedFix()
             approachMonitor.stop(generation)
             holds
         }
-        // GMS dropped every geofence, wakes included, so records armed before this fence go with no
-        // GMS call. This fence's epoch, not a later one, so a wake armed since stays recorded.
-        lossEpoch?.let { epoch -> dwellWakeOwner?.onOsRegistrationsLost(epoch) }
+        dwellCheckScheduler?.reconcile()
         reportDiscardedArrivals(discarded)
     }
 
@@ -725,8 +729,8 @@ internal class PolygonGeofenceServiceController(
             approachMonitor.stop(generation)
             holds
         }
-        // After the wipe and outside the lock: restores what forgetRequestedFix's fence superseded.
-        dwellWakeOwner?.onTeardown(alreadyFenced = true)
+        // After the wipe and outside the lock, so it plans from what the teardown left.
+        dwellCheckScheduler?.reconcile()
         reportDiscardedArrivals(discarded)
     }
 
@@ -743,7 +747,7 @@ internal class PolygonGeofenceServiceController(
             approachMonitor.stop(generation)
             holds
         }
-        dwellWakeOwner?.onTeardown(alreadyFenced = true)
+        dwellCheckScheduler?.reconcile()
         reportDiscardedArrivals(discarded)
     }
 
@@ -759,7 +763,7 @@ internal class PolygonGeofenceServiceController(
             approachMonitor.stop(generation)
             holds
         }
-        dwellWakeOwner?.onTeardown(alreadyFenced = true)
+        dwellCheckScheduler?.reconcile()
         reportDiscardedArrivals(discarded)
     }
 
@@ -781,7 +785,7 @@ internal class PolygonGeofenceServiceController(
             approachMonitor.stop(expectedUserStateGeneration)
             holds
         }
-        dwellWakeOwner?.onTeardown(alreadyFenced = true)
+        dwellCheckScheduler?.reconcile()
         reportDiscardedArrivals(discarded)
     }
 
@@ -878,11 +882,11 @@ internal class PolygonGeofenceServiceController(
     }
 
     /**
-     * Outside [controllerLock]. Only a moved generation fences the wake owner: every geofence
-     * callback first opens the session for the current user, and an unchanged one must not churn GMS.
+     * Outside [controllerLock]. Only a moved generation re-plans checks: every geofence callback first
+     * opens the session for the current user, and an unchanged one must not churn WorkManager.
      */
     private fun onSessionOpened(opened: OpenedSession) {
-        if (opened.generationChanged) dwellWakeOwner?.onTeardown(alreadyFenced = true)
+        if (opened.generationChanged) dwellCheckScheduler?.reconcile()
         reportDiscardedArrivals(opened.discarded)
     }
 
@@ -934,15 +938,7 @@ internal class PolygonGeofenceServiceController(
     private suspend fun evaluateCallbackFix(
         polygonId: String,
         triggeringLocation: Location?,
-        expectedUserStateGeneration: Long,
-        /** A dwell wake's visit, whose request may pass the futile memo once. */
-        memoBypassVisitId: String? = null,
-        /**
-         * A dwell wake's teardown token, re-checked after every await: teardown keeps the visit and a
-         * later callback can re-activate the engine, so a late answer would otherwise still qualify it.
-         * Null for ordinary callbacks, which behave as before.
-         */
-        expectedTeardownGeneration: Long? = null
+        expectedUserStateGeneration: Long
     ) {
         // Taken before any await, so a reset while a request is out retires what its answer records.
         val diagnosticToken = diagnosticRecorder?.currentToken()
@@ -956,55 +952,27 @@ internal class PolygonGeofenceServiceController(
             )
         }
         if (triggeringLocation == null) {
-            // Only a dwell wake's request serves its visit, so only it is budgeted; another callback's
-            // serves the edge and is never charged.
-            val wakeBudget = if (memoBypassVisitId != null) {
-                withinDwellProofBudget(setOf(polygonId)).also { budgeted ->
-                    if (budgeted.isEmpty()) {
-                        recordDwellRejected(setOf(polygonId), DwellDiagnosticReason.BUDGET_EXHAUSTED)
-                        return
-                    }
-                }
-            } else {
-                emptyMap()
-            }
+            // This request serves the edge, so it is never charged to a dwell budget.
             val only = preciseFixForCallback(
                 polygonId,
                 undecidedPolygonIds = setOf(polygonId),
                 pendingArrivalPolygonIds = emptySet(),
-                triggeringLocation = null,
-                expectedTeardownGeneration = expectedTeardownGeneration,
-                onSkipped = { reason -> if (memoBypassVisitId != null) recordDwellRejected(setOf(polygonId), reason) },
-                onRequesting = { at -> wakeBudget.isEmpty() || chargeDwellProofRequests(wakeBudget, at) }
+                triggeringLocation = null
             ) ?: return
-            if (isAfterTeardown(expectedTeardownGeneration)) return
-            evaluateAndRecentre(
-                only.fix,
-                expectedUserStateGeneration,
-                expectedTeardownGeneration = expectedTeardownGeneration
-            )
+            evaluateAndRecentre(only.fix, expectedUserStateGeneration)
             return
         }
-        if (isAfterTeardown(expectedTeardownGeneration)) return
-        val delivered = evaluateAndRecentre(
-            triggeringLocation,
-            expectedUserStateGeneration,
-            expectedTeardownGeneration = expectedTeardownGeneration
-        )
+        val delivered = evaluateAndRecentre(triggeringLocation, expectedUserStateGeneration)
         // GMS often answers with this callback's own fix; answersHeldFixAt lets the engine settle a
         // hold with it as not independent instead of skipping it as not newer.
         // A due visit the fix kept INSIDE without showing it is memoised like an undecided fence, so a
         // parked device asks once per spot per FUTILE_ESCALATION_RETRY_MS rather than every wake.
-        val unjudgedWake = unjudgedWakeVisit(polygonId, memoBypassVisitId, delivered, expectedUserStateGeneration)
-        val unresolved = delivered.undecidedPolygonIds + delivered.dwellUnprovenPolygonIds + unjudgedWake
+        val unresolved = delivered.undecidedPolygonIds + delivered.dwellUnprovenPolygonIds
         val needing = unresolved + delivered.pendingArrivalPolygonIds
-        // Before asking too: a torn-down wake's request would start the cooldown the next session needs.
-        if (needing.isEmpty() || isAfterTeardown(expectedTeardownGeneration)) return
+        if (needing.isEmpty()) return
         // The fences that need this request for their dwell proof alone. One whose membership is still
         // undecided needs it for the edge as well, so it is neither budgeted nor charged.
-        val wakeDwell = if (memoBypassVisitId != null) setOf(polygonId) else emptySet()
-        val dwellServed = ((delivered.dwellUnprovenPolygonIds + unjudgedWake + wakeDwell) intersect unresolved) -
-            delivered.undecidedPolygonIds
+        val dwellServed = delivered.dwellUnprovenPolygonIds - delivered.undecidedPolygonIds
         val dwellBudgeted = withinDwellProofBudget(dwellServed)
         recordDwellRejected(dwellServed - dwellBudgeted.keys, DwellDiagnosticReason.BUDGET_EXHAUSTED)
         val unresolvedInBudget = unresolved - (dwellServed - dwellBudgeted.keys)
@@ -1018,17 +986,13 @@ internal class PolygonGeofenceServiceController(
             unresolvedInBudget,
             delivered.pendingArrivalPolygonIds,
             triggeringLocation,
-            memoBypassVisitId.takeIf { polygonId in dwellBudgeted },
-            expectedTeardownGeneration = expectedTeardownGeneration,
             onSkipped = { reason -> recordDwellRejected(dwellBudgeted.keys, reason) },
             onRequesting = { at -> membershipNeedsIt || chargeDwellProofRequests(dwellBudgeted, at) }
         ) ?: return
-        if (isAfterTeardown(expectedTeardownGeneration)) return
         val after = evaluateAndRecentre(
             fresh.fix,
             expectedUserStateGeneration,
-            answersHeldFixAt = triggeringLocation.elapsedRealtimeNanos,
-            expectedTeardownGeneration = expectedTeardownGeneration
+            answersHeldFixAt = triggeringLocation.elapsedRealtimeNanos
         )
         // An aborted pass reports nothing undecided, so it must not clear the memos.
         if (!after.acceptedFix) return
@@ -1133,6 +1097,7 @@ internal class PolygonGeofenceServiceController(
      * Charges one request to each visit in [budgeted] (polygon id to visit id), persisted before the
      * request is issued, so neither a timeout nor a relaunch gives it back. Logged once per visit, on
      * its last request. True when at least one charge landed: a request none could pay for is not made.
+     * A charge moves the visit's next background check past the spacing, so the checks are re-planned.
      */
     private fun chargeDwellProofRequests(budgeted: Map<String, String>, atElapsedMs: Long): Boolean {
         var charged = false
@@ -1153,29 +1118,8 @@ internal class PolygonGeofenceServiceController(
                 logger.logDwellProofBudgetSpent(id, GeofenceConstants.MAX_DWELL_PROOF_REQUESTS_PER_VISIT)
             }
         }
+        if (charged) dwellCheckScheduler?.reconcile()
         return charged
-    }
-
-    /**
-     * A dwell wake's visit when the wake's own fix was not judged for it. A fix an earlier callback
-     * already judged is skipped as not newer and reports nothing undecided, which would end the wake
-     * before the one request it exists for. A judged fix is left to its outcome, so one that proved,
-     * reserved or ended the visit asks for nothing. Not proof: the precise answer still decides.
-     */
-    private fun unjudgedWakeVisit(
-        polygonId: String,
-        memoBypassVisitId: String?,
-        delivered: PolygonEvaluationOutcome,
-        expectedUserStateGeneration: Long
-    ): Set<String> {
-        if (memoBypassVisitId == null || polygonId in delivered.evaluatedPolygonIds) return emptySet()
-        val awaitingProof = synchronized(controllerLock) {
-            val visit = store.getDwellVisit(polygonId)
-            isCurrentRegisteredPolygonLocked(polygonId, expectedUserStateGeneration, expectedRegionRevision = null) &&
-                polygonId in store.getEnteredIds() && visit != null &&
-                visit.visitId == memoBypassVisitId && !visit.emitted && visit.dwellReservation == null
-        }
-        return if (awaitingProof) setOf(polygonId) else emptySet()
     }
 
     private suspend fun evaluateAndRecentre(
@@ -1215,8 +1159,6 @@ internal class PolygonGeofenceServiceController(
         undecidedPolygonIds: Set<String>,
         pendingArrivalPolygonIds: Set<String>,
         triggeringLocation: Location?,
-        /** Spent only where the memo alone would refuse; cooldown and batch reuse still apply. */
-        memoBypassVisitId: String? = null,
         /** Told why no fix was obtained, outside [controllerLock]. Observational: it decides nothing. */
         onSkipped: (DwellDiagnosticReason) -> Unit = {},
         /** Checked atomically with the request decision. */
@@ -1243,12 +1185,11 @@ internal class PolygonGeofenceServiceController(
                 reusable != null -> CallbackFixDecision.Reuse(reusable, previous)
                 previous != null && requestedAt - previous < FRESH_FIX_COOLDOWN_MS ->
                     CallbackFixDecision.WithinCooldown
-                memoRefusesRequestLocked(
+                requestWouldRepeatItselfLocked(
                     needingPolygonIds,
                     pendingArrivalPolygonIds,
                     triggeringLocation,
-                    requestedAt,
-                    memoBypassVisitId
+                    requestedAt
                 ) -> CallbackFixDecision.UnchangedPosition
                 else -> {
                     cooldownBefore = previous
@@ -1313,35 +1254,6 @@ internal class PolygonGeofenceServiceController(
             waitedSeconds = (SystemClock.elapsedRealtime() - requestedAt) / MILLIS_PER_SECOND
         )
         return CallbackFix(fix, requestSessionElapsedMs = requestedAt)
-    }
-
-    /**
-     * The memo's verdict, except that a dwell wake's visit passes it once: the first time it would
-     * refuse. Spending the pass only then keeps it for the wake that needs it.
-     */
-    private fun memoRefusesRequestLocked(
-        needingPolygonIds: Set<String>,
-        pendingArrivalPolygonIds: Set<String>,
-        triggeringLocation: Location?,
-        nowElapsedMs: Long,
-        memoBypassVisitId: String?
-    ): Boolean {
-        val refused = requestWouldRepeatItselfLocked(
-            needingPolygonIds,
-            pendingArrivalPolygonIds,
-            triggeringLocation,
-            nowElapsedMs
-        )
-        if (!refused || memoBypassVisitId == null) return refused
-        if (memoBypassedWakeVisitIds.size >= MAX_MEMO_BYPASS_VISITS) {
-            // Only visits no longer stored may go: a live visit must never get a second pass.
-            val live = store.getRegisteredIds().mapNotNullTo(mutableSetOf()) { store.getDwellVisit(it)?.visitId }
-            memoBypassedWakeVisitIds.retainAll(live)
-        }
-        // Still full of live visits: refuse a new pass rather than forget one already spent.
-        if (memoBypassedWakeVisitIds.size >= MAX_MEMO_BYPASS_VISITS) return true
-        // False when this visit already spent its pass.
-        return !memoBypassedWakeVisitIds.add(memoBypassVisitId)
     }
 
     /**

@@ -20,7 +20,6 @@ import io.customer.geofence.GeofencePermissionChecker
 import io.customer.geofence.GeofencePermissionReporter
 import io.customer.geofence.GeofenceReceiverToggle
 import io.customer.geofence.GeofenceRegistrar
-import io.customer.geofence.GeofenceRegistrationGate
 import io.customer.geofence.GeofenceRepository
 import io.customer.geofence.GeofenceRepositoryImpl
 import io.customer.geofence.GeofenceServices
@@ -34,14 +33,15 @@ import io.customer.geofence.polygon.GmsPolygonPassiveMonitor
 import io.customer.geofence.polygon.PolygonApproachMonitor
 import io.customer.geofence.polygon.PolygonApproachWorkScheduler
 import io.customer.geofence.polygon.PolygonBootSessionProvider
-import io.customer.geofence.polygon.PolygonDwellWakeOwner
-import io.customer.geofence.polygon.PolygonDwellWakeRecordStore
+import io.customer.geofence.polygon.PolygonDwellCheckPlanner
+import io.customer.geofence.polygon.PolygonDwellCheckScheduler
 import io.customer.geofence.polygon.PolygonFreshFixSource
 import io.customer.geofence.polygon.PolygonGeofenceServiceController
 import io.customer.geofence.polygon.PolygonLocationEngine
 import io.customer.geofence.polygon.PolygonPassiveMonitor
 import io.customer.geofence.polygon.PolygonRecheckScheduler
 import io.customer.geofence.polygon.PolygonSupport
+import io.customer.geofence.polygon.WorkManagerPolygonDwellCheckScheduler
 import io.customer.geofence.polygon.WorkManagerPolygonRecheckScheduler
 import io.customer.geofence.store.GeofenceCooldownStore
 import io.customer.geofence.store.GeofenceCooldownStoreImpl
@@ -91,6 +91,36 @@ internal val AndroidSDKComponent.polygonRecheckScheduler: PolygonRecheckSchedule
     get() = singleton<PolygonRecheckScheduler> {
         WorkManagerPolygonRecheckScheduler(workManagerProvider = SDKComponent.workManagerProvider)
     }
+
+internal val AndroidSDKComponent.polygonDwellCheckScheduler: PolygonDwellCheckScheduler
+    // Keyed by the interface type, so an override registered for the interface takes effect.
+    get() = singleton<PolygonDwellCheckScheduler> {
+        deleteRetiredDwellWakeRecords(applicationContext)
+        WorkManagerPolygonDwellCheckScheduler(
+            workManagerProvider = SDKComponent.workManagerProvider,
+            planner = PolygonDwellCheckPlanner(
+                store = geofenceRegionStore,
+                secureUserStore = secureUserStore,
+                bootSessionProvider = polygonBootSessionProvider,
+                permissionChecker = geofencePermissionChecker
+            ),
+            elapsedRealtimeMs = SDKComponent.clock::elapsedRealtime
+        )
+    }
+
+/**
+ * The retired experimental dwell wake kept its records here. An app update re-registers every polygon
+ * normally, so they describe nothing GMS still holds. Deleted from disk without opening, as for
+ * [dwellDiagnosticJournalFileExists]; best effort.
+ */
+private fun deleteRetiredDwellWakeRecords(context: Context) {
+    runCatching {
+        val prefsDir = File(context.applicationInfo.dataDir, "shared_prefs")
+        val name = "io.customer.geofence.dwell_wake_records.xml"
+        File(prefsDir, name).delete()
+        File(prefsDir, "$name.bak").delete()
+    }
+}
 
 internal val AndroidSDKComponent.polygonPassiveMonitor: PolygonPassiveMonitor
     get() = singleton<PolygonPassiveMonitor> {
@@ -215,7 +245,7 @@ internal val AndroidSDKComponent.polygonLocationEngine: PolygonLocationEngine
             dwellCoordinator = geofenceDwellCoordinator,
             clock = SDKComponent.clock,
             logger = SDKComponent.geofenceLogger,
-            dwellWakeOwner = polygonDwellWakeOwner
+            dwellCheckScheduler = polygonDwellCheckScheduler
         )
     }
 
@@ -252,7 +282,7 @@ internal val AndroidSDKComponent.polygonGeofenceServiceController: PolygonGeofen
             passiveMonitor = polygonPassiveMonitor,
             bootSessionProvider = polygonBootSessionProvider,
             logger = SDKComponent.geofenceLogger,
-            dwellWakeOwner = polygonDwellWakeOwner,
+            dwellCheckScheduler = polygonDwellCheckScheduler,
             diagnosticRecorder = dwellDiagnosticRecorder
         )
     }
@@ -313,39 +343,6 @@ private fun dwellDiagnosticJournalFileExists(context: Context): Boolean = runCat
     File(prefsDir, name).exists() || File(prefsDir, "$name.bak").exists()
 }.getOrDefault(true)
 
-// One per process: repository registration and dwell wakes stay ordered only by sharing it.
-internal val AndroidSDKComponent.geofenceRegistrationGate: GeofenceRegistrationGate
-    get() = singleton { GeofenceRegistrationGate() }
-
-internal val AndroidSDKComponent.polygonDwellWakeRecordStore: PolygonDwellWakeRecordStore
-    get() = singleton {
-        PolygonDwellWakeRecordStore(
-            prefs = applicationContext.getSharedPreferences(
-                PolygonDwellWakeRecordStore.PREFS_NAME,
-                Context.MODE_PRIVATE
-            )
-        )
-    }
-
-internal val AndroidSDKComponent.polygonDwellWakeOwner: PolygonDwellWakeOwner
-    get() = singleton {
-        val experiments = geofenceExperiments
-        val clock = SDKComponent.clock
-        PolygonDwellWakeOwner(
-            store = geofenceRegionStore,
-            registrar = geofenceManager,
-            records = polygonDwellWakeRecordStore,
-            gate = geofenceRegistrationGate,
-            secureUserStore = secureUserStore,
-            bootSessionProvider = polygonBootSessionProvider,
-            enabled = experiments::polygonDwellWakeEnabled,
-            elapsedRealtimeMs = clock::elapsedRealtime,
-            scope = SDKComponent.scopeProvider.geofenceScope,
-            ioContext = SDKComponent.dispatchersProvider.background,
-            diagnostics = dwellDiagnosticRecorder
-        )
-    }
-
 internal val SDKComponent.geofenceDistanceFilter: GeofenceDistanceFilter
     get() = newInstance<GeofenceDistanceFilter> {
         GeofenceDistanceFilter(polygonSupport = polygonSupport)
@@ -395,9 +392,7 @@ internal val AndroidSDKComponent.geofenceRepository: GeofenceRepository
             logger = SDKComponent.geofenceLogger,
             polygonController = polygonGeofenceServiceController,
             dwellCoordinator = geofenceDwellCoordinator,
-            polygonSupport = SDKComponent.polygonSupport,
-            registrationGate = geofenceRegistrationGate,
-            dwellWakeOwner = polygonDwellWakeOwner
+            polygonSupport = SDKComponent.polygonSupport
         )
     }
 

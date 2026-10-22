@@ -24,13 +24,9 @@ internal enum class DwellDiagnosticEvent {
     FIX_RECEIVED,
     DWELL_REJECTED,
     DWELL_EMITTED,
-    ARM_REQUESTED,
-    ARM_SUCCEEDED,
-    ARM_FAILED,
-    DISARM_REQUESTED,
-    DISARM_SUCCEEDED,
-    DISARM_FAILED,
-    WAKE_NATIVE_DWELL
+
+    /** The scheduled check at a polygon visit's threshold, or after its last unproven request. */
+    WAKE_DWELL_CHECK
 }
 
 /** Why a wake or fix decided nothing. Persisted by name; one this build does not know reads as null. */
@@ -42,9 +38,6 @@ internal enum class DwellDiagnosticReason {
     NOT_CURRENT_SESSION,
     STILL_UNDECIDED,
     DWELL_UNPROVEN,
-
-    /** The GMS call gave no answer in time, so the OS state it would have changed is unknown. */
-    GMS_TIMEOUT,
 
     /** Location evidence before the visit's threshold; journaled once per visit. */
     BELOW_THRESHOLD,

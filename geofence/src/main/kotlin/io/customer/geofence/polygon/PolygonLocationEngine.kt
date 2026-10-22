@@ -52,8 +52,8 @@ internal class PolygonLocationEngine(
     private val clock: Clock,
     private val logger: GeofenceLogger,
     private val dwellCoordinator: GeofenceDwellCoordinator? = null,
-    /** Experimental dwell wake. Null skips its cues and the visit reads that feed them. */
-    private val dwellWakeOwner: PolygonDwellWakeOwner? = null
+    /** Re-planned when a fix starts, settles or ends a visit. Null skips the visit reads that feed it. */
+    private val dwellCheckScheduler: PolygonDwellCheckScheduler? = null
 ) {
     private val routeProcessor = PolygonRouteProcessor()
     private var sessionStartElapsedRealtimeNanos: Long? = null
@@ -326,8 +326,8 @@ internal class PolygonLocationEngine(
             evaluatedPolygonIds.addAll(evaluatedThisFix)
             echoedFixPolygonIds.addAll(routeOutcome.echoedFixIds)
             routeOutcome.records.forEach(::emitRouteRecord)
-            // Only a visit this fix starts, emits or ends cues the wake owner; an ordinary fix queues nothing.
-            val dwellWakeCues = DwellWakeCues()
+            // Only a visit this fix starts, settles or ends re-plans checks; an ordinary fix queues nothing.
+            val visitChanges = VisitChanges()
             routeOutcome.detections.forEach { detection ->
                 val visitBefore = visitMarkerOrNull(detection.polygonId)
                 if (store.userStateGeneration() != expectedUserStateGeneration ||
@@ -424,7 +424,7 @@ internal class PolygonLocationEngine(
                         }
                     }
                 }
-                dwellWakeCues.compare(detection.polygonId, visitBefore)
+                visitChanges.compare(detection.polygonId, visitBefore)
             }
             val observedAtSeconds = observedTimestampSeconds(fix)
             val enteredIds = store.getEnteredIds()
@@ -441,7 +441,7 @@ internal class PolygonLocationEngine(
                     expectedUserStateGeneration,
                     observedAtElapsedMs = fix.elapsedRealtimeNanos / NANOS_PER_MILLISECOND
                 )
-                dwellWakeCues.compare(geofenceId, visitBefore)
+                visitChanges.compare(geofenceId, visitBefore)
             }
             // The latest fix to judge a fence decides whether it still awaits proof, so a later fix in
             // the batch that decided it, or found it no longer inside, withdraws an earlier cue.
@@ -454,9 +454,9 @@ internal class PolygonLocationEngine(
                 ) == true
                 if (awaitsProof) dwellUnprovenPolygonIds += geofenceId
             }
-            // Launched, never joined: this pass holds the processing mutex. An aborted pass cues nothing;
-            // a moved generation fails the owner's own checks, and its teardown restores what was armed.
-            dwellWakeCues.dispatch()
+            // Never awaits, so safe under the processing mutex. An aborted pass re-plans nothing; a moved
+            // generation's teardown re-plans itself.
+            if (visitChanges.changed) dwellCheckScheduler?.reconcile()
         }
         PolygonEvaluationOutcome(
             acceptedFix = acceptedFix,
@@ -469,44 +469,23 @@ internal class PolygonLocationEngine(
         )
     }
 
-    /**
-     * A visit as the wake owner's cues compare it. [awaitsDwell] reads as the owner's pending check
-     * does: a reserved dwell no longer awaits, whether or not its emit mark has landed.
-     */
+    /** A visit as [VisitChanges] compares it: a reserved dwell no longer awaits, emit mark or not. */
     private data class VisitMarker(val visitId: String, val awaitsDwell: Boolean)
 
-    /** What one fix changed for [dwellWakeOwner], so an unchanged visit queues nothing. */
-    private class DwellWakeCues {
-        val pending = mutableSetOf<String>()
-        val settled = mutableSetOf<String>()
+    /** Whether one fix started, replaced, ended or settled a visit, so an unchanged visit queues nothing. */
+    private class VisitChanges {
+        var changed = false
     }
 
     private fun visitMarkerOrNull(polygonId: String): VisitMarker? {
-        if (dwellWakeOwner == null) return null
+        if (dwellCheckScheduler == null) return null
         val visit = store.getDwellVisit(polygonId) ?: return null
         return VisitMarker(visit.visitId, awaitsDwell = !visit.emitted && visit.dwellReservation == null)
     }
 
-    /**
-     * A visit that appeared awaiting its dwell is pending. One that existed before and then ended,
-     * stopped awaiting (its first reservation or emit mark), or was replaced is settled; a replacement
-     * is both, so the old wake is undone and the new visit may arm. The owner re-checks both against
-     * the store under its gate.
-     */
-    private fun DwellWakeCues.compare(polygonId: String, before: VisitMarker?) {
-        if (dwellWakeOwner == null) return
-        val after = visitMarkerOrNull(polygonId)
-        if (after != null && after.awaitsDwell && after.visitId != before?.visitId) pending += polygonId
-        val stoppedAwaiting = after?.awaitsDwell == false && before?.awaitsDwell == true
-        if (before != null && (after?.visitId != before.visitId || stoppedAwaiting)) {
-            settled += polygonId
-        }
-    }
-
-    private fun DwellWakeCues.dispatch() {
-        val owner = dwellWakeOwner ?: return
-        settled.forEach { owner.onVisitSettled(it) }
-        pending.forEach { owner.onVisitPending(it) }
+    private fun VisitChanges.compare(polygonId: String, before: VisitMarker?) {
+        if (dwellCheckScheduler == null) return
+        if (visitMarkerOrNull(polygonId) != before) changed = true
     }
 
     private fun observedTimestampSeconds(fix: AndroidPolygonLocationFix): Long {

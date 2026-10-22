@@ -43,8 +43,15 @@ Polygon DWELL still requires a later fix whose entire accuracy circle is inside
 the polygon. If a due visit stays INSIDE but the fix's uncertainty crosses the
 boundary, the next eligible callback or recheck can request a precise fix. This
 uses the existing 3-second timeout, 30-second request cooldown, and 30-minute
-retry window for unsuccessful requests from the same position. It adds no timer
-at the dwell threshold and cannot guarantee when a qualifying fix will arrive.
+retry window for unsuccessful requests from the same position.
+
+GMS monitors only circles, so nothing from the OS marks a polygon's threshold. The
+SDK keeps one WorkManager job due at the earliest pending polygon visit's threshold.
+It wakes the app for one precise fix per visit, then, while the visit is unproven,
+again after the 2-minute spacing until the budget below is spent. The job is
+cancelled once no visit awaits one, including after EXIT, DWELL or sign-out. Doze
+and app standby can delay it, so a stay shorter than its threshold plus that delay
+can still miss DWELL. A late check still needs the same strict fix.
 
 The SDK spends at most 4 precise location requests per visit on proving its
 DWELL, at least 2 minutes apart, persisted with the visit so a relaunch or a later
@@ -56,7 +63,9 @@ ring. Prefer a larger shape for such venues if DWELL matters.
 
 `GeofenceLiveFixVisitTest` covers entry measurements through remote refresh,
 local ranking, offline fallback, and a fresh-cache pass. `PolygonDwellPrecisionTest`
-covers qualification, early and already-emitted visits, and unsuccessful requests.
+covers qualification, early and already-emitted visits, unsuccessful requests and
+the scheduled check. `PolygonDwellCheckTest` covers when checks are planned,
+re-planned and cancelled.
 Both inspect the real persisted outbox with platform location delivery faked.
 
 Physical-device qualification remains required: park inside a small polygon and

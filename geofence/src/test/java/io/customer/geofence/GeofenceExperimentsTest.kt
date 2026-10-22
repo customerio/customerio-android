@@ -43,16 +43,4 @@ class GeofenceExperimentsTest : RobolectricTest() {
         experiments { throw PackageManager.NameNotFoundException() }
             .dwellDiagnosticJournalEnabled().shouldBeFalse()
     }
-
-    @Test
-    fun polygonDwellWakeEnabled_givenEachExperimentDeclaredAlone_expectOnlyThatOneOn() {
-        val wakeOnly = declaring(Bundle().apply { putBoolean(GeofenceExperiments.KEY_POLYGON_DWELL_WAKE, true) })
-        val journalOnly =
-            declaring(Bundle().apply { putBoolean(GeofenceExperiments.KEY_DWELL_DIAGNOSTIC_JOURNAL, true) })
-
-        wakeOnly.polygonDwellWakeEnabled().shouldBeTrue()
-        wakeOnly.dwellDiagnosticJournalEnabled().shouldBeFalse()
-        // A host collecting diagnostics must not also start re-adding GMS registrations.
-        journalOnly.polygonDwellWakeEnabled().shouldBeFalse()
-    }
 }

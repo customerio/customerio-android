@@ -425,69 +425,6 @@ class GeofenceManagerTest : RobolectricTest() {
         requestSlot.captured.geofences.single().transitionTypes shouldBeEqualTo ENTER_EXIT
     }
 
-    @Test
-    fun armPolygonDwellWake_expectSameIdReAddedInPlaceWithCallerDelayAndInitialDwell() = runTest {
-        grantAllPermissions()
-        val requestSlot = slot<GeofencingRequest>()
-        stubClientAddSuccess(requestSlot)
-
-        // A delay unlike the 300s threshold shows the caller's remaining delay is what GMS gets.
-        val result = manager.armPolygonDwellWake(buildPolygon(dwellThresholdSeconds = 300), 240_000L)
-
-        result.isSuccess.shouldBeTrue()
-        requestSlot.captured.initialTrigger shouldBeEqualTo GeofencingRequest.INITIAL_TRIGGER_DWELL
-        val geofence = requestSlot.captured.geofences.single()
-        geofence.requestId shouldBeEqualTo "polygon"
-        geofence.transitionTypes shouldBeEqualTo (ENTER_EXIT or Geofence.GEOFENCE_TRANSITION_DWELL)
-        geofence.loiteringDelay shouldBeEqualTo 240_000
-        verify(exactly = 0) { client.removeGeofences(any<List<String>>()) }
-    }
-
-    @Test
-    fun disarmPolygonDwellWake_expectSameIdRestoredToEnterExitWithoutInitialTrigger() = runTest {
-        grantAllPermissions()
-        val requestSlot = slot<GeofencingRequest>()
-        stubClientAddSuccess(requestSlot)
-
-        val result = manager.disarmPolygonDwellWake(buildPolygon(dwellThresholdSeconds = 300))
-
-        result.isSuccess.shouldBeTrue()
-        requestSlot.captured.initialTrigger shouldBeEqualTo 0
-        val geofence = requestSlot.captured.geofences.single()
-        geofence.requestId shouldBeEqualTo "polygon"
-        geofence.transitionTypes shouldBeEqualTo ENTER_EXIT
-        verify(exactly = 0) { client.removeGeofences(any<List<String>>()) }
-    }
-
-    @Test
-    fun armPolygonDwellWake_givenInvalidInput_expectFailureWithoutClientCall() = runTest {
-        grantAllPermissions()
-        listOf(
-            buildRegion(id = "circle") to 60_000L,
-            buildPolygon().copy(id = GeofenceConstants.MOVEMENT_TRIGGER_ID) to 60_000L,
-            buildPolygon().copy(polygonVertices = emptyList()) to 60_000L,
-            buildPolygon() to 0L,
-            buildPolygon() to Int.MAX_VALUE + 1L
-        ).forEach { (region, delay) ->
-            manager.armPolygonDwellWake(region, delay).isFailure.shouldBeTrue()
-        }
-        manager.disarmPolygonDwellWake(buildRegion(id = "circle")).isFailure.shouldBeTrue()
-        manager.disarmPolygonDwellWake(buildPolygon().copy(id = GeofenceConstants.MOVEMENT_TRIGGER_ID))
-            .isFailure.shouldBeTrue()
-
-        verify(exactly = 0) { client.addGeofences(any<GeofencingRequest>(), any()) }
-    }
-
-    @Test
-    fun armPolygonDwellWake_givenNoFineLocationPermission_expectSecurityFailure() = runTest {
-        denyPermission(Manifest.permission.ACCESS_FINE_LOCATION)
-
-        val result = manager.armPolygonDwellWake(buildPolygon(), 60_000L)
-
-        (result.exceptionOrNull() is SecurityException).shouldBeTrue()
-        verify(exactly = 0) { client.addGeofences(any<GeofencingRequest>(), any()) }
-    }
-
     private fun buildPolygon(dwellThresholdSeconds: Int = 0) = buildRegion(id = "polygon").copy(
         polygonVertices = POLYGON_VERTICES,
         dwellThresholdSeconds = dwellThresholdSeconds

@@ -23,16 +23,7 @@ internal class GeofenceExperiments(private val context: Context) {
     fun dwellDiagnosticJournalEnabled(): Boolean =
         metaData?.getBoolean(KEY_DWELL_DIAGNOSTIC_JOURNAL, false) == true
 
-    /**
-     * Lets a pending polygon visit re-add its enclosing circle with a native DWELL wake. The wake
-     * only asks for polygon evidence and proves nothing; whether the same-id re-add restarts the
-     * GMS loiter clock is unmeasured.
-     */
-    fun polygonDwellWakeEnabled(): Boolean =
-        metaData?.getBoolean(KEY_POLYGON_DWELL_WAKE, false) == true
-
     companion object {
         const val KEY_DWELL_DIAGNOSTIC_JOURNAL = "io.customer.geofence.experimental.DWELL_DIAGNOSTIC_JOURNAL"
-        const val KEY_POLYGON_DWELL_WAKE = "io.customer.geofence.experimental.POLYGON_DWELL_WAKE"
     }
 }

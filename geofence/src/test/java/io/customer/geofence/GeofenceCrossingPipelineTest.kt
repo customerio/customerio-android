@@ -29,7 +29,6 @@ import io.mockk.slot
 import io.mockk.verify
 import java.io.File
 import java.util.concurrent.atomic.AtomicInteger
-import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -78,7 +77,7 @@ class GeofenceCrossingPipelineTest : RobolectricTest() {
     }
 
     @Test
-    fun handle_givenAPolygonDwell_expectAcquisitionRouteAndNeverNativeCircleQualification() = runTest {
+    fun handle_givenAPolygonDwell_expectDroppedAndNeverNativeCircleQualification() = runTest {
         val region = GeofenceRegion(
             "polygon",
             0.0,
@@ -96,43 +95,28 @@ class GeofenceCrossingPipelineTest : RobolectricTest() {
         every { mockStore.getCachedRegion(region.id) } returns region
         every { mockStore.getRegisteredIds() } returns setOf(region.id)
         val circleDwell = mockk<GeofenceDwellCoordinator>(relaxed = true)
-        var teardown = 3L
-        every { mockPolygonController.teardownGeneration() } answers { teardown }
-        val processor = mockk<GeofenceBusinessTransitionProcessor>(relaxed = true)
-        val enteredRecovery = CompletableDeferred<Unit>()
-        val releaseRecovery = CompletableDeferred<Unit>()
-        coEvery { processor.recoverPendingTransitions() } coAnswers {
-            enteredRecovery.complete(Unit)
-            releaseRecovery.await()
-            true
-        }
+        val logger = mockk<GeofenceLogger>(relaxed = true)
         val subject = GeofenceCrossingPipeline(
             regionStore = mockStore,
             services = mockServices,
             registrar = mockManager,
-            transitionProcessor = processor,
+            transitionProcessor = mockk(relaxed = true),
             dwellCoordinator = circleDwell,
             polygonController = mockPolygonController,
-            logger = mockk(relaxed = true)
+            logger = logger
         )
 
-        val handling = launch {
-            subject.handle(
-                GeofenceCrossing(
-                    listOf(region.id), GeofenceCrossingTransition.DWELL, "DWELL", Geofence.GEOFENCE_TRANSITION_DWELL,
-                    null, null, null, 100L, 100_000L
-                )
+        subject.handle(
+            GeofenceCrossing(
+                listOf(region.id), GeofenceCrossingTransition.DWELL, "DWELL", Geofence.GEOFENCE_TRANSITION_DWELL,
+                null, null, null, 100L, 100_000L
             )
-        }
-        enteredRecovery.await()
-        teardown = 4L
-        releaseRecovery.complete(Unit)
-        handling.join()
+        )
 
-        coVerify(exactly = 1) {
-            mockPolygonController.onDwellWake(region.id, null, 0L, region.transitionRevision(), 3L)
-        }
+        // An enclosing circle's DWELL proves nothing about the polygon; only a strict fix may.
+        verify { logger.logUnknownTransition(region.id, Geofence.GEOFENCE_TRANSITION_DWELL) }
         coVerify(exactly = 0) { circleDwell.onNativeDwell(any(), any(), any(), any(), any()) }
+        coVerify(exactly = 0) { mockPolygonController.activate(any(), any(), any(), any(), any(), any()) }
     }
 
     private fun expectRecorded(ev: String, why: String) {

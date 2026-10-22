@@ -272,14 +272,17 @@ internal class GeofenceDwellCoordinator(
      * long before the departure the device was last seen inside (see [capturePolygonExit]); it
      * qualifies a dwell only for a polygon with a threshold.
      * @param observedAtElapsedMs the fix's elapsedRealtime; null means now.
+     * @param isStillCurrent re-checked once this holds the lock: a teardown the caller's pass did not
+     *   see may land while it waits, and keeps the user generation, so that check alone misses it.
      */
     suspend fun onInsideEvidence(
         geofenceId: String,
         observedAtSeconds: Long,
         expectedUserStateGeneration: Long = store.userStateGeneration(),
-        observedAtElapsedMs: Long? = null
+        observedAtElapsedMs: Long? = null,
+        isStillCurrent: () -> Boolean = { true }
     ) = withLockAndDiagnosticToken withLock@{ diagnosticToken ->
-        if (store.userStateGeneration() != expectedUserStateGeneration) return@withLock
+        if (store.userStateGeneration() != expectedUserStateGeneration || !isStillCurrent()) return@withLock
         val region = store.getCachedRegion(geofenceId) ?: return@withLock
         if (!region.isPolygon || !region.tracksVisit()) return@withLock
         val bootSessionId = bootSessionProvider.currentSessionId()

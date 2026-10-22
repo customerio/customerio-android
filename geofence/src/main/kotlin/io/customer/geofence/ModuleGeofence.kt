@@ -207,6 +207,9 @@ class ModuleGeofence @JvmOverloads constructor(
                         // Re-read rather than reuse the id above: an identify can land in between,
                         // and reopening the older owner would clear the routing it just armed.
                         sdkAndroid.polygonGeofenceServiceController.beginUserSessionForCurrentUser()
+                        // Here as well as on foreground entry: a background-only launch whose sync
+                        // skips must still restore the re-check and pending dwell checks.
+                        sdkAndroid.polygonGeofenceServiceController.recover()
                         val coordinator = foregroundCoordinator(sdkAndroid, locationModule)
                         val anchor = coordinator.anchor()
                         sdkAndroid.geofenceServices.onAppLaunch(

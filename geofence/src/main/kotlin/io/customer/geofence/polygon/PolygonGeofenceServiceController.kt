@@ -477,6 +477,7 @@ internal class PolygonGeofenceServiceController(
 
     fun recover() {
         var enteredPolygonIds: Set<String> = emptySet()
+        var monitorsPolygons = false
         val discarded = synchronized(controllerLock) {
             when {
                 !hasMatchingIdentifiedUserLocked() -> invalidatePersistedCoarseStateLocked()
@@ -488,6 +489,7 @@ internal class PolygonGeofenceServiceController(
                     enteredPolygonIds = store.getEnteredIds().filterTo(mutableSetOf()) {
                         store.getCachedRegion(it)?.isPolygon == true
                     }
+                    monitorsPolygons = store.getRoutableRegisteredIds().any { store.getCachedRegion(it)?.isPolygon == true }
                     emptySet()
                 }
             }
@@ -495,6 +497,10 @@ internal class PolygonGeofenceServiceController(
         reportDiscardedArrivals(discarded)
         // Once per recovery, not per fix: a visit an earlier process left pending gets its check.
         if (enteredPolygonIds.isNotEmpty()) dwellCheckScheduler?.reconcile()
+        // Reasserted here, KEEP leaving a live period alone: the re-check retires itself while an OS
+        // wipe lasts, and the pass that ends the gap schedules it without awaiting the enqueue, which a
+        // process death can lose. Later passes may skip, so recovery is what brings it back.
+        if (monitorsPolygons) recheckScheduler.schedule()
     }
 
     suspend fun processApproachLocations(

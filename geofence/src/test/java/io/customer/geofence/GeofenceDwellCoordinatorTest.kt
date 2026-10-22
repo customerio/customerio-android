@@ -274,6 +274,35 @@ class GeofenceDwellCoordinatorTest {
     }
 
     @Test
+    fun onInsideEvidence_givenThePassWentStaleWhileWaiting_expectNoDwell() = runTest {
+        val region = polygon()
+        var visit: GeofenceDwellVisit? = null
+        every { store.getCachedRegion("polygon") } returns region
+        every { store.userStateGeneration() } returns 2L
+        every { store.getDwellVisit("polygon") } answers { visit }
+        every { store.saveDwellVisit(any()) } answers {
+            visit = firstArg()
+            true
+        }
+        coEvery { processor.process(any(), any(), any(), any(), any(), any(), any(), any()) } returns
+            GeofenceTransitionEmitter.Result.PERSISTED
+        val coordinator = GeofenceDwellCoordinator(store, processor, clock, bootSessionProvider = bootSessions)
+        coordinator.onEnter("polygon", enteredAtSeconds = 100L, beginsNewVisit = true, enteredAtElapsedMs = 100_000L)
+        val before = visit
+
+        // Same user generation, but a teardown retired the caller's pass while it waited.
+        coordinator.onInsideEvidence(
+            "polygon",
+            observedAtSeconds = 200L,
+            observedAtElapsedMs = 200_000L,
+            isStillCurrent = { false }
+        )
+
+        coVerify(exactly = 0) { processor.process(any(), any(), any(), any(), any(), any(), any(), any()) }
+        visit shouldBeEqualTo before
+    }
+
+    @Test
     fun polygonDwell_requiresFreshInsideEvidenceAfterThreshold() = runTest {
         val region = polygon()
         var visit: GeofenceDwellVisit? = null

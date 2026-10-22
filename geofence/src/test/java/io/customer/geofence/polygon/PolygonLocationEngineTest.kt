@@ -27,6 +27,7 @@ import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.slot
 import io.mockk.spyk
 import io.mockk.verify
 import java.time.Duration
@@ -180,8 +181,27 @@ class PolygonLocationEngineTest : RobolectricTest() {
         )
 
         coVerify(exactly = 1) {
-            dwellCoordinator.onInsideEvidence(POLYGON_ID, 100L, any(), any())
+            dwellCoordinator.onInsideEvidence(POLYGON_ID, 100L, any(), any(), any())
         }
+    }
+
+    @Test
+    fun processResponsiveLocation_givenAStopWhileTheEvidenceWaits_expectTheCoordinatorToldItIsStale() = runTest {
+        val isStillCurrent = slot<() -> Boolean>()
+        coEvery { dwellCoordinator.onInsideEvidence(any(), any(), any(), any(), capture(isStillCurrent)) } returns Unit
+        // Bound to the session the caller validated, as the controller's passes are.
+        val epoch = engine.stopEpoch()
+        engine.processResponsiveLocation(insideFix(), expectedStopEpoch = epoch)
+        engine.processResponsiveLocation(
+            insideFix(elapsedRealtimeNanos = SystemClock.elapsedRealtimeNanos()),
+            expectedStopEpoch = epoch
+        )
+        isStillCurrent.captured() shouldBeEqualTo true
+
+        // A teardown the pass did not see lands while the coordinator call waits for its lock.
+        engine.stop()
+
+        isStillCurrent.captured() shouldBeEqualTo false
     }
 
     @Test
@@ -300,12 +320,12 @@ class PolygonLocationEngineTest : RobolectricTest() {
         engine.processResponsiveLocation(marginalInsideFix(elapsedRealtimeNanos = SystemClock.elapsedRealtimeNanos() - 1_000_000_000L))
 
         store.getEnteredIds() shouldContainSame setOf(POLYGON_ID)
-        coVerify(exactly = 0) { dwellCoordinator.onInsideEvidence(any(), any(), any(), any()) }
+        coVerify(exactly = 0) { dwellCoordinator.onInsideEvidence(any(), any(), any(), any(), any()) }
 
         // About 53 m inside with 20 m accuracy is wholly inside the ring.
         engine.processResponsiveLocation(insideFix(elapsedRealtimeNanos = SystemClock.elapsedRealtimeNanos(), accuracyMeters = 20f))
 
-        coVerify(exactly = 1) { dwellCoordinator.onInsideEvidence(POLYGON_ID, any(), any(), any()) }
+        coVerify(exactly = 1) { dwellCoordinator.onInsideEvidence(POLYGON_ID, any(), any(), any(), any()) }
     }
 
     @Test
@@ -587,7 +607,7 @@ class PolygonLocationEngineTest : RobolectricTest() {
         engine.processResponsiveLocation(fix(37.7750, -122.41865, accuracyMeters = 45f))
 
         store.getEnteredIds() shouldBeEqualTo setOf(POLYGON_ID)
-        coVerify(exactly = 0) { dwellCoordinator.onInsideEvidence(any(), any(), any(), any()) }
+        coVerify(exactly = 0) { dwellCoordinator.onInsideEvidence(any(), any(), any(), any(), any()) }
     }
 
     @Test

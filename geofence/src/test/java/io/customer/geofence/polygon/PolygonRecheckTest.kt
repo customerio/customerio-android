@@ -121,6 +121,25 @@ class PolygonRecheckTest : RobolectricTest() {
     }
 
     @Test
+    fun recover_givenRoutablePolygons_expectTheRecheckReassertedUnlessRegistrationsWereWiped() {
+        every { mockStore.activeUserSessionId() } returns "user-1"
+        every { mockStore.getRoutableRegisteredIds() } returns setOf(VENUE_ID)
+        every { mockStore.getCachedRegion(VENUE_ID) } returns venueRegion()
+        val scheduler = RecordingRecheckScheduler()
+
+        // The re-check may have retired itself during a wipe, and the enqueue that restored it can be
+        // lost to a process death; recovery brings it back.
+        controller(scheduler).recover()
+        scheduler.calls shouldBeEqualTo listOf("schedule")
+
+        // Still wiped: every run would only skip.
+        every { mockStore.getLastRegistrationBootSession() } returns "an-earlier-boot"
+        val whileWiped = RecordingRecheckScheduler()
+        controller(whileWiped).recover()
+        whileWiped.calls shouldBeEqualTo emptyList()
+    }
+
+    @Test
     fun reconcile_givenNoPolygonsRegistered_expectCancelled() {
         val scheduler = RecordingRecheckScheduler()
         every { mockStore.getActivePolygonIds() } returns emptySet()
@@ -180,6 +199,25 @@ class PolygonRecheckTest : RobolectricTest() {
         result shouldBeEqualTo ListenableWorker.Result.success()
         coVerify(exactly = 0) { mockFreshFix.awaitFreshFix(any(), any()) }
         coVerify(exactly = 0) { mockController.activate(any(), any(), any(), any(), any(), any()) }
+        // Every run would skip until the registration pass, which schedules it again: no idle wakes.
+        verify { mockRecheckScheduler.cancel() }
+        verify(exactly = 0) { mockRecheckScheduler.schedule() }
+    }
+
+    @Test
+    fun worker_givenTheRegistrationPassLandsDuringItsRetirement_expectItsScheduleKept() = runTest {
+        // Wiped when read first; restored by the time the run re-reads after cancelling.
+        every { mockStore.getLastRegistrationBootSession() } returnsMany listOf("an-earlier-boot", BOOT)
+        every { mockStore.getRoutableRegisteredIds() } returns setOf(VENUE_ID)
+        every { mockStore.getCachedRegions() } returns listOf(venueRegion())
+
+        TestListenableWorkerBuilder<PolygonRecheckWorker>(applicationMock).build().doWork()
+
+        verifyOrder {
+            mockRecheckScheduler.cancel()
+            mockRecheckScheduler.schedule()
+        }
+        coVerify(exactly = 0) { mockFreshFix.awaitFreshFix(any(), any()) }
     }
 
     @Test

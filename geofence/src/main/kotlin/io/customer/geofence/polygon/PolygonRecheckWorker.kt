@@ -117,13 +117,19 @@ internal class PolygonRecheckWorker(
         }
         // A fix now could qualify a dwell for a visit the monitoring gap has already broken, before
         // the sync that ends such visits runs.
-        val wiped = store.osRegistrationsWiped(
+        fun registrationsWiped() = store.osRegistrationsWiped(
             bootSessionId = SDKComponent.android().polygonBootSessionProvider.currentSessionId(),
             nowElapsedMs = SystemClock.elapsedRealtime(),
             packageUpdateTimeMs = SDKComponent.android().geofencePackageInfo.lastUpdateTimeMs()
         )
-        if (wiped) {
+        if (registrationsWiped()) {
             logger.logPolygonRecheckSkipped(PolygonRecheckSkip.REGISTRATIONS_WIPED)
+            // Retires itself, as every run would skip until the registration pass that ends the gap,
+            // which schedules it again. Re-read after the cancel, as for an empty catalog above, so a
+            // pass landing meanwhile keeps its schedule.
+            val scheduler = SDKComponent.android().polygonRecheckScheduler
+            scheduler.cancel()
+            if (!registrationsWiped()) scheduler.schedule()
             return Result.success()
         }
         // A safety net for dwell checks: one whose own enqueue failed, with nothing else to re-plan it,

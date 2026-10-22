@@ -439,7 +439,9 @@ internal class PolygonLocationEngine(
                     geofenceId,
                     observedAtSeconds,
                     expectedUserStateGeneration,
-                    observedAtElapsedMs = fix.elapsedRealtimeNanos / NANOS_PER_MILLISECOND
+                    observedAtElapsedMs = fix.elapsedRealtimeNanos / NANOS_PER_MILLISECOND,
+                    // A stop while this waits for the coordinator retires the pass, as it does above.
+                    isStillCurrent = { !stoppedSince(expectedStopEpoch) }
                 )
                 visitChanges.compare(geofenceId, visitBefore)
             }

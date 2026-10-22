@@ -1,7 +1,9 @@
 package io.customer.sdk
 
+import io.customer.datapipelines.extensions.DEVICE_TOKEN_TYPE_ATTRIBUTE
 import io.customer.sdk.core.module.CustomerIOModule
 import io.customer.sdk.core.module.CustomerIOModuleConfig
+import io.customer.sdk.core.util.CioApiKey
 import io.customer.sdk.core.util.Logger
 import java.lang.IllegalStateException
 
@@ -24,6 +26,13 @@ internal class DataPipelinesLogger(private val logger: Logger) {
             tag = INIT_TAG,
             message = "CustomerIO instance is already initialized, skipping the initialization",
             throwable = IllegalStateException("CustomerIO SDK already initialized")
+        )
+    }
+
+    fun coreSdkSecretKeyRejected() {
+        logger.error(
+            tag = INIT_TAG,
+            message = CioApiKey.SECRET_KEY_ERROR
         )
     }
 
@@ -67,6 +76,13 @@ internal class DataPipelinesLogger(private val logger: Logger) {
         logger.debug(
             tag = PUSH_TAG,
             message = "Registering device token: $token for user profile: $userId"
+        )
+    }
+
+    fun logReservedDeviceTokenTypeIgnored() {
+        logger.error(
+            tag = PUSH_TAG,
+            message = "Device attribute $DEVICE_TOKEN_TYPE_ATTRIBUTE is reserved for the SDK, ignoring the provided value"
         )
     }
 

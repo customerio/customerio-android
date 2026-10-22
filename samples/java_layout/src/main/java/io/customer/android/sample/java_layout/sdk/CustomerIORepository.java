@@ -100,7 +100,7 @@ public class CustomerIORepository {
         // Enables in-app messages
         if (sdkConfig.isInAppMessagingEnabled()) {
             builder.addCustomerIOModule(new ModuleMessagingInApp(
-                    new MessagingInAppModuleConfig.Builder(sdkConfig.getSiteId(), sdkConfig.getRegion())
+                    new MessagingInAppModuleConfig.Builder(sdkConfig.getSiteId())
                             .setEventListener(new InAppMessageEventListener(appGraph.getLogger()))
                             .setInboxEventListener(new SampleInboxEventListener(appGraph.getLogger()))
                             // Visual Notification Inbox TalkBack labels. The SDK ships none of its own (so

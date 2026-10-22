@@ -18,6 +18,8 @@ import io.customer.datapipelines.extensions.asMap
 import io.customer.datapipelines.extensions.sanitizeForJson
 import io.customer.datapipelines.extensions.type
 import io.customer.datapipelines.extensions.updateAnalyticsConfig
+import io.customer.datapipelines.extensions.withDeviceTokenType
+import io.customer.datapipelines.migration.AnalyticsStorageMigration
 import io.customer.datapipelines.migration.TrackingMigrationProcessor
 import io.customer.datapipelines.plugins.ApplicationLifecyclePlugin
 import io.customer.datapipelines.plugins.AutoTrackDeviceAttributesPlugin
@@ -34,10 +36,13 @@ import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.module.CustomerIOModule
 import io.customer.sdk.core.pipeline.DataPipeline
 import io.customer.sdk.core.pipeline.identifyHookRegistry
+import io.customer.sdk.core.util.CioApiKey
 import io.customer.sdk.core.util.CioLogLevel
 import io.customer.sdk.core.util.Iso8601TimestampFormatter
 import io.customer.sdk.core.util.Logger
 import io.customer.sdk.data.model.CustomAttributes
+import io.customer.sdk.data.model.DeviceTokenType
+import io.customer.sdk.data.model.Region
 import io.customer.sdk.data.model.Settings
 import io.customer.sdk.events.TrackMetric
 import io.customer.sdk.util.EventNames
@@ -74,6 +79,7 @@ class CustomerIO private constructor(
     private val globalPreferenceStore = androidSDKComponent.globalPreferenceStore
     private val secureUserStore = androidSDKComponent.secureUserStore
     private val deviceStore = androidSDKComponent.deviceStore
+    private val application = androidSDKComponent.application
     private val eventBus = SDKComponent.eventBus
     internal var migrationProcessor: MigrationProcessor? = null
 
@@ -102,16 +108,39 @@ class CustomerIO private constructor(
         }
     }
 
-    internal val analytics: Analytics = overrideAnalytics ?: Analytics(
-        writeKey = moduleConfig.cdpApiKey,
-        context = androidSDKComponent.applicationContext,
-        configs = updateAnalyticsConfig(
-            moduleConfig = moduleConfig,
-            errorHandler = errorLogger
+    internal val analytics: Analytics = overrideAnalytics ?: run {
+        // Keep identity and unsent events when the app switches to a public key.
+        // Settings still hold the key from the last launch as they're saved in initialize().
+        val newKey = moduleConfig.cdpApiKey
+        val storageMigration = AnalyticsStorageMigration(androidSDKComponent.applicationContext, logger)
+        val previousKey = storageMigration.previousKey(
+            savedKey = globalPreferenceStore.getSettings()?.writeKey,
+            newKey = newKey
         )
-    )
+        storageMigration.copyIdentity(previousKey = previousKey, newKey = newKey)
+        Analytics(
+            writeKey = newKey,
+            context = androidSDKComponent.applicationContext,
+            configs = updateAnalyticsConfig(
+                moduleConfig = moduleConfig,
+                errorHandler = errorLogger
+            )
+        ).also { analytics ->
+            storageMigration.moveUnfinishedEvents(
+                previousKey = previousKey,
+                newKey = newKey,
+                scope = analytics.analyticsScope,
+                dispatcher = analytics.fileIODispatcher,
+                storage = analytics.storage
+            )
+        }
+    }
 
-    private val contextPlugin: ContextPlugin = ContextPlugin(deviceStore)
+    // Seeded from storage so a cold start can delete the stored device (token change, profile
+    // switch, clearIdentify) before the token is registered again.
+    private val contextPlugin: ContextPlugin = ContextPlugin(deviceStore).apply {
+        deviceToken = globalPreferenceStore.getDeviceToken()
+    }
 
     // Tracks the last userId successfully identified in this SDK session. Used to dedup
     // back-to-back identify(userId) calls with no traits, which are no-ops server-side.
@@ -174,7 +203,7 @@ class CustomerIO private constructor(
             trackMetric(TrackMetric.InApp(metric = it.event, deliveryId = it.deliveryID, metadata = it.params))
         }
         eventBus.subscribe<Event.RegisterDeviceTokenEvent> {
-            registerDeviceToken(deviceToken = it.token)
+            registerDeviceToken(deviceToken = it.token, tokenType = it.tokenType)
         }
         eventBus.subscribe<Event.GeofenceTransitionEvent> { geofenceEvent ->
             // Snapshotted userId (if any) overrides current SDK identity for this one event so a
@@ -232,7 +261,7 @@ class CustomerIO private constructor(
         }
 
         if (moduleConfig.trackApplicationLifecycleEvents) {
-            analytics.add(AutomaticApplicationLifecycleTrackingPlugin())
+            analytics.add(AutomaticApplicationLifecycleTrackingPlugin(application))
         }
     }
 
@@ -291,7 +320,7 @@ class CustomerIO private constructor(
             logger.info("changing profile from id $currentlyIdentifiedProfile to $userId")
             if (registeredDeviceToken != null) {
                 dataPipelinesLogger.logDeletingTokenDueToNewProfileIdentification()
-                deleteDeviceToken { event ->
+                deleteDeviceToken(contextPlugin.deviceToken) { event ->
                     event?.apply {
                         currentlyIdentifiedProfile?.let { this.userId = it }
                     }
@@ -322,7 +351,7 @@ class CustomerIO private constructor(
             if (existingDeviceToken != null) {
                 dataPipelinesLogger.automaticTokenRegistrationForNewProfile(existingDeviceToken, userId)
                 // register device to newly identified profile
-                trackDeviceAttributes(token = existingDeviceToken)
+                trackDeviceAttributes(token = existingDeviceToken, tokenType = globalPreferenceStore.getDeviceTokenType())
             }
         }
 
@@ -366,11 +395,15 @@ class CustomerIO private constructor(
 
         logger.debug("deleting device token to remove device from user profile")
 
-        // since the tasks are asynchronous, we need to store the userId before deleting the device token
-        // otherwise, the userId could be null when the delete task is executed
+        // Analytics stamps identity when the event is processed, which can be after the reset below,
+        // so pin the identity the device was registered under.
         val existingUserId = userId
-        deleteDeviceToken { event ->
-            event?.apply { userId = existingUserId.toString() }
+        val existingAnonymousId = anonymousId
+        deleteDeviceToken(contextPlugin.deviceToken) { event ->
+            event?.apply {
+                existingUserId?.let { userId = it }
+                anonymousId = existingAnonymousId
+            }
         }
 
         logger.debug("resetting user profile")
@@ -395,6 +428,14 @@ class CustomerIO private constructor(
     override val userId: String?
         get() = analytics.userId()
 
+    @InternalCustomerIOApi
+    override val cdpApiKey: String
+        get() = moduleConfig.cdpApiKey
+
+    @InternalCustomerIOApi
+    override val region: Region
+        get() = moduleConfig.region
+
     override val isUserIdentified: Boolean
         // Prefer the caller-thread mirror so this is correct synchronously right after
         // identify()/clearIdentify(); fall back to analytics for a session restored from
@@ -409,24 +450,41 @@ class CustomerIO private constructor(
             setDeviceAttributes(value)
         }
 
-    override fun setDeviceAttributes(attributes: CustomAttributes) {
-        trackDeviceAttributes(registeredDeviceToken, attributes)
+    // Same lock as registration, held through tracking: a token registered in between would
+    // otherwise be deleted as a refresh and replaced by the stale one read here.
+    override fun setDeviceAttributes(attributes: CustomAttributes) = synchronized(this) {
+        trackDeviceAttributes(
+            token = registeredDeviceToken,
+            tokenType = globalPreferenceStore.getDeviceTokenType(),
+            customAddedAttributes = attributes
+        )
     }
 
-    override fun registerDeviceTokenImpl(deviceToken: String) {
+    override fun registerDeviceTokenImpl(deviceToken: String) = saveAndTrackDeviceToken(deviceToken, tokenType = null)
+
+    /** [tokenType] is null when the kind of token is unknown, e.g. one the app registered itself. */
+    internal fun registerDeviceToken(deviceToken: String, tokenType: DeviceTokenType?) = synchronized(this) {
+        saveAndTrackDeviceToken(deviceToken, tokenType)
+    }
+
+    private fun saveAndTrackDeviceToken(deviceToken: String, tokenType: DeviceTokenType?) {
         if (deviceToken.isBlank()) {
             dataPipelinesLogger.logStoringBlankPushToken()
             return
         }
 
         dataPipelinesLogger.logStoringDevicePushToken(deviceToken, this.userId)
-        globalPreferenceStore.saveDeviceToken(deviceToken)
+        globalPreferenceStore.saveDeviceToken(deviceToken, tokenType)
 
         dataPipelinesLogger.logRegisteringPushToken(deviceToken, this.userId)
-        trackDeviceAttributes(token = deviceToken)
+        trackDeviceAttributes(token = deviceToken, tokenType = tokenType)
     }
 
-    private fun trackDeviceAttributes(token: String?, customAddedAttributes: CustomAttributes = emptyMap()) {
+    private fun trackDeviceAttributes(
+        token: String?,
+        tokenType: DeviceTokenType?,
+        customAddedAttributes: CustomAttributes = emptyMap()
+    ) {
         if (token.isNullOrBlank()) {
             dataPipelinesLogger.logTrackingDevicesAttributesWithoutValidToken()
             return
@@ -435,40 +493,49 @@ class CustomerIO private constructor(
         val existingDeviceToken = contextPlugin.deviceToken
         if (existingDeviceToken != null && existingDeviceToken != token) {
             dataPipelinesLogger.logPushTokenRefreshed()
-            deleteDeviceToken { event ->
-                event?.putInContextUnderKey("device", "token", existingDeviceToken)
-            }
+            deleteDeviceToken(existingDeviceToken)
         }
 
-        val attributes = if (moduleConfig.autoTrackDeviceAttributes) {
+        val trackedAttributes = if (moduleConfig.autoTrackDeviceAttributes) {
             // order matters! allow customer to override default values if they wish.
             deviceStore.buildDeviceAttributes() + customAddedAttributes
         } else {
             customAddedAttributes
         }
+        // Always applied, even with autoTrackDeviceAttributes off: the backend needs the type for every device.
+        val attributes = trackedAttributes.withDeviceTokenType(tokenType = tokenType, logger = dataPipelinesLogger)
 
         // Update plugin with updated device information
         contextPlugin.deviceToken = token
 
         logger.info("updating device attributes: $attributes")
+        // Pin the token so it stays paired with this type: ContextPlugin only adds one when the event
+        // is processed, by which time a newer token may have been registered.
         track(
             name = EventNames.DEVICE_UPDATE,
-            properties = attributes
+            properties = attributes.sanitizeForJson(),
+            serializationStrategy = JsonAnySerializer.serializersModule.serializer(),
+            enrichment = { event -> event?.putInContextUnderKey("device", "token", token) }
         )
     }
 
-    override fun deleteDeviceTokenImpl() = deleteDeviceToken(null)
+    override fun deleteDeviceTokenImpl() = deleteDeviceToken(contextPlugin.deviceToken)
 
-    private fun deleteDeviceToken(enrichment: EnrichmentClosure?) {
+    private fun deleteDeviceToken(deviceToken: String?, enrichment: EnrichmentClosure? = null) {
         logger.info("deleting device token")
 
-        val deviceToken = contextPlugin.deviceToken
         if (deviceToken.isNullOrBlank()) {
             logger.debug("No device token found to delete.")
             return
         }
 
-        track(name = EventNames.DEVICE_DELETE, properties = emptyJsonObject, serializationStrategy = JsonAnySerializer.serializersModule.serializer(), enrichment = enrichment)
+        // Pin the token now: ContextPlugin only adds one when the event is processed, by which time
+        // a newer token may have been registered.
+        val enrichmentWithToken: EnrichmentClosure = { event ->
+            enrichment?.invoke(event)
+            event?.putInContextUnderKey("device", "token", deviceToken)
+        }
+        track(name = EventNames.DEVICE_DELETE, properties = emptyJsonObject, serializationStrategy = JsonAnySerializer.serializersModule.serializer(), enrichment = enrichmentWithToken)
     }
 
     override fun trackMetricImpl(event: TrackMetric) {
@@ -490,6 +557,9 @@ class CustomerIO private constructor(
          */
         @Volatile
         private var instance: CustomerIO? = null
+
+        // Placeholder used instead of a rejected secret key, so the secret never leaves the app
+        private const val DISABLED_CDP_API_KEY = "disabled"
 
         /**
          * Returns the instance of CustomerIO SDK.
@@ -531,6 +601,15 @@ class CustomerIO private constructor(
             // Update the log level for the SDK
             SDKComponent.logger.logLevel = config.logLevel
 
+            // Secret keys must not ship in apps, so log and set up a disabled SDK instead of crashing the app
+            if (CioApiKey.isSecretKey(config.cdpApiKey)) {
+                logger.coreSdkSecretKeyRejected()
+                // Never disable an SDK that is already set up
+                if (instance == null) initializeDisabled(androidSDKComponent, config)
+                return
+            }
+            releaseDisabledInstance()
+
             logger.coreSdkInitStart()
 
             // Initialize DataPipelinesModule with the provided configuration
@@ -568,6 +647,41 @@ class CustomerIO private constructor(
 
             SDKComponent.eventBus.publish(Event.SdkInitializedEvent)
             logger.coreSdkInitSuccess()
+        }
+
+        /**
+         * Sets up an instance that never holds the secret key and ignores calls, so a later
+         * [instance] call doesn't crash somewhere unrelated. The configured modules are registered
+         * so their accessors work too, but none are initialized, so their calls do nothing.
+         */
+        private fun initializeDisabled(androidSDKComponent: AndroidSDKComponent, config: CustomerIOConfig) {
+            val disabledConfig = DataPipelinesModuleConfig(
+                cdpApiKey = DISABLED_CDP_API_KEY,
+                region = config.region,
+                flushAt = config.flushAt,
+                flushInterval = config.flushInterval,
+                flushPolicies = config.flushPolicies,
+                autoAddCustomerIODestination = false,
+                trackApplicationLifecycleEvents = false,
+                autoTrackDeviceAttributes = false,
+                autoTrackActivityScreens = false,
+                screenViewUse = config.screenViewUse
+            )
+            createInstance(androidSDKComponent = androidSDKComponent, moduleConfig = disabledConfig)
+                .analytics.enabled = false
+            SDKComponent.modules.putAll(config.modules.associateBy { module -> module.moduleName })
+        }
+
+        /**
+         * Drops the disabled instance left by a refused secret key, so a valid key can still set up the SDK.
+         */
+        @Synchronized
+        private fun releaseDisabledInstance() {
+            val disabledInstance = instance?.takeIf { it.moduleConfig.cdpApiKey == DISABLED_CDP_API_KEY } ?: return
+            runCatching { disabledInstance.analytics.shutdown() }
+            // Drop the modules registered while disabled so only the new config's modules get set up
+            SDKComponent.modules.clear()
+            instance = null
         }
 
         /**

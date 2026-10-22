@@ -1,47 +1,193 @@
 package io.customer.datapipelines.plugins
 
+import android.app.Activity
+import android.app.ActivityManager
+import android.app.Application
+import android.os.Build
+import android.os.Bundle
 import androidx.annotation.VisibleForTesting
-import androidx.lifecycle.DefaultLifecycleObserver
-import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.ProcessLifecycleOwner
 import com.segment.analytics.kotlin.core.Analytics
+import com.segment.analytics.kotlin.core.Storage
 import com.segment.analytics.kotlin.core.platform.Plugin
-import io.customer.datapipelines.util.UiThreadRunner
-import io.customer.sdk.CustomerIO
+import io.customer.sdk.util.EventNames
+import java.util.Collections
+import java.util.WeakHashMap
+import kotlinx.coroutines.launch
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 
 /**
- * Plugin that automatically tracks application lifecycle.
+ * Plugin that automatically tracks application lifecycle events: Application Installed, Application Updated,
+ * Application Opened, Application Foregrounded and Application Backgrounded.
  *
- * At the moment, this plugin only tracks 'Application Foregrounded' event because it's the only one missing from Segment SDK
+ * Install/update detection runs while the plugin is set up during SDK initialization, so it doesn't depend on
+ * seeing the first Activity being created. Apps that initialize the SDK after their first Activity already exists
+ * (e.g. React Native and Flutter apps) still get these events on first launch, ahead of any event they track
+ * after initialization.
+ *
+ * The app is in foreground while at least one Activity is started. Activities started before the SDK was
+ * initialized are counted the first time any of their callbacks is received.
  */
-internal class AutomaticApplicationLifecycleTrackingPlugin : Plugin {
+internal class AutomaticApplicationLifecycleTrackingPlugin @VisibleForTesting constructor(
+    private val application: Application,
+    appVersionProvider: () -> AppVersion,
+    private val isAppInForeground: () -> Boolean
+) : Plugin, Application.ActivityLifecycleCallbacks {
 
-    constructor() : this(ProcessLifecycleOwner.get(), UiThreadRunner())
-
-    @VisibleForTesting
-    constructor(processLifecycleOwner: LifecycleOwner, uiThreadRunner: UiThreadRunner) {
-        this.processLifecycleOwner = processLifecycleOwner
-        this.uiThreadRunner = uiThreadRunner
-    }
+    constructor(application: Application) : this(
+        application = application,
+        appVersionProvider = { application.getAppVersion() },
+        isAppInForeground = ::isProcessInForeground
+    )
 
     override val type: Plugin.Type = Plugin.Type.Utility
     override lateinit var analytics: Analytics
 
-    private val processLifecycleOwner: LifecycleOwner
-    private val uiThreadRunner: UiThreadRunner
+    private val appVersion: AppVersion by lazy(appVersionProvider)
+
+    // Guards the state below, which is updated from SDK initialization and from Activity callbacks on main thread
+    private val lock = Any()
+
+    // Held weakly so the plugin never keeps a stopped or leaked Activity alive
+    private val startedActivities: MutableSet<Activity> = Collections.newSetFromMap(WeakHashMap())
+    private var isInForeground = false
+    private var hasTrackedFirstOpen = false
 
     override fun setup(analytics: Analytics) {
         super.setup(analytics)
-        uiThreadRunner.run {
-            registerProcessLifecycleObserver()
+        // Read before taking the lock, so Activity callbacks on main thread don't wait on package info and storage
+        val installOrUpdateEvent = installOrUpdateEvent()
+        synchronized(lock) {
+            // Registered first so no transition is missed; callbacks wait for the lock until the initial state is set
+            application.registerActivityLifecycleCallbacks(this)
+            installOrUpdateEvent?.let { (name, properties) -> analytics.track(name, properties) }
+            if (isAppInForeground()) {
+                moveToForeground()
+            }
+        }
+        storeAppVersion()
+    }
+
+    override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) = Unit
+
+    override fun onActivityStarted(activity: Activity) = onActivityVisible(activity)
+
+    override fun onActivityResumed(activity: Activity) = onActivityVisible(activity)
+
+    // A paused Activity is still started. Counting it here covers Activities started before SDK initialization.
+    override fun onActivityPaused(activity: Activity) = onActivityVisible(activity)
+
+    override fun onActivityStopped(activity: Activity) = synchronized(lock) {
+        startedActivities.remove(activity)
+        // A configuration change stops and recreates the Activity, and the new instance starts right after
+        if (isInForeground && startedActivities.isEmpty() && !activity.isChangingConfigurations) {
+            isInForeground = false
+            analytics.track(EventNames.APPLICATION_BACKGROUNDED)
         }
     }
 
-    private fun registerProcessLifecycleObserver() {
-        processLifecycleOwner.lifecycle.addObserver(object : DefaultLifecycleObserver {
-            override fun onStart(owner: LifecycleOwner) {
-                runCatching { CustomerIO.instance().track("Application Foregrounded") }.onFailure { analytics.track("Application Foregrounded") }
-            }
-        })
+    override fun onActivitySaveInstanceState(activity: Activity, outState: Bundle) = Unit
+
+    override fun onActivityDestroyed(activity: Activity) {
+        synchronized(lock) { startedActivities.remove(activity) }
     }
+
+    private fun onActivityVisible(activity: Activity) = synchronized(lock) {
+        startedActivities.add(activity)
+        if (!isInForeground) {
+            moveToForeground()
+        }
+    }
+
+    private fun moveToForeground() {
+        isInForeground = true
+        val isFirstOpen = !hasTrackedFirstOpen
+        hasTrackedFirstOpen = true
+        analytics.track(
+            APPLICATION_OPENED,
+            buildJsonObject {
+                if (isFirstOpen) {
+                    put(VERSION_KEY, appVersion.version)
+                    put(BUILD_KEY, appVersion.build)
+                }
+                put("from_background", !isFirstOpen)
+            }
+        )
+        analytics.track(APPLICATION_FOREGROUNDED)
+    }
+
+    /** Application Installed or Application Updated with its properties, or null when the build hasn't changed. */
+    private fun installOrUpdateEvent(): Pair<String, JsonObject>? {
+        val storage = analytics.storage
+        val previousVersion = storage.read(Storage.Constants.AppVersion)
+        val previousBuild = storage.read(Storage.Constants.AppBuild) ?: storage.read(Storage.Constants.LegacyAppBuild)
+
+        return when (previousBuild) {
+            null -> APPLICATION_INSTALLED to buildJsonObject {
+                put(VERSION_KEY, appVersion.version)
+                put(BUILD_KEY, appVersion.build)
+            }
+            appVersion.build -> null
+            else -> APPLICATION_UPDATED to buildJsonObject {
+                put(VERSION_KEY, appVersion.version)
+                put(BUILD_KEY, appVersion.build)
+                put("previous_$VERSION_KEY", previousVersion)
+                put("previous_$BUILD_KEY", previousBuild)
+            }
+        }
+    }
+
+    private fun storeAppVersion() {
+        // Same keys Segment's lifecycle tracking used, so existing installs keep their recorded version
+        with(analytics) {
+            analyticsScope.launch(analyticsDispatcher) {
+                appVersion.version?.let { storage.write(Storage.Constants.AppVersion, it) }
+                storage.write(Storage.Constants.AppBuild, appVersion.build)
+            }
+        }
+    }
+
+    companion object {
+        private const val APPLICATION_INSTALLED = "Application Installed"
+        private const val APPLICATION_UPDATED = "Application Updated"
+        private const val APPLICATION_OPENED = "Application Opened"
+        private const val APPLICATION_FOREGROUNDED = "Application Foregrounded"
+        private const val VERSION_KEY = "version"
+        private const val BUILD_KEY = "build"
+    }
+}
+
+/** Version name and version code of the host app. */
+internal data class AppVersion(val version: String?, val build: String)
+
+private fun Application.getAppVersion(): AppVersion {
+    val packageInfo = packageManager.getPackageInfo(packageName, 0)
+    val versionCode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+        packageInfo.longVersionCode
+    } else {
+        @Suppress("DEPRECATION")
+        packageInfo.versionCode.toLong()
+    }
+    return AppVersion(version = packageInfo.versionName, build = versionCode.toString())
+}
+
+private fun isProcessInForeground(): Boolean {
+    // Reading the state is a plain field read, so this is safe from the thread initializing the SDK.
+    // It stays INITIALIZED only when the process lifecycle isn't running in this process
+    // (a secondary process, or an app that removed the androidx.startup initializer).
+    val processState = ProcessLifecycleOwner.get().lifecycle.currentState
+    if (processState != Lifecycle.State.INITIALIZED) {
+        // Known limitation: the process lifecycle reports a stop about 700 ms after the last Activity stopped. An SDK
+        // initialized within that window counts the app as in foreground and never sees that Activity stop, so the
+        // next return to the app tracks no Application Opened, and Application Backgrounded waits until it's left.
+        return processState.isAtLeast(Lifecycle.State.STARTED)
+    }
+    val processInfo = ActivityManager.RunningAppProcessInfo()
+    ActivityManager.getMyMemoryState(processInfo)
+    // Importances in between, such as a foreground service, don't mean an Activity is started
+    return processInfo.importance == ActivityManager.RunningAppProcessInfo.IMPORTANCE_FOREGROUND ||
+        processInfo.importance == ActivityManager.RunningAppProcessInfo.IMPORTANCE_VISIBLE
 }

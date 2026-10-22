@@ -1,3 +1,27 @@
+## [4.25.2](https://github.com/customerio/customerio-android/compare/4.25.1...4.25.2) (2026-10-22)
+
+### Bug Fixes
+
+* **in-app:** keep inline message taps working after host Fragment view is recreated ([#933](https://github.com/customerio/customerio-android/issues/933)) ([91125ee](https://github.com/customerio/customerio-android/commit/91125ee0c2ec834563061ffdda7149dfac5134fb))
+
+## [4.25.1](https://github.com/customerio/customerio-android/compare/4.25.0...4.25.1) (2026-10-22)
+
+### Bug Fixes
+
+* track app lifecycle events when the SDK initializes after the first Activity ([#952](https://github.com/customerio/customerio-android/issues/952)) ([232b96c](https://github.com/customerio/customerio-android/commit/232b96c2d3d4c540ee3da88543f785c401bfc0af))
+
+## [4.25.0](https://github.com/customerio/customerio-android/compare/4.24.0...4.25.0) (2026-10-21)
+
+### Features
+
+* **MBL-2543:** reject secret keys and pick region from key ([#925](https://github.com/customerio/customerio-android/issues/925)) ([b5bc060](https://github.com/customerio/customerio-android/commit/b5bc06002e75b02d82632cf9ee643d459207b278))
+
+## [4.24.0](https://github.com/customerio/customerio-android/compare/4.23.2...4.24.0) (2026-10-21)
+
+### Features
+
+* **messagingpush:** support Firebase Installation IDs ([#934](https://github.com/customerio/customerio-android/issues/934)) ([d1574e1](https://github.com/customerio/customerio-android/commit/d1574e19978be6792bec760b0b374892f5b47cd3))
+
 ## [4.23.2](https://github.com/customerio/customerio-android/compare/4.23.1...4.23.2) (2026-09-29)
 
 ### Bug Fixes

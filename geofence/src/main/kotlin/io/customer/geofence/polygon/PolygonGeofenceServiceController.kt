@@ -501,6 +501,7 @@ internal class PolygonGeofenceServiceController(
         }
         approachMonitor.recordSampleDelivered(sessionDeadlineElapsedRealtimeMs)
         var lastAcceptedLocation: Location? = null
+        var lastDelivered: PolygonEvaluationOutcome? = null
         for (location in locations.sortedBy(Location::getElapsedRealtimeNanos)) {
             val fix = location.toPolygonLocationFix()
             if (fix == null) {
@@ -543,8 +544,10 @@ internal class PolygonGeofenceServiceController(
                 logger.logPolygonSamplingSkipped(PolygonSamplingSkip.NO_POLYGON_IN_RANGE)
                 continue
             }
-            if (processTriggeredLocation(location, expectedUserStateGeneration).acceptedFix) {
+            val delivered = processTriggeredLocation(location, expectedUserStateGeneration)
+            if (delivered.acceptedFix) {
                 lastAcceptedLocation = location
+                lastDelivered = delivered
             }
             var staleAfterProcessing = false
             val discardedByDeactivation = mutableSetOf<String>()
@@ -575,6 +578,15 @@ internal class PolygonGeofenceServiceController(
                 logger.logPolygonSamplingSkipped(PolygonSamplingSkip.NOT_CURRENT_SESSION)
                 return PolygonSamplingDecision.STALE
             }
+        }
+        // After the whole batch, never between its samples: a precise fix taken now is newer than
+        // every sample, and judging it before an older sample could let that sample reopen a visit
+        // the fix had just ended. The latest accepted sample's verdict says what still lacks proof.
+        val sampleNeedingProof = lastAcceptedLocation
+        val delivered = lastDelivered
+        if (sampleNeedingProof != null && delivered != null) {
+            lastAcceptedLocation = requestDwellProofForSample(sampleNeedingProof, delivered, expectedUserStateGeneration)
+                ?: sampleNeedingProof
         }
         val discardedBySessionEnd = mutableSetOf<String>()
         val sessionIsCurrent = synchronized(controllerLock) {
@@ -1018,6 +1030,65 @@ internal class PolygonGeofenceServiceController(
             atElapsedMs = SystemClock.elapsedRealtime(),
             requestSessionElapsedMs = fresh.requestSessionElapsedMs
         )
+    }
+
+    /**
+     * An approach sample can be the only fix an entered polygon sees for minutes, so one that keeps
+     * a due visit INSIDE without proving the stay asks for a precise fix, as a callback's fix would
+     * (see [evaluateCallbackFix]). Dwell proof only: an undecided arrival keeps the sampler's own
+     * hold-and-corroborate rule. The request shares the callback cooldown and the futile memo, so a
+     * parked device asks once per spot per [FUTILE_ESCALATION_RETRY_MS], not on every sample.
+     *
+     * @return the precise fix when its pass accepted it, for the caller's movement re-centre; the
+     * sampler re-centres once at the end of the batch, so this pass must not do it itself.
+     */
+    private suspend fun requestDwellProofForSample(
+        sample: Location,
+        delivered: PolygonEvaluationOutcome,
+        expectedUserStateGeneration: Long
+    ): Location? {
+        val unproven = delivered.dwellUnprovenPolygonIds
+        if (unproven.isEmpty()) return null
+        val diagnosticToken = diagnosticRecorder?.currentToken()
+        fun recordDwellRejected(polygonIds: Set<String>, reason: DwellDiagnosticReason) = polygonIds.forEach {
+            recordDiagnostic(
+                expectedUserStateGeneration,
+                DwellDiagnosticEvent.DWELL_REJECTED,
+                fenceId = it,
+                reason = reason,
+                diagnosticToken = diagnosticToken
+            )
+        }
+        val fresh = preciseFixForCallback(
+            unproven.first(),
+            undecidedPolygonIds = unproven,
+            pendingArrivalPolygonIds = emptySet(),
+            triggeringLocation = sample,
+            onSkipped = { reason -> recordDwellRejected(unproven, reason) }
+        ) ?: return null
+        val after = processTriggeredLocation(
+            fresh.fix,
+            expectedUserStateGeneration,
+            answersHeldFixAt = sample.elapsedRealtimeNanos
+        )
+        // An aborted pass reports nothing undecided, so it must not clear the memos.
+        if (!after.acceptedFix) return null
+        val echoed = after.echoedFixPolygonIds intersect unproven
+        val stillUnproven = unproven intersect after.dwellUnprovenPolygonIds
+        recordDwellRejected(stillUnproven, DwellDiagnosticReason.DWELL_UNPROVEN)
+        recordDwellRejected(
+            (unproven intersect (after.undecidedPolygonIds + echoed)) - stillUnproven,
+            DwellDiagnosticReason.STILL_UNDECIDED
+        )
+        recordEscalationOutcomes(
+            requested = unproven,
+            stillUndecided = after.undecidedPolygonIds + after.dwellUnprovenPolygonIds + echoed,
+            evaluated = after.evaluatedPolygonIds,
+            fix = fresh.fix,
+            atElapsedMs = SystemClock.elapsedRealtime(),
+            requestSessionElapsedMs = fresh.requestSessionElapsedMs
+        )
+        return fresh.fix
     }
 
     /**

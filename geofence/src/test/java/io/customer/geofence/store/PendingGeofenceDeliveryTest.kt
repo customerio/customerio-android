@@ -68,12 +68,14 @@ class PendingGeofenceDeliveryTest {
             visitId = "visit-1",
             enteredAt = 100L,
             visitDurationSeconds = 99L,
+            visitDurationUncertaintySeconds = 7L,
             detectionSource = "native"
         )
 
         entry.toEventProperties() shouldContain ("visitId" to "visit-1")
         entry.toEventProperties() shouldContain ("enteredAt" to 100L)
         entry.toEventProperties() shouldContain ("visitDurationSeconds" to 99L)
+        entry.toEventProperties() shouldContain ("visitDurationUncertaintySeconds" to 7L)
         entry.toEventProperties() shouldContain ("detectionSource" to "native")
         entry.toEventProperties().keys shouldNotContain "dwellDurationSeconds"
     }

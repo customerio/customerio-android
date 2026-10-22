@@ -17,6 +17,7 @@ import io.mockk.every
 import io.mockk.mockk
 import java.io.IOException
 import kotlinx.coroutines.test.runTest
+import kotlinx.serialization.json.JsonPrimitive
 import org.amshove.kluent.shouldBeEqualTo
 import org.amshove.kluent.shouldBeFalse
 import org.amshove.kluent.shouldBeTrue
@@ -170,7 +171,7 @@ class GeofenceCatalogUpgradeRealStoreTest : RobolectricTest() {
     }
 
     private fun dwellResponse() = GeofenceApiResponse(
-        geofences = listOf(GeofenceApiRegion(id = "legacy", latitude = 0.0, longitude = 0.0, radius = 100.0, dwellThresholdSeconds = 60))
+        geofences = listOf(GeofenceApiRegion(id = "legacy", latitude = 0.0, longitude = 0.0, radius = 100.0, dwellThresholdSeconds = JsonPrimitive(60)))
     )
 
     private fun api(result: Result<GeofenceApiResponse>): GeofenceApiService = mockk {

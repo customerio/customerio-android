@@ -498,7 +498,7 @@ class PolygonDwellPrecisionTest : RobolectricTest() {
         val visitId = store.getDwellVisit(VENUE_ID).shouldNotBeNull().visitId
         val blocked = mockk<GeofenceBusinessTransitionProcessor>(relaxed = true)
         coEvery { blocked.recoverPendingTransitions() } returns true
-        coEvery { blocked.process(any(), any(), any(), any(), any(), any(), any(), any(), any(), any()) } returns
+        coEvery { blocked.process(any(), any(), any(), any(), any(), any(), any(), any(), any()) } returns
             GeofenceTransitionEmitter.Result.PERSIST_FAILED
         ShadowSystemClock.advanceBy(Duration.ofSeconds(70))
 
@@ -550,7 +550,7 @@ class PolygonDwellPrecisionTest : RobolectricTest() {
         arriveClearly(controller(RecordingFreshFix()))
         val blocked = mockk<GeofenceBusinessTransitionProcessor>(relaxed = true)
         coEvery { blocked.recoverPendingTransitions() } returns true
-        coEvery { blocked.process(any(), any(), any(), any(), any(), any(), any(), any(), any(), any()) } returns
+        coEvery { blocked.process(any(), any(), any(), any(), any(), any(), any(), any(), any()) } returns
             GeofenceTransitionEmitter.Result.PERSIST_FAILED
         ShadowSystemClock.advanceBy(Duration.ofSeconds(70))
         controller(RecordingFreshFix(), processorOverride = blocked, diagnosticRecorder = recorder).activate(
@@ -578,7 +578,7 @@ class PolygonDwellPrecisionTest : RobolectricTest() {
             releaseRecovery.await()
             true
         }
-        coEvery { blocked.process(any(), any(), any(), any(), any(), any(), any(), any(), any(), any()) } returns
+        coEvery { blocked.process(any(), any(), any(), any(), any(), any(), any(), any(), any()) } returns
             GeofenceTransitionEmitter.Result.PERSISTED
         val controller = controller(RecordingFreshFix(), owner, blocked)
         val precise = fixAtTheVenueCentre(SystemClock.elapsedRealtimeNanos())

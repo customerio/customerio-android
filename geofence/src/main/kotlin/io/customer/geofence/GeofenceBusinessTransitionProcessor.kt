@@ -25,11 +25,9 @@ internal class GeofenceBusinessTransitionProcessor(
         expectedRegionRevision: Int? = null,
         expectedUserStateGeneration: Long? = null,
         requireRegistered: Boolean = false,
+        // Visits are ended by the caller, by the identity of the visit it captured for this EXIT: a
+        // callback's receipt time cannot order it against a newer visit (see GeofenceDwellCoordinator).
         visitContext: GeofenceTransitionEmitter.VisitContext? = null,
-        // False when the caller owns cleanup by the captured visit's identity. A native
-        // callback's receipt time cannot order it against a newer visit, so ending by timestamp
-        // here could clear that newer visit.
-        endsVisitByTimestamp: Boolean = true,
         // Evaluated under the transition lock before anything is emitted or committed. False drops
         // the transition: GMS decided it before an opposite transition already handled.
         admits: () -> Boolean = { true }
@@ -49,29 +47,15 @@ internal class GeofenceBusinessTransitionProcessor(
         }
         if (requireRegistered && geofenceId !in store.getRoutableRegisteredIds()) {
             // The callback cannot be delivered for a region outside the current routable set, but
-            // a physical EXIT still ends continuous presence. Commit that containment change and
-            // clear only the visit this callback can own, so a later ENTER starts a fresh visit
-            // instead of inheriting time spent away from the fence.
-            if (transition == Event.GeofenceTransition.EXIT) {
-                if (geofenceId in store.getEnteredIds()) {
-                    store.commitBusinessTransition(
-                        geofenceId = geofenceId,
-                        transition = transition,
-                        transitionId = null,
-                        expectedUserStateGeneration = userStateGeneration,
-                        expectedRegionRevision = expectedRegionRevision ?: currentRegionRevision
-                    )
-                }
-                // Even when containment has no departure to commit, an EXIT can close a stranded
-                // visit left by a missed edge. The timestamp/revision/generation checks in the
-                // store keep a delayed callback from clearing a newer visit.
-                removeCompletedVisit(
-                    endsVisitByTimestamp,
-                    geofenceId,
-                    transition,
-                    timestampSeconds,
-                    userStateGeneration,
-                    expectedRegionRevision ?: currentRegionRevision
+            // a physical EXIT still ends continuous presence. Commit that containment change so a
+            // later ENTER starts a fresh visit instead of inheriting time spent away from the fence.
+            if (transition == Event.GeofenceTransition.EXIT && geofenceId in store.getEnteredIds()) {
+                store.commitBusinessTransition(
+                    geofenceId = geofenceId,
+                    transition = transition,
+                    transitionId = null,
+                    expectedUserStateGeneration = userStateGeneration,
+                    expectedRegionRevision = expectedRegionRevision ?: currentRegionRevision
                 )
             }
             return@withLock null
@@ -153,78 +137,29 @@ internal class GeofenceBusinessTransitionProcessor(
         }
         when (emissionResult) {
             GeofenceTransitionEmitter.Result.PERSISTED -> {
-                val committed = store.commitBusinessTransition(
+                store.commitBusinessTransition(
                     geofenceId = geofenceId,
                     transition = transition,
                     transitionId = transitionId,
                     expectedUserStateGeneration = userStateGeneration,
                     expectedRegionRevision = expectedRegionRevision ?: currentRegionRevision
                 )
-                if (committed) {
-                    removeCompletedVisit(
-                        endsVisitByTimestamp,
-                        geofenceId,
-                        transition,
-                        timestampSeconds,
-                        userStateGeneration,
-                        expectedRegionRevision ?: currentRegionRevision
-                    )
-                }
                 return@withLock emissionResult
             }
-            GeofenceTransitionEmitter.Result.PERSIST_FAILED -> {
-                // A successful stage already committed physical containment atomically. If staging
-                // itself failed, neither state nor event is durable and a later fine fix can retry.
-                if (transition == Event.GeofenceTransition.EXIT && geofenceId !in store.getEnteredIds()) {
-                    removeCompletedVisit(
-                        endsVisitByTimestamp,
-                        geofenceId,
-                        transition,
-                        timestampSeconds,
-                        userStateGeneration,
-                        expectedRegionRevision ?: currentRegionRevision
-                    )
-                }
-                return@withLock emissionResult
-            }
+            // A successful stage already committed physical containment atomically. If staging
+            // itself failed, neither state nor event is durable and a later fine fix can retry.
+            GeofenceTransitionEmitter.Result.PERSIST_FAILED -> return@withLock emissionResult
             GeofenceTransitionEmitter.Result.SUPPRESSED,
             null -> Unit
         }
-        val committed = store.commitBusinessTransition(
+        store.commitBusinessTransition(
             geofenceId = geofenceId,
             transition = transition,
             transitionId = null,
             expectedUserStateGeneration = userStateGeneration,
             expectedRegionRevision = expectedRegionRevision ?: currentRegionRevision
         )
-        if (committed) {
-            removeCompletedVisit(
-                endsVisitByTimestamp,
-                geofenceId,
-                transition,
-                timestampSeconds,
-                userStateGeneration,
-                expectedRegionRevision ?: currentRegionRevision
-            )
-        }
         emissionResult
-    }
-
-    private fun removeCompletedVisit(
-        endsVisitByTimestamp: Boolean,
-        geofenceId: String,
-        transition: Event.GeofenceTransition,
-        timestampSeconds: Long,
-        expectedUserStateGeneration: Long,
-        expectedRegionRevision: Int?
-    ) {
-        if (!endsVisitByTimestamp || transition != Event.GeofenceTransition.EXIT) return
-        store.removeDwellVisitAfterCommittedExit(
-            geofenceId = geofenceId,
-            exitedAtSeconds = timestampSeconds,
-            expectedUserStateGeneration = expectedUserStateGeneration,
-            expectedRegionRevision = expectedRegionRevision
-        )
     }
 
     private companion object {

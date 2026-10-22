@@ -169,7 +169,6 @@ internal class GeofenceCrossingPipeline(
                     expectedUserStateGeneration = userStateGeneration,
                     requireRegistered = true,
                     visitContext = nativeExit?.visitContext,
-                    endsVisitByTimestamp = false,
                     admits = {
                         if (transition == Event.GeofenceTransition.ENTER) {
                             wasInside = geofenceId in regionStore.getEnteredIds()

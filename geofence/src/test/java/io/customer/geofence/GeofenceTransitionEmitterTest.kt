@@ -129,7 +129,8 @@ class GeofenceTransitionEmitterTest : RobolectricTest() {
                 visitId = "visit-1",
                 enteredAt = 100L,
                 durationSeconds = 75L,
-                detectionSource = "native"
+                detectionSource = "native",
+                durationUncertaintySeconds = 5L
             )
         ) shouldBeEqualTo GeofenceTransitionEmitter.Result.PERSISTED
 
@@ -138,6 +139,7 @@ class GeofenceTransitionEmitterTest : RobolectricTest() {
             exit.visitId shouldBeEqualTo "visit-1"
             (exit.transitionId != exit.visitId).shouldBeTrue()
             exit.visitDurationSeconds shouldBeEqualTo 75L
+            exit.visitDurationUncertaintySeconds shouldBeEqualTo 5L
         }
     }
 

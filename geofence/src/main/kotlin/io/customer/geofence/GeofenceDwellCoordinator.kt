@@ -47,6 +47,9 @@ internal class GeofenceDwellCoordinator(
      * earlier in the same activation, so this ENTER is the crossing itself. Circles derive the same
      * proof from their registration instead (see [observedCircleEntry]).
      * @param enteredAtElapsedMs elapsedRealtime read with [enteredAtSeconds]; null means now.
+     * @param polygonEntryProvesInside polygons only. The ENTER's own fix lay inside the ring by more
+     * than its accuracy, so it is inside proof as [onInsideEvidence] records it. A marginal arrival
+     * committed by corroboration is not: it only says the device is probably inside.
      */
     suspend fun onEnter(
         geofenceId: String,
@@ -55,7 +58,8 @@ internal class GeofenceDwellCoordinator(
         beginsNewVisit: Boolean = false,
         entryFixElapsedMs: Long? = null,
         polygonOutsideObserved: Boolean = false,
-        enteredAtElapsedMs: Long? = null
+        enteredAtElapsedMs: Long? = null,
+        polygonEntryProvesInside: Boolean = false
     ) = mutex.withLock {
         if (store.userStateGeneration() != expectedUserStateGeneration) return@withLock
         val region = store.getCachedRegion(geofenceId) ?: return@withLock
@@ -114,6 +118,12 @@ internal class GeofenceDwellCoordinator(
             }
             departed = !beginsNewVisit && departedSince(existing, incarnation, entryFixElapsedMs)
             if (!beginsNewVisit && !departed) {
+                // A repeated polygon ENTER with a decisive fix is inside proof for the visit it repeats.
+                if (region.isPolygon && polygonEntryProvesInside &&
+                    startedAtElapsedMs > (existing.lastInsideFixElapsedMs ?: Long.MIN_VALUE)
+                ) {
+                    store.saveDwellVisit(existing.copy(lastInsideFixElapsedMs = startedAtElapsedMs))
+                }
                 // A repeated ENTER of this visit is GMS placing the device inside at a later fix, which
                 // an EXIT decided before it must not override (see [onNativeExit]). Its fix is newer
                 // than any this visit holds, and GMS may be re-reporting or the device may have come
@@ -129,6 +139,17 @@ internal class GeofenceDwellCoordinator(
                 }
                 return@withLock
             }
+        }
+        // The stay this ENTER replaces may still owe a dwell the outbox refused at its EXIT.
+        if (existing != null) {
+            flushPendingReservation(
+                region,
+                existing,
+                bootSessionId,
+                enteredAtSeconds,
+                startedAtElapsedMs,
+                if (region.isPolygon) "location_evidence" else "native"
+            )
         }
         store.saveDwellVisit(
             GeofenceDwellVisit(
@@ -147,6 +168,8 @@ internal class GeofenceDwellCoordinator(
                 },
                 registrationElapsedMs = incarnation?.registeredAtElapsedMs,
                 entryFixElapsedMs = entryFixElapsedMs,
+                // A decisive polygon entry is the visit's first inside proof (see [capturePolygonExit]).
+                lastInsideFixElapsedMs = startedAtElapsedMs.takeIf { region.isPolygon && polygonEntryProvesInside },
                 bootSessionId = bootSessionId,
                 enteredAtElapsedMs = startedAtElapsedMs
             )
@@ -199,6 +222,8 @@ internal class GeofenceDwellCoordinator(
             // only for the live registration's delay: a DWELL from a replaced one proved some other
             // threshold, or geometry, and cannot recover a visit here.
             if (fix < incarnation.registeredAtElapsedMs) return@withLock
+            // The ended stay may still owe a dwell the outbox refused at its EXIT.
+            visit?.let { ended -> flushPendingReservation(region, ended, bootSessionId, observedAtSeconds, atElapsedMs, "native") }
             visit = GeofenceDwellVisit(
                 geofenceId = geofenceId,
                 visitId = UUID.randomUUID().toString(),
@@ -242,7 +267,10 @@ internal class GeofenceDwellCoordinator(
     }
 
     /**
-     * Called only with a fresh, decisive inside fix for a real polygon boundary.
+     * Called only with a fresh, decisive inside fix for a real polygon boundary. The fix is recorded
+     * as the visit's latest inside proof whatever the polygon configures, so its EXIT can tell how
+     * long before the departure the device was last seen inside (see [capturePolygonExit]); it
+     * qualifies a dwell only for a polygon with a threshold.
      * @param observedAtElapsedMs the fix's elapsedRealtime; null means now.
      */
     suspend fun onInsideEvidence(
@@ -253,10 +281,12 @@ internal class GeofenceDwellCoordinator(
     ) = withLockAndDiagnosticToken withLock@{ diagnosticToken ->
         if (store.userStateGeneration() != expectedUserStateGeneration) return@withLock
         val region = store.getCachedRegion(geofenceId) ?: return@withLock
-        if (!region.isPolygon || region.dwellThresholdSeconds <= 0) return@withLock
+        if (!region.isPolygon || !region.tracksVisit()) return@withLock
         val bootSessionId = bootSessionProvider.currentSessionId()
         val atElapsedMs = observedAtElapsedMs ?: clock.elapsedRealtime()
         var visit = currentVisit(region, bootSessionId, diagnosticToken)
+        // Without a threshold, evidence only dates a visit an ENTER began; it starts none.
+        if (visit == null && region.dwellThresholdSeconds <= 0) return@withLock
         if (visit != null && !visit.emitted && visit.enteredAtElapsedMs == null) {
             // Predates timing provenance, so how long it has lasted is unknown. Restart it as a
             // candidate from this evidence rather than trust its wall-clock entry.
@@ -288,10 +318,16 @@ internal class GeofenceDwellCoordinator(
             journalNotAttributed(diagnosticToken, expectedUserStateGeneration, geofenceId)
             return@withLock
         }
+        // The latest time the device was decisively seen inside, which bounds how early a later
+        // departure could have been. Recorded even once emitted, for the EXIT's duration.
+        if (atElapsedMs > (visit.lastInsideFixElapsedMs ?: Long.MIN_VALUE)) {
+            visit = visit.copy(lastInsideFixElapsedMs = atElapsedMs)
+            if (!store.saveDwellVisit(visit)) return@withLock
+        }
         // Once this visit emitted, later evidence cannot turn it back into a candidate. In
         // particular, a long evidence gap after emission must not reset `emitted` and create a
         // second dwell for the same continuous visit.
-        if (visit.emitted) return@withLock
+        if (region.dwellThresholdSeconds <= 0 || visit.emitted) return@withLock
         emitIfDue(
             region,
             visit,
@@ -355,15 +391,21 @@ internal class GeofenceDwellCoordinator(
         val startedAfterExit = visit.enteredAtElapsedMs?.let { exitFixElapsedMs < it }
             ?: false
         if (startedAfterExit) return@withLock PolygonExit()
+        val dwellDurable = flushPendingReservation(region, visit, bootSessionId, exitedAtSeconds, exitFixElapsedMs, "location_evidence")
         PolygonExit(
-            endedVisitId = visit.visitId,
+            // A reservation the outbox refused keeps its visit for the launch sweep to retry.
+            endedVisitId = visit.visitId.takeIf { dwellDurable },
             visitContext = exitContext(
                 visit,
                 bootSessionId,
                 currentIncarnation(region)?.outsideProvenAtElapsedMs,
                 exitedAtSeconds,
                 exitFixElapsedMs,
-                "location_evidence"
+                exitDecidedAtElapsedMs = exitFixElapsedMs,
+                "location_evidence",
+                // A polygon departure is noticed by the first decisive outside fix, not when it
+                // happened; the gap since the last inside proof is reported as the uncertainty.
+                departureNoEarlierThanElapsedMs = latestInsideFix(visit) ?: visit.enteredAtElapsedMs
             )
         )
     }
@@ -455,9 +497,11 @@ internal class GeofenceDwellCoordinator(
             }
             return@withLock NativeExit(current = true)
         }
+        val dwellDurable = flushPendingReservation(region, visit, bootSessionId, exitedAtSeconds, receivedAtElapsedMs, "native")
         NativeExit(
             current = true,
-            endedVisitId = visit.visitId,
+            // A reservation the outbox refused keeps its visit for the launch sweep to retry.
+            endedVisitId = visit.visitId.takeIf { dwellDurable },
             // The proof as it stood before this EXIT recorded its own fix.
             visitContext = exitContext(
                 visit,
@@ -465,7 +509,10 @@ internal class GeofenceDwellCoordinator(
                 incarnation?.outsideProvenAtElapsedMs,
                 exitedAtSeconds,
                 receivedAtElapsedMs,
-                "native"
+                // belongsTo guarantees the fix; the fallback only satisfies the type.
+                exitDecidedAtElapsedMs = triggeringFixElapsedMs ?: receivedAtElapsedMs,
+                "native",
+                departureNoEarlierThanElapsedMs = triggeringFixElapsedMs
             )
         )
     }
@@ -669,6 +716,14 @@ internal class GeofenceDwellCoordinator(
      * @param outsideProvenAtElapsedMs the live registration's outside proof. Identity compares it with
      * [insideAnchor], timing with the entry: a proof handled after a later DWELL can still predate
      * that DWELL's fix, so the visit continued but its span would include time away.
+     * @param exitDecidedAtElapsedMs the fix this EXIT was decided on, which ends the reported span:
+     * GMS's triggering fix for a native EXIT, the outside fix itself for a polygon.
+     * @param departureNoEarlierThanElapsedMs the earliest the departure could have happened, on the
+     * boot clock; null when unknown, which reports the whole span as uncertain. The gap up to
+     * [exitDecidedAtElapsedMs] is reported with the duration, never used to withhold it. GMS watches
+     * a circle continuously, so its EXIT fix is the departure and the gap is zero; a polygon
+     * departure is noticed by the first decisive outside fix, so the gap runs from the latest
+     * decisive inside fix (a decisive entry included), or the entry when it holds none.
      */
     private fun exitContext(
         visit: GeofenceDwellVisit,
@@ -676,48 +731,122 @@ internal class GeofenceDwellCoordinator(
         outsideProvenAtElapsedMs: Long?,
         exitedAtSeconds: Long,
         exitedAtElapsedMs: Long,
-        detectionSource: String
+        exitDecidedAtElapsedMs: Long,
+        detectionSource: String,
+        departureNoEarlierThanElapsedMs: Long?
     ): GeofenceTransitionEmitter.VisitContext.Exit? {
         if (outsideProvenAtElapsedMs != null && outsideProvenAtElapsedMs > insideAnchor(visit)) return null
-        val durationSeconds = observedDurationSeconds(
+        val span = observedSpan(
             visit,
             bootSessionId,
             outsideProvenAtElapsedMs,
             exitedAtSeconds,
-            exitedAtElapsedMs
+            exitedAtElapsedMs,
+            exitDecidedAtElapsedMs
         )
+        val uncertaintySeconds = span?.let { observed ->
+            departureNoEarlierThanElapsedMs
+                ?.let { ((exitDecidedAtElapsedMs - it) / MILLIS_PER_SECOND).coerceIn(0L, observed.durationSeconds) }
+                ?: observed.durationSeconds
+        }
         return GeofenceTransitionEmitter.VisitContext.Exit(
             visitId = visit.visitId,
-            enteredAt = visit.enteredAtSeconds.takeIf { durationSeconds != null },
-            durationSeconds = durationSeconds,
-            detectionSource = detectionSource
+            enteredAt = span?.enteredAtSeconds,
+            durationSeconds = span?.durationSeconds,
+            detectionSource = detectionSource,
+            durationUncertaintySeconds = uncertaintySeconds
         )
     }
 
     /**
-     * Seconds from an observed entry to this EXIT, or null when unknown. That needs an observed entry
+     * Emits a dwell this visit reserved but never durably staged, before the EXIT ends the visit:
+     * the process died, or the outbox refused the write, between the reservation and the staging.
+     * Without this the EXIT would take the qualified occurrence with it, since a circle gets no
+     * second native DWELL to retry it and a polygon no further inside evidence once outside. The
+     * caller commits its EXIT only after this returns, so the two stay in order.
+     *
+     * @return whether the visit owes no dwell any more: none was reserved, or the reservation is
+     * now in the outbox or staged for recovery. False keeps the visit, for [recoverPendingReservations].
+     */
+    private suspend fun flushPendingReservation(
+        region: GeofenceRegion,
+        visit: GeofenceDwellVisit,
+        bootSessionId: String,
+        observedAtSeconds: Long,
+        observedAtElapsedMs: Long,
+        detectionSource: String
+    ): Boolean {
+        if (visit.emitted || visit.dwellReservation == null) return true
+        emitIfDue(region, visit, observedAtSeconds, observedAtElapsedMs, bootSessionId, detectionSource)
+        return store.getDwellVisit(region.id)?.takeIf { it.visitId == visit.visitId }?.emitted == true
+    }
+
+    /**
+     * At launch, emits every dwell reserved but never durably staged: the process died between a
+     * reservation and its staging, or an EXIT found the outbox refusing the write and kept the
+     * visit. Nothing else revisits such a reservation: GMS sends a circle no second DWELL, and a
+     * polygon gets no inside evidence once the device has left. A visit that no longer holds is
+     * dropped as [currentVisit] drops it.
+     */
+    suspend fun recoverPendingReservations() = mutex.withLock {
+        val bootSessionId = bootSessionProvider.currentSessionId()
+        store.getDwellVisits().forEach { stored ->
+            val reservation = stored.dwellReservation ?: return@forEach
+            if (stored.emitted) return@forEach
+            val region = store.getCachedRegion(stored.geofenceId) ?: return@forEach
+            val visit = currentVisit(region, bootSessionId) ?: return@forEach
+            emitIfDue(
+                region,
+                visit,
+                reservation.timestampSeconds,
+                clock.elapsedRealtime(),
+                bootSessionId,
+                reservation.detectionSource
+            )
+        }
+    }
+
+    /** The entry time and duration an EXIT reports, dated at the fixes the transitions were decided on. */
+    private data class ObservedSpan(val enteredAtSeconds: Long, val durationSeconds: Long)
+
+    /**
+     * The span from an observed entry to this EXIT, or null when unknown. That needs an observed entry
      * (not one recovered from a DWELL, rebuilt after continuity loss, or withdrawn by a later EXIT)
      * timed in this boot, and no outside proof since that entry, which would put time away in the
      * span. The whole-second wall span is reported only while it agrees with the boot clock (see
      * [GeofenceVisitTiming.wallClockAgrees]): a clock step in between would otherwise invent or erase
      * time.
+     *
+     * Both ends are dated at the fix the transition was decided on, not at the callback's receipt:
+     * GMS can deliver an ENTER or EXIT long after its fix, and a receipt-to-receipt span would hide
+     * that delay inside the stay. The visit's stamps stay on receipt, which orders callbacks; only
+     * the reported values shift, by delays measured on the boot clock.
+     *
+     * @param exitDecidedAtElapsedMs the fix this EXIT was decided on; [exitedAtElapsedMs] is its receipt.
      */
-    private fun observedDurationSeconds(
+    private fun observedSpan(
         visit: GeofenceDwellVisit,
         bootSessionId: String,
         outsideProvenAtElapsedMs: Long?,
         exitedAtSeconds: Long,
-        exitedAtElapsedMs: Long
-    ): Long? {
+        exitedAtElapsedMs: Long,
+        exitDecidedAtElapsedMs: Long
+    ): ObservedSpan? {
         if (!visit.entryWasObserved) return null
-        val enteredAt = visit.entryFixElapsedMs ?: visit.enteredAtElapsedMs ?: return null
-        if (outsideProvenAtElapsedMs != null && outsideProvenAtElapsedMs > enteredAt) return null
+        val enteredAtElapsedMs = visit.enteredAtElapsedMs ?: return null
+        val entryDecidedAtElapsedMs = visit.entryFixElapsedMs ?: enteredAtElapsedMs
+        if (outsideProvenAtElapsedMs != null && outsideProvenAtElapsedMs > entryDecidedAtElapsedMs) return null
         val elapsedMs = GeofenceVisitTiming.elapsedMs(visit, bootSessionId, exitedAtElapsedMs) ?: return null
-        val durationSeconds = exitedAtSeconds - visit.enteredAtSeconds
-        if (durationSeconds < 0 || !GeofenceVisitTiming.wallClockAgrees(visit.enteredAtSeconds, exitedAtSeconds, elapsedMs)) {
+        val receiptSpanSeconds = exitedAtSeconds - visit.enteredAtSeconds
+        if (receiptSpanSeconds < 0 || !GeofenceVisitTiming.wallClockAgrees(visit.enteredAtSeconds, exitedAtSeconds, elapsedMs)) {
             return null
         }
-        return durationSeconds
+        val entryDelaySeconds = ((enteredAtElapsedMs - entryDecidedAtElapsedMs) / MILLIS_PER_SECOND).coerceAtLeast(0L)
+        val exitDelaySeconds = ((exitedAtElapsedMs - exitDecidedAtElapsedMs) / MILLIS_PER_SECOND).coerceAtLeast(0L)
+        return ObservedSpan(
+            enteredAtSeconds = visit.enteredAtSeconds - entryDelaySeconds,
+            durationSeconds = (receiptSpanSeconds + entryDelaySeconds - exitDelaySeconds).coerceAtLeast(0L)
+        )
     }
 
     /**
@@ -907,16 +1036,21 @@ internal class GeofenceDwellCoordinator(
             return null
         }
         // Reported only for an observed entry whose wall stamps still agree with the boot clock.
-        // A delayed ENTER callback can make local elapsed time slightly short, so a duration under
-        // the threshold is left absent rather than reported.
+        // The entry is dated at its fix, as the EXIT dates it (see observedSpan): a delayed ENTER
+        // callback would otherwise shorten the stay. A duration still under the threshold is left
+        // absent rather than reported.
         val reportsEntry = visit.entryWasObserved &&
             elapsedMs != null &&
             GeofenceVisitTiming.wallClockAgrees(visit.enteredAtSeconds, observedAtSeconds, elapsedMs)
-        val durationSeconds = elapsedMs?.div(MILLIS_PER_SECOND)
+        val entryDelaySeconds = listOfNotNull(visit.enteredAtElapsedMs, visit.entryFixElapsedMs)
+            .takeIf { it.size == 2 }
+            ?.let { (receipt, fix) -> ((receipt - fix) / MILLIS_PER_SECOND).coerceAtLeast(0L) }
+            ?: 0L
+        val durationSeconds = elapsedMs?.let { it / MILLIS_PER_SECOND + entryDelaySeconds }
         val reserved = visit.copy(
             dwellReservation = GeofenceDwellReservation(
                 timestampSeconds = observedAtSeconds,
-                enteredAt = visit.enteredAtSeconds.takeIf { reportsEntry },
+                enteredAt = (visit.enteredAtSeconds - entryDelaySeconds).takeIf { reportsEntry },
                 thresholdSeconds = thresholdSeconds,
                 durationSeconds = durationSeconds?.takeIf { reportsEntry && it >= thresholdSeconds },
                 detectionSource = detectionSource

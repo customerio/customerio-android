@@ -24,6 +24,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
+import kotlinx.serialization.json.JsonPrimitive
 import org.amshove.kluent.shouldBeEqualTo
 import org.amshove.kluent.shouldBeNull
 import org.junit.Test
@@ -104,7 +105,7 @@ class GeofenceLiveFixVisitTest : RobolectricTest() {
         coVerify(exactly = 1) { apiService.fetchGeofences(any()) }
         val dwell = dwell()
         dwell.enteredAt shouldBeEqualTo enteredAtSeconds
-        dwell.dwellDurationSeconds shouldBeEqualTo DWELL_RECEIPT_GAP_SECONDS
+        dwell.dwellDurationSeconds shouldBeEqualTo DWELL_RECEIPT_GAP_SECONDS + ENTER_DELIVERY_DELAY_SECONDS
     }
 
     @Test
@@ -123,7 +124,7 @@ class GeofenceLiveFixVisitTest : RobolectricTest() {
         coVerify(exactly = 0) { apiService.fetchGeofences(any()) }
         val dwell = dwell()
         dwell.enteredAt shouldBeEqualTo enteredAtSeconds
-        dwell.dwellDurationSeconds shouldBeEqualTo DWELL_RECEIPT_GAP_SECONDS
+        dwell.dwellDurationSeconds shouldBeEqualTo DWELL_RECEIPT_GAP_SECONDS + ENTER_DELIVERY_DELAY_SECONDS
     }
 
     @Test
@@ -136,7 +137,7 @@ class GeofenceLiveFixVisitTest : RobolectricTest() {
                         latitude = CIRCLE_LATITUDE,
                         longitude = CIRCLE_LONGITUDE,
                         radius = 100.0,
-                        dwellThresholdSeconds = 60L
+                        dwellThresholdSeconds = JsonPrimitive(60)
                     )
                 )
             )
@@ -148,7 +149,7 @@ class GeofenceLiveFixVisitTest : RobolectricTest() {
 
         coVerify(exactly = 1) { apiService.fetchGeofences(any()) }
         dwell().enteredAt shouldBeEqualTo enteredAtSeconds
-        dwell().dwellDurationSeconds shouldBeEqualTo DWELL_RECEIPT_GAP_SECONDS
+        dwell().dwellDurationSeconds shouldBeEqualTo DWELL_RECEIPT_GAP_SECONDS + ENTER_DELIVERY_DELAY_SECONDS
     }
 
     @Test
@@ -172,7 +173,7 @@ class GeofenceLiveFixVisitTest : RobolectricTest() {
         coVerify(exactly = 1) { apiService.fetchGeofences(any()) }
         val enteredAtSeconds = wiring.enterThenDwell()
         dwell().enteredAt shouldBeEqualTo enteredAtSeconds
-        dwell().dwellDurationSeconds shouldBeEqualTo DWELL_RECEIPT_GAP_SECONDS
+        dwell().dwellDurationSeconds shouldBeEqualTo DWELL_RECEIPT_GAP_SECONDS + ENTER_DELIVERY_DELAY_SECONDS
     }
 
     @Test
@@ -281,8 +282,10 @@ class GeofenceLiveFixVisitTest : RobolectricTest() {
          */
         suspend fun enterThenDwell(): Long {
             nowElapsedMs += 30_000L
-            val entryFixElapsedMs = nowElapsedMs - 5_000L
-            val enteredAtSeconds = wallSeconds()
+            // GMS delivers the ENTER a few seconds after the fix it decided on; the stay is dated
+            // from the fix, so the returned entry time is the fix's, not the receipt's.
+            val entryFixElapsedMs = nowElapsedMs - ENTER_DELIVERY_DELAY_SECONDS * MILLIS_PER_SECOND
+            val enteredAtSeconds = wallSeconds() - ENTER_DELIVERY_DELAY_SECONDS
             pipeline.handle(crossing(GeofenceCrossingTransition.ENTER, GMS_TRANSITION_ENTER, entryFixElapsedMs))
             nowElapsedMs += DWELL_RECEIPT_GAP_SECONDS * MILLIS_PER_SECOND
             pipeline.handle(
@@ -350,6 +353,7 @@ class GeofenceLiveFixVisitTest : RobolectricTest() {
         const val FIX_LATITUDE = 37.7804
         const val ACCURATE_METERS = 10f
         const val DWELL_RECEIPT_GAP_SECONDS = 90L
+        const val ENTER_DELIVERY_DELAY_SECONDS = 5L
 
         // Geofence.GEOFENCE_TRANSITION_ENTER and GEOFENCE_TRANSITION_DWELL.
         const val GMS_TRANSITION_ENTER = 1

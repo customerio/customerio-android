@@ -370,10 +370,9 @@ internal class PolygonLocationEngine(
                     expectedRegionRevision = detection.regionRevision,
                     expectedUserStateGeneration = expectedUserStateGeneration,
                     requireRegistered = true,
-                    visitContext = polygonExit?.visitContext,
-                    // The coordinator ends the visit this EXIT read (see onPolygonExit below). Ending
-                    // by wall time could clear a newer visit, or keep this one after a clock step.
-                    endsVisitByTimestamp = false
+                    // The coordinator ends the visit this EXIT read (see onPolygonExit below), by its
+                    // identity: wall time could clear a newer visit, or keep this one after a clock step.
+                    visitContext = polygonExit?.visitContext
                 )
                 if (store.userStateGeneration() != expectedUserStateGeneration) {
                     return@withLock PolygonEvaluationOutcome.NOTHING
@@ -388,7 +387,15 @@ internal class PolygonLocationEngine(
                         expectedUserStateGeneration,
                         beginsNewVisit = !wasInside,
                         polygonOutsideObserved = outsideObserved,
-                        enteredAtElapsedMs = fix.elapsedRealtimeNanos / NANOS_PER_MILLISECOND
+                        enteredAtElapsedMs = fix.elapsedRealtimeNanos / NANOS_PER_MILLISECOND,
+                        // The same proof rule as inside evidence below; a held arrival committed by
+                        // corroboration records its marginal fix and does not pass it.
+                        polygonEntryProvesInside = routeOutcome.records.any { record ->
+                            record is PolygonRouteRecord.Decided &&
+                                record.geofenceId == detection.polygonId &&
+                                record.transitionName == PolygonTransition.ENTER.name &&
+                                record.signedBoundaryDistanceMeters?.let { it > record.horizontalAccuracyMeters } == true
+                        }
                     )
                 }
                 if (store.userStateGeneration() != expectedUserStateGeneration) return@withLock PolygonEvaluationOutcome.NOTHING

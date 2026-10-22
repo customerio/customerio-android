@@ -42,6 +42,8 @@ internal data class PendingGeofenceDelivery(
     val dwellThresholdSeconds: Int? = null,
     val dwellDurationSeconds: Long? = null,
     val visitDurationSeconds: Long? = null,
+    /** How long before the observed departure the device was last proven inside; 0 for an OS-decided EXIT. */
+    val visitDurationUncertaintySeconds: Long? = null,
     val detectionSource: String? = null
 ) : PendingDeliveryStore.PendingDeliveryEntry {
     override val key: String
@@ -59,6 +61,7 @@ internal data class PendingGeofenceDelivery(
         dwellThresholdSeconds?.let { put("dwellThresholdSeconds", it) }
         dwellDurationSeconds?.let { put("dwellDurationSeconds", it) }
         visitDurationSeconds?.let { put("visitDurationSeconds", it) }
+        visitDurationUncertaintySeconds?.let { put("visitDurationUncertaintySeconds", it) }
         detectionSource?.let { put("detectionSource", it) }
         // Always present, even when empty.
         put("metadata", metadata.toEventMetadata())

@@ -94,6 +94,9 @@ internal data class GeofenceRegistrationIncarnation(
 internal interface GeofenceRegionStore {
     fun getDwellVisit(geofenceId: String): GeofenceDwellVisit?
 
+    /** Every stored visit, for a launch-time sweep of reservations that never reached the outbox. */
+    fun getDwellVisits(): List<GeofenceDwellVisit>
+
     /**
      * Refuses a visit for a fence routing no longer covers, and any write of a visit that has already
      * ended, so an in-flight update cannot restore a visit across a removal or gap.
@@ -135,12 +138,6 @@ internal interface GeofenceRegionStore {
 
     /** Ends every visit and forgets every incarnation: OS monitoring had an unobserved gap. */
     fun invalidateDwellContinuity()
-    fun removeDwellVisitAfterCommittedExit(
-        geofenceId: String,
-        exitedAtSeconds: Long,
-        expectedUserStateGeneration: Long,
-        expectedRegionRevision: Int?
-    ): Boolean
 
     fun appendPendingPolygonApproachBatches(entries: List<PendingPolygonApproachBatch>): Boolean
     fun getPendingPolygonApproachBatches(): List<PendingPolygonApproachBatch>
@@ -827,6 +824,8 @@ internal class GeofenceRegionStoreImpl(
         readDwellVisits().firstOrNull { it.geofenceId == geofenceId }
     }
 
+    override fun getDwellVisits(): List<GeofenceDwellVisit> = synchronized(enteredLock) { readDwellVisits() }
+
     override fun saveDwellVisit(visit: GeofenceDwellVisit): Boolean = synchronized(enteredLock) {
         if (visit.userStateGeneration != currentUserStateGenerationLocked()) return@synchronized false
         val region = getCachedRegion(visit.geofenceId) ?: return@synchronized false
@@ -956,28 +955,6 @@ internal class GeofenceRegionStoreImpl(
         readJson(KEY_REGISTRATION_INCARNATIONS, INCARNATIONS_SERIALIZER)
             ?.associateBy(GeofenceRegistrationIncarnation::geofenceId)
             ?: emptyMap()
-
-    override fun removeDwellVisitAfterCommittedExit(
-        geofenceId: String,
-        exitedAtSeconds: Long,
-        expectedUserStateGeneration: Long,
-        expectedRegionRevision: Int?
-    ): Boolean = synchronized(enteredLock) {
-        if (expectedUserStateGeneration != currentUserStateGenerationLocked()) return@synchronized false
-        if (
-            expectedRegionRevision != null &&
-            getCachedRegion(geofenceId)?.transitionRevision() != expectedRegionRevision
-        ) {
-            return@synchronized false
-        }
-        val visits = readDwellVisits()
-        val retained = visits.filterNot {
-            it.geofenceId == geofenceId && it.enteredAtSeconds <= exitedAtSeconds
-        }
-        if (retained.size == visits.size) return@synchronized true
-        @Suppress("UseKtx")
-        prefs.edit().putDwellVisitsLocked(retained).commit()
-    }
 
     private fun readDwellVisits(): List<GeofenceDwellVisit> =
         readJson(KEY_DWELL_VISITS, DWELL_VISITS_SERIALIZER) ?: emptyList()

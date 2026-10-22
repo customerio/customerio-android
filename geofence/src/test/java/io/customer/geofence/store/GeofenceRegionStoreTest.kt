@@ -313,49 +313,6 @@ class GeofenceRegionStoreTest : RobolectricTest() {
     }
 
     @Test
-    fun removeDwellVisitAfterCommittedExit_preservesANewerVisitAndRemovesTheExitedOne() {
-        val region = GeofenceRegion(
-            id = "biz-1",
-            latitude = 1.0,
-            longitude = 2.0,
-            radius = 100f,
-            transitionTypes = listOf(GeofenceTransitionType.EXIT)
-        )
-        store.saveCachedRegions(listOf(region))
-        store.recordRegistrationIncarnations(listOf(region), registeredAtElapsedMs = 10L, bootSessionId = "boot")
-        // Visits are kept only for fences routing still covers.
-        store.saveRoutableRegisteredIds(setOf(region.id))
-        val generation = store.userStateGeneration()
-        val oldVisit = GeofenceDwellVisit(
-            geofenceId = "biz-1",
-            visitId = "old",
-            enteredAtSeconds = 100L,
-            regionRevision = region.transitionRevision(),
-            userStateGeneration = generation,
-            registrationElapsedMs = 10L
-        )
-        store.saveDwellVisit(oldVisit).shouldBeTrue()
-
-        store.removeDwellVisitAfterCommittedExit(
-            "biz-1",
-            150L,
-            generation,
-            region.transitionRevision()
-        ).shouldBeTrue()
-        store.getDwellVisit("biz-1").shouldBeNull()
-
-        val newVisit = oldVisit.copy(visitId = "new", enteredAtSeconds = 200L)
-        store.saveDwellVisit(newVisit).shouldBeTrue()
-        store.removeDwellVisitAfterCommittedExit(
-            "biz-1",
-            150L,
-            generation,
-            region.transitionRevision()
-        ).shouldBeTrue()
-        store.getDwellVisit("biz-1") shouldBeEqualTo newVisit
-    }
-
-    @Test
     fun commitBusinessTransition_givenStagedEnterThatMarksReported_expectContainmentAndMarkCommittedTogether() {
         val generation = store.userStateGeneration()
         val staged = PendingGeofenceDelivery(

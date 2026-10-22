@@ -231,8 +231,10 @@ class DwellReplayTest : ReplayTestSupport() {
         polygonWakeAfterSuspension(
             OUTSIDE_SQUARE_LATITUDE,
             queued(292, "dwell", 0),
-            // The wake fix was judged, not ignored: it ends the visit at its own time.
-            queued(292, "exit", 1, "\"timestampAt\":290,\"enteredAtAt\":30,\"visitDurationSeconds\":260,\"hasVisitId\":true")
+            // The wake fix was judged, not ignored: it ends the visit at its own time. Nothing saw
+            // the device inside after the entry at 30, so the departure could have been any time
+            // in those 260 s: the span is reported with that whole gap as its uncertainty.
+            queued(292, "exit", 1, "\"timestampAt\":290,\"enteredAtAt\":30,\"visitDurationSeconds\":260,\"visitDurationUncertaintySeconds\":260,\"hasVisitId\":true")
         )
     }
 

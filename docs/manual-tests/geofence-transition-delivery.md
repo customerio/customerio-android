@@ -23,13 +23,21 @@ use that cooldown. A revisit can therefore deliver DWELL without ENTER or EXIT.
 A suppressed EXIT also omits that visit's exit duration. The backend processes
 each transition independently.
 
-Native circle entry times and durations describe callback observations. Uneven
-callback delays can skew the reported stay; they are not exact crossing times.
+Native circle entry times and durations are dated at the fixes GMS decided the
+callbacks on, so a delayed callback delivery does not stretch or shorten the stay;
+the event timestamps themselves remain receipt times.
 An accurate, recent live fix can establish that the device was outside before its
 first ENTER. Coordinates without reported accuracy or a monotonic sample time cannot
 establish that proof. A host fix stamped only on wall time keeps its age estimate
 but supplies no outside proof. An already-inside visit keeps its entry measurements
 unknown.
+
+A polygon departure is noticed by the first decisive outside fix, not at the moment
+it happens. The EXIT still reports `visitDurationSeconds` as exit minus entry, and
+adds `visitDurationUncertaintySeconds`: how long before that fix the device was last
+proven inside the ring. The true stay lies between the duration minus the uncertainty
+and the duration. A circle EXIT decided by the OS reports 0. The `visitId` is sent on
+every EXIT attributed to a visit, timed or not.
 
 Polygon DWELL still requires a later fix whose entire accuracy circle is inside
 the polygon. If a due visit stays INSIDE but the fix's uncertainty crosses the

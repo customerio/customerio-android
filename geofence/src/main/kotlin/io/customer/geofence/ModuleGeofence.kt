@@ -3,6 +3,7 @@ package io.customer.geofence
 import androidx.lifecycle.ProcessLifecycleOwner
 import io.customer.base.internal.InternalCustomerIOApi
 import io.customer.geofence.di.geofenceDeliveryFlusher
+import io.customer.geofence.di.geofenceDwellCoordinator
 import io.customer.geofence.di.geofenceLogger
 import io.customer.geofence.di.geofencePermissionReporter
 import io.customer.geofence.di.geofenceRegionStore
@@ -199,6 +200,8 @@ class ModuleGeofence @JvmOverloads constructor(
             launchScope.launch {
                 try {
                     sdkAndroid.geofenceTransitionEmitter.recoverPendingTransitions()
+                    // After the outbox: a reservation that never reached it is staged like any other.
+                    sdkAndroid.geofenceDwellCoordinator.recoverPendingReservations()
                     val existingUserId = sdkAndroid.secureUserStore.getUserId()
                     if (!existingUserId.isNullOrEmpty()) {
                         // Re-read rather than reuse the id above: an identify can land in between,

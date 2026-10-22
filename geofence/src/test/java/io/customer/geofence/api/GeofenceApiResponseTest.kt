@@ -881,6 +881,26 @@ class GeofenceApiResponseTest : RobolectricTest() {
     }
 
     @Test
+    fun parseAndMap_givenNonIntegerDwellThreshold_expectRegionKeptDwellDisabledAndLogged() {
+        val regions = parseRegions(
+            """{"geofences":[
+                {"id":"float","latitude":1,"longitude":2,"radius":100,"dwell_threshold_seconds":300.0},
+                {"id":"fraction","latitude":1,"longitude":2,"radius":100,"dwell_threshold_seconds":300.5},
+                {"id":"string","latitude":1,"longitude":2,"radius":100,"dwell_threshold_seconds":"300"},
+                {"id":"object","latitude":1,"longitude":2,"radius":100,"dwell_threshold_seconds":{"s":300}}
+            ]}"""
+        )
+
+        // An integral float is the same whole number; anything else keeps the region with dwell off.
+        regions.map { it.id to it.dwellThresholdSeconds } shouldBeEqualTo
+            listOf("float" to 300, "fraction" to 0, "string" to 0, "object" to 0)
+        verify(exactly = 0) { mockLogger.logUnsupportedDwellThreshold("float", any()) }
+        verify(exactly = 1) { mockLogger.logUnsupportedDwellThreshold("fraction", "300.5") }
+        verify(exactly = 1) { mockLogger.logUnsupportedDwellThreshold("string", "\"300\"") }
+        verify(exactly = 1) { mockLogger.logUnsupportedDwellThreshold("object", """{"s":300}""") }
+    }
+
+    @Test
     fun parseAndMap_givenUnsupportedDwellThreshold_expectRegionKeptDwellDisabledAndLogged() {
         val overflow = GeofenceConstants.MAX_DWELL_THRESHOLD_SECONDS + 1L
         val regions = parseRegions(
@@ -893,8 +913,8 @@ class GeofenceApiResponseTest : RobolectricTest() {
         // Still monitored for enter and exit; only dwell is off.
         regions.map { it.id to it.dwellThresholdSeconds } shouldBeEqualTo
             listOf("negative" to 0, "overflow" to 0)
-        verify(exactly = 1) { mockLogger.logUnsupportedDwellThreshold("negative", -1L) }
-        verify(exactly = 1) { mockLogger.logUnsupportedDwellThreshold("overflow", overflow) }
+        verify(exactly = 1) { mockLogger.logUnsupportedDwellThreshold("negative", "-1") }
+        verify(exactly = 1) { mockLogger.logUnsupportedDwellThreshold("overflow", overflow.toString()) }
     }
 
     @Test

@@ -424,7 +424,6 @@ class GeofenceBroadcastReceiverTest : RobolectricTest() {
         )
 
         verify(exactly = 0) { mockStore.removeDwellVisit("biz-1") }
-        verify(exactly = 0) { mockStore.removeDwellVisitAfterCommittedExit(any(), any(), any(), any()) }
         val exit = scheduled.single { it.transition == Event.GeofenceTransition.EXIT }
         exit.visitId.shouldBeNull()
         exit.visitDurationSeconds.shouldBeNull()

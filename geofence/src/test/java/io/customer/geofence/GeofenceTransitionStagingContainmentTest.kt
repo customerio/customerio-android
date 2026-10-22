@@ -451,7 +451,7 @@ class GeofenceTransitionStagingContainmentTest : RobolectricTest() {
         val pipeline = pipeline(regionStore, coordinator, processor)
         val held = CompletableDeferred<Unit>()
         var calls = 0
-        coEvery { processor.process(any(), any(), any(), any(), any(), any(), any(), any(), any(), any()) } coAnswers {
+        coEvery { processor.process(any(), any(), any(), any(), any(), any(), any(), any(), any()) } coAnswers {
             if (++calls == 1) held.await()
             callOriginal()
         }

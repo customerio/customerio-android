@@ -19,6 +19,7 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.test.TestCoroutineScheduler
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.add
 import kotlinx.serialization.json.buildJsonArray
 
@@ -58,7 +59,7 @@ private fun ScenarioFence.toApiRegion(): GeofenceApiRegion {
             radius = radius,
             transitionTypes = transitionTypes.ifEmpty { null },
             geosetIds = geosetIds,
-            dwellThresholdSeconds = dwellThresholdSeconds
+            dwellThresholdSeconds = dwellThresholdSeconds?.let(::JsonPrimitive)
         )
     }
     return GeofenceApiRegion(
@@ -73,7 +74,7 @@ private fun ScenarioFence.toApiRegion(): GeofenceApiRegion {
         ),
         transitionTypes = transitionTypes.ifEmpty { null },
         geosetIds = geosetIds,
-        dwellThresholdSeconds = dwellThresholdSeconds
+        dwellThresholdSeconds = dwellThresholdSeconds?.let(::JsonPrimitive)
     )
 }
 

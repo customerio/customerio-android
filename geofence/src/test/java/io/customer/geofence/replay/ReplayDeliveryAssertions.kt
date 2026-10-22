@@ -10,6 +10,7 @@ internal object ReplayDeliveryAssertions {
         "dwellThresholdSeconds",
         "dwellDurationSeconds",
         "visitDurationSeconds",
+        "visitDurationUncertaintySeconds",
         "detectionSource",
         "geosetId"
     )

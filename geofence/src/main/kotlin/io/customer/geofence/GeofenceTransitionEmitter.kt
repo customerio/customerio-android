@@ -35,12 +35,19 @@ internal class GeofenceTransitionEmitter(
             override val detectionSource: String
         ) : VisitContext()
 
-        /** [visitId] names the visit the EXIT ended; entry time and duration are both known or both null. */
+        /**
+         * [visitId] names the visit the EXIT ended. Entry time, duration and
+         * [durationUncertaintySeconds] are all known or all null: the uncertainty is how long before
+         * the observed departure the device was last proven inside, so the true duration lies in
+         * `[durationSeconds - durationUncertaintySeconds, durationSeconds]`. Zero when the OS
+         * decided the EXIT itself.
+         */
         data class Exit(
             override val visitId: String,
             override val enteredAt: Long?,
             val durationSeconds: Long?,
-            override val detectionSource: String
+            override val detectionSource: String,
+            val durationUncertaintySeconds: Long? = null
         ) : VisitContext()
     }
     internal enum class Result {
@@ -246,6 +253,7 @@ internal class GeofenceTransitionEmitter(
                     dwellThresholdSeconds = (visitContext as? VisitContext.Dwell)?.thresholdSeconds,
                     dwellDurationSeconds = (visitContext as? VisitContext.Dwell)?.durationSeconds,
                     visitDurationSeconds = (visitContext as? VisitContext.Exit)?.durationSeconds,
+                    visitDurationUncertaintySeconds = (visitContext as? VisitContext.Exit)?.durationUncertaintySeconds,
                     detectionSource = visitContext?.detectionSource
                 )
             }.also { created ->

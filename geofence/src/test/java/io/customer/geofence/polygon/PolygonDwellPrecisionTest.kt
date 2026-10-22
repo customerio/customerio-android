@@ -496,6 +496,29 @@ class PolygonDwellPrecisionTest : RobolectricTest() {
     }
 
     @Test
+    fun onDwellCheck_givenAFixFromMomentsBeforeTheThreshold_expectARetryAfterTheCooldown() = runTest {
+        val freshFix = RecordingFreshFix()
+        val controller = controller(freshFix)
+        arriveClearly(controller)
+        val visit = store.getDwellVisit(VENUE_ID).shouldNotBeNull()
+        // Just before the threshold another request's precise fix arrives, then the check runs just
+        // after it, inside the batch reuse window, and is answered by that pre-threshold fix.
+        val enteredAt = visit.enteredAtElapsedMs.shouldNotBeNull()
+        ShadowSystemClock.advanceBy(Duration.ofMillis(enteredAt + 59_500L - SystemClock.elapsedRealtime()))
+        freshFix.answer = fixAtTheVenueCentre(SystemClock.elapsedRealtimeNanos())
+        controller.activate(VENUE_ID, triggeringLocation = null, expectedUserStateGeneration = store.userStateGeneration())
+        advanceUntilIdle()
+        ShadowSystemClock.advanceBy(Duration.ofMillis(1_000L))
+
+        val result = dwellCheck(controller, visit.visitId)
+
+        // Not an ordinary uncharged check pushed back the full spacing: it looks again after the cooldown.
+        result shouldBeEqualTo PolygonDwellCheckResult.RetryAfter(30_000L)
+        freshFix.priorities.size shouldBeEqualTo 1
+        dwells().shouldBeEmpty()
+    }
+
+    @Test
     fun onDwellCheck_givenAnotherVisitOrASpentBudget_expectNothingRequested() = runTest {
         val freshFix = RecordingFreshFix()
         val controller = controller(freshFix)

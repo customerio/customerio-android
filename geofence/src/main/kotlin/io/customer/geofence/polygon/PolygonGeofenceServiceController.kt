@@ -188,12 +188,15 @@ internal class PolygonGeofenceServiceController(
         }
         var skipped: DwellDiagnosticReason? = null
         var charged = false
+        var answered = false
 
         // Charged decides how the scheduler counts this check, whatever the answer: a timeout spends it too.
         fun result() = when {
             charged -> PolygonDwellCheckResult.Charged
-            // Another visit's request started the shared cooldown: worth retrying once it passes.
-            skipped == DwellDiagnosticReason.WITHIN_COOLDOWN -> PolygonDwellCheckResult.RetryAfter(FRESH_FIX_COOLDOWN_MS)
+            // Another request's cooldown refused it, or its fix of moments ago answered it, which may
+            // predate the threshold: either way worth retrying once that cooldown passes.
+            skipped == DwellDiagnosticReason.WITHIN_COOLDOWN || answered ->
+                PolygonDwellCheckResult.RetryAfter(FRESH_FIX_COOLDOWN_MS)
             else -> PolygonDwellCheckResult.Uncharged
         }
         val fresh = preciseFixForCallback(
@@ -208,6 +211,7 @@ internal class PolygonGeofenceServiceController(
             },
             onRequesting = { at -> chargeDwellProofRequests(budget, at).also { charged = it } }
         ) ?: return result()
+        answered = true
         if (!isAfterTeardown(expectedTeardownGeneration)) {
             evaluateAndRecentre(
                 fresh.fix,

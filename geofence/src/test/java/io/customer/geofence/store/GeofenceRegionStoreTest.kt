@@ -392,6 +392,14 @@ class GeofenceRegionStoreTest : RobolectricTest() {
         stored.dwellProofRequests shouldBeEqualTo 2
         stored.lastDwellProofRequestElapsedMs shouldBeEqualTo 11_000L
         stored.visitId shouldBeEqualTo "v"
+
+        // An evidence write prepared from the visit before those charges landed gives none back.
+        store.saveDwellVisit(visit.copy(lastInsideFixElapsedMs = 12_000L)).shouldBeTrue()
+        val afterStaleWrite = checkNotNull(store.getDwellVisit("biz-1"))
+        afterStaleWrite.dwellProofRequests shouldBeEqualTo 2
+        afterStaleWrite.lastDwellProofRequestElapsedMs shouldBeEqualTo 11_000L
+        afterStaleWrite.lastInsideFixElapsedMs shouldBeEqualTo 12_000L
+        reserve(99_000L).shouldBeFalse()
     }
 
     @Test

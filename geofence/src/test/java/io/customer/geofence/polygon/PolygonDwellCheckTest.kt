@@ -3,8 +3,10 @@ package io.customer.geofence.polygon
 import androidx.work.ExistingWorkPolicy
 import androidx.work.ListenableWorker
 import androidx.work.OneTimeWorkRequest
+import androidx.work.Operation
 import androidx.work.WorkManager
 import androidx.work.testing.TestListenableWorkerBuilder
+import com.google.common.util.concurrent.SettableFuture
 import io.customer.commontest.config.ApplicationArgument
 import io.customer.commontest.config.TestConfig
 import io.customer.commontest.config.testConfigurationDefault
@@ -44,9 +46,10 @@ class PolygonDwellCheckTest : RobolectricTest() {
     private val requests = mutableListOf<OneTimeWorkRequest>()
     private var nowMs = ENTERED_AT_MS
     private var visits = listOf(visit())
+    private var wiped = false
 
     private val planner by lazy {
-        PolygonDwellCheckPlanner(store, secureUserStore, { BOOT }, permissionChecker)
+        PolygonDwellCheckPlanner(store, secureUserStore, { BOOT }, permissionChecker) { wiped }
     }
     private val scheduler by lazy {
         WorkManagerPolygonDwellCheckScheduler(workManagerProvider, planner) { nowMs }
@@ -72,6 +75,7 @@ class PolygonDwellCheckTest : RobolectricTest() {
         every { store.getRegisteredIds() } returns setOf(POLYGON.id)
         every { store.getRoutableRegisteredIds() } returns setOf(POLYGON.id)
         every { store.getEnteredIds() } returns setOf(POLYGON.id)
+        every { store.getActivePolygonIds() } returns setOf(POLYGON.id)
         every { store.getCachedRegion(POLYGON.id) } returns POLYGON
         every { store.getDwellVisits() } answers { visits }
         every { workManagerProvider.getWorkManager() } returns workManager
@@ -133,6 +137,16 @@ class PolygonDwellCheckTest : RobolectricTest() {
         every { store.activeUserSessionId() } returns "someone-else"
         planner.pendingChecks().shouldBeEmpty()
         every { store.activeUserSessionId() } returns USER
+
+        // Stopped or left: a check must not wake the app to re-activate it.
+        every { store.getActivePolygonIds() } returns emptySet()
+        planner.pendingChecks().shouldBeEmpty()
+        every { store.getActivePolygonIds() } returns setOf(POLYGON.id)
+
+        // A reboot or app update dropped the registrations: the visit cannot have been watched.
+        wiped = true
+        planner.pendingChecks().shouldBeEmpty()
+        wiped = false
 
         // Without fine location no fix could prove the stay.
         every { permissionChecker.hasFineLocationPermission() } returns false
@@ -247,21 +261,87 @@ class PolygonDwellCheckTest : RobolectricTest() {
     }
 
     @Test
-    fun doWork_givenTheCheckRefusedByAnotherRequestsCooldown_expectRetriesAfterItUpToTheUnchargedCap() = runTest {
+    fun doWork_givenCooldownRefusals_expectTheirOwnCapAndNoUnchargedChecksSpent() = runTest {
         nowMs = DUE_AT_MS
-        coEvery { controller.onDwellCheck(any(), any(), any(), any()) } returns PolygonDwellCheckResult.RetryAfter(30_000L)
-        val cap = WorkManagerPolygonDwellCheckScheduler.MAX_UNCHARGED_CHECKS_PER_VISIT
-
-        repeat(cap) {
-            TestListenableWorkerBuilder<PolygonDwellCheckWorker>(applicationMock).build().doWork()
-            if (it < cap - 1) requests.last().workSpec.initialDelay shouldBeEqualTo 30_000L
-            nowMs += 30_000L
+        var refusals = WorkManagerPolygonDwellCheckScheduler.MAX_UNCHARGED_CHECKS_PER_VISIT + 1
+        coEvery { controller.onDwellCheck(any(), any(), any(), any()) } answers {
+            if (refusals-- > 0) PolygonDwellCheckResult.RetryAfter(30_000L) else PolygonDwellCheckResult.Uncharged
         }
 
-        // Another visit's budget bounds its requests below the cap, so its cooldown cannot use up this
-        // visit's checks; edge requests, which no budget bounds, cannot renew it past the cap.
-        coVerify(exactly = cap) { controller.onDwellCheck(POLYGON.id, VISIT, any(), any()) }
+        // More cooldown refusals than the uncharged cap: each waits the cooldown and spends nothing.
+        repeat(WorkManagerPolygonDwellCheckScheduler.MAX_UNCHARGED_CHECKS_PER_VISIT + 1) {
+            TestListenableWorkerBuilder<PolygonDwellCheckWorker>(applicationMock).build().doWork()
+            requests.last().workSpec.initialDelay shouldBeEqualTo 30_000L
+            nowMs += 30_000L
+        }
+        // So once the contention clears, the visit still has every uncharged check.
+        repeat(WorkManagerPolygonDwellCheckScheduler.MAX_UNCHARGED_CHECKS_PER_VISIT - 1) {
+            TestListenableWorkerBuilder<PolygonDwellCheckWorker>(applicationMock).build().doWork()
+            requests.last().workSpec.initialDelay shouldBeEqualTo GeofenceConstants.DWELL_PROOF_REQUEST_SPACING_MS
+            nowMs += GeofenceConstants.DWELL_PROOF_REQUEST_SPACING_MS
+        }
+        verify(exactly = 0) { workManager.cancelUniqueWork(any()) }
+    }
+
+    @Test
+    fun doWork_givenCooldownRefusalsWithoutEnd_expectSpacedThenStopped() = runTest {
+        nowMs = DUE_AT_MS
+        coEvery { controller.onDwellCheck(any(), any(), any(), any()) } returns PolygonDwellCheckResult.RetryAfter(30_000L)
+        val free = WorkManagerPolygonDwellCheckScheduler.MAX_COOLDOWN_RETRIES_PER_VISIT
+        val counted = WorkManagerPolygonDwellCheckScheduler.MAX_UNCHARGED_CHECKS_PER_VISIT
+
+        repeat(free) {
+            TestListenableWorkerBuilder<PolygonDwellCheckWorker>(applicationMock).build().doWork()
+            requests.last().workSpec.initialDelay shouldBeEqualTo 30_000L
+            nowMs += 30_000L
+        }
+        // Past the free waits a refusal is an ordinary uncharged check: spaced, and counted.
+        repeat(counted) {
+            TestListenableWorkerBuilder<PolygonDwellCheckWorker>(applicationMock).build().doWork()
+            nowMs += GeofenceConstants.DWELL_PROOF_REQUEST_SPACING_MS
+        }
+
+        // Edge requests no budget bounds cannot keep renewing the cooldown, and so the wakes, forever.
+        coVerify(exactly = free + counted) { controller.onDwellCheck(POLYGON.id, VISIT, any(), any()) }
         verify { workManager.cancelUniqueWork(WorkManagerPolygonDwellCheckScheduler.POLYGON_DWELL_CHECK_WORK) }
+    }
+
+    @Test
+    fun doWork_givenContentionThatClears_expectTheVisitKeptChecking() = runTest {
+        nowMs = DUE_AT_MS
+        var refusals = WorkManagerPolygonDwellCheckScheduler.MAX_COOLDOWN_RETRIES_PER_VISIT +
+            WorkManagerPolygonDwellCheckScheduler.MAX_UNCHARGED_CHECKS_PER_VISIT - 1
+        coEvery { controller.onDwellCheck(any(), any(), any(), any()) } answers {
+            if (refusals-- > 0) PolygonDwellCheckResult.RetryAfter(30_000L) else PolygonDwellCheckResult.Charged
+        }
+
+        repeat(
+            WorkManagerPolygonDwellCheckScheduler.MAX_COOLDOWN_RETRIES_PER_VISIT +
+                WorkManagerPolygonDwellCheckScheduler.MAX_UNCHARGED_CHECKS_PER_VISIT + 3
+        ) {
+            TestListenableWorkerBuilder<PolygonDwellCheckWorker>(applicationMock).build().doWork()
+            nowMs += GeofenceConstants.DWELL_PROOF_REQUEST_SPACING_MS
+        }
+
+        // Contention alone never retired it: once a request goes out, the checks carry on.
+        verify(exactly = 0) { workManager.cancelUniqueWork(any()) }
+    }
+
+    @Test
+    fun reconcile_givenTheEnqueueFailsLater_expectTheSameScheduleIssuedAgain() {
+        val failed = SettableFuture.create<Operation.State.SUCCESS>()
+        val operation = mockk<Operation> { every { result } returns failed }
+        every { workManager.enqueueUniqueWork(any(), any(), any<OneTimeWorkRequest>()) } answers {
+            requests += thirdArg<OneTimeWorkRequest>()
+            operation
+        }
+
+        scheduler.reconcile()
+        failed.setException(IllegalStateException("database full"))
+        scheduler.reconcile()
+
+        // WorkManager reported the failure through the operation, so the same time is not taken as done.
+        requests.size shouldBeEqualTo 2
     }
 
     @Test

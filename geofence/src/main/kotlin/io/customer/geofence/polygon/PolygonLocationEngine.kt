@@ -469,8 +469,16 @@ internal class PolygonLocationEngine(
         )
     }
 
-    /** A visit as [VisitChanges] compares it: a reserved dwell no longer awaits, emit mark or not. */
-    private data class VisitMarker(val visitId: String, val awaitsDwell: Boolean)
+    /**
+     * A visit as [VisitChanges] compares it: a reserved dwell no longer awaits, emit mark or not. The
+     * timing fields count too: evidence that dates an undated visit makes it checkable.
+     */
+    private data class VisitMarker(
+        val visitId: String,
+        val awaitsDwell: Boolean,
+        val bootSessionId: String?,
+        val enteredAtElapsedMs: Long?
+    )
 
     /** Whether one fix started, replaced, ended or settled a visit, so an unchanged visit queues nothing. */
     private class VisitChanges {
@@ -480,7 +488,12 @@ internal class PolygonLocationEngine(
     private fun visitMarkerOrNull(polygonId: String): VisitMarker? {
         if (dwellCheckScheduler == null) return null
         val visit = store.getDwellVisit(polygonId) ?: return null
-        return VisitMarker(visit.visitId, awaitsDwell = !visit.emitted && visit.dwellReservation == null)
+        return VisitMarker(
+            visitId = visit.visitId,
+            awaitsDwell = !visit.emitted && visit.dwellReservation == null,
+            bootSessionId = visit.bootSessionId,
+            enteredAtElapsedMs = visit.enteredAtElapsedMs
+        )
     }
 
     private fun VisitChanges.compare(polygonId: String, before: VisitMarker?) {

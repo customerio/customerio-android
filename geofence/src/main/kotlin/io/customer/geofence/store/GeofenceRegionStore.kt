@@ -420,6 +420,27 @@ internal fun GeofenceRegionStore.registrationsPredateBoot(bootSessionId: String,
     return stampedIn != bootSessionId || getLastRegistrationUptime()?.let { nowElapsedMs < it } == true
 }
 
+/**
+ * Whether the recorded OS registrations predate the installed package: an app update can cancel the
+ * PendingIntent, dropping them while their ids survive. Live ids with no stamp predate stamping,
+ * which only an update can cause, so they count as wiped too.
+ */
+internal fun GeofenceRegionStore.registrationsPredatePackage(packageUpdateTimeMs: Long?): Boolean {
+    val current = packageUpdateTimeMs ?: return false
+    val stamped = getLastRegistrationPackageUpdateTime() ?: return getRegisteredIds().isNotEmpty()
+    return current != stamped
+}
+
+/**
+ * Whether a reboot or an app update dropped the OS registrations since they were recorded. Until a
+ * registration pass re-adds them, monitoring had a gap no stored visit may span.
+ */
+internal fun GeofenceRegionStore.osRegistrationsWiped(
+    bootSessionId: String,
+    nowElapsedMs: Long,
+    packageUpdateTimeMs: Long?
+): Boolean = registrationsPredateBoot(bootSessionId, nowElapsedMs) || registrationsPredatePackage(packageUpdateTimeMs)
+
 internal interface GeofenceLocationCrypto {
     fun encrypt(plaintext: String): String
     fun decrypt(encoded: String): String
@@ -933,7 +954,21 @@ internal class GeofenceRegionStoreImpl(
         if (visit.geofenceId !in getRoutableRegisteredIds() || visit.visitId in readEndedDwellVisitIds()) {
             return@synchronized false
         }
-        val visits = readDwellVisits().filterNot { it.geofenceId == visit.geofenceId } + visit
+        val stored = readDwellVisits()
+        // A write prepared before a charge landed must not give the charge back: the budget only grows.
+        val kept = stored.firstOrNull { it.geofenceId == visit.geofenceId && it.visitId == visit.visitId }
+        val merged = if (kept == null) {
+            visit
+        } else {
+            visit.copy(
+                dwellProofRequests = maxOf(visit.dwellProofRequests, kept.dwellProofRequests),
+                lastDwellProofRequestElapsedMs = listOfNotNull(
+                    visit.lastDwellProofRequestElapsedMs,
+                    kept.lastDwellProofRequestElapsedMs
+                ).maxOrNull()
+            )
+        }
+        val visits = stored.filterNot { it.geofenceId == visit.geofenceId } + merged
         @Suppress("UseKtx")
         prefs.edit().putDwellVisitsLocked(visits).commit()
     }

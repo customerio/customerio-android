@@ -23,7 +23,7 @@ import io.customer.geofence.distanceTo
 import io.customer.geofence.store.GeofenceRegionStore
 import io.customer.geofence.store.dwellProofBudgetAllows
 import io.customer.geofence.store.getCachedConfigOrFallback
-import io.customer.geofence.store.registrationsPredateBoot
+import io.customer.geofence.store.osRegistrationsWiped
 import io.customer.geofence.transitionRevision
 import io.customer.sdk.data.store.SecureUserStore
 import kotlinx.coroutines.sync.Mutex
@@ -150,12 +150,12 @@ internal class PolygonGeofenceServiceController(
             val stillPending = visit != null && visit.visitId == visitId && !visit.emitted &&
                 visit.dwellReservation == null
             if (!stillPending || isAfterTeardown(expectedTeardownGeneration) ||
-                !activateForDwellCheck(polygonId, expectedUserStateGeneration, expectedTeardownGeneration)
+                !isDwellCheckable(polygonId, expectedUserStateGeneration, expectedTeardownGeneration)
             ) {
                 logger.logPolygonCallbackDropped(PolygonCallbackDrop.NOT_ROUTABLE, polygonId)
                 return@withLock PolygonDwellCheckResult.Uncharged
             }
-            requestDwellProof(polygonId, expectedUserStateGeneration, expectedTeardownGeneration)
+            requestDwellProof(polygonId, visitId, expectedUserStateGeneration, expectedTeardownGeneration)
         }
     }
 
@@ -166,6 +166,7 @@ internal class PolygonGeofenceServiceController(
      */
     private suspend fun requestDwellProof(
         polygonId: String,
+        visitId: String,
         expectedUserStateGeneration: Long,
         expectedTeardownGeneration: Long
     ): PolygonDwellCheckResult {
@@ -178,7 +179,9 @@ internal class PolygonGeofenceServiceController(
             reason = reason,
             diagnosticToken = diagnosticToken
         )
-        val budget = withinDwellProofBudget(setOf(polygonId))
+        // Only the planned visit: one that replaced it meanwhile must not pay for this check, and the
+        // store refuses the charge if the visit changed after this read too.
+        val budget = withinDwellProofBudget(setOf(polygonId)).filterValues { it == visitId }
         if (budget.isEmpty()) {
             recordDwellRejected(DwellDiagnosticReason.BUDGET_EXHAUSTED)
             return PolygonDwellCheckResult.Uncharged
@@ -216,30 +219,18 @@ internal class PolygonGeofenceServiceController(
     }
 
     /**
-     * Has the engine evaluate the polygon, as [onMovementTriggerExit] does for an entered one. No
-     * coarse-inside write: a DWELL is no coarse edge.
+     * Whether a check may look at the polygon: still a current registration, and still being evaluated.
+     * A check never activates one: an inactive polygon was left or stopped (`stopAll`), and a check
+     * must not undo that, nor start an approach session on its own.
      */
-    private fun activateForDwellCheck(
+    private fun isDwellCheckable(
         polygonId: String,
         expectedUserStateGeneration: Long,
         expectedTeardownGeneration: Long
-    ): Boolean {
-        val discarded = mutableSetOf<String>()
-        val routable = synchronized(controllerLock) {
-            if (isAfterTeardownLocked(expectedTeardownGeneration) ||
-                !isCurrentRegisteredPolygonLocked(polygonId, expectedUserStateGeneration, expectedRegionRevision = null)
-            ) {
-                return@synchronized false
-            }
-            if (polygonId !in store.getActivePolygonIds()) {
-                store.activatePolygon(polygonId)
-                discarded += engine.activate(polygonId)
-                approachMonitor.start(expectedUserStateGeneration)
-            }
-            true
-        }
-        reportDiscardedArrivals(discarded)
-        return routable
+    ): Boolean = synchronized(controllerLock) {
+        !isAfterTeardownLocked(expectedTeardownGeneration) &&
+            isCurrentRegisteredPolygonLocked(polygonId, expectedUserStateGeneration, expectedRegionRevision = null) &&
+            polygonId in store.getActivePolygonIds()
     }
 
     /** Returns whether the polygon was armed. */
@@ -250,6 +241,7 @@ internal class PolygonGeofenceServiceController(
         expectedTeardownGeneration: Long? = null
     ): Boolean {
         val discarded = mutableSetOf<String>()
+        var newlyActive = false
         val routable = synchronized(controllerLock) {
             if (isAfterTeardownLocked(expectedTeardownGeneration)) {
                 return@synchronized false
@@ -265,11 +257,16 @@ internal class PolygonGeofenceServiceController(
             val alreadyActive = polygonId in store.getActivePolygonIds()
             store.recordPolygonCoarseInside(polygonId)
             store.activatePolygon(polygonId)
-            if (!alreadyActive) discarded += engine.activate(polygonId)
+            if (!alreadyActive) {
+                discarded += engine.activate(polygonId)
+                newlyActive = true
+            }
             approachMonitor.start(expectedUserStateGeneration)
             true
         }
         reportDiscardedArrivals(discarded)
+        // Checks look only at active polygons, so a visit kept across a stop resumes its own.
+        if (newlyActive) dwellCheckScheduler?.reconcile()
         if (!routable) {
             logger.logPolygonCallbackDropped(PolygonCallbackDrop.NOT_ROUTABLE, polygonId)
         }
@@ -344,6 +341,7 @@ internal class PolygonGeofenceServiceController(
             return@withLock
         }
         evaluateCallbackFix(polygonId, triggeringLocation, expectedUserStateGeneration)
+        var newlyActive = false
         val discarded = synchronized(controllerLock) {
             // Re-checked: evaluateCallbackFix suspends, so a teardown may have landed since.
             if (isAfterTeardownLocked(expectedTeardownGeneration)) return@synchronized emptySet()
@@ -359,6 +357,7 @@ internal class PolygonGeofenceServiceController(
             // must not tear that session down.
             if (polygonId in store.getCoarseInsidePolygonIds()) return@synchronized emptySet()
             if (polygonId in store.getEnteredIds()) {
+                newlyActive = polygonId !in store.getActivePolygonIds()
                 store.activatePolygon(polygonId)
                 approachMonitor.start(expectedUserStateGeneration)
                 emptySet()
@@ -367,6 +366,7 @@ internal class PolygonGeofenceServiceController(
             }
         }
         reportDiscardedArrivals(discarded)
+        if (newlyActive) dwellCheckScheduler?.reconcile()
     }
 
     fun resetEvidence(polygonId: String) {
@@ -387,6 +387,7 @@ internal class PolygonGeofenceServiceController(
         if (triggeringLocation == null) return null
         val fix = triggeringLocation.toPolygonLocationFix()
         var notCurrentSession = false
+        var newlyActive = false
         val discarded = mutableSetOf<String>()
         val activated = synchronized(controllerLock) {
             if (!hasMatchingIdentifiedUserLocked() ||
@@ -414,12 +415,15 @@ internal class PolygonGeofenceServiceController(
                 if (polygonId !in store.getActivePolygonIds()) {
                     store.activatePolygon(polygonId)
                     discarded += engine.activate(polygonId)
+                    newlyActive = true
                 }
             }
             if (polygonIds.isNotEmpty()) approachMonitor.start(expectedUserStateGeneration)
             polygonIds.isNotEmpty()
         }
         reportDiscardedArrivals(discarded)
+        // Checks look only at active polygons, so a visit kept across a stop resumes its own.
+        if (newlyActive) dwellCheckScheduler?.reconcile()
         if (!activated) {
             // Kept apart: a session mismatch can lose an arrival, so it must not read as routine.
             logger.logPolygonCallbackDropped(
@@ -524,6 +528,7 @@ internal class PolygonGeofenceServiceController(
             }
             var staleBeforeProcessing = false
             val discardedByActivation = mutableSetOf<String>()
+            var newlyActive = false
             val shouldProcess = synchronized(controllerLock) {
                 if (!hasMatchingIdentifiedUserLocked() ||
                     store.userStateGeneration() != expectedUserStateGeneration
@@ -545,11 +550,13 @@ internal class PolygonGeofenceServiceController(
                             store.activatePolygon(region.id)
                             discardedByActivation +=
                                 engine.activateFromApproach(region.id, fix.elapsedRealtimeNanos)
+                            newlyActive = true
                         }
                     }
                 store.getActivePolygonIds().isNotEmpty()
             }
             reportDiscardedArrivals(discardedByActivation)
+            if (newlyActive) dwellCheckScheduler?.reconcile()
             if (staleBeforeProcessing) {
                 logger.logPolygonSamplingSkipped(PolygonSamplingSkip.NOT_CURRENT_SESSION)
                 return PolygonSamplingDecision.STALE
@@ -1386,16 +1393,13 @@ internal class PolygonGeofenceServiceController(
             true
         }
 
-    private fun osStateWasWiped(): Boolean {
-        val rebooted = store.registrationsPredateBoot(bootSessionProvider.currentSessionId(), SystemClock.elapsedRealtime())
-        val currentPackageUpdate = runCatching {
+    private fun osStateWasWiped(): Boolean = store.osRegistrationsWiped(
+        bootSessionId = bootSessionProvider.currentSessionId(),
+        nowElapsedMs = SystemClock.elapsedRealtime(),
+        packageUpdateTimeMs = runCatching {
             context.packageManager.getPackageInfo(context.packageName, 0).lastUpdateTime
         }.getOrNull()
-        val replaced = store.getLastRegistrationPackageUpdateTime()?.let { stamped ->
-            currentPackageUpdate != null && currentPackageUpdate != stamped
-        } == true
-        return rebooted || replaced
-    }
+    )
 }
 
 internal enum class PolygonSamplingDecision {

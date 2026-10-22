@@ -441,6 +441,61 @@ class PolygonDwellPrecisionTest : RobolectricTest() {
     }
 
     @Test
+    fun onDwellCheck_givenPolygonMonitoringStopped_expectNothingRequestedAndItStaysStopped() = runTest {
+        val freshFix = RecordingFreshFix()
+        val controller = controller(freshFix)
+        arriveClearly(controller)
+        val visit = store.getDwellVisit(VENUE_ID).shouldNotBeNull()
+        ShadowSystemClock.advanceBy(Duration.ofSeconds(70))
+        freshFix.answer = fixAtTheVenueCentre(SystemClock.elapsedRealtimeNanos())
+        controller.stopAll()
+        io.mockk.clearMocks(approachMonitor, answers = false)
+
+        // A check planned before the stop finds the polygon inactive: it must not undo the stop.
+        dwellCheck(controller, visit.visitId) shouldBeEqualTo PolygonDwellCheckResult.Uncharged
+        freshFix.priorities.shouldBeEmpty()
+        store.getActivePolygonIds().contains(VENUE_ID) shouldBeEqualTo false
+        verify(exactly = 0) { approachMonitor.start(any()) }
+
+        // Monitoring resumes with the next coarse ENTER, which re-plans the visit's checks.
+        val reconcilesBefore = dwellChecks.reconciles
+        controller.activate(VENUE_ID, expectedUserStateGeneration = store.userStateGeneration()) shouldBeEqualTo true
+        dwellChecks.reconciles shouldBeEqualTo reconcilesBefore + 1
+    }
+
+    @Test
+    fun onMovementTriggerExit_givenAPolygonStoppedWithItsVisitKept_expectTheReactivationReplansTheChecks() = runTest {
+        val controller = controller(RecordingFreshFix())
+        arriveClearly(controller)
+        controller.stopAll()
+        store.getActivePolygonIds().contains(VENUE_ID) shouldBeEqualTo false
+        val reconcilesBefore = dwellChecks.reconciles
+
+        controller.onMovementTriggerExit(fixAtTheVenueCentre(SystemClock.elapsedRealtimeNanos()))
+        advanceUntilIdle()
+
+        store.getActivePolygonIds() shouldContain VENUE_ID
+        (dwellChecks.reconciles > reconcilesBefore) shouldBeEqualTo true
+    }
+
+    @Test
+    fun insideEvidence_givenAnUndatedVisit_expectTheRepairReplansTheChecks() = runTest {
+        val controller = controller(RecordingFreshFix())
+        arriveClearly(controller)
+        val visit = store.getDwellVisit(VENUE_ID).shouldNotBeNull()
+        // A visit an older SDK stored without boot-clock timing: no check could measure it.
+        store.saveDwellVisit(visit.copy(bootSessionId = null, enteredAtElapsedMs = null)) shouldBeEqualTo true
+        val reconcilesBefore = dwellChecks.reconciles
+
+        ShadowSystemClock.advanceBy(Duration.ofSeconds(5))
+        controller.activate(VENUE_ID, fixAtTheVenueCentre(SystemClock.elapsedRealtimeNanos()), store.userStateGeneration())
+        advanceUntilIdle()
+
+        store.getDwellVisit(VENUE_ID).shouldNotBeNull().enteredAtElapsedMs.shouldNotBeNull()
+        (dwellChecks.reconciles > reconcilesBefore) shouldBeEqualTo true
+    }
+
+    @Test
     fun onDwellCheck_givenAnotherVisitOrASpentBudget_expectNothingRequested() = runTest {
         val freshFix = RecordingFreshFix()
         val controller = controller(freshFix)

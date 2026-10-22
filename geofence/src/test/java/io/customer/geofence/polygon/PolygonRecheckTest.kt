@@ -45,6 +45,7 @@ class PolygonRecheckTest : RobolectricTest() {
     private val mockSecureUserStore: SecureUserStore = mockk(relaxed = true)
     private val mockFreshFix: PolygonFreshFixSource = mockk(relaxed = true)
     private val mockRecheckScheduler: PolygonRecheckScheduler = mockk(relaxed = true)
+    private val mockDwellCheckScheduler: PolygonDwellCheckScheduler = mockk(relaxed = true)
 
     override fun setup(testConfig: TestConfig) {
         super.setup(
@@ -57,12 +58,19 @@ class PolygonRecheckTest : RobolectricTest() {
                         overrideDependency<SecureUserStore>(mockSecureUserStore)
                         overrideDependency<PolygonFreshFixSource>(mockFreshFix)
                         overrideDependency<PolygonRecheckScheduler>(mockRecheckScheduler)
+                        overrideDependency<PolygonBootSessionProvider>(PolygonBootSessionProvider { BOOT })
+                        overrideDependency<PolygonDwellCheckScheduler>(mockDwellCheckScheduler)
                     }
                 }
             }
         )
         every { mockSecureUserStore.getUserId() } returns "user-1"
         every { mockStore.userStateGeneration() } returns 7L
+        // Registered in this boot and package, so no reboot or update dropped them.
+        every { mockStore.getLastRegistrationBootSession() } returns BOOT
+        every { mockStore.getLastRegistrationUptime() } returns 0L
+        every { mockStore.getLastRegistrationPackageUpdateTime() } returns null
+        every { mockStore.getRegisteredIds() } returns emptySet()
         grantLocationPermission()
         every { workManagerProvider.getWorkManager() } returns workManager
         every {
@@ -155,6 +163,35 @@ class PolygonRecheckTest : RobolectricTest() {
 
         result shouldBeEqualTo ListenableWorker.Result.success()
         coVerify(exactly = 0) { mockFreshFix.awaitFreshFix(any(), any()) }
+    }
+
+    @Test
+    fun worker_givenRegistrationsFromAnEarlierBoot_expectNoFixAndNoActivation() = runTest {
+        // Rebooted before the sync re-registered: a fix now could qualify a dwell for a visit the
+        // monitoring gap already broke.
+        every { mockStore.getLastRegistrationBootSession() } returns "an-earlier-boot"
+        every { mockStore.getRoutableRegisteredIds() } returns setOf(VENUE_ID)
+        every { mockStore.getCachedRegions() } returns listOf(venueRegion())
+
+        val result = TestListenableWorkerBuilder<PolygonRecheckWorker>(applicationMock)
+            .build()
+            .doWork()
+
+        result shouldBeEqualTo ListenableWorker.Result.success()
+        coVerify(exactly = 0) { mockFreshFix.awaitFreshFix(any(), any()) }
+        coVerify(exactly = 0) { mockController.activate(any(), any(), any(), any(), any(), any()) }
+    }
+
+    @Test
+    fun worker_givenRegisteredPolygons_expectTheDwellChecksReplannedAsASafetyNet() = runTest {
+        every { mockStore.getRoutableRegisteredIds() } returns setOf(VENUE_ID)
+        every { mockStore.getCachedRegions() } returns listOf(venueRegion())
+        coEvery { mockFreshFix.awaitFreshFix(any(), any()) } returns null
+
+        TestListenableWorkerBuilder<PolygonRecheckWorker>(applicationMock).build().doWork()
+
+        // A check whose own enqueue failed is scheduled again within the recheck's period.
+        verify { mockDwellCheckScheduler.reconcile() }
     }
 
     @Test
@@ -775,6 +812,7 @@ class PolygonRecheckTest : RobolectricTest() {
     }
 
     private companion object {
+        const val BOOT = "boot"
         const val METRES_PER_DEGREE_LATITUDE = 111_320.0
         const val VENUE_ID = "venue"
         const val VENUE_LAT = 24.0

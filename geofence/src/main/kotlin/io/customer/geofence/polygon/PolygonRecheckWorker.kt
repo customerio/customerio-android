@@ -14,12 +14,16 @@ import io.customer.geofence.GeofenceRegion
 import io.customer.geofence.PolygonRecheckSkip
 import io.customer.geofence.di.dwellDiagnosticRecorder
 import io.customer.geofence.di.geofenceLogger
+import io.customer.geofence.di.geofencePackageInfo
 import io.customer.geofence.di.geofenceRegionStore
+import io.customer.geofence.di.polygonBootSessionProvider
+import io.customer.geofence.di.polygonDwellCheckScheduler
 import io.customer.geofence.di.polygonFreshFixSource
 import io.customer.geofence.di.polygonGeofenceServiceController
 import io.customer.geofence.di.polygonRecheckScheduler
 import io.customer.geofence.distanceTo
 import io.customer.geofence.store.GeofenceRegionStore
+import io.customer.geofence.store.osRegistrationsWiped
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.di.setupAndroidComponent
 import io.customer.sdk.core.util.CustomerIOWorkManagerProvider
@@ -111,6 +115,20 @@ internal class PolygonRecheckWorker(
             logger.logPolygonRecheckSkipped(PolygonRecheckSkip.NO_PERMISSION)
             return Result.success()
         }
+        // A fix now could qualify a dwell for a visit the monitoring gap has already broken, before
+        // the sync that ends such visits runs.
+        val wiped = store.osRegistrationsWiped(
+            bootSessionId = SDKComponent.android().polygonBootSessionProvider.currentSessionId(),
+            nowElapsedMs = SystemClock.elapsedRealtime(),
+            packageUpdateTimeMs = SDKComponent.android().geofencePackageInfo.lastUpdateTimeMs()
+        )
+        if (wiped) {
+            logger.logPolygonRecheckSkipped(PolygonRecheckSkip.REGISTRATIONS_WIPED)
+            return Result.success()
+        }
+        // A safety net for dwell checks: one whose own enqueue failed, with nothing else to re-plan it,
+        // is scheduled again within this period.
+        SDKComponent.android().polygonDwellCheckScheduler.reconcile()
         // Balanced: this only asks about wake circles; activate's undecided path buys precision
         // when it could matter.
         val fix = SDKComponent.android().polygonFreshFixSource.awaitFreshFix(

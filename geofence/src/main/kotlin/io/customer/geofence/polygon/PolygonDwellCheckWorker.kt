@@ -49,7 +49,9 @@ internal class PolygonDwellCheckPlanner(
     private val store: GeofenceRegionStore,
     private val secureUserStore: SecureUserStore,
     private val bootSessionProvider: PolygonBootSessionProvider,
-    private val permissionChecker: GeofencePermissionChecker
+    private val permissionChecker: GeofencePermissionChecker,
+    /** True once a reboot or app update dropped the OS registrations, before a pass re-adds them. */
+    private val osRegistrationsWiped: () -> Boolean
 ) {
     fun pendingChecks(): List<PolygonDwellCheck> {
         // Without fine location no fix could prove a stay, and GMS reports no edge to end the visit,
@@ -57,8 +59,11 @@ internal class PolygonDwellCheckPlanner(
         if (!permissionChecker.hasFineLocationPermission()) return emptyList()
         val userId = secureUserStore.getUserId()?.takeIf { it.isNotEmpty() } ?: return emptyList()
         if (store.activeUserSessionId() != userId) return emptyList()
+        // Monitoring had a gap no stored visit may span; the re-registration pass ends them.
+        if (osRegistrationsWiped()) return emptyList()
         val routableIds = store.getRegisteredIds() intersect store.getRoutableRegisteredIds()
-        val enteredIds = store.getEnteredIds()
+        // Only polygons still being evaluated: an inactive one was left or stopped.
+        val enteredIds = store.getEnteredIds() intersect store.getActivePolygonIds()
         val generation = store.userStateGeneration()
         val bootSessionId = bootSessionProvider.currentSessionId()
         return store.getDwellVisits().mapNotNull { visit ->
@@ -128,7 +133,7 @@ internal class WorkManagerPolygonDwellCheckScheduler(
     private val planner: PolygonDwellCheckPlanner,
     private val elapsedRealtimeMs: () -> Long = SystemClock::elapsedRealtime
 ) : PolygonDwellCheckScheduler {
-    private data class Attempts(val uncharged: Int, val notBeforeElapsedMs: Long)
+    private data class Attempts(val uncharged: Int, val notBeforeElapsedMs: Long, val deferred: Int = 0)
 
     /**
      * Held across planning and the WorkManager call, so a reconcile working from an older plan can
@@ -141,11 +146,16 @@ internal class WorkManagerPolygonDwellCheckScheduler(
     private var scheduled: Long? = null
     private var scheduledKnown = false
 
+    /** Bumped by every WorkManager call, so a late failure report forgets only the call it belongs to. */
+    private var scheduleCall = 0L
+
     /**
-     * By visit: when it may next be checked, and how many of its checks charged nothing. Charged
-     * checks are bounded by the visit's stored budget; these by [MAX_UNCHARGED_CHECKS_PER_VISIT], so
-     * a visit that something keeps from requesting stops waking the app. In memory: a new process
-     * starts without them, but then nothing in it can have refused a request.
+     * By visit: when it may next be checked, how many of its checks charged nothing, and how many
+     * waited out another request's cooldown. Charged checks are bounded by the visit's stored budget,
+     * the others by [MAX_UNCHARGED_CHECKS_PER_VISIT], so a visit that something keeps from requesting
+     * stops waking the app. The first [MAX_COOLDOWN_RETRIES_PER_VISIT] cooldown waits are free, so
+     * other visits' requests cannot spend this one's uncharged checks. In memory: a new process starts
+     * without them, but then nothing in it can have refused a request.
      */
     private val attempts = mutableMapOf<String, Attempts>()
 
@@ -156,8 +166,9 @@ internal class WorkManagerPolygonDwellCheckScheduler(
     override fun takeDueChecks(): List<PolygonDwellCheck> = synchronized(lock) {
         val now = elapsedRealtimeMs()
         nextChecksLocked().filter { it.atElapsedMs <= now }.onEach { check ->
-            attempts[check.visitId] = Attempts(
-                uncharged = (attempts[check.visitId]?.uncharged ?: 0) + 1,
+            val tried = attempts[check.visitId] ?: Attempts(uncharged = 0, notBeforeElapsedMs = now)
+            attempts[check.visitId] = tried.copy(
+                uncharged = tried.uncharged + 1,
                 notBeforeElapsedMs = now + GeofenceConstants.DWELL_PROOF_REQUEST_SPACING_MS
             )
         }
@@ -168,8 +179,17 @@ internal class WorkManagerPolygonDwellCheckScheduler(
         attempts[check.visitId] = when (result) {
             PolygonDwellCheckResult.Charged -> tried.copy(uncharged = tried.uncharged - 1)
             PolygonDwellCheckResult.Uncharged -> tried
-            is PolygonDwellCheckResult.RetryAfter ->
-                tried.copy(notBeforeElapsedMs = elapsedRealtimeMs() + result.delayMs)
+            // Past its cap a cooldown refusal is an ordinary uncharged check, spaced and counted, so
+            // contention alone never retires a visit: one charged check after it refunds again.
+            is PolygonDwellCheckResult.RetryAfter -> if (tried.deferred < MAX_COOLDOWN_RETRIES_PER_VISIT) {
+                tried.copy(
+                    uncharged = tried.uncharged - 1,
+                    notBeforeElapsedMs = elapsedRealtimeMs() + result.delayMs,
+                    deferred = tried.deferred + 1
+                )
+            } else {
+                tried
+            }
         }
     }
 
@@ -200,7 +220,8 @@ internal class WorkManagerPolygonDwellCheckScheduler(
         val workManager = workManagerProvider.getWorkManager() ?: return
         scheduled = next
         scheduledKnown = true
-        val enqueued = runCatching {
+        val call = ++scheduleCall
+        val operation = runCatching {
             if (next == null) {
                 workManager.cancelUniqueWork(POLYGON_DWELL_CHECK_WORK)
             } else {
@@ -213,8 +234,21 @@ internal class WorkManagerPolygonDwellCheckScheduler(
                 // reconciles, after its last suspension.
                 workManager.enqueueUniqueWork(POLYGON_DWELL_CHECK_WORK, ExistingWorkPolicy.REPLACE, request)
             }
-        }.isSuccess
-        if (!enqueued) scheduledKnown = false
+        }.getOrNull()
+        if (operation == null) {
+            scheduledKnown = false
+            return
+        }
+        // WorkManager reports a failed call later, through the operation: then this schedule is not
+        // in place, and the next reconcile must issue it again rather than take it as done.
+        runCatching {
+            val result = operation.result
+            result.addListener({
+                if (runCatching { result.get() }.isFailure) {
+                    synchronized(lock) { if (scheduleCall == call) scheduledKnown = false }
+                }
+            }, Runnable::run)
+        }
     }
 
     internal companion object {
@@ -222,11 +256,14 @@ internal class WorkManagerPolygonDwellCheckScheduler(
         const val WORK_MANAGER_TAG_CIO = "cio-requests"
         const val WORK_MANAGER_TAG_POLYGON_DWELL_CHECK = "cio-polygon-dwell-check"
 
-        /**
-         * Per visit and process. Above the request budget, so another visit's requests (at most that
-         * budget) cannot refuse this one's checks away through their cooldown.
-         */
+        /** Per visit and process: checks that charged nothing and were not a cooldown wait. */
         const val MAX_UNCHARGED_CHECKS_PER_VISIT = 8
+
+        /**
+         * Per visit and process: free cooldown waits, 30 s each. Covers four competing visits spending
+         * their whole budgets; past it, edge requests no budget bounds could otherwise renew it forever.
+         */
+        const val MAX_COOLDOWN_RETRIES_PER_VISIT = 16
     }
 }
 

@@ -48,6 +48,7 @@ import io.customer.geofence.store.GeofenceCooldownStoreImpl
 import io.customer.geofence.store.GeofenceRegionStore
 import io.customer.geofence.store.GeofenceRegionStoreImpl
 import io.customer.geofence.store.PendingGeofenceDelivery
+import io.customer.geofence.store.osRegistrationsWiped
 import io.customer.geofence.worker.AsyncGeofenceEventTracker
 import io.customer.geofence.worker.GeofenceEventScheduler
 import io.customer.geofence.worker.GeofenceEventTracker
@@ -96,13 +97,23 @@ internal val AndroidSDKComponent.polygonDwellCheckScheduler: PolygonDwellCheckSc
     // Keyed by the interface type, so an override registered for the interface takes effect.
     get() = singleton<PolygonDwellCheckScheduler> {
         deleteRetiredDwellWakeRecords(applicationContext)
+        val store = geofenceRegionStore
+        val bootSessionProvider = polygonBootSessionProvider
+        val packageInfo = geofencePackageInfo
         WorkManagerPolygonDwellCheckScheduler(
             workManagerProvider = SDKComponent.workManagerProvider,
             planner = PolygonDwellCheckPlanner(
-                store = geofenceRegionStore,
+                store = store,
                 secureUserStore = secureUserStore,
-                bootSessionProvider = polygonBootSessionProvider,
-                permissionChecker = geofencePermissionChecker
+                bootSessionProvider = bootSessionProvider,
+                permissionChecker = geofencePermissionChecker,
+                osRegistrationsWiped = {
+                    store.osRegistrationsWiped(
+                        bootSessionId = bootSessionProvider.currentSessionId(),
+                        nowElapsedMs = SDKComponent.clock.elapsedRealtime(),
+                        packageUpdateTimeMs = packageInfo.lastUpdateTimeMs()
+                    )
+                }
             ),
             elapsedRealtimeMs = SDKComponent.clock::elapsedRealtime
         )

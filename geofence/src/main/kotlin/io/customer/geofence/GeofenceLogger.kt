@@ -79,7 +79,11 @@ internal enum class PolygonPassiveSkip(val wire: String, val detail: String) {
 internal enum class PolygonRecheckSkip(val wire: String, val detail: String) {
     NOTHING_REGISTERED("nothing_registered", "no polygon is registered, so the work retired itself"),
     NO_FIX("no_fix", "no location arrived within the re-check's budget"),
-    NO_PERMISSION("no_permission", "location permission is not granted, so nothing was asked for")
+    NO_PERMISSION("no_permission", "location permission is not granted, so nothing was asked for"),
+    REGISTRATIONS_WIPED(
+        "registrations_wiped",
+        "a reboot or app update dropped the registrations; the next sync re-adds them and ends stale visits"
+    )
 }
 
 /** The session stays live, so these are not endings. */

@@ -11,7 +11,7 @@ import io.customer.geofence.polygon.PolygonGeofenceServiceController
 import io.customer.geofence.polygon.PolygonSupport
 import io.customer.geofence.store.GeofenceRegionStore
 import io.customer.geofence.store.getCachedConfigOrFallback
-import io.customer.geofence.store.registrationsPredateBoot
+import io.customer.geofence.store.osRegistrationsWiped
 import io.customer.location.LocationCoordinates
 import io.customer.sdk.communication.Event
 import io.customer.sdk.core.util.Clock
@@ -256,23 +256,11 @@ internal class GeofenceRepositoryImpl(
      * A reboot wipes GMS geofences while registeredIds survive. Covers a missed BOOT_COMPLETED
      * (stopped state, OEM battery managers, emulator).
      */
-    private fun osStateWipedByReboot(): Boolean =
-        store.registrationsPredateBoot(bootSessionProvider.currentSessionId(), clock.elapsedRealtime())
-
-    /**
-     * An app update can cancel the PendingIntent, dropping OS registrations while registeredIds
-     * survive.
-     */
-    private fun osStateWipedByAppUpdate(): Boolean {
-        val current = packageInfo.lastUpdateTimeMs() ?: return false
-        // No stamp but live registrations means they predate stamping, which only an app update
-        // can cause, so treat as wiped.
-        val stamped = store.getLastRegistrationPackageUpdateTime()
-            ?: return store.getRegisteredIds().isNotEmpty()
-        return current != stamped
-    }
-
-    private fun osStateWiped(): Boolean = osStateWipedByReboot() || osStateWipedByAppUpdate()
+    private fun osStateWiped(): Boolean = store.osRegistrationsWiped(
+        bootSessionId = bootSessionProvider.currentSessionId(),
+        nowElapsedMs = clock.elapsedRealtime(),
+        packageUpdateTimeMs = packageInfo.lastUpdateTimeMs()
+    )
 
     private enum class FixSource {
         /** A fix requested for this pass. */

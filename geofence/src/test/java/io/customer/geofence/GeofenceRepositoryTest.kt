@@ -3192,6 +3192,34 @@ class GeofenceRepositoryTest : RobolectricTest() {
     }
 
     @Test
+    fun refresh_givenADwellCircleWhoseThresholdChanged_expectItRemovedBeforeItsReAdd() = runTest {
+        // Re-added in place while the device is inside, GMS fires DWELL within seconds whatever the
+        // new loitering delay; removed first, it loiters afresh from the add.
+        val dwellCircle = GeofenceRegion("cafe", 0.0, 0.0, 100f, dwellThresholdSeconds = 300)
+        val untouched = GeofenceRegion("plain", 0.0, 0.0, 100f)
+        var registeredIds = setOf(dwellCircle.id, untouched.id, GeofenceConstants.MOVEMENT_TRIGGER_ID)
+        every { secureUserStore.getUserId() } returns "user-42"
+        every { store.getCachedRegions() } returns listOf(dwellCircle, untouched)
+        every { store.getRegisteredIds() } answers { registeredIds }
+        every { store.getRoutableRegisteredIds() } answers { registeredIds }
+        every { store.saveRegisteredIds(any()) } answers { registeredIds = firstArg() }
+        coEvery { apiService.fetchGeofences(any()) } returns Result.success(sampleResponse(maxBusinessGeofences = 99))
+        every { distanceFilter.nearest(any(), any(), any(), any(), any()) } returns
+            listOf(dwellCircle.copy(dwellThresholdSeconds = 600), untouched)
+        coEvery { manager.removeGeofencesByIds(any()) } returns Result.success(Unit)
+        coEvery { manager.replaceGeofences(any(), any()) } returns Result.success(Unit)
+
+        repository.refresh(latitude = 0.0, longitude = 0.0)
+
+        coVerifyOrder {
+            manager.removeGeofencesByIds(listOf("cafe"))
+            manager.replaceGeofences(any(), any())
+        }
+        // An unchanged fence keeps its registration, and its loitering, untouched.
+        coVerify(exactly = 0) { manager.removeGeofencesByIds(match { "plain" in it }) }
+    }
+
+    @Test
     fun refresh_givenPolygonResponseAndFixInsideTrigger_expectRegistersWithoutStartingSampling() = runTest {
         every { secureUserStore.getUserId() } returns "user-42"
         every { clock.currentTimeMillis() } returns 200_000_000_000L

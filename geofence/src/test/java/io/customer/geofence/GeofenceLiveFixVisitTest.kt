@@ -105,7 +105,7 @@ class GeofenceLiveFixVisitTest : RobolectricTest() {
         coVerify(exactly = 1) { apiService.fetchGeofences(any()) }
         val dwell = dwell()
         dwell.enteredAt shouldBeEqualTo enteredAtSeconds
-        dwell.dwellDurationSeconds shouldBeEqualTo DWELL_RECEIPT_GAP_SECONDS + ENTER_DELIVERY_DELAY_SECONDS
+        dwell.dwellDurationSeconds shouldBeEqualTo DWELL_FIX_AFTER_ENTRY_FIX_SECONDS
     }
 
     @Test
@@ -124,7 +124,7 @@ class GeofenceLiveFixVisitTest : RobolectricTest() {
         coVerify(exactly = 0) { apiService.fetchGeofences(any()) }
         val dwell = dwell()
         dwell.enteredAt shouldBeEqualTo enteredAtSeconds
-        dwell.dwellDurationSeconds shouldBeEqualTo DWELL_RECEIPT_GAP_SECONDS + ENTER_DELIVERY_DELAY_SECONDS
+        dwell.dwellDurationSeconds shouldBeEqualTo DWELL_FIX_AFTER_ENTRY_FIX_SECONDS
     }
 
     @Test
@@ -149,7 +149,7 @@ class GeofenceLiveFixVisitTest : RobolectricTest() {
 
         coVerify(exactly = 1) { apiService.fetchGeofences(any()) }
         dwell().enteredAt shouldBeEqualTo enteredAtSeconds
-        dwell().dwellDurationSeconds shouldBeEqualTo DWELL_RECEIPT_GAP_SECONDS + ENTER_DELIVERY_DELAY_SECONDS
+        dwell().dwellDurationSeconds shouldBeEqualTo DWELL_FIX_AFTER_ENTRY_FIX_SECONDS
     }
 
     @Test
@@ -173,7 +173,7 @@ class GeofenceLiveFixVisitTest : RobolectricTest() {
         coVerify(exactly = 1) { apiService.fetchGeofences(any()) }
         val enteredAtSeconds = wiring.enterThenDwell()
         dwell().enteredAt shouldBeEqualTo enteredAtSeconds
-        dwell().dwellDurationSeconds shouldBeEqualTo DWELL_RECEIPT_GAP_SECONDS + ENTER_DELIVERY_DELAY_SECONDS
+        dwell().dwellDurationSeconds shouldBeEqualTo DWELL_FIX_AFTER_ENTRY_FIX_SECONDS
     }
 
     @Test
@@ -289,7 +289,7 @@ class GeofenceLiveFixVisitTest : RobolectricTest() {
             pipeline.handle(crossing(GeofenceCrossingTransition.ENTER, GMS_TRANSITION_ENTER, entryFixElapsedMs))
             nowElapsedMs += DWELL_RECEIPT_GAP_SECONDS * MILLIS_PER_SECOND
             pipeline.handle(
-                crossing(GeofenceCrossingTransition.DWELL, GMS_TRANSITION_DWELL, entryFixElapsedMs + 60_000L)
+                crossing(GeofenceCrossingTransition.DWELL, GMS_TRANSITION_DWELL, entryFixElapsedMs + DWELL_FIX_AFTER_ENTRY_FIX_SECONDS * MILLIS_PER_SECOND)
             )
             return enteredAtSeconds
         }
@@ -354,6 +354,9 @@ class GeofenceLiveFixVisitTest : RobolectricTest() {
         const val ACCURATE_METERS = 10f
         const val DWELL_RECEIPT_GAP_SECONDS = 90L
         const val ENTER_DELIVERY_DELAY_SECONDS = 5L
+
+        /** GMS's DWELL fix comes 60 s after its ENTER fix; the stay ends there, not at the late receipt. */
+        const val DWELL_FIX_AFTER_ENTRY_FIX_SECONDS = 60L
 
         // Geofence.GEOFENCE_TRANSITION_ENTER and GEOFENCE_TRANSITION_DWELL.
         const val GMS_TRANSITION_ENTER = 1

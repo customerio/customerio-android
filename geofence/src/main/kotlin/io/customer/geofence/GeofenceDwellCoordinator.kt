@@ -279,7 +279,8 @@ internal class GeofenceDwellCoordinator(
             bootSessionId = bootSessionId,
             detectionSource = "native",
             nativeDwellProvesThreshold = true,
-            diagnosticToken = diagnosticToken
+            diagnosticToken = diagnosticToken,
+            evidenceAtElapsedMs = insideFix
         )
     }
 
@@ -782,10 +783,16 @@ internal class GeofenceDwellCoordinator(
             exitDecidedAtElapsedMs
         )
         val uncertaintySeconds = span?.let { observed ->
-            departureNoEarlierThanElapsedMs
-                // Rounded up: rounding down would put the true stay outside the reported bound.
-                ?.let { ((exitDecidedAtElapsedMs - it + MILLIS_PER_SECOND - 1) / MILLIS_PER_SECOND).coerceIn(0L, observed.durationSeconds) }
-                ?: observed.durationSeconds
+            departureNoEarlierThanElapsedMs?.let { departureNoEarlier ->
+                // Derived from the reported duration, so the whole-second rounding of the span's ends
+                // is covered too: duration minus uncertainty is never more than the shortest the stay
+                // can have been, from the entry fix to the last inside proof, on the boot clock.
+                val entryAt = visit.entryFixElapsedMs ?: visit.enteredAtElapsedMs
+                val shortestStaySeconds = entryAt?.let { (departureNoEarlier - it).coerceAtLeast(0L) / MILLIS_PER_SECOND }
+                val gapSeconds = (exitDecidedAtElapsedMs - departureNoEarlier + MILLIS_PER_SECOND - 1) / MILLIS_PER_SECOND
+                maxOf(gapSeconds, shortestStaySeconds?.let { observed.durationSeconds - it } ?: observed.durationSeconds)
+                    .coerceIn(0L, observed.durationSeconds)
+            } ?: observed.durationSeconds
         }
         return GeofenceTransitionEmitter.VisitContext.Exit(
             visitId = visit.visitId,
@@ -1011,7 +1018,8 @@ internal class GeofenceDwellCoordinator(
         bootSessionId: String,
         detectionSource: String,
         nativeDwellProvesThreshold: Boolean = false,
-        diagnosticToken: Long? = null
+        diagnosticToken: Long? = null,
+        evidenceAtElapsedMs: Long = observedAtElapsedMs
     ) {
         if (visit.emitted) return
         val reserved = if (visit.dwellReservation != null) {
@@ -1024,7 +1032,8 @@ internal class GeofenceDwellCoordinator(
                 observedAtElapsedMs,
                 bootSessionId,
                 detectionSource,
-                nativeDwellProvesThreshold
+                nativeDwellProvesThreshold,
+                evidenceAtElapsedMs
             ) ?: run {
                 // Native proof reserves unless its save fails, a storage outcome rather than a rejection.
                 if (!nativeDwellProvesThreshold) {
@@ -1125,7 +1134,13 @@ internal class GeofenceDwellCoordinator(
         observedAtElapsedMs: Long,
         bootSessionId: String,
         detectionSource: String,
-        nativeDwellProvesThreshold: Boolean
+        nativeDwellProvesThreshold: Boolean,
+        /**
+         * The fix the dwell rests on, which ends the reported duration; the event keeps
+         * [observedAtSeconds]. Earlier than the receipt for a native DWELL delivered late, which would
+         * otherwise count the delivery delay as time inside, as the EXIT's span does not.
+         */
+        evidenceAtElapsedMs: Long = observedAtElapsedMs
     ): GeofenceDwellVisit? {
         val thresholdSeconds = region.dwellThresholdSeconds
         val elapsedMs = GeofenceVisitTiming.elapsedMs(visit, bootSessionId, observedAtElapsedMs)
@@ -1136,9 +1151,9 @@ internal class GeofenceDwellCoordinator(
             return null
         }
         // Reported only for an observed entry whose wall stamps still agree with the boot clock.
-        // The entry is dated at its fix, as the EXIT dates it (see observedSpan): a delayed ENTER
-        // callback would otherwise shorten the stay. A duration still under the threshold is left
-        // absent rather than reported.
+        // The span runs fix to fix, as the EXIT's does (see observedSpan): from the entry's fix, so a
+        // delayed ENTER callback does not shorten it, to the evidence's fix, so a delayed DWELL callback
+        // does not lengthen it. A duration still under the threshold is left absent rather than reported.
         val reportsEntry = visit.entryWasObserved &&
             elapsedMs != null &&
             GeofenceVisitTiming.wallClockAgrees(visit.enteredAtSeconds, observedAtSeconds, elapsedMs)
@@ -1146,7 +1161,8 @@ internal class GeofenceDwellCoordinator(
             .takeIf { it.size == 2 }
             ?.let { (receipt, fix) -> ((receipt - fix) / MILLIS_PER_SECOND).coerceAtLeast(0L) }
             ?: 0L
-        val durationSeconds = elapsedMs?.let { it / MILLIS_PER_SECOND + entryDelaySeconds }
+        val evidenceDelaySeconds = (observedAtElapsedMs - evidenceAtElapsedMs).coerceAtLeast(0L) / MILLIS_PER_SECOND
+        val durationSeconds = elapsedMs?.let { it / MILLIS_PER_SECOND + entryDelaySeconds - evidenceDelaySeconds }
         val reserved = visit.copy(
             dwellReservation = GeofenceDwellReservation(
                 timestampSeconds = observedAtSeconds,

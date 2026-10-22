@@ -189,7 +189,8 @@ class GeofenceDwellCoordinatorTest {
             )
         }
         context.captured.thresholdSeconds shouldBeEqualTo 86_400
-        context.captured.durationSeconds shouldBeEqualTo 86_401L
+        // To the DWELL's fix, a second before its receipt.
+        context.captured.durationSeconds shouldBeEqualTo 86_400L
     }
 
     @Test
@@ -1209,9 +1210,9 @@ class GeofenceDwellCoordinatorTest {
             processor.process(any(), any(), any(), any(), any(), any(), any(), capture(context), any())
         }
         // The ENTER was received 80 s after the fix GMS decided it on, so the stay is dated from
-        // the fix: the entry moves back by the delay and the duration grows by it.
+        // the fix: the entry moves back by the delay. It runs to the DWELL's fix, not its receipt.
         context.captured.enteredAt shouldBeEqualTo 20L
-        context.captured.durationSeconds shouldBeEqualTo 150L
+        context.captured.durationSeconds shouldBeEqualTo 60L
     }
 
     @Test
@@ -1309,9 +1310,10 @@ class GeofenceDwellCoordinatorTest {
             processor.process(any(), any(), any(), any(), any(), any(), any(), capture(context), any())
         }
         context.captured.visitId shouldBeEqualTo restarted?.visitId
-        // Dated from the ENTER's fix, received 860 s after it in this fixture.
+        // Dated from the ENTER's fix, received 860 s after it in this fixture, to the DWELL's own fix:
+        // the late deliveries add nothing to the stay.
         context.captured.enteredAt shouldBeEqualTo 40L
-        context.captured.durationSeconds shouldBeEqualTo 920L
+        context.captured.durationSeconds shouldBeEqualTo 60L
     }
 
     @Test
@@ -1923,6 +1925,46 @@ class GeofenceDwellCoordinatorTest {
         val context = checkNotNull(exit.visitContext)
         context.durationSeconds shouldBeEqualTo 11L
         context.durationUncertaintySeconds shouldBeEqualTo 1L
+    }
+
+    @Test
+    fun circleExit_givenSubSecondEndpoints_expectDurationMinusUncertaintyNeverAboveTheShortestStay() = runTest {
+        // Entry fix 100.1 s (received 100.9), last inside proof 170 s, exit fix 170.9 s (received
+        // 172.1): duration 71 s, and the departure may have been at 170.01 s, a 69.91 s stay.
+        val region = circle().copy(transitionTypes = listOf(GeofenceTransitionType.EXIT), dwellThresholdSeconds = 0)
+        var visit: GeofenceDwellVisit? = null
+        every { store.getCachedRegion("circle") } returns region
+        every { store.getRegistrationIncarnation("circle") } returns
+            liveRegistration(region).copy(outsideProvenAtElapsedMs = REGISTERED_AT_MS)
+        every { store.userStateGeneration() } returns 7L
+        every { store.getDwellVisit("circle") } answers { visit }
+        every { store.saveDwellVisit(any()) } answers {
+            visit = firstArg()
+            true
+        }
+        val coordinator = GeofenceDwellCoordinator(store, processor, clock, bootSessionProvider = bootSessions)
+        coordinator.onEnter(
+            "circle",
+            enteredAtSeconds = 100L,
+            beginsNewVisit = true,
+            entryFixElapsedMs = 100_100L,
+            enteredAtElapsedMs = 100_900L
+        )
+        visit = visit?.copy(lastInsideFixElapsedMs = 170_000L)
+
+        val context = checkNotNull(
+            coordinator.onNativeExit(
+                geofenceId = "circle",
+                exitedAtSeconds = 172L,
+                triggeringFixElapsedMs = 170_900L,
+                exitedAtElapsedMs = 172_100L
+            ).visitContext
+        )
+
+        val duration = checkNotNull(context.durationSeconds)
+        val uncertainty = checkNotNull(context.durationUncertaintySeconds)
+        // The shortest stay is 69.9 s (100.1 to 170.0): the reported lower bound must not exceed it.
+        (duration - uncertainty <= 69L) shouldBeEqualTo true
     }
 
     @Test

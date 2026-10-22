@@ -553,7 +553,14 @@ internal class GeofenceRepositoryImpl(
             val netNewIds = additions - registeredBusinessIds
             val projectedPeak = registeredBusinessIds.size + 1 + netNewIds.size
             val preRemovalCount = (projectedPeak - MAX_GMS_GEOFENCES).coerceAtLeast(0)
-            val preRemove = stale.take(preRemovalCount)
+            // A circle whose dwell registration changed goes too: re-added in place while the device is
+            // inside, GMS fires DWELL within seconds whatever the new loitering delay (probed on GMS
+            // 26.37), which the coordinator must refuse, leaving the stay with none. Removed first, GMS
+            // loiters afresh from the add.
+            val changedDwellCircles = regions.filter {
+                !it.isPolygon && it.dwellThresholdSeconds > 0 && it.id in additions && it.id in registeredBusinessIds
+            }.map(GeofenceRegion::id)
+            val preRemove = (stale.take(preRemovalCount) + changedDwellCircles).distinct()
             if (preRemove.isNotEmpty()) {
                 val removal = manager.removeGeofencesByIds(preRemove)
                 if (removal.isFailure) return removal

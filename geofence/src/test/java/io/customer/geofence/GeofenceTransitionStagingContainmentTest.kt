@@ -754,7 +754,8 @@ class GeofenceTransitionStagingContainmentTest : RobolectricTest() {
         dwells.map { it.geosetId } shouldBeEqualTo listOf("geoset-a", "geoset-b", "geoset-a", "geoset-b")
         dwells.map { it.transitionId }.toSet() shouldBeEqualTo setOf(visit.visitId)
         dwells.map { listOf(it.timestamp, it.enteredAt, it.dwellDurationSeconds) }.toSet() shouldBeEqualTo
-            setOf(listOf(1_065L, 1_000L, 65L))
+            // From the entry's fix at 1 s to the DWELL's fix at 61 s.
+            setOf(listOf(1_065L, 1_000L, 60L))
         outbox.loadAll().filter { it.transition == Event.GeofenceTransition.DWELL }
             .map { it.timestamp to it.geosetId } shouldBeEqualTo listOf(1_065L to "geoset-a", 1_065L to "geoset-b")
     }

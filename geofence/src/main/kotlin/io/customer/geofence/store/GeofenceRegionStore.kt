@@ -1030,7 +1030,9 @@ internal class GeofenceRegionStoreImpl(
             .filterValues { (it.outsideProvenAtElapsedMs ?: Long.MIN_VALUE) < provenAtElapsedMs }
             .mapValues { (_, incarnation) -> incarnation.copy(outsideProvenAtElapsedMs = provenAtElapsedMs) }
         if (raised.isEmpty()) return@synchronized
-        writeJson(KEY_REGISTRATION_INCARNATIONS, INCARNATIONS_SERIALIZER, (incarnations + raised).values.toList())
+        // Synchronously: departure evidence lost with the process would let a quick return qualify the
+        // old visit's DWELL, or time away into its EXIT span.
+        writeJsonNow(KEY_REGISTRATION_INCARNATIONS, INCARNATIONS_SERIALIZER, (incarnations + raised).values.toList())
     }
 
     override fun recordNativeExitFix(
@@ -1049,7 +1051,8 @@ internal class GeofenceRegionStoreImpl(
             outsideProvenAtElapsedMs = maxOf(current.outsideProvenAtElapsedMs ?: Long.MIN_VALUE, exitFixElapsedMs)
         )
         val updated = incarnations + (geofenceId to exited)
-        writeJson(KEY_REGISTRATION_INCARNATIONS, INCARNATIONS_SERIALIZER, updated.values.toList())
+        // Synchronously, as for raiseOutsideProof: it is departure evidence.
+        writeJsonNow(KEY_REGISTRATION_INCARNATIONS, INCARNATIONS_SERIALIZER, updated.values.toList())
     }
 
     override fun recordNativeEnterFix(
@@ -1354,6 +1357,11 @@ internal class GeofenceRegionStoreImpl(
 
     private fun <T> writeJson(key: String, serializer: KSerializer<T>, value: T) {
         prefs.edit { putString(key, jsonSerializer.encode(serializer, value)) }
+    }
+
+    /** As [writeJson], on disk before it returns, for state a process death must not lose. */
+    private fun <T> writeJsonNow(key: String, serializer: KSerializer<T>, value: T) {
+        prefs.edit().putString(key, jsonSerializer.encode(serializer, value)).commit()
     }
 
     /**

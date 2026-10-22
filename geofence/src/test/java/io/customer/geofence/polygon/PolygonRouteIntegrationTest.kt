@@ -193,6 +193,40 @@ class PolygonRouteIntegrationTest {
     }
 
     @Test
+    fun process_givenADwellOnlyAnswerEchoingAHeldArrivalsExactFix_expectNoEnter() {
+        // The approach batch marks its dwell-proof answer as answering the held fix, so an echo is
+        // memoised. That mark alone must not let the very fix the hold rests on settle it.
+        val processor = PolygonRouteProcessor()
+        val marginal = PolygonLocationSample(point(37.77452, -122.4194), 30.0)
+        processor.process(
+            fences = listOf(campus),
+            sample = marginal,
+            elapsedRealtimeNanos = 1L,
+            fixAgeSeconds = 0.0,
+            committedStates = emptyMap()
+        ).detections.shouldBeEmpty()
+
+        processor.process(
+            fences = listOf(campus),
+            sample = marginal,
+            elapsedRealtimeNanos = 1L,
+            fixAgeSeconds = 0.0,
+            committedStates = emptyMap(),
+            answersHeldFixAt = 1L,
+            settlesHeldArrivals = false
+        ).detections.shouldBeEmpty()
+
+        // The hold is kept for its own corroboration, which an independent fix still commits.
+        processor.process(
+            fences = listOf(campus),
+            sample = marginal.resampled(),
+            elapsedRealtimeNanos = 1L + FIFTEEN_SECONDS_NANOS,
+            fixAgeSeconds = 0.0,
+            committedStates = emptyMap()
+        ).detections.map(PolygonTransitionDetection::transition) shouldBeEqualTo listOf(PolygonTransition.ENTER)
+    }
+
+    @Test
     fun process_givenADwellOnlyAnswerThatDecidesAlone_expectTheNeighboursEnterStillCommitted() {
         val processor = PolygonRouteProcessor()
         processor.process(

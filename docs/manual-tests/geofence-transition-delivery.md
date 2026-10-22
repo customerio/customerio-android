@@ -37,10 +37,13 @@ the first decisive outside fix for a polygon, GMS's own fix for a circle, and GM
 samples location sparsely, minutes apart when the device is still. The EXIT still
 reports `visitDurationSeconds` as exit minus entry, and adds
 `visitDurationUncertaintySeconds`: how long before that fix the device was last known
-inside (its entry fix, a native DWELL's fix or a decisive polygon fix). The true stay
-lies between the duration minus the uncertainty and the duration. Both are whole
+inside (its entry fix, a native DWELL's fix or a decisive polygon fix). Measured from
+the entry fix, the stay lasted between the duration minus the uncertainty and the
+duration. The uncertainty covers the exit side only, as the public docs define it: an
+arrival is also noticed late, by the entry fix, so the true stay can exceed the
+duration by the time the device was inside before that fix. Both values are whole
 seconds measured fix to fix on the boot clock: the duration is rounded up and the
-uncertainty widened to match, so neither end of the stay falls outside that range.
+uncertainty widened to match.
 A DWELL's `dwellDurationSeconds` is rounded up the same way. The `visitId` is
 sent on every EXIT attributed to a visit, timed or not.
 

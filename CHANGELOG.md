@@ -1,3 +1,9 @@
+## [4.25.2](https://github.com/customerio/customerio-android/compare/4.25.1...4.25.2) (2026-10-22)
+
+### Bug Fixes
+
+* **in-app:** keep inline message taps working after host Fragment view is recreated ([#933](https://github.com/customerio/customerio-android/issues/933)) ([91125ee](https://github.com/customerio/customerio-android/commit/91125ee0c2ec834563061ffdda7149dfac5134fb))
+
 ## [4.25.1](https://github.com/customerio/customerio-android/compare/4.25.0...4.25.1) (2026-10-22)
 
 ### Bug Fixes

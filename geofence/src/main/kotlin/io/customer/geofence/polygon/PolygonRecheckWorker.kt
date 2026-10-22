@@ -22,6 +22,7 @@ import io.customer.geofence.di.polygonFreshFixSource
 import io.customer.geofence.di.polygonGeofenceServiceController
 import io.customer.geofence.di.polygonRecheckScheduler
 import io.customer.geofence.distanceTo
+import io.customer.geofence.restoreAfterOsWipe
 import io.customer.geofence.store.GeofenceRegionStore
 import io.customer.geofence.store.osRegistrationsWiped
 import io.customer.sdk.core.di.SDKComponent
@@ -124,12 +125,10 @@ internal class PolygonRecheckWorker(
         )
         if (registrationsWiped()) {
             logger.logPolygonRecheckSkipped(PolygonRecheckSkip.REGISTRATIONS_WIPED)
-            // Retires itself, as every run would skip until the registration pass that ends the gap,
-            // which schedules it again. Re-read after the cancel, as for an empty catalog above, so a
-            // pass landing meanwhile keeps its schedule.
-            val scheduler = SDKComponent.android().polygonRecheckScheduler
-            scheduler.cancel()
-            if (!registrationsWiped()) scheduler.schedule()
+            // A reboot or app update dropped the registrations, and no launch may come to restore them
+            // for days. Restored here as a boot does: visits that cannot span the gap end, and the
+            // re-added fences report ENTER for any the device is inside, so ENTER and EXIT resume.
+            restoreAfterOsWipe(REASON_WIPE_RESTORE)
             return Result.success()
         }
         // A safety net for dwell checks: one whose own enqueue failed, with nothing else to re-plan it,
@@ -215,5 +214,7 @@ internal class PolygonRecheckWorker(
     private companion object {
         /** Longer than the callback path's budget: this runs in a job, not inside a broadcast. */
         const val RECHECK_FIX_TIMEOUT_MS = 20_000L
+
+        const val REASON_WIPE_RESTORE = "recheck-wipe-restore"
     }
 }

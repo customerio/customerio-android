@@ -49,21 +49,26 @@ class GeofenceBootReceiver : BroadcastReceiver() {
     }
 
     @VisibleForTesting
-    internal suspend fun restore() {
-        val android = SDKComponent.android()
-        // Reboot destroys the GMS monitoring session. A persisted entry can no longer prove
-        // continuous presence across that gap, even when registration is restored successfully.
-        android.geofenceRegionStore.clearDwellVisits()
-        if (!android.geofencePermissionChecker.hasRequiredLocationPermissions()) {
-            SDKComponent.geofenceLogger.logSyncSkippedNoPermission(REASON_BOOT_RESTORE)
-            return
-        }
-        android.polygonGeofenceServiceController.beginUserSessionForCurrentUser()
-        @SuppressLint("MissingPermission")
-        android.geofenceRepository.restoreFromCache()
-    }
+    internal suspend fun restore() = restoreAfterOsWipe(REASON_BOOT_RESTORE)
 
     internal companion object {
         private const val REASON_BOOT_RESTORE = "boot-restore"
     }
+}
+
+/**
+ * Re-registers cached geofences after a reboot or app update dropped every OS registration. The gap
+ * destroyed the GMS monitoring session, so a persisted entry can no longer prove continuous presence
+ * across it, even when registration is restored successfully.
+ */
+internal suspend fun restoreAfterOsWipe(reason: String) {
+    val android = SDKComponent.android()
+    android.geofenceRegionStore.clearDwellVisits()
+    if (!android.geofencePermissionChecker.hasRequiredLocationPermissions()) {
+        SDKComponent.geofenceLogger.logSyncSkippedNoPermission(reason)
+        return
+    }
+    android.polygonGeofenceServiceController.beginUserSessionForCurrentUser()
+    @SuppressLint("MissingPermission")
+    android.geofenceRepository.restoreFromCache()
 }

@@ -16,6 +16,7 @@ import io.customer.commontest.config.TestConfig
 import io.customer.commontest.config.testConfigurationDefault
 import io.customer.commontest.core.RobolectricTest
 import io.customer.geofence.GeofenceRegion
+import io.customer.geofence.GeofenceRepository
 import io.customer.geofence.store.GeofenceRegionStore
 import io.customer.sdk.core.util.CustomerIOWorkManagerProvider
 import io.customer.sdk.data.store.SecureUserStore
@@ -46,6 +47,7 @@ class PolygonRecheckTest : RobolectricTest() {
     private val mockFreshFix: PolygonFreshFixSource = mockk(relaxed = true)
     private val mockRecheckScheduler: PolygonRecheckScheduler = mockk(relaxed = true)
     private val mockDwellCheckScheduler: PolygonDwellCheckScheduler = mockk(relaxed = true)
+    private val mockRepository: GeofenceRepository = mockk(relaxed = true)
 
     override fun setup(testConfig: TestConfig) {
         super.setup(
@@ -60,6 +62,7 @@ class PolygonRecheckTest : RobolectricTest() {
                         overrideDependency<PolygonRecheckScheduler>(mockRecheckScheduler)
                         overrideDependency<PolygonBootSessionProvider>(PolygonBootSessionProvider { BOOT })
                         overrideDependency<PolygonDwellCheckScheduler>(mockDwellCheckScheduler)
+                        overrideDependency<GeofenceRepository>(mockRepository)
                     }
                 }
             }
@@ -185,9 +188,9 @@ class PolygonRecheckTest : RobolectricTest() {
     }
 
     @Test
-    fun worker_givenRegistrationsFromAnEarlierBoot_expectNoFixAndNoActivation() = runTest {
-        // Rebooted before the sync re-registered: a fix now could qualify a dwell for a visit the
-        // monitoring gap already broke.
+    fun worker_givenRegistrationsFromAnEarlierBoot_expectThemRestoredWithoutAFix() = runTest {
+        // Rebooted or updated with no launch since: nothing else may re-register for days, so the
+        // run restores them as a boot does instead of waiting.
         every { mockStore.getLastRegistrationBootSession() } returns "an-earlier-boot"
         every { mockStore.getRoutableRegisteredIds() } returns setOf(VENUE_ID)
         every { mockStore.getCachedRegions() } returns listOf(venueRegion())
@@ -197,27 +200,17 @@ class PolygonRecheckTest : RobolectricTest() {
             .doWork()
 
         result shouldBeEqualTo ListenableWorker.Result.success()
+        // The gap broke every visit, so none may qualify a dwell across it.
+        verifyOrder {
+            mockStore.clearDwellVisits()
+            mockController.beginUserSessionForCurrentUser()
+        }
+        coVerify { mockRepository.restoreFromCache() }
+        // A fix now could qualify a dwell for a visit the gap broke.
         coVerify(exactly = 0) { mockFreshFix.awaitFreshFix(any(), any()) }
         coVerify(exactly = 0) { mockController.activate(any(), any(), any(), any(), any(), any()) }
-        // Every run would skip until the registration pass, which schedules it again: no idle wakes.
-        verify { mockRecheckScheduler.cancel() }
-        verify(exactly = 0) { mockRecheckScheduler.schedule() }
-    }
-
-    @Test
-    fun worker_givenTheRegistrationPassLandsDuringItsRetirement_expectItsScheduleKept() = runTest {
-        // Wiped when read first; restored by the time the run re-reads after cancelling.
-        every { mockStore.getLastRegistrationBootSession() } returnsMany listOf("an-earlier-boot", BOOT)
-        every { mockStore.getRoutableRegisteredIds() } returns setOf(VENUE_ID)
-        every { mockStore.getCachedRegions() } returns listOf(venueRegion())
-
-        TestListenableWorkerBuilder<PolygonRecheckWorker>(applicationMock).build().doWork()
-
-        verifyOrder {
-            mockRecheckScheduler.cancel()
-            mockRecheckScheduler.schedule()
-        }
-        coVerify(exactly = 0) { mockFreshFix.awaitFreshFix(any(), any()) }
+        // Kept: a restore that fails is retried on the next run.
+        verify(exactly = 0) { mockRecheckScheduler.cancel() }
     }
 
     @Test

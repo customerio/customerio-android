@@ -38,7 +38,10 @@ samples location sparsely, minutes apart when the device is still. The EXIT stil
 reports `visitDurationSeconds` as exit minus entry, and adds
 `visitDurationUncertaintySeconds`: how long before that fix the device was last known
 inside (its entry fix, a native DWELL's fix or a decisive polygon fix). The true stay
-lies between the duration minus the uncertainty and the duration. The `visitId` is
+lies between the duration minus the uncertainty and the duration. Both are whole
+seconds measured fix to fix on the boot clock: the duration is rounded up and the
+uncertainty widened to match, so neither end of the stay falls outside that range.
+A DWELL's `dwellDurationSeconds` is rounded up the same way. The `visitId` is
 sent on every EXIT attributed to a visit, timed or not.
 
 A circle's DWELL comes from GMS loitering for the fence's dwell threshold. GMS fires

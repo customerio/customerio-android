@@ -1504,7 +1504,8 @@ class GeofenceDwellCoordinatorTest {
         )
 
         context.captured.enteredAt shouldBeEqualTo WALL_ENTRY_SECONDS
-        context.captured.durationSeconds shouldBeEqualTo 600L
+        // 600.4 s on the boot clock, rounded up so the stay never exceeds the reported duration.
+        context.captured.durationSeconds shouldBeEqualTo 601L
     }
 
     @Test
@@ -1965,6 +1966,33 @@ class GeofenceDwellCoordinatorTest {
         val uncertainty = checkNotNull(context.durationUncertaintySeconds)
         // The shortest stay is 69.9 s (100.1 to 170.0): the reported lower bound must not exceed it.
         (duration - uncertainty <= 69L) shouldBeEqualTo true
+    }
+
+    @Test
+    fun polygonExit_givenFractionalSeconds_expectTheTrueStayInsideDurationMinusUncertaintyToDuration() = runTest {
+        // Entry 1000.1 s, last inside proof 1020.0 s, exit fix 1020.9 s: the stay lasted between
+        // 19.9 s and 20.8 s, so the reported [duration - uncertainty, duration] must hold both ends.
+        val region = polygon()
+        statefulVisitStore(region)
+        coEvery { processor.process(any(), any(), any(), any(), any(), any(), any(), any()) } returns
+            GeofenceTransitionEmitter.Result.PERSISTED
+        val coordinator = GeofenceDwellCoordinator(store, processor, clock, bootSessionProvider = bootSessions)
+        coordinator.onEnter(
+            "polygon",
+            enteredAtSeconds = WALL_ENTRY_SECONDS,
+            beginsNewVisit = true,
+            polygonOutsideObserved = true,
+            enteredAtElapsedMs = 1_000_100L
+        )
+        coordinator.onInsideEvidence("polygon", observedAtSeconds = WALL_ENTRY_SECONDS + 19L, observedAtElapsedMs = 1_020_000L)
+
+        val context = checkNotNull(
+            coordinator.capturePolygonExit("polygon", exitedAtSeconds = WALL_ENTRY_SECONDS + 20L, exitFixElapsedMs = 1_020_900L)
+                .visitContext
+        )
+
+        context.durationSeconds shouldBeEqualTo 21L
+        context.durationUncertaintySeconds shouldBeEqualTo 2L
     }
 
     @Test
@@ -2632,13 +2660,13 @@ class GeofenceDwellCoordinatorTest {
     }
 
     @Test
-    fun nativeExit_reportsTheWallClockSpanOnlyWhileItAgreesWithTheBootClock() = runTest {
-        // 75 s on the boot clock. Whole-second stamps and the two clock reads allow 2 s of
-        // difference; anything more is a clock step.
+    fun nativeExit_reportsTheBootClockSpanOnlyWhileTheWallClockAgrees() = runTest {
+        // 75 s on the boot clock, which is what is reported. Whole-second stamps and the two clock
+        // reads allow 2 s of difference; anything more is a clock step, and no span is reported.
         nativeExitDurationForWallSpan(75L) shouldBeEqualTo 75L
-        nativeExitDurationForWallSpan(77L) shouldBeEqualTo 77L
+        nativeExitDurationForWallSpan(77L) shouldBeEqualTo 75L
         nativeExitDurationForWallSpan(78L).shouldBeNull()
-        nativeExitDurationForWallSpan(73L) shouldBeEqualTo 73L
+        nativeExitDurationForWallSpan(73L) shouldBeEqualTo 75L
         nativeExitDurationForWallSpan(72L).shouldBeNull()
     }
 

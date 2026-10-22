@@ -868,6 +868,9 @@ internal class GeofenceDwellCoordinator(
         }
     }
 
+    /** Whole seconds, rounded up; negative spans read as zero. */
+    private fun ceilSeconds(spanMs: Long): Long = (spanMs.coerceAtLeast(0L) + MILLIS_PER_SECOND - 1) / MILLIS_PER_SECOND
+
     /** On the wall clock, the only one a reservation from an earlier boot can be compared on. */
     private fun isTooOldToDeliver(reservation: GeofenceDwellReservation): Boolean =
         clock.currentTimeSeconds() - reservation.timestampSeconds > MAX_RESERVATION_AGE_SECONDS
@@ -908,10 +911,10 @@ internal class GeofenceDwellCoordinator(
             return null
         }
         val entryDelaySeconds = ((enteredAtElapsedMs - entryDecidedAtElapsedMs) / MILLIS_PER_SECOND).coerceAtLeast(0L)
-        val exitDelaySeconds = ((exitedAtElapsedMs - exitDecidedAtElapsedMs) / MILLIS_PER_SECOND).coerceAtLeast(0L)
         return ObservedSpan(
             enteredAtSeconds = visit.enteredAtSeconds - entryDelaySeconds,
-            durationSeconds = (receiptSpanSeconds + entryDelaySeconds - exitDelaySeconds).coerceAtLeast(0L)
+            // Fix to fix on the boot clock, rounded up: the true stay never exceeds the reported duration.
+            durationSeconds = ceilSeconds(exitDecidedAtElapsedMs - entryDecidedAtElapsedMs)
         )
     }
 
@@ -1163,8 +1166,11 @@ internal class GeofenceDwellCoordinator(
             .takeIf { it.size == 2 }
             ?.let { (receipt, fix) -> ((receipt - fix) / MILLIS_PER_SECOND).coerceAtLeast(0L) }
             ?: 0L
-        val evidenceDelaySeconds = (observedAtElapsedMs - evidenceAtElapsedMs).coerceAtLeast(0L) / MILLIS_PER_SECOND
-        val durationSeconds = elapsedMs?.let { it / MILLIS_PER_SECOND + entryDelaySeconds - evidenceDelaySeconds }
+        // Fix to fix on the boot clock, rounded up as an EXIT's is.
+        val entryDecidedAtElapsedMs = visit.entryFixElapsedMs ?: visit.enteredAtElapsedMs
+        val durationSeconds = entryDecidedAtElapsedMs
+            ?.takeIf { elapsedMs != null }
+            ?.let { ceilSeconds(evidenceAtElapsedMs - it) }
         val reserved = visit.copy(
             dwellReservation = GeofenceDwellReservation(
                 timestampSeconds = observedAtSeconds,

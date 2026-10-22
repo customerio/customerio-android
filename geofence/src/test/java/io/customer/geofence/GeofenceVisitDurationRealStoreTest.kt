@@ -100,7 +100,7 @@ class GeofenceVisitDurationRealStoreTest : RobolectricTest() {
     }
 
     @Test
-    fun exit_givenDistinctFixesWithinOneReportedSecond_expectNumericZeroDuration() = runTest {
+    fun exit_givenDistinctFixesWithinOneReportedSecond_expectTheSpanRoundedUpToASecond() = runTest {
         arm(exitOnlyRegion(), outsideProven = true)
         val pipeline = pipeline()
 
@@ -108,7 +108,8 @@ class GeofenceVisitDurationRealStoreTest : RobolectricTest() {
         pipeline.handle(crossing(GeofenceCrossingTransition.EXIT, fixMs = 1_400L))
 
         wallSecondsAt(1_000L) shouldBeEqualTo wallSecondsAt(1_400L)
-        outbox.loadAll().single().toEventProperties()["visitDurationSeconds"] shouldBeEqualTo 0L
+        // 0.4 s between the fixes, rounded up so the stay never exceeds the reported duration.
+        outbox.loadAll().single().toEventProperties()["visitDurationSeconds"] shouldBeEqualTo 1L
     }
 
     @Test

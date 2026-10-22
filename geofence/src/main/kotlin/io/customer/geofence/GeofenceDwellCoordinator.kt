@@ -804,6 +804,18 @@ internal class GeofenceDwellCoordinator(
                 reservation.detectionSource
             )
         }
+        // Visits a replacement or removal dropped while they still owed their dwell. The stay is
+        // over, so the only checks are the processor's own: the fence's current revision and the
+        // user generation. One that fails them can never be delivered and is forgotten.
+        store.getOrphanedDwellReservations().forEach { orphan ->
+            val region = store.getCachedRegion(orphan.geofenceId)
+            val deliverable = region != null &&
+                orphan.regionRevision == region.transitionRevision() &&
+                orphan.userStateGeneration == store.userStateGeneration()
+            if (!deliverable || processReservation(region, orphan)) {
+                store.removeOrphanedDwellReservation(orphan.visitId)
+            }
+        }
     }
 
     /** The entry time and duration an EXIT reports, dated at the fixes the transitions were decided on. */
@@ -976,7 +988,32 @@ internal class GeofenceDwellCoordinator(
                 return
             }
         }
-        val reservation = reserved.dwellReservation ?: return
+        if (reserved.dwellReservation == null) return
+        if (processReservation(region, reserved)) {
+            store.saveDwellVisit(reserved.copy(emitted = true))
+            // A durable on-device fact from here: the outbox persisted this DWELL, or the processor staged it
+            // for recovery. Backend delivery is not implied, and whether the mark above saved changes neither
+            // fact; an unmarked reservation processed again is journaled again.
+            recordDwellOutcome(
+                diagnosticToken,
+                reserved.userStateGeneration,
+                DwellDiagnosticEvent.DWELL_EMITTED,
+                region.id,
+                // Native proof can start a recovered visit at the proof itself, so no due time follows from it.
+                dueElapsedMs = dueElapsedMs(region, reserved, bootSessionId, observedAtElapsedMs)
+                    ?.takeUnless { nativeDwellProvesThreshold }
+            )
+        }
+    }
+
+    /**
+     * Hands [reserved]'s reservation to the processor and reports whether the DWELL is now a durable
+     * on-device fact: the outbox persisted it, or the processor staged it for recovery. Backend
+     * delivery is not implied. The reservation is resent unchanged on every call, so a retry after a
+     * partial emission stays idempotent downstream.
+     */
+    private suspend fun processReservation(region: GeofenceRegion, reserved: GeofenceDwellVisit): Boolean {
+        val reservation = reserved.dwellReservation ?: return false
         val result = transitionProcessor.process(
             geofenceId = region.id,
             transition = Event.GeofenceTransition.DWELL,
@@ -996,21 +1033,7 @@ internal class GeofenceDwellCoordinator(
         val staged = store.getAllPendingTransitionEntries().any {
             it.geofenceId == region.id && it.transition == Event.GeofenceTransition.DWELL && it.visitId == reserved.visitId
         }
-        if (result == GeofenceTransitionEmitter.Result.PERSISTED || staged) {
-            store.saveDwellVisit(reserved.copy(emitted = true))
-            // A durable on-device fact from here: the outbox persisted this DWELL, or the processor staged it
-            // for recovery. Backend delivery is not implied, and whether the mark above saved changes neither
-            // fact; an unmarked reservation processed again is journaled again.
-            recordDwellOutcome(
-                diagnosticToken,
-                reserved.userStateGeneration,
-                DwellDiagnosticEvent.DWELL_EMITTED,
-                region.id,
-                // Native proof can start a recovered visit at the proof itself, so no due time follows from it.
-                dueElapsedMs = dueElapsedMs(region, reserved, bootSessionId, observedAtElapsedMs)
-                    ?.takeUnless { nativeDwellProvesThreshold }
-            )
-        }
+        return result == GeofenceTransitionEmitter.Result.PERSISTED || staged
     }
 
     /**

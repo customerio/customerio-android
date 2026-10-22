@@ -14,6 +14,7 @@ import io.mockk.mockk
 import io.mockk.slot
 import io.mockk.verify
 import kotlinx.coroutines.test.runTest
+import org.amshove.kluent.shouldBeEmpty
 import org.amshove.kluent.shouldBeEqualTo
 import org.amshove.kluent.shouldBeNull
 import org.junit.Test
@@ -1912,6 +1913,51 @@ class GeofenceDwellCoordinatorTest {
             processor.process("circle", Event.GeofenceTransition.DWELL, 160L, any(), any(), any(), any(), any())
         }
         visit()?.emitted shouldBeEqualTo true
+    }
+
+    @Test
+    fun launchRecovery_deliversAnOrphanedReservationAndForgetsAnUndeliverableOne() = runTest {
+        // A replacement dropped the first visit while the outbox still refused its dwell; the
+        // second belongs to a catalog revision that has since changed and can never be delivered.
+        val region = circle()
+        fun orphan(id: String, revision: Int) = GeofenceDwellVisit(
+            geofenceId = "circle",
+            visitId = id,
+            enteredAtSeconds = 100L,
+            regionRevision = revision,
+            userStateGeneration = 7L,
+            registrationElapsedMs = REGISTERED_AT_MS,
+            bootSessionId = "boot-a",
+            enteredAtElapsedMs = FRESH_FIX_MS,
+            dwellReservation = GeofenceDwellReservation(
+                timestampSeconds = 160L,
+                enteredAt = null,
+                thresholdSeconds = 60,
+                durationSeconds = null,
+                detectionSource = "native"
+            )
+        )
+        var orphans = listOf(orphan("dropped", region.transitionRevision()), orphan("stale", region.transitionRevision() + 1))
+        every { store.getCachedRegion("circle") } returns region
+        every { store.userStateGeneration() } returns 7L
+        every { store.getDwellVisits() } returns emptyList()
+        every { store.getOrphanedDwellReservations() } answers { orphans }
+        every { store.removeOrphanedDwellReservation(any()) } answers {
+            val id = firstArg<String>()
+            orphans = orphans.filterNot { it.visitId == id }
+        }
+        every { store.getAllPendingTransitionEntries() } returns emptyList()
+        val contexts = mutableListOf<GeofenceTransitionEmitter.VisitContext.Dwell>()
+        coEvery { processor.process(any(), any(), any(), any(), any(), any(), any(), capture(contexts)) } returns
+            GeofenceTransitionEmitter.Result.PERSISTED
+        val coordinator = GeofenceDwellCoordinator(store, processor, clock, bootSessionProvider = bootSessions)
+
+        coordinator.recoverPendingReservations()
+
+        contexts.map { it.visitId } shouldBeEqualTo listOf("dropped")
+        orphans.shouldBeEmpty()
+        // The live visit of the fence is never touched by an orphan's delivery.
+        verify(exactly = 0) { store.saveDwellVisit(any()) }
     }
 
     @Test

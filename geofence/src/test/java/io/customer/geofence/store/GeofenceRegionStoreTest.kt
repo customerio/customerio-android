@@ -313,6 +313,50 @@ class GeofenceRegionStoreTest : RobolectricTest() {
     }
 
     @Test
+    fun saveDwellVisit_givenReplacedVisitStillOwingItsDwell_expectItKeptAsAnOrphan() {
+        val region = GeofenceRegion(
+            id = "biz-1",
+            latitude = 1.0,
+            longitude = 2.0,
+            radius = 100f,
+            dwellThresholdSeconds = 60
+        )
+        store.saveCachedRegions(listOf(region))
+        store.recordRegistrationIncarnations(listOf(region), registeredAtElapsedMs = 10L, bootSessionId = "boot")
+        store.saveRoutableRegisteredIds(setOf(region.id))
+        val generation = store.userStateGeneration()
+        val reservation = GeofenceDwellReservation(
+            timestampSeconds = 160L,
+            enteredAt = null,
+            thresholdSeconds = 60,
+            durationSeconds = null,
+            detectionSource = "native"
+        )
+        val owing = GeofenceDwellVisit(
+            geofenceId = "biz-1",
+            visitId = "owing",
+            enteredAtSeconds = 100L,
+            regionRevision = region.transitionRevision(),
+            userStateGeneration = generation,
+            registrationElapsedMs = 10L,
+            dwellReservation = reservation
+        )
+        store.saveDwellVisit(owing).shouldBeTrue()
+
+        // Replaced by a newer stay while its dwell was never staged: kept aside, not lost.
+        store.saveDwellVisit(owing.copy(visitId = "newer", enteredAtSeconds = 200L, dwellReservation = null)).shouldBeTrue()
+        store.getOrphanedDwellReservations().map { it.visitId } shouldBeEqualTo listOf("owing")
+
+        // An emitted visit dropped the same way owes nothing.
+        store.saveDwellVisit(owing.copy(visitId = "newer", enteredAtSeconds = 200L, emitted = true)).shouldBeTrue()
+        store.removeDwellVisit("biz-1")
+        store.getOrphanedDwellReservations().map { it.visitId } shouldBeEqualTo listOf("owing")
+
+        store.removeOrphanedDwellReservation("owing")
+        store.getOrphanedDwellReservations().shouldBeEmpty()
+    }
+
+    @Test
     fun commitBusinessTransition_givenStagedEnterThatMarksReported_expectContainmentAndMarkCommittedTogether() {
         val generation = store.userStateGeneration()
         val staged = PendingGeofenceDelivery(

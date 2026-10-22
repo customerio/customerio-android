@@ -98,6 +98,14 @@ internal interface GeofenceRegionStore {
     fun getDwellVisits(): List<GeofenceDwellVisit>
 
     /**
+     * Visits dropped from storage while still holding a dwell reservation the outbox had not taken:
+     * replaced by a newer stay, or removed by a routing change or invalidation. Kept apart, bounded,
+     * for the same sweep; the fence's live visit is never one of them.
+     */
+    fun getOrphanedDwellReservations(): List<GeofenceDwellVisit>
+    fun removeOrphanedDwellReservation(visitId: String)
+
+    /**
      * Refuses a visit for a fence routing no longer covers, and any write of a visit that has already
      * ended, so an in-flight update cannot restore a visit across a removal or gap.
      */
@@ -826,6 +834,29 @@ internal class GeofenceRegionStoreImpl(
 
     override fun getDwellVisits(): List<GeofenceDwellVisit> = synchronized(enteredLock) { readDwellVisits() }
 
+    override fun getOrphanedDwellReservations(): List<GeofenceDwellVisit> = synchronized(enteredLock) {
+        readOrphanedDwellReservations()
+    }
+
+    override fun removeOrphanedDwellReservation(visitId: String) = synchronized(enteredLock) {
+        val retained = readOrphanedDwellReservations().filterNot { it.visitId == visitId }
+        prefs.edit { putOrphanedDwellReservationsLocked(retained) }
+    }
+
+    private fun readOrphanedDwellReservations(): List<GeofenceDwellVisit> =
+        readJson(KEY_ORPHANED_DWELL_RESERVATIONS, DWELL_VISITS_SERIALIZER) ?: emptyList()
+
+    private fun SharedPreferences.Editor.putOrphanedDwellReservationsLocked(
+        orphans: List<GeofenceDwellVisit>
+    ): SharedPreferences.Editor {
+        if (orphans.isEmpty()) {
+            remove(KEY_ORPHANED_DWELL_RESERVATIONS)
+        } else {
+            putString(KEY_ORPHANED_DWELL_RESERVATIONS, jsonSerializer.encode(DWELL_VISITS_SERIALIZER, orphans))
+        }
+        return this
+    }
+
     override fun saveDwellVisit(visit: GeofenceDwellVisit): Boolean = synchronized(enteredLock) {
         if (visit.userStateGeneration != currentUserStateGenerationLocked()) return@synchronized false
         val region = getCachedRegion(visit.geofenceId) ?: return@synchronized false
@@ -962,16 +993,28 @@ internal class GeofenceRegionStoreImpl(
     private fun readEndedDwellVisitIds(): List<String> =
         readJson(KEY_ENDED_DWELL_VISIT_IDS, ID_LIST_SERIALIZER) ?: emptyList()
 
-    /** Writes [visits] in this edit and records every visit it drops as ended. */
+    /**
+     * Writes [visits] in this edit and records every visit it drops as ended. A dropped visit still
+     * owing its dwell (reserved, not emitted) is kept aside for the launch sweep, whatever dropped it:
+     * the reservation is a fact about a stay that happened, and nothing else would retry it.
+     */
     private fun SharedPreferences.Editor.putDwellVisitsLocked(
         visits: List<GeofenceDwellVisit>
     ): SharedPreferences.Editor {
         val kept = visits.mapTo(mutableSetOf(), GeofenceDwellVisit::visitId)
-        val ended = readDwellVisits().map(GeofenceDwellVisit::visitId).filterNot { it in kept }
+        val dropped = readDwellVisits().filterNot { it.visitId in kept }
+        val ended = dropped.map(GeofenceDwellVisit::visitId)
         if (ended.isNotEmpty()) {
             // Visit ids are random, so only recently ended ones can still have a write in flight.
             val endedIds = (readEndedDwellVisitIds() + ended).takeLast(MAXIMUM_ENDED_DWELL_VISIT_IDS)
             putString(KEY_ENDED_DWELL_VISIT_IDS, jsonSerializer.encode(ID_LIST_SERIALIZER, endedIds))
+        }
+        val owing = dropped.filter { !it.emitted && it.dwellReservation != null }
+        if (owing.isNotEmpty()) {
+            val orphans = (readOrphanedDwellReservations() + owing)
+                .distinctBy(GeofenceDwellVisit::visitId)
+                .takeLast(MAXIMUM_ORPHANED_DWELL_RESERVATIONS)
+            putOrphanedDwellReservationsLocked(orphans)
         }
         if (visits.isEmpty()) {
             remove(KEY_DWELL_VISITS)
@@ -1191,6 +1234,7 @@ internal class GeofenceRegionStoreImpl(
             remove(KEY_COARSE_INSIDE_POLYGON_IDS)
             remove(KEY_ENTERED_IDS)
             remove(KEY_DWELL_VISITS)
+            remove(KEY_ORPHANED_DWELL_RESERVATIONS)
             remove(KEY_EMITTED_ENTER_IDS)
             remove(KEY_EMITTED_ENTER_OWNER)
             remove(KEY_LAST_SYNC)
@@ -1290,6 +1334,7 @@ internal class GeofenceRegionStoreImpl(
         const val KEY_ENTERED_IDS = "entered_ids"
         const val KEY_DWELL_VISITS = "dwell_visits"
         const val KEY_ENDED_DWELL_VISIT_IDS = "ended_dwell_visit_ids"
+        const val KEY_ORPHANED_DWELL_RESERVATIONS = "orphaned_dwell_reservations"
         const val KEY_REGISTRATION_INCARNATIONS = "registration_incarnations"
         const val KEY_EMITTED_ENTER_IDS = "emitted_enter_ids"
         const val KEY_EMITTED_ENTER_OWNER = "emitted_enter_owner"
@@ -1314,6 +1359,7 @@ internal class GeofenceRegionStoreImpl(
             KEY_COARSE_INSIDE_POLYGON_IDS,
             KEY_ENTERED_IDS,
             KEY_DWELL_VISITS,
+            KEY_ORPHANED_DWELL_RESERVATIONS,
             KEY_EMITTED_ENTER_IDS,
             KEY_EMITTED_ENTER_OWNER,
             KEY_LAST_SYNC
@@ -1329,6 +1375,9 @@ internal class GeofenceRegionStoreImpl(
 
         // At most one visit per OS registration, so one prune ends no more than this many.
         const val MAXIMUM_ENDED_DWELL_VISIT_IDS = GeofenceConstants.MAX_OS_GEOFENCES
+
+        // Orphans only accrue while the outbox keeps refusing writes; the oldest go first.
+        const val MAXIMUM_ORPHANED_DWELL_RESERVATIONS = 16
         val REGIONS_SERIALIZER = ListSerializer(GeofenceRegion.serializer())
         val PENDING_TRANSITIONS_SERIALIZER = ListSerializer(PendingGeofenceDelivery.serializer())
         val PENDING_APPROACH_BATCHES_SERIALIZER =

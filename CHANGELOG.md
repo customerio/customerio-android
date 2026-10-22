@@ -1,3 +1,9 @@
+## [4.25.1](https://github.com/customerio/customerio-android/compare/4.25.0...4.25.1) (2026-10-22)
+
+### Bug Fixes
+
+* track app lifecycle events when the SDK initializes after the first Activity ([#952](https://github.com/customerio/customerio-android/issues/952)) ([232b96c](https://github.com/customerio/customerio-android/commit/232b96c2d3d4c540ee3da88543f785c401bfc0af))
+
 ## [4.25.0](https://github.com/customerio/customerio-android/compare/4.24.0...4.25.0) (2026-10-21)
 
 ### Features

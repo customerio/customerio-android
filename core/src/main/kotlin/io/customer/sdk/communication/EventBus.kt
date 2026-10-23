@@ -47,7 +47,9 @@ class EventBusImpl(
     init {
         scope.launch {
             eventChannel.consumeAsFlow().collect { event ->
-                sharedFlow.tryEmit(event)
+                // Suspends while a slow subscriber is a full buffer behind; tryEmit would drop the
+                // event for every subscriber. The unlimited channel holds what's published meanwhile.
+                sharedFlow.emit(event)
             }
         }
     }

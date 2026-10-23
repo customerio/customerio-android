@@ -184,15 +184,20 @@ class CustomerIO private constructor(
 
         // subscribe to journey events emitted from push/in-app module to send them via data pipelines
         subscribeToJourneyEvents()
-        // republish profile/anonymous events for late-added modules
-        publishUserChanged()
+        // republish profile/anonymous events for late-added modules. Encrypts in the background so a
+        // slow Keystore can't block init (ANR); modules get the event once the userId is persisted.
+        publishUserChanged(userId = analytics.userId(), persistInBackground = true)
     }
 
-    /** Persists the userId before publishing so subscribers that read [secureUserStore] don't race the event. */
-    private fun publishUserChanged(userId: String? = analytics.userId()) {
+    /** Publishes once the userId is persisted, so subscribers that read [secureUserStore] don't race the event. */
+    private fun publishUserChanged(userId: String?, persistInBackground: Boolean = false) {
         val anonymousId = analytics.anonymousId()
-        secureUserStore.saveUserId(userId)
-        eventBus.publish(Event.UserChangedEvent(userId = userId, anonymousId = anonymousId))
+        val publish = { eventBus.publish(Event.UserChangedEvent(userId = userId, anonymousId = anonymousId)) }
+        if (persistInBackground) {
+            secureUserStore.saveUserIdInBackground(userId, onPersisted = publish)
+        } else {
+            secureUserStore.saveUserId(userId, onPersisted = publish)
+        }
     }
 
     private fun subscribeToJourneyEvents() {

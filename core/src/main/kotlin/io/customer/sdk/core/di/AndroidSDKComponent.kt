@@ -61,9 +61,13 @@ class AndroidSDKComponentImpl(
     override val globalPreferenceStore: GlobalPreferenceStore
         get() = singleton<GlobalPreferenceStore> { GlobalPreferenceStoreImpl(applicationContext) }
     override val secureUserStore: SecureUserStore
-        get() = singleton<SecureUserStore> { SecureUserStoreImpl(applicationContext, SDKComponent.logger) }
+        get() = singleton<SecureUserStore> {
+            SecureUserStoreImpl(applicationContext, SDKComponent.logger, SDKComponent.dispatchersProvider.background)
+        }
 
     override fun reset() {
+        // A background userId write started before the reset must not land after it.
+        (getOrNull<SecureUserStore>() as? SecureUserStoreImpl)?.cancelPendingWrites()
         super.reset()
 
         SDKComponent.activityLifecycleCallbacks.unregister(application)

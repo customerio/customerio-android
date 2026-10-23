@@ -93,7 +93,7 @@ internal class LocationServicesImpl(
     }
 
     @OptIn(InternalCustomerIOApi::class)
-    override fun getLastKnownLocation(): LocationCoordinates? = locationTracker.lastKnownLocation
+    override fun getLastKnownLocation(): LocationCoordinates? = locationTracker.awaitLastKnownLocation()
 
     /**
      * Cancels any in-flight location request.

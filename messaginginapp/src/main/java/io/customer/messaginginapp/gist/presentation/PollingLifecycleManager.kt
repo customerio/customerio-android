@@ -35,6 +35,11 @@ internal class PollingLifecycleManager(
     @Volatile
     private var timer: Timer? = null
 
+    // Set when a start was skipped for lack of identity. The fetch ModuleMessagingInApp runs when the
+    // identity arrives starts polling, so the identification-change path must not start a second one.
+    // Guarded by this instance's monitor, like [timer] writes.
+    private var awaitingIdentity = false
+
     // Guards the poll-interval subscription's initial replay emission. The initial/foreground start
     // is owned by handleForegrounded()/fetchInAppMessages(); reacting to the replay would race with
     // and could cancel that catch-up fetch. Only genuine interval changes should restart polling.
@@ -113,9 +118,16 @@ internal class PollingLifecycleManager(
     @Synchronized
     private fun startPolling(duration: Long, initialDelay: Long = 0) {
         val currentState = state
+        // No identity yet: an identified cold start delivers it once the userId is persisted, and a
+        // fetch now would go out without a user token. The fetch on UserChangedEvent starts polling.
+        awaitingIdentity = currentState.userId == null && currentState.anonymousId == null
         // Only skip polling if SSE should be used (both flag enabled AND user identified)
         if (currentState.shouldUseSse) {
             logger.debug("[Polling] Skipping polling - SSE is active (sseEnabled=${currentState.sseEnabled}, isUserIdentified=${currentState.isUserIdentified})")
+            return
+        }
+        if (awaitingIdentity) {
+            logger.debug("[Polling] Skipping polling - no user identity yet")
             return
         }
 
@@ -177,10 +189,19 @@ internal class PollingLifecycleManager(
             return
         }
 
+        // Read before taking this manager's monitor: dispatch holds the store's monitor while it
+        // calls into startPolling, so reading state under ours would invert that lock order.
         val currentState = state
+        // Synchronized with startPolling, so the identity fetch can't start polling between the checks below.
+        synchronized(this) { updatePollingLocked(currentState, reason) }
+    }
+
+    private fun updatePollingLocked(currentState: InAppMessagingState, reason: String) {
         if (currentState.shouldUseSse) {
             logger.debug("[Polling] $reason - SSE now active, stopping polling")
             resetTimer()
+        } else if (awaitingIdentity) {
+            logger.debug("[Polling] $reason - waiting for the identity fetch to start polling")
         } else if (timer == null) {
             // Resume polling only when it isn't already running, i.e. we're transitioning away
             // from SSE (which had stopped the timer). When polling is already active this branch

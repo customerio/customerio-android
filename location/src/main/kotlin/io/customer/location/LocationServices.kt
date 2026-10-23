@@ -72,7 +72,8 @@ interface LocationServices {
      * Returns the most recent location the SDK observed from any source — host
      * [setLastKnownLocation], [requestLocationUpdate], or a silent
      * [requestLocationUpdateSilently] fix — or null if none yet. Internal API for
-     * other SDK modules.
+     * other SDK modules. Waits for the persisted location restored at init, so call
+     * it off the main thread.
      */
     @InternalCustomerIOApi
     fun getLastKnownLocation(): LocationCoordinates?

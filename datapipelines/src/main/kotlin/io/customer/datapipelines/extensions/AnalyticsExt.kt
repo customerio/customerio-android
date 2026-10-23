@@ -30,7 +30,10 @@ internal fun updateAnalyticsConfig(
             put(CUSTOMER_IO_DATA_PIPELINES, emptyJsonObject)
         }
     )
-    this.trackApplicationLifecycleEvents = moduleConfig.trackApplicationLifecycleEvents
+    // Lifecycle events are tracked by AutomaticApplicationLifecycleTrackingPlugin instead, which also works when the
+    // SDK is initialized after the first Activity. Segment's lifecycle plugin still forwards Activity callbacks to
+    // other plugins with this off.
+    this.trackApplicationLifecycleEvents = false
     this.apiHost = moduleConfig.apiHost
     this.cdnHost = moduleConfig.cdnHost
     this.errorHandler = errorHandler

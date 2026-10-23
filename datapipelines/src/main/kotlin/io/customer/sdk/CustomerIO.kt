@@ -79,6 +79,7 @@ class CustomerIO private constructor(
     private val globalPreferenceStore = androidSDKComponent.globalPreferenceStore
     private val secureUserStore = androidSDKComponent.secureUserStore
     private val deviceStore = androidSDKComponent.deviceStore
+    private val application = androidSDKComponent.application
     private val eventBus = SDKComponent.eventBus
     internal var migrationProcessor: MigrationProcessor? = null
 
@@ -260,7 +261,7 @@ class CustomerIO private constructor(
         }
 
         if (moduleConfig.trackApplicationLifecycleEvents) {
-            analytics.add(AutomaticApplicationLifecycleTrackingPlugin())
+            analytics.add(AutomaticApplicationLifecycleTrackingPlugin(application))
         }
     }
 

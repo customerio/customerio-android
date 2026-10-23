@@ -2,6 +2,8 @@ package io.customer.sdk.data.store
 
 import android.content.Context
 import androidx.core.content.edit
+import io.customer.sdk.core.util.enumValueOfOrNull
+import io.customer.sdk.data.model.DeviceTokenType
 import io.customer.sdk.data.model.Settings
 import kotlinx.serialization.json.Json
 
@@ -10,7 +12,8 @@ import kotlinx.serialization.json.Json
  * or any other entity.
  */
 interface GlobalPreferenceStore {
-    fun saveDeviceToken(token: String)
+    fun saveDeviceToken(token: String, type: DeviceTokenType?)
+    fun getDeviceTokenType(): DeviceTokenType?
     fun saveSettings(value: Settings)
     fun getDeviceToken(): String?
     fun getSettings(): Settings?
@@ -27,8 +30,9 @@ internal class GlobalPreferenceStoreImpl(
         "io.customer.sdk.${context.packageName}"
     }
 
-    override fun saveDeviceToken(token: String) = prefs.edit {
+    override fun saveDeviceToken(token: String, type: DeviceTokenType?) = prefs.edit {
         putString(KEY_DEVICE_TOKEN, token)
+        if (type == null) remove(KEY_DEVICE_TOKEN_TYPE) else putString(KEY_DEVICE_TOKEN_TYPE, type.name)
     }
 
     override fun saveSettings(value: Settings) = prefs.edit {
@@ -37,6 +41,10 @@ internal class GlobalPreferenceStoreImpl(
 
     override fun getDeviceToken(): String? = prefs.read {
         getString(KEY_DEVICE_TOKEN, null)
+    }
+
+    override fun getDeviceTokenType(): DeviceTokenType? = prefs.read {
+        getString(KEY_DEVICE_TOKEN_TYPE, null)?.let { enumValueOfOrNull<DeviceTokenType>(it) }
     }
 
     override fun getSettings(): Settings? = prefs.read {
@@ -48,10 +56,14 @@ internal class GlobalPreferenceStoreImpl(
         }.getOrNull()
     }
 
-    override fun removeDeviceToken() = clear(KEY_DEVICE_TOKEN)
+    override fun removeDeviceToken() = prefs.edit {
+        remove(KEY_DEVICE_TOKEN)
+        remove(KEY_DEVICE_TOKEN_TYPE)
+    }
 
     companion object {
         private const val KEY_DEVICE_TOKEN = "device_token"
+        private const val KEY_DEVICE_TOKEN_TYPE = "device_token_type"
         private const val KEY_CONFIG_SETTINGS = "config_settings"
     }
 }

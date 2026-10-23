@@ -11,6 +11,7 @@ import io.customer.commontest.extensions.random
 import io.customer.commontest.util.DispatchersProviderStub
 import io.customer.messagingpush.di.fcmTokenProvider
 import io.customer.messagingpush.logger.PushNotificationLogger
+import io.customer.messagingpush.provider.DeviceToken
 import io.customer.messagingpush.provider.DeviceTokenProvider
 import io.customer.messagingpush.store.PendingPushDeliveryMetric
 import io.customer.messagingpush.testutils.core.IntegrationTest
@@ -19,6 +20,7 @@ import io.customer.sdk.communication.EventBus
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.util.CustomerIOWorkManagerProvider
 import io.customer.sdk.core.util.DispatchersProvider
+import io.customer.sdk.data.model.DeviceTokenType
 import io.customer.sdk.data.store.PendingDeliveryStore
 import io.customer.sdk.events.Metric
 import io.mockk.every
@@ -84,7 +86,7 @@ class ModuleMessagingPushFCMTest : IntegrationTest() {
     @Test
     fun initialize_givenNoFCMTokenAvailable_expectDoNotRegisterToken() {
         every { fcmTokenProviderMock.getCurrentToken(any()) } answers {
-            val callback = firstArg<(String?) -> Unit>()
+            val callback = firstArg<(DeviceToken?) -> Unit>()
             callback(null)
         }
 
@@ -98,13 +100,27 @@ class ModuleMessagingPushFCMTest : IntegrationTest() {
         val givenToken = String.random
 
         every { fcmTokenProviderMock.getCurrentToken(any()) } answers {
-            val callback = firstArg<(String?) -> Unit>()
-            callback(givenToken)
+            val callback = firstArg<(DeviceToken?) -> Unit>()
+            callback(DeviceToken(givenToken, DeviceTokenType.TOKEN))
         }
 
         module.initialize()
 
-        assertCalledOnce { eventBus.publish(Event.RegisterDeviceTokenEvent(token = givenToken)) }
+        assertCalledOnce { eventBus.publish(Event.RegisterDeviceTokenEvent(token = givenToken, tokenType = DeviceTokenType.TOKEN)) }
+    }
+
+    @Test
+    fun initialize_givenInstallationIdAvailable_expectRegisterWithFidType() {
+        val givenInstallationId = String.random
+
+        every { fcmTokenProviderMock.getCurrentToken(any()) } answers {
+            val callback = firstArg<(DeviceToken?) -> Unit>()
+            callback(DeviceToken(givenInstallationId, DeviceTokenType.FID))
+        }
+
+        module.initialize()
+
+        assertCalledOnce { eventBus.publish(Event.RegisterDeviceTokenEvent(token = givenInstallationId, tokenType = DeviceTokenType.FID)) }
     }
 
     @Test

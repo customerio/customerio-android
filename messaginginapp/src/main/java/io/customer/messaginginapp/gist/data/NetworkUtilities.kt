@@ -2,18 +2,23 @@ package io.customer.messaginginapp.gist.data
 
 import android.util.Base64
 import io.customer.messaginginapp.state.InAppMessagingState
+import io.customer.sdk.core.di.AndroidSDKComponent
 import io.customer.sdk.core.di.SDKComponent
+import java.io.IOException
 import okhttp3.Request
 
 class NetworkUtilities {
     companion object {
         internal const val CIO_SITE_ID_HEADER = "X-CIO-Site-Id"
+        internal const val AUTHORIZATION_HEADER = "Authorization"
         internal const val USER_TOKEN_HEADER = "X-Gist-Encoded-User-Token"
         internal const val CIO_DATACENTER_HEADER = "X-CIO-Datacenter"
         internal const val CIO_CLIENT_PLATFORM = "X-CIO-Client-Platform"
         internal const val CIO_CLIENT_VERSION = "X-CIO-Client-Version"
         internal const val CIO_CLIENT_APP_IDENTIFIER = "X-CIO-Client-App-Identifier"
         internal const val GIST_USER_ANONYMOUS_HEADER = "X-Gist-User-Anonymous"
+        internal const val SDK_NOT_INITIALIZED_MESSAGE =
+            "Customer.io SDK is not initialized or was reset; in-app request aborted"
 
         // SSE-specific headers
         internal const val SSE_ACCEPT_HEADER = "Accept"
@@ -24,6 +29,7 @@ class NetworkUtilities {
         // SSE query parameters
         internal const val SSE_SESSION_ID_PARAM = "sessionId"
         internal const val SSE_SITE_ID_PARAM = "siteId"
+        internal const val SSE_KEY_PARAM = "key"
         internal const val SSE_USER_TOKEN_PARAM = "userToken"
 
         // SSE configuration
@@ -39,17 +45,29 @@ class NetworkUtilities {
          * @param builder Request.Builder to add headers to
          * @param state Current in-app messaging state
          * @param includeUserToken Whether to include user token header (default: true)
+         * @param includeAuthorization Whether to include the public key Authorization header (default: true)
          * @return Request.Builder with common headers applied
+         * @throws IOException if the SDK graph is unavailable. OkHttp reports this to the call's
+         * callback without rethrowing an unchecked exception on its dispatcher thread.
          */
+        @Throws(IOException::class)
         internal fun addCommonHeaders(
             builder: Request.Builder,
             state: InAppMessagingState,
-            includeUserToken: Boolean = true
+            includeUserToken: Boolean = true,
+            includeAuthorization: Boolean = true
         ): Request.Builder {
-            builder.addHeader(CIO_SITE_ID_HEADER, state.siteId)
+            val androidSDKComponent = SDKComponent.getOrNull<AndroidSDKComponent>()
+                ?: throw IOException(SDK_NOT_INITIALIZED_MESSAGE)
+            // The public key identifies the workspace when set, so siteId is only sent without one
+            if (state.publicKey == null && state.siteId.isNotBlank()) {
+                builder.addHeader(CIO_SITE_ID_HEADER, state.siteId)
+            }
+            if (includeAuthorization) {
+                state.publicKey?.let { key -> builder.addHeader(AUTHORIZATION_HEADER, "Bearer $key") }
+            }
             builder.addHeader(CIO_DATACENTER_HEADER, state.dataCenter)
 
-            val androidSDKComponent = SDKComponent.android()
             builder.addHeader(CIO_CLIENT_PLATFORM, androidSDKComponent.client.source.lowercase() + "-android")
             builder.addHeader(CIO_CLIENT_VERSION, androidSDKComponent.client.sdkVersion)
             builder.addHeader(CIO_CLIENT_APP_IDENTIFIER, androidSDKComponent.applicationStore.customerPackageName)

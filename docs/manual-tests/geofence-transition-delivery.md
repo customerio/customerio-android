@@ -11,11 +11,98 @@ cancelling the chain, so a queued worker later finds the row gone and sends noth
 > Customer.io **at least once**. A rare duplicate (a crash after an ambiguous
 > send, or both channels overlapping) carries the same `transitionId`, the
 > backend's dedupe key. The portal shows one **`Geofence Transition`** event per
-> geoset the fence belongs to, with a `transition: enter|exit` property; all
+> geoset the fence belongs to, with a `transition: enter|dwell|exit` property; all
 > share the crossing's `transitionId`.
 
 > **Identified users only:** transitions observed while no user is identified
 > are dropped before queuing and never delivered.
+
+DWELL is emitted once per continuous visit when `dwell_threshold_seconds` is
+configured. ENTER and EXIT retain their duplicate-event cooldown; DWELL does not
+use that cooldown. A revisit can therefore deliver DWELL without ENTER or EXIT.
+A suppressed EXIT also omits that visit's exit duration. The backend processes
+each transition independently.
+
+Native circle entry times and durations are dated at the fixes GMS decided the
+callbacks on, so a delayed callback delivery does not stretch or shorten the stay;
+the event timestamps themselves remain receipt times.
+An accurate, recent live fix can establish that the device was outside before its
+first ENTER. Coordinates without reported accuracy or a monotonic sample time cannot
+establish that proof. A host fix stamped only on wall time keeps its age estimate
+but supplies no outside proof. An already-inside visit keeps its entry measurements
+unknown.
+
+A departure is noticed by the first fix that shows it, not at the moment it happens:
+the first decisive outside fix for a polygon, GMS's own fix for a circle, and GMS
+samples location sparsely, minutes apart when the device is still. The EXIT still
+reports `visitDurationSeconds` as exit minus entry, and adds
+`visitDurationUncertaintySeconds`: how long before that fix the device was last known
+inside (its entry fix, a native DWELL's fix or a decisive polygon fix). Measured from
+the entry fix, the stay lasted between the duration minus the uncertainty and the
+duration. The uncertainty covers the exit side only, as the public docs define it: an
+arrival is also noticed late, by the entry fix, so the true stay can exceed the
+duration by the time the device was inside before that fix. Both values are whole
+seconds measured fix to fix on the boot clock: the duration is rounded up and the
+uncertainty widened to match.
+A DWELL's `dwellDurationSeconds` is rounded up the same way. The `visitId` is
+sent on every EXIT attributed to a visit, timed or not.
+
+A circle's DWELL comes from GMS loitering for the fence's dwell threshold. GMS fires
+DWELL within seconds when a fence the device is inside is re-added under the same id,
+which a catalog edit to that fence's threshold or geometry does, so a DWELL sooner
+than the threshold after the registration is not taken as proof. That stay gets no
+DWELL; the next one does.
+
+Polygon DWELL still requires a later fix whose entire accuracy circle is inside
+the polygon. If a due visit stays INSIDE but the fix's uncertainty crosses the
+boundary, the next eligible callback or recheck can request a precise fix. This
+uses the existing 3-second timeout, 30-second request cooldown, and 30-minute
+retry window for unsuccessful requests from the same position.
+
+GMS monitors only circles, so nothing from the OS marks a polygon's threshold. The
+SDK keeps one WorkManager job due at the earliest pending polygon visit's threshold.
+It wakes the app for one precise fix per visit, then, while the visit is unproven,
+again after the 2-minute spacing until the budget below is spent. The job is
+cancelled once no visit awaits one, including after EXIT, DWELL or sign-out. Doze
+and app standby can delay it, so a stay shorter than its threshold plus that delay
+can still miss DWELL. A late check still needs the same strict fix.
+
+The SDK spends at most 4 precise location requests per visit on proving its
+DWELL, at least 2 minutes apart, persisted with the visit so a relaunch or a later
+wake does not replenish them. Requests the SDK makes anyway for ENTER and EXIT are
+not charged, and any fix they return can still prove the stay.
+
+Background polygon DWELL is best effort at any polygon size. A phone left still,
+especially indoors, often gets no fix whose whole accuracy circle fits inside the ring
+before its requests run out: on the 2026-10-21 trip every background fix at Pulse was
+100 m accurate although the stay was 73.9 m inside the edge. Small polygons miss more
+often, since fewer fixes can fit inside them.
+
+`GeofenceLiveFixVisitTest` covers entry measurements through remote refresh,
+local ranking, offline fallback, and a fresh-cache pass. `PolygonDwellPrecisionTest`
+covers qualification, early and already-emitted visits, unsuccessful requests and
+the scheduled check. `PolygonDwellCheckTest` covers when checks are planned,
+re-planned and cancelled.
+Both inspect the real persisted outbox with platform location delivery faked.
+
+Physical-device qualification remains required: park inside a small polygon and
+near its boundary, then repeat with the app foregrounded, backgrounded, screen
+off, and in Doze. Record fix accuracy, request counts, missed or duplicate DWELLs,
+and time from the threshold to delivery. Repeat with coarse location permission
+and after a process restart. These automated regressions do not establish GPS,
+background wake, or battery reliability.
+
+---
+
+### Catalog refetch after an SDK upgrade
+
+A catalog cached by an SDK that predates `dwell_threshold_seconds` is treated as stale
+whatever its age, so dwell thresholds reach devices without waiting for the normal
+freshness window. Until one fetch succeeds after the upgrade, every geofence pass
+(launch, live fix, movement trigger) tries the network: an offline device retries on
+each pass instead of once per freshness window. The first successful fetch clears it
+for good. The cache is still re-registered locally while offline, so monitoring
+continues meanwhile.
 
 ---
 

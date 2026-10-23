@@ -1,0 +1,79 @@
+name: 16 KB page size
+
+# Android 15+ devices can use 16 KB memory pages, and Google Play requires apps targeting them to
+# support it. The SDK ships no native code, but the libraries it pulls in can (for example
+# androidx.graphics:graphics-path through Compose). This builds the sample apps the way a host
+# would and checks the final artifacts. See .github/scripts/check_16kb_page_size.py.
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    # Only dependency, build and native-library changes can change what this checks.
+    paths:
+      - '**/*.gradle'
+      - '**/*.gradle.kts'
+      - '**/gradle.properties'
+      - '**/*.versions.toml'
+      - 'gradlew'
+      - 'gradle/**'
+      - 'buildSrc/**'
+      - 'samples/**/AndroidManifest.xml'
+      - '**/*.so'
+      - '.github/actions/setup-android/**'
+      - '.github/scripts/check_16kb_page_size.py'
+      - '.github/workflows/page-size-check.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check-16kb-page-size:
+    name: Sample apps support 16 KB pages
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup local.properties file for sample app
+        # These artifacts are inspected, not distributed, so workspace credentials are unnecessary.
+        run: |
+          {
+            printf 'siteId=ci-build-placeholder\n'
+            printf 'cdpApiKey=ci-build-placeholder\n'
+          } > "samples/local.properties"
+
+      - uses: ./.github/actions/setup-android
+
+      - name: Build release APKs and bundles
+        run: >-
+          ./gradlew
+          :samples:java_layout:assembleRelease :samples:java_layout:bundleRelease
+          :samples:kotlin_compose:assembleRelease :samples:kotlin_compose:bundleRelease
+
+      - name: Check zip alignment of uncompressed native libraries
+        # -P 16 checks that uncompressed .so files start on a 16 KB boundary (build-tools 35+).
+        # Each artifact is named explicitly so a missing one fails instead of being skipped.
+        run: |
+          zipalign="$(printf '%s\n' "$ANDROID_HOME"/build-tools/*/zipalign | sort -V | tail -n 1)"
+          echo "Using $zipalign"
+          status=0
+          for apk in \
+            samples/java_layout/build/outputs/apk/token/release/java_layout-token-release.apk \
+            samples/java_layout/build/outputs/apk/fid/release/java_layout-fid-release.apk \
+            samples/kotlin_compose/build/outputs/apk/release/kotlin_compose-release.apk; do
+            echo "::group::$apk"
+            "$zipalign" -c -P 16 -v 4 "$apk" || status=1
+            echo "::endgroup::"
+          done
+          exit $status
+
+      - name: Check ELF segment alignment of native libraries
+        run: >-
+          python3 .github/scripts/check_16kb_page_size.py
+          samples/java_layout/build/outputs/apk/token/release/java_layout-token-release.apk
+          samples/java_layout/build/outputs/apk/fid/release/java_layout-fid-release.apk
+          samples/java_layout/build/outputs/bundle/tokenRelease/java_layout-token-release.aab
+          samples/java_layout/build/outputs/bundle/fidRelease/java_layout-fid-release.aab
+          samples/kotlin_compose/build/outputs/apk/release/kotlin_compose-release.apk
+          samples/kotlin_compose/build/outputs/bundle/release/kotlin_compose-release.aab

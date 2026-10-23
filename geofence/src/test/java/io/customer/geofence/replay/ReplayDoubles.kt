@@ -15,9 +15,11 @@ import io.customer.location.LocationCoordinates
 import io.customer.location.LocationServices
 import io.customer.sdk.core.util.ScopeProvider
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.test.TestCoroutineScheduler
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.add
 import kotlinx.serialization.json.buildJsonArray
 
@@ -27,8 +29,7 @@ import kotlinx.serialization.json.buildJsonArray
  * boundary release made runnable. Unconfined, so that work runs inline.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
-internal class ReplayScopeProvider : ScopeProvider {
-    val scheduler = TestCoroutineScheduler()
+internal class ReplayScopeProvider(val scheduler: TestCoroutineScheduler = TestCoroutineScheduler()) : ScopeProvider {
 
     private fun scope() = TestScope(UnconfinedTestDispatcher(scheduler))
 
@@ -37,6 +38,14 @@ internal class ReplayScopeProvider : ScopeProvider {
     override val inAppLifecycleScope = scope()
     override val locationScope = scope()
     override val geofenceScope = scope()
+
+    fun stop() {
+        eventBusScope.cancel()
+        lifecycleListenerScope.cancel()
+        inAppLifecycleScope.cancel()
+        locationScope.cancel()
+        geofenceScope.cancel()
+    }
 }
 
 private fun ScenarioFence.toApiRegion(): GeofenceApiRegion {
@@ -49,7 +58,8 @@ private fun ScenarioFence.toApiRegion(): GeofenceApiRegion {
             longitude = longitude,
             radius = radius,
             transitionTypes = transitionTypes.ifEmpty { null },
-            geosetIds = geosetIds
+            geosetIds = geosetIds,
+            dwellThresholdSeconds = dwellThresholdSeconds?.let(::JsonPrimitive)
         )
     }
     return GeofenceApiRegion(
@@ -63,7 +73,8 @@ private fun ScenarioFence.toApiRegion(): GeofenceApiRegion {
             baseRadiusMeters = radius
         ),
         transitionTypes = transitionTypes.ifEmpty { null },
-        geosetIds = geosetIds
+        geosetIds = geosetIds,
+        dwellThresholdSeconds = dwellThresholdSeconds?.let(::JsonPrimitive)
     )
 }
 

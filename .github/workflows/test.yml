@@ -64,6 +64,8 @@ jobs:
           fail_ci_if_error: true
           verbose: true
           files: ./${{ matrix.module }}/build/reports/jacoco/test/jacocoTestReport.xml,./${{ matrix.module }}/build/reports/jacoco/runJacocoTestReport/runJacocoTestReport.xml
+        # Dependabot runs get no Actions secrets, so the upload can only fail there.
+        if: github.actor != 'dependabot[bot]'
       - name: Publish test results (${{ matrix.module }})
         uses: mikepenz/action-junit-report@cf701569b05ccdd861a76b8607a66d76f6fd4857 # v5.5.1
         with:

@@ -38,7 +38,7 @@ class LocationServicesImplTest {
         val services = LocationServicesImpl(config, logger, tracker, orchestrator, scope)
         services.setLastKnownLocation(37.7749, -122.4194)
 
-        verify(exactly = 0) { tracker.onLocationReceived(any(), any()) }
+        verify(exactly = 0) { tracker.onLocationReceived(any(), any(), any(), any()) }
     }
 
     @Test
@@ -58,9 +58,10 @@ class LocationServicesImplTest {
     }
 
     @Test
-    fun givenHostSuppliedLocation_setLastKnownLocation_expectFixTimeForwarded() {
-        // The Location overload carries when the host's fix was taken; discarding it would let the
-        // geofence path treat an old fix as current.
+    fun givenHostSuppliedLocation_setLastKnownLocation_expectFixTimeAndAccuracyForwarded() {
+        // The Location overload carries when the host's fix was taken and how accurate it was;
+        // discarding the time would let the geofence path treat an old fix as current, and
+        // discarding the accuracy would keep it from ever proving the device outside a fence.
         val config = LocationModuleConfig.Builder()
             .setLocationTrackingMode(LocationTrackingMode.MANUAL)
             .build()
@@ -72,12 +73,39 @@ class LocationServicesImplTest {
             every { latitude } returns 37.7749
             every { longitude } returns -122.4194
             every { elapsedRealtimeNanos } returns 90_000_000_000L
+            every { hasAccuracy() } returns true
+            every { accuracy } returns 12.5f
         }
 
         LocationServicesImpl(config, logger, tracker, orchestrator, scope)
             .setLastKnownLocation(hostLocation)
 
-        verify { tracker.onLocationReceived(37.7749, -122.4194, 90_000L) }
+        verify { tracker.onLocationReceived(37.7749, -122.4194, 90_000L, 12.5f) }
+    }
+
+    @Test
+    fun givenHostLocationWithoutReportedAccuracy_setLastKnownLocation_expectUnknownAccuracy() {
+        // Location.getAccuracy() reads 0 when none was set. Forwarded as-is it would pass for a
+        // perfect fix, so any host fix just past a fence's edge could prove the device outside.
+        val config = LocationModuleConfig.Builder()
+            .setLocationTrackingMode(LocationTrackingMode.MANUAL)
+            .build()
+        val tracker: LocationTracker = mockk(relaxUnitFun = true)
+        val orchestrator: LocationOrchestrator = mockk(relaxUnitFun = true)
+        val logger = mockk<io.customer.sdk.core.util.Logger>(relaxUnitFun = true)
+        val scope = TestScope(UnconfinedTestDispatcher())
+        val hostLocation: android.location.Location = mockk {
+            every { latitude } returns 37.7749
+            every { longitude } returns -122.4194
+            every { elapsedRealtimeNanos } returns 90_000_000_000L
+            every { hasAccuracy() } returns false
+            every { accuracy } returns 0f
+        }
+
+        LocationServicesImpl(config, logger, tracker, orchestrator, scope)
+            .setLastKnownLocation(hostLocation)
+
+        verify { tracker.onLocationReceived(37.7749, -122.4194, 90_000L, null) }
     }
 
     @Test
@@ -100,6 +128,7 @@ class LocationServicesImplTest {
             every { longitude } returns -122.4194
             every { elapsedRealtimeNanos } returns 0L
             every { time } returns System.currentTimeMillis() - ageMillis
+            every { hasAccuracy() } returns false
         }
         val forwarded = slot<Long>()
 
@@ -107,9 +136,83 @@ class LocationServicesImplTest {
             LocationServicesImpl(config, logger, tracker, orchestrator, scope)
                 .setLastKnownLocation(hostLocation)
 
-            verify { tracker.onLocationReceived(37.7749, -122.4194, capture(forwarded)) }
+            verify { tracker.onLocationReceived(37.7749, -122.4194, capture(forwarded), null) }
             // Mapped onto the monotonic base, so the fix still reads as roughly an hour old.
             (nowElapsed - forwarded.captured in (ageMillis - 1_000)..(ageMillis + 1_000)).shouldBeTrue()
+        } finally {
+            unmockkStatic(android.os.SystemClock::class)
+        }
+    }
+
+    @Test
+    fun givenAccurateHostLocationStampedOnlyOnWallClock_setLastKnownLocation_expectAgedWithoutAccuracy() {
+        // Wall time maps onto the boot clock only as an estimate. It must still age an old fix, but
+        // the accuracy that would let it prove the device outside a fence is left out.
+        val config = LocationModuleConfig.Builder()
+            .setLocationTrackingMode(LocationTrackingMode.MANUAL)
+            .build()
+        val tracker: LocationTracker = mockk(relaxUnitFun = true)
+        val orchestrator: LocationOrchestrator = mockk(relaxUnitFun = true)
+        val logger = mockk<io.customer.sdk.core.util.Logger>(relaxUnitFun = true)
+        val scope = TestScope(UnconfinedTestDispatcher())
+        val ageMillis = 3_600_000L
+        val nowElapsed = 5_000_000L
+        mockkStatic(android.os.SystemClock::class)
+        every { android.os.SystemClock.elapsedRealtime() } returns nowElapsed
+        val hostLocation: android.location.Location = mockk {
+            every { latitude } returns 37.7749
+            every { longitude } returns -122.4194
+            every { elapsedRealtimeNanos } returns 0L
+            every { time } returns System.currentTimeMillis() - ageMillis
+            every { hasAccuracy() } returns true
+            every { accuracy } returns 5f
+        }
+        val forwarded = slot<Long>()
+
+        try {
+            LocationServicesImpl(config, logger, tracker, orchestrator, scope)
+                .setLastKnownLocation(hostLocation)
+
+            verify { tracker.onLocationReceived(37.7749, -122.4194, capture(forwarded), null) }
+            (nowElapsed - forwarded.captured in (ageMillis - 1_000)..(ageMillis + 1_000)).shouldBeTrue()
+        } finally {
+            unmockkStatic(android.os.SystemClock::class)
+        }
+    }
+
+    @Test
+    fun givenAccurateWallOnlyHostLocationThatReadsCurrent_setLastKnownLocation_expectNoAccuracy() {
+        // A wall clock corrected back after the host took this fix: the fix is an hour old, but its
+        // wall stamp now reads as current, so the mapped time passes every freshness gate. With its
+        // accuracy, an hour-old position could prove the device outside a fence it has since entered,
+        // splitting a continuous visit.
+        val config = LocationModuleConfig.Builder()
+            .setLocationTrackingMode(LocationTrackingMode.MANUAL)
+            .build()
+        val tracker: LocationTracker = mockk(relaxUnitFun = true)
+        val orchestrator: LocationOrchestrator = mockk(relaxUnitFun = true)
+        val logger = mockk<io.customer.sdk.core.util.Logger>(relaxUnitFun = true)
+        val scope = TestScope(UnconfinedTestDispatcher())
+        val nowElapsed = 5_000_000L
+        mockkStatic(android.os.SystemClock::class)
+        every { android.os.SystemClock.elapsedRealtime() } returns nowElapsed
+        val hostLocation: android.location.Location = mockk {
+            every { latitude } returns 37.7749
+            every { longitude } returns -122.4194
+            every { elapsedRealtimeNanos } returns 0L
+            every { time } returns System.currentTimeMillis()
+            every { hasAccuracy() } returns true
+            every { accuracy } returns 5f
+        }
+        val forwarded = slot<Long>()
+
+        try {
+            LocationServicesImpl(config, logger, tracker, orchestrator, scope)
+                .setLastKnownLocation(hostLocation)
+
+            verify { tracker.onLocationReceived(37.7749, -122.4194, capture(forwarded), null) }
+            // Its time alone cannot tell it from a current fix, so the accuracy is what must go.
+            (nowElapsed - forwarded.captured in 0L..1_000L).shouldBeTrue()
         } finally {
             unmockkStatic(android.os.SystemClock::class)
         }
@@ -129,12 +232,13 @@ class LocationServicesImplTest {
             every { longitude } returns -122.4194
             every { elapsedRealtimeNanos } returns 0L
             every { time } returns 0L
+            every { hasAccuracy() } returns false
         }
 
         LocationServicesImpl(config, logger, tracker, orchestrator, scope)
             .setLastKnownLocation(hostLocation)
 
-        verify { tracker.onLocationReceived(37.7749, -122.4194, null) }
+        verify { tracker.onLocationReceived(37.7749, -122.4194, null, null) }
     }
 
     @Test

@@ -18,5 +18,7 @@ internal data class GeofenceCatalogEntry(
     val radiusMeters: Double?,
     /** Canonical ring, or null when it does not build; never a ring we cannot trust. */
     val vertices: List<PolygonCoordinate>?,
-    val transitionTypes: List<String>
+    val transitionTypes: List<String>,
+    /** Raw seconds from the response, including an invalid value the mapper will reject. */
+    val dwellThresholdSeconds: Long? = null
 )

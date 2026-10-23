@@ -22,7 +22,6 @@ import io.customer.messaginginapp.type.InAppMessage
 import io.customer.messaginginapp.type.InAppMessageError
 import io.customer.messaginginapp.type.InAppMessageErrorReason
 import io.customer.sdk.core.di.SDKComponent
-import io.customer.sdk.data.model.Region
 import io.mockk.Called
 import io.mockk.confirmVerified
 import io.mockk.mockk
@@ -53,8 +52,7 @@ class InAppMessagingStoreTest : IntegrationTest() {
         super.setup(testConfig)
         module = ModuleMessagingInApp(
             config = MessagingInAppModuleConfig.Builder(
-                siteId = TestConstants.Keys.SITE_ID,
-                region = Region.US
+                siteId = TestConstants.Keys.SITE_ID
             ).setEventListener(inAppEventListener).build()
         ).attachToSDKComponent()
         manager = SDKComponent.inAppMessagingManager

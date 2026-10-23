@@ -114,8 +114,7 @@ CustomerIOBuilder(application, <CDP_API_KEY>).apply {
     // Optional: Enable in-app messaging by adding siteId and Region
     addCustomerIOModule(
         ModuleMessagingInApp(
-            // If you're in the EU, set Region.EU
-            MessagingInAppModuleConfig.Builder(<SITE_ID>, Region.US).build()
+            MessagingInAppModuleConfig.Builder(<SITE_ID>).build()
     )
     )
 
@@ -218,7 +217,7 @@ The SDK includes two sample applications for testing and demonstration:
 - Demonstrates basic SDK integration patterns
 - Shows push notification setup
 - Includes various tracking scenarios
-- Build and install: `cd samples/java_layout && ./gradlew installDebug`
+- Build and install: `./gradlew :samples:java_layout:installTokenDebug` (`installFidDebug` registers with the Firebase Installation ID)
 
 #### Kotlin Compose Sample (`samples/kotlin_compose/`)
 - Modern UI with Jetpack Compose and Kotlin
@@ -233,8 +232,7 @@ The SDK includes two sample applications for testing and demonstration:
 ./gradlew publishToMavenLocal
 
 # Run Java sample app
-cd samples/java_layout
-./gradlew installDebug
+./gradlew :samples:java_layout:installTokenDebug
 
 # Run Kotlin Compose sample app  
 cd samples/kotlin_compose

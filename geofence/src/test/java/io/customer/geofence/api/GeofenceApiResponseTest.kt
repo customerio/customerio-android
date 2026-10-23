@@ -841,6 +841,98 @@ class GeofenceApiResponseTest : RobolectricTest() {
         regions[0].externalId shouldBeEqualTo ""
     }
 
+    @Test
+    fun parseAndMap_givenDwellThreshold_expectItPreserved() {
+        val region = parseRegions(
+            """{"geofences":[{"id":"circle","latitude":1,"longitude":2,"radius":100,"dwell_threshold_seconds":300}]}"""
+        ).single()
+
+        region.dwellThresholdSeconds shouldBeEqualTo 300
+    }
+
+    @Test
+    fun parseAndMap_givenPositiveDwellThresholdBoundaries_expectPreserved() {
+        val regions = parseRegions(
+            """{"geofences":[
+                {"id":"low","latitude":1,"longitude":2,"radius":100,"dwell_threshold_seconds":1},
+                {"id":"high","latitude":1,"longitude":2,"radius":100,"dwell_threshold_seconds":${GeofenceConstants.MAX_DWELL_THRESHOLD_SECONDS}}
+            ]}"""
+        )
+
+        regions.map { it.dwellThresholdSeconds } shouldBeEqualTo
+            listOf(1, GeofenceConstants.MAX_DWELL_THRESHOLD_SECONDS)
+    }
+
+    @Test
+    fun parseAndMap_givenUnrepresentableDwellThreshold_expectDwellDisabled() {
+        val zero = parseRegions(
+            """{"geofences":[{"id":"low","latitude":1,"longitude":2,"radius":100,"dwell_threshold_seconds":0}]}"""
+        ).single()
+        val overflow = parseRegions(
+            """{"geofences":[{"id":"high","latitude":1,"longitude":2,"radius":100,"dwell_threshold_seconds":${GeofenceConstants.MAX_DWELL_THRESHOLD_SECONDS + 1}}]}"""
+        ).single()
+        val beyondInt = parseRegions(
+            """{"geofences":[{"id":"very-high","latitude":1,"longitude":2,"radius":100,"dwell_threshold_seconds":3000000000}]}"""
+        ).single()
+
+        zero.dwellThresholdSeconds shouldBeEqualTo 0
+        overflow.dwellThresholdSeconds shouldBeEqualTo 0
+        beyondInt.dwellThresholdSeconds shouldBeEqualTo 0
+    }
+
+    @Test
+    fun parseAndMap_givenNonIntegerDwellThreshold_expectRegionKeptDwellDisabledAndLogged() {
+        val regions = parseRegions(
+            """{"geofences":[
+                {"id":"float","latitude":1,"longitude":2,"radius":100,"dwell_threshold_seconds":300.0},
+                {"id":"fraction","latitude":1,"longitude":2,"radius":100,"dwell_threshold_seconds":300.5},
+                {"id":"string","latitude":1,"longitude":2,"radius":100,"dwell_threshold_seconds":"300"},
+                {"id":"object","latitude":1,"longitude":2,"radius":100,"dwell_threshold_seconds":{"s":300}}
+            ]}"""
+        )
+
+        // An integral float is the same whole number; anything else keeps the region with dwell off.
+        regions.map { it.id to it.dwellThresholdSeconds } shouldBeEqualTo
+            listOf("float" to 300, "fraction" to 0, "string" to 0, "object" to 0)
+        verify(exactly = 0) { mockLogger.logUnsupportedDwellThreshold("float", any()) }
+        verify(exactly = 1) { mockLogger.logUnsupportedDwellThreshold("fraction", "300.5") }
+        verify(exactly = 1) { mockLogger.logUnsupportedDwellThreshold("string", "\"300\"") }
+        verify(exactly = 1) { mockLogger.logUnsupportedDwellThreshold("object", """{"s":300}""") }
+    }
+
+    @Test
+    fun parseAndMap_givenUnsupportedDwellThreshold_expectRegionKeptDwellDisabledAndLogged() {
+        val overflow = GeofenceConstants.MAX_DWELL_THRESHOLD_SECONDS + 1L
+        val regions = parseRegions(
+            """{"geofences":[
+                {"id":"negative","latitude":1,"longitude":2,"radius":100,"dwell_threshold_seconds":-1},
+                {"id":"overflow","latitude":1,"longitude":2,"radius":100,"dwell_threshold_seconds":$overflow}
+            ]}"""
+        )
+
+        // Still monitored for enter and exit; only dwell is off.
+        regions.map { it.id to it.dwellThresholdSeconds } shouldBeEqualTo
+            listOf("negative" to 0, "overflow" to 0)
+        verify(exactly = 1) { mockLogger.logUnsupportedDwellThreshold("negative", "-1") }
+        verify(exactly = 1) { mockLogger.logUnsupportedDwellThreshold("overflow", overflow.toString()) }
+    }
+
+    @Test
+    fun parseAndMap_givenAbsentDisabledOrSupportedDwellThreshold_expectNoUnsupportedThresholdLog() {
+        val regions = parseRegions(
+            """{"geofences":[
+                {"id":"absent","latitude":1,"longitude":2,"radius":100},
+                {"id":"disabled","latitude":1,"longitude":2,"radius":100,"dwell_threshold_seconds":0},
+                {"id":"low","latitude":1,"longitude":2,"radius":100,"dwell_threshold_seconds":1},
+                {"id":"high","latitude":1,"longitude":2,"radius":100,"dwell_threshold_seconds":${GeofenceConstants.MAX_DWELL_THRESHOLD_SECONDS}}
+            ]}"""
+        )
+
+        regions.map { it.dwellThresholdSeconds } shouldBeEqualTo
+            listOf(0, 0, 1, GeofenceConstants.MAX_DWELL_THRESHOLD_SECONDS)
+        verify(exactly = 0) { mockLogger.logUnsupportedDwellThreshold(any(), any()) }
+    }
+
     // ---------- transition_types fallback rules ----------
 
     @Test
@@ -1137,6 +1229,17 @@ class GeofenceApiResponseTest : RobolectricTest() {
     """.trimIndent()
 
     // ---------- catalog: built from the wire, before anything is dropped ----------
+
+    @Test
+    fun toCatalogEntries_givenInvalidDwellThreshold_expectRawValueWhileDomainDisablesDwell() {
+        for (threshold in listOf(-1L, Long.MAX_VALUE)) {
+            val response = parseResponse(
+                """{"geofences":[{"id":"raw","latitude":10,"longitude":20,"radius":250,"dwell_threshold_seconds":$threshold}]}"""
+            )
+            response.toCatalogEntries().single().dwellThresholdSeconds shouldBeEqualTo threshold
+            response.toDomainRegions().single().dwellThresholdSeconds shouldBeEqualTo 0
+        }
+    }
 
     @Test
     fun toCatalogEntries_expectOneEntryPerWireRecordEvenWhenOneIsDropped() {

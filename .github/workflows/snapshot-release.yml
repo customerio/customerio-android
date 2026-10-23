@@ -75,11 +75,25 @@ jobs:
   # Build compatibility is correctness coverage, so it runs for every code PR
   # independently of release naming and snapshot publication.
   gradle-compatibility-builds:
-    name: Sample apps build with AGP 8.9.1
+    name: Sample apps build with AGP ${{ matrix.agp }}
     if: github.event.action != 'edited' || github.event.changes.base != null
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Floor: API 36 requires AGP 8.9.1 or newer, and AGP 8.9 requires Gradle 8.11.1.
+          # https://developer.android.com/build/releases/about-agp#api-level-support
+          - agp: 8.9.1
+            gradle: 8.11.1
+          # AGP 9 readiness (MBL-2256). AGP 9.4 requires Gradle 9.6+ and brings in Kotlin Gradle
+          # plugin 2.2.10+. Gradle 9 also changes how JVM tests launch, so run some here too.
+          - agp: 9.4.1
+            gradle: 9.8.2
+            tests: :base:test :core:testDebugUnitTest
+            test-results: base/build/test-results/test core/build/test-results/testDebugUnitTest
     concurrency:
-      group: gradle-compatibility-${{ github.ref }}
+      group: gradle-compatibility-${{ github.ref }}-${{ matrix.agp }}
       cancel-in-progress: true
 
     steps:
@@ -95,18 +109,42 @@ jobs:
           } > "samples/local.properties"
 
       - name: Update files for Gradle compatibility
-        # API 36 requires AGP 8.9.1 or newer, and AGP 8.9 requires Gradle 8.11.1.
-        # https://developer.android.com/build/releases/about-agp#api-level-support
         run: |
           ./scripts/update-gradle-compatibility.sh \
-          --agpVersion 8.9.1 \
-          --gradleVersion 8.11.1
+          --agpVersion ${{ matrix.agp }} \
+          --gradleVersion ${{ matrix.gradle }}
 
       # Uses the same Java, Android SDK, wrapper validation, and Gradle-owned
       # caching path as the rest of this repository's CI.
       - uses: ./.github/actions/setup-android
 
       # Build the Groovy and Kotlin DSL consumers together so their shared SDK
-      # modules are configured and compiled only once.
+      # modules are configured and compiled only once. The init script fails the build if
+      # the AGP that loads is not the one requested above.
       - name: Build Groovy and Kotlin DSL sample apps
-        run: ./gradlew :samples:java_layout:assembleRelease :samples:kotlin_compose:assembleRelease
+        env:
+          EXPECTED_AGP_VERSION: ${{ matrix.agp }}
+        run: >-
+          ./gradlew --init-script .github/scripts/assert-agp-version.gradle
+          :samples:java_layout:assembleRelease :samples:kotlin_compose:assembleRelease
+          ${{ matrix.tests }}
+
+      - name: Check unit test results
+        # Test tasks set ignoreFailures, so the build passes whatever the tests did. Each results
+        # directory must hold executed tests and no failures.
+        if: matrix.tests
+        env:
+          TEST_RESULT_DIRS: ${{ matrix.test-results }}
+        shell: python3 {0}
+        run: |
+          import glob, os, sys, xml.etree.ElementTree as ET
+          ok = True
+          for results in os.environ["TEST_RESULT_DIRS"].split():
+              suites = [ET.parse(f).getroot() for f in glob.glob(f"{results}/TEST-*.xml")]
+              ran = sum(int(s.get("tests")) - int(s.get("skipped", 0)) for s in suites)
+              failed = sum(int(s.get("failures")) + int(s.get("errors")) for s in suites)
+              print(f"{results}: {ran} tests ran, {failed} failed or errored")
+              if failed or not ran:
+                  print(f"::error::{results}: expected executed tests and no failures")
+                  ok = False
+          sys.exit(0 if ok else 1)

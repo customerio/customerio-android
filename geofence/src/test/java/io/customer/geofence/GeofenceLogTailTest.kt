@@ -198,6 +198,7 @@ class GeofenceLogTailTest : RobolectricTest() {
             Row("droppedUnknownId", "transition.dropped", listOf("id", "why"), GeofenceLogger::logTransitionDroppedUnknownId.name, io = "obs") { it.logTransitionDroppedUnknownId("notl_core") },
             Row("droppedRetiredId", "transition.dropped", listOf("id", "why"), GeofenceLogger::logTransitionDroppedRetiredId.name, pinned = mapOf("why" to "retired_id"), io = "obs") { it.logTransitionDroppedRetiredId("notl_core") },
             Row("droppedUnarmedId", "transition.dropped", listOf("id", "why"), GeofenceLogger::logTransitionDroppedUnarmedId.name, pinned = mapOf("why" to "routing_unarmed"), io = "obs") { it.logTransitionDroppedUnarmedId("notl_core") },
+            Row("droppedSuperseded", "transition.dropped", listOf("id", "t", "why"), GeofenceLogger::logTransitionDroppedSuperseded.name, pinned = mapOf("t" to "exit", "why" to "superseded_by_newer_fix"), io = "obs") { it.logTransitionDroppedSuperseded("notl_core", "EXIT") },
             Row("containmentJudged", "containment.judged", listOf("n"), GeofenceLogger::logContainmentJudged.name, io = "obs") { it.logContainmentJudged(3) },
             Row("gmsCallTimedOut", "os.error", listOf("ok", "op", "why"), GeofenceLogger::logGmsCallTimedOut.name, io = "in", pinned = mapOf("why" to "timeout", "ok" to "false")) { it.logGmsCallTimedOut("addGeofences") },
             Row("eventDeliveredNotRemoved", "delivery.sent", listOf("id", "t", "ok", "retry", "why"), GeofenceLogger::logEventDeliveredButNotRemoved.name, pinned = mapOf("why" to "not_removed", "ok" to "true", "retry" to "true"), io = "obs") { it.logEventDeliveredButNotRemoved("notl_core", "ENTER") },
@@ -216,6 +217,7 @@ class GeofenceLogTailTest : RobolectricTest() {
             Row("apiFetchFailed", "api.fetch.result", listOf("ok", "why"), GeofenceLogger::logApiFetchFailed.name, io = "in") { it.logApiFetchFailed("timeout") },
 
             Row("unknownApiTransitionType", "api.transition.unknown", listOf("ok", "why", "value"), GeofenceLogger::logUnknownApiTransitionType.name, io = "obs") { it.logUnknownApiTransitionType("dwell") },
+            Row("unsupportedDwellThreshold", "api.dwell.unsupported", listOf("id", "ok", "why", "value"), GeofenceLogger::logUnsupportedDwellThreshold.name, io = "obs") { it.logUnsupportedDwellThreshold("notl_core", "-1") },
             Row("movementRearmed", "movement.rearmed", listOf("why"), GeofenceLogger::logMovementRearmedAfterFailedRefresh.name, io = "obs") { it.logMovementRearmedAfterFailedRefresh() },
             Row("storageLoaded", "storage.loaded", listOf("n", "anchor"), GeofenceLogger::logStorageLoaded.name, io = "obs") { it.logStorageLoaded({ 30 }, true) },
             Row("persistFailed", "storage.write.failed", listOf("id", "t", "ok"), GeofenceLogger::logPersistFailed.name, io = "obs") { it.logPersistFailed("notl_core", "ENTER") },
@@ -257,13 +259,14 @@ class GeofenceLogTailTest : RobolectricTest() {
             Row("polygonApproachRequestFailed", "polygon.approach.failed", listOf("ok", "op", "why"), GeofenceLogger::logPolygonApproachRequestFailed.name, io = "in") { it.logPolygonApproachRequestFailed("no permission", operation = "request_updates") },
             Row("polygonApproachProcessingFailed", "polygon.approach.dropped", listOf("ok", "op", "why"), GeofenceLogger::logPolygonApproachProcessingFailed.name, io = "obs") { it.logPolygonApproachProcessingFailed("boom", operation = "deliver") },
             Row("polygonFreshFixRequested", "polygon.freshfix.requested", listOf("ids", "n"), GeofenceLogger::logPolygonFreshFixRequested.name, io = "obs") { it.logPolygonFreshFixRequested(listOf("notl_core")) },
+            Row("dwellProofBudgetSpent", "dwell.proof.budget_spent", listOf("id", "n"), GeofenceLogger::logDwellProofBudgetSpent.name, io = "obs") { it.logDwellProofBudgetSpent("notl_core", 4) },
             Row("polygonFreshFixReceived", "polygon.freshfix.received", listOf("waited", "fixsrc", "acc", "age"), GeofenceLogger::logPolygonFreshFixReceived.name, io = "in") { it.logPolygonFreshFixReceived(fix, waitedSeconds = 1.4) },
             Row("polygonFreshFixSkipped", "polygon.freshfix.skipped", listOf("why"), GeofenceLogger::logPolygonFreshFixSkipped.name, pinned = mapOf("why" to "none_arrived"), io = "obs") { it.logPolygonFreshFixSkipped(PolygonFreshFixSkip.NONE_ARRIVED) },
             Row("polygonRecheckRan", "polygon.recheck.ran", listOf("cand", "n", "ids", "ncleared", "cleared", "fixsrc", "acc", "age"), GeofenceLogger::logPolygonRecheckRan.name, io = "in") { it.logPolygonRecheckRan(fix, candidateCount = 3, admittedIds = listOf("notl_core"), clearedIds = listOf("notl_annex")) },
             Row("polygonRecheckSkipped", "polygon.recheck.skipped", listOf("why"), GeofenceLogger::logPolygonRecheckSkipped.name, pinned = mapOf("why" to "nothing_registered"), io = "obs") { it.logPolygonRecheckSkipped(PolygonRecheckSkip.NOTHING_REGISTERED) },
             Row("polygonPassiveStarted", "polygon.passive.started", emptyList(), GeofenceLogger::logPolygonPassiveStarted.name, io = "obs") { it.logPolygonPassiveStarted() },
             Row("polygonPassiveStopped", "polygon.passive.stopped", emptyList(), GeofenceLogger::logPolygonPassiveStopped.name, io = "obs") { it.logPolygonPassiveStopped() },
-            Row("polygonPassiveReceived", "polygon.passive.received", listOf("cand", "n", "ids", "ncleared", "cleared", "fixsrc", "acc", "age"), GeofenceLogger::logPolygonPassiveReceived.name, io = "in") { it.logPolygonPassiveReceived(fix, candidateCount = 2, admittedIds = listOf("notl_core"), clearedIds = listOf("notl_annex")) },
+            Row("polygonPassiveReceived", "polygon.passive.received", listOf("cand", "n", "ids", "ncleared", "cleared", "fixsrc", "acc", "age"), GeofenceLogger::logPolygonPassiveReceived.name, pinned = mapOf("fixsrc" to "passive"), io = "in") { it.logPolygonPassiveReceived(fix, candidateCount = 2, admittedIds = listOf("notl_core"), clearedIds = listOf("notl_annex")) },
             Row("polygonPassiveSkipped", "polygon.passive.skipped", listOf("why"), GeofenceLogger::logPolygonPassiveSkipped.name, pinned = mapOf("why" to "nothing_registered"), io = "obs") { it.logPolygonPassiveSkipped(PolygonPassiveSkip.NOTHING_REGISTERED) },
             Row("polygonPassiveFailed", "polygon.passive.failed", listOf("why"), GeofenceLogger::logPolygonPassiveFailed.name, pinned = mapOf("why" to "boom"), io = "obs") { it.logPolygonPassiveFailed("boom") }
         )
@@ -382,6 +385,7 @@ class GeofenceLogTailTest : RobolectricTest() {
         val expected = setOf(
             "api.fetch.result",
             "dispatch.ready",
+            "dwell.proof.budget_spent",
             "polygon.arrival.pending",
             "polygon.arrival.expired",
             "polygon.evaluation.skipped",
@@ -399,6 +403,7 @@ class GeofenceLogTailTest : RobolectricTest() {
             "polygon.passive.skipped",
             "polygon.passive.failed",
             "api.transition.unknown",
+            "api.dwell.unsupported",
             "containment.judged",
             "delivery.failed",
             "delivery.flush",
@@ -841,6 +846,18 @@ class GeofenceLogTailTest : RobolectricTest() {
         vertices = null,
         transitionTypes = listOf("enter", "exit")
     )
+
+    @Test
+    fun fenceCatalog_whenDwellThresholdProvided_thenRawSecondsRecordedWithoutDefaulting() {
+        GeofenceDiagnostics.setEnabledForTesting(true)
+        for (threshold in listOf(null, 0L, 60L, -1L, Long.MAX_VALUE)) {
+            val logger = CapturingLogger()
+            GeofenceLogger(logger).logApiFetchResult(1, 10L) {
+                listOf(catalogRegion().copy(dwellThresholdSeconds = threshold))
+            }
+            parseTail(logger.messages.last())!!["dwell"] shouldBeEqualTo threshold?.toString()
+        }
+    }
 
     @Test
     fun fenceCatalog_givenNameWithSeparators_expectSanitizedButReadable() {

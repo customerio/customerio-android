@@ -30,18 +30,25 @@ internal class LocationServicesImpl(
     override fun setLastKnownLocation(latitude: Double, longitude: Double) =
         trackHostLocation(latitude, longitude)
 
-    override fun setLastKnownLocation(location: Location) =
-        // Unlike the coordinate overload, this one carries when the host's fix was taken.
+    override fun setLastKnownLocation(location: Location) {
+        // Unlike the coordinate overload, this one carries when the host's fix was taken and how
+        // accurate it was. Accuracy rides only with the fix's own boot-clock stamp: a time estimated
+        // from the wall clock still ages the fix, but a clock step can make an old fix read as
+        // current, so it must not be able to prove the device outside a fence.
+        val monotonicFixMillis = location.monotonicFixMillis()
         trackHostLocation(
             latitude = location.latitude,
             longitude = location.longitude,
-            fixElapsedRealtimeMillis = location.fixElapsedRealtimeMillis()
+            fixElapsedRealtimeMillis = monotonicFixMillis ?: location.wallClockFixElapsedMillis(),
+            horizontalAccuracyMeters = monotonicFixMillis?.let { location.reportedAccuracyMeters() }
         )
+    }
 
     private fun trackHostLocation(
         latitude: Double,
         longitude: Double,
-        fixElapsedRealtimeMillis: Long? = null
+        fixElapsedRealtimeMillis: Long? = null,
+        horizontalAccuracyMeters: Float? = null
     ) {
         if (!config.isEnabled) {
             logger.debug("Location tracking is disabled, ignoring setLastKnownLocation.")
@@ -55,7 +62,12 @@ internal class LocationServicesImpl(
 
         logger.debug("Tracking location: lat=$latitude, lng=$longitude")
 
-        locationTracker.onLocationReceived(latitude, longitude, fixElapsedRealtimeMillis)
+        locationTracker.onLocationReceived(
+            latitude = latitude,
+            longitude = longitude,
+            fixElapsedRealtimeMillis = fixElapsedRealtimeMillis,
+            horizontalAccuracyMeters = horizontalAccuracyMeters
+        )
     }
 
     override fun requestLocationUpdate() {
@@ -109,12 +121,23 @@ internal class LocationServicesImpl(
     }
 }
 
-/**
- * A host-built [Location] often stamps only wall-clock [Location.time]. Fall back to it, mapped onto
- * the monotonic base, so an old host fix is still aged rather than trusted as current.
- */
-private fun Location.fixElapsedRealtimeMillis(): Long? =
+/** The fix's own boot-clock stamp, or null when the host set none. */
+private fun Location.monotonicFixMillis(): Long? =
     elapsedRealtimeNanos.takeIf { it > 0L }?.let { it / NANOS_PER_MILLI }
-        ?: time.takeIf { it > 0L }?.let { SystemClock.elapsedRealtime() - (System.currentTimeMillis() - it) }
+
+/**
+ * A host-built [Location] often stamps only wall-clock [Location.time]. Mapped onto the boot clock so
+ * an old host fix is still aged rather than trusted as current. Only an estimate: a wall-clock step
+ * since the fix shifts it by the step, which is why such a fix is forwarded without its accuracy.
+ */
+private fun Location.wallClockFixElapsedMillis(): Long? =
+    time.takeIf { it > 0L }?.let { SystemClock.elapsedRealtime() - (System.currentTimeMillis() - it) }
+
+/**
+ * [Location.getAccuracy] reads 0 when none was set, which would pass for a perfect fix and let any
+ * host fix just past a fence's edge prove the device outside. Null unless reported, finite and >= 0.
+ */
+private fun Location.reportedAccuracyMeters(): Float? =
+    if (hasAccuracy()) accuracy.takeIf { it.isFinite() && it >= 0f } else null
 
 private const val NANOS_PER_MILLI = 1_000_000L

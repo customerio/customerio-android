@@ -375,6 +375,113 @@ class CustomerIOConfigBuilderTest : RobolectricTest() {
     }
 
     @Test
+    fun initialize_givenSecretKey_expectErrorLoggedAndDisabledInstance() {
+        val givenSecretKey = "sk_us_$KEY_BODY"
+        val givenModule = mockGenericModule().apply {
+            every { moduleName } returns String.random
+        }
+        val config = createCustomerIOConfigBuilder(givenSecretKey)
+            .addCustomerIOModule(givenModule)
+            .build()
+
+        CustomerIO.initialize(config)
+
+        assertCalledOnce { mockLogger.coreSdkSecretKeyRejected() }
+        assertCalledNever { givenModule.initialize() }
+        // Registered so module accessors don't crash, but never set up
+        SDKComponent.modules[givenModule.moduleName] shouldBe givenModule
+        val sdk = CustomerIO.instance()
+        sdk.moduleConfig.cdpApiKey shouldNotBeEqualTo givenSecretKey
+        sdk.analytics.enabled shouldBe false
+        // Calls are ignored instead of crashing
+        sdk.identify("user-id")
+        sdk.track("event")
+    }
+
+    @Test
+    fun initialize_givenPublicKeyAfterSecretKey_expectSdkSetUpWithPublicKey() {
+        val givenPublicKey = "pk_us_$KEY_BODY"
+        CustomerIO.initialize(createCustomerIOConfigBuilder("sk_us_$KEY_BODY").build())
+
+        CustomerIO.initialize(createCustomerIOConfigBuilder(givenPublicKey).build())
+
+        val sdk = CustomerIO.instance()
+        sdk.moduleConfig.cdpApiKey shouldBe givenPublicKey
+        sdk.analytics.enabled shouldBe true
+    }
+
+    @Test
+    fun initialize_givenPublicKeyAfterSecretKey_expectOnlyNewModulesInitialized() {
+        val givenDisabledModule = mockGenericModule().apply {
+            every { moduleName } returns String.random
+        }
+        val givenModule = mockGenericModule().apply {
+            every { moduleName } returns String.random
+        }
+        CustomerIO.initialize(
+            createCustomerIOConfigBuilder("sk_us_$KEY_BODY").addCustomerIOModule(givenDisabledModule).build()
+        )
+
+        CustomerIO.initialize(
+            createCustomerIOConfigBuilder("pk_us_$KEY_BODY").addCustomerIOModule(givenModule).build()
+        )
+
+        assertCalledNever { givenDisabledModule.initialize() }
+        assertCalledOnce { givenModule.initialize() }
+        SDKComponent.modules[givenDisabledModule.moduleName] shouldBe null
+        SDKComponent.modules[givenModule.moduleName] shouldBe givenModule
+    }
+
+    @Test
+    fun initialize_givenSecretKeyAfterPublicKey_expectSdkStaysEnabled() {
+        val givenPublicKey = "pk_us_$KEY_BODY"
+        CustomerIO.initialize(createCustomerIOConfigBuilder(givenPublicKey).build())
+
+        CustomerIO.initialize(createCustomerIOConfigBuilder("sk_us_$KEY_BODY").build())
+
+        assertCalledOnce { mockLogger.coreSdkSecretKeyRejected() }
+        val sdk = CustomerIO.instance()
+        sdk.moduleConfig.cdpApiKey shouldBe givenPublicKey
+        sdk.analytics.enabled shouldBe true
+    }
+
+    @Test
+    fun initialize_givenPublicEUKeyWithoutRegion_expectEURegionBasedHosts() {
+        val config = createCustomerIOConfigBuilder("pk_eu_$KEY_BODY").build()
+
+        CustomerIO.initialize(config)
+
+        val dataPipelinesModuleConfig = CustomerIO.instance().moduleConfig
+        dataPipelinesModuleConfig.apiHost shouldBe "cdp-eu.customer.io/v1"
+        dataPipelinesModuleConfig.cdnHost shouldBe "cdp-eu.customer.io/v1"
+    }
+
+    @Test
+    fun initialize_givenPublicEUKeyWithRegionUS_expectRegionOverridesKey() {
+        val config = createCustomerIOConfigBuilder("pk_eu_$KEY_BODY")
+            .region(Region.US)
+            .build()
+
+        CustomerIO.initialize(config)
+
+        val dataPipelinesModuleConfig = CustomerIO.instance().moduleConfig
+        dataPipelinesModuleConfig.apiHost shouldBe "cdp.customer.io/v1"
+        dataPipelinesModuleConfig.cdnHost shouldBe "cdp.customer.io/v1"
+    }
+
+    @Test
+    fun initialize_givenPublicUSKey_expectKeyIsUsedAsIs() {
+        val givenKey = "pk_us_$KEY_BODY"
+        val config = createCustomerIOConfigBuilder(givenKey).build()
+
+        CustomerIO.initialize(config)
+
+        val dataPipelinesModuleConfig = CustomerIO.instance().moduleConfig
+        dataPipelinesModuleConfig.cdpApiKey shouldBe givenKey
+        dataPipelinesModuleConfig.apiHost shouldBe "cdp.customer.io/v1"
+    }
+
+    @Test
     fun build_givenFlushPolicies_expectBuilderAcceptsFlushPolicies() {
         val givenFlushPolicies = emptyList<FlushPolicy>()
 
@@ -399,6 +506,10 @@ class CustomerIOConfigBuilderTest : RobolectricTest() {
         // Config objects should be created successfully
         configEnabled shouldNotBe null
         configDisabled shouldNotBe null
+    }
+
+    private companion object {
+        const val KEY_BODY = "0123456789abcdefABCDEF0123456789_a1B2c3"
     }
 
     private fun createCustomerIOConfigBuilder(givenCdpApiKey: String? = null): CustomerIOConfigBuilder = CustomerIOConfigBuilder(

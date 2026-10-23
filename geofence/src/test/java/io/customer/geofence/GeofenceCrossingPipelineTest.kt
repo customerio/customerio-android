@@ -8,6 +8,7 @@ import io.customer.commontest.config.testConfigurationDefault
 import io.customer.commontest.core.RobolectricTest
 import io.customer.geofence.di.geofenceCrossingPipeline
 import io.customer.geofence.di.pendingGeofenceDeliveryStore
+import io.customer.geofence.polygon.PolygonCoordinate
 import io.customer.geofence.polygon.PolygonGeofenceServiceController
 import io.customer.geofence.store.GeofenceRegionStore
 import io.customer.geofence.store.PendingGeofenceDelivery
@@ -75,6 +76,49 @@ class GeofenceCrossingPipelineTest : RobolectricTest() {
         GeofenceDiagnostics.setEnabledForTesting(null)
     }
 
+    @Test
+    fun handle_givenAPolygonDwell_expectDroppedAndNeverNativeCircleQualification() = runTest {
+        val region = GeofenceRegion(
+            "polygon",
+            0.0,
+            0.0,
+            100f,
+            polygonVertices = listOf(
+                PolygonCoordinate(-0.001, -0.001),
+                PolygonCoordinate(-0.001, 0.001),
+                PolygonCoordinate(0.001, 0.001),
+                PolygonCoordinate(0.001, -0.001)
+            ),
+            dwellThresholdSeconds = 60
+        )
+        every { mockStore.getCachedRegions() } returns listOf(region)
+        every { mockStore.getCachedRegion(region.id) } returns region
+        every { mockStore.getRegisteredIds() } returns setOf(region.id)
+        val circleDwell = mockk<GeofenceDwellCoordinator>(relaxed = true)
+        val logger = mockk<GeofenceLogger>(relaxed = true)
+        val subject = GeofenceCrossingPipeline(
+            regionStore = mockStore,
+            services = mockServices,
+            registrar = mockManager,
+            transitionProcessor = mockk(relaxed = true),
+            dwellCoordinator = circleDwell,
+            polygonController = mockPolygonController,
+            logger = logger
+        )
+
+        subject.handle(
+            GeofenceCrossing(
+                listOf(region.id), GeofenceCrossingTransition.DWELL, "DWELL", Geofence.GEOFENCE_TRANSITION_DWELL,
+                null, null, null, 100L, 100_000L
+            )
+        )
+
+        // An enclosing circle's DWELL proves nothing about the polygon; only a strict fix may.
+        verify { logger.logUnknownTransition(region.id, Geofence.GEOFENCE_TRANSITION_DWELL) }
+        coVerify(exactly = 0) { circleDwell.onNativeDwell(any(), any(), any(), any(), any()) }
+        coVerify(exactly = 0) { mockPolygonController.activate(any(), any(), any(), any(), any(), any()) }
+    }
+
     private fun expectRecorded(ev: String, why: String) {
         val match = capturingLogger.messages.firstOrNull { it.contains("ev=$ev") && it.contains("why=$why") }
         if (match == null) {
@@ -112,7 +156,8 @@ class GeofenceCrossingPipelineTest : RobolectricTest() {
             latitude = latitude,
             longitude = longitude,
             triggeringLocation = null,
-            receivedAtSeconds = receivedAtSeconds
+            receivedAtSeconds = receivedAtSeconds,
+            receivedAtElapsedMs = android.os.SystemClock.elapsedRealtime()
         )
     )
 
@@ -249,7 +294,7 @@ class GeofenceCrossingPipelineTest : RobolectricTest() {
             longitude = -122.4194
         )
 
-        verify { mockServices.onMovementTriggerExit(37.7749, -122.4194, any()) }
+        verify { mockServices.onMovementTriggerExit(37.7749, -122.4194, any(), any()) }
         coVerify(exactly = 0) { mockScheduler.schedule(any()) }
         pendingStore.loadAll() shouldBeEqualTo emptyList()
     }
@@ -263,7 +308,7 @@ class GeofenceCrossingPipelineTest : RobolectricTest() {
             longitude = 0.0
         )
 
-        verify(exactly = 0) { mockServices.onMovementTriggerExit(any(), any(), any()) }
+        verify(exactly = 0) { mockServices.onMovementTriggerExit(any(), any(), any(), any()) }
         coVerify(exactly = 0) { mockScheduler.schedule(any()) }
         pendingStore.loadAll() shouldBeEqualTo emptyList()
     }
@@ -619,7 +664,7 @@ class GeofenceCrossingPipelineTest : RobolectricTest() {
         )
 
         verify(exactly = 0) { mockStore.claimExit(any()) }
-        verify { mockServices.onMovementTriggerExit(any(), any(), any()) }
+        verify { mockServices.onMovementTriggerExit(any(), any(), any(), any()) }
     }
 
     @Test
@@ -650,7 +695,7 @@ class GeofenceCrossingPipelineTest : RobolectricTest() {
             longitude = 0.0
         )
 
-        verify(exactly = 0) { mockServices.onMovementTriggerExit(any(), any(), any()) }
+        verify(exactly = 0) { mockServices.onMovementTriggerExit(any(), any(), any(), any()) }
         coVerify { mockManager.removeGeofencesByIds(listOf(GeofenceConstants.MOVEMENT_TRIGGER_ID)) }
     }
 

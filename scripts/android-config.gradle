@@ -16,17 +16,27 @@ android {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
     }
-    kotlinOptions {
-        jvmTarget = '17'
-        freeCompilerArgs += [
-                '-opt-in=kotlin.RequiresOptIn',
-                '-opt-in=io.customer.base.internal.InternalCustomerIOApi',
-        ]
-    }
     // starting in AGP 8.0+, and particularly enforced in Gradle 8.2+, the new variant-aware publishing DSL requires you to explicitly opt-in to publishing variants
     publishing {
         singleVariant("release") {
             withSourcesJar()
         }
+    }
+}
+
+// `android.kotlinOptions` is an error from Kotlin 2.2, which AGP 9 brings in. Script plugins can't
+// import Kotlin Gradle plugin classes, so the enums are loaded through the extension's classloader.
+def kotlinDsl = { String type -> kotlin.class.classLoader.loadClass("org.jetbrains.kotlin.gradle.dsl.$type") }
+kotlin {
+    compilerOptions {
+        jvmTarget.set(kotlinDsl('JvmTarget').JVM_17)
+        // AGP 9 raises the Kotlin Gradle plugin to 2.2+. Keep the published metadata and stdlib API
+        // at 2.1 so host apps on older Kotlin can still consume the SDK.
+        languageVersion.set(kotlinDsl('KotlinVersion').KOTLIN_2_1)
+        apiVersion.set(kotlinDsl('KotlinVersion').KOTLIN_2_1)
+        optIn.addAll(
+                'kotlin.RequiresOptIn',
+                'io.customer.base.internal.InternalCustomerIOApi'
+        )
     }
 }

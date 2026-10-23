@@ -132,7 +132,6 @@ abstract class MeasureAndroidLibrarySizeTask : DefaultTask() {
         gradlePropertiesFile.writeText(
             """
             android.useAndroidX=true
-            android.enableJetifier=true
             """.trimIndent()
         )
 

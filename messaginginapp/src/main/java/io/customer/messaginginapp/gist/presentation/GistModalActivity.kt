@@ -2,13 +2,19 @@ package io.customer.messaginginapp.gist.presentation
 
 import android.content.Context
 import android.content.Intent
+import android.graphics.Color
 import android.os.Bundle
 import android.view.Gravity
 import android.view.View
 import android.view.WindowManager
 import androidx.activity.OnBackPressedCallback
+import androidx.activity.SystemBarStyle
+import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.animation.doOnEnd
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.updatePadding
 import androidx.lifecycle.lifecycleScope
 import io.customer.base.internal.InternalCustomerIOApi
 import io.customer.messaginginapp.databinding.ActivityGistBinding
@@ -68,6 +74,11 @@ class GistModalActivity : AppCompatActivity(), ModalInAppMessageViewCallback, Tr
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        // Draw behind the system bars so the overlay covers the whole screen, matching host apps
+        // that use edge-to-edge (and every app targeting Android 15+). A fixed (non-auto) style keeps
+        // Android from painting its contrast scrim behind 3-button navigation, which would cover the
+        // overlay with a solid bar.
+        enableEdgeToEdge(navigationBarStyle = SystemBarStyle.dark(Color.TRANSPARENT))
         super.onCreate(savedInstanceState)
         prepareActivity()
     }
@@ -104,6 +115,19 @@ class GistModalActivity : AppCompatActivity(), ModalInAppMessageViewCallback, Tr
         window.addFlags(WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE)
         binding = ActivityGistBinding.inflate(layoutInflater)
         setContentView(binding.root)
+        applySystemBarInsets()
+    }
+
+    // Pad the overlay layout rather than the message view: the overlay background still fills
+    // the screen behind the bars, while the message is laid out clear of them.
+    private fun applySystemBarInsets() {
+        ViewCompat.setOnApplyWindowInsetsListener(binding.modalGistViewLayout) { view, insets ->
+            val bars = insets.getInsets(
+                WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout()
+            )
+            view.updatePadding(left = bars.left, top = bars.top, right = bars.right, bottom = bars.bottom)
+            insets
+        }
     }
 
     private fun setupMessage(message: Message) {

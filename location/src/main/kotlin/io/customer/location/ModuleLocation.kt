@@ -16,6 +16,7 @@ import io.customer.sdk.core.pipeline.identifyHookRegistry
 import io.customer.sdk.core.util.HandlerMainThreadPoster
 import io.customer.sdk.core.util.Logger
 import io.customer.sdk.core.util.MainThreadPoster
+import kotlinx.coroutines.launch
 
 /**
  * Location module for Customer.io SDK.
@@ -111,22 +112,29 @@ class ModuleLocation @JvmOverloads constructor(
 
         val services = _locationServices ?: return
 
-        locationTracker.restorePersistedLocation()
+        // Off the caller's thread: the restore decrypts with the Keystore, which can stall for
+        // seconds and ANR the app at init.
+        val restore = locationScope.launch { locationTracker.restorePersistedLocation() }
 
         // On identify, attempt to send a supplementary "CIO Location Update" track event.
         // The identify event itself already carries location via context enrichment —
         // this track event is for journey/segment triggers in the user's timeline.
         eventBus.subscribe<Event.UserChangedEvent> {
             if (!it.userId.isNullOrEmpty()) {
-                locationTracker.onUserIdentified()
+                // Off the bus collector, so a slow restore or decrypt can't hold up other events.
+                locationScope.launch {
+                    // The ON_APP_START check below must see the restored location.
+                    restore.join()
+                    locationTracker.onUserIdentified()
 
-                // ON_APP_START's lifecycle one-shot fires per process, but resetContext()
-                // wipes trackedLocation on logout — a subsequent identify in the same process
-                // needs a fresh fetch. MANUAL deliberately doesn't auto-fetch.
-                if (locationTracker.trackedLocation == null &&
-                    moduleConfig.trackingMode == LocationTrackingMode.ON_APP_START
-                ) {
-                    services.requestLocationUpdate()
+                    // ON_APP_START's lifecycle one-shot fires per process, but resetContext()
+                    // wipes trackedLocation on logout — a subsequent identify in the same process
+                    // needs a fresh fetch. MANUAL deliberately doesn't auto-fetch.
+                    if (locationTracker.trackedLocation == null &&
+                        moduleConfig.trackingMode == LocationTrackingMode.ON_APP_START
+                    ) {
+                        services.requestLocationUpdate()
+                    }
                 }
             }
         }

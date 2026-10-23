@@ -188,7 +188,7 @@ class CustomerIO private constructor(
         publishUserChanged()
     }
 
-    /** Persists the userId before publishing so subscribers that read [secureUserStore] don't race the event. */
+    /** Stores the userId before publishing so subscribers that read [secureUserStore] don't race the event. */
     private fun publishUserChanged(userId: String? = analytics.userId()) {
         val anonymousId = analytics.anonymousId()
         secureUserStore.saveUserId(userId)
@@ -407,7 +407,7 @@ class CustomerIO private constructor(
         }
 
         logger.debug("resetting user profile")
-        // Clear the persisted userId synchronously BEFORE publishing ResetEvent. Subscribers run
+        // Clear the stored userId synchronously BEFORE publishing ResetEvent. Subscribers run
         // asynchronously, so a live `secureUserStore` read inside one (e.g. geofence deciding whether
         // to wipe) must observe the signed-out state here, not a stale value or a fast re-identify.
         secureUserStore.clearAll()

@@ -46,6 +46,7 @@ object Dependencies {
     const val junit4 = "junit:junit"
     const val junitBom = "org.junit:junit-bom:${Versions.JUNIT_BOM}"
     const val junitJupiter = "org.junit.jupiter:junit-jupiter"
+    const val junitPlatformLauncher = "org.junit.platform:junit-platform-launcher"
     const val junitVintageEngine = "org.junit.vintage:junit-vintage-engine"
     const val kluent = "org.amshove.kluent:kluent-android:${Versions.KLUENT}"
     const val kotlinBinaryValidator =

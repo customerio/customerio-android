@@ -49,7 +49,7 @@ jobs:
     name: Building app...${{ matrix.sample-app }}
     steps:
       - name: Check out code with conditional fetch-depth
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0 # Workaround for bug https://github.com/actions/checkout/issues/1471
 
@@ -92,10 +92,10 @@ jobs:
       # CLI to replace strings in files. The CLI recommends using `cargo install` which is slow. This Action is fast because it downloads pre-built binaries.
       # If using sd on macos, "brew install" works great. for Linux, this is the recommended way.
       - name: Install sd CLI to use later in the workflow
-        uses: kenji-miyake/setup-sd@08c14e27d65a1c215342ef00c81583ae67f4c5ef # v2.0.0
+        uses: kenji-miyake/setup-sd@f4181660873fa5814708e1c0a640d8e9975a4ae5 # v2.0.0
 
       - name: Install tools from Gemfile (ruby language) used for building our apps with
-        uses: ruby/setup-ruby@95ef2b042f9d7a56d8268cba8559e2842e2ad01b # v1.321.0
+        uses: ruby/setup-ruby@824c0e29fdfc7d689c191c27acc969d2d04b7dd8 # v1.331.0
         with:
           ruby-version: '3.4'
           bundler-cache: true # cache tools to make builds faster in future
@@ -172,7 +172,7 @@ jobs:
 
       - name: Deploy build via Fastlane
         if: ${{ ! (inputs.use_latest_sdk_version == true && matrix.sample-app == 'kotlin_compose') }}
-        uses: maierj/fastlane-action@5a3b971aaa26776459bb26894d6c1a1a84a311a7 # v3.1.0
+        uses: maierj/fastlane-action@182983d8f94bad9884001c03c1c2786f4c7165ed # v3.2.0
         with:
           lane: ${{ inputs.use_latest_sdk_version == true && 'android build_sample_app_for_sdk_release' || 'android build' }}
           subdirectory: "samples/${{ matrix.sample-app }}"
@@ -234,7 +234,7 @@ jobs:
     permissions:
       pull-requests: write # comment on pull request with build information
     steps:
-      - uses: actions/checkout@v4 # required to use the local action below
+      - uses: actions/checkout@v7 # required to use the local action below
 
       - name: Build the list of sample app builds
         id: build-log

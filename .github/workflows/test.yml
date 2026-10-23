@@ -27,7 +27,7 @@ jobs:
             platform: JVM core
     name: OkHttp ${{ matrix.okhttp-version }} ${{ matrix.platform }} SSE compatibility
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: ./.github/actions/setup-android
       - name: Run SSE compatibility tests
         run: >-
@@ -38,7 +38,7 @@ jobs:
           --tests 'io.customer.messaginginapp.gist.data.sse.SseServiceTest'
       - name: Publish SSE compatibility test results
         if: ${{ always() }}
-        uses: mikepenz/action-junit-report@cf701569b05ccdd861a76b8607a66d76f6fd4857 # v5.5.1
+        uses: mikepenz/action-junit-report@6ef3fdcfcd5f0b5d14df3e659ef19b8c6820f93d # v6.6.1
         with:
           report_paths: 'messaginginapp/build/test-results/testDebugUnitTest/TEST-*.xml'
           fail_on_failure: true
@@ -52,12 +52,12 @@ jobs:
         module: [messagingpush, messaginginapp, messaginginapp-compose, messaginginbox, base, datapipelines, core, tracking-migration, location, geofence]
     name: Unit tests (${{ matrix.module }})
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: ./.github/actions/setup-android
       - name: Run unit tests (${{ matrix.module }})
         run: ./gradlew :${{ matrix.module }}:runJacocoTestReport
       - name: Upload code coverage report
-        uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7.0.0
+        uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_UPLOAD_TOKEN }}
         with:
@@ -65,7 +65,7 @@ jobs:
           verbose: true
           files: ./${{ matrix.module }}/build/reports/jacoco/test/jacocoTestReport.xml,./${{ matrix.module }}/build/reports/jacoco/runJacocoTestReport/runJacocoTestReport.xml
       - name: Publish test results (${{ matrix.module }})
-        uses: mikepenz/action-junit-report@cf701569b05ccdd861a76b8607a66d76f6fd4857 # v5.5.1
+        uses: mikepenz/action-junit-report@6ef3fdcfcd5f0b5d14df3e659ef19b8c6820f93d # v6.6.1
         with:
           report_paths: '**/build/test-results/test*/TEST-*.xml'
           fail_on_failure: true
@@ -81,7 +81,7 @@ jobs:
         sample: [kotlin_compose, java_layout]
         api-level: [31]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: ./.github/actions/setup-android
 
       - name: Enable KVM
@@ -92,7 +92,7 @@ jobs:
 
       # Create and cache the AVD
       - name: AVD cache
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         id: avd-cache
         with:
           path: |
@@ -103,7 +103,7 @@ jobs:
       # Create AVD and generate snapshot for caching
       - name: Create AVD and generate snapshot
         if: steps.avd-cache.outputs.cache-hit != 'true'
-        uses: reactivecircus/android-emulator-runner@324029e2f414c084d8b15ba075288885e74aef9c # v2.34.0
+        uses: reactivecircus/android-emulator-runner@1dcd0090116d15e7c562f8db72807de5e036a4ed # v2.34.0
         with:
           api-level: ${{ matrix.api-level }}
           arch: x86_64
@@ -124,7 +124,7 @@ jobs:
       - name: Run instrumentation tests
         id: run-tests
         continue-on-error: true
-        uses: reactivecircus/android-emulator-runner@324029e2f414c084d8b15ba075288885e74aef9c # v2.34.0
+        uses: reactivecircus/android-emulator-runner@1dcd0090116d15e7c562f8db72807de5e036a4ed # v2.34.0
         with:
           api-level: ${{ matrix.api-level }}
           arch: x86_64
@@ -168,7 +168,7 @@ jobs:
       - name: Retry instrumentation tests on startup failure
         id: retry-tests
         if: steps.run-tests.outcome == 'failure' && steps.check-retry.outputs.should_retry == 'true'
-        uses: reactivecircus/android-emulator-runner@324029e2f414c084d8b15ba075288885e74aef9c # v2.34.0
+        uses: reactivecircus/android-emulator-runner@1dcd0090116d15e7c562f8db72807de5e036a4ed # v2.34.0
         with:
           api-level: ${{ matrix.api-level }}
           arch: x86_64
@@ -202,7 +202,7 @@ jobs:
           fi
 
       - name: Publish test results
-        uses: mikepenz/action-junit-report@cf701569b05ccdd861a76b8607a66d76f6fd4857 # v5.5.1
+        uses: mikepenz/action-junit-report@6ef3fdcfcd5f0b5d14df3e659ef19b8c6820f93d # v6.6.1
         if: always()
         with:
           report_paths: 'samples/${{ matrix.sample }}/build/outputs/androidTest-results/connected/TEST-*.xml'

@@ -158,6 +158,97 @@ class PolygonRouteIntegrationTest {
     }
 
     @Test
+    fun process_givenADwellOnlyAnswerRepeatingAHeldArrivalsPosition_expectTheHoldNeitherSettledNorReplaced() {
+        // A neighbour's borderline arrival is held; a fix requested for another fence's dwell proof
+        // re-serves the same position with a newer stamp, as GMS did on the 2026-10-21 trip.
+        val processor = PolygonRouteProcessor()
+        val marginal = PolygonLocationSample(point(37.77452, -122.4194), 30.0)
+        processor.process(
+            fences = listOf(campus),
+            sample = marginal,
+            elapsedRealtimeNanos = 1L,
+            fixAgeSeconds = 0.0,
+            committedStates = emptyMap()
+        ).detections.shouldBeEmpty()
+
+        val dwellAnswer = processor.process(
+            fences = listOf(campus),
+            sample = marginal,
+            elapsedRealtimeNanos = 1L + FIFTEEN_SECONDS_NANOS,
+            fixAgeSeconds = 0.0,
+            committedStates = emptyMap(),
+            settlesHeldArrivals = false
+        )
+
+        // Not committed as NOT_INDEPENDENT: the answer was asked for no held arrival.
+        dwellAnswer.detections.shouldBeEmpty()
+        // The hold is kept for its own corroboration, which an independent fix still commits.
+        processor.process(
+            fences = listOf(campus),
+            sample = marginal.resampled(),
+            elapsedRealtimeNanos = 1L + 2 * FIFTEEN_SECONDS_NANOS,
+            fixAgeSeconds = 0.0,
+            committedStates = emptyMap()
+        ).detections.map(PolygonTransitionDetection::transition) shouldBeEqualTo listOf(PolygonTransition.ENTER)
+    }
+
+    @Test
+    fun process_givenADwellOnlyAnswerEchoingAHeldArrivalsExactFix_expectNoEnter() {
+        // The approach batch marks its dwell-proof answer as answering the held fix, so an echo is
+        // memoised. That mark alone must not let the very fix the hold rests on settle it.
+        val processor = PolygonRouteProcessor()
+        val marginal = PolygonLocationSample(point(37.77452, -122.4194), 30.0)
+        processor.process(
+            fences = listOf(campus),
+            sample = marginal,
+            elapsedRealtimeNanos = 1L,
+            fixAgeSeconds = 0.0,
+            committedStates = emptyMap()
+        ).detections.shouldBeEmpty()
+
+        processor.process(
+            fences = listOf(campus),
+            sample = marginal,
+            elapsedRealtimeNanos = 1L,
+            fixAgeSeconds = 0.0,
+            committedStates = emptyMap(),
+            answersHeldFixAt = 1L,
+            settlesHeldArrivals = false
+        ).detections.shouldBeEmpty()
+
+        // The hold is kept for its own corroboration, which an independent fix still commits.
+        processor.process(
+            fences = listOf(campus),
+            sample = marginal.resampled(),
+            elapsedRealtimeNanos = 1L + FIFTEEN_SECONDS_NANOS,
+            fixAgeSeconds = 0.0,
+            committedStates = emptyMap()
+        ).detections.map(PolygonTransitionDetection::transition) shouldBeEqualTo listOf(PolygonTransition.ENTER)
+    }
+
+    @Test
+    fun process_givenADwellOnlyAnswerThatDecidesAlone_expectTheNeighboursEnterStillCommitted() {
+        val processor = PolygonRouteProcessor()
+        processor.process(
+            fences = listOf(campus),
+            sample = PolygonLocationSample(point(37.77452, -122.4194), 30.0),
+            elapsedRealtimeNanos = 1L,
+            fixAgeSeconds = 0.0,
+            committedStates = emptyMap()
+        ).detections.shouldBeEmpty()
+
+        // Deep inside with a small circle: decides alone, whatever the request was for.
+        processor.process(
+            fences = listOf(campus),
+            sample = PolygonLocationSample(point(37.7750, -122.4194), 5.0),
+            elapsedRealtimeNanos = 1L + FIFTEEN_SECONDS_NANOS,
+            fixAgeSeconds = 0.0,
+            committedStates = emptyMap(),
+            settlesHeldArrivals = false
+        ).detections.map(PolygonTransitionDetection::transition) shouldBeEqualTo listOf(PolygonTransition.ENTER)
+    }
+
+    @Test
     fun process_givenTheSameMarginalFixTwice_expectItCannotCorroborateItself() {
         // An echo under the same stamp is refused by the per-fence monotonic check.
         val processor = PolygonRouteProcessor()
@@ -172,6 +263,64 @@ class PolygonRouteIntegrationTest {
                 committedStates = emptyMap()
             ).detections.shouldBeEmpty()
         }
+    }
+
+    @Test
+    fun process_givenARequestedFixThatIsTheFixTheFenceLastJudged_expectItSkippedAsAnEcho() {
+        val processor = PolygonRouteProcessor()
+        val inside = PolygonLocationSample(point(37.7750, -122.4194), 5.0)
+        val committed = mapOf("campus" to PolygonCommittedState.INSIDE)
+        processor.process(
+            fences = listOf(campus),
+            sample = inside,
+            elapsedRealtimeNanos = 1L,
+            fixAgeSeconds = 0.0,
+            committedStates = committed
+        )
+
+        // A request answered with the very fix the fence was judged on shows it nothing new.
+        val answer = processor.process(
+            fences = listOf(campus),
+            sample = inside,
+            elapsedRealtimeNanos = 1L,
+            fixAgeSeconds = 0.0,
+            committedStates = committed,
+            answersHeldFixAt = 1L
+        )
+
+        answer.echoedFixIds shouldBeEqualTo setOf("campus")
+        answer.records.shouldBeEmpty()
+        answer.detections.shouldBeEmpty()
+    }
+
+    @Test
+    fun process_givenARequestedFixAnsweredAfterANewerFixWasJudged_expectNoEcho() {
+        // The request went out for the fix at 1, but a fix at 2 reached the fence first. The verdict
+        // rests on that newer fix, so the late answer is merely old, not proof the spot is futile.
+        val processor = PolygonRouteProcessor()
+        val inside = PolygonLocationSample(point(37.7750, -122.4194), 5.0)
+        val committed = mapOf("campus" to PolygonCommittedState.INSIDE)
+        listOf(1L to inside, 2L to inside.resampled()).forEach { (elapsed, fix) ->
+            processor.process(
+                fences = listOf(campus),
+                sample = fix,
+                elapsedRealtimeNanos = elapsed,
+                fixAgeSeconds = 0.0,
+                committedStates = committed
+            )
+        }
+
+        val answer = processor.process(
+            fences = listOf(campus),
+            sample = inside,
+            elapsedRealtimeNanos = 1L,
+            fixAgeSeconds = 0.0,
+            committedStates = committed,
+            answersHeldFixAt = 1L
+        )
+
+        answer.echoedFixIds.shouldBeEmpty()
+        answer.records.shouldBeEmpty()
     }
 
     @Test

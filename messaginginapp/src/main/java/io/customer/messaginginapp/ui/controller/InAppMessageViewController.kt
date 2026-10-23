@@ -112,7 +112,8 @@ internal abstract class InAppMessageViewController<ViewCallback : InAppMessageVi
             endpoint = store.environment.getEngineApiUrl(),
             properties = message.properties,
             customAttributes = SDKComponent.gistCustomAttributes.toMap(),
-            colorScheme = store.colorScheme.resolve(uiMode)
+            colorScheme = store.colorScheme.resolve(uiMode),
+            key = store.publicKey
         )
 
         currentMessage = message

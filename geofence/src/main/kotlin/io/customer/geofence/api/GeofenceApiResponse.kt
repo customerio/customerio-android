@@ -14,6 +14,8 @@ import io.customer.geofence.polygon.PolygonWakeCircle
 import io.customer.geofence.polygon.PolygonWakeCircleValidator
 import io.customer.location.LocationCoordinates
 import io.customer.sdk.core.di.SDKComponent
+import kotlin.math.abs
+import kotlin.math.floor
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonArray
@@ -22,6 +24,7 @@ import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.doubleOrNull
+import kotlinx.serialization.json.longOrNull
 
 /** Wire shape of `POST /geofences/nearest`. */
 @Serializable
@@ -85,7 +88,11 @@ internal data class GeofenceApiRegion(
     val geosetIds: List<String> = emptyList(),
     // A JsonElement, not a typed map, so malformed `metadata` can't fail the response decode.
     @SerialName("metadata")
-    val metadata: JsonElement? = null
+    val metadata: JsonElement? = null,
+    // A JsonElement for the same reason: a value of the wrong type disables dwell for this fence
+    // and is logged, rather than failing the whole response decode.
+    @SerialName("dwell_threshold_seconds")
+    val dwellThresholdSeconds: JsonElement? = null
 )
 
 // Nullable throughout: these decode before [toDomainRegions]' per-record try/catch, so a required
@@ -229,7 +236,8 @@ private fun GeofenceApiRegion.toCircleRegionOrNull(): GeofenceRegion? {
         transitionTypes = resolveTransitionTypes(transitionTypes),
         lastUpdated = lastUpdated ?: 0L,
         geosetIds = geosetIds,
-        metadata = sanitizeMetadata(metadata)
+        metadata = sanitizeMetadata(metadata),
+        dwellThresholdSeconds = sanitizeDwellThreshold(id, dwellThresholdSeconds)
     )
 }
 
@@ -285,7 +293,8 @@ private fun GeofenceApiRegion.toPolygonRegionOrNull(
         lastUpdated = lastUpdated ?: 0L,
         geosetIds = geosetIds,
         metadata = sanitizeMetadata(metadata),
-        polygonVertices = polygon.vertices
+        polygonVertices = polygon.vertices,
+        dwellThresholdSeconds = sanitizeDwellThreshold(id, dwellThresholdSeconds)
     )
 }
 
@@ -305,7 +314,8 @@ private fun GeofenceApiRegion.toCatalogEntry(): GeofenceCatalogEntry {
         longitude = if (isPolygonRecord) enclosingCircle?.longitude else longitude,
         radiusMeters = if (isPolygonRecord) enclosingCircle?.baseRadiusMeters else radius,
         vertices = geometry?.toPolygonGeometryOrNull()?.vertices,
-        transitionTypes = transitionTypesOrDefaults(transitionTypes).map { it.name.lowercase() }
+        transitionTypes = transitionTypesOrDefaults(transitionTypes).map { it.name.lowercase() },
+        dwellThresholdSeconds = dwellThresholdSeconds?.wholeSecondsOrNull()
     )
 }
 
@@ -339,6 +349,39 @@ private fun JsonElement.toPolygonVerticesOrNull(): List<PolygonCoordinate>? {
 private const val POLYGON_GEOMETRY_TYPE = "Polygon"
 private const val CIRCLE_SHAPE = "circle"
 private const val POLYGON_SHAPE = "polygon"
+
+/**
+ * Absent (legacy) and zero (disabled) are silent. Any other value outside what GMS can represent,
+ * or not a whole number of seconds at all, disables dwell for this fence only, keeping the region,
+ * and is logged: a validating backend never sends one, so it means the contract broke. Never
+ * clamped, since GMS would then wait for a threshold other than the configured one.
+ */
+private fun sanitizeDwellThreshold(geofenceId: String, raw: JsonElement?): Int {
+    if (raw == null || raw is JsonNull) return 0
+    val seconds = raw.wholeSecondsOrNull()
+    if (seconds == 0L) return 0
+    if (seconds == null || seconds !in 1L..GeofenceConstants.MAX_DWELL_THRESHOLD_SECONDS.toLong()) {
+        SDKComponent.geofenceLogger.logUnsupportedDwellThreshold(geofenceId, raw.toString())
+        return 0
+    }
+    return seconds.toInt()
+}
+
+/**
+ * The value as whole seconds: a JSON integer, or a float with no fractional part, which some
+ * serializers write for an integer. A string, a fraction, or anything else is null.
+ */
+private fun JsonElement.wholeSecondsOrNull(): Long? {
+    val primitive = this as? JsonPrimitive ?: return null
+    if (primitive.isString) return null
+    primitive.longOrNull?.let { return it }
+    val value = primitive.doubleOrNull ?: return null
+    if (!value.isFinite() || value != floor(value) || abs(value) >= MAX_WHOLE_SECONDS_AS_DOUBLE) return null
+    return value.toLong()
+}
+
+/** Below this a double converts to a Long exactly; beyond it the threshold is unsupported anyway. */
+private const val MAX_WHOLE_SECONDS_AS_DOUBLE = 9.0e15
 
 /** Scalars only, count/size capped. Keys are sorted so the capping is deterministic. */
 private fun sanitizeMetadata(raw: JsonElement?): Map<String, JsonElement> {

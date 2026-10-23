@@ -31,6 +31,8 @@ class DataPipelinesModuleConfig(
     // Determines how SDK should handle screen view events
     val screenViewUse: ScreenView
 ) : CustomerIOModuleConfig {
+    // Shared with other modules through DataPipeline so they use the same region
+    internal val region: Region = region
     val apiHost: String = apiHostOverride ?: region.apiHost()
     val cdnHost: String = cdnHostOverride ?: region.cdnHost()
 

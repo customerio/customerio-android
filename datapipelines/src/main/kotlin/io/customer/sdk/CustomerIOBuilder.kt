@@ -62,7 +62,7 @@ class CustomerIOBuilder(
     private var logLevel: CioLogLevel = CustomerIOConfigBuilder.Defaults.logLevel
 
     // Host Settings
-    private var region: Region = CustomerIOConfigBuilder.Defaults.region
+    private var region: Region? = null
     private var apiHost: String? = CustomerIOConfigBuilder.Defaults.apiHost
     private var cdnHost: String? = CustomerIOConfigBuilder.Defaults.cdnHost
 
@@ -208,7 +208,7 @@ class CustomerIOBuilder(
             applicationContext = applicationContext,
             cdpApiKey = cdpApiKey,
             logLevel = logLevel,
-            region = region,
+            region = CustomerIOConfigBuilder.resolveRegion(cdpApiKey, region),
             apiHost = apiHost,
             cdnHost = cdnHost,
             flushAt = flushAt,

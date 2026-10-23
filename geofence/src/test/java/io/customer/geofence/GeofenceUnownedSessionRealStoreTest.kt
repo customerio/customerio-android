@@ -66,6 +66,7 @@ class GeofenceUnownedSessionRealStoreTest : RobolectricTest() {
             cooldownFilter = mockk(relaxed = true),
             transitionEmitter = mockk(relaxed = true),
             clock = clock,
+            bootSessionProvider = { BOOT },
             packageInfo = packageInfo,
             logger = mockk(relaxed = true)
         )
@@ -80,6 +81,9 @@ class GeofenceUnownedSessionRealStoreTest : RobolectricTest() {
         )
         store.saveLastMovementTriggerLocation(GeofenceLocation(0.0, 0.0), 1_000f)
         store.setLastRegistrationUptime(clock.elapsedRealtime())
+        // Registered in this boot, so the OS still holds these fences: only an unarmed session needs
+        // the cache re-rank.
+        store.setLastRegistrationBootSession(BOOT)
     }
 
     @Test
@@ -117,7 +121,8 @@ class GeofenceUnownedSessionRealStoreTest : RobolectricTest() {
 
     @Test
     fun armedSessionWithNoNetwork_expectNoLocalReRank() = runTest {
-        // The re-rank only recovers an unarmed session; it is not a general fallback.
+        // The cache re-rank after a failed fetch recovers an unarmed session, or an OS registration a
+        // reboot or app update wiped. An armed session with neither keeps what GMS already holds.
         store.beginUserSession(USER)
         store.saveRoutableRegisteredIdsIfCurrent(store.getRegisteredIds(), store.userStateGeneration())
             .shouldBeTrue()
@@ -215,5 +220,6 @@ class GeofenceUnownedSessionRealStoreTest : RobolectricTest() {
 
     private companion object {
         const val USER = "user-42"
+        const val BOOT = "boot"
     }
 }

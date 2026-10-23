@@ -20,6 +20,7 @@ import io.customer.messaginginapp.store.InAppPreferenceStore
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.util.Logger
 import java.io.File
+import java.io.IOException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import okhttp3.Cache
@@ -127,16 +128,29 @@ internal class Queue(
 
     private fun interceptResponse(response: okhttp3.Response, originalRequest: okhttp3.Request): okhttp3.Response {
         return when (response.code) {
-            200 -> interceptSuccessfulResponse(response, originalRequest)
-            304 -> interceptNotModifiedResponse(response, originalRequest)
+            200 -> interceptSuccessfulResponse(response, originalRequest, requirePreferenceStore(response))
+            304 -> interceptNotModifiedResponse(response, originalRequest, requirePreferenceStore(response))
             else -> response
         }
     }
 
-    private fun interceptSuccessfulResponse(response: okhttp3.Response, originalRequest: okhttp3.Request): okhttp3.Response {
+    // The DI getter recreates its store through SDKComponent.android(), which throws after teardown.
+    // Only dependency resolution is translated; response processing and storage writes stay outside.
+    private fun requirePreferenceStore(response: okhttp3.Response): InAppPreferenceStore = try {
+        inAppPreferenceStore
+    } catch (error: IllegalStateException) {
+        response.close()
+        throw IOException(NetworkUtilities.SDK_NOT_INITIALIZED_MESSAGE, error)
+    }
+
+    private fun interceptSuccessfulResponse(
+        response: okhttp3.Response,
+        originalRequest: okhttp3.Request,
+        preferenceStore: InAppPreferenceStore
+    ): okhttp3.Response {
         response.body?.let { responseBody ->
             val responseBodyString = responseBody.string()
-            inAppPreferenceStore.saveNetworkResponse(originalRequest.url.toString(), responseBodyString)
+            preferenceStore.saveNetworkResponse(originalRequest.url.toString(), responseBodyString)
             return response.newBuilder()
                 .body(responseBodyString.toResponseBody(responseBody.contentType()))
                 .build()
@@ -147,8 +161,12 @@ internal class Queue(
     // Populates 304 response body with cached data and converts to 200 for Retrofit compatibility.
     // Retrofit only populates body() for 2xx responses, so we must convert 304->200.
     // Adds custom header to track that this was originally a 304 response.
-    private fun interceptNotModifiedResponse(response: okhttp3.Response, originalRequest: okhttp3.Request): okhttp3.Response {
-        val cachedResponse = inAppPreferenceStore.getNetworkResponse(originalRequest.url.toString())
+    private fun interceptNotModifiedResponse(
+        response: okhttp3.Response,
+        originalRequest: okhttp3.Request,
+        preferenceStore: InAppPreferenceStore
+    ): okhttp3.Response {
+        val cachedResponse = preferenceStore.getNetworkResponse(originalRequest.url.toString())
         return cachedResponse?.let {
             response.newBuilder()
                 .body(it.toResponseBody(null))

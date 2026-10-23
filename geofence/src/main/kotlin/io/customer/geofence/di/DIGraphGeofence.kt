@@ -1,12 +1,17 @@
 package io.customer.geofence.di
 
+import android.content.Context
 import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.GeofencingClient
 import com.google.android.gms.location.LocationServices
+import io.customer.geofence.DwellDiagnosticJournal
+import io.customer.geofence.DwellDiagnosticRecorder
 import io.customer.geofence.GeofenceBusinessTransitionProcessor
 import io.customer.geofence.GeofenceCooldownFilter
 import io.customer.geofence.GeofenceCrossingPipeline
 import io.customer.geofence.GeofenceDistanceFilter
+import io.customer.geofence.GeofenceDwellCoordinator
+import io.customer.geofence.GeofenceExperiments
 import io.customer.geofence.GeofenceJsonSerializer
 import io.customer.geofence.GeofenceLogger
 import io.customer.geofence.GeofenceManager
@@ -28,18 +33,22 @@ import io.customer.geofence.polygon.GmsPolygonPassiveMonitor
 import io.customer.geofence.polygon.PolygonApproachMonitor
 import io.customer.geofence.polygon.PolygonApproachWorkScheduler
 import io.customer.geofence.polygon.PolygonBootSessionProvider
+import io.customer.geofence.polygon.PolygonDwellCheckPlanner
+import io.customer.geofence.polygon.PolygonDwellCheckScheduler
 import io.customer.geofence.polygon.PolygonFreshFixSource
 import io.customer.geofence.polygon.PolygonGeofenceServiceController
 import io.customer.geofence.polygon.PolygonLocationEngine
 import io.customer.geofence.polygon.PolygonPassiveMonitor
 import io.customer.geofence.polygon.PolygonRecheckScheduler
 import io.customer.geofence.polygon.PolygonSupport
+import io.customer.geofence.polygon.WorkManagerPolygonDwellCheckScheduler
 import io.customer.geofence.polygon.WorkManagerPolygonRecheckScheduler
 import io.customer.geofence.store.GeofenceCooldownStore
 import io.customer.geofence.store.GeofenceCooldownStoreImpl
 import io.customer.geofence.store.GeofenceRegionStore
 import io.customer.geofence.store.GeofenceRegionStoreImpl
 import io.customer.geofence.store.PendingGeofenceDelivery
+import io.customer.geofence.store.osRegistrationsWiped
 import io.customer.geofence.worker.AsyncGeofenceEventTracker
 import io.customer.geofence.worker.GeofenceEventScheduler
 import io.customer.geofence.worker.GeofenceEventTracker
@@ -51,6 +60,7 @@ import io.customer.sdk.core.di.httpClient
 import io.customer.sdk.core.di.workManagerProvider
 import io.customer.sdk.data.store.PendingDeliveryFlusher
 import io.customer.sdk.data.store.PendingDeliveryStore
+import java.io.File
 
 internal val SDKComponent.geofenceLogger: GeofenceLogger
     get() = singleton { GeofenceLogger(logger) }
@@ -81,6 +91,31 @@ internal val AndroidSDKComponent.polygonRecheckScheduler: PolygonRecheckSchedule
     // Keyed by the interface type, so an override registered for the interface takes effect.
     get() = singleton<PolygonRecheckScheduler> {
         WorkManagerPolygonRecheckScheduler(workManagerProvider = SDKComponent.workManagerProvider)
+    }
+
+internal val AndroidSDKComponent.polygonDwellCheckScheduler: PolygonDwellCheckScheduler
+    // Keyed by the interface type, so an override registered for the interface takes effect.
+    get() = singleton<PolygonDwellCheckScheduler> {
+        val store = geofenceRegionStore
+        val bootSessionProvider = polygonBootSessionProvider
+        val packageInfo = geofencePackageInfo
+        WorkManagerPolygonDwellCheckScheduler(
+            workManagerProvider = SDKComponent.workManagerProvider,
+            planner = PolygonDwellCheckPlanner(
+                store = store,
+                secureUserStore = secureUserStore,
+                bootSessionProvider = bootSessionProvider,
+                permissionChecker = geofencePermissionChecker,
+                osRegistrationsWiped = {
+                    store.osRegistrationsWiped(
+                        bootSessionId = bootSessionProvider.currentSessionId(),
+                        nowElapsedMs = SDKComponent.clock.elapsedRealtime(),
+                        packageUpdateTimeMs = packageInfo.lastUpdateTimeMs()
+                    )
+                }
+            ),
+            elapsedRealtimeMs = SDKComponent.clock::elapsedRealtime
+        )
     }
 
 internal val AndroidSDKComponent.polygonPassiveMonitor: PolygonPassiveMonitor
@@ -117,6 +152,7 @@ internal val AndroidSDKComponent.geofenceCrossingPipeline: GeofenceCrossingPipel
             services = geofenceServices,
             registrar = geofenceManager,
             transitionProcessor = geofenceBusinessTransitionProcessor,
+            dwellCoordinator = geofenceDwellCoordinator,
             polygonController = polygonGeofenceServiceController,
             logger = SDKComponent.geofenceLogger
         )
@@ -186,13 +222,26 @@ internal val AndroidSDKComponent.geofenceBusinessTransitionProcessor: GeofenceBu
         )
     }
 
+internal val AndroidSDKComponent.geofenceDwellCoordinator: GeofenceDwellCoordinator
+    get() = singleton {
+        GeofenceDwellCoordinator(
+            store = geofenceRegionStore,
+            transitionProcessor = geofenceBusinessTransitionProcessor,
+            clock = SDKComponent.clock,
+            diagnosticRecorder = dwellDiagnosticRecorder,
+            bootSessionProvider = polygonBootSessionProvider
+        )
+    }
+
 internal val AndroidSDKComponent.polygonLocationEngine: PolygonLocationEngine
     get() = singleton {
         PolygonLocationEngine(
             store = geofenceRegionStore,
             transitionProcessor = geofenceBusinessTransitionProcessor,
+            dwellCoordinator = geofenceDwellCoordinator,
             clock = SDKComponent.clock,
-            logger = SDKComponent.geofenceLogger
+            logger = SDKComponent.geofenceLogger,
+            dwellCheckScheduler = polygonDwellCheckScheduler
         )
     }
 
@@ -209,7 +258,10 @@ internal val AndroidSDKComponent.polygonApproachMonitor: PolygonApproachMonitor
 
 internal val AndroidSDKComponent.polygonFreshFixSource: PolygonFreshFixSource
     get() = singleton<PolygonFreshFixSource> {
-        GmsPolygonFreshFixSource(client = polygonFusedLocationClient)
+        GmsPolygonFreshFixSource(
+            client = polygonFusedLocationClient,
+            diagnostics = dwellDiagnosticRecorder
+        )
     }
 
 internal val AndroidSDKComponent.polygonGeofenceServiceController: PolygonGeofenceServiceController
@@ -224,9 +276,68 @@ internal val AndroidSDKComponent.polygonGeofenceServiceController: PolygonGeofen
             freshFixSource = polygonFreshFixSource,
             recheckScheduler = polygonRecheckScheduler,
             passiveMonitor = polygonPassiveMonitor,
-            logger = SDKComponent.geofenceLogger
+            bootSessionProvider = polygonBootSessionProvider,
+            logger = SDKComponent.geofenceLogger,
+            dwellCheckScheduler = polygonDwellCheckScheduler,
+            diagnosticRecorder = dwellDiagnosticRecorder
         )
     }
+
+internal val AndroidSDKComponent.geofenceExperiments: GeofenceExperiments
+    get() = singleton { GeofenceExperiments(applicationContext) }
+
+internal val AndroidSDKComponent.dwellDiagnosticJournal: DwellDiagnosticJournal
+    get() = singleton {
+        val experiments = geofenceExperiments
+        DwellDiagnosticJournal(
+            // Lazy: with the experiment off, appends and snapshots never open the file.
+            prefs = lazy {
+                applicationContext.getSharedPreferences(DwellDiagnosticJournal.PREFS_NAME, Context.MODE_PRIVATE)
+            },
+            enabled = experiments::dwellDiagnosticJournalEnabled,
+            ioContext = SDKComponent.dispatchersProvider.background
+        )
+    }
+
+// One per process: its queue is what orders records against the clears that retire them.
+internal val AndroidSDKComponent.dwellDiagnosticRecorder: DwellDiagnosticRecorder
+    get() = singleton {
+        val experiments = geofenceExperiments
+        // Eager: the store depends on nothing built here. Its session id is only tested for presence,
+        // and read before the generation, so no identifier reaches the journal and no generation older
+        // than the session just confirmed is returned.
+        val regionStore = geofenceRegionStore
+        DwellDiagnosticRecorder(
+            journal = dwellDiagnosticJournal,
+            enabled = experiments::dwellDiagnosticJournalEnabled,
+            scope = SDKComponent.scopeProvider.geofenceScope,
+            ownerProvider = { regionStore.activeUserSessionId()?.let { regionStore.userStateGeneration() } }
+        ).also { recorder ->
+            // Once per process: history kept while the experiment was on goes once the host turns it off.
+            // An unreadable flag counts as off, as the journal treats it.
+            val enabledAtStart = runCatching(experiments::dwellDiagnosticJournalEnabled).getOrDefault(false)
+            // On: history a process kept past a session change and died before clearing, or kept with
+            // nobody signed in, goes before the first record rather than at it. Off: only a journal some
+            // earlier process wrote is cleared, so a host that never opted in never opens its file.
+            if (enabledAtStart) {
+                recorder.prepareOwner()
+            } else if (dwellDiagnosticJournalFileExists(applicationContext)) {
+                recorder.invalidateAndClear()
+            }
+        }
+    }
+
+/**
+ * Whether the diagnostics preferences file was ever created, read from disk without opening it:
+ * opening it through [Context.getSharedPreferences] would load, and keep, the very file this check
+ * avoids for a host that never turned the journal on. The `.bak` an interrupted write leaves counts
+ * too, since Android restores it on the next open. Unreadable counts as present, so the clear runs.
+ */
+private fun dwellDiagnosticJournalFileExists(context: Context): Boolean = runCatching {
+    val prefsDir = File(context.applicationInfo.dataDir, "shared_prefs")
+    val name = "${DwellDiagnosticJournal.PREFS_NAME}.xml"
+    File(prefsDir, name).exists() || File(prefsDir, "$name.bak").exists()
+}.getOrDefault(true)
 
 internal val SDKComponent.geofenceDistanceFilter: GeofenceDistanceFilter
     get() = newInstance<GeofenceDistanceFilter> {
@@ -272,9 +383,11 @@ internal val AndroidSDKComponent.geofenceRepository: GeofenceRepository
             cooldownFilter = geofenceCooldownFilter,
             transitionEmitter = geofenceTransitionEmitter,
             clock = SDKComponent.clock,
+            bootSessionProvider = polygonBootSessionProvider,
             packageInfo = geofencePackageInfo,
             logger = SDKComponent.geofenceLogger,
             polygonController = polygonGeofenceServiceController,
+            dwellCoordinator = geofenceDwellCoordinator,
             polygonSupport = SDKComponent.polygonSupport
         )
     }

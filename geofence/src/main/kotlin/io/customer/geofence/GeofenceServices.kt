@@ -16,11 +16,15 @@ internal interface GeofenceServices {
     /**
      * Returns the [Job] so the receiver can hold goAsync open: the trigger usually fires
      * backgrounded, where the process may be killed as soon as the receiver finishes.
+     *
+     * @param fixQuality when the triggering fix was taken and how accurate it was, which decides
+     * whether it can prove the device outside the fences this pass registers.
      */
     fun onMovementTriggerExit(
         latitude: Double?,
         longitude: Double?,
-        movementTriggerRadius: suspend () -> Float? = { null }
+        movementTriggerRadius: suspend () -> Float? = { null },
+        fixQuality: GeofenceFixQuality = GeofenceFixQuality.UNKNOWN
     ): Job?
 
     fun onUserIdentified(latitude: Double?, longitude: Double?)
@@ -77,7 +81,8 @@ internal class GeofenceServicesImpl(
     override fun onMovementTriggerExit(
         latitude: Double?,
         longitude: Double?,
-        movementTriggerRadius: suspend () -> Float?
+        movementTriggerRadius: suspend () -> Float?,
+        fixQuality: GeofenceFixQuality
     ): Job? {
         // triggerSync checks permission before this runs.
         @SuppressLint("MissingPermission")
@@ -85,7 +90,8 @@ internal class GeofenceServicesImpl(
             repository.handleMovement(
                 latitude = lat,
                 longitude = lng,
-                movementTriggerRadius = movementTriggerRadius
+                movementTriggerRadius = movementTriggerRadius,
+                fixQuality = fixQuality
             )
         }
         return triggerSync(
@@ -99,7 +105,8 @@ internal class GeofenceServicesImpl(
     override fun onUserIdentified(latitude: Double?, longitude: Double?) {
         // Here, not on the first OS callback: beginUserSession clears the sync stamp, so the refresh
         // goes REMOTE and arms routing first. Else the first callback removes every live fence.
-        secureUserStore.getUserId()?.takeIf { it.isNotEmpty() }?.let(regionStore::beginUserSession)
+        // The controller reads the id under the lock that opens the session and fences the old one.
+        polygonController.beginUserSessionForCurrentUser()
         triggerSync(
             reason = REASON_USER_IDENTIFIED,
             latitude = latitude,
@@ -109,10 +116,9 @@ internal class GeofenceServicesImpl(
     }
 
     override fun onAppLaunch(latitude: Double?, longitude: Double?) {
-        // Never redefine a session: an identify can land meanwhile, and reopening the older user
-        // would clear the routing that identify's refresh just armed.
-        secureUserStore.getUserId()?.takeIf { it.isNotEmpty() }
-            ?.let(regionStore::beginUserSessionIfAbsent)
+        // The id is read under the lock that opens the session, never captured earlier: a launch after
+        // an identify finds that user's session unchanged, and stale persisted state adopts the current user.
+        polygonController.beginUserSessionForCurrentUser()
         triggerSync(
             reason = REASON_APP_LAUNCH,
             latitude = latitude,
@@ -147,11 +153,16 @@ internal class GeofenceServicesImpl(
         if (userId.isNullOrEmpty()) return
         // refreshFromLiveFix, not refresh: the flags above are already consumed, so a pass dropped on
         // a slot collision would waste this fix with nothing to request another.
+        // triggerSync checks permission before this runs.
+        @SuppressLint("MissingPermission")
+        val action: suspend (Double, Double) -> Result<Unit> = { lat, lng ->
+            repository.refreshFromLiveFix(lat, lng, fixQuality = quality)
+        }
         triggerSync(
             reason = REASON_LOCATION_ACQUIRED,
             latitude = latitude,
             longitude = longitude,
-            action = repository::refreshFromLiveFix
+            action = action
         )
     }
 
@@ -204,6 +215,9 @@ internal class GeofenceServicesImpl(
             return null
         }
         if (!permissionChecker.hasRequiredLocationPermissions()) {
+            // Without permission the OS cannot preserve a trustworthy monitoring interval. Keep
+            // queued events, but discard live visit state so a later fix cannot invent duration.
+            regionStore.clearDwellVisits()
             logger.logSyncSkippedNoPermission(reason)
             return null
         }

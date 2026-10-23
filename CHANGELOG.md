@@ -26,79 +26,97 @@
 
 ### Bug Fixes
 
-* **messagingpush:** bound decoding and skip images over 5 MiB ([#917](https://github.com/customerio/customerio-android/issues/917)) ([17ca963](https://github.com/customerio/customerio-android/commit/17ca963a0cc3cfae9c5422297bb8de57e10c3bd5))
+* **Push:** Rich push images and remote Live Notification logos are now downsampled to the size the notification displays, which reduces memory use. Images larger than 5 MiB or 50 megapixels are skipped, and the notification still displays without the image. ([#917](https://github.com/customerio/customerio-android/issues/917)) ([17ca963](https://github.com/customerio/customerio-android/commit/17ca963a0cc3cfae9c5422297bb8de57e10c3bd5))
 
 ## [4.23.1](https://github.com/customerio/customerio-android/compare/4.23.0...4.23.1) (2026-09-29)
 
 ### Bug Fixes
 
-* **messaginginapp:** support OkHttp 5 SSE ([34fbcc6](https://github.com/customerio/customerio-android/commit/34fbcc609c22b0309030c92f15c5b65b69756d12))
+* **In-app:** The real-time connection (server-sent events) used by in-app messaging now works in apps that resolve OkHttp 5. The in-app module no longer depends on OkHttp's `okhttp-sse` or `logging-interceptor` artifacts. What to do: if your app uses either of those artifacts without declaring it directly, add it to your app's dependencies. ([34fbcc6](https://github.com/customerio/customerio-android/commit/34fbcc609c22b0309030c92f15c5b65b69756d12))
 
 ## [4.23.0](https://github.com/customerio/customerio-android/compare/4.22.0...4.23.0) (2026-09-29)
 
 ### Features
 
-* **messaginginapp:** expose inline message availability (MBL-1707) ([e6c860b](https://github.com/customerio/customerio-android/commit/e6c860bffc67bd67efcdfe2ffe748e6683abe7b8))
+* **In-app:** You can now check whether an inline in-app message is available for an element ID before you render it, for example to add an inline message to a lazy list only when there is one to show. Checking availability does not fetch, display, or mark a message as shown. What to do: in Jetpack Compose, use `rememberInlineMessageAvailability(elementId)`; otherwise, collect the `Flow` returned by `ModuleMessagingInApp.instance().observeInlineMessageAvailability(elementId)`. ([e6c860b](https://github.com/customerio/customerio-android/commit/e6c860bffc67bd67efcdfe2ffe748e6683abe7b8))
 
 ## [4.22.0](https://github.com/customerio/customerio-android/compare/4.21.1...4.22.0) (2026-09-25)
 
 ### Features
 
-* **geofence:** add support for polygon geofences ([#905](https://github.com/customerio/customerio-android/issues/905)) ([87d28ce](https://github.com/customerio/customerio-android/commit/87d28ce8c907bb2e80c561b921c2207788882144))
+* **Geofencing:** Adds support for polygon geofences. Geofences defined as polygons are monitored by their shape, with entry and exit decided on the device; circular geofences work as before. ([#905](https://github.com/customerio/customerio-android/issues/905)) ([87d28ce](https://github.com/customerio/customerio-android/commit/87d28ce8c907bb2e80c561b921c2207788882144))
 
 ## [4.21.1](https://github.com/customerio/customerio-android/compare/4.21.0...4.21.1) (2026-09-09)
 
 ### Bug Fixes
 
-* **messaginginapp:** preserve spaces in in-app open-url query values ([7fa9996](https://github.com/customerio/customerio-android/commit/7fa999681eda4842e5b8854416985169c9af7585))
+* **In-app:** Fixed an issue where spaces in the query values of an in-app message's open-URL action were replaced with underscores before the URL reached your app. ([7fa9996](https://github.com/customerio/customerio-android/commit/7fa999681eda4842e5b8854416985169c9af7585))
 
 ## [4.21.0](https://github.com/customerio/customerio-android/compare/4.20.4...4.21.0) (2026-09-09)
 
+### Upgrade notes
+
+* **Inbox:** The Visual Notification Inbox no longer includes default English TalkBack labels. If you don't provide your own labels, inbox elements are not announced by name.
+
 ### Features
 
-* **inbox:** replace visual inbox empty-state text with a dimmed bell ([#834](https://github.com/customerio/customerio-android/issues/834)) ([a6ff2e2](https://github.com/customerio/customerio-android/commit/a6ff2e2f505201f0c03012274fc057dee10ad463))
+* **Inbox:** The Visual Notification Inbox no longer shows any built-in English text: the empty state is now a dimmed bell icon, and accessibility labels come from your app. What to do: to label the inbox for TalkBack in your app's language, pass a `NotificationInboxAccessibilityLabels` to `MessagingInAppModuleConfig.Builder.setNotificationInboxAccessibilityLabels()`. ([#834](https://github.com/customerio/customerio-android/issues/834)) ([a6ff2e2](https://github.com/customerio/customerio-android/commit/a6ff2e2f505201f0c03012274fc057dee10ad463))
 
 ## [4.20.4](https://github.com/customerio/customerio-android/compare/4.20.3...4.20.4) (2026-09-09)
 
 ### Bug Fixes
 
-* surface the failure reason on in-app error callback ([#828](https://github.com/customerio/customerio-android/issues/828)) ([f9789ae](https://github.com/customerio/customerio-android/commit/f9789aeaff8a1a9c662fc9b587c9dfb0b09cde40))
+* **In-app:** `InAppEventListener` has a new `errorWithMessage(message: InAppMessage, error: InAppMessageError)` callback that tells you why a message failed: `error.reason` is `NETWORK`, `TIMEOUT`, `RENDER_FAILED`, `WEB_VIEW_CRASHED`, or `INTERNAL_ERROR`, with optional `detail` and `code`. Existing listeners keep working, because the new callback calls `errorWithMessage(message)` by default. What to do: override the new callback if you want the failure reason. ([#828](https://github.com/customerio/customerio-android/issues/828)) ([f9789ae](https://github.com/customerio/customerio-android/commit/f9789aeaff8a1a9c662fc9b587c9dfb0b09cde40))
 
 ## [4.20.3](https://github.com/customerio/customerio-android/compare/4.20.2...4.20.3) (2026-09-08)
 
 ### Bug Fixes
 
-* **deps:** update Faraday security pin to 1.10.6 ([#845](https://github.com/customerio/customerio-android/issues/845)) ([787d310](https://github.com/customerio/customerio-android/commit/787d3100a5289840be6b6c22e2e60409bc47c06b))
+* **Build tooling:** Security dependency update for Faraday, a Fastlane build dependency, to 1.10.6. SDK runtime behavior is unchanged. ([#845](https://github.com/customerio/customerio-android/issues/845)) ([787d310](https://github.com/customerio/customerio-android/commit/787d3100a5289840be6b6c22e2e60409bc47c06b))
 
 ## [4.20.2](https://github.com/customerio/customerio-android/compare/4.20.1...4.20.2) (2026-08-21)
 
 ### Bug Fixes
 
-* **in-app:** send app identifier header to gist ([#812](https://github.com/customerio/customerio-android/issues/812)) ([bbd5616](https://github.com/customerio/customerio-android/commit/bbd561674b0c0ad46ae191d20166fda70a5e102e))
+* **In-app:** In-app message requests now include your app's package name (its `applicationId`) so that messages can be filtered by app. ([#812](https://github.com/customerio/customerio-android/issues/812)) ([bbd5616](https://github.com/customerio/customerio-android/commit/bbd561674b0c0ad46ae191d20166fda70a5e102e))
 
 ## [4.20.1](https://github.com/customerio/customerio-android/compare/4.20.0...4.20.1) (2026-08-06)
 
+### Bug Fixes
+
+* **Geofencing:** Improves geofence accuracy and reliability. A large geofence the device is inside is no longer dropped in favor of geofences with nearer centers, an exit is no longer reported for a geofence that was never entered, a repeated entry is no longer reported as a second arrival, and nearby geofences refresh from a fresh location when the app comes to the foreground. ([#809](https://github.com/customerio/customerio-android/issues/809)) ([007bac0](https://github.com/customerio/customerio-android/commit/007bac0e3e767ac71cb80d3252a48c082405ef50))
+
 ## [4.20.0](https://github.com/customerio/customerio-android/compare/4.19.0...4.20.0) (2026-07-30)
 
+### Features
+
+* **Inbox:** Adds the Visual Notification Inbox in the new `messaginginbox` module. It provides the Jetpack Compose components `NotificationInboxOverlay`, `NotificationInboxBell`, and `NotificationInboxView`, which display inbox messages using your workspace's branding. What to do: to handle inbox message actions yourself, register an `InboxEventListener` with `MessagingInAppModuleConfig.Builder.setInboxEventListener()`. ([#769](https://github.com/customerio/customerio-android/issues/769)) ([e28fa9f](https://github.com/customerio/customerio-android/commit/e28fa9f9653dc2c11c4a215c0ec23c2021bea04e))
+* **Push:** Adds Live Notifications: ongoing notifications that update in place, similar to iOS Live Activities, with built-in segments and countdown timer templates. They are opt-in. What to do: enable them with `MessagingPushModuleConfig.Builder.enableLiveNotificationTypes()` (optionally `setLiveNotificationBranding()`, or `enableCustomLiveNotificationTypes()` with `setLiveNotificationCallback()` for your own layouts), and start, update, or end them locally with `startLiveNotification`, `updateLiveNotification`, and `endLiveNotification` on `ModuleMessagingPushFCM`. ([#734](https://github.com/customerio/customerio-android/issues/734)) ([6409037](https://github.com/customerio/customerio-android/commit/6409037fcc85a169759480be4eb34c6445c09359))
+* **Geofencing:** Adds on-device geofencing in the new `geofence` module. The SDK registers your workspace's nearest geofences, refreshes them as the device moves and after a reboot, and sends enter and exit transitions for identified users as `Geofence Transition` events, including when the app isn't running. What to do: add the `geofence` module, configure it with `GeofenceModuleConfig.Builder`, and request location permissions in your app, since the SDK does not declare them. ([#763](https://github.com/customerio/customerio-android/issues/763)) ([7a1f85b](https://github.com/customerio/customerio-android/commit/7a1f85b734802863f25353eb08b3370978c45eb3))
+
 ## [4.19.0](https://github.com/customerio/customerio-android/compare/4.18.2...4.19.0) (2026-07-01)
+
+### Features
+
+* **In-app:** In-app messages now support dark mode. By default (`ColorScheme.AUTO`), messages follow the device's dark mode setting and update live when it changes, including while a modal message is displayed. What to do: to force a mode, call `MessagingInAppModuleConfig.Builder.setColorScheme(ColorScheme.LIGHT)` or `ColorScheme.DARK`, or change it at runtime with `ModuleMessagingInApp.instance().setColorScheme()`. ([#761](https://github.com/customerio/customerio-android/issues/761)) ([7ff6b4c](https://github.com/customerio/customerio-android/commit/7ff6b4cbed6e5e0f32506f1e6836c228fd109b6c))
 
 ## [4.18.2](https://github.com/customerio/customerio-android/compare/4.18.1...4.18.2) (2026-06-22)
 
 ### Bug Fixes
 
-* scope in-app polling to process lifecycle instead of per-activity ([#746](https://github.com/customerio/customerio-android/issues/746)) ([5d30ba1](https://github.com/customerio/customerio-android/commit/5d30ba19f412884ca109539486d14bae9b843e9e))
+* **In-app:** In-app message polling now follows your app's foreground and background state instead of restarting on every activity change. This fixes an issue where dismissing a modal message could immediately refetch and re-show a message that had failed to load, repeatedly. ([#746](https://github.com/customerio/customerio-android/issues/746)) ([5d30ba1](https://github.com/customerio/customerio-android/commit/5d30ba19f412884ca109539486d14bae9b843e9e))
 
 ## [4.18.1](https://github.com/customerio/customerio-android/compare/4.18.0...4.18.1) (2026-06-15)
 
 ### Bug Fixes
 
-* harden push notification activity and in-app message WebView ([#733](https://github.com/customerio/customerio-android/issues/733)) ([1323529](https://github.com/customerio/customerio-android/commit/13235298de8a3eb0c9ece2fe2c9eab677cd65689))
+* **Push, In-app:** Security hardening. `NotificationClickReceiverActivity` is no longer exported, so other apps can't launch it, and the in-app message WebView no longer allows `file://` or `content://` access. ([#733](https://github.com/customerio/customerio-android/issues/733)) ([1323529](https://github.com/customerio/customerio-android/commit/13235298de8a3eb0c9ece2fe2c9eab677cd65689))
 
 ## [4.18.0](https://github.com/customerio/customerio-android/compare/4.17.1...4.18.0) (2026-06-04)
 
 ### Features
 
-* events volume optimization release ([#715](https://github.com/customerio/customerio-android/issues/715)) ([5324714](https://github.com/customerio/customerio-android/commit/5324714e021708a47f730cb4c7de5630b022d8eb))
+* **Data Pipelines, Push:** The SDK sends fewer duplicate events. Repeated `identify` calls for the same user with no traits are skipped within a session (reset by `clearIdentify()`), automatic screen tracking no longer sends the same screen twice in a row, and push delivered metrics are stored on the device and sent once, either in the background or when the app returns to the foreground. ([#715](https://github.com/customerio/customerio-android/issues/715)) ([5324714](https://github.com/customerio/customerio-android/commit/5324714e021708a47f730cb4c7de5630b022d8eb))
 
 ## [4.17.1](https://github.com/customerio/customerio-android/compare/4.17.0...4.17.1) (2026-05-18)
 

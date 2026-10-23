@@ -103,9 +103,9 @@ internal class PolygonRecheckWorker(
             // Retires itself, so a missed cancel costs one wake, not a permanent periodic job.
             logger.logPolygonRecheckSkipped(PolygonRecheckSkip.NOTHING_REGISTERED)
             // Syncs write routable ids before scheduling, so either the re-read sees the write or
-            // the sync's schedule() lands after this cancel. Relies on WorkManager 2.10.5
-            // internals: in-order cancel/enqueue, RUNNING rows cancelled at once, KEEP over
-            // CANCELLED, neither call suspends.
+            // the sync's schedule() lands after this cancel. Relies on WorkManager internals,
+            // checked against 2.12.0: in-order cancel/enqueue, RUNNING rows cancelled at once, KEEP
+            // over CANCELLED, neither call suspends.
             val scheduler = SDKComponent.android().polygonRecheckScheduler
             scheduler.cancel()
             if (registeredPolygons(store).isNotEmpty()) scheduler.schedule()

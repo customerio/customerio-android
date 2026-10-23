@@ -122,8 +122,9 @@ internal object InboxJistDecoder {
      * Parses an ISO-8601 instant to epoch millis WITHOUT java.time, matching the permissiveness the
      * inbox relied on before (`Instant.parse`): fractional seconds of any length, a trailing `Z`, and
      * numeric `±HH:MM` / `±HHMM` offsets (a value with no designator is treated as UTC). Returns null
-     * if the date/time core still doesn't match. SimpleDateFormat only understands 3-digit millis and
-     * has no minSdk-21-safe offset token, so the offset/fraction are normalized here first.
+     * if the date/time core still doesn't match. SimpleDateFormat only understands 3-digit millis, and
+     * no single pattern accepts `Z`, both offset spellings and no designator at all, so the
+     * offset/fraction are normalized here first.
      */
     internal fun parseIsoToMillis(iso: String): Long? {
         val parsers = isoParsers.get() ?: return null

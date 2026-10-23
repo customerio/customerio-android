@@ -4,7 +4,6 @@ import android.app.Notification
 import android.app.PendingIntent
 import android.content.Context
 import android.graphics.Bitmap
-import android.os.Build
 import androidx.annotation.ColorInt
 import androidx.annotation.DrawableRes
 import androidx.core.app.NotificationCompat
@@ -64,9 +63,7 @@ internal object BasicNotificationBuilder {
         params.countdownUntil?.takeIf { it > System.currentTimeMillis() }?.let { until ->
             builder.setWhen(until)
             builder.setUsesChronometer(true)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                builder.setChronometerCountDown(true)
-            }
+            builder.setChronometerCountDown(true)
             builder.setShowWhen(true)
         }
 

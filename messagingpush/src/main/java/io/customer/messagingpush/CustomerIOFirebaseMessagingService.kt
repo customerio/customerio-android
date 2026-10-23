@@ -104,13 +104,11 @@ open class CustomerIOFirebaseMessagingService : FirebaseMessagingService() {
         handleNewToken(context = this, token = token)
     }
 
-    // Not marked override: the SDK compiles against Firebase older than 25.1.0, which lacks these.
-    // On 25.1.0+ they override FirebaseMessagingService's callbacks at runtime.
-    open fun onRegistered(installationId: String) {
+    override fun onRegistered(installationId: String) {
         handleRegistered(context = this, installationId = installationId)
     }
 
-    open fun onUnregistered(installationId: String) {
+    override fun onUnregistered(installationId: String) {
         SDKComponent.pushLogger.logInstallationIdUnregistered(installationId)
     }
 

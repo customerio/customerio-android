@@ -407,11 +407,7 @@ internal class LiveNotificationHandler(
             putExtra(LiveNotificationDismissReceiver.EXTRA_ACTIVITY_ID, activityId)
             putExtra(LiveNotificationDismissReceiver.EXTRA_ACTIVITY_TYPE, activityType)
         }
-        val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        } else {
-            PendingIntent.FLAG_UPDATE_CURRENT
-        }
+        val flags = PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         return PendingIntent.getBroadcast(context, requestCode, intent, flags)
     }
 
@@ -487,11 +483,7 @@ internal class LiveNotificationHandler(
     ): PendingIntent {
         val notifyIntent = Intent(context, NotificationClickReceiverActivity::class.java)
         notifyIntent.putExtra(NotificationClickReceiverActivity.NOTIFICATION_PAYLOAD_EXTRA, payload)
-        val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        } else {
-            PendingIntent.FLAG_UPDATE_CURRENT
-        }
+        val flags = PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         return PendingIntent.getActivity(
             context,
             requestCode,

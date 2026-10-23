@@ -1,6 +1,7 @@
 package io.customer.android.apkscale
 
 import com.google.gson.Gson
+import io.customer.android.Versions
 import java.io.File
 import java.nio.file.Files
 import java.util.concurrent.TimeUnit
@@ -151,7 +152,7 @@ abstract class MeasureAndroidLibrarySizeTask : DefaultTask() {
                 
                 defaultConfig {
                     applicationId "com.apkscale.mock"
-                    minSdk 21
+                    minSdk ${Versions.MIN_SDK}
                     targetSdk 34
                     versionCode 1
                     versionName "1.0"

@@ -146,6 +146,75 @@ class PolygonAccuracyEvaluatorTest {
         )
     )
 
+    @Test
+    fun decisiveEvidenceFor_whenAThinSpurDragsTheVenueScaleBelowAWhollyInsideFix_thenStillReturnsEnter() {
+        // 100 m of error at the body's centre, ~150 m from every edge: the circle and a 20 m margin
+        // fit inside either ring. Only the spur differs, pulling 2A/P from ~150 m to ~62.5 m.
+        val sample = sample(latitude = 0.0, longitude = 0.0, accuracyMeters = 100.0)
+        (spurGeometry.boundaryDistanceMeters(sample.coordinate) > 120.0) shouldBeEqualTo true
+        (spurGeometry.venueScaleMeters < sample.horizontalAccuracyMeters) shouldBeEqualTo true
+
+        val bodyOnly = evaluator.decisiveEvidenceFor(squareBodyGeometry, sample, PolygonCommittedState.OUTSIDE)
+        val withSpur = evaluator.decisiveEvidenceFor(spurGeometry, sample, PolygonCommittedState.OUTSIDE)
+
+        bodyOnly.evidence shouldBeEqualTo PolygonEvidence.ENTER
+        withSpur.undecidedReason shouldBeEqualTo null
+        withSpur.evidence shouldBeEqualTo PolygonEvidence.ENTER
+        withSpur.requiresCorroboration shouldBeEqualTo false
+
+        // Fixture premise: both accuracies below sit at or over the ceiling.
+        val depth = spurGeometry.boundaryDistanceMeters(sample.coordinate)
+        (depth - 10.0 >= maxOf(50.0, spurGeometry.venueScaleMeters)) shouldBeEqualTo true
+
+        // Strict, as the stay predicate: clear by 10 m (under the departure margin) decides;
+        // reaching the ring exactly does not.
+        val justClear = evaluator.decisiveEvidenceFor(
+            spurGeometry,
+            PolygonLocationSample(sample.coordinate, depth - 10.0),
+            PolygonCommittedState.INSIDE
+        )
+        justClear.undecidedReason shouldBeEqualTo null
+        justClear.agreedWithCommittedState shouldBeEqualTo true
+        evaluator.decisiveEvidenceFor(
+            spurGeometry,
+            PolygonLocationSample(sample.coordinate, depth),
+            PolygonCommittedState.INSIDE
+        ).undecidedReason shouldBeEqualTo PolygonUndecidedReason.ACCURACY_TOO_LOW
+
+        // The new arrival branch decides alone.
+        val arrival = evaluator.decisiveEvidenceFor(
+            spurGeometry,
+            PolygonLocationSample(sample.coordinate, depth - 10.0),
+            PolygonCommittedState.OUTSIDE
+        )
+        arrival.evidence shouldBeEqualTo PolygonEvidence.ENTER
+        arrival.requiresCorroboration shouldBeEqualTo false
+    }
+
+    /** ~300 m square body: 2A/P ~150 m, its true depth. */
+    private val squareBodyGeometry = PolygonGeometry.from(
+        listOf(
+            point(-0.00135, -0.00135),
+            point(-0.00135, 0.00135),
+            point(0.00135, 0.00135),
+            point(0.00135, -0.00135)
+        )
+    )
+
+    /** The same body with a ~1 km x 10 m spur off its east edge: 2A/P ~62.5 m, depth still ~150 m. */
+    private val spurGeometry = PolygonGeometry.from(
+        listOf(
+            point(-0.00135, -0.00135),
+            point(-0.00135, 0.00135),
+            point(-0.000045, 0.00135),
+            point(-0.000045, 0.01035),
+            point(0.000045, 0.01035),
+            point(0.000045, 0.00135),
+            point(0.00135, 0.00135),
+            point(0.00135, -0.00135)
+        )
+    )
+
     private fun sample(
         latitude: Double,
         longitude: Double,

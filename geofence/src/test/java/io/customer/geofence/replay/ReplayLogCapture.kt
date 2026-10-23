@@ -42,6 +42,7 @@ internal fun assertComposedWith(vararg expected: Pair<String, Pair<Any, Any>>) {
 internal fun crossingTransitionOf(token: String?): GeofenceCrossingTransition = when (token?.lowercase()) {
     "enter" -> GeofenceCrossingTransition.ENTER
     "exit" -> GeofenceCrossingTransition.EXIT
+    "dwell" -> GeofenceCrossingTransition.DWELL
     else -> GeofenceCrossingTransition.UNSUPPORTED
 }
 
@@ -75,6 +76,7 @@ internal fun ScenarioRecord.toCrossing(receivedAtSeconds: Long, elapsedRealtimeM
         longitude = double("lon"),
         triggeringLocation = triggeringFix(elapsedRealtimeMillis),
         // Production stamps this when the broadcast is parsed; here, the virtual clock at this stimulus.
-        receivedAtSeconds = receivedAtSeconds
+        receivedAtSeconds = receivedAtSeconds,
+        receivedAtElapsedMs = elapsedRealtimeMillis
     )
 }

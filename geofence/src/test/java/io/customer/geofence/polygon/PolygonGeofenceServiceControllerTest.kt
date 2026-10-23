@@ -9,11 +9,13 @@ import io.customer.geofence.GeofenceLogger
 import io.customer.geofence.GeofenceManager
 import io.customer.geofence.GeofenceRegion
 import io.customer.geofence.PolygonCallbackDrop
+import io.customer.geofence.store.GeofenceDwellVisit
 import io.customer.geofence.store.GeofenceRegionStore
 import io.customer.geofence.transitionRevision
 import io.customer.sdk.data.store.SecureUserStore
 import io.mockk.coEvery
 import io.mockk.coVerify
+import io.mockk.coVerifyOrder
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
@@ -48,6 +50,7 @@ class PolygonGeofenceServiceControllerTest {
         freshFixSource = NeverAnswersFreshFix,
         recheckScheduler = NoopRecheckScheduler,
         passiveMonitor = NoopPassiveMonitor,
+        bootSessionProvider = { "boot" },
         logger = mockLogger
     )
 
@@ -58,6 +61,7 @@ class PolygonGeofenceServiceControllerTest {
         every { secureUserStore.getUserId() } returns "user-1"
         every { store.getRegisteredIds() } returns setOf("campus")
         every { store.getRoutableRegisteredIds() } returns setOf("campus")
+        every { store.getLastRegistrationBootSession() } returns "boot"
         every { store.getCachedRegion("campus") } returns polygonRegion()
         every { store.getCachedRegions() } returns listOf(polygonRegion())
         every { store.getActivePolygonIds() } returns emptySet()
@@ -263,6 +267,22 @@ class PolygonGeofenceServiceControllerTest {
     }
 
     @Test
+    fun recover_givenRegistrationFromAnotherBootWithUptimePastIt_expectClearsInsteadOfRestarting() {
+        // BOOT_COMPLETED never arrived, and this boot has been up longer than the last
+        // registration's stamp; a registration with no boot stamp is no evidence either.
+        for (stampedIn in listOf("boot-a", null)) {
+            every { store.getActivePolygonIds() } returns setOf("campus")
+            every { store.getLastRegistrationUptime() } returns 0L
+            every { store.getLastRegistrationBootSession() } returns stampedIn
+
+            controller.recover()
+        }
+
+        verify(exactly = 2) { store.clearActivePolygonIds() }
+        verify(exactly = 2) { engine.stop() }
+    }
+
+    @Test
     fun invalidatePersistedCoarseState_givenReboot_expectStopsOldSessionAndClearsMembership() {
         controller.invalidatePersistedCoarseState()
 
@@ -281,6 +301,8 @@ class PolygonGeofenceServiceControllerTest {
             store.saveRegisteredIds(emptySet())
             store.saveRoutableRegisteredIds(emptySet())
             store.saveRetainedRegisteredRegions(emptyList())
+            // No visit may span the unobserved monitoring gap; the outbox is left alone.
+            store.invalidateDwellContinuity()
             store.clearActivePolygonIds()
             store.retainCoarseInsidePolygonIds(emptySet())
             engine.stop()
@@ -452,6 +474,213 @@ class PolygonGeofenceServiceControllerTest {
         coVerify { engine.processResponsiveLocation(any(), 0L) }
         verify(exactly = 0) { store.recordPolygonCoarseInside(any()) }
     }
+
+    @Test
+    fun processApproachLocations_givenDueVisitKeptInsideWithoutProof_expectPreciseFixRequested() = runTest {
+        // A sample too coarse to prove the stay is often the only fix a visit gets for minutes.
+        val precise = location(elapsedRealtimeNanos = 200L).apply { accuracy = 3f }
+        val freshFixSource: PolygonFreshFixSource = mockk {
+            coEvery { awaitFreshFix(any(), any()) } returns precise
+        }
+        val escalating = controllerWith(freshFixSource)
+        every { store.getActivePolygonIds() } returns setOf("campus")
+        every { store.getDwellVisit("campus") } returns dueVisit()
+        every { store.reserveDwellProofRequest(any(), any(), any(), any(), any()) } returns true
+        val sample = location(elapsedRealtimeNanos = 100L).apply { accuracy = 60f }
+        coEvery { engine.processResponsiveLocation(sample, 0L) } returns PolygonEvaluationOutcome(
+            acceptedFix = true,
+            undecidedPolygonIds = emptySet(),
+            evaluatedPolygonIds = setOf("campus"),
+            dwellUnprovenPolygonIds = setOf("campus")
+        )
+        coEvery { engine.processResponsiveLocation(precise, 0L, 100L, null, settlesHeldArrivals = false) } returns PolygonEvaluationOutcome(
+            acceptedFix = true,
+            undecidedPolygonIds = emptySet(),
+            evaluatedPolygonIds = setOf("campus")
+        )
+
+        escalating.processApproachLocations(listOf(sample), 0L, 0L)
+
+        coVerify(exactly = 1) { freshFixSource.awaitFreshFix(any(), any()) }
+        coVerify(exactly = 1) { engine.processResponsiveLocation(precise, 0L, 100L, null, settlesHeldArrivals = false) }
+    }
+
+    @Test
+    fun processApproachLocations_givenABatch_expectThePreciseFixJudgedOnlyAfterEverySample() = runTest {
+        // A fix taken now is newer than every sample; judged mid-batch, an older sample could reopen
+        // a visit it had just ended.
+        val precise = location(elapsedRealtimeNanos = 300L).apply { accuracy = 3f }
+        val freshFixSource: PolygonFreshFixSource = mockk {
+            coEvery { awaitFreshFix(any(), any()) } returns precise
+        }
+        val escalating = controllerWith(freshFixSource)
+        every { store.getActivePolygonIds() } returns setOf("campus")
+        every { store.getDwellVisit("campus") } returns dueVisit()
+        every { store.reserveDwellProofRequest(any(), any(), any(), any(), any()) } returns true
+        val first = location(elapsedRealtimeNanos = 100L).apply { accuracy = 60f }
+        val second = location(elapsedRealtimeNanos = 200L).apply { accuracy = 55f }
+        val unproven = PolygonEvaluationOutcome(
+            acceptedFix = true,
+            undecidedPolygonIds = emptySet(),
+            evaluatedPolygonIds = setOf("campus"),
+            dwellUnprovenPolygonIds = setOf("campus")
+        )
+        coEvery { engine.processResponsiveLocation(first, 0L) } returns unproven
+        coEvery { engine.processResponsiveLocation(second, 0L) } returns unproven
+        coEvery { engine.processResponsiveLocation(precise, 0L, 200L, null, settlesHeldArrivals = false) } returns PolygonEvaluationOutcome(
+            acceptedFix = true,
+            undecidedPolygonIds = emptySet(),
+            evaluatedPolygonIds = setOf("campus")
+        )
+
+        escalating.processApproachLocations(listOf(second, first), 0L, 0L)
+
+        coVerify(exactly = 1) { freshFixSource.awaitFreshFix(any(), any()) }
+        coVerifyOrder {
+            engine.processResponsiveLocation(first, 0L)
+            engine.processResponsiveLocation(second, 0L)
+            engine.processResponsiveLocation(precise, 0L, 200L, null, settlesHeldArrivals = false)
+        }
+        // Marked as answering the newest sample, so an echo is recorded and memoised; asked for dwell
+        // proof alone, so it settles no neighbouring polygon's held arrival.
+    }
+
+    @Test
+    fun processApproachLocations_givenSampleProvesOrDecidesNothingForDwell_expectNoPreciseFixRequest() = runTest {
+        val freshFixSource: PolygonFreshFixSource = mockk(relaxed = true)
+        val quiet = controllerWith(freshFixSource)
+        every { store.getActivePolygonIds() } returns setOf("campus")
+        val sample = location(elapsedRealtimeNanos = 100L)
+        coEvery { engine.processResponsiveLocation(sample, 0L) } returns PolygonEvaluationOutcome(
+            acceptedFix = true,
+            // Undecided arrivals keep the sampler's own corroboration rule; only dwell proof escalates.
+            undecidedPolygonIds = setOf("campus"),
+            evaluatedPolygonIds = setOf("campus")
+        )
+
+        quiet.processApproachLocations(listOf(sample), 0L, 0L)
+
+        coVerify(exactly = 0) { freshFixSource.awaitFreshFix(any(), any()) }
+    }
+
+    @Test
+    fun processApproachLocations_givenVisitSpentItsDwellProofBudget_expectNoPreciseFixRequest() = runTest {
+        // A polygon too small for the fixes this device gets would otherwise ask on every batch.
+        val freshFixSource: PolygonFreshFixSource = mockk(relaxed = true)
+        val capped = controllerWith(freshFixSource)
+        every { store.getActivePolygonIds() } returns setOf("campus")
+        every { store.getDwellVisit("campus") } returns
+            dueVisit().copy(dwellProofRequests = GeofenceConstants.MAX_DWELL_PROOF_REQUESTS_PER_VISIT)
+        val sample = location(elapsedRealtimeNanos = 100L).apply { accuracy = 60f }
+        coEvery { engine.processResponsiveLocation(sample, 0L) } returns PolygonEvaluationOutcome(
+            acceptedFix = true,
+            undecidedPolygonIds = emptySet(),
+            evaluatedPolygonIds = setOf("campus"),
+            dwellUnprovenPolygonIds = setOf("campus")
+        )
+
+        capped.processApproachLocations(listOf(sample), 0L, 0L)
+
+        coVerify(exactly = 0) { freshFixSource.awaitFreshFix(any(), any()) }
+        verify(exactly = 0) { store.reserveDwellProofRequest(any(), any(), any(), any(), any()) }
+    }
+
+    @Test
+    fun processApproachLocations_givenLastDwellProofRequestTooRecent_expectNoPreciseFixRequest() = runTest {
+        val freshFixSource: PolygonFreshFixSource = mockk(relaxed = true)
+        val spaced = controllerWith(freshFixSource)
+        every { store.getActivePolygonIds() } returns setOf("campus")
+        val now = android.os.SystemClock.elapsedRealtime()
+        every { store.getDwellVisit("campus") } returns
+            dueVisit().copy(dwellProofRequests = 1, lastDwellProofRequestElapsedMs = now)
+        val sample = location(elapsedRealtimeNanos = 100L).apply { accuracy = 60f }
+        coEvery { engine.processResponsiveLocation(sample, 0L) } returns PolygonEvaluationOutcome(
+            acceptedFix = true,
+            undecidedPolygonIds = emptySet(),
+            evaluatedPolygonIds = setOf("campus"),
+            dwellUnprovenPolygonIds = setOf("campus")
+        )
+
+        spaced.processApproachLocations(listOf(sample), 0L, 0L)
+
+        coVerify(exactly = 0) { freshFixSource.awaitFreshFix(any(), any()) }
+    }
+
+    @Test
+    fun processApproachLocations_givenBudgetLeft_expectTheRequestChargedBeforeItIsIssued() = runTest {
+        val freshFixSource: PolygonFreshFixSource = mockk {
+            coEvery { awaitFreshFix(any(), any()) } returns null
+        }
+        val charging = controllerWith(freshFixSource)
+        every { store.getActivePolygonIds() } returns setOf("campus")
+        every { store.getDwellVisit("campus") } returns dueVisit()
+        every { store.reserveDwellProofRequest(any(), any(), any(), any(), any()) } returns true
+        val sample = location(elapsedRealtimeNanos = 100L).apply { accuracy = 60f }
+        coEvery { engine.processResponsiveLocation(sample, 0L) } returns PolygonEvaluationOutcome(
+            acceptedFix = true,
+            undecidedPolygonIds = emptySet(),
+            evaluatedPolygonIds = setOf("campus"),
+            dwellUnprovenPolygonIds = setOf("campus")
+        )
+
+        charging.processApproachLocations(listOf(sample), 0L, 0L)
+
+        // Charged even though no fix arrived: the request was issued and spent the radio either way.
+        coVerifyOrder {
+            store.reserveDwellProofRequest(
+                "campus",
+                "visit-1",
+                any(),
+                GeofenceConstants.MAX_DWELL_PROOF_REQUESTS_PER_VISIT,
+                GeofenceConstants.DWELL_PROOF_REQUEST_SPACING_MS
+            )
+            freshFixSource.awaitFreshFix(any(), any())
+        }
+    }
+
+    @Test
+    fun processApproachLocations_givenTheChargeCannotLand_expectNoPreciseFixRequest() = runTest {
+        // The visit was replaced or emitted between the budget check and the charge: nothing pays for
+        // the request, so it is not made, and it starts no cooldown for the next caller.
+        val freshFixSource: PolygonFreshFixSource = mockk(relaxed = true)
+        val refused = controllerWith(freshFixSource)
+        every { store.getActivePolygonIds() } returns setOf("campus")
+        every { store.getDwellVisit("campus") } returns dueVisit()
+        every { store.reserveDwellProofRequest(any(), any(), any(), any(), any()) } returns false
+        val sample = location(elapsedRealtimeNanos = 100L).apply { accuracy = 60f }
+        coEvery { engine.processResponsiveLocation(sample, 0L) } returns PolygonEvaluationOutcome(
+            acceptedFix = true,
+            undecidedPolygonIds = emptySet(),
+            evaluatedPolygonIds = setOf("campus"),
+            dwellUnprovenPolygonIds = setOf("campus")
+        )
+
+        refused.processApproachLocations(listOf(sample), 0L, 0L)
+
+        coVerify(exactly = 0) { freshFixSource.awaitFreshFix(any(), any()) }
+    }
+
+    private fun dueVisit() = GeofenceDwellVisit(
+        geofenceId = "campus",
+        visitId = "visit-1",
+        enteredAtSeconds = 0L,
+        regionRevision = 0,
+        userStateGeneration = 0L
+    )
+
+    private fun controllerWith(freshFixSource: PolygonFreshFixSource) = PolygonGeofenceServiceController(
+        context,
+        store,
+        engine,
+        approachMonitor,
+        manager,
+        secureUserStore,
+        freshFixSource = freshFixSource,
+        recheckScheduler = NoopRecheckScheduler,
+        passiveMonitor = NoopPassiveMonitor,
+        bootSessionProvider = { "boot" },
+        logger = mockLogger
+    )
 
     @Test
     fun processApproachLocations_givenApproachSessionMovesOutsideTrigger_expectStopsIt() = runTest {

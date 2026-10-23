@@ -3,6 +3,7 @@ package io.customer.geofence
 import androidx.lifecycle.ProcessLifecycleOwner
 import io.customer.base.internal.InternalCustomerIOApi
 import io.customer.geofence.di.geofenceDeliveryFlusher
+import io.customer.geofence.di.geofenceDwellCoordinator
 import io.customer.geofence.di.geofenceLogger
 import io.customer.geofence.di.geofencePermissionReporter
 import io.customer.geofence.di.geofenceRegionStore
@@ -117,7 +118,10 @@ class ModuleGeofence @JvmOverloads constructor(
             sdkAndroid.geofenceServices.onLocationAcquired(
                 latitude = it.latitude,
                 longitude = it.longitude,
-                quality = GeofenceFixQuality(fixElapsedRealtimeMillis = it.fixElapsedRealtimeMillis)
+                quality = GeofenceFixQuality(
+                    fixElapsedRealtimeMillis = it.fixElapsedRealtimeMillis,
+                    horizontalAccuracyMeters = it.horizontalAccuracyMeters
+                )
             )
         }
 
@@ -196,11 +200,16 @@ class ModuleGeofence @JvmOverloads constructor(
             launchScope.launch {
                 try {
                     sdkAndroid.geofenceTransitionEmitter.recoverPendingTransitions()
+                    // After the outbox: a reservation that never reached it is staged like any other.
+                    sdkAndroid.geofenceDwellCoordinator.recoverPendingReservations()
                     val existingUserId = sdkAndroid.secureUserStore.getUserId()
                     if (!existingUserId.isNullOrEmpty()) {
                         // Re-read rather than reuse the id above: an identify can land in between,
                         // and reopening the older owner would clear the routing it just armed.
                         sdkAndroid.polygonGeofenceServiceController.beginUserSessionForCurrentUser()
+                        // Here as well as on foreground entry: a background-only launch whose sync
+                        // skips must still restore the re-check and pending dwell checks.
+                        sdkAndroid.polygonGeofenceServiceController.recover()
                         val coordinator = foregroundCoordinator(sdkAndroid, locationModule)
                         val anchor = coordinator.anchor()
                         sdkAndroid.geofenceServices.onAppLaunch(

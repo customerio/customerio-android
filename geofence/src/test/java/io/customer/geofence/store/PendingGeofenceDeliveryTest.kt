@@ -58,6 +58,29 @@ class PendingGeofenceDeliveryTest {
     }
 
     @Test
+    fun eventProperties_givenExitVisit_expectObservedDuration() {
+        val entry = PendingGeofenceDelivery(
+            geofenceId = "biz-2",
+            transition = Event.GeofenceTransition.EXIT,
+            timestamp = 199L,
+            userId = "user-A",
+            transitionId = "visit-1",
+            visitId = "visit-1",
+            enteredAt = 100L,
+            visitDurationSeconds = 99L,
+            visitDurationUncertaintySeconds = 7L,
+            detectionSource = "native"
+        )
+
+        entry.toEventProperties() shouldContain ("visitId" to "visit-1")
+        entry.toEventProperties() shouldContain ("enteredAt" to 100L)
+        entry.toEventProperties() shouldContain ("visitDurationSeconds" to 99L)
+        entry.toEventProperties() shouldContain ("visitDurationUncertaintySeconds" to 7L)
+        entry.toEventProperties() shouldContain ("detectionSource" to "native")
+        entry.toEventProperties().keys shouldNotContain "dwellDurationSeconds"
+    }
+
+    @Test
     fun serialization_givenRowWrittenByAnEarlierVersion_expectItStillDecodes() {
         // No @SerialName, so the constant name is the on-disk value. Only a literal row catches a
         // rename; a round trip re-encodes with the new spelling and passes.
@@ -129,6 +152,49 @@ class PendingGeofenceDeliveryTest {
         val entry = PendingGeofenceDelivery("biz-8", Event.GeofenceTransition.ENTER, 50L, "user-A", transitionId = "tid-8", geosetId = null)
 
         entry.toEventProperties().keys shouldNotContain "geosetId"
+    }
+
+    @Test
+    fun toEventProperties_givenDwellEvidence_expectVisitPropertiesPresent() {
+        val entry = PendingGeofenceDelivery(
+            "biz-dwell",
+            Event.GeofenceTransition.DWELL,
+            1_060L,
+            "user-A",
+            transitionId = "tid-dwell",
+            visitId = "visit-1",
+            enteredAt = 1_000L,
+            dwellThresholdSeconds = 60,
+            dwellDurationSeconds = 67L,
+            detectionSource = "location_evidence"
+        )
+
+        entry.toEventProperties() shouldContain ("transition" to "dwell")
+        entry.toEventProperties() shouldContain ("visitId" to "visit-1")
+        entry.toEventProperties() shouldContain ("enteredAt" to 1_000L)
+        entry.toEventProperties() shouldContain ("dwellThresholdSeconds" to 60)
+        entry.toEventProperties() shouldContain ("dwellDurationSeconds" to 67L)
+        entry.toEventProperties() shouldContain ("detectionSource" to "location_evidence")
+    }
+
+    @Test
+    fun toEventProperties_givenNativeDwellWithoutObservedEnter_expectEvidenceFieldsAbsent() {
+        val entry = PendingGeofenceDelivery(
+            "biz-dwell",
+            Event.GeofenceTransition.DWELL,
+            1_060L,
+            "user-A",
+            transitionId = "visit-1",
+            visitId = "visit-1",
+            dwellThresholdSeconds = 60,
+            detectionSource = "native"
+        )
+
+        val properties = entry.toEventProperties()
+        properties shouldContain ("visitId" to "visit-1")
+        properties shouldContain ("dwellThresholdSeconds" to 60)
+        properties.keys shouldNotContain "enteredAt"
+        properties.keys shouldNotContain "dwellDurationSeconds"
     }
 
     @Test

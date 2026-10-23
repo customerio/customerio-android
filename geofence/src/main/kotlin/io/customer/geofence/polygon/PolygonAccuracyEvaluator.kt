@@ -42,7 +42,12 @@ internal data class PolygonEvidenceResult(
     /** The fix's own uncertainty reaches the ring, so a second agreeing fix must settle it. */
     val requiresCorroboration: Boolean = false,
     /** Decisive and on the committed side: no transition, but still recorded. */
-    val agreedWithCommittedState: Boolean = false
+    val agreedWithCommittedState: Boolean = false,
+    /**
+     * The fix is clear of the ring by more than its accuracy plus the departure margin, outside it.
+     * Only this proves the device was outside; a committed OUTSIDE may mean no record at all.
+     */
+    val provesOutside: Boolean = false
 )
 
 internal class PolygonAccuracyEvaluator {
@@ -75,6 +80,27 @@ internal class PolygonAccuracyEvaluator {
             return if (committedState == PolygonCommittedState.INSIDE) {
                 PolygonEvidenceResult(
                     PolygonEvidence.EXIT,
+                    signedBoundaryDistanceMeters = signedBoundaryDistanceMeters,
+                    provesOutside = true
+                )
+            } else {
+                PolygonEvidenceResult(
+                    PolygonEvidence.AMBIGUOUS,
+                    signedBoundaryDistanceMeters = signedBoundaryDistanceMeters,
+                    agreedWithCommittedState = true,
+                    provesOutside = true
+                )
+            }
+        }
+        // A whole accuracy circle inside has shown the side, using the engine's strict stay rule.
+        // A thin appendage can pull the whole-ring scale below this fix's actual edge clearance.
+        if (
+            relation == PolygonPointRelation.INSIDE &&
+            boundaryDistanceMeters > sample.horizontalAccuracyMeters
+        ) {
+            return if (committedState == PolygonCommittedState.OUTSIDE) {
+                PolygonEvidenceResult(
+                    PolygonEvidence.ENTER,
                     signedBoundaryDistanceMeters = signedBoundaryDistanceMeters
                 )
             } else {
@@ -85,8 +111,8 @@ internal class PolygonAccuracyEvaluator {
                 )
             }
         }
-        // Governs arrivals only. Scales with venue depth so a coarse fix deep in a large venue
-        // counts, floored so a shallow ring still admits a coarse fix.
+        // Governs fixes the branches above have not settled. Scales with venue depth, floored so a
+        // shallow ring still admits a coarse fix.
         val arrivalCeilingMeters = max(MINIMUM_ARRIVAL_CEILING_METERS, geometry.venueScaleMeters)
         if (sample.horizontalAccuracyMeters >= arrivalCeilingMeters) {
             return undecided(

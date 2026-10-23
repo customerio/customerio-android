@@ -51,7 +51,7 @@ jobs:
     permissions:
       pull-requests: write # to be able to comment on PR
     steps:
-      - uses: actions/checkout@v4 # required to use the local action below
+      - uses: actions/checkout@v7 # required to use the local action below
 
       # Claims the comment early so it shows builds are on the way. The build workflow rewrites it with results.
       - uses: ./.github/actions/update-sample-app-comment

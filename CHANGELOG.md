@@ -1,3 +1,9 @@
+## [4.26.0](https://github.com/customerio/customerio-android/compare/4.25.2...4.26.0) (2026-10-23)
+
+### Features
+
+* **geofence:** add dwell and observed exit duration (MBL-2492, MBL-2494) ([#939](https://github.com/customerio/customerio-android/issues/939)) ([846251c](https://github.com/customerio/customerio-android/commit/846251ce4533bba4c1db873fe035d929994da3e7))
+
 ## [4.25.2](https://github.com/customerio/customerio-android/compare/4.25.1...4.25.2) (2026-10-22)
 
 ### Bug Fixes

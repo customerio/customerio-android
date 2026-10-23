@@ -2,11 +2,13 @@ package io.customer.messaginginapp.gist.presentation
 
 import android.content.Context
 import android.content.Intent
+import android.graphics.Color
 import android.os.Bundle
 import android.view.Gravity
 import android.view.View
 import android.view.WindowManager
 import androidx.activity.OnBackPressedCallback
+import androidx.activity.SystemBarStyle
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.animation.doOnEnd
@@ -73,8 +75,10 @@ class GistModalActivity : AppCompatActivity(), ModalInAppMessageViewCallback, Tr
 
     override fun onCreate(savedInstanceState: Bundle?) {
         // Draw behind the system bars so the overlay covers the whole screen, matching host apps
-        // that use edge-to-edge (and every app targeting Android 15+).
-        enableEdgeToEdge()
+        // that use edge-to-edge (and every app targeting Android 15+). A fixed (non-auto) style keeps
+        // Android from painting its contrast scrim behind 3-button navigation, which would cover the
+        // overlay with a solid bar.
+        enableEdgeToEdge(navigationBarStyle = SystemBarStyle.dark(Color.TRANSPARENT))
         super.onCreate(savedInstanceState)
         prepareActivity()
     }

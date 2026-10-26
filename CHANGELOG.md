@@ -1,3 +1,9 @@
+## [5.0.1](https://github.com/customerio/customerio-android/compare/5.0.0...5.0.1) (2026-10-26)
+
+### Bug Fixes
+
+* **in-app:** draw modal messages edge-to-edge (MBL-1398) ([#959](https://github.com/customerio/customerio-android/issues/959)) ([3756565](https://github.com/customerio/customerio-android/commit/3756565659f2985ce43b705a89cbc80a921b8aab))
+
 ## [5.0.0](https://github.com/customerio/customerio-android/compare/4.26.0...5.0.0) (2026-10-26)
 
 ### ⚠ BREAKING CHANGES

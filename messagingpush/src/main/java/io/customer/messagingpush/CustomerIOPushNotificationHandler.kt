@@ -6,7 +6,6 @@ import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
 import android.media.RingtoneManager
-import android.os.Build
 import android.os.Bundle
 import androidx.annotation.ColorInt
 import androidx.annotation.DrawableRes
@@ -238,12 +237,7 @@ internal class CustomerIOPushNotificationHandler(
     ): PendingIntent {
         val notifyIntent = Intent(context, NotificationClickReceiverActivity::class.java)
         notifyIntent.putExtra(NotificationClickReceiverActivity.NOTIFICATION_PAYLOAD_EXTRA, payload)
-        // In Android M, you must specify the mutability of each PendingIntent
-        val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        } else {
-            PendingIntent.FLAG_UPDATE_CURRENT
-        }
+        val flags = PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         return PendingIntent.getActivity(
             context,
             requestCode,

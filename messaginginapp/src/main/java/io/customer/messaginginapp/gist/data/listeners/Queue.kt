@@ -20,6 +20,7 @@ import io.customer.messaginginapp.store.InAppPreferenceStore
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.util.Logger
 import java.io.File
+import java.io.IOException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import okhttp3.Cache
@@ -143,30 +144,40 @@ internal class Queue(
         requestState: InAppMessagingState
     ): okhttp3.Response {
         return when (response.code) {
-            200 -> interceptSuccessfulResponse(response, originalRequest, requestState)
-            304 -> interceptNotModifiedResponse(response, originalRequest, requestState)
+            200 -> interceptSuccessfulResponse(response, originalRequest, requestState, requirePreferenceStore(response))
+            304 -> interceptNotModifiedResponse(response, originalRequest, requestState, requirePreferenceStore(response))
             else -> response
         }
+    }
+
+    // The DI getter recreates its store through SDKComponent.android(), which throws after teardown.
+    // Only dependency resolution is translated; response processing and storage writes stay outside.
+    private fun requirePreferenceStore(response: okhttp3.Response): InAppPreferenceStore = try {
+        inAppPreferenceStore
+    } catch (error: IllegalStateException) {
+        response.close()
+        throw IOException(NetworkUtilities.SDK_NOT_INITIALIZED_MESSAGE, error)
     }
 
     private fun interceptSuccessfulResponse(
         response: okhttp3.Response,
         originalRequest: okhttp3.Request,
-        requestState: InAppMessagingState
+        requestState: InAppMessagingState,
+        preferenceStore: InAppPreferenceStore
     ): okhttp3.Response {
         response.body?.let { responseBody ->
             val responseBodyString = responseBody.string()
             val url = originalRequest.url.toString()
             if (!isQueueRequest(originalRequest)) {
-                inAppPreferenceStore.saveNetworkResponse(url, responseBodyString)
+                preferenceStore.saveNetworkResponse(url, responseBodyString)
             } else {
                 val requestKey = QueueFetchKey.from(requestState)
                 // A response for an identity that is no longer current is discarded by fetchUserMessages,
                 // so it must not become the body the current identity's 304s replay either.
                 if (requestKey == QueueFetchKey.from(state)) {
                     synchronized(queueCacheLock) {
-                        inAppPreferenceStore.saveNetworkResponse(url, responseBodyString)
-                        inAppPreferenceStore.saveNetworkResponse(cacheOwnerKey(url), requestKey?.cacheOwner.orEmpty())
+                        preferenceStore.saveNetworkResponse(url, responseBodyString)
+                        preferenceStore.saveNetworkResponse(cacheOwnerKey(url), requestKey?.cacheOwner.orEmpty())
                     }
                 }
             }
@@ -183,18 +194,19 @@ internal class Queue(
     private fun interceptNotModifiedResponse(
         response: okhttp3.Response,
         originalRequest: okhttp3.Request,
-        requestState: InAppMessagingState
+        requestState: InAppMessagingState,
+        preferenceStore: InAppPreferenceStore
     ): okhttp3.Response {
         val url = originalRequest.url.toString()
         // The server answers 304 per user ("nothing changed since this user was last sent their queue"),
         // so a queue body fetched for anyone else is never the answer.
         val cachedResponse = if (!isQueueRequest(originalRequest)) {
-            inAppPreferenceStore.getNetworkResponse(url)
+            preferenceStore.getNetworkResponse(url)
         } else {
             val requestOwner = QueueFetchKey.from(requestState)?.cacheOwner
             synchronized(queueCacheLock) {
-                inAppPreferenceStore.getNetworkResponse(url)
-                    ?.takeIf { requestOwner != null && inAppPreferenceStore.getNetworkResponse(cacheOwnerKey(url)) == requestOwner }
+                preferenceStore.getNetworkResponse(url)
+                    ?.takeIf { requestOwner != null && preferenceStore.getNetworkResponse(cacheOwnerKey(url)) == requestOwner }
             }
         }
         return cachedResponse?.let {

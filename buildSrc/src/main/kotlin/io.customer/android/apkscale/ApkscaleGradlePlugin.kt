@@ -1,15 +1,16 @@
 package io.customer.android.apkscale
 
-import com.android.build.gradle.LibraryExtension
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 
 class ApkscaleGradlePlugin : Plugin<Project> {
 
     override fun apply(project: Project) {
-        // Ensure this is an Android library project
-        val androidExtension = project.extensions.findByType(LibraryExtension::class.java)
-            ?: throw IllegalStateException("apkscale plugin can only be applied to Android library projects")
+        // Ensure this is an Android library project. Checked by plugin id so buildSrc needs no AGP
+        // dependency: one on buildSrc's classpath would shadow the AGP version the root build selects.
+        check(project.plugins.hasPlugin("com.android.library")) {
+            "apkscale plugin can only be applied to Android library projects"
+        }
 
         // Create extension
         val extension = project.extensions.create("apkscale", ApkscaleExtension::class.java)

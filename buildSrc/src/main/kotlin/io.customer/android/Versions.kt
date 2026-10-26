@@ -4,12 +4,13 @@ object Versions {
     // Android SDK versions
     const val COMPILE_SDK = 36
     const val TARGET_SDK = 36
-    const val MIN_SDK = 21
+    const val MIN_SDK = 24
 
     // Repository default. CI's gradle-compatibility-builds job in snapshot-release.yml
-    // overrides this and gradle-wrapper.properties to the compatibility floor:
-    // AGP 8.9.1 / Gradle 8.11.1, the minimum supporting compileSdk 36. Revisit
-    // that floor through update-gradle-compatibility when bumping this version.
+    // overrides this and gradle-wrapper.properties to the compatibility floor
+    // (AGP 8.9.1 / Gradle 8.11.1, the minimum supporting compileSdk 36) and to
+    // AGP 9.4.1 / Gradle 9.8.2. Revisit those lanes through update-gradle-compatibility
+    // when bumping this version. buildSrc must not depend on AGP, or its copy wins.
     internal const val ANDROID_GRADLE_PLUGIN = "8.9.3"
 
     // Jist rendering engine — published Maven Central artifact (io.customer.android:jist).
@@ -26,10 +27,10 @@ object Versions {
     internal const val DOKKA = "1.9.20"
     internal const val JUNIT_BOM = "5.9.3"
     internal const val ESPRESSO = "3.7.0"
-    internal const val FIREBASE_MESSAGING = "24.1.2"
+    internal const val FIREBASE_MESSAGING = "26.0.0"
     internal const val GRADLE_NEXUS_PUBLISH_PLUGIN = "2.0.0"
     internal const val ANDROID_PUBLISH_PLUGIN = "0.1.0"
-    internal const val GOOGLE_PLAY_SERVICES_BASE = "18.7.2"
+    internal const val GOOGLE_PLAY_SERVICES_BASE = "18.11.1"
     internal const val GOOGLE_SERVICES_PLUGIN = "4.4.2"
     internal const val KLUENT = "1.73"
     internal const val KOTLIN_BINARY_VALIDATOR = "0.16.3"
@@ -46,5 +47,5 @@ object Versions {
     // Compose (using latest stable BOM compatible with Kotlin 2.1.21)
     internal const val COMPOSE_BOM = "2025.10.00"
     internal const val COMPOSE_COMPILER = "2.1.21"
-    internal const val WORK_MANAGER = "2.10.5"
+    internal const val WORK_MANAGER = "2.12.0"
 }

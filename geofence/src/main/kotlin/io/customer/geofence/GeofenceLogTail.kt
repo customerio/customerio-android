@@ -120,8 +120,8 @@ internal object GeofenceLogTail {
     enum class FixSource(val wire: String) {
         OS_TRIGGER("os_trigger"),
 
-        /** Last handed to or cached by the SDK; may be arbitrarily stale. */
-        CACHED("cached"),
+        /** Observed by the passive listener; the request that computed the fix is unknown. */
+        PASSIVE("passive"),
         FRESH_REQUEST("fresh_request"),
         NONE("none")
     }

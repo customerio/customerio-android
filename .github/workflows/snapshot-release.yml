@@ -29,7 +29,7 @@ jobs:
       snapshot_version: ${{ steps.set-snapshot-version.outputs.VERSION }}
     steps:
       - name: Check out code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
       - uses: ./.github/actions/setup-android
 
       # Using branch name for name of snapshot. Makes it easy to remember and can easily trigger new builds of Remote Habits. 
@@ -53,7 +53,7 @@ jobs:
           SNAPSHOT: true
 
       - name: Find old comment to update comment for
-        uses: peter-evans/find-comment@3eae4d37986fb5a8592848f6a574fdf654e61f9e # v3.1.0
+        uses: peter-evans/find-comment@b30e6a3c0ed37e7c023ccd3f1db5c6c0b0c23aad # v4.0.0
         id: find-previous-comment
         with:
           issue-number: ${{ github.event.pull_request.number }}
@@ -61,7 +61,7 @@ jobs:
           body-includes: Build available to test
 
       - name: Inform pull request on build of SDK available to test 
-        uses: peter-evans/create-or-update-comment@71345be0265236311c031f5c7866368bd1eff043 # v4.0.0
+        uses: peter-evans/create-or-update-comment@e8674b075228eee787fea43ef493e45ece1004c9 # v5.0.0
         with:
           comment-id: ${{ steps.find-previous-comment.outputs.comment-id }}
           issue-number: ${{ github.event.pull_request.number }}
@@ -75,15 +75,29 @@ jobs:
   # Build compatibility is correctness coverage, so it runs for every code PR
   # independently of release naming and snapshot publication.
   gradle-compatibility-builds:
-    name: Sample apps build with AGP 8.9.1
+    name: Sample apps build with AGP ${{ matrix.agp }}
     if: github.event.action != 'edited' || github.event.changes.base != null
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Floor: API 36 requires AGP 8.9.1 or newer, and AGP 8.9 requires Gradle 8.11.1.
+          # https://developer.android.com/build/releases/about-agp#api-level-support
+          - agp: 8.9.1
+            gradle: 8.11.1
+          # AGP 9 readiness (MBL-2256). AGP 9.4 requires Gradle 9.6+ and brings in Kotlin Gradle
+          # plugin 2.2.10+. Gradle 9 also changes how JVM tests launch, so run some here too.
+          - agp: 9.4.1
+            gradle: 9.8.2
+            tests: :base:test :core:testDebugUnitTest
+            test-results: base/build/test-results/test core/build/test-results/testDebugUnitTest
     concurrency:
-      group: gradle-compatibility-${{ github.ref }}
+      group: gradle-compatibility-${{ github.ref }}-${{ matrix.agp }}
       cancel-in-progress: true
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Setup local.properties file for sample app
         # These APKs compile the PR's local SDK modules and are not distributed,
@@ -95,18 +109,42 @@ jobs:
           } > "samples/local.properties"
 
       - name: Update files for Gradle compatibility
-        # API 36 requires AGP 8.9.1 or newer, and AGP 8.9 requires Gradle 8.11.1.
-        # https://developer.android.com/build/releases/about-agp#api-level-support
         run: |
           ./scripts/update-gradle-compatibility.sh \
-          --agpVersion 8.9.1 \
-          --gradleVersion 8.11.1
+          --agpVersion ${{ matrix.agp }} \
+          --gradleVersion ${{ matrix.gradle }}
 
       # Uses the same Java, Android SDK, wrapper validation, and Gradle-owned
       # caching path as the rest of this repository's CI.
       - uses: ./.github/actions/setup-android
 
       # Build the Groovy and Kotlin DSL consumers together so their shared SDK
-      # modules are configured and compiled only once.
+      # modules are configured and compiled only once. The init script fails the build if
+      # the AGP that loads is not the one requested above.
       - name: Build Groovy and Kotlin DSL sample apps
-        run: ./gradlew :samples:java_layout:assembleRelease :samples:kotlin_compose:assembleRelease
+        env:
+          EXPECTED_AGP_VERSION: ${{ matrix.agp }}
+        run: >-
+          ./gradlew --init-script .github/scripts/assert-agp-version.gradle
+          :samples:java_layout:assembleRelease :samples:kotlin_compose:assembleRelease
+          ${{ matrix.tests }}
+
+      - name: Check unit test results
+        # Test tasks set ignoreFailures, so the build passes whatever the tests did. Each results
+        # directory must hold executed tests and no failures.
+        if: matrix.tests
+        env:
+          TEST_RESULT_DIRS: ${{ matrix.test-results }}
+        shell: python3 {0}
+        run: |
+          import glob, os, sys, xml.etree.ElementTree as ET
+          ok = True
+          for results in os.environ["TEST_RESULT_DIRS"].split():
+              suites = [ET.parse(f).getroot() for f in glob.glob(f"{results}/TEST-*.xml")]
+              ran = sum(int(s.get("tests")) - int(s.get("skipped", 0)) for s in suites)
+              failed = sum(int(s.get("failures")) + int(s.get("errors")) for s in suites)
+              print(f"{results}: {ran} tests ran, {failed} failed or errored")
+              if failed or not ran:
+                  print(f"::error::{results}: expected executed tests and no failures")
+                  ok = False
+          sys.exit(0 if ok else 1)

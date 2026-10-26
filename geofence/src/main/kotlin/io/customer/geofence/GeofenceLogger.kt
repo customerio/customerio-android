@@ -79,7 +79,11 @@ internal enum class PolygonPassiveSkip(val wire: String, val detail: String) {
 internal enum class PolygonRecheckSkip(val wire: String, val detail: String) {
     NOTHING_REGISTERED("nothing_registered", "no polygon is registered, so the work retired itself"),
     NO_FIX("no_fix", "no location arrived within the re-check's budget"),
-    NO_PERMISSION("no_permission", "location permission is not granted, so nothing was asked for")
+    NO_PERMISSION("no_permission", "location permission is not granted, so nothing was asked for"),
+    REGISTRATIONS_WIPED(
+        "registrations_wiped",
+        "a reboot or app update dropped the registrations; the next sync re-adds them and ends stale visits"
+    )
 }
 
 /** The session stays live, so these are not endings. */
@@ -740,7 +744,8 @@ internal class GeofenceLogger(private val logger: Logger) {
                             "rad" to num(entry.radiusMeters, 0),
                             "nv" to int(entry.vertices?.size),
                             "ring" to entry.vertices?.let(::ringPairs)?.let(::composedList),
-                            "tt" to composedList(entry.transitionTypes)
+                            "tt" to composedList(entry.transitionTypes),
+                            "dwell" to entry.dwellThresholdSeconds?.toString()
                         )
                     ),
                 tag = TAG
@@ -778,6 +783,24 @@ internal class GeofenceLogger(private val logger: Logger) {
                     "api.transition.unknown",
                     GeofenceLogIo.OBSERVATION,
                     listOf("ok" to bool(false), "why" to "unknown_transition_type", "value" to token(value))
+                ),
+            tag = TAG
+        )
+    }
+
+    /** [value] is the raw JSON, so a non-numeric value is reported as the backend sent it. */
+    fun logUnsupportedDwellThreshold(geofenceId: String, value: String) {
+        logger.error(
+            "API response contained unsupported dwell_threshold_seconds=$value for geofence '$geofenceId' (expected 0 to disable or a whole number 1..${GeofenceConstants.MAX_DWELL_THRESHOLD_SECONDS}). Dwell disabled for this fence; region kept. Check backend threshold validation." +
+                tail(
+                    "api.dwell.unsupported",
+                    GeofenceLogIo.OBSERVATION,
+                    listOf(
+                        "id" to token(geofenceId),
+                        "ok" to bool(false),
+                        "why" to "unsupported_dwell_threshold",
+                        "value" to token(value)
+                    )
                 ),
             tag = TAG
         )
@@ -1215,6 +1238,18 @@ internal class GeofenceLogger(private val logger: Logger) {
         )
     }
 
+    fun logDwellProofBudgetSpent(geofenceId: String, requests: Int) {
+        logger.debug(
+            "Geofence '$geofenceId' spent its $requests precise location requests for dwell proof on this visit; only fixes requested for other reasons can prove the stay now." +
+                tail(
+                    "dwell.proof.budget_spent",
+                    GeofenceLogIo.OBSERVATION,
+                    listOf("id" to token(geofenceId), "n" to int(requests))
+                ),
+            tag = TAG
+        )
+    }
+
     fun logPolygonFreshFixReceived(location: Location, waitedSeconds: Double) {
         logger.debug(
             "Precise fix received; evaluating the callback against it." +
@@ -1257,7 +1292,7 @@ internal class GeofenceLogger(private val logger: Logger) {
 
     fun logPolygonPassiveStarted() {
         logger.debug(
-            "Listening for location other apps request; no sensor is turned on for this." +
+            "Listening passively for location other requests compute; no sensor is turned on for this." +
                 tail("polygon.passive.started", GeofenceLogIo.OBSERVATION, emptyList()),
             tag = TAG
         )
@@ -1265,12 +1300,13 @@ internal class GeofenceLogger(private val logger: Logger) {
 
     fun logPolygonPassiveStopped() {
         logger.debug(
-            "Stopped listening for other apps' location." +
+            "Stopped listening passively for location." +
                 tail("polygon.passive.stopped", GeofenceLogIo.OBSERVATION, emptyList()),
             tag = TAG
         )
     }
 
+    /** The passive delivery does not identify whose request computed the fix. */
     fun logPolygonPassiveReceived(
         location: Location,
         candidateCount: Int,
@@ -1278,7 +1314,7 @@ internal class GeofenceLogger(private val logger: Logger) {
         clearedIds: List<String>
     ) {
         logger.debug(
-            "A fix arrived from another app's request: ${admittedIds.size} of $candidateCount registered polygon(s) " +
+            "A passively observed fix arrived: ${admittedIds.size} of $candidateCount registered polygon(s) " +
                 "are within their wake circle, ${clearedIds.size} left." +
                 tail(
                     "polygon.passive.received",
@@ -1289,7 +1325,7 @@ internal class GeofenceLogger(private val logger: Logger) {
                         "ids" to list(admittedIds),
                         "ncleared" to int(clearedIds.size),
                         "cleared" to list(clearedIds)
-                    ) + GeofenceLogTail.fixQuality(location, GeofenceLogTail.FixSource.CACHED) +
+                    ) + GeofenceLogTail.fixQuality(location, GeofenceLogTail.FixSource.PASSIVE) +
                         GeofenceLogTail.position(location)
                 ),
             tag = TAG
@@ -1489,6 +1525,18 @@ internal class GeofenceLogger(private val logger: Logger) {
                     "transition.dropped",
                     GeofenceLogIo.OBSERVATION,
                     listOf("id" to geofenceId, "why" to "routing_unarmed")
+                ),
+            tag = TAG
+        )
+    }
+
+    fun logTransitionDroppedSuperseded(geofenceId: String, transitionName: String) {
+        logger.debug(
+            "Geofence '$geofenceId' $transitionName: dropped — its triggering fix is older than one already placing the device inside" +
+                tail(
+                    "transition.dropped",
+                    GeofenceLogIo.OBSERVATION,
+                    listOf("id" to geofenceId, "t" to transitionName.lowercase(), "why" to "superseded_by_newer_fix")
                 ),
             tag = TAG
         )

@@ -414,6 +414,46 @@ class GeofenceManagerTest : RobolectricTest() {
         (result.exceptionOrNull() is TimeoutException).shouldBeTrue()
     }
 
+    @Test
+    fun replaceGeofences_givenPolygonWithDwellThreshold_expectNormalRegistrationHasNoNativeDwell() = runTest {
+        grantAllPermissions()
+        val requestSlot = slot<GeofencingRequest>()
+        stubClientAddSuccess(requestSlot)
+
+        manager.replaceGeofences(listOf(buildPolygon(dwellThresholdSeconds = 300)))
+
+        requestSlot.captured.geofences.single().transitionTypes shouldBeEqualTo ENTER_EXIT
+    }
+
+    @Test
+    fun replaceGeofences_givenCircleWithDwellThreshold_expectNativeDwellLoiteringForThatThreshold() = runTest {
+        grantAllPermissions()
+        val requestSlot = slot<GeofencingRequest>()
+        stubClientAddSuccess(requestSlot)
+
+        manager.replaceGeofences(listOf(buildRegion(id = "circle").copy(dwellThresholdSeconds = 300)))
+
+        // A circle's DWELL comes from GMS loitering, so it must be asked for, with the threshold.
+        val geofence = requestSlot.captured.geofences.single()
+        geofence.transitionTypes shouldBeEqualTo (ENTER_EXIT or Geofence.GEOFENCE_TRANSITION_DWELL)
+        geofence.loiteringDelay shouldBeEqualTo 300_000
+    }
+
+    private fun buildPolygon(dwellThresholdSeconds: Int = 0) = buildRegion(id = "polygon").copy(
+        polygonVertices = POLYGON_VERTICES,
+        dwellThresholdSeconds = dwellThresholdSeconds
+    )
+
+    private companion object {
+        val ENTER_EXIT = Geofence.GEOFENCE_TRANSITION_ENTER or Geofence.GEOFENCE_TRANSITION_EXIT
+        val POLYGON_VERTICES = listOf(
+            PolygonCoordinate(37.7745, -122.4200),
+            PolygonCoordinate(37.7745, -122.4188),
+            PolygonCoordinate(37.7755, -122.4188),
+            PolygonCoordinate(37.7755, -122.4200)
+        )
+    }
+
     // -- Helpers: permission --
 
     private fun grantPermission(permission: String) {

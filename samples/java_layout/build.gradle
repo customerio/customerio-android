@@ -16,7 +16,7 @@ android {
 
     defaultConfig {
         applicationId "io.customer.android.sample.java_layout"
-        minSdk 21
+        minSdk 24
         targetSdk 36
         versionCode 1
         versionName "1.0"
@@ -42,8 +42,6 @@ android {
         // Registers with the Firebase Installation ID (firebase-messaging 25.1.0+ and the flag in src/fid)
         fid {
             dimension "push"
-            // Required by firebase-messaging 25
-            minSdk 23
         }
     }
     buildFeatures {
@@ -59,6 +57,9 @@ dependencies {
     def lifecycle_version = "2.6.1"
 
     // Existing dependencies
+    // BaseActivity calls enableEdgeToEdge(). AGP 9 no longer aligns compile and runtime classpaths,
+    // so the version the SDK brings in at runtime has to be declared to be visible at compile time.
+    implementation "androidx.activity:activity:1.8.2"
     implementation "androidx.annotation:annotation:1.6.0"
     implementation "androidx.appcompat:appcompat:1.6.1"
     implementation "androidx.constraintlayout:constraintlayout:2.1.4"

@@ -10,8 +10,9 @@ import com.google.android.gms.location.Priority
 import io.customer.geofence.GeofenceLogger
 
 /**
- * Listens for fixes other apps already pay for; `PRIORITY_PASSIVE` never turns a sensor on and
- * guarantees nothing. One long-lived request while any polygon is registered, with no session state.
+ * Listens for fixes other requests already pay for, possibly this SDK's own; `PRIORITY_PASSIVE` never
+ * turns a sensor on and guarantees nothing. One long-lived request while any polygon is registered,
+ * with no session state.
  */
 internal interface PolygonPassiveMonitor {
     /**

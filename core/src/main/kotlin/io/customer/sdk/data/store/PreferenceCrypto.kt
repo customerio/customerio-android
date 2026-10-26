@@ -1,7 +1,5 @@
 package io.customer.sdk.data.store
 
-import android.annotation.SuppressLint
-import android.os.Build
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import android.util.Base64
@@ -14,8 +12,8 @@ import javax.crypto.spec.GCMParameterSpec
 
 /**
  * Encrypts and decrypts strings using an AES-256-GCM key stored in the
- * Android Keystore. Falls back to plaintext on API < 23 or when the
- * Keystore is unavailable (some OEMs have buggy implementations).
+ * Android Keystore. Falls back to plaintext when the Keystore is
+ * unavailable (some OEMs have buggy implementations).
  *
  * The [MODE_PRIVATE][android.content.Context.MODE_PRIVATE] SharedPreferences
  * sandbox remains the baseline protection in all cases.
@@ -24,13 +22,10 @@ class PreferenceCrypto(
     private val keyAlias: String,
     private val logger: Logger
 ) {
-    private val isKeystoreAvailable: Boolean = Build.VERSION.SDK_INT >= Build.VERSION_CODES.M
-
     @Volatile
     private var cachedKey: SecretKey? = null
 
     @Synchronized
-    @SuppressLint("NewApi", "InlinedApi")
     private fun getOrCreateKey(): SecretKey {
         cachedKey?.let { return it }
 
@@ -62,10 +57,7 @@ class PreferenceCrypto(
      * containing the 12-byte IV prepended to the ciphertext. Falls back
      * to returning [plaintext] unchanged if encryption is unavailable.
      */
-    @SuppressLint("NewApi")
     fun encrypt(plaintext: String): String {
-        if (!isKeystoreAvailable) return plaintext
-
         return try {
             val cipher = Cipher.getInstance(TRANSFORMATION)
             cipher.init(Cipher.ENCRYPT_MODE, getOrCreateKey())
@@ -84,10 +76,7 @@ class PreferenceCrypto(
      * encryption was enabled, or the Keystore is unavailable), returns
      * [encoded] as-is, which handles migration from plaintext transparently.
      */
-    @SuppressLint("NewApi")
     fun decrypt(encoded: String): String {
-        if (!isKeystoreAvailable) return encoded
-
         return try {
             val combined = Base64.decode(encoded, Base64.NO_WRAP)
             if (combined.size <= GCM_IV_LENGTH) return encoded

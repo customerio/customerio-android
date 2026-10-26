@@ -141,7 +141,6 @@ internal class NotificationChannelCreator(
         }
     }
 
-    @RequiresApi(Build.VERSION_CODES.N)
     private fun resolveImportance(appMetaData: Bundle?, metadataKey: String, default: Int): Int {
         val rawImportance = appMetaData?.getInt(metadataKey, default) ?: default
         return validateImportanceLevel(rawImportance, fallback = default)
@@ -153,7 +152,6 @@ internal class NotificationChannelCreator(
      * intended default (e.g. `IMPORTANCE_HIGH` for live notifications) rather than silently
      * collapsing to `IMPORTANCE_DEFAULT`.
      */
-    @RequiresApi(Build.VERSION_CODES.N)
     private fun validateImportanceLevel(importanceLevel: Int, fallback: Int): Int {
         return when (importanceLevel) {
             NotificationManager.IMPORTANCE_NONE,

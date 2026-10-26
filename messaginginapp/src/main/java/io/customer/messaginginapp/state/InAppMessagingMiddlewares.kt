@@ -84,15 +84,17 @@ private fun handleMessageDismissal(logger: Logger, store: Store<InAppMessagingSt
 
     // After the dismissal is processed, dispatch ProcessMessageQueue to show the next message
     // The dismissed message will be filtered out by processMessages() since its queueId is now in shownMessageQueueIds
+    // This applies with or without SSE: when polling, the queue that is already fetched is the only source of the
+    // next message, and waiting for the next poll tick would delay it by up to a full polling interval
     if (store.state.shouldUseSse) {
         SDKComponent.inAppSseLogger.logTryDisplayNextMessageAfterDismissal()
-        store.dispatch(
-            InAppMessagingAction.ProcessMessageQueue(
-                messages = store.state.messagesInQueue.toList(),
-                shouldReconcileInlineMessages = false
-            )
-        )
     }
+    store.dispatch(
+        InAppMessagingAction.ProcessMessageQueue(
+            messages = store.state.messagesInQueue.toList(),
+            shouldReconcileInlineMessages = false
+        )
+    )
 }
 
 private fun handleMessageDisplay(logger: Logger, action: InAppMessagingAction.DisplayMessage, next: (Any) -> Any) {

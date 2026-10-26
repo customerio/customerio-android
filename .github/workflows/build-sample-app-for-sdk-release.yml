@@ -10,9 +10,56 @@ on:
         default: ""
 
 jobs:
+  wait-for-registry:
+    name: Wait for published SDK artifacts
+    runs-on: ubuntu-latest
+    timeout-minutes: 70
+    outputs:
+      sdk_version: ${{ steps.resolve-version.outputs.sdk_version }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Resolve the published SDK version
+        id: resolve-version
+        shell: bash
+        env:
+          SDK_VERSION_INPUT: ${{ inputs.sdk_version }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          sdk_version="$SDK_VERSION_INPUT"
+          if [[ -z "$sdk_version" ]]; then
+            if [[ "$EVENT_NAME" != "workflow_dispatch" ]]; then
+              echo "::error::Release sample builds require the SDK version that was just published."
+              exit 1
+            fi
+            sdk_version=$(git describe --tags --abbrev=0)
+          fi
+          echo "sdk_version=$sdk_version" >> "$GITHUB_OUTPUT"
+
+      - name: Wait for Maven Central downloads
+        uses: customerio/mobile-ci-tools/github-actions/wait-until-downloadable/v1@main
+        with:
+          ecosystem: maven
+          version: ${{ steps.resolve-version.outputs.sdk_version }}
+          # Include the samples' transitive SDK dependencies as well as their direct ones.
+          packages: |
+            io.customer.android:base
+            io.customer.android:core
+            io.customer.android:tracking-migration
+            io.customer.android:datapipelines
+            io.customer.android:messaging-push-fcm
+            io.customer.android:messaging-in-app
+            io.customer.android:messaging-in-app-compose
+            io.customer.android:messaging-inbox
+            io.customer.android:location
+            io.customer.android:geofence
+
   build-sample-apps:
+    needs: wait-for-registry
     uses: ./.github/workflows/reusable_build_sample_apps.yml
     with:
       use_latest_sdk_version: true
-      sdk_version: ${{ inputs.sdk_version }}
+      sdk_version: ${{ needs.wait-for-registry.outputs.sdk_version }}
     secrets: inherit

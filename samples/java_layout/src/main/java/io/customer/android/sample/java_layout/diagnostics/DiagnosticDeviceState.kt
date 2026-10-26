@@ -106,12 +106,8 @@ internal class DiagnosticDeviceState(private val application: Application) {
             // Sticky broadcast: registering delivers the current value immediately, without
             // costing a wakeup or a poll.
             addAction(Intent.ACTION_BATTERY_CHANGED)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                addAction(PowerManager.ACTION_POWER_SAVE_MODE_CHANGED)
-            }
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                addAction(PowerManager.ACTION_DEVICE_IDLE_MODE_CHANGED)
-            }
+            addAction(PowerManager.ACTION_POWER_SAVE_MODE_CHANGED)
+            addAction(PowerManager.ACTION_DEVICE_IDLE_MODE_CHANGED)
         }
 
         // Screen and Doze broadcasts are protected system actions, so this stays exported=false;
@@ -124,7 +120,6 @@ internal class DiagnosticDeviceState(private val application: Application) {
     }
 
     private fun registerNetworkCallback() {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) return
         runCatching {
             connectivityManager?.registerDefaultNetworkCallback(
                 object : ConnectivityManager.NetworkCallback() {
@@ -191,8 +186,7 @@ internal class DiagnosticDeviceState(private val application: Application) {
 
     private fun refreshNetwork() = update("net") { it.copy(network = currentNetwork()) }
 
-    private fun isDeviceIdle(): Boolean =
-        Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && powerManager?.isDeviceIdleMode == true
+    private fun isDeviceIdle(): Boolean = powerManager?.isDeviceIdleMode == true
 
     private fun currentThermal(): String {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return "unsupported"
@@ -200,7 +194,6 @@ internal class DiagnosticDeviceState(private val application: Application) {
     }
 
     private fun currentNetwork(): String {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return "unknown"
         val manager = connectivityManager ?: return "unknown"
         return runCatching {
             val active = manager.activeNetwork ?: return "none"
@@ -230,7 +223,7 @@ internal class DiagnosticDeviceState(private val application: Application) {
                 UsageStatsManager.STANDBY_BUCKET_WORKING_SET -> "working_set"
                 UsageStatsManager.STANDBY_BUCKET_FREQUENT -> "frequent"
                 UsageStatsManager.STANDBY_BUCKET_RARE -> "rare"
-                45 -> "restricted" // STANDBY_BUCKET_RESTRICTED, API 30 — named literally for API 21 compile
+                UsageStatsManager.STANDBY_BUCKET_RESTRICTED -> "restricted"
                 else -> "unknown"
             }
         }.getOrElse { "unknown" }

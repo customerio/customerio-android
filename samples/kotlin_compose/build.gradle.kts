@@ -27,10 +27,6 @@ android {
 
         testInstrumentationRunner =
             "io.customer.android.sample.kotlin_compose.TestApplicationRunner"
-
-        vectorDrawables {
-            useSupportLibrary = true
-        }
     }
 
     buildTypes {

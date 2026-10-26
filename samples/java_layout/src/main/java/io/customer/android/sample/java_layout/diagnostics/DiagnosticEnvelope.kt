@@ -93,7 +93,6 @@ internal object DiagnosticEnvelope {
      * so two files from the same boot can be matched with certainty.
      */
     private fun bootCount(application: Application): Int? {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) return null
         return runCatching {
             Settings.Global.getInt(application.contentResolver, Settings.Global.BOOT_COUNT)
         }.getOrNull()

@@ -58,8 +58,7 @@ internal class FirebaseTokenSource(
 
         /**
          * Calls `FirebaseMessaging.register()`, or returns null on Firebase older than 25.1.0. Uses
-         * reflection because the SDK compiles against older Firebase so apps aren't forced to
-         * upgrade (25.x also needs minSdk 23).
+         * reflection so an app that pins firebase-messaging below 25.1.0 still gets a token.
          */
         private fun registerIfSupported(messaging: FirebaseMessaging): Task<*>? {
             val registerMethod = try {

@@ -119,11 +119,14 @@ class GistModalActivity : AppCompatActivity(), ModalInAppMessageViewCallback, Tr
     }
 
     // Pad the overlay layout rather than the message view: the overlay background still fills
-    // the screen behind the bars, while the message is laid out clear of them.
+    // the screen behind the bars, while the message is laid out clear of them. Edge-to-edge turns off
+    // the window's keyboard resize, so the IME inset is included to keep text inputs above the keyboard.
     private fun applySystemBarInsets() {
         ViewCompat.setOnApplyWindowInsetsListener(binding.modalGistViewLayout) { view, insets ->
             val bars = insets.getInsets(
-                WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout()
+                WindowInsetsCompat.Type.systemBars() or
+                    WindowInsetsCompat.Type.displayCutout() or
+                    WindowInsetsCompat.Type.ime()
             )
             view.updatePadding(left = bars.left, top = bars.top, right = bars.right, bottom = bars.bottom)
             insets

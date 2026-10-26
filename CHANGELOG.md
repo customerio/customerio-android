@@ -1,3 +1,13 @@
+## [5.0.0](https://github.com/customerio/customerio-android/compare/4.26.0...5.0.0) (2026-10-26)
+
+### ⚠ BREAKING CHANGES
+
+* require Android API 24 and move to Firebase Messaging 26, Play services base 18.11 and WorkManager 2.12 (#950)
+
+### Features
+
+* require Android API 24 and move to Firebase Messaging 26, Play services base 18.11 and WorkManager 2.12 ([#950](https://github.com/customerio/customerio-android/issues/950)) ([f42c355](https://github.com/customerio/customerio-android/commit/f42c355f05a96a5d7b2fcb04d4df30a15ce7b806))
+
 ## [4.26.0](https://github.com/customerio/customerio-android/compare/4.25.2...4.26.0) (2026-10-23)
 
 ### Features

@@ -89,7 +89,7 @@ class GistSDKTest : JUnitTest() {
 
         assertCalledOnce { mockInAppMessagingManager.dispatch(InAppMessagingAction.SetUserIdentifier(givenUserId)) }
         // fetch is now controlled by event handler, not setUserId
-        verify(exactly = 0) { mockGistQueue.fetchUserMessages() }
+        verify(exactly = 0) { mockGistQueue.fetchUserMessages(any()) }
     }
 
     @Test

@@ -412,11 +412,13 @@ class SseLifecycleManagerTest : JUnitTest() {
         )
 
         // Nothing is fetched until the server acknowledges the connection.
-        verify(exactly = 0) { gistQueue.fetchUserMessages() }
+        verify(exactly = 0) { gistQueue.fetchUserMessages(any()) }
 
         connectionConfirmed.captured.invoke()
 
-        verify(exactly = 1) { gistQueue.fetchUserMessages() }
+        verify(exactly = 1) { gistQueue.fetchUserMessages(any()) }
+        // The stream just opened, so an older request in flight can't stand in for the backfill.
+        verify(exactly = 1) { gistQueue.fetchUserMessages(mustBeFresh = true) }
     }
 
     @Test
@@ -441,7 +443,7 @@ class SseLifecycleManagerTest : JUnitTest() {
 
         // Then - should fetch user messages to catch up on missed messages
         verify(exactly = 1) { sseConnectionManager.startConnection() }
-        verify(exactly = 0) { gistQueue.fetchUserMessages() }
+        verify(exactly = 0) { gistQueue.fetchUserMessages(any()) }
     }
 
     @Test
@@ -465,7 +467,7 @@ class SseLifecycleManagerTest : JUnitTest() {
         observer.onStart(processLifecycleOwner)
 
         // Then - should NOT fetch (polling handles its own fetching)
-        verify(exactly = 0) { gistQueue.fetchUserMessages() }
+        verify(exactly = 0) { gistQueue.fetchUserMessages(any()) }
     }
 
     @Test
@@ -493,7 +495,7 @@ class SseLifecycleManagerTest : JUnitTest() {
         observer.onStart(processLifecycleOwner)
 
         // Then - should NOT fetch for anonymous users (they use polling)
-        verify(exactly = 0) { gistQueue.fetchUserMessages() }
+        verify(exactly = 0) { gistQueue.fetchUserMessages(any()) }
     }
 
     @Test
@@ -516,7 +518,7 @@ class SseLifecycleManagerTest : JUnitTest() {
         // First foreground
         observer.onStart(processLifecycleOwner)
         verify(exactly = 1) { sseConnectionManager.startConnection() }
-        verify(exactly = 0) { gistQueue.fetchUserMessages() }
+        verify(exactly = 0) { gistQueue.fetchUserMessages(any()) }
 
         // Background the app
         observer.onStop(processLifecycleOwner)
@@ -526,7 +528,7 @@ class SseLifecycleManagerTest : JUnitTest() {
 
         // Then - should fetch again to catch up on messages missed while backgrounded
         verify(exactly = 2) { sseConnectionManager.startConnection() }
-        verify(exactly = 0) { gistQueue.fetchUserMessages() }
+        verify(exactly = 0) { gistQueue.fetchUserMessages(any()) }
     }
 
     @Test
@@ -555,7 +557,7 @@ class SseLifecycleManagerTest : JUnitTest() {
 
         // Then - should NOT fetch again (AtomicBoolean guard prevents duplicate)
         verify(exactly = 1) { sseConnectionManager.startConnection() }
-        verify(exactly = 0) { gistQueue.fetchUserMessages() }
+        verify(exactly = 0) { gistQueue.fetchUserMessages(any()) }
     }
 
     // =====================
@@ -830,6 +832,6 @@ class SseLifecycleManagerTest : JUnitTest() {
 
         // Then - backfill fetch fires
         verify(exactly = 1) { sseConnectionManager.startConnection() }
-        verify(exactly = 0) { gistQueue.fetchUserMessages() }
+        verify(exactly = 0) { gistQueue.fetchUserMessages(any()) }
     }
 }

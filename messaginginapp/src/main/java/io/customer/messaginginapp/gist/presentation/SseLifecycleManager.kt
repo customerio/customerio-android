@@ -117,7 +117,8 @@ internal class SseLifecycleManager(
      */
     private fun backfillOnConnect() {
         sseLogger.logSseConnectionConfirmedBackfill()
-        gistQueue.fetchUserMessages()
+        // A request already in flight may predate the stream, so it can't stand in for this one.
+        gistQueue.fetchUserMessages(mustBeFresh = true)
     }
 
     private fun subscribeToSseFlagChanges() {

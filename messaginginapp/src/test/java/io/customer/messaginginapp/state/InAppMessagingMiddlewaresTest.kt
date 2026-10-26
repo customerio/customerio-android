@@ -489,6 +489,27 @@ class InAppMessagingMiddlewaresTest : JUnitTest() {
     }
 
     @Test
+    fun gistLoggingMessageMiddleware_givenSseNotInUse_shouldNotReprocessQueueWhenDismissalHandsOffToAnotherScreen() {
+        // Given polling mode with another message waiting in the queue
+        val dismissed = createInAppMessage(persistent = false)
+        val next = createInAppMessage(persistent = false)
+        every { store.state } returns InAppMessagingState(userId = String.random, sseEnabled = false, messagesInQueue = setOf(dismissed, next))
+        val dispatchedActions = mutableListOf<Any>()
+        every { store.dispatch(any()) } answers {
+            dispatchedActions.add(firstArg())
+            firstArg()
+        }
+
+        // When the dismissal hands off to another screen (showMessage and system actions use shouldLog = false)
+        val action = InAppMessagingAction.DismissMessage(dismissed, shouldLog = false)
+        gistLoggingMessageMiddleware()(store)(nextFn)(action)
+
+        // Then the queued message is not started on top of the hand-off target
+        verify { nextFn(action) }
+        assert(dispatchedActions.none { it is InAppMessagingAction.ProcessMessageQueue }) { "Expected no ProcessMessageQueue action" }
+    }
+
+    @Test
     fun gistLoggingMessageMiddleware_shouldReprocessQueueOnlyAfterDismissalIsApplied() {
         // Given polling mode with a queued message
         val dismissed = createInAppMessage(persistent = false)

@@ -184,6 +184,43 @@ class InAppMessagingStoreTest : IntegrationTest() {
     }
 
     @Test
+    fun givenPollingModeAndQueuedMessage_whenDismissedWithLog_thenNextMessageIsLoaded() = runTest {
+        initializeAndSetUser()
+        val first = createInAppMessage(queueId = "1")
+        val second = createInAppMessage(queueId = "2")
+
+        manager.dispatch(InAppMessagingAction.ProcessMessageQueue(listOf(first, second)))
+        manager.dispatch(InAppMessagingAction.DisplayMessage(first))
+        manager.dispatch(InAppMessagingAction.DismissMessage(first))
+
+        manager.getCurrentState().modalMessageState
+            .shouldBeInstanceOf<ModalMessageState.Loading>()
+            .message
+            .queueId shouldBeEqualTo "2"
+    }
+
+    @Test
+    fun givenPollingModeAndQueuedMessage_whenDismissedForShowMessageHandOff_thenQueuedMessageIsNotLoadedAndTargetIsTheOnlyModal() = runTest {
+        initializeAndSetUser()
+        val first = createInAppMessage(queueId = "1")
+        val queued = createInAppMessage(queueId = "2")
+        val target = createInAppMessage(queueId = "3")
+
+        manager.dispatch(InAppMessagingAction.ProcessMessageQueue(listOf(first, queued)))
+        manager.dispatch(InAppMessagingAction.DisplayMessage(first))
+
+        // Same sequence as gist://showMessage: dismiss without logging, then load the target
+        manager.dispatch(InAppMessagingAction.DismissMessage(first, shouldLog = false))
+        manager.getCurrentState().modalMessageState shouldBeInstanceOf ModalMessageState.Dismissed::class.java
+
+        manager.dispatch(InAppMessagingAction.LoadMessage(target))
+        manager.getCurrentState().modalMessageState
+            .shouldBeInstanceOf<ModalMessageState.Loading>()
+            .message
+            .queueId shouldBeEqualTo "3"
+    }
+
+    @Test
     fun givenInitialPollingInterval_whenIntervalIsChanged_thenNewIntervalIsReflectedInState() = runTest {
         initializeAndSetUser()
 

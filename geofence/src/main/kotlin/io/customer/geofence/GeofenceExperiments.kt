@@ -11,7 +11,7 @@ import android.os.Bundle
  */
 internal class GeofenceExperiments(private val context: Context) {
     // Once per process: the manifest cannot change without the process restarting. The flags
-    // overload replacing the deprecated call needs API 33, and minSdk is 21.
+    // overload replacing the deprecated call needs API 33, and minSdk is 24.
     @Suppress("DEPRECATION")
     private val metaData: Bundle? by lazy {
         runCatching {

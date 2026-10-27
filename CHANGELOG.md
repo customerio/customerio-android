@@ -1,3 +1,9 @@
+## [5.0.2](https://github.com/customerio/customerio-android/compare/5.0.1...5.0.2) (2026-10-27)
+
+### Bug Fixes
+
+* **messaginginapp:** SSE rebind on user switch and shared queue fetches ([#964](https://github.com/customerio/customerio-android/issues/964)) ([e877e58](https://github.com/customerio/customerio-android/commit/e877e58c77aa3cb69a51deb1d381e6a9833eaec9))
+
 ## [5.0.1](https://github.com/customerio/customerio-android/compare/5.0.0...5.0.1) (2026-10-26)
 
 ### Bug Fixes

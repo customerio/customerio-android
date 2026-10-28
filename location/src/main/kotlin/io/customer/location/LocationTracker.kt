@@ -10,6 +10,11 @@ import io.customer.sdk.core.pipeline.IdentifyHook
 import io.customer.sdk.core.util.Logger
 import io.customer.sdk.util.EventNames
 import java.lang.ref.WeakReference
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
 
 /**
  * Coordinates all location state management: persistence, restoration,
@@ -38,7 +43,8 @@ internal class LocationTracker(
     private val locationPreferenceStore: LocationPreferenceStore,
     private val locationSyncFilter: LocationSyncFilter,
     private val eventBus: EventBus,
-    private val logger: Logger
+    private val logger: Logger,
+    private val restoreWaitMillis: Long = RESTORE_WAIT_MILLIS
 ) : IdentifyHook {
 
     // WeakReference prevents this hook (retained by IdentifyHookRegistry
@@ -63,7 +69,17 @@ internal class LocationTracker(
     internal var lastKnownLocation: LocationCoordinates? = null
         private set
 
+    // Released when the restore started by [launchRestore] finishes; null if none was started.
+    @Volatile
+    private var pendingRestore: CountDownLatch? = null
+
     override fun getIdentifyContext(): Map<String, Any> {
+        // Segment calls this on its worker threads, never the host's, so waiting for a slow restore
+        // can't ANR the app. Bounded, so a stuck Keystore can't hold identify forever.
+        val restore = pendingRestore
+        if (restore != null && !restore.await(restoreWaitMillis, TimeUnit.MILLISECONDS)) {
+            logger.debug("Location restore still running, identifying without location")
+        }
         val location = trackedLocation ?: return emptyMap()
         return mapOf(
             "location_latitude" to location.latitude,
@@ -87,6 +103,17 @@ internal class LocationTracker(
         }
         locationSyncFilter.clearSyncedData()
         logger.debug("Location state reset")
+    }
+
+    /**
+     * Runs [restorePersistedLocation] on [scope]. Identify enrichment waits for it until it's done.
+     */
+    fun launchRestore(scope: CoroutineScope): Job {
+        val restored = CountDownLatch(1)
+        pendingRestore = restored
+        return scope.launch { restorePersistedLocation() }.apply {
+            invokeOnCompletion { restored.countDown() }
+        }
     }
 
     /**
@@ -240,3 +267,5 @@ data class LocationCoordinates(
         }
     }
 }
+
+private const val RESTORE_WAIT_MILLIS = 5_000L

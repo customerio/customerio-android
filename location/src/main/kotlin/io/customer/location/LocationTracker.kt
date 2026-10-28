@@ -10,12 +10,6 @@ import io.customer.sdk.core.pipeline.IdentifyHook
 import io.customer.sdk.core.util.Logger
 import io.customer.sdk.util.EventNames
 import java.lang.ref.WeakReference
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.CoroutineStart
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.withTimeoutOrNull
 
 /**
  * Coordinates all location state management: persistence, restoration,
@@ -45,7 +39,8 @@ internal class LocationTracker(
     private val locationSyncFilter: LocationSyncFilter,
     private val eventBus: EventBus,
     private val logger: Logger,
-    private val restoreWaitMillis: Long = RESTORE_WAIT_MILLIS
+    // False when tracking is OFF: nothing is restored, so identify never carries a location.
+    private val restoresPersistedLocation: Boolean
 ) : IdentifyHook {
 
     // WeakReference prevents this hook (retained by IdentifyHookRegistry
@@ -54,8 +49,8 @@ internal class LocationTracker(
     // as the SDK is initialized, the weak ref is valid.
     private val dataPipelineRef = WeakReference(dataPipeline)
 
-    // Guards the two locations against a background restore landing after a newer fix or a
-    // sign-out. Never held across a Keystore call.
+    // Guards the two locations against a restore landing after a newer fix or a sign-out.
+    // Never held across a Keystore call.
     private val stateLock = Any()
 
     // Analytics location: enriches identify context, gates the ON_APP_START re-fetch,
@@ -70,18 +65,15 @@ internal class LocationTracker(
     internal var lastKnownLocation: LocationCoordinates? = null
         private set
 
-    // The restore started by [launchRestore]; null if none was started.
+    // Restored on first read instead of at init: the decrypt uses the Keystore, which can stall
+    // for seconds and ANR the app. Every reader runs off the main thread.
+    private val restoreLock = Any()
+
     @Volatile
-    private var restoreJob: Job? = null
+    private var restoreDone = false
 
     override fun getIdentifyContext(): Map<String, Any> {
-        // Segment calls this on its worker threads, never the host's, so waiting for a slow restore
-        // can't ANR the app. Bounded, so a stuck Keystore can't hold identify forever.
-        val restore = restoreJob
-        if (restore != null) {
-            val finished = runBlocking { withTimeoutOrNull(restoreWaitMillis) { restore.join() } }
-            if (finished == null) logger.debug("Location restore still running, identifying without location")
-        }
+        restorePersistedLocation()
         val location = trackedLocation ?: return emptyMap()
         return mapOf(
             "location_latitude" to location.latitude,
@@ -108,34 +100,33 @@ internal class LocationTracker(
     }
 
     /**
-     * Runs [restorePersistedLocation] on [scope]. Identify enrichment waits for it until it's done.
-     */
-    fun launchRestore(scope: CoroutineScope): Job {
-        // Lazy, so identify sees the job before the restore can start.
-        val job = scope.launch(start = CoroutineStart.LAZY) { restorePersistedLocation() }
-        restoreJob = job
-        job.start()
-        return job
-    }
-
-    /**
      * Reads persisted cached location from the preference store and sets the
      * in-memory cache so that identify events have location context
-     * immediately after SDK restart. Decrypts with the Keystore, so call it
-     * off the main thread.
+     * immediately after SDK restart. Runs once per process; later calls wait for
+     * it to finish. Decrypts with the Keystore, so call it off the main thread.
      */
     fun restorePersistedLocation() {
-        val lat = locationPreferenceStore.getCachedLatitude() ?: return
-        val lng = locationPreferenceStore.getCachedLongitude() ?: return
+        if (!restoresPersistedLocation || restoreDone) return
+        val restored = synchronized(restoreLock) {
+            if (restoreDone) return
+            loadPersistedLocation().also { restoreDone = true }
+        } ?: return
+        // Outside the lock: the logger can run host code.
+        logger.debug("Restored persisted location: lat=${restored.latitude}, lng=${restored.longitude}")
+    }
+
+    private fun loadPersistedLocation(): LocationCoordinates? {
+        val lat = locationPreferenceStore.getCachedLatitude() ?: return null
+        val lng = locationPreferenceStore.getCachedLongitude() ?: return null
         val restored = LocationCoordinates(latitude = lat, longitude = lng)
         synchronized(stateLock) {
             // A sign-out while decrypting cleared the cache: don't bring the old user's location
             // back. A fix that arrived meanwhile is newer than the persisted one.
-            if (!locationPreferenceStore.hasCachedLocation()) return
+            if (!locationPreferenceStore.hasCachedLocation()) return null
             if (trackedLocation == null) trackedLocation = restored
             if (lastKnownLocation == null) lastKnownLocation = restored
         }
-        logger.debug("Restored persisted location: lat=$lat, lng=$lng")
+        return restored
     }
 
     /**
@@ -209,6 +200,8 @@ internal class LocationTracker(
      * "CIO Location Update" track event, subject to the sync filter.
      */
     fun onUserIdentified() {
+        // ModuleLocation's ON_APP_START check reads trackedLocation right after this.
+        restorePersistedLocation()
         syncCachedLocationIfNeeded()
     }
 
@@ -269,5 +262,3 @@ data class LocationCoordinates(
         }
     }
 }
-
-private const val RESTORE_WAIT_MILLIS = 5_000L

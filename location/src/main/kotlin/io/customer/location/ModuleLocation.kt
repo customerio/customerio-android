@@ -8,6 +8,7 @@ import io.customer.location.store.LocationPreferenceStoreImpl
 import io.customer.location.sync.LocationSyncFilter
 import io.customer.location.sync.LocationSyncStoreImpl
 import io.customer.sdk.communication.Event
+import io.customer.sdk.communication.subscribe
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.module.CustomerIOModule
 import io.customer.sdk.core.pipeline.DataPipeline
@@ -78,7 +79,14 @@ class ModuleLocation @JvmOverloads constructor(
         val locationSyncFilter = LocationSyncFilter(
             LocationSyncStoreImpl(context, logger)
         )
-        val locationTracker = LocationTracker(dataPipeline, store, locationSyncFilter, eventBus, logger)
+        val locationTracker = LocationTracker(
+            dataPipeline,
+            store,
+            locationSyncFilter,
+            eventBus,
+            logger,
+            restoresPersistedLocation = moduleConfig.isEnabled
+        )
 
         val locationProvider = FusedLocationProvider(context)
         val orchestrator = LocationOrchestrator(
@@ -110,18 +118,11 @@ class ModuleLocation @JvmOverloads constructor(
 
         val services = _locationServices ?: return
 
-        // Off the caller's thread: the restore decrypts with the Keystore, which can stall for
-        // seconds and ANR the app at init.
-        val restore = locationTracker.launchRestore(locationScope)
-
         // On identify, attempt to send a supplementary "CIO Location Update" track event.
         // The identify event itself already carries location via context enrichment —
         // this track event is for journey/segment triggers in the user's timeline.
-        // Runs on the bus collector, one event at a time, so two identifies can't both request.
-        eventBus.subscribe(Event.UserChangedEvent::class) {
+        eventBus.subscribe<Event.UserChangedEvent> {
             if (!it.userId.isNullOrEmpty()) {
-                // The ON_APP_START check below must see the restored location.
-                restore.join()
                 locationTracker.onUserIdentified()
 
                 // ON_APP_START's lifecycle one-shot fires per process, but resetContext()

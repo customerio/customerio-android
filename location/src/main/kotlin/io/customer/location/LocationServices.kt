@@ -73,6 +73,9 @@ interface LocationServices {
      * [setLastKnownLocation], [requestLocationUpdate], or a silent
      * [requestLocationUpdateSilently] fix — or null if none yet. Internal API for
      * other SDK modules.
+     *
+     * The first call restores the persisted location with the Keystore, so call it
+     * off the main thread.
      */
     @InternalCustomerIOApi
     fun getLastKnownLocation(): LocationCoordinates?

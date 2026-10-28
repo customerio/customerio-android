@@ -7,6 +7,7 @@ import io.customer.datapipelines.testutils.core.testConfiguration
 import io.customer.datapipelines.testutils.extensions.deviceToken
 import io.customer.datapipelines.testutils.utils.OutputReaderPlugin
 import io.customer.datapipelines.testutils.utils.trackEvents
+import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.data.model.DeviceTokenType
 import io.customer.sdk.data.store.GlobalPreferenceStore
 import io.customer.sdk.util.EventNames
@@ -50,8 +51,10 @@ class DeviceTokenColdStartTest : JUnitTest(dispatcher = StandardTestDispatcher()
     }
 
     // Identity restored from an earlier launch, without CustomerIO.identify() registering the device.
+    // On a real cold start, init copies Segment's restored userId into the secure store.
     private fun givenIdentifiedInEarlierLaunch(userId: String) {
         analytics.identify(userId)
+        SDKComponent.android().secureUserStore.saveUserId(userId)
         flushCoroutines(testScope)
     }
 

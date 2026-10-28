@@ -425,8 +425,10 @@ class CustomerIO private constructor(
     override val anonymousId: String
         get() = analytics.anonymousId()
 
+    // Store, not analytics.userId(): Segment applies identify() async, so a read right after identify()
+    // could see the previous user. Init writes the store first, so this never decrypts.
     override val userId: String?
-        get() = analytics.userId()
+        get() = secureUserStore.getUserId()
 
     @InternalCustomerIOApi
     override val cdpApiKey: String

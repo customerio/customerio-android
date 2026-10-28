@@ -16,6 +16,7 @@ import io.customer.commontest.config.TestConfig
 import io.customer.commontest.config.testConfigurationDefault
 import io.customer.commontest.core.RobolectricTest
 import io.customer.geofence.GeofenceRegion
+import io.customer.geofence.GeofenceRepository
 import io.customer.geofence.store.GeofenceRegionStore
 import io.customer.sdk.core.util.CustomerIOWorkManagerProvider
 import io.customer.sdk.data.store.SecureUserStore
@@ -45,6 +46,8 @@ class PolygonRecheckTest : RobolectricTest() {
     private val mockSecureUserStore: SecureUserStore = mockk(relaxed = true)
     private val mockFreshFix: PolygonFreshFixSource = mockk(relaxed = true)
     private val mockRecheckScheduler: PolygonRecheckScheduler = mockk(relaxed = true)
+    private val mockDwellCheckScheduler: PolygonDwellCheckScheduler = mockk(relaxed = true)
+    private val mockRepository: GeofenceRepository = mockk(relaxed = true)
 
     override fun setup(testConfig: TestConfig) {
         super.setup(
@@ -57,12 +60,20 @@ class PolygonRecheckTest : RobolectricTest() {
                         overrideDependency<SecureUserStore>(mockSecureUserStore)
                         overrideDependency<PolygonFreshFixSource>(mockFreshFix)
                         overrideDependency<PolygonRecheckScheduler>(mockRecheckScheduler)
+                        overrideDependency<PolygonBootSessionProvider>(PolygonBootSessionProvider { BOOT })
+                        overrideDependency<PolygonDwellCheckScheduler>(mockDwellCheckScheduler)
+                        overrideDependency<GeofenceRepository>(mockRepository)
                     }
                 }
             }
         )
         every { mockSecureUserStore.getUserId() } returns "user-1"
         every { mockStore.userStateGeneration() } returns 7L
+        // Registered in this boot and package, so no reboot or update dropped them.
+        every { mockStore.getLastRegistrationBootSession() } returns BOOT
+        every { mockStore.getLastRegistrationUptime() } returns 0L
+        every { mockStore.getLastRegistrationPackageUpdateTime() } returns null
+        every { mockStore.getRegisteredIds() } returns emptySet()
         grantLocationPermission()
         every { workManagerProvider.getWorkManager() } returns workManager
         every {
@@ -113,6 +124,25 @@ class PolygonRecheckTest : RobolectricTest() {
     }
 
     @Test
+    fun recover_givenRoutablePolygons_expectTheRecheckReassertedUnlessRegistrationsWereWiped() {
+        every { mockStore.activeUserSessionId() } returns "user-1"
+        every { mockStore.getRoutableRegisteredIds() } returns setOf(VENUE_ID)
+        every { mockStore.getCachedRegion(VENUE_ID) } returns venueRegion()
+        val scheduler = RecordingRecheckScheduler()
+
+        // The re-check may have retired itself during a wipe, and the enqueue that restored it can be
+        // lost to a process death; recovery brings it back.
+        controller(scheduler).recover()
+        scheduler.calls shouldBeEqualTo listOf("schedule")
+
+        // Still wiped: every run would only skip.
+        every { mockStore.getLastRegistrationBootSession() } returns "an-earlier-boot"
+        val whileWiped = RecordingRecheckScheduler()
+        controller(whileWiped).recover()
+        whileWiped.calls shouldBeEqualTo emptyList()
+    }
+
+    @Test
     fun reconcile_givenNoPolygonsRegistered_expectCancelled() {
         val scheduler = RecordingRecheckScheduler()
         every { mockStore.getActivePolygonIds() } returns emptySet()
@@ -155,6 +185,44 @@ class PolygonRecheckTest : RobolectricTest() {
 
         result shouldBeEqualTo ListenableWorker.Result.success()
         coVerify(exactly = 0) { mockFreshFix.awaitFreshFix(any(), any()) }
+    }
+
+    @Test
+    fun worker_givenRegistrationsFromAnEarlierBoot_expectThemRestoredWithoutAFix() = runTest {
+        // Rebooted or updated with no launch since: nothing else may re-register for days, so the
+        // run restores them as a boot does instead of waiting.
+        every { mockStore.getLastRegistrationBootSession() } returns "an-earlier-boot"
+        every { mockStore.getRoutableRegisteredIds() } returns setOf(VENUE_ID)
+        every { mockStore.getCachedRegions() } returns listOf(venueRegion())
+
+        val result = TestListenableWorkerBuilder<PolygonRecheckWorker>(applicationMock)
+            .build()
+            .doWork()
+
+        result shouldBeEqualTo ListenableWorker.Result.success()
+        // The gap broke every visit, so none may qualify a dwell across it.
+        verifyOrder {
+            mockStore.clearDwellVisits()
+            mockController.beginUserSessionForCurrentUser()
+        }
+        coVerify { mockRepository.restoreFromCache() }
+        // A fix now could qualify a dwell for a visit the gap broke.
+        coVerify(exactly = 0) { mockFreshFix.awaitFreshFix(any(), any()) }
+        coVerify(exactly = 0) { mockController.activate(any(), any(), any(), any(), any(), any()) }
+        // Kept: a restore that fails is retried on the next run.
+        verify(exactly = 0) { mockRecheckScheduler.cancel() }
+    }
+
+    @Test
+    fun worker_givenRegisteredPolygons_expectTheDwellChecksReplannedAsASafetyNet() = runTest {
+        every { mockStore.getRoutableRegisteredIds() } returns setOf(VENUE_ID)
+        every { mockStore.getCachedRegions() } returns listOf(venueRegion())
+        coEvery { mockFreshFix.awaitFreshFix(any(), any()) } returns null
+
+        TestListenableWorkerBuilder<PolygonRecheckWorker>(applicationMock).build().doWork()
+
+        // A check whose own enqueue failed is scheduled again within the recheck's period.
+        verify { mockDwellCheckScheduler.reconcile() }
     }
 
     @Test
@@ -727,6 +795,7 @@ class PolygonRecheckTest : RobolectricTest() {
         freshFixSource = NeverAnswersFreshFix,
         recheckScheduler = scheduler,
         passiveMonitor = NoopPassiveMonitor,
+        bootSessionProvider = { "boot" },
         logger = mockk(relaxed = true)
     )
 
@@ -774,6 +843,7 @@ class PolygonRecheckTest : RobolectricTest() {
     }
 
     private companion object {
+        const val BOOT = "boot"
         const val METRES_PER_DEGREE_LATITUDE = 111_320.0
         const val VENUE_ID = "venue"
         const val VENUE_LAT = 24.0

@@ -1,6 +1,7 @@
 package io.customer.geofence
 
 import io.customer.geofence.store.GeofenceRegionStore
+import io.customer.geofence.store.PendingGeofenceDelivery
 import io.customer.sdk.communication.Event
 import io.customer.sdk.data.store.SecureUserStore
 import io.mockk.coEvery
@@ -9,6 +10,7 @@ import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
 import kotlinx.coroutines.test.runTest
+import org.amshove.kluent.shouldBeNull
 import org.junit.Before
 import org.junit.Test
 
@@ -56,6 +58,63 @@ class GeofenceBusinessTransitionProcessorTest {
         processor.process("polygon", Event.GeofenceTransition.EXIT, 100L)
 
         verify(exactly = 0) { store.commitBusinessTransition(any(), any(), any(), any(), any()) }
+    }
+
+    @Test
+    fun process_givenExitIsNotRoutable_expectPhysicalExitCommittedWithoutDelivery() = runTest {
+        every { store.getEnteredIds() } returns setOf("polygon")
+        every { store.getRoutableRegisteredIds() } returns emptySet()
+
+        val result = processor.process(
+            "polygon",
+            Event.GeofenceTransition.EXIT,
+            100L,
+            requireRegistered = true
+        )
+
+        result.shouldBeNull()
+        verify { store.commitBusinessTransition("polygon", Event.GeofenceTransition.EXIT, null, 0L, any()) }
+        coVerify(exactly = 0) {
+            emitter.emitWithRetainedAttempt(any(), any(), any(), any(), any(), any(), any(), any(), any(), any())
+        }
+    }
+
+    @Test
+    fun process_givenUnroutableExitWithoutContainment_expectNoExitEpoch() = runTest {
+        every { store.getEnteredIds() } returns emptySet()
+        every { store.getRoutableRegisteredIds() } returns emptySet()
+
+        processor.process(
+            "polygon",
+            Event.GeofenceTransition.EXIT,
+            100L,
+            requireRegistered = true
+        )
+
+        verify(exactly = 0) { store.commitBusinessTransition(any(), any(), any(), any(), any()) }
+    }
+
+    @Test
+    fun process_givenExitIsPersisted_expectContainmentCommittedWithItsTransitionId() = runTest {
+        every { store.getEnteredIds() } returns setOf("polygon")
+        every { store.hasEmittedEnterRecord("user-1") } returns true
+        every { store.hasEmittedEnter("user-1", "polygon") } returns true
+        coEvery {
+            emitter.emitWithRetainedAttempt(any(), any(), any(), any(), any(), any(), any(), any(), any(), any())
+        } returns GeofenceTransitionEmitter.Result.PERSISTED
+        every { store.getPendingTransitionEntries("user-1", "polygon", Event.GeofenceTransition.EXIT) } returns listOf(
+            PendingGeofenceDelivery(
+                geofenceId = "polygon",
+                transition = Event.GeofenceTransition.EXIT,
+                timestamp = 100L,
+                userId = "user-1",
+                transitionId = "staged-exit"
+            )
+        )
+
+        processor.process("polygon", Event.GeofenceTransition.EXIT, 100L)
+
+        verify { store.commitBusinessTransition("polygon", Event.GeofenceTransition.EXIT, "staged-exit", 0L, any()) }
     }
 
     @Test

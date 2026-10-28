@@ -1,39 +1,11 @@
 package io.customer.geofence.replay
 
-import io.customer.commontest.config.ApplicationArgument
-import io.customer.commontest.config.TestConfig
-import io.customer.commontest.config.testConfigurationDefault
-import io.customer.commontest.core.RobolectricTest
-import io.customer.commontest.util.DispatchersProviderStub
-import io.customer.geofence.GeofenceDiagnostics
-import io.customer.geofence.GeofenceForegroundCoordinator
-import io.customer.geofence.GeofenceLocationMode
-import io.customer.geofence.GeofencePermissionChecker
-import io.customer.geofence.GeofenceRegistrar
-import io.customer.geofence.api.GeofenceApiService
-import io.customer.geofence.di.geofenceApiService
-import io.customer.geofence.di.geofenceCooldownStore
-import io.customer.geofence.di.geofenceCrossingPipeline
-import io.customer.geofence.di.geofenceEventScheduler
-import io.customer.geofence.di.geofenceLogger
-import io.customer.geofence.di.geofenceManager
-import io.customer.geofence.di.geofencePermissionChecker
 import io.customer.geofence.di.geofenceRegionStore
-import io.customer.geofence.di.geofenceServices
 import io.customer.geofence.di.pendingGeofenceDeliveryStore
-import io.customer.geofence.worker.GeofenceEventScheduler
 import io.customer.sdk.core.di.SDKComponent
-import io.customer.sdk.core.di.clock
-import io.customer.sdk.core.util.Clock
-import io.customer.sdk.core.util.Logger
-import io.customer.sdk.core.util.ScopeProvider
-import io.customer.sdk.data.store.SecureUserStore
-import io.mockk.every
-import io.mockk.mockk
 import kotlinx.coroutines.test.runTest
 import org.amshove.kluent.shouldBeEqualTo
 import org.amshove.kluent.shouldBeTrue
-import org.junit.After
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -43,97 +15,89 @@ import org.robolectric.RobolectricTestRunner
  * outside the repo, so this is what covers the composition on CI.
  */
 @RunWith(RobolectricTestRunner::class)
-class ReplayHarnessTest : RobolectricTest() {
+class ReplayHarnessTest : ReplayTestSupport() {
 
-    private val virtualClock = VirtualClock()
-
-    // Same execution model as ScenarioReplayTest, so this covers the harness that suite runs.
-    private val boundaryGate = ReplayBoundaryGate(virtualClock)
-    private val api = ReplayApiService(boundaryGate)
-    private val registrar = ReplayRegistrar(boundaryGate)
-    private val fakeLocationServices = ReplayLocationServices()
-    private val replayLogger = ReplayLogger()
-    private val identity = ReplayRunner.MutableIdentity()
-    private val fakeScopeProvider = ReplayScopeProvider()
-
-    private val fakeSecureUserStore: SecureUserStore = mockk(relaxed = true) {
-        every { getUserId() } answers { identity.userId }
-    }
-    private val scheduler: GeofenceEventScheduler = mockk(relaxed = true)
-    private val permissionChecker: GeofencePermissionChecker = mockk(relaxed = true) {
-        every { hasRequiredLocationPermissions() } returns true
-        every { isBackgroundDeliveryAvailable() } returns true
-    }
-
-    override fun setup(testConfig: TestConfig) {
-        super.setup(
-            testConfigurationDefault {
-                argument(ApplicationArgument(applicationMock))
-                diGraph {
-                    sdk {
-                        overrideDependency<Clock>(virtualClock)
-                        overrideDependency<Logger>(replayLogger)
-                        overrideDependency<ScopeProvider>(fakeScopeProvider)
-                        overrideDependency<GeofenceApiService>(api)
-                    }
-                    android {
-                        overrideDependency<GeofenceRegistrar>(registrar)
-                        overrideDependency<GeofenceEventScheduler>(scheduler)
-                        overrideDependency<GeofencePermissionChecker>(permissionChecker)
-                        overrideDependency<SecureUserStore>(fakeSecureUserStore)
-                    }
-                }
-            }
+    @Test
+    fun replay_givenPendingRefreshAtProcessDeath_expectLaterFixDoesNotSpendDeadIntent() = runTest {
+        val scenario = ScenarioLoader.load(
+            scenarioFile(
+                header("relaunch-pending-refresh"),
+                """{"k":"when","at":0,"ev":"process.start"}""",
+                """{"k":"when","at":0.1,"ev":"module.init","launch":"app_start"}""",
+                """{"k":"when","at":1,"ev":"identity.changed","ok":true}""",
+                """{"k":"when","at":1.5,"ev":"location.fix","lat":10.0151,"lon":20,"prov":"bus"}""",
+                """{"k":"given","at":2,"ev":"fixture.api.fetch","ok":true,"body":[${fenceAtDevice("A")}]}""",
+                // The host requested a live fix, but this process died before it arrived.
+                """{"k":"when","at":3,"ev":"app.foreground"}""",
+                """{"k":"when","at":4,"ev":"process.start"}""",
+                """{"k":"when","at":4.1,"ev":"module.init","launch":"app_start"}""",
+                """{"k":"when","at":5,"ev":"location.fix","lat":10,"lon":20,"prov":"bus"}"""
+            )
         )
-        GeofenceDiagnostics.setEnabledForTesting(true)
-        assertComposedWith(
-            "SecureUserStore" to (SDKComponent.android().secureUserStore to fakeSecureUserStore),
-            "ScopeProvider" to (SDKComponent.scopeProvider to fakeScopeProvider),
-            "Clock" to (SDKComponent.clock to virtualClock),
-            "Logger" to (SDKComponent.logger to replayLogger),
-            "GeofenceRegistrar" to (SDKComponent.android().geofenceManager to registrar),
-            "GeofenceApiService" to (SDKComponent.geofenceApiService to api),
-            "GeofenceEventScheduler" to (SDKComponent.android().geofenceEventScheduler to scheduler),
-            "GeofencePermissionChecker" to (SDKComponent.android().geofencePermissionChecker to permissionChecker)
+
+        val result = runner().run(scenario)
+
+        result.unsupported shouldBeEqualTo emptyList()
+        api.fetchAccounting() shouldBeEqualTo null
+        // One initial identify request and one host foreground request, with no relaunch retry.
+        fakeLocationServices.silentRequestCount shouldBeEqualTo 2
+        replayLogger.emitted().count { it.ev == "registration.applied" } shouldBeEqualTo 1
+    }
+
+    @Test
+    fun replay_givenIdentifyAfterRelaunch_expectPersistedAnchorNotInventLiveFixIntent() = runTest {
+        val scenario = ScenarioLoader.load(
+            scenarioFile(
+                header("relaunch-identify-anchor"),
+                """{"k":"when","at":0,"ev":"process.start"}""",
+                """{"k":"when","at":0.1,"ev":"module.init","launch":"app_start"}""",
+                """{"k":"when","at":1,"ev":"identity.changed","ok":true}""",
+                """{"k":"when","at":1.5,"ev":"location.fix","lat":10.0151,"lon":20,"prov":"bus"}""",
+                """{"k":"given","at":2,"ev":"fixture.api.fetch","ok":true,"body":[${fenceAtDevice("A")}]}""",
+                """{"k":"when","at":4,"ev":"process.start"}""",
+                """{"k":"when","at":4.1,"ev":"module.init","launch":"app_start"}""",
+                """{"k":"when","at":4.2,"ev":"identity.changed","ok":true}""",
+                // Identify uses the persisted registration anchor. An unsolicited bus fix does not
+                // create a refresh request merely because the process relaunched.
+                """{"k":"when","at":5,"ev":"location.fix","lat":10,"lon":20,"prov":"bus"}"""
+            )
         )
-        SDKComponent.android().geofenceRegionStore.clearAll()
-        // Separate from the region store; a leftover cooldown would suppress a fence's first crossing.
-        SDKComponent.android().geofenceCooldownStore.clearAll()
-        SDKComponent.android().pendingGeofenceDeliveryStore.removeAll()
-        replayLogger.clear()
+
+        val result = runner().run(scenario)
+
+        result.unsupported shouldBeEqualTo emptyList()
+        api.fetchAccounting() shouldBeEqualTo null
+        replayLogger.emitted().count { it.ev == "registration.applied" } shouldBeEqualTo 1
     }
 
-    @After
-    fun resetDiagnostics() {
-        GeofenceDiagnostics.setEnabledForTesting(null)
+    @Test
+    fun replay_givenProcessRelaunchAndBootRestore_expectCachedRegionsAndQueuedTransitionPreserved() = runTest {
+        val scenario = ScenarioLoader.load(
+            scenarioFile(
+                header("relaunch-boot-restore"),
+                """{"k":"when","at":0,"ev":"process.start"}""",
+                """{"k":"when","at":0.1,"ev":"module.init","launch":"app_start"}""",
+                """{"k":"when","at":1,"ev":"identity.changed","ok":true}""",
+                """{"k":"when","at":1.5,"ev":"location.fix","lat":10.0151,"lon":20,"prov":"bus"}""",
+                """{"k":"given","at":2,"ev":"fixture.api.fetch","ok":true,"body":[${fenceAtDevice("A")},${fenceFarAway("B")}]}""",
+                """{"k":"when","at":7,"ev":"os.callback","ids":"A","t":"enter","lat":10,"lon":20,"acc":10,"age":0}""",
+                """{"k":"when","at":10,"ev":"process.start"}""",
+                """{"k":"when","at":10.1,"ev":"module.init","launch":"app_start"}""",
+                """{"k":"when","at":10.2,"ev":"module.wake","launch":"boot_restore"}"""
+            )
+        )
+
+        val result = runner().run(scenario)
+
+        result.unsupported shouldBeEqualTo emptyList()
+        api.fetchAccounting() shouldBeEqualTo null
+        api.fetchCount shouldBeEqualTo 1
+        val registrations = replayLogger.emitted().filter { it.ev == "registration.applied" }
+        registrations.map { it.geofenceIds() } shouldBeEqualTo listOf(listOf("A", "B"), listOf("A", "B"))
+        registrar.registeredIds shouldBeEqualTo linkedSetOf("A", "B", "cio_movement_trigger")
+        val queued = SDKComponent.android().pendingGeofenceDeliveryStore.loadAll()
+        queued.map { it.geofenceId } shouldBeEqualTo listOf("A")
     }
-
-    private fun runner() = ReplayRunner(
-        gate = boundaryGate,
-        scheduler = fakeScopeProvider.scheduler,
-        geofenceScope = fakeScopeProvider.geofenceScope,
-        api = api,
-        registrar = registrar,
-        pipeline = SDKComponent.android().geofenceCrossingPipeline,
-        services = SDKComponent.android().geofenceServices,
-        foreground = foregroundCoordinator(),
-        identity = identity,
-        // Not wired into the graph: these scenarios never drive the polygon fresh-fix path.
-        freshFix = ReplayPolygonFreshFixSource()
-    )
-
-    private fun foregroundCoordinator() = GeofenceForegroundCoordinator(
-        services = SDKComponent.android().geofenceServices,
-        secureUserStore = fakeSecureUserStore,
-        locationServices = fakeLocationServices,
-        regionStore = SDKComponent.android().geofenceRegionStore,
-        lastKnownLocation = { fakeLocationServices.lastKnown },
-        locationMode = GeofenceLocationMode.AUTOMATIC,
-        logger = SDKComponent.geofenceLogger,
-        // Unconfined, so `onForeground`'s dispatcher hop runs inline, not on an IO thread the
-        // replay outruns.
-        dispatchers = DispatchersProviderStub()
-    )
 
     @Test
     fun replay_givenFetchAndIdentify_expectTheFetchedSetRegistered() = runTest {
@@ -236,16 +200,96 @@ class ReplayHarnessTest : RobolectricTest() {
     }
 
     @Test
-    fun replay_givenUnknownStimulus_expectReportedNotSilentlyIgnored() = runTest {
+    fun replay_givenSuspendedApp_expectHeldFetchAndCallbackNotDeliveredUntilResume() = runTest {
         val scenario = ScenarioLoader.load(
             scenarioFile(
-                header("unknown-input"),
-                """{"k":"when","at":0.0,"ev":"os.something.new","id":"A"}"""
+                header("suspended-resume"),
+                """{"k":"when","at":1.0,"ev":"identity.changed","ok":true}""",
+                """{"k":"when","at":1.5,"ev":"location.fix","lat":10.00000,"lon":20.00000,"prov":"bus"}""",
+                """{"k":"when","at":4.0,"ev":"app.suspend"}""",
+                // Answered at 5, while suspended, so the registration waits for resume.
+                """{"k":"given","at":5.0,"ev":"fixture.api.fetch","ok":true,"n":1,"body":[${fenceFarAway("B")}]}""",
+                // A broadcast would have woken the app, so with no recorded resume it is reported.
+                """{"k":"when","at":60.0,"ev":"os.callback","ids":"B","n":1,"t":"enter","lat":10.04510,"lon":20.00000}""",
+                """{"k":"when","at":100.0,"ev":"app.resume"}""",
+                """{"k":"when","at":120.0,"ev":"os.callback","ids":"B","n":1,"t":"enter","lat":10.04510,"lon":20.00000}"""
             )
         )
 
         val result = runner().run(scenario)
 
-        result.unsupported.map { it.ev } shouldBeEqualTo listOf("os.something.new")
+        result.unsupported.map { it.ev to it.at } shouldBeEqualTo listOf("os.callback" to 60.0)
+        val emitted = replayLogger.emitted()
+        emitted.count { it.ev == "registration.applied" } shouldBeEqualTo 1
+        // Delivered at 60, the callback would have been dropped: B was not registered until resume.
+        emitted.none { it.ev == "transition.dropped" }.shouldBeTrue()
+        emitted.filter { it.ev == "transition.accepted" }.map { it.fields["id"] } shouldBeEqualTo listOf("B")
+    }
+
+    @Test
+    fun replay_givenCaptureEndsSuspended_expectHeldFetchNeverAnswered() = runTest {
+        val scenario = ScenarioLoader.load(
+            scenarioFile(
+                header("ends-suspended"),
+                """{"k":"when","at":1.0,"ev":"identity.changed","ok":true}""",
+                """{"k":"when","at":1.5,"ev":"location.fix","lat":10.00000,"lon":20.00000,"prov":"bus"}""",
+                """{"k":"when","at":4.0,"ev":"app.suspend"}""",
+                """{"k":"given","at":5.0,"ev":"fixture.api.fetch","ok":true,"n":1,"body":[${fenceFarAway("B")}]}"""
+            )
+        )
+
+        val result = runner().run(scenario)
+
+        result.unsupported shouldBeEqualTo emptyList()
+        // Precondition: a fetch was in flight, so this is not a request never made.
+        boundaryGate.heldAtEnd.isNotEmpty().shouldBeTrue()
+        replayLogger.emitted().none { it.ev == "registration.applied" }.shouldBeTrue()
+    }
+
+    @Test
+    fun replay_givenProcessStartsWhileSuspended_expectOldRuntimeHeldFetchNeverApplied() = runTest {
+        val scenario = ScenarioLoader.load(
+            scenarioFile(
+                header("relaunch-while-suspended"),
+                """{"k":"when","at":0,"ev":"process.start"}""",
+                """{"k":"when","at":0.1,"ev":"module.init","launch":"app_start"}""",
+                """{"k":"when","at":1,"ev":"identity.changed","ok":true}""",
+                """{"k":"when","at":1.5,"ev":"location.fix","lat":10,"lon":20,"prov":"bus"}""",
+                """{"k":"when","at":4,"ev":"app.suspend"}""",
+                // Due while suspended, so held; the process is replaced before any resume.
+                """{"k":"given","at":5,"ev":"fixture.api.fetch","ok":true,"body":[${fenceFarAway("B")}]}""",
+                """{"k":"when","at":10,"ev":"process.start"}""",
+                """{"k":"when","at":10.1,"ev":"module.init","launch":"app_start"}""",
+                """{"k":"when","at":11,"ev":"location.fix","lat":10,"lon":20,"prov":"bus"}""",
+                """{"k":"given","at":13,"ev":"fixture.api.fetch","ok":true,"body":[${fenceFarAway("C")}]}"""
+            )
+        )
+
+        val result = runner().run(scenario)
+
+        result.unsupported shouldBeEqualTo emptyList()
+        // Precondition: the new process fetched and registered, so B's absence is not a dead pipeline.
+        api.fetchAccounting() shouldBeEqualTo null
+        api.fetchCount shouldBeEqualTo 2
+        replayLogger.emitted().filter { it.ev == "registration.applied" }.map { it.geofenceIds() } shouldBeEqualTo listOf(listOf("C"))
+        // The dead runtime's answer reached neither the OS port nor persisted state.
+        registrar.calls.count { it.startsWith("replace(") } shouldBeEqualTo 1
+        SDKComponent.android().geofenceRegionStore.getCachedRegion("B") shouldBeEqualTo null
+    }
+
+    @Test
+    fun replay_givenUnknownStimulus_expectReportedNotSilentlyIgnored() = runTest {
+        val scenario = ScenarioLoader.load(
+            scenarioFile(
+                header("unknown-input"),
+                """{"k":"when","at":0.0,"ev":"os.something.new","id":"A"}""",
+                """{"k":"when","at":1.0,"ev":"module.init","launch":"unsupported_init"}""",
+                """{"k":"when","at":2.0,"ev":"module.wake","launch":"unsupported_wake"}"""
+            )
+        )
+
+        val result = runner().run(scenario)
+
+        result.unsupported.map { it.ev } shouldBeEqualTo listOf("os.something.new", "module.init", "module.wake")
     }
 }

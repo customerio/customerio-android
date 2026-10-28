@@ -23,11 +23,9 @@ apply from: "${rootDir}/scripts/android-module-testing.gradle"
 // `all-compatibility` (rather than `all`) also keeps generating the `DefaultImpls` shims, so code
 // already compiled against the previous shape continues to link. Dropping to `all` would remove
 // them and break binary compatibility.
-tasks.withType(KotlinCompile).all {
-    kotlinOptions {
-        freeCompilerArgs += [
-                '-Xjvm-default=all-compatibility',
-        ]
+tasks.withType(KotlinCompile).configureEach {
+    compilerOptions {
+        freeCompilerArgs.add('-Xjvm-default=all-compatibility')
     }
 }
 

@@ -4,9 +4,13 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.location.Location
+import android.os.SystemClock
 import com.google.android.gms.location.LocationResult
+import io.customer.geofence.DwellDiagnosticEvent
+import io.customer.geofence.DwellDiagnosticRecord
 import io.customer.geofence.GeofenceRegion
 import io.customer.geofence.PolygonPassiveSkip
+import io.customer.geofence.di.dwellDiagnosticRecorder
 import io.customer.geofence.di.geofenceLogger
 import io.customer.geofence.di.geofenceRegionStore
 import io.customer.geofence.di.polygonGeofenceServiceController
@@ -14,12 +18,14 @@ import io.customer.geofence.di.polygonPassiveMonitor
 import io.customer.geofence.distanceTo
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.di.setupAndroidComponent
+import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
 /**
- * Receives passive location fixes (ones other apps requested) for polygon monitoring. They take
- * the same path as a GMS geofence callback, so dedupe, accuracy decisions and emission are unchanged.
+ * Receives passively observed location fixes for polygon monitoring. GMS does not name the request
+ * that computed one, which may be this SDK's own. They take the same path as a GMS geofence
+ * callback, so dedupe, accuracy decisions and emission are unchanged.
  */
 class PolygonPassiveReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
@@ -50,7 +56,26 @@ class PolygonPassiveReceiver : BroadcastReceiver() {
     internal fun newestFix(locations: List<Location>): Location? =
         locations.maxByOrNull(Location::getElapsedRealtimeNanos)
 
+    /** Observational only: a diagnostics failure must not change how the fix is handled. */
+    private fun recordWake(fix: Location) {
+        val nowElapsedMs = SystemClock.elapsedRealtime()
+        val record = DwellDiagnosticRecord(
+            event = DwellDiagnosticEvent.WAKE_PASSIVE_FIX,
+            atElapsedMs = nowElapsedMs,
+            returnedAccuracyMeters = if (fix.hasAccuracy()) fix.accuracy.toDouble() else null,
+            fixAgeMs = fix.elapsedRealtimeNanos.takeIf { it > 0L }
+                ?.let { nowElapsedMs - TimeUnit.NANOSECONDS.toMillis(it) }
+                ?.takeIf { it >= 0L }
+        )
+        runCatching {
+            val recorder = SDKComponent.android().dwellDiagnosticRecorder
+            recorder.record(record)
+        }
+    }
+
     internal suspend fun handleFix(fix: Location) {
+        // First, before any read or await: one record per delivery, bound to the owner it arrived under.
+        recordWake(fix)
         val logger = SDKComponent.geofenceLogger
         val store = SDKComponent.android().geofenceRegionStore
         val routableIds = store.getRoutableRegisteredIds()

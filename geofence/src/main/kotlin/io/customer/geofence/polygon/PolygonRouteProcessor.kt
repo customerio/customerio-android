@@ -84,7 +84,14 @@ internal sealed interface HeldArrivalOutcome {
 
 internal data class PolygonRouteOutcome(
     val detections: List<PolygonTransitionDetection>,
-    val records: List<PolygonRouteRecord>
+    val records: List<PolygonRouteRecord>,
+    /** Fences this fix decisively placed the device outside of. See [PolygonEvidenceResult.provesOutside]. */
+    val provenOutsideIds: Set<String> = emptySet(),
+    /**
+     * Fences skipped because this fix answers a request (`answersHeldFixAt`) with the very fix they
+     * last judged, so it shows them nothing new. A fence that a newer fix has judged since is not listed.
+     */
+    val echoedFixIds: Set<String> = emptySet()
 )
 
 internal class PolygonRouteProcessor(
@@ -114,7 +121,13 @@ internal class PolygonRouteProcessor(
         elapsedRealtimeNanos: Long,
         fixAgeSeconds: Double,
         committedStates: Map<String, PolygonCommittedState>,
-        answersHeldFixAt: Long? = null
+        answersHeldFixAt: Long? = null,
+        /**
+         * False for a fix requested for dwell proof alone: it was asked for no held arrival, so it
+         * neither settles nor replaces one. Only a fix that decides alone still commits that fence's
+         * ENTER; a hold awaits its own corroboration.
+         */
+        settlesHeldArrivals: Boolean = true
     ): PolygonRouteOutcome {
         require(elapsedRealtimeNanos >= 0L) { "elapsed realtime must be non-negative" }
         require(fences.map(PolygonFence::id).distinct().size == fences.size) {
@@ -131,14 +144,24 @@ internal class PolygonRouteProcessor(
         trackedFenceIds.addAll(activeIds)
 
         val records = mutableListOf<PolygonRouteRecord>()
+        val provenOutsideIds = mutableSetOf<String>()
+        val echoedFixIds = mutableSetOf<String>()
         val detections = fences.mapNotNull { fence ->
             val latest = latestElapsedRealtimeNanos[fence.id]
             val answersHold = answersHeldFixAt == elapsedRealtimeNanos && isHeldFix(fence.id, elapsedRealtimeNanos)
-            if (latest != null && elapsedRealtimeNanos <= latest && !answersHold) return@mapNotNull null
+            if (latest != null && elapsedRealtimeNanos <= latest && !answersHold) {
+                // The stamps must be equal, not merely not newer: once another fix has been judged,
+                // this fence's verdict no longer rests on the echoed fix.
+                if (answersHeldFixAt == elapsedRealtimeNanos && latest == elapsedRealtimeNanos) {
+                    echoedFixIds += fence.id
+                }
+                return@mapNotNull null
+            }
             latestElapsedRealtimeNanos[fence.id] = elapsedRealtimeNanos
             val committedState = committedStates[fence.id] ?: PolygonCommittedState.OUTSIDE
             val result = accuracyEvaluator.decisiveEvidenceFor(fence.geometry, sample, committedState)
             val evidence = result.evidence
+            if (result.provesOutside) provenOutsideIds += fence.id
             result.undecidedReason?.let { reason ->
                 records += PolygonRouteRecord.Undecided(
                     geofenceId = fence.id,
@@ -158,14 +181,13 @@ internal class PolygonRouteProcessor(
                 )
             }
             // Settle a held arrival before judging this fix.
+            val keepsHold = !settlesHeldArrivals && heldArrivals.containsKey(fence.id)
             when (
-                val held = resolveHeldArrival(
-                    fence.id,
-                    result,
-                    sample,
-                    elapsedRealtimeNanos,
-                    records
-                )
+                val held = if (keepsHold) {
+                    HeldArrivalOutcome.NotCommitted
+                } else {
+                    resolveHeldArrival(fence.id, result, sample, elapsedRealtimeNanos, records)
+                }
             ) {
                 is HeldArrivalOutcome.Committed -> {
                     records += PolygonRouteRecord.Decided(
@@ -199,6 +221,8 @@ internal class PolygonRouteProcessor(
                         clearHold(fence.id)
                         PolygonTransition.ENTER
                     }
+                    // A hold this fix may not settle stays as it is, awaiting its own corroboration.
+                    keepsHold -> return@mapNotNull null
                     else -> {
                         // Any open hold was settled above, so this always opens a new one.
                         openHold(
@@ -237,7 +261,7 @@ internal class PolygonRouteProcessor(
             )
             PolygonTransitionDetection(fence.id, transition, fence.regionRevision)
         }
-        return PolygonRouteOutcome(detections, records)
+        return PolygonRouteOutcome(detections, records, provenOutsideIds, echoedFixIds)
     }
 
     /** Returns the ids that were still holding an arrival. */

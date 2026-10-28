@@ -20,6 +20,7 @@ import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
 import io.mockk.verify
+import io.mockk.verifyOrder
 import org.junit.jupiter.api.Test
 import org.reduxkotlin.Store
 
@@ -437,6 +438,93 @@ class InAppMessagingMiddlewaresTest : JUnitTest() {
 
         // Verify next action was called
         verify { nextFn(action) }
+    }
+
+    @Test
+    fun gistLoggingMessageMiddleware_givenSseNotInUse_shouldReprocessQueueAfterDismissal() {
+        // Given polling mode (SSE off) with another message waiting in the already fetched queue
+        val dismissed = createInAppMessage(persistent = false)
+        val next = createInAppMessage(persistent = false)
+        val queue = setOf(dismissed, next)
+        every { store.state } returns InAppMessagingState(userId = String.random, sseEnabled = false, messagesInQueue = queue)
+        val dispatchedActions = mutableListOf<Any>()
+        every { store.dispatch(any()) } answers {
+            dispatchedActions.add(firstArg())
+            firstArg()
+        }
+
+        // When the displayed message is dismissed
+        val action = InAppMessagingAction.DismissMessage(dismissed, shouldLog = true, viaCloseAction = true)
+        gistLoggingMessageMiddleware()(store)(nextFn)(action)
+
+        // Then the queue is processed again right away so the next message does not wait for the next poll
+        val processActions = dispatchedActions.filterIsInstance<InAppMessagingAction.ProcessMessageQueue>()
+        assert(processActions.size == 1) { "Expected exactly one ProcessMessageQueue action, got ${processActions.size}" }
+        assert(processActions.first().messages == queue.toList()) { "Expected the queued messages to be processed" }
+        assert(!processActions.first().shouldReconcileInlineMessages) { "Expected inline messages not to be reconciled" }
+        assert(!processActions.first().isSseSnapshot) { "Expected the re-processing not to count as an SSE snapshot" }
+    }
+
+    @Test
+    fun gistLoggingMessageMiddleware_givenSseInUse_shouldReprocessQueueAfterDismissal() {
+        // Given SSE in use for an identified user
+        val dismissed = createInAppMessage(persistent = false)
+        val next = createInAppMessage(persistent = false)
+        val queue = setOf(dismissed, next)
+        every { store.state } returns InAppMessagingState(userId = String.random, sseEnabled = true, messagesInQueue = queue)
+        val dispatchedActions = mutableListOf<Any>()
+        every { store.dispatch(any()) } answers {
+            dispatchedActions.add(firstArg())
+            firstArg()
+        }
+
+        // When the displayed message is dismissed
+        val action = InAppMessagingAction.DismissMessage(dismissed, shouldLog = true, viaCloseAction = true)
+        gistLoggingMessageMiddleware()(store)(nextFn)(action)
+
+        // Then the queue is processed again, as before
+        val processActions = dispatchedActions.filterIsInstance<InAppMessagingAction.ProcessMessageQueue>()
+        assert(processActions.size == 1) { "Expected exactly one ProcessMessageQueue action, got ${processActions.size}" }
+        assert(processActions.first().messages == queue.toList()) { "Expected the queued messages to be processed" }
+    }
+
+    @Test
+    fun gistLoggingMessageMiddleware_givenSseNotInUse_shouldNotReprocessQueueWhenDismissalHandsOffToAnotherScreen() {
+        // Given polling mode with another message waiting in the queue
+        val dismissed = createInAppMessage(persistent = false)
+        val next = createInAppMessage(persistent = false)
+        every { store.state } returns InAppMessagingState(userId = String.random, sseEnabled = false, messagesInQueue = setOf(dismissed, next))
+        val dispatchedActions = mutableListOf<Any>()
+        every { store.dispatch(any()) } answers {
+            dispatchedActions.add(firstArg())
+            firstArg()
+        }
+
+        // When the dismissal hands off to another screen (showMessage and system actions use shouldLog = false)
+        val action = InAppMessagingAction.DismissMessage(dismissed, shouldLog = false)
+        gistLoggingMessageMiddleware()(store)(nextFn)(action)
+
+        // Then the queued message is not started on top of the hand-off target
+        verify { nextFn(action) }
+        assert(dispatchedActions.none { it is InAppMessagingAction.ProcessMessageQueue }) { "Expected no ProcessMessageQueue action" }
+    }
+
+    @Test
+    fun gistLoggingMessageMiddleware_shouldReprocessQueueOnlyAfterDismissalIsApplied() {
+        // Given polling mode with a queued message
+        val dismissed = createInAppMessage(persistent = false)
+        every { store.state } returns InAppMessagingState(userId = String.random, sseEnabled = false, messagesInQueue = setOf(dismissed))
+        val action = InAppMessagingAction.DismissMessage(dismissed, shouldLog = true, viaCloseAction = true)
+
+        // When the message is dismissed
+        gistLoggingMessageMiddleware()(store)(nextFn)(action)
+
+        // Then the dismissal reaches the reducer first, so the dismissed message is already in
+        // shownMessageQueueIds when the queue is processed and cannot be picked as the next message
+        verifyOrder {
+            nextFn(action)
+            store.dispatch(match<Any> { it is InAppMessagingAction.ProcessMessageQueue })
+        }
     }
 
     // Test removed: displayModalMessageMiddleware requires Android components that can't be easily mocked in unit tests

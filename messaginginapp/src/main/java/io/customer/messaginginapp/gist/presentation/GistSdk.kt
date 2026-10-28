@@ -27,7 +27,8 @@ internal class GistSdk(
     siteId: String,
     dataCenter: String,
     environment: GistEnvironment = GistEnvironment.PROD,
-    colorScheme: ColorScheme = ColorScheme.AUTO
+    colorScheme: ColorScheme = ColorScheme.AUTO,
+    publicKey: String? = null
 ) : GistProvider {
     private val inAppMessagingManager = SDKComponent.inAppMessagingManager
     private val state: InAppMessagingState
@@ -42,7 +43,10 @@ internal class GistSdk(
     private val sseLifecycleManager = SDKComponent.sseLifecycleManager
 
     init {
-        inAppMessagingManager.dispatch(InAppMessagingAction.Initialize(siteId = siteId, dataCenter = dataCenter, environment = environment, colorScheme = colorScheme))
+        if (siteId.isBlank() && publicKey == null) {
+            logger.error("In-app messaging needs a siteId, or the SDK set up with a public (pk_) key")
+        }
+        inAppMessagingManager.dispatch(InAppMessagingAction.Initialize(siteId = siteId, dataCenter = dataCenter, environment = environment, colorScheme = colorScheme, publicKey = publicKey))
     }
 
     override fun reset() {
@@ -69,6 +73,10 @@ internal class GistSdk(
         if (state.userId == userId) {
             logger.debug("Current user id is already set to: ${state.userId}, ignoring new user id")
             return
+        }
+        // Switching users without clearIdentify: reset first so it behaves like clearIdentify -> identify
+        if (state.isUserIdentified) {
+            reset()
         }
         inAppMessagingManager.dispatch(InAppMessagingAction.SetUserIdentifier(userId))
         // Note: fetch is now controlled by the event handler, not here

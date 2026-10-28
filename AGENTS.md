@@ -35,11 +35,11 @@ After making changes to Unit Tests, ALWAYS test the changed test classes. Avoid 
 - DO NOT modify root `build.gradle` or module `build.gradle` files unless specifically asked
 - DO NOT commit configuration files with actual credentials
 - DO NOT include files with credentials in generated code
-- DO NOT use Android features unavailable in API 21+ unless compatibility checks are included
+- DO NOT use Android features unavailable in API 24+ unless compatibility checks are included
 - DO NOT bypass the DI system with direct instantiation of internal classes
 
 ## Android-Specific Considerations
-- **Minimum SDK**: API 21 (Android 5.0)
+- **Minimum SDK**: API 24 (Android 7.0)
 - **Target SDK**: API 36 (compileSdk 36, targetSdk 36)
 - **Kotlin Version**: 2.1.21 - when adding new dependencies, ensure they're compatible with this Kotlin version
 - **Compose BOM**: 2025.10.00 (compatible with compileSdk 36)
@@ -114,8 +114,7 @@ CustomerIOBuilder(application, <CDP_API_KEY>).apply {
     // Optional: Enable in-app messaging by adding siteId and Region
     addCustomerIOModule(
         ModuleMessagingInApp(
-            // If you're in the EU, set Region.EU
-            MessagingInAppModuleConfig.Builder(<SITE_ID>, Region.US).build()
+            MessagingInAppModuleConfig.Builder(<SITE_ID>).build()
     )
     )
 
@@ -218,7 +217,7 @@ The SDK includes two sample applications for testing and demonstration:
 - Demonstrates basic SDK integration patterns
 - Shows push notification setup
 - Includes various tracking scenarios
-- Build and install: `cd samples/java_layout && ./gradlew installDebug`
+- Build and install: `./gradlew :samples:java_layout:installTokenDebug` (`installFidDebug` registers with the Firebase Installation ID)
 
 #### Kotlin Compose Sample (`samples/kotlin_compose/`)
 - Modern UI with Jetpack Compose and Kotlin
@@ -233,8 +232,7 @@ The SDK includes two sample applications for testing and demonstration:
 ./gradlew publishToMavenLocal
 
 # Run Java sample app
-cd samples/java_layout
-./gradlew installDebug
+./gradlew :samples:java_layout:installTokenDebug
 
 # Run Kotlin Compose sample app  
 cd samples/kotlin_compose

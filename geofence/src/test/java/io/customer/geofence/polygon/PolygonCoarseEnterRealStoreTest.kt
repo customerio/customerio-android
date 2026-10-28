@@ -72,6 +72,7 @@ class PolygonCoarseEnterRealStoreTest : RobolectricTest() {
             freshFixSource = NeverAnswersFreshFix,
             recheckScheduler = NoopRecheckScheduler,
             passiveMonitor = NoopPassiveMonitor,
+            bootSessionProvider = { "boot" },
             logger = mockk(relaxed = true)
         )
     }

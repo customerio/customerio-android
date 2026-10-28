@@ -2,20 +2,29 @@ package io.customer.geofence.polygon
 
 import android.content.Context
 import android.content.pm.PackageManager
+import android.os.SystemClock
 import androidx.core.content.ContextCompat
 import androidx.work.CoroutineWorker
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkerParameters
+import io.customer.geofence.DwellDiagnosticEvent
+import io.customer.geofence.DwellDiagnosticRecord
 import io.customer.geofence.GeofenceRegion
 import io.customer.geofence.PolygonRecheckSkip
+import io.customer.geofence.di.dwellDiagnosticRecorder
 import io.customer.geofence.di.geofenceLogger
+import io.customer.geofence.di.geofencePackageInfo
 import io.customer.geofence.di.geofenceRegionStore
+import io.customer.geofence.di.polygonBootSessionProvider
+import io.customer.geofence.di.polygonDwellCheckScheduler
 import io.customer.geofence.di.polygonFreshFixSource
 import io.customer.geofence.di.polygonGeofenceServiceController
 import io.customer.geofence.di.polygonRecheckScheduler
 import io.customer.geofence.distanceTo
+import io.customer.geofence.restoreAfterOsWipe
 import io.customer.geofence.store.GeofenceRegionStore
+import io.customer.geofence.store.osRegistrationsWiped
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.di.setupAndroidComponent
 import io.customer.sdk.core.util.CustomerIOWorkManagerProvider
@@ -80,6 +89,8 @@ internal class PolygonRecheckWorker(
 ) : CoroutineWorker(appContext, params) {
     override suspend fun doWork(): Result {
         SDKComponent.setupAndroidComponent(context = applicationContext)
+        // First after setup, before any read or await: one record per run, bound to the owner at dispatch.
+        recordWake()
         val logger = SDKComponent.geofenceLogger
         val store = SDKComponent.android().geofenceRegionStore
         // Snapshot before any work, or a teardown or identify landing mid-run would read as current
@@ -92,9 +103,9 @@ internal class PolygonRecheckWorker(
             // Retires itself, so a missed cancel costs one wake, not a permanent periodic job.
             logger.logPolygonRecheckSkipped(PolygonRecheckSkip.NOTHING_REGISTERED)
             // Syncs write routable ids before scheduling, so either the re-read sees the write or
-            // the sync's schedule() lands after this cancel. Relies on WorkManager 2.10.5
-            // internals: in-order cancel/enqueue, RUNNING rows cancelled at once, KEEP over
-            // CANCELLED, neither call suspends.
+            // the sync's schedule() lands after this cancel. Relies on WorkManager internals,
+            // checked against 2.12.0: in-order cancel/enqueue, RUNNING rows cancelled at once, KEEP
+            // over CANCELLED, neither call suspends.
             val scheduler = SDKComponent.android().polygonRecheckScheduler
             scheduler.cancel()
             if (registeredPolygons(store).isNotEmpty()) scheduler.schedule()
@@ -105,6 +116,24 @@ internal class PolygonRecheckWorker(
             logger.logPolygonRecheckSkipped(PolygonRecheckSkip.NO_PERMISSION)
             return Result.success()
         }
+        // A fix now could qualify a dwell for a visit the monitoring gap has already broken, before
+        // the sync that ends such visits runs.
+        fun registrationsWiped() = store.osRegistrationsWiped(
+            bootSessionId = SDKComponent.android().polygonBootSessionProvider.currentSessionId(),
+            nowElapsedMs = SystemClock.elapsedRealtime(),
+            packageUpdateTimeMs = SDKComponent.android().geofencePackageInfo.lastUpdateTimeMs()
+        )
+        if (registrationsWiped()) {
+            logger.logPolygonRecheckSkipped(PolygonRecheckSkip.REGISTRATIONS_WIPED)
+            // A reboot or app update dropped the registrations, and no launch may come to restore them
+            // for days. Restored here as a boot does: visits that cannot span the gap end, and the
+            // re-added fences report ENTER for any the device is inside, so ENTER and EXIT resume.
+            restoreAfterOsWipe(REASON_WIPE_RESTORE)
+            return Result.success()
+        }
+        // A safety net for dwell checks: one whose own enqueue failed, with nothing else to re-plan it,
+        // is scheduled again within this period.
+        SDKComponent.android().polygonDwellCheckScheduler.reconcile()
         // Balanced: this only asks about wake circles; activate's undecided path buys precision
         // when it could matter.
         val fix = SDKComponent.android().polygonFreshFixSource.awaitFreshFix(
@@ -154,6 +183,19 @@ internal class PolygonRecheckWorker(
         return Result.success()
     }
 
+    /** Observational only: a diagnostics failure must not change what this run does. */
+    private fun recordWake() {
+        runCatching {
+            val recorder = SDKComponent.android().dwellDiagnosticRecorder
+            recorder.record(
+                DwellDiagnosticRecord(
+                    event = DwellDiagnosticEvent.WAKE_WORKER,
+                    atElapsedMs = SystemClock.elapsedRealtime()
+                )
+            )
+        }
+    }
+
     private fun registeredPolygons(store: GeofenceRegionStore): List<GeofenceRegion> {
         val routableIds = store.getRoutableRegisteredIds()
         return store.getCachedRegions().filter { it.id in routableIds && it.isPolygon }
@@ -172,5 +214,7 @@ internal class PolygonRecheckWorker(
     private companion object {
         /** Longer than the callback path's budget: this runs in a job, not inside a broadcast. */
         const val RECHECK_FIX_TIMEOUT_MS = 20_000L
+
+        const val REASON_WIPE_RESTORE = "recheck-wipe-restore"
     }
 }

@@ -27,7 +27,6 @@ import io.customer.messaginginapp.ui.InAppMessagingIntegrationUtil.testTap
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.util.Logger
 import io.customer.sdk.core.util.ScopeProvider
-import io.customer.sdk.data.model.Region
 import io.customer.sdk.lifecycle.CustomerIOActivityLifecycleCallbacks
 import io.mockk.Runs
 import io.mockk.every
@@ -43,10 +42,9 @@ import org.junit.jupiter.api.Test
 class InlineInAppMessageIntegrationTest : JUnitTest() {
 
     private val moduleConfig = MessagingInAppModuleConfig.Builder(
-        siteId = "test-site-id",
-        region = Region.US
+        siteId = "test-site-id"
     ).build()
-    private val gistDataCenter = moduleConfig.region.code
+    private val gistDataCenter = moduleConfig.dataCenter
     private val gistEnvironment = GistEnvironment.LOCAL
     private val scopeProviderStub = ScopeProviderStub.Standard()
 
@@ -92,7 +90,7 @@ class InlineInAppMessageIntegrationTest : JUnitTest() {
         messagingManager.dispatch(
             InAppMessagingAction.Initialize(
                 siteId = moduleConfig.siteId,
-                dataCenter = moduleConfig.region.code,
+                dataCenter = moduleConfig.dataCenter,
                 environment = gistEnvironment
             )
         )

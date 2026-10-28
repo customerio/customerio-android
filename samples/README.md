@@ -25,6 +25,8 @@ To compile and run these sample apps, you'll need to set up `cdpApiKey` and `sit
 2. Select the desired app configuration (`samples.java_layout` or `samples.kotlin_compose`) from run configuration dropdown in Android Studio.
 3. Click the `Run` button to build and run the app on an emulator or connected device.
 
+`java_layout` has two push flavors, picked from the Build Variants panel: `token` (default) registers the FCM token, and `fid` registers the Firebase Installation ID.
+
 ![select sample app configuration in Android Studio](/misc/run_sample_app.png)
 
 ### SDK Dependency

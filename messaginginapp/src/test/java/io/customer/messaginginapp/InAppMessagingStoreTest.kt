@@ -22,7 +22,6 @@ import io.customer.messaginginapp.type.InAppMessage
 import io.customer.messaginginapp.type.InAppMessageError
 import io.customer.messaginginapp.type.InAppMessageErrorReason
 import io.customer.sdk.core.di.SDKComponent
-import io.customer.sdk.data.model.Region
 import io.mockk.Called
 import io.mockk.confirmVerified
 import io.mockk.mockk
@@ -53,8 +52,7 @@ class InAppMessagingStoreTest : IntegrationTest() {
         super.setup(testConfig)
         module = ModuleMessagingInApp(
             config = MessagingInAppModuleConfig.Builder(
-                siteId = TestConstants.Keys.SITE_ID,
-                region = Region.US
+                siteId = TestConstants.Keys.SITE_ID
             ).setEventListener(inAppEventListener).build()
         ).attachToSDKComponent()
         manager = SDKComponent.inAppMessagingManager
@@ -183,6 +181,43 @@ class InAppMessagingStoreTest : IntegrationTest() {
         val state = manager.getCurrentState()
         state.modalMessageState shouldBeInstanceOf ModalMessageState.Dismissed::class.java
         state.shownMessageQueueIds.contains("1") shouldBe true
+    }
+
+    @Test
+    fun givenPollingModeAndQueuedMessage_whenDismissedWithLog_thenNextMessageIsLoaded() = runTest {
+        initializeAndSetUser()
+        val first = createInAppMessage(queueId = "1")
+        val second = createInAppMessage(queueId = "2")
+
+        manager.dispatch(InAppMessagingAction.ProcessMessageQueue(listOf(first, second)))
+        manager.dispatch(InAppMessagingAction.DisplayMessage(first))
+        manager.dispatch(InAppMessagingAction.DismissMessage(first))
+
+        manager.getCurrentState().modalMessageState
+            .shouldBeInstanceOf<ModalMessageState.Loading>()
+            .message
+            .queueId shouldBeEqualTo "2"
+    }
+
+    @Test
+    fun givenPollingModeAndQueuedMessage_whenDismissedForShowMessageHandOff_thenQueuedMessageIsNotLoadedAndTargetIsTheOnlyModal() = runTest {
+        initializeAndSetUser()
+        val first = createInAppMessage(queueId = "1")
+        val queued = createInAppMessage(queueId = "2")
+        val target = createInAppMessage(queueId = "3")
+
+        manager.dispatch(InAppMessagingAction.ProcessMessageQueue(listOf(first, queued)))
+        manager.dispatch(InAppMessagingAction.DisplayMessage(first))
+
+        // Same sequence as gist://showMessage: dismiss without logging, then load the target
+        manager.dispatch(InAppMessagingAction.DismissMessage(first, shouldLog = false))
+        manager.getCurrentState().modalMessageState shouldBeInstanceOf ModalMessageState.Dismissed::class.java
+
+        manager.dispatch(InAppMessagingAction.LoadMessage(target))
+        manager.getCurrentState().modalMessageState
+            .shouldBeInstanceOf<ModalMessageState.Loading>()
+            .message
+            .queueId shouldBeEqualTo "3"
     }
 
     @Test

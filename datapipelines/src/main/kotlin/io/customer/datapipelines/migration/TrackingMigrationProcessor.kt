@@ -9,11 +9,13 @@ import com.segment.analytics.kotlin.core.TrackEvent
 import com.segment.analytics.kotlin.core.platform.EnrichmentClosure
 import com.segment.analytics.kotlin.core.utilities.putAll
 import com.segment.analytics.kotlin.core.utilities.putInContextUnderKey
+import io.customer.datapipelines.extensions.DEVICE_TOKEN_TYPE_ATTRIBUTE
 import io.customer.datapipelines.extensions.toJsonObject
 import io.customer.sdk.CustomerIO
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.util.Iso8601TimestampFormatter
 import io.customer.sdk.core.util.Logger
+import io.customer.sdk.data.model.DeviceTokenType
 import io.customer.sdk.util.EventNames
 import io.customer.tracking.migration.MigrationAssistant
 import io.customer.tracking.migration.MigrationProcessor
@@ -97,7 +99,7 @@ internal class TrackingMigrationProcessor(
         when (globalPreferenceStore.getDeviceToken()) {
             null -> {
                 logger.debug("Migrating existing device with token: $oldDeviceToken")
-                CustomerIO.instance().registerDeviceToken(oldDeviceToken)
+                CustomerIO.instance().registerDeviceToken(oldDeviceToken, DeviceTokenType.TOKEN)
             }
 
             oldDeviceToken -> {
@@ -190,6 +192,7 @@ internal class TrackingMigrationProcessor(
                     event = EventNames.DEVICE_UPDATE,
                     properties = buildJsonObject {
                         putAll(task.attributes.toJsonObject())
+                        put(DEVICE_TOKEN_TYPE_ATTRIBUTE, DeviceTokenType.TOKEN.value)
                         put(
                             PAYLOAD_JSON_KEY_DEVICE,
                             buildJsonObject {

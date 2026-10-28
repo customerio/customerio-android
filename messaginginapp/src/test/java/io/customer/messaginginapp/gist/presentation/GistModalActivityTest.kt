@@ -31,7 +31,6 @@ import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.util.DispatchersProvider
 import io.customer.sdk.core.util.Logger
 import io.customer.sdk.core.util.ScopeProvider
-import io.customer.sdk.data.model.Region
 import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
@@ -299,8 +298,7 @@ class GistModalActivityTest : IntegrationTest() {
 
     private fun initializeModuleMessagingInApp(): InAppMessagingManager {
         val moduleConfig = MessagingInAppModuleConfig.Builder(
-            siteId = "test-site-id",
-            region = Region.US
+            siteId = "test-site-id"
         ).build()
         ModuleMessagingInApp(config = moduleConfig).attachToSDKComponent()
 
@@ -310,7 +308,7 @@ class GistModalActivityTest : IntegrationTest() {
         messagingManager.dispatch(
             InAppMessagingAction.Initialize(
                 siteId = moduleConfig.siteId,
-                dataCenter = moduleConfig.region.code,
+                dataCenter = moduleConfig.dataCenter,
                 environment = GistEnvironment.LOCAL
             )
         ).flushCoroutines(scopeProviderStub.inAppLifecycleScope)

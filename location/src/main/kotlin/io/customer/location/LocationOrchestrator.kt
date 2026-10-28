@@ -47,6 +47,8 @@ internal class LocationOrchestrator(
                 granularity = LocationGranularity.DEFAULT
             )
             logger.debug("Tracking location: lat=${snapshot.latitude}, lng=${snapshot.longitude}")
+            // Null when the provider reported none; geofencing needs it to prove a device outside.
+            val horizontalAccuracyMeters = snapshot.horizontalAccuracy?.toFloat()
             // Claimed at delivery so a mid-flight upgrade routes this same fix, and a later one is
             // rejected rather than lost. The OFF re-check keeps an upgrade from emitting analytics
             // for a disabled tracking mode.
@@ -54,13 +56,15 @@ internal class LocationOrchestrator(
                 locationTracker.onLocationReceived(
                     latitude = snapshot.latitude,
                     longitude = snapshot.longitude,
-                    fixElapsedRealtimeMillis = snapshot.fixElapsedRealtimeMillis
+                    fixElapsedRealtimeMillis = snapshot.fixElapsedRealtimeMillis,
+                    horizontalAccuracyMeters = horizontalAccuracyMeters
                 )
             } else {
                 locationTracker.onLocationReceivedWithoutTracking(
                     latitude = snapshot.latitude,
                     longitude = snapshot.longitude,
-                    fixElapsedRealtimeMillis = snapshot.fixElapsedRealtimeMillis
+                    fixElapsedRealtimeMillis = snapshot.fixElapsedRealtimeMillis,
+                    horizontalAccuracyMeters = horizontalAccuracyMeters
                 )
             }
         } catch (e: CancellationException) {

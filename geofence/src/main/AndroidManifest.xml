@@ -26,7 +26,7 @@
             android:name="io.customer.geofence.polygon.PolygonApproachReceiver"
             android:exported="false" />
 
-        <!-- Receives fixes other apps requested. Always enabled, for the same reason as above. -->
+        <!-- Receives fixes other location requests computed, possibly the SDK's own. Always enabled, for the same reason as above. -->
         <receiver
             android:name="io.customer.geofence.polygon.PolygonPassiveReceiver"
             android:exported="false" />

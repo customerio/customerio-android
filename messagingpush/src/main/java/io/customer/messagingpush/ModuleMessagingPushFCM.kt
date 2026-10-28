@@ -247,7 +247,7 @@ class ModuleMessagingPushFCM @JvmOverloads constructor(
     private fun getCurrentFcmToken() {
         fcmTokenProvider.getCurrentToken { token ->
             token?.let {
-                eventBus.publish(Event.RegisterDeviceTokenEvent(token))
+                eventBus.publish(Event.RegisterDeviceTokenEvent(token = token.value, tokenType = token.type))
             }
         }
     }

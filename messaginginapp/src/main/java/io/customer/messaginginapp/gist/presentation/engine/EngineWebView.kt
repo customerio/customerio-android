@@ -75,6 +75,19 @@ internal class EngineWebView @JvmOverloads constructor(
     private val viewLifecycleOwner: Lifecycle?
         get() = findViewTreeLifecycleOwner()?.lifecycle
 
+    /**
+     * The lifecycle this engine observes, or null while it has no message to keep the JavaScript
+     * interface attached for (before [setup], and after [stopLoading] / [releaseResources]).
+     *
+     * Held explicitly because the owner found through the view tree can change while this view
+     * lives on: a Fragment's *view* lifecycle is replaced whenever the Fragment's view is destroyed
+     * and recreated, and hosts such as React Native keep the same engine across that (react-native-
+     * screens removes the Fragment below a pushed screen and re-adds it on pop, re-parenting the
+     * same native views). Unsubscribing must target the lifecycle actually subscribed to, not
+     * whichever one happens to be current.
+     */
+    private var observedLifecycle: Lifecycle? = null
+
     init {
         // exception handling is required for webview in-case webview is not supported in the device
         try {
@@ -88,6 +101,71 @@ internal class EngineWebView @JvmOverloads constructor(
 
     override fun getView(): EngineWebView {
         return this
+    }
+
+    /**
+     * Follows the lifecycle owner that is current when this view (re-)enters the window.
+     *
+     * When the owner found through the view tree is not the one in [observedLifecycle] — the host
+     * Fragment's view was destroyed and recreated while this engine stayed alive — the old owner
+     * has already paused us, which detached the JavaScript interface, and it will never resume us.
+     * Without moving the subscription, [EngineWebViewInterface] drops every renderer event — taps
+     * included — until the message is re-embedded. Subscribing to the new owner replays its current
+     * state, so a resumed owner re-attaches the interface immediately.
+     *
+     * Temporary detaches under a live owner (a RecyclerView item scrolled off-screen, say) drop the
+     * subscription in [onDetachedFromWindow] and get it back here: the replayed `ON_RESUME` calls
+     * [onLifecycleResumed], which re-attaches the JavaScript interface and restarts the load
+     * timeout, both paused on detach. This mirrors what
+     * [io.customer.messaginginapp.ui.core.BaseInlineInAppMessageView] already does with its own
+     * observer.
+     *
+     * Two cases get no `ON_RESUME` replay, so they resume here directly, the same way [setup]
+     * keeps the bridge attached before the owner resumes:
+     * - no owner in the new tree (a plain `Dialog` or `PopupWindow`), so nothing would resume it;
+     * - an owner that is visible but not resumed yet (`STARTED`).
+     *
+     * An owner below `STARTED` (the app is in the background) leaves the bridge detached until it
+     * resumes.
+     */
+    override fun onAttachedToWindow() {
+        super.onAttachedToWindow()
+        if (observedLifecycle == null) return
+        if (!observeCurrentLifecycle() || observedLifecycle?.currentState == Lifecycle.State.STARTED) {
+            onLifecycleResumed()
+        }
+    }
+
+    override fun onDetachedFromWindow() {
+        // Keep observedLifecycle: it records that there is a message to re-subscribe for.
+        observedLifecycle?.let {
+            // Without the subscription this engine misses a later ON_PAUSE, so pause now: otherwise
+            // the bridge stays attached and the load timeout can dismiss a loading message while the
+            // app is in the background. A resumed owner re-attaches both on the next window attach.
+            onLifecyclePaused()
+            it.removeObserver(this)
+        }
+        super.onDetachedFromWindow()
+    }
+
+    /**
+     * Subscribes to the lifecycle owner currently reachable through the view tree, moving the
+     * subscription if it differs from [observedLifecycle]. Returns false when there is no owner.
+     */
+    private fun observeCurrentLifecycle(): Boolean {
+        val lifecycle = viewLifecycleOwner ?: return false
+        if (lifecycle !== observedLifecycle) {
+            observedLifecycle?.removeObserver(this)
+            observedLifecycle = lifecycle
+        }
+        // No-op when already observing this lifecycle.
+        lifecycle.addObserver(this)
+        return true
+    }
+
+    private fun stopObservingLifecycle() {
+        observedLifecycle?.removeObserver(this)
+        observedLifecycle = null
     }
 
     override fun onResume(owner: LifecycleOwner) {
@@ -127,12 +205,15 @@ internal class EngineWebView @JvmOverloads constructor(
         colorSchemeJob?.cancel()
         colorSchemeJob = null
         try {
-            val view = webView ?: return
-            logger.debug("Cleaning up EngineWebView")
             if (this.parent != null) {
                 logger.debug("EngineWebView is still attached to parent, skipping cleanup")
                 return
             }
+            // Before the early return below: a WebView already released after a renderer crash
+            // must not leave this engine subscribed.
+            stopObservingLifecycle()
+            val view = webView ?: return
+            logger.debug("Cleaning up EngineWebView")
 
             webView = null
             if (view.parent != null) {
@@ -161,9 +242,10 @@ internal class EngineWebView @JvmOverloads constructor(
         webView?.stopLoading()
         colorSchemeJob?.cancel()
         colorSchemeJob = null
-        // remove lifecycle observer to stop receiving further lifecycle events
+        // stop receiving lifecycle events, and make sure a later window re-attach does not
+        // subscribe again
         onLifecyclePaused()
-        viewLifecycleOwner?.removeObserver(this)
+        stopObservingLifecycle()
         // stop the timer and clean up
         bootstrapped()
     }
@@ -229,7 +311,7 @@ internal class EngineWebView @JvmOverloads constructor(
             // a Compose tab transition is still settling. Attach the bridge before loadUrl so the
             // first document can bootstrap instead of waiting for a later lifecycle callback.
             engineWebViewInterface.attach(webView = it)
-            viewLifecycleOwner?.addObserver(this) ?: run {
+            if (!observeCurrentLifecycle()) {
                 logger.debug("Lifecycle owner not found; keeping the renderer bridge attached")
             }
 
@@ -261,21 +343,6 @@ internal class EngineWebView @JvmOverloads constructor(
 
                 override fun shouldOverrideUrlLoading(view: WebView, url: String): Boolean {
                     return !url.startsWith("https://code.gist.build")
-                }
-
-                override fun onReceivedError(
-                    view: WebView?,
-                    errorCod: Int,
-                    description: String,
-                    failingUrl: String?
-                ) {
-                    reportFailure(
-                        InAppMessageError(
-                            reason = InAppMessageErrorReason.NETWORK,
-                            detail = description,
-                            code = errorCod
-                        )
-                    )
                 }
 
                 override fun onReceivedSslError(
@@ -332,18 +399,14 @@ internal class EngineWebView @JvmOverloads constructor(
                 ) {
                     // Fired for every resource, not just the page — images, fonts, iframes. Only a
                     // main-frame failure means the message cannot render; reporting a subresource
-                    // would dismiss a message that was otherwise fine. The deprecated overload
-                    // above is main-frame-only already, so this also keeps API 21-22 consistent.
+                    // would dismiss a message that was otherwise fine.
                     if (request?.isForMainFrame != true) return
 
-                    // description/errorCode are API 23+; below that the deprecated overload above
-                    // is the one the platform calls, and it carries the same detail.
-                    val hasDetail = Build.VERSION.SDK_INT >= Build.VERSION_CODES.M
                     reportFailure(
                         InAppMessageError(
                             reason = InAppMessageErrorReason.NETWORK,
-                            detail = if (hasDetail) error?.description?.toString() else null,
-                            code = if (hasDetail) error?.errorCode else null
+                            detail = error?.description?.toString(),
+                            code = error?.errorCode
                         )
                     )
                 }

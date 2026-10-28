@@ -10,7 +10,8 @@ internal data class LocationSnapshot(
     val latitude: Double,
     val longitude: Double,
     val timestamp: Date,
-    val horizontalAccuracy: Double,
+    /** Radius of 68% confidence in metres, or null when the source reported none. */
+    val horizontalAccuracy: Double?,
     val altitude: Double? = null,
     val fixElapsedRealtimeMillis: Long? = null
 )

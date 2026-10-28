@@ -9,6 +9,7 @@ internal val inAppMessagingReducer: Reducer<InAppMessagingState> = { state, acti
         is InAppMessagingAction.Initialize ->
             state.copy(
                 siteId = action.siteId,
+                publicKey = action.publicKey,
                 dataCenter = action.dataCenter,
                 environment = action.environment,
                 colorScheme = action.colorScheme,

@@ -264,6 +264,7 @@ class LocationTrackerTest {
 
         tracker.trackedLocation shouldBeEqualTo LocationCoordinates(latitude = 51.5074, longitude = -0.1278)
         tracker.lastKnownLocation shouldBeEqualTo LocationCoordinates(latitude = 51.5074, longitude = -0.1278)
+        verify(exactly = 0) { logger.debug(match { it.startsWith("Restored persisted location") }) }
     }
 
     @Test
@@ -338,6 +339,7 @@ class LocationTrackerTest {
             releaseDecrypt.countDown()
             restore.get(5, TimeUnit.SECONDS)
             context.get(5, TimeUnit.SECONDS)["location_latitude"] shouldBeEqualTo 37.7749
+            verify(exactly = 1) { store.getCachedLatitude() }
         } finally {
             releaseDecrypt.countDown()
         }
@@ -350,6 +352,7 @@ class LocationTrackerTest {
             releaseDecrypt.await(5, TimeUnit.SECONDS)
             37.7749
         }
+        every { store.getCachedLongitude() } returns -122.4194
         val tracker = LocationTracker(
             dataPipeline,
             store,
@@ -363,6 +366,11 @@ class LocationTrackerTest {
 
         try {
             CompletableFuture.supplyAsync { tracker.getIdentifyContext() }.get(2, TimeUnit.SECONDS).shouldBeEmpty()
+
+            releaseDecrypt.countDown()
+            verify(timeout = 5_000) { store.hasCachedLocation() }
+            tracker.getIdentifyContext()["location_latitude"] shouldBeEqualTo 37.7749
+            verify(exactly = 1) { store.getCachedLatitude() }
         } finally {
             releaseDecrypt.countDown()
         }

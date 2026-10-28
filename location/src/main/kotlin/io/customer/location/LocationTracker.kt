@@ -131,6 +131,7 @@ internal class LocationTracker(
             // A sign-out while decrypting cleared the cache: don't bring the old user's location
             // back. A fix that arrived meanwhile is newer than the persisted one.
             if (!locationPreferenceStore.hasCachedLocation()) return null
+            if (trackedLocation != null && lastKnownLocation != null) return null
             if (trackedLocation == null) trackedLocation = restored
             if (lastKnownLocation == null) lastKnownLocation = restored
         }

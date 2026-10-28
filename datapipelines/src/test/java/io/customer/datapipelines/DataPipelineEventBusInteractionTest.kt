@@ -14,7 +14,6 @@ import io.mockk.mockk
 import io.mockk.slot
 import io.mockk.verify
 import kotlinx.coroutines.test.runTest
-import org.amshove.kluent.shouldBeEqualTo
 import org.junit.jupiter.api.Test
 
 class DataPipelineEventBusInteractionTest : JUnitTest() {
@@ -79,22 +78,5 @@ class DataPipelineEventBusInteractionTest : JUnitTest() {
         sdkInstance.clearIdentify()
 
         verify(exactly = 1) { mockSecureUserStore.clearAll() }
-    }
-
-    @Test
-    fun userId_givenAnalyticsNotCaughtUp_expectStoreValue() {
-        // Segment applies identify() asynchronously; the store holds the identity synchronously.
-        every { mockSecureUserStore.getUserId() } returns "user-from-store"
-
-        sdkInstance.userId shouldBeEqualTo "user-from-store"
-    }
-
-    @Test
-    fun setProfileAttributes_givenAnalyticsNotCaughtUp_expectIdentifiesStoreUser() {
-        every { mockSecureUserStore.getUserId() } returns "user-from-store"
-
-        sdkInstance.setProfileAttributes(mapOf("plan" to "pro"))
-
-        verify(exactly = 1) { mockSecureUserStore.saveUserId("user-from-store") }
     }
 }

@@ -143,8 +143,9 @@ class CustomerIO private constructor(
     }
 
     // Tracks the last userId successfully identified in this SDK session. Used to dedup
-    // back-to-back identify(userId) calls with no traits, which are no-ops server-side.
-    // Reset on clearIdentify so a subsequent identify of the same userId is not deduped.
+    // back-to-back identify(userId) calls with no traits, which are no-ops server-side, and read
+    // before analytics.userId(), which Segment updates asynchronously and so can still hold the
+    // previous user right after identify(). Reset on clearIdentify.
     private var lastIdentifiedUserIdThisSession: String? = null
 
     // Caller-thread mirror of whether a user is currently identified, backing the synchronous
@@ -274,7 +275,7 @@ class CustomerIO private constructor(
         }
 
     override fun setProfileAttributes(attributes: CustomAttributes) {
-        val identifier = this.userId
+        val identifier = lastIdentifiedUserIdThisSession ?: this.userId
         if (identifier != null) {
             identify(userId = identifier, traits = attributes)
         } else {
@@ -312,7 +313,7 @@ class CustomerIO private constructor(
         }
 
         // this is the current userId that is identified in the SDK
-        val currentlyIdentifiedProfile = this.userId.takeUnless { it.isNullOrBlank() }
+        val currentlyIdentifiedProfile = (lastIdentifiedUserIdThisSession ?: this.userId).takeUnless { it.isNullOrBlank() }
         val isChangingIdentifiedProfile = currentlyIdentifiedProfile != null && currentlyIdentifiedProfile != userId
         val isFirstTimeIdentifying = currentlyIdentifiedProfile == null
 
@@ -425,10 +426,8 @@ class CustomerIO private constructor(
     override val anonymousId: String
         get() = analytics.anonymousId()
 
-    // Store, not analytics.userId(): Segment applies identify() async, so a read right after identify()
-    // could see the previous user. Init writes the store first, so this never decrypts.
     override val userId: String?
-        get() = secureUserStore.getUserId()
+        get() = analytics.userId()
 
     @InternalCustomerIOApi
     override val cdpApiKey: String

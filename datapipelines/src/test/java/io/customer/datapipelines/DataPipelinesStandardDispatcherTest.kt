@@ -157,6 +157,20 @@ class DataPipelinesStandardDispatcherTest : JUnitTest(dispatcher = StandardTestD
     }
 
     @Test
+    fun setProfileAttributes_givenRightAfterProfileChange_expectNewProfileKept() = runTest {
+        sdkInstance.identify("old-profile").flushCoroutines(testScope)
+
+        sdkInstance.identify("new-profile")
+        sdkInstance.setProfileAttributes(mapOf("plan" to "pro"))
+        flushCoroutines(testScope)
+
+        val attributesEvent = outputReaderPlugin.identifyEvents.last()
+        attributesEvent.userId shouldBeEqualTo "new-profile"
+        attributesEvent.traits["plan"]?.jsonPrimitive?.content shouldBeEqualTo "pro"
+        analytics.userId() shouldBeEqualTo "new-profile"
+    }
+
+    @Test
     fun device_givenClearIdentify_expectDeviceUnregisteredFromProfile() = runTest {
         val givenIdentifier = String.random
         val givenToken = String.random

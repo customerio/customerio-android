@@ -156,6 +156,11 @@ internal class LocationTracker(
             lastKnownLocation = location
         }
         locationPreferenceStore.saveCachedLocation(latitude, longitude)
+        synchronized(stateLock) {
+            // A sign-out while saving cleared the fields: drop the save too, so a later restore
+            // can't bring this location back for the next user.
+            if (trackedLocation == null) locationPreferenceStore.clearCachedLocation()
+        }
 
         trySendLocationTrack(latitude, longitude)
         eventBus.publish(

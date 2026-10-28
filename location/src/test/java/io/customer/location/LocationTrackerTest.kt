@@ -268,6 +268,23 @@ class LocationTrackerTest {
     }
 
     @Test
+    fun givenSignOutWhileSavingFix_expectSaveDroppedAndNotRestored() {
+        every { store.saveCachedLocation(any(), any()) } answers {
+            tracker.resetContext()
+            hasCachedLocation = true
+        }
+        every { store.getCachedLatitude() } returns 37.7749
+        every { store.getCachedLongitude() } returns -122.4194
+
+        tracker.onLocationReceived(37.7749, -122.4194)
+        tracker.restorePersistedLocation()
+
+        hasCachedLocation.shouldBeFalse()
+        tracker.trackedLocation.shouldBeNull()
+        tracker.lastKnownLocation.shouldBeNull()
+    }
+
+    @Test
     fun givenSilentFixDuringRestore_expectSilentFixKeptAndRestoredLocationTracked() {
         every { store.getCachedLatitude() } answers {
             tracker.onLocationReceivedWithoutTracking(51.5074, -0.1278)

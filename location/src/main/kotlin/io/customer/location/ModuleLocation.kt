@@ -85,7 +85,8 @@ class ModuleLocation @JvmOverloads constructor(
             locationSyncFilter,
             eventBus,
             logger,
-            restoresPersistedLocation = moduleConfig.isEnabled
+            restoresPersistedLocation = moduleConfig.isEnabled,
+            restoreScope = locationScope
         )
 
         val locationProvider = FusedLocationProvider(context)

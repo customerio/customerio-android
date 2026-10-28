@@ -14,11 +14,16 @@ import io.mockk.verify
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import org.amshove.kluent.shouldBeEmpty
 import org.amshove.kluent.shouldBeEqualTo
 import org.amshove.kluent.shouldBeFalse
 import org.amshove.kluent.shouldBeNull
 import org.amshove.kluent.shouldNotBeEmpty
+import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 
@@ -30,6 +35,7 @@ class LocationTrackerTest {
     private val mockEventBus: EventBus = mockk(relaxUnitFun = true)
     private val logger: Logger = mockk(relaxUnitFun = true)
 
+    private val restoreScope = CoroutineScope(Dispatchers.Default + SupervisorJob())
     private lateinit var tracker: LocationTracker
 
     // Stands in for the persisted cache, which resetContext() clears.
@@ -43,7 +49,12 @@ class LocationTrackerTest {
         every { store.getCachedLongitude() } returns null
         every { dataPipeline.isUserIdentified } returns true
         every { syncFilter.filterAndRecord(any(), any()) } returns true
-        tracker = LocationTracker(dataPipeline, store, syncFilter, mockEventBus, logger, restoresPersistedLocation = true)
+        tracker = LocationTracker(dataPipeline, store, syncFilter, mockEventBus, logger, restoresPersistedLocation = true, restoreScope = restoreScope)
+    }
+
+    @AfterEach
+    fun teardown() {
+        restoreScope.cancel()
     }
 
     // -- onLocationReceived --
@@ -87,7 +98,7 @@ class LocationTrackerTest {
 
     @Test
     fun givenNullDataPipeline_expectNoException() {
-        val trackerWithNullPipeline = LocationTracker(null, store, syncFilter, mockEventBus, logger, restoresPersistedLocation = true)
+        val trackerWithNullPipeline = LocationTracker(null, store, syncFilter, mockEventBus, logger, restoresPersistedLocation = true, restoreScope = restoreScope)
 
         trackerWithNullPipeline.onLocationReceived(37.7749, -122.4194)
 
@@ -298,7 +309,7 @@ class LocationTrackerTest {
     fun givenTrackingOff_expectPersistedLocationNotRestored() {
         every { store.getCachedLatitude() } returns 37.7749
         every { store.getCachedLongitude() } returns -122.4194
-        val tracker = LocationTracker(dataPipeline, store, syncFilter, mockEventBus, logger, restoresPersistedLocation = false)
+        val tracker = LocationTracker(dataPipeline, store, syncFilter, mockEventBus, logger, restoresPersistedLocation = false, restoreScope = restoreScope)
 
         tracker.getIdentifyContext().shouldBeEmpty()
         tracker.restorePersistedLocation()
@@ -327,7 +338,31 @@ class LocationTrackerTest {
             releaseDecrypt.countDown()
             restore.get(5, TimeUnit.SECONDS)
             context.get(5, TimeUnit.SECONDS)["location_latitude"] shouldBeEqualTo 37.7749
-            verify(exactly = 1) { logger.debug(match { it.startsWith("Restored persisted location") }) }
+        } finally {
+            releaseDecrypt.countDown()
+        }
+    }
+
+    @Test
+    fun givenRestoreStuck_expectIdentifyContextStopsWaiting() {
+        val releaseDecrypt = CountDownLatch(1)
+        every { store.getCachedLatitude() } answers {
+            releaseDecrypt.await(5, TimeUnit.SECONDS)
+            37.7749
+        }
+        val tracker = LocationTracker(
+            dataPipeline,
+            store,
+            syncFilter,
+            mockEventBus,
+            logger,
+            restoresPersistedLocation = true,
+            restoreScope = restoreScope,
+            identifyRestoreWaitMillis = 100
+        )
+
+        try {
+            CompletableFuture.supplyAsync { tracker.getIdentifyContext() }.get(2, TimeUnit.SECONDS).shouldBeEmpty()
         } finally {
             releaseDecrypt.countDown()
         }

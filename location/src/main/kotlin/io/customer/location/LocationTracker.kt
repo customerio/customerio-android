@@ -10,6 +10,11 @@ import io.customer.sdk.core.pipeline.IdentifyHook
 import io.customer.sdk.core.util.Logger
 import io.customer.sdk.util.EventNames
 import java.lang.ref.WeakReference
+import kotlin.time.Duration.Companion.milliseconds
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeoutOrNull
 
 /**
  * Coordinates all location state management: persistence, restoration,
@@ -40,7 +45,9 @@ internal class LocationTracker(
     private val eventBus: EventBus,
     private val logger: Logger,
     // False when tracking is OFF: nothing is restored, so identify never carries a location.
-    private val restoresPersistedLocation: Boolean
+    private val restoresPersistedLocation: Boolean,
+    private val restoreScope: CoroutineScope,
+    private val identifyRestoreWaitMillis: Long = IDENTIFY_RESTORE_WAIT_MILLIS
 ) : IdentifyHook {
 
     // WeakReference prevents this hook (retained by IdentifyHookRegistry
@@ -67,13 +74,17 @@ internal class LocationTracker(
 
     // Restored on first read instead of at init: the decrypt uses the Keystore, which can stall
     // for seconds and ANR the app. Every reader runs off the main thread.
-    private val restoreLock = Any()
+    private val persistedLocationRestore = lazy { loadPersistedLocation() }
 
-    @Volatile
-    private var restoreDone = false
+    // Identify's restore, run on [restoreScope] so identify can stop waiting; started at most once.
+    private val identifyRestore by lazy { restoreScope.launch { restorePersistedLocation() } }
 
     override fun getIdentifyContext(): Map<String, Any> {
-        restorePersistedLocation()
+        // Bounded, so a Keystore that never answers can't hold identify forever.
+        if (restoresPersistedLocation && !persistedLocationRestore.isInitialized()) {
+            val finished = runBlocking { withTimeoutOrNull(identifyRestoreWaitMillis.milliseconds) { identifyRestore.join() } }
+            if (finished == null) logger.debug("Location restore still running, identifying without location")
+        }
         val location = trackedLocation ?: return emptyMap()
         return mapOf(
             "location_latitude" to location.latitude,
@@ -106,12 +117,9 @@ internal class LocationTracker(
      * it to finish. Decrypts with the Keystore, so call it off the main thread.
      */
     fun restorePersistedLocation() {
-        if (!restoresPersistedLocation || restoreDone) return
-        val restored = synchronized(restoreLock) {
-            if (restoreDone) return
-            loadPersistedLocation().also { restoreDone = true }
-        } ?: return
-        // Outside the lock: the logger can run host code.
+        if (!restoresPersistedLocation || persistedLocationRestore.isInitialized()) return
+        val restored = persistedLocationRestore.value ?: return
+        // Outside the lazy's lock: the logger can run host code.
         logger.debug("Restored persisted location: lat=${restored.latitude}, lng=${restored.longitude}")
     }
 
@@ -262,3 +270,5 @@ data class LocationCoordinates(
         }
     }
 }
+
+private const val IDENTIFY_RESTORE_WAIT_MILLIS = 5_000L

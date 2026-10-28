@@ -10,11 +10,12 @@ import io.customer.sdk.core.pipeline.IdentifyHook
 import io.customer.sdk.core.util.Logger
 import io.customer.sdk.util.EventNames
 import java.lang.ref.WeakReference
-import java.util.concurrent.CountDownLatch
-import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeoutOrNull
 
 /**
  * Coordinates all location state management: persistence, restoration,
@@ -69,16 +70,17 @@ internal class LocationTracker(
     internal var lastKnownLocation: LocationCoordinates? = null
         private set
 
-    // Released when the restore started by [launchRestore] finishes; null if none was started.
+    // The restore started by [launchRestore]; null if none was started.
     @Volatile
-    private var pendingRestore: CountDownLatch? = null
+    private var restoreJob: Job? = null
 
     override fun getIdentifyContext(): Map<String, Any> {
         // Segment calls this on its worker threads, never the host's, so waiting for a slow restore
         // can't ANR the app. Bounded, so a stuck Keystore can't hold identify forever.
-        val restore = pendingRestore
-        if (restore != null && !restore.await(restoreWaitMillis, TimeUnit.MILLISECONDS)) {
-            logger.debug("Location restore still running, identifying without location")
+        val restore = restoreJob
+        if (restore != null) {
+            val finished = runBlocking { withTimeoutOrNull(restoreWaitMillis) { restore.join() } }
+            if (finished == null) logger.debug("Location restore still running, identifying without location")
         }
         val location = trackedLocation ?: return emptyMap()
         return mapOf(
@@ -109,11 +111,11 @@ internal class LocationTracker(
      * Runs [restorePersistedLocation] on [scope]. Identify enrichment waits for it until it's done.
      */
     fun launchRestore(scope: CoroutineScope): Job {
-        val restored = CountDownLatch(1)
-        pendingRestore = restored
-        return scope.launch { restorePersistedLocation() }.apply {
-            invokeOnCompletion { restored.countDown() }
-        }
+        // Lazy, so identify sees the job before the restore can start.
+        val job = scope.launch(start = CoroutineStart.LAZY) { restorePersistedLocation() }
+        restoreJob = job
+        job.start()
+        return job
     }
 
     /**

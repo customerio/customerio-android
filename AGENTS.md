@@ -50,7 +50,7 @@ After making changes to Unit Tests, ALWAYS test the changed test classes. Avoid 
 
 ## Testing Strategy
 - Write both JVM unit tests and Android instrumentation tests
-- Use `UnitTest` base class for standard unit tests
+- Unit test classes extend `JUnit5Test` (or a module's `JUnitTest` base, where one exists); `UnitTest` is their abstract parent
 - Use `AndroidTest` base class for instrumentation tests
 - Use `RobolectricTest` for Android framework testing without device
 - Mock dependencies using MockK framework
@@ -60,13 +60,12 @@ After making changes to Unit Tests, ALWAYS test the changed test classes. Avoid 
 
 ## Committing and Git Workflow
 - Use `lefthook` for git hooks (install with `lefthook install`)
-- Run `make format` before committing
-- Run `make lint` to ensure code quality
+- Run the format and lint commands listed under Commands before committing
 - Follow conventional commit messages
 - Use feature branches off `main` branch
 - Create pull requests for all changes
 - Ensure CI passes before merging
-- Setup and workflow details: `docs/dev-notes/DEVELOPMENT.md` and `docs/dev-notes/GIT-WORKFLOW.md`
+- Setup details: `docs/dev-notes/DEVELOPMENT.md`
 
 ## Project Structure
 - `buildSrc/` - Centralized dependency and version management
@@ -123,7 +122,6 @@ CustomerIO.instance().track("event-name")
 - Event-driven architecture using `EventBus`
 - Type-safe event publishing and subscription
 - Events defined as sealed classes for type safety
-- Modules communicate without direct dependencies
 - Key events include profile changes, device registration, etc.
 
 ## Testing
@@ -154,7 +152,7 @@ CustomerIO.instance().track("event-name")
 - Both apps require `google-services.json` for Firebase integration
 - Set test credentials (`cdpApiKey`, `siteId`) in the gitignored `samples/local.properties`. The sample build reads them into `BuildConfig` (`samples/sample-app.gradle`).
 - Sample apps depend on the SDK modules in this repo by default. To build against a Maven artifact instead, set `sdkVersion` in `samples/local.properties` or pass `-PcioSDKVersion=<version>`. For a local artifact, run `./gradlew publishToMavenLocal` first.
-- View sample app logs: `adb logcat -s CustomerIO`
+- The SDK logs under the tag `[CIO]`. View its logs from a sample app with `adb logcat | grep -F "[CIO]"`.
 - Use sample apps to test new features before writing unit tests
 - Sample apps serve as integration tests for the SDK
 

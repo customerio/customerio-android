@@ -386,7 +386,9 @@ class CustomerIO private constructor(
     }
 
     override fun clearIdentifyImpl() {
-        logger.info("resetting user profile with id ${this.userId}")
+        // Before the marker is cleared: analytics.userId() can still lag a recent identify().
+        val existingUserId = lastIdentifiedUserIdThisSession ?: userId
+        logger.info("resetting user profile with id $existingUserId")
 
         // Reset the dedup marker so a subsequent identify of the same userId is not deduped.
         lastIdentifiedUserIdThisSession = null
@@ -398,7 +400,6 @@ class CustomerIO private constructor(
 
         // Analytics stamps identity when the event is processed, which can be after the reset below,
         // so pin the identity the device was registered under.
-        val existingUserId = userId
         val existingAnonymousId = anonymousId
         deleteDeviceToken(contextPlugin.deviceToken) { event ->
             event?.apply {

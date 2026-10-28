@@ -68,7 +68,7 @@ internal class SecureUserStoreImpl(
 
     override fun clearAll() = clearUserId { clear() }
 
-    // No Keystore call, so this stays on the caller's thread and reaches disk right away.
+    // No Keystore call, so this stays on the caller's thread and applies right away.
     private fun clearUserId(edit: SharedPreferences.Editor.() -> Unit) = synchronized(writeLock) {
         current.set(StoredUserId(null))
         prefs.edit(action = edit)

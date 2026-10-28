@@ -171,6 +171,19 @@ class DataPipelinesStandardDispatcherTest : JUnitTest(dispatcher = StandardTestD
     }
 
     @Test
+    fun device_givenClearIdentifyRightAfterProfileChange_expectDeleteForNewProfile() = runTest {
+        every { globalPreferenceStore.getDeviceToken() } returns String.random
+        sdkInstance.identify("old-profile").flushCoroutines(testScope)
+
+        sdkInstance.identify("new-profile")
+        sdkInstance.clearIdentify()
+        flushCoroutines(testScope)
+
+        val deviceDeleteEvent = outputReaderPlugin.trackEvents.last { it.event == EventNames.DEVICE_DELETE }
+        deviceDeleteEvent.userId shouldBeEqualTo "new-profile"
+    }
+
+    @Test
     fun device_givenClearIdentify_expectDeviceUnregisteredFromProfile() = runTest {
         val givenIdentifier = String.random
         val givenToken = String.random

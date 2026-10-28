@@ -123,6 +123,7 @@ internal class LocationTracker(
         logger.debug("Restored persisted location: lat=${restored.latitude}, lng=${restored.longitude}")
     }
 
+    // Returns the location it filled, or null if it filled nothing; used only for the log.
     private fun loadPersistedLocation(): LocationCoordinates? {
         val lat = locationPreferenceStore.getCachedLatitude() ?: return null
         val lng = locationPreferenceStore.getCachedLongitude() ?: return null

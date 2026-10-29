@@ -60,6 +60,10 @@ internal class LocationTracker(
     // Never held across a Keystore call.
     private val stateLock = Any()
 
+    // Set by a sign-out, under [stateLock]. Anything persisted after it is cleared or a newer save
+    // that already set the fields, so the restore fills nothing from then on.
+    private var signedOut = false
+
     // Analytics location: enriches identify context, gates the ON_APP_START re-fetch,
     // and is persisted. Set only by the tracking path, so silent fixes stay out of analytics.
     @Volatile
@@ -101,9 +105,10 @@ internal class LocationTracker(
      */
     override fun resetContext() {
         synchronized(stateLock) {
+            signedOut = true
             trackedLocation = null
             lastKnownLocation = null
-            // Under the lock, so a restore checking for the cache sees it gone.
+            // Under the lock, so a save that starts after the sign-out keeps its write.
             locationPreferenceStore.clearCachedLocation()
         }
         locationSyncFilter.clearSyncedData()
@@ -129,9 +134,9 @@ internal class LocationTracker(
         val lng = locationPreferenceStore.getCachedLongitude() ?: return null
         val restored = LocationCoordinates(latitude = lat, longitude = lng)
         synchronized(stateLock) {
-            // A sign-out while decrypting cleared the cache: don't bring the old user's location
-            // back. A fix that arrived meanwhile is newer than the persisted one.
-            if (!locationPreferenceStore.hasCachedLocation()) return null
+            // Don't bring the old user's location back. A fix that arrived meanwhile is newer
+            // than the persisted one.
+            if (signedOut) return null
             if (trackedLocation != null && lastKnownLocation != null) return null
             if (trackedLocation == null) trackedLocation = restored
             if (lastKnownLocation == null) lastKnownLocation = restored

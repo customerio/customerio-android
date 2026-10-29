@@ -43,7 +43,6 @@ class LocationTrackerTest {
 
     @BeforeEach
     fun setup() {
-        every { store.hasCachedLocation() } answers { hasCachedLocation }
         every { store.clearCachedLocation() } answers { hasCachedLocation = false }
         every { store.getCachedLatitude() } returns null
         every { store.getCachedLongitude() } returns null
@@ -285,6 +284,32 @@ class LocationTrackerTest {
     }
 
     @Test
+    fun givenRestoreAndSaveOverlapSignOut_expectNoLocationLeft() {
+        val saveWritten = CountDownLatch(1)
+        val restoreDone = CountDownLatch(1)
+        every { store.saveCachedLocation(any(), any()) } answers {
+            tracker.resetContext()
+            hasCachedLocation = true
+            saveWritten.countDown()
+            restoreDone.await(5, TimeUnit.SECONDS)
+        }
+        every { store.getCachedLatitude() } answers {
+            saveWritten.await(5, TimeUnit.SECONDS)
+            37.7749
+        }
+        every { store.getCachedLongitude() } returns -122.4194
+
+        val save = CompletableFuture.runAsync { tracker.onLocationReceived(51.5074, -0.1278) }
+        tracker.restorePersistedLocation()
+        restoreDone.countDown()
+        save.get(5, TimeUnit.SECONDS)
+
+        tracker.trackedLocation.shouldBeNull()
+        tracker.lastKnownLocation.shouldBeNull()
+        hasCachedLocation.shouldBeFalse()
+    }
+
+    @Test
     fun givenSilentFixDuringRestore_expectSilentFixKeptAndRestoredLocationTracked() {
         every { store.getCachedLatitude() } answers {
             tracker.onLocationReceivedWithoutTracking(51.5074, -0.1278)
@@ -385,7 +410,7 @@ class LocationTrackerTest {
             CompletableFuture.supplyAsync { tracker.getIdentifyContext() }.get(2, TimeUnit.SECONDS).shouldBeEmpty()
 
             releaseDecrypt.countDown()
-            verify(timeout = 5_000) { store.hasCachedLocation() }
+            verify(timeout = 5_000) { logger.debug(match { it.startsWith("Restored persisted location") }) }
             tracker.getIdentifyContext()["location_latitude"] shouldBeEqualTo 37.7749
             verify(exactly = 1) { store.getCachedLatitude() }
         } finally {

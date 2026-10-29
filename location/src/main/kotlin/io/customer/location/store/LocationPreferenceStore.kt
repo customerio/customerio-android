@@ -18,7 +18,6 @@ internal interface LocationPreferenceStore {
     fun saveCachedLocation(latitude: Double, longitude: Double)
     fun getCachedLatitude(): Double?
     fun getCachedLongitude(): Double?
-    fun hasCachedLocation(): Boolean
     fun clearCachedLocation()
 }
 
@@ -45,8 +44,6 @@ internal class LocationPreferenceStoreImpl(
     override fun getCachedLongitude(): Double? = prefs.read {
         getString(KEY_CACHED_LONGITUDE, null)?.let { crypto.decrypt(it).toDoubleOrNull() }
     }
-
-    override fun hasCachedLocation(): Boolean = prefs.contains(KEY_CACHED_LATITUDE)
 
     override fun clearCachedLocation() = prefs.edit {
         remove(KEY_CACHED_LATITUDE)

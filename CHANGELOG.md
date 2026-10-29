@@ -1,3 +1,9 @@
+## [5.0.3](https://github.com/customerio/customerio-android/compare/5.0.2...5.0.3) (2026-10-29)
+
+### Bug Fixes
+
+* move keystore work off the caller thread at init and login ([#944](https://github.com/customerio/customerio-android/issues/944)) ([10db39b](https://github.com/customerio/customerio-android/commit/10db39bf931e8c25f40872de7a4171c4efa84e8b))
+
 ## [5.0.2](https://github.com/customerio/customerio-android/compare/5.0.1...5.0.2) (2026-10-27)
 
 ### Bug Fixes

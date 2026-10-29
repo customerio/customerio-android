@@ -17,6 +17,61 @@ internal class LiveNotificationStoreTest : IntegrationTest() {
     private val store by lazy { LiveNotificationStore(contextMock) }
 
     @Test
+    fun enabledActivityTypes_roundTripsAndClearsWhenEmpty() {
+        store.enabledActivityTypes().shouldBeEmpty()
+
+        store.setEnabledActivityTypes(setOf("type.a", "type.b"))
+        store.enabledActivityTypes() shouldContainSame setOf("type.a", "type.b")
+
+        // Replace, never merge.
+        store.setEnabledActivityTypes(setOf("type.c"))
+        store.enabledActivityTypes() shouldContainSame setOf("type.c")
+
+        // An app that stops enabling every type must not look opted in to the next cold process.
+        store.setEnabledActivityTypes(emptySet())
+        store.enabledActivityTypes().shouldBeEmpty()
+    }
+
+    @Test
+    fun brandingJson_roundTripsAndClearsWhenNullOrBlank() {
+        store.brandingJson().shouldBeNull()
+
+        store.setBrandingJson("""{"companyName":"Acme"}""")
+        store.brandingJson() shouldBeEqualTo """{"companyName":"Acme"}"""
+
+        store.setBrandingJson(null)
+        store.brandingJson().shouldBeNull()
+
+        store.setBrandingJson("   ")
+        store.brandingJson().shouldBeNull()
+    }
+
+    @Test
+    fun appWideEntries_surviveEverySweep() {
+        // `enabled_types` and `branding` are app-wide and deliberately unprefixed, so no sweep in
+        // the store may reclaim them: TTL reclamation would lose the opt-in for a device that
+        // simply hasn't received a push in a while, and logout would lose it for the next user.
+        val now = 10_000_000_000L
+        val ttl = 1_000L
+        store.setEnabledActivityTypes(setOf("type.a"))
+        store.setBrandingJson("""{"companyName":"Acme"}""")
+        store.setLastTimestamp("old", 1L, now = now - ttl - 1)
+        store.setActivityType("old", "type.a", now = now - ttl - 1)
+        store.markEnded("old", now = now - ttl - 1)
+        store.setRegistrationSignature("type.a", "tok|user")
+
+        store.trimStaleTimestamps(ttlMs = ttl, now = now)
+        store.clearAllActivities()
+        store.clearRegistrations()
+
+        store.enabledActivityTypes() shouldContainSame setOf("type.a")
+        store.brandingJson() shouldBeEqualTo """{"companyName":"Acme"}"""
+        // Sanity: the sweeps did run.
+        store.activityType("old").shouldBeNull()
+        store.registrationSignature("type.a").shouldBeNull()
+    }
+
+    @Test
     fun registrationSignature_setGetClear() {
         store.registrationSignature("type-a").shouldBeNull()
 

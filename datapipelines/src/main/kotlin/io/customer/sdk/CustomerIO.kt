@@ -143,8 +143,9 @@ class CustomerIO private constructor(
     }
 
     // Tracks the last userId successfully identified in this SDK session. Used to dedup
-    // back-to-back identify(userId) calls with no traits, which are no-ops server-side.
-    // Reset on clearIdentify so a subsequent identify of the same userId is not deduped.
+    // back-to-back identify(userId) calls with no traits, which are no-ops server-side, and read
+    // before analytics.userId(), which Segment updates asynchronously and so can still hold the
+    // previous user right after identify(). Reset on clearIdentify.
     private var lastIdentifiedUserIdThisSession: String? = null
 
     // Caller-thread mirror of whether a user is currently identified, backing the synchronous
@@ -188,7 +189,7 @@ class CustomerIO private constructor(
         publishUserChanged()
     }
 
-    /** Persists the userId before publishing so subscribers that read [secureUserStore] don't race the event. */
+    /** Stores the userId before publishing so subscribers that read [secureUserStore] don't race the event. */
     private fun publishUserChanged(userId: String? = analytics.userId()) {
         val anonymousId = analytics.anonymousId()
         secureUserStore.saveUserId(userId)
@@ -274,7 +275,7 @@ class CustomerIO private constructor(
         }
 
     override fun setProfileAttributes(attributes: CustomAttributes) {
-        val identifier = this.userId
+        val identifier = lastIdentifiedUserIdThisSession ?: this.userId
         if (identifier != null) {
             identify(userId = identifier, traits = attributes)
         } else {
@@ -312,7 +313,7 @@ class CustomerIO private constructor(
         }
 
         // this is the current userId that is identified in the SDK
-        val currentlyIdentifiedProfile = this.userId.takeUnless { it.isNullOrBlank() }
+        val currentlyIdentifiedProfile = (lastIdentifiedUserIdThisSession ?: this.userId).takeUnless { it.isNullOrBlank() }
         val isChangingIdentifiedProfile = currentlyIdentifiedProfile != null && currentlyIdentifiedProfile != userId
         val isFirstTimeIdentifying = currentlyIdentifiedProfile == null
 
@@ -385,7 +386,9 @@ class CustomerIO private constructor(
     }
 
     override fun clearIdentifyImpl() {
-        logger.info("resetting user profile with id ${this.userId}")
+        // Before the marker is cleared: analytics.userId() can still lag a recent identify().
+        val existingUserId = lastIdentifiedUserIdThisSession ?: userId
+        logger.info("resetting user profile with id $existingUserId")
 
         // Reset the dedup marker so a subsequent identify of the same userId is not deduped.
         lastIdentifiedUserIdThisSession = null
@@ -397,7 +400,6 @@ class CustomerIO private constructor(
 
         // Analytics stamps identity when the event is processed, which can be after the reset below,
         // so pin the identity the device was registered under.
-        val existingUserId = userId
         val existingAnonymousId = anonymousId
         deleteDeviceToken(contextPlugin.deviceToken) { event ->
             event?.apply {
@@ -407,7 +409,7 @@ class CustomerIO private constructor(
         }
 
         logger.debug("resetting user profile")
-        // Clear the persisted userId synchronously BEFORE publishing ResetEvent. Subscribers run
+        // Clear the stored userId synchronously BEFORE publishing ResetEvent. Subscribers run
         // asynchronously, so a live `secureUserStore` read inside one (e.g. geofence deciding whether
         // to wipe) must observe the signed-out state here, not a stale value or a fast re-identify.
         secureUserStore.clearAll()

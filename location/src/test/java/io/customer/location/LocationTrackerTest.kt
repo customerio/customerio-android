@@ -11,10 +11,19 @@ import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
 import io.mockk.verify
+import java.util.concurrent.CompletableFuture
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import org.amshove.kluent.shouldBeEmpty
 import org.amshove.kluent.shouldBeEqualTo
+import org.amshove.kluent.shouldBeFalse
 import org.amshove.kluent.shouldBeNull
 import org.amshove.kluent.shouldNotBeEmpty
+import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 
@@ -26,13 +35,25 @@ class LocationTrackerTest {
     private val mockEventBus: EventBus = mockk(relaxUnitFun = true)
     private val logger: Logger = mockk(relaxUnitFun = true)
 
+    private val restoreScope = CoroutineScope(Dispatchers.Default + SupervisorJob())
     private lateinit var tracker: LocationTracker
+
+    // Stands in for the persisted cache, which resetContext() clears.
+    private var hasCachedLocation = true
 
     @BeforeEach
     fun setup() {
+        every { store.clearCachedLocation() } answers { hasCachedLocation = false }
+        every { store.getCachedLatitude() } returns null
+        every { store.getCachedLongitude() } returns null
         every { dataPipeline.isUserIdentified } returns true
         every { syncFilter.filterAndRecord(any(), any()) } returns true
-        tracker = LocationTracker(dataPipeline, store, syncFilter, mockEventBus, logger)
+        tracker = LocationTracker(dataPipeline, store, syncFilter, mockEventBus, logger, restoresPersistedLocation = true, restoreScope = restoreScope)
+    }
+
+    @AfterEach
+    fun teardown() {
+        restoreScope.cancel()
     }
 
     // -- onLocationReceived --
@@ -76,7 +97,7 @@ class LocationTrackerTest {
 
     @Test
     fun givenNullDataPipeline_expectNoException() {
-        val trackerWithNullPipeline = LocationTracker(null, store, syncFilter, mockEventBus, logger)
+        val trackerWithNullPipeline = LocationTracker(null, store, syncFilter, mockEventBus, logger, restoresPersistedLocation = true, restoreScope = restoreScope)
 
         trackerWithNullPipeline.onLocationReceived(37.7749, -122.4194)
 
@@ -216,6 +237,92 @@ class LocationTrackerTest {
         tracker.getIdentifyContext().shouldBeEmpty()
     }
 
+    @Test
+    fun givenSignOutDuringRestore_expectOldLocationNotRestored() {
+        every { store.getCachedLatitude() } answers {
+            tracker.resetContext()
+            37.7749
+        }
+        every { store.getCachedLongitude() } returns -122.4194
+
+        tracker.restorePersistedLocation()
+
+        tracker.getIdentifyContext().shouldBeEmpty()
+        tracker.lastKnownLocation.shouldBeNull()
+    }
+
+    @Test
+    fun givenFixDuringRestore_expectNewerFixKept() {
+        every { store.getCachedLatitude() } answers {
+            tracker.onLocationReceived(51.5074, -0.1278)
+            37.7749
+        }
+        every { store.getCachedLongitude() } returns -122.4194
+
+        tracker.restorePersistedLocation()
+
+        tracker.trackedLocation shouldBeEqualTo LocationCoordinates(latitude = 51.5074, longitude = -0.1278)
+        tracker.lastKnownLocation shouldBeEqualTo LocationCoordinates(latitude = 51.5074, longitude = -0.1278)
+        verify(exactly = 0) { logger.debug(match { it.startsWith("Restored persisted location") }) }
+    }
+
+    @Test
+    fun givenSignOutWhileSavingFix_expectSaveDroppedAndNotRestored() {
+        every { store.saveCachedLocation(any(), any()) } answers {
+            tracker.resetContext()
+            hasCachedLocation = true
+        }
+        every { store.getCachedLatitude() } returns 37.7749
+        every { store.getCachedLongitude() } returns -122.4194
+
+        tracker.onLocationReceived(37.7749, -122.4194)
+        tracker.restorePersistedLocation()
+
+        hasCachedLocation.shouldBeFalse()
+        tracker.trackedLocation.shouldBeNull()
+        tracker.lastKnownLocation.shouldBeNull()
+    }
+
+    @Test
+    fun givenRestoreAndSaveOverlapSignOut_expectNoLocationLeft() {
+        val saveWritten = CountDownLatch(1)
+        val restoreDone = CountDownLatch(1)
+        every { store.saveCachedLocation(any(), any()) } answers {
+            tracker.resetContext()
+            hasCachedLocation = true
+            saveWritten.countDown()
+            restoreDone.await(5, TimeUnit.SECONDS)
+        }
+        every { store.getCachedLatitude() } answers {
+            saveWritten.await(5, TimeUnit.SECONDS)
+            37.7749
+        }
+        every { store.getCachedLongitude() } returns -122.4194
+
+        val save = CompletableFuture.runAsync { tracker.onLocationReceived(51.5074, -0.1278) }
+        tracker.restorePersistedLocation()
+        restoreDone.countDown()
+        save.get(5, TimeUnit.SECONDS)
+
+        tracker.trackedLocation.shouldBeNull()
+        tracker.lastKnownLocation.shouldBeNull()
+        hasCachedLocation.shouldBeFalse()
+    }
+
+    @Test
+    fun givenSilentFixDuringRestore_expectSilentFixKeptAndRestoredLocationTracked() {
+        every { store.getCachedLatitude() } answers {
+            tracker.onLocationReceivedWithoutTracking(51.5074, -0.1278)
+            37.7749
+        }
+        every { store.getCachedLongitude() } returns -122.4194
+
+        tracker.restorePersistedLocation()
+
+        tracker.trackedLocation shouldBeEqualTo LocationCoordinates(latitude = 37.7749, longitude = -122.4194)
+        tracker.lastKnownLocation shouldBeEqualTo LocationCoordinates(latitude = 51.5074, longitude = -0.1278)
+    }
+
     // -- getIdentifyContext --
 
     @Test
@@ -231,6 +338,96 @@ class LocationTrackerTest {
         context.shouldNotBeEmpty()
         context["location_latitude"] shouldBeEqualTo 37.7749
         context["location_longitude"] shouldBeEqualTo -122.4194
+    }
+
+    @Test
+    fun givenNotRestoredYet_expectIdentifyContextRestoresFirst() {
+        every { store.getCachedLatitude() } returns 37.7749
+        every { store.getCachedLongitude() } returns -122.4194
+
+        tracker.getIdentifyContext()["location_latitude"] shouldBeEqualTo 37.7749
+    }
+
+    @Test
+    fun givenTrackingOff_expectPersistedLocationNotRestored() {
+        every { store.getCachedLatitude() } returns 37.7749
+        every { store.getCachedLongitude() } returns -122.4194
+        val tracker = LocationTracker(dataPipeline, store, syncFilter, mockEventBus, logger, restoresPersistedLocation = false, restoreScope = restoreScope)
+
+        tracker.getIdentifyContext().shouldBeEmpty()
+        tracker.restorePersistedLocation()
+
+        tracker.lastKnownLocation.shouldBeNull()
+        verify(exactly = 0) { store.getCachedLatitude() }
+    }
+
+    @Test
+    fun givenRestoreRunningOnAnotherThread_expectIdentifyContextWaitsForIt() {
+        val releaseDecrypt = CountDownLatch(1)
+        every { store.getCachedLatitude() } answers {
+            releaseDecrypt.await(5, TimeUnit.SECONDS)
+            37.7749
+        }
+        every { store.getCachedLongitude() } returns -122.4194
+
+        try {
+            val restore = CompletableFuture.runAsync { tracker.restorePersistedLocation() }
+            verify(timeout = 5_000) { store.getCachedLatitude() }
+            val context = CompletableFuture.supplyAsync { tracker.getIdentifyContext() }
+
+            Thread.sleep(200)
+            context.isDone.shouldBeFalse()
+
+            releaseDecrypt.countDown()
+            restore.get(5, TimeUnit.SECONDS)
+            context.get(5, TimeUnit.SECONDS)["location_latitude"] shouldBeEqualTo 37.7749
+            verify(exactly = 1) { store.getCachedLatitude() }
+        } finally {
+            releaseDecrypt.countDown()
+        }
+    }
+
+    @Test
+    fun givenRestoreStuck_expectIdentifyContextStopsWaiting() {
+        val releaseDecrypt = CountDownLatch(1)
+        every { store.getCachedLatitude() } answers {
+            releaseDecrypt.await(5, TimeUnit.SECONDS)
+            37.7749
+        }
+        every { store.getCachedLongitude() } returns -122.4194
+        val tracker = LocationTracker(
+            dataPipeline,
+            store,
+            syncFilter,
+            mockEventBus,
+            logger,
+            restoresPersistedLocation = true,
+            restoreScope = restoreScope,
+            identifyRestoreWaitMillis = 100
+        )
+
+        try {
+            CompletableFuture.supplyAsync { tracker.getIdentifyContext() }.get(2, TimeUnit.SECONDS).shouldBeEmpty()
+
+            releaseDecrypt.countDown()
+            verify(timeout = 5_000) { logger.debug(match { it.startsWith("Restored persisted location") }) }
+            tracker.getIdentifyContext()["location_latitude"] shouldBeEqualTo 37.7749
+            verify(exactly = 1) { store.getCachedLatitude() }
+        } finally {
+            releaseDecrypt.countDown()
+        }
+    }
+
+    @Test
+    fun givenAlreadyRestored_expectNoSecondDecrypt() {
+        every { store.getCachedLatitude() } returns 37.7749
+        every { store.getCachedLongitude() } returns -122.4194
+
+        tracker.restorePersistedLocation()
+        tracker.getIdentifyContext()
+        tracker.restorePersistedLocation()
+
+        verify(exactly = 1) { store.getCachedLatitude() }
     }
 
     // -- onUserIdentified --
@@ -278,6 +475,17 @@ class LocationTrackerTest {
         tracker.onUserIdentified()
 
         verify(exactly = 0) { dataPipeline.track(any(), any()) }
+    }
+
+    @Test
+    fun givenUserIdentified_expectPersistedLocationRestored() {
+        every { store.getCachedLatitude() } returns 37.7749
+        every { store.getCachedLongitude() } returns -122.4194
+
+        tracker.onUserIdentified()
+
+        // ModuleLocation's ON_APP_START check reads this right after, to skip a needless request.
+        tracker.trackedLocation shouldBeEqualTo LocationCoordinates(latitude = 37.7749, longitude = -122.4194)
     }
 
     // -- resetContext (synchronous, called by analytics.reset during clearIdentify) --

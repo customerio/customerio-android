@@ -79,7 +79,15 @@ class ModuleLocation @JvmOverloads constructor(
         val locationSyncFilter = LocationSyncFilter(
             LocationSyncStoreImpl(context, logger)
         )
-        val locationTracker = LocationTracker(dataPipeline, store, locationSyncFilter, eventBus, logger)
+        val locationTracker = LocationTracker(
+            dataPipeline,
+            store,
+            locationSyncFilter,
+            eventBus,
+            logger,
+            restoresPersistedLocation = moduleConfig.isEnabled,
+            restoreScope = locationScope
+        )
 
         val locationProvider = FusedLocationProvider(context)
         val orchestrator = LocationOrchestrator(
@@ -110,8 +118,6 @@ class ModuleLocation @JvmOverloads constructor(
         if (!moduleConfig.isEnabled) return
 
         val services = _locationServices ?: return
-
-        locationTracker.restorePersistedLocation()
 
         // On identify, attempt to send a supplementary "CIO Location Update" track event.
         // The identify event itself already carries location via context enrichment —

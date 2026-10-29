@@ -143,6 +143,47 @@ class DataPipelinesStandardDispatcherTest : JUnitTest(dispatcher = StandardTestD
     }
 
     @Test
+    fun device_givenProfileChangedBeforeProcessing_expectDeleteDeviceTokenForOldProfile() = runTest {
+        val givenToken = String.random
+        every { globalPreferenceStore.getDeviceToken() } returns givenToken
+
+        sdkInstance.identify("old-profile")
+        sdkInstance.identify("new-profile")
+        flushCoroutines(testScope)
+
+        val deviceDeleteEvent = outputReaderPlugin.trackEvents.single { it.event == EventNames.DEVICE_DELETE }
+        deviceDeleteEvent.userId shouldBeEqualTo "old-profile"
+        deviceDeleteEvent.context.deviceToken shouldBeEqualTo givenToken
+    }
+
+    @Test
+    fun setProfileAttributes_givenRightAfterProfileChange_expectNewProfileKept() = runTest {
+        sdkInstance.identify("old-profile").flushCoroutines(testScope)
+
+        sdkInstance.identify("new-profile")
+        sdkInstance.setProfileAttributes(mapOf("plan" to "pro"))
+        flushCoroutines(testScope)
+
+        val attributesEvent = outputReaderPlugin.identifyEvents.last()
+        attributesEvent.userId shouldBeEqualTo "new-profile"
+        attributesEvent.traits["plan"]?.jsonPrimitive?.content shouldBeEqualTo "pro"
+        analytics.userId() shouldBeEqualTo "new-profile"
+    }
+
+    @Test
+    fun device_givenClearIdentifyRightAfterProfileChange_expectDeleteForNewProfile() = runTest {
+        every { globalPreferenceStore.getDeviceToken() } returns String.random
+        sdkInstance.identify("old-profile").flushCoroutines(testScope)
+
+        sdkInstance.identify("new-profile")
+        sdkInstance.clearIdentify()
+        flushCoroutines(testScope)
+
+        val deviceDeleteEvent = outputReaderPlugin.trackEvents.last { it.event == EventNames.DEVICE_DELETE }
+        deviceDeleteEvent.userId shouldBeEqualTo "new-profile"
+    }
+
+    @Test
     fun device_givenClearIdentify_expectDeviceUnregisteredFromProfile() = runTest {
         val givenIdentifier = String.random
         val givenToken = String.random

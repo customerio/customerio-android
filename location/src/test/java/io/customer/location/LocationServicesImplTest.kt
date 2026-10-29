@@ -11,6 +11,7 @@ import io.mockk.runs
 import io.mockk.slot
 import io.mockk.unmockkStatic
 import io.mockk.verify
+import io.mockk.verifyOrder
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.TestScope
@@ -377,5 +378,24 @@ class LocationServicesImplTest {
         services.requestLocationUpdate()
 
         coVerify(exactly = 2) { orchestrator.requestLocation(any()) }
+    }
+
+    @Test
+    fun getLastKnownLocation_expectRestoresBeforeReading() {
+        val config = LocationModuleConfig.Builder().build()
+        val tracker: LocationTracker = mockk(relaxUnitFun = true)
+        val orchestrator: LocationOrchestrator = mockk(relaxUnitFun = true)
+        val logger = mockk<io.customer.sdk.core.util.Logger>(relaxUnitFun = true)
+        val scope = TestScope(UnconfinedTestDispatcher())
+        val restored = LocationCoordinates(latitude = 37.7749, longitude = -122.4194)
+        every { tracker.lastKnownLocation } returns restored
+
+        val services = LocationServicesImpl(config, logger, tracker, orchestrator, scope)
+
+        services.getLastKnownLocation() shouldBeEqualTo restored
+        verifyOrder {
+            tracker.restorePersistedLocation()
+            tracker.lastKnownLocation
+        }
     }
 }

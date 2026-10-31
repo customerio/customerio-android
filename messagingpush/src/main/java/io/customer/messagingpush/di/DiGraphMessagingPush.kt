@@ -33,6 +33,7 @@ import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.di.workManagerProvider
 import io.customer.sdk.data.store.PendingDeliveryFlusher
 import io.customer.sdk.data.store.PendingDeliveryStore
+import java.util.concurrent.LinkedBlockingDeque
 
 /*
 This file contains a series of extensions to the common module's Dependency injection (DI) graph. All extensions in this file simply add internal classes for this module into the DI graph.
@@ -97,6 +98,15 @@ internal val SDKComponent.asyncPushDeliveryTracker: AsyncPushDeliveryTracker
 internal val SDKComponent.deliveryMetricsScheduler: PushDeliveryMetricsBackgroundScheduler
     get() = singleton<PushDeliveryMetricsBackgroundScheduler> { PushDeliveryMetricsBackgroundScheduler(workManagerProvider, asyncPushDeliveryTracker) }
 
+/**
+ * Delivery ids of the most recent pushes, newest first, so a push received twice is processed once.
+ * One per graph: for the life of the process, and cleared with the rest of the SDK's state on reset.
+ */
+internal val SDKComponent.recentPushMessagesQueue: LinkedBlockingDeque<String>
+    get() = singleton(identifier = "recentPushMessagesQueue") {
+        LinkedBlockingDeque<String>(PushMessageProcessor.RECENT_MESSAGES_MAX_SIZE)
+    }
+
 internal val SDKComponent.pushMessageProcessor: PushMessageProcessor
     get() = singleton<PushMessageProcessor> {
         PushMessageProcessorImpl(
@@ -104,7 +114,8 @@ internal val SDKComponent.pushMessageProcessor: PushMessageProcessor
             moduleConfig = pushModuleConfig,
             deepLinkUtil = deepLinkUtil,
             deliveryMetricsScheduler = deliveryMetricsScheduler,
-            pendingPushDeliveryStore = pendingPushDeliveryStore
+            pendingPushDeliveryStore = pendingPushDeliveryStore,
+            recentMessagesQueue = recentPushMessagesQueue
         )
     }
 

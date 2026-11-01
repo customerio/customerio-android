@@ -24,7 +24,7 @@ class SegmentGatewayTest : JUnit5Test() {
         gateway.screen("screen")
         gateway.reset()
 
-        gateway.shouldBeInstanceOf<AnalyticsSegmentGateway>()
+        gateway.shouldBeInstanceOf<LoggingSegmentGateway>()
         verify(exactly = 1) { analytics.track("event", properties) }
         verify(exactly = 1) { analytics.screen("screen") }
         verify(exactly = 1) { analytics.reset() }

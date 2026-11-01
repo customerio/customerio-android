@@ -3,18 +3,21 @@ package io.customer.messagingpush.provider
 import android.content.Context
 import com.google.android.gms.common.ConnectionResult
 import com.google.android.gms.common.GoogleApiAvailability
+import io.customer.base.internal.InternalCustomerIOApi
 import io.customer.messagingpush.logger.PushNotificationLogger
 import io.customer.sdk.data.model.DeviceTokenType
 
 /**
  *  Responsible for token generation and validity
  */
-internal interface DeviceTokenProvider {
+@InternalCustomerIOApi
+interface DeviceTokenProvider {
     fun getCurrentToken(onComplete: (DeviceToken?) -> Unit)
 }
 
 /** A value fetched from Firebase, with whether it's a legacy token or an installation ID. */
-internal data class DeviceToken(val value: String, val type: DeviceTokenType)
+@InternalCustomerIOApi
+data class DeviceToken(val value: String, val type: DeviceTokenType)
 
 /**
  * Wrapper around FCM SDK to make the code base more testable. There is no concept of checked-exceptions in Kotlin

@@ -17,13 +17,16 @@ import io.customer.sdk.communication.Event
 import io.customer.sdk.core.di.SDKComponent.eventBus
 import io.customer.sdk.data.store.PendingDeliveryStore
 import io.customer.sdk.events.Metric
+import java.util.concurrent.LinkedBlockingDeque
 
 internal class PushMessageProcessorImpl(
     private val pushLogger: PushNotificationLogger,
     private val moduleConfig: MessagingPushModuleConfig,
     private val deepLinkUtil: DeepLinkUtil,
     private val deliveryMetricsScheduler: PushDeliveryMetricsBackgroundScheduler,
-    private val pendingPushDeliveryStore: PendingDeliveryStore<PendingPushDeliveryMetric>
+    private val pendingPushDeliveryStore: PendingDeliveryStore<PendingPushDeliveryMetric>,
+    // Recent delivery ids, the most recent first and the oldest last
+    private val recentMessagesQueue: LinkedBlockingDeque<String>
 ) : PushMessageProcessor {
 
     /**
@@ -46,7 +49,7 @@ internal class PushMessageProcessorImpl(
                 return true
             }
 
-            PushMessageProcessor.recentMessagesQueue.contains(deliveryId) -> {
+            recentMessagesQueue.contains(deliveryId) -> {
                 // Ignore messages that were processed already
                 pushLogger.logReceivedDuplicatePushMessageDeliveryId(deliveryId)
                 return true
@@ -54,10 +57,10 @@ internal class PushMessageProcessorImpl(
 
             else -> {
                 // Else add this deliveryId to the queue and assure queue don't exhaust its capacity
-                if (PushMessageProcessor.recentMessagesQueue.size >= PushMessageProcessor.RECENT_MESSAGES_MAX_SIZE) {
-                    PushMessageProcessor.recentMessagesQueue.removeLast()
+                if (recentMessagesQueue.size >= PushMessageProcessor.RECENT_MESSAGES_MAX_SIZE) {
+                    recentMessagesQueue.removeLast()
                 }
-                PushMessageProcessor.recentMessagesQueue.addFirst(deliveryId)
+                recentMessagesQueue.addFirst(deliveryId)
                 pushLogger.logReceivedNewMessageWithDeliveryId(deliveryId)
                 return false
             }

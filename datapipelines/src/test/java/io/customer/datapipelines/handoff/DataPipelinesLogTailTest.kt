@@ -57,6 +57,58 @@ class DataPipelinesLogTailTest {
     }
 
     @Test
+    fun isEnabled_givenResolved_expectAnswerFixedUntilNextResolve() {
+        val lines = Lines()
+        SDKComponent.overrideDependency<Logger>(lines)
+        DataPipelinesDiagnostics.setEnabledForTesting(true)
+        try {
+            DataPipelinesLogTail.resolve(CioLogLevel.DEBUG)
+            lines.logLevel = CioLogLevel.ERROR
+            DataPipelinesLogTail.isEnabled shouldBeEqualTo true
+
+            DataPipelinesLogTail.resolve(CioLogLevel.ERROR)
+            lines.logLevel = CioLogLevel.DEBUG
+            DataPipelinesLogTail.isEnabled shouldBeEqualTo false
+        } finally {
+            DataPipelinesDiagnostics.setEnabledForTesting(null)
+            SDKComponent.reset()
+        }
+    }
+
+    @Test
+    fun isEnabled_givenNotResolved_expectLevelAndFlagReadOnEachCheck() {
+        val lines = Lines()
+        SDKComponent.overrideDependency<Logger>(lines)
+        // Also clears an answer an earlier initialize fixed
+        DataPipelinesDiagnostics.setEnabledForTesting(true)
+        try {
+            DataPipelinesLogTail.isEnabled shouldBeEqualTo true
+            lines.logLevel = CioLogLevel.ERROR
+            DataPipelinesLogTail.isEnabled shouldBeEqualTo false
+        } finally {
+            DataPipelinesDiagnostics.setEnabledForTesting(null)
+            SDKComponent.reset()
+        }
+    }
+
+    @Test
+    fun setEnabledForTesting_givenResolved_expectOverrideTakesEffect() {
+        val lines = Lines()
+        SDKComponent.overrideDependency<Logger>(lines)
+        DataPipelinesDiagnostics.setEnabledForTesting(false)
+        try {
+            DataPipelinesLogTail.resolve(CioLogLevel.DEBUG)
+            DataPipelinesLogTail.isEnabled shouldBeEqualTo false
+
+            DataPipelinesDiagnostics.setEnabledForTesting(true)
+            DataPipelinesLogTail.isEnabled shouldBeEqualTo true
+        } finally {
+            DataPipelinesDiagnostics.setEnabledForTesting(null)
+            SDKComponent.reset()
+        }
+    }
+
+    @Test
     fun percentEncode_expectEachUtf8ByteOfTheReservedCharactersEncoded() {
         // `%`, whitespace, `=`, `,`, `:`, `|` and control characters; no key is special, a token included
         DataPipelinesLogTail.percentEncode("dGVzdA:APA91b=x y|z,%") shouldBeEqualTo "dGVzdA%3AAPA91b%3Dx%20y%7Cz%2C%25"

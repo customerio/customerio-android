@@ -23,19 +23,24 @@ internal object DataPipelinesDiagnostics {
     private var cached: Boolean? = null
 
     val isEnabled: Boolean
-        get() {
-            override?.let { return it }
-            cached?.let { return it }
-            // Null: context not reachable yet. Left uncached so a read after SDK init gets the real
-            // answer.
-            val value = readManifest() ?: return false
-            cached = value
-            return value
-        }
+        get() = read() ?: false
 
-    /** Test hook; `null` restores the manifest value. */
+    /**
+     * The flag, or null while the context isn't reachable yet. Null is left uncached so a read after
+     * SDK init gets the real answer.
+     */
+    fun read(): Boolean? {
+        override?.let { return it }
+        cached?.let { return it }
+        val value = readManifest() ?: return null
+        cached = value
+        return value
+    }
+
+    /** Test hook; `null` restores the manifest value. The log reads it on each check until the next initialize. */
     fun setEnabledForTesting(value: Boolean?) {
         override = value
+        DataPipelinesLogTail.unresolve()
     }
 
     private fun readManifest(): Boolean? = runCatching {

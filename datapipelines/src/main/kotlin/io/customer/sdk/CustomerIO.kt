@@ -664,6 +664,8 @@ class CustomerIO private constructor(
          */
         @JvmStatic
         fun initialize(config: CustomerIOConfig) {
+            // Whether the hand-off log is on, fixed once for this SDK at the level it is initialized with
+            DataPipelinesLogTail.resolve(config.logLevel)
             // Logged as an input, so a replay can tell calls made before init from calls made after
             // Before the instance exists, so it carries none
             DataPipelinesLogTail.input("api.initialize", instance = null) { initializeSdk(config) }

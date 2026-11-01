@@ -40,9 +40,29 @@ internal object DataPipelinesLogTail {
 
     private val instances = AtomicInteger()
 
-    /** Debug level and the manifest flag: two cheap reads, and no other work while the log is off. */
+    // Fixed at initialize ([resolve]); null until then, or while the manifest can't be read
+    @Volatile
+    private var enabled: Boolean? = null
+
+    /**
+     * Debug level and the manifest flag. Once [resolve] has fixed the answer, a single volatile read,
+     * and no other work while the log is off.
+     */
     val isEnabled: Boolean
-        get() = SDKComponent.logger.logLevel == CioLogLevel.DEBUG && DataPipelinesDiagnostics.isEnabled
+        get() = enabled ?: (SDKComponent.logger.logLevel == CioLogLevel.DEBUG && DataPipelinesDiagnostics.isEnabled)
+
+    /**
+     * Fixes [isEnabled] for an SDK initializing at [logLevel], the level initialize gives the logger.
+     * Called before the initialize call is logged, so it is logged when the log is on.
+     */
+    fun resolve(logLevel: CioLogLevel) {
+        enabled = if (logLevel == CioLogLevel.DEBUG) DataPipelinesDiagnostics.read() else false
+    }
+
+    /** Back to reading the level and the flag on each check, until the next [resolve]. */
+    fun unresolve() {
+        enabled = null
+    }
 
     /** The SDK instance created last: the one a public API call reaches. */
     @Volatile

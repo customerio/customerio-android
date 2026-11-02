@@ -2,6 +2,7 @@ package io.customer.messagingpush
 
 import io.customer.messagingpush.config.PushClickBehavior
 import io.customer.messagingpush.config.PushClickBehavior.ACTIVITY_PREVENT_RESTART
+import io.customer.messagingpush.data.communication.CustomerIOBackgroundPushCallback
 import io.customer.messagingpush.data.communication.CustomerIOLiveNotificationsCallback
 import io.customer.messagingpush.data.communication.CustomerIOPushNotificationCallback
 import io.customer.messagingpush.livenotification.LiveNotificationBranding
@@ -30,13 +31,29 @@ class MessagingPushModuleConfig private constructor(
     val liveNotificationTypes: Set<String>,
     val liveNotificationCallback: CustomerIOLiveNotificationsCallback?
 ) : CustomerIOModuleConfig {
+    // Keep the existing constructor bridge for already-compiled integrations.
+    var backgroundPushCallback: CustomerIOBackgroundPushCallback? = null
+        private set
+
     class Builder : CustomerIOModuleConfig.Builder<MessagingPushModuleConfig> {
+        private var backgroundPushCallback: CustomerIOBackgroundPushCallback? = null
         private var autoTrackPushEvents: Boolean = true
         private var notificationCallback: CustomerIOPushNotificationCallback? = null
         private var pushClickBehavior: PushClickBehavior = ACTIVITY_PREVENT_RESTART
         private var liveNotificationBranding: LiveNotificationBranding? = null
         private val liveNotificationTypes: MutableSet<String> = mutableSetOf()
         private var liveNotificationCallback: CustomerIOLiveNotificationsCallback? = null
+
+        /**
+         * Registers the host's data handler for explicitly marked background pushes.
+         * Configure this during Application.onCreate so cold FCM starts have a handler.
+         * Without a handler the message is consumed without display; automatic delivered
+         * metrics still describe SDK receipt, not completed application work.
+         */
+        fun setBackgroundPushCallback(callback: CustomerIOBackgroundPushCallback): Builder {
+            backgroundPushCallback = callback
+            return this
+        }
 
         /**
          * Allows to enable/disable automatic tracking of push events. Auto tracking will generate
@@ -135,12 +152,12 @@ class MessagingPushModuleConfig private constructor(
                 liveNotificationBranding = liveNotificationBranding,
                 liveNotificationTypes = liveNotificationTypes.toSet(),
                 liveNotificationCallback = liveNotificationCallback
-            )
+            ).also { it.backgroundPushCallback = backgroundPushCallback }
         }
     }
 
     override fun toString(): String {
-        return "MessagingPushModuleConfig(autoTrackPushEvents=$autoTrackPushEvents, notificationCallback=$notificationCallback, pushClickBehavior=$pushClickBehavior, liveNotificationBranding=$liveNotificationBranding, liveNotificationTypes=$liveNotificationTypes, liveNotificationCallback=$liveNotificationCallback)"
+        return "MessagingPushModuleConfig(autoTrackPushEvents=$autoTrackPushEvents, notificationCallback=$notificationCallback, pushClickBehavior=$pushClickBehavior, liveNotificationBranding=$liveNotificationBranding, liveNotificationTypes=$liveNotificationTypes, liveNotificationCallback=$liveNotificationCallback, backgroundPushCallback=$backgroundPushCallback)"
     }
 
     companion object {

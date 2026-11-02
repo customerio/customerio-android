@@ -19,6 +19,8 @@ import io.customer.messagingpush.di.liveNotificationManager
 import io.customer.messagingpush.di.pushLogger
 import io.customer.messagingpush.di.pushModuleConfig
 import io.customer.messagingpush.extensions.*
+import io.customer.messagingpush.processor.BackgroundPushParseResult
+import io.customer.messagingpush.processor.BackgroundPushParser
 import io.customer.messagingpush.processor.PushMessageProcessor
 import io.customer.messagingpush.util.BitmapDownloader
 import io.customer.messagingpush.util.NotificationChannelCreator
@@ -78,6 +80,39 @@ internal class CustomerIOPushNotificationHandler(
         if (bundle.isEmpty) {
             pushLogger.logReceivedEmptyPushMessage()
             return false
+        }
+
+        // Reserved background messages must never fall through to notification rendering,
+        // including a newer wire version this SDK cannot decode.
+        when (val background = BackgroundPushParser.parse(remoteMessage.data)) {
+            BackgroundPushParseResult.NotBackground -> Unit
+            BackgroundPushParseResult.Unsupported -> {
+                pushLogger.logUnsupportedBackgroundPush()
+                return true
+            }
+            is BackgroundPushParseResult.Received -> {
+                if (remoteMessage.notification != null) {
+                    pushLogger.logUnsupportedBackgroundPush()
+                    return true
+                }
+                // Receipt bookkeeping must not prevent the host from receiving its data.
+                try {
+                    pushMessageProcessor.processRemoteMessageDeliveredMetrics(background.payload.deliveryId, background.deliveryToken)
+                } catch (error: Exception) {
+                    pushLogger.logBackgroundPushReceiptFailed(error)
+                }
+                val callback = moduleConfig.backgroundPushCallback
+                if (callback == null) {
+                    pushLogger.logBackgroundPushCallbackMissing()
+                } else {
+                    try {
+                        callback.onBackgroundPushReceived(context, background.payload)
+                    } catch (error: Exception) {
+                        pushLogger.logBackgroundPushCallbackFailed(error)
+                    }
+                }
+                return true
+            }
         }
 
         // Customer.io push notifications include data regarding the push

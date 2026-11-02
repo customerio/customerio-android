@@ -84,6 +84,27 @@ class ModuleMessagingPushFCMTest : IntegrationTest() {
     }
 
     @Test
+    fun initialize_givenNoBackgroundCallback_expectReceiverDisabled() {
+        module.initialize()
+
+        assertCalledOnce { eventBus.publish(Event.BackgroundPushReadinessChangedEvent(ready = false)) }
+    }
+
+    @Test
+    fun initialize_givenBackgroundCallback_expectReceiverReadyBeforeFetchingToken() {
+        module = ModuleMessagingPushFCM(
+            MessagingPushModuleConfig.Builder().setBackgroundPushCallback { _, _ -> }.build()
+        )
+
+        module.initialize()
+
+        verifyOrder {
+            eventBus.publish(Event.BackgroundPushReadinessChangedEvent(ready = true))
+            fcmTokenProviderMock.getCurrentToken(any())
+        }
+    }
+
+    @Test
     fun initialize_givenNoFCMTokenAvailable_expectDoNotRegisterToken() {
         every { fcmTokenProviderMock.getCurrentToken(any()) } answers {
             val callback = firstArg<(DeviceToken?) -> Unit>()
@@ -92,7 +113,7 @@ class ModuleMessagingPushFCMTest : IntegrationTest() {
 
         module.initialize()
 
-        assertCalledNever { eventBus.publish(any<Event.RegisterDeviceTokenEvent>()) }
+        assertCalledNever { eventBus.publish(ofType<Event.RegisterDeviceTokenEvent>()) }
     }
 
     @Test
@@ -135,7 +156,7 @@ class ModuleMessagingPushFCMTest : IntegrationTest() {
 
         module.initialize()
 
-        verify(exactly = 0) { eventBus.publish(any<Event.TrackPushMetricEvent>()) }
+        verify(exactly = 0) { eventBus.publish(ofType<Event.TrackPushMetricEvent>()) }
         verify(exactly = 0) { mockPendingStore.claim(any()) }
         verify(exactly = 0) { mockWorkManager.cancelUniqueWork(any()) }
     }
@@ -189,7 +210,7 @@ class ModuleMessagingPushFCMTest : IntegrationTest() {
         module.handoffPendingPushDeliveryToAnalyticsPipeline()
 
         verify(exactly = 1) { mockPendingStore.claim("d1") }
-        verify(exactly = 0) { eventBus.publish(any<Event.TrackPushMetricEvent>()) }
+        verify(exactly = 0) { eventBus.publish(ofType<Event.TrackPushMetricEvent>()) }
         verify(exactly = 0) { mockPushLogger.logHandoffPublishedToEventBus(any()) }
     }
 
@@ -200,7 +221,7 @@ class ModuleMessagingPushFCMTest : IntegrationTest() {
         module.handoffPendingPushDeliveryToAnalyticsPipeline()
 
         verify(exactly = 0) { mockWorkManager.cancelUniqueWork(any()) }
-        verify(exactly = 0) { eventBus.publish(any<Event.TrackPushMetricEvent>()) }
+        verify(exactly = 0) { eventBus.publish(ofType<Event.TrackPushMetricEvent>()) }
         verify(exactly = 0) { mockPendingStore.claim(any()) }
     }
 

@@ -4,13 +4,17 @@ import io.customer.commontest.config.TestConfig
 import io.customer.commontest.extensions.assertCalledNever
 import io.customer.commontest.extensions.assertCalledOnce
 import io.customer.commontest.extensions.random
+import io.customer.commontest.util.ScopeProviderStub
 import io.customer.datapipelines.testutils.core.IntegrationTest
 import io.customer.datapipelines.testutils.core.testConfiguration
 import io.customer.datapipelines.testutils.utils.OutputReaderPlugin
 import io.customer.datapipelines.testutils.utils.TOKEN_TYPE_ATTRIBUTE
 import io.customer.datapipelines.testutils.utils.trackEvents
 import io.customer.sdk.DataPipelinesLogger
+import io.customer.sdk.communication.Event
 import io.customer.sdk.core.di.SDKComponent
+import io.customer.sdk.core.di.SDKComponent.eventBus
+import io.customer.sdk.core.util.ScopeProvider
 import io.customer.sdk.data.model.DeviceTokenType
 import io.customer.sdk.data.store.GlobalPreferenceStore
 import io.customer.sdk.util.EventNames
@@ -37,7 +41,12 @@ class DeviceTokenTypeTests : IntegrationTest() {
         super.setup(
             testConfiguration {
                 sdkConfig { autoTrackDeviceAttributes(autoTrackDeviceAttributes) }
-                diGraph { sdk { overrideDependency<DataPipelinesLogger>(mockDataPipelinesLogger) } }
+                diGraph {
+                    sdk {
+                        overrideDependency<DataPipelinesLogger>(mockDataPipelinesLogger)
+                        overrideDependency<ScopeProvider>(ScopeProviderStub.Unconfined())
+                    }
+                }
             }
         )
         globalPreferenceStore = SDKComponent.android().globalPreferenceStore
@@ -89,7 +98,36 @@ class DeviceTokenTypeTests : IntegrationTest() {
         sdkInstance.registerDeviceToken(String.random, DeviceTokenType.TOKEN)
 
         deviceUpdateTokenType() shouldBeEqualTo "token"
-        outputReaderPlugin.trackEvents.single().properties.keys shouldBeEqualTo setOf(TOKEN_TYPE_ATTRIBUTE)
+        outputReaderPlugin.trackEvents.single().properties.keys shouldBeEqualTo setOf(TOKEN_TYPE_ATTRIBUTE, "cio_background_push_version")
+    }
+
+    @Test
+    fun backgroundReadiness_givenNoToken_expectNoUpdateUntilTokenRegistration() {
+        setupSdk(autoTrackDeviceAttributes = false)
+
+        eventBus.publish(Event.BackgroundPushReadinessChangedEvent(ready = true))
+        outputReaderPlugin.trackEvents.size shouldBeEqualTo 0
+
+        sdkInstance.registerDeviceToken(String.random, DeviceTokenType.TOKEN)
+        outputReaderPlugin.trackEvents.shouldHaveSingleItem().properties["cio_background_push_version"]?.jsonPrimitive?.content shouldBeEqualTo "1"
+    }
+
+    @Test
+    fun backgroundReadiness_givenExistingToken_expectCurrentReadinessOnEveryUpdate() {
+        setupSdk(autoTrackDeviceAttributes = false)
+        sdkInstance.registerDeviceToken(String.random, DeviceTokenType.TOKEN)
+        outputReaderPlugin.trackEvents.last().properties["cio_background_push_version"]?.jsonPrimitive?.content shouldBeEqualTo "0"
+
+        eventBus.publish(Event.BackgroundPushReadinessChangedEvent(ready = true))
+        testDispatcher.scheduler.advanceUntilIdle()
+        outputReaderPlugin.trackEvents.last().properties["cio_background_push_version"]?.jsonPrimitive?.content shouldBeEqualTo "1"
+
+        sdkInstance.setDeviceAttributes(mapOf("cio_background_push_version" to "0"))
+        outputReaderPlugin.trackEvents.last().properties["cio_background_push_version"]?.jsonPrimitive?.content shouldBeEqualTo "1"
+
+        eventBus.publish(Event.BackgroundPushReadinessChangedEvent(ready = false))
+        testDispatcher.scheduler.advanceUntilIdle()
+        outputReaderPlugin.trackEvents.last().properties["cio_background_push_version"]?.jsonPrimitive?.content shouldBeEqualTo "0"
     }
 
     @Test

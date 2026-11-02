@@ -42,6 +42,7 @@ class ModuleMessagingPushFCM @JvmOverloads constructor(
         get() = MODULE_NAME
 
     override fun initialize() {
+        eventBus.publish(Event.BackgroundPushReadinessChangedEvent(ready = moduleConfig.backgroundPushCallback != null))
         // Live notifications are opt-in; start before requesting the token so the
         // registrar observes the resulting RegisterDeviceTokenEvent.
         if (moduleConfig.liveNotificationTypes.isNotEmpty()) {

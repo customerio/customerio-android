@@ -96,7 +96,7 @@ class DataPipelinesStandardDispatcherTest : JUnitTest(dispatcher = StandardTestD
 
         val deviceRegisterEventContext = deviceRegisterEvent.context
         deviceRegisterEventContext.deviceToken shouldBeEqualTo givenToken
-        deviceRegisterEvent.properties shouldMatchTo deviceStore.buildDeviceAttributes()
+        deviceRegisterEvent.properties shouldMatchTo (deviceStore.buildDeviceAttributes() + ("cio_background_push_version" to "0"))
     }
 
     @Test

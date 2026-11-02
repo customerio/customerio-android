@@ -32,6 +32,6 @@ internal object BackgroundPushParser {
             val lower = key.lowercase()
             key !in metadataKeys && !lower.startsWith("google.") && !lower.startsWith("gcm.")
         }
-        return BackgroundPushParseResult.Received(CustomerIOBackgroundPushPayload(deliveryId, businessData), token)
+        return BackgroundPushParseResult.Received(CustomerIOBackgroundPushPayload(deliveryId, businessData, token), token)
     }
 }

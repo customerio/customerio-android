@@ -113,6 +113,7 @@ public final class io/customer/messagingpush/data/communication/CustomerIOPushNo
 public final class io/customer/messagingpush/data/model/CustomerIOBackgroundPushPayload {
 	public final fun getData ()Ljava/util/Map;
 	public final fun getDeliveryId ()Ljava/lang/String;
+	public final fun getDeliveryToken ()Ljava/lang/String;
 }
 
 public final class io/customer/messagingpush/data/model/CustomerIOParsedPushPayload : android/os/Parcelable {

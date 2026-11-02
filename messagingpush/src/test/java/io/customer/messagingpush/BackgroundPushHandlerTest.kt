@@ -300,6 +300,7 @@ class BackgroundPushHandlerTest : IntegrationTest() {
         assertTrue(CustomerIOPushNotificationHandler(processor, message, NotificationChannelCreator()).handleMessage(contextMock))
 
         assertEquals("dlv_123", received?.deliveryId)
+        assertEquals("tok_abc", received?.deliveryToken)
         assertEquals(mapOf("title" to "Order shipped", "body" to "", "order_id" to "42"), received?.data)
         verify(exactly = 1) { processor.processRemoteMessageDeliveredMetrics("dlv_123", "tok_abc") }
         val manager = contextMock.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager

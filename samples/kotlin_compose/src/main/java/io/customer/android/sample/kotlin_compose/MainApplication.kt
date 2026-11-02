@@ -10,6 +10,7 @@ import io.customer.location.ModuleLocation
 import io.customer.messaginginapp.MessagingInAppModuleConfig
 import io.customer.messaginginapp.ModuleMessagingInApp
 import io.customer.messaginginapp.type.NotificationInboxAccessibilityLabels
+import io.customer.messagingpush.MessagingPushModuleConfig
 import io.customer.messagingpush.ModuleMessagingPushFCM
 import io.customer.sdk.CustomerIO
 import io.customer.sdk.CustomerIOConfigBuilder
@@ -51,7 +52,21 @@ class MainApplication : Application() {
                         .build()
                 )
             )
-            .addCustomerIOModule(ModuleMessagingPushFCM())
+            .addCustomerIOModule(
+                ModuleMessagingPushFCM(
+                    MessagingPushModuleConfig.Builder()
+                        .setBackgroundPushCallback { context, payload ->
+                            val receipt = org.json.JSONObject()
+                                .put("delivery_id", payload.deliveryId)
+                                .put("received_at_ms", System.currentTimeMillis())
+                                .put("data", org.json.JSONObject(payload.data))
+                            context.openFileOutput("background-push.jsonl", MODE_APPEND).use {
+                                it.write((receipt.toString() + "\n").toByteArray(Charsets.UTF_8))
+                            }
+                        }
+                        .build()
+                )
+            )
             .addCustomerIOModule(ModuleLocation())
             .addCustomerIOModule(ModuleGeofence())
         configuration.setValuesFromBuilder(builder)

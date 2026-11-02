@@ -197,6 +197,12 @@ class CustomerIO private constructor(
     }
 
     private fun subscribeToJourneyEvents() {
+        eventBus.subscribe<Event.BackgroundPushReadinessChangedEvent> {
+            synchronized(this) {
+                backgroundPushReady = it.ready
+                setDeviceAttributes(emptyMap())
+            }
+        }
         eventBus.subscribe<Event.TrackPushMetricEvent> {
             trackMetric(TrackMetric.Push(metric = it.event, deliveryId = it.deliveryId, deviceToken = it.deviceToken))
         }
@@ -482,6 +488,8 @@ class CustomerIO private constructor(
         trackDeviceAttributes(token = deviceToken, tokenType = tokenType)
     }
 
+    private var backgroundPushReady = false
+
     private fun trackDeviceAttributes(
         token: String?,
         tokenType: DeviceTokenType?,
@@ -505,7 +513,8 @@ class CustomerIO private constructor(
             customAddedAttributes
         }
         // Always applied, even with autoTrackDeviceAttributes off: the backend needs the type for every device.
-        val attributes = trackedAttributes.withDeviceTokenType(tokenType = tokenType, logger = dataPipelinesLogger)
+        val attributes = trackedAttributes.withDeviceTokenType(tokenType = tokenType, logger = dataPipelinesLogger) +
+            ("cio_background_push_version" to if (backgroundPushReady) "1" else "0")
 
         // Update plugin with updated device information
         contextPlugin.deviceToken = token

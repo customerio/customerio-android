@@ -442,7 +442,7 @@ class DataPipelinesInteractionTests : JUnitTest() {
         deviceRegisterEvent.userId shouldBeEqualTo givenIdentifier
         deviceRegisterEvent.event shouldBeEqualTo EventNames.DEVICE_UPDATE
         deviceRegisterEvent.context.deviceToken shouldBeEqualTo givenToken
-        deviceRegisterEvent.properties.shouldBeEmpty()
+        deviceRegisterEvent.properties shouldMatchTo mapOf("cio_background_push_version" to "0")
     }
 
     @Test
@@ -467,7 +467,7 @@ class DataPipelinesInteractionTests : JUnitTest() {
         deviceRegisterEvent.userId shouldBeEqualTo givenIdentifier
         deviceRegisterEvent.event shouldBeEqualTo EventNames.DEVICE_UPDATE
         deviceRegisterEvent.context.deviceToken shouldBeEqualTo givenToken
-        deviceRegisterEvent.properties shouldMatchTo givenAttributes
+        deviceRegisterEvent.properties shouldMatchTo (givenAttributes + ("cio_background_push_version" to "0"))
     }
 
     @Test

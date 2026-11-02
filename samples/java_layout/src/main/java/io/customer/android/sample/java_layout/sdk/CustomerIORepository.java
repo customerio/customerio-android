@@ -5,6 +5,9 @@ import android.text.TextUtils;
 import androidx.annotation.NonNull;
 
 import java.util.Map;
+import java.io.FileOutputStream;
+import java.nio.charset.StandardCharsets;
+import org.json.JSONObject;
 
 import io.customer.android.sample.java_layout.SampleApplication;
 import io.customer.android.sample.java_layout.data.PreferencesDataStore;
@@ -64,6 +67,19 @@ public class CustomerIORepository {
         // Enables push notification with live-notification branding registered once at init.
         messagingPushModule = new ModuleMessagingPushFCM(
                 new MessagingPushModuleConfig.Builder()
+                        .setBackgroundPushCallback((context, payload) -> {
+                            try {
+                                JSONObject receipt = new JSONObject()
+                                        .put("delivery_id", payload.getDeliveryId())
+                                        .put("received_at_ms", System.currentTimeMillis())
+                                        .put("data", new JSONObject(payload.getData()));
+                                try (FileOutputStream output = context.openFileOutput("background-push.jsonl", android.content.Context.MODE_APPEND)) {
+                                    output.write((receipt.toString() + "\n").getBytes(StandardCharsets.UTF_8));
+                                }
+                            } catch (Exception error) {
+                                throw new IllegalStateException("Unable to record background push data", error);
+                            }
+                        })
                         // One app-level brand applied to every live notification.
                         .setLiveNotificationBranding(new LiveNotificationBranding(
                                 "Customer.io Sample",

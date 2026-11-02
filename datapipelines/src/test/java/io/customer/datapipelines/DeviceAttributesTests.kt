@@ -19,7 +19,6 @@ import io.mockk.every
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonPrimitive
-import org.amshove.kluent.shouldBeEmpty
 import org.amshove.kluent.shouldBeEqualTo
 import org.amshove.kluent.shouldContain
 import org.amshove.kluent.shouldHaveSingleItem
@@ -81,7 +80,8 @@ class DeviceAttributesTests : IntegrationTest() {
         deviceRegisterEvent.userId shouldBeEqualTo givenIdentifier
         deviceRegisterEvent.event shouldBeEqualTo EventNames.DEVICE_UPDATE
         deviceRegisterEvent.context.deviceToken shouldBeEqualTo givenToken
-        deviceRegisterEvent.properties.shouldBeEmpty()
+        deviceRegisterEvent.properties shouldContain ("cio_background_push_version" to "0").encodeToJsonValue()
+        deviceRegisterEvent.properties.keys shouldHaveSize 1
     }
 
     @Test
@@ -109,7 +109,7 @@ class DeviceAttributesTests : IntegrationTest() {
         deviceRegisterEvent.context.deviceToken shouldBeEqualTo givenToken
 
         val properties = deviceRegisterEvent.properties
-        properties.keys shouldHaveSize 13
+        properties.keys shouldHaveSize 14
         properties shouldContain ("device_os" to 30).encodeToJsonValue()
         properties shouldContain ("device_model" to "Pixel 6").encodeToJsonValue()
         properties shouldContain ("device_manufacturer" to "Google").encodeToJsonValue()
@@ -159,10 +159,10 @@ class DeviceAttributesTests : IntegrationTest() {
         deviceRegisterEvent.context.deviceToken shouldBeEqualTo givenToken
 
         val properties = deviceRegisterEvent.properties
-        // Auto tracked device attributes => 13
+        // Auto tracked device attributes and receiver readiness => 14
         // Custom device attributes => 4
         // Overlapping attributes => 2
-        properties.keys shouldHaveSize 15
+        properties.keys shouldHaveSize 16
         // Verify new custom attributes are present
         properties shouldContain ("source" to "test").encodeToJsonValue()
         properties shouldContain ("debugMode" to true).encodeToJsonValue()

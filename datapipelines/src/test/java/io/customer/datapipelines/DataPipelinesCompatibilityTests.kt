@@ -427,7 +427,7 @@ class DataPipelinesCompatibilityTests : JUnitTest() {
 
         val payloadContext = payload["context"]?.jsonObject.shouldNotBeNull()
         payloadContext.deviceToken shouldBeEqualTo givenToken
-        payload["properties"]?.jsonObject.shouldNotBeNull().shouldBeEmpty()
+        payload["properties"]?.jsonObject.shouldNotBeNull() shouldMatchTo mapOf("cio_background_push_version" to "0")
         // server does not require 'last_used' and 'platform' and may fail if included
         payloadContext.containsKey("last_used") shouldBeEqualTo false
         payloadContext.containsKey("platform") shouldBeEqualTo false
@@ -490,7 +490,7 @@ class DataPipelinesCompatibilityTests : JUnitTest() {
         val payloadContext = payload["context"]?.jsonObject.shouldNotBeNull()
         payloadContext.deviceToken shouldBeEqualTo givenToken
 
-        val givenAttributes = deviceStore.buildDeviceAttributes() + customAttributes
+        val givenAttributes = deviceStore.buildDeviceAttributes() + customAttributes + ("cio_background_push_version" to "0")
         payload["properties"]?.jsonObject.shouldNotBeNull() shouldMatchTo givenAttributes
     }
 

@@ -148,7 +148,10 @@ class TrackingMigrationProcessorTest : IntegrationTest() {
         val deviceRegisterEvent = outputReaderPlugin.trackEvents.shouldHaveSingleItem()
         deviceRegisterEvent.event shouldBeEqualTo EventNames.DEVICE_UPDATE
         deviceRegisterEvent.context.deviceToken shouldBeEqualTo oldDeviceToken
-        deviceRegisterEvent.properties shouldBeEqualTo buildJsonObject { put(TOKEN_TYPE_ATTRIBUTE, "token") }
+        deviceRegisterEvent.properties shouldBeEqualTo buildJsonObject {
+            put(TOKEN_TYPE_ATTRIBUTE, "token")
+            put("cio_background_push_version", "0")
+        }
     }
 
     @Test

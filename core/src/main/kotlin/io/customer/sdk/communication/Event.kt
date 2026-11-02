@@ -40,6 +40,9 @@ sealed class Event {
     @InternalCustomerIOApi
     object SdkInitializedEvent : Event()
 
+    @InternalCustomerIOApi
+    data class BackgroundPushReadinessChangedEvent(val ready: Boolean) : Event()
+
     data class TrackPushMetricEvent(
         val deliveryId: String,
         val event: Metric,

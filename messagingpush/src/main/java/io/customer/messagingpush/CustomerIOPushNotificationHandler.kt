@@ -14,6 +14,7 @@ import androidx.core.app.NotificationCompat
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
 import io.customer.messagingpush.activity.NotificationClickReceiverActivity
+import io.customer.messagingpush.data.model.CustomerIOBackgroundPushPayload
 import io.customer.messagingpush.data.model.CustomerIOParsedPushPayload
 import io.customer.messagingpush.di.liveNotificationManager
 import io.customer.messagingpush.di.pushLogger
@@ -82,35 +83,15 @@ internal class CustomerIOPushNotificationHandler(
             return false
         }
 
-        // Reserved background messages must never fall through to notification rendering,
-        // including a newer wire version this SDK cannot decode.
-        when (val background = BackgroundPushParser.parse(remoteMessage.data)) {
+        // A message marked as a silent push is never displayed, even one this SDK can't decode.
+        when (val background = BackgroundPushParser.parse(remoteMessage)) {
             BackgroundPushParseResult.NotBackground -> Unit
             BackgroundPushParseResult.Unsupported -> {
                 pushLogger.logUnsupportedBackgroundPush()
                 return true
             }
             is BackgroundPushParseResult.Received -> {
-                if (remoteMessage.notification != null) {
-                    pushLogger.logUnsupportedBackgroundPush()
-                    return true
-                }
-                // Receipt bookkeeping must not prevent the host from receiving its data.
-                try {
-                    pushMessageProcessor.processRemoteMessageDeliveredMetrics(background.payload.deliveryId, background.deliveryToken)
-                } catch (error: Exception) {
-                    pushLogger.logBackgroundPushReceiptFailed(error)
-                }
-                val callback = moduleConfig.backgroundPushCallback
-                if (callback == null) {
-                    pushLogger.logBackgroundPushCallbackMissing()
-                } else {
-                    try {
-                        callback.onBackgroundPushReceived(context, background.payload)
-                    } catch (error: Exception) {
-                        pushLogger.logBackgroundPushCallbackFailed(error)
-                    }
-                }
+                deliverBackgroundPush(context, background.payload)
                 return true
             }
         }
@@ -141,6 +122,25 @@ internal class CustomerIOPushNotificationHandler(
         }
 
         return true
+    }
+
+    private fun deliverBackgroundPush(context: Context, payload: CustomerIOBackgroundPushPayload) {
+        // A failed receipt must not keep the data from the app.
+        try {
+            pushMessageProcessor.processRemoteMessageDeliveredMetrics(payload.deliveryId, payload.deliveryToken)
+        } catch (error: Exception) {
+            pushLogger.logBackgroundPushReceiptFailed(error)
+        }
+        val callback = moduleConfig.backgroundPushCallback
+        if (callback == null) {
+            pushLogger.logBackgroundPushCallbackMissing()
+            return
+        }
+        try {
+            callback.onBackgroundPushReceived(context, payload)
+        } catch (error: Exception) {
+            pushLogger.logBackgroundPushCallbackFailed(error)
+        }
     }
 
     private fun handleNotification(

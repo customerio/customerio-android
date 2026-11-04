@@ -188,7 +188,7 @@ class BackgroundPushHandlerTest : IntegrationTest() {
     }
 
     @Test
-    fun legacyBusinessKeys_resemblingBackgroundMetadata_stillPostNotification() {
+    fun legacyBusinessKeys_includingBackgroundMetadata_stillPostNotification() {
         val manager = contextMock.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         val legacy = mapOf(
             "CIO-Delivery-ID" to "old",
@@ -196,7 +196,14 @@ class BackgroundPushHandlerTest : IntegrationTest() {
             "title" to "Existing title",
             "body" to "Existing body"
         )
-        listOf("CIO-Background-sync", "cio-background-version", "CIO-Background-Delivery-ID-extra").forEach { key ->
+        listOf(
+            "CIO-Background-Version",
+            "CIO-Background-Delivery-ID",
+            "CIO-Background-Delivery-Token",
+            "CIO-Background-sync",
+            "cio-background-version",
+            "CIO-Background-Delivery-ID-extra"
+        ).forEach { key ->
             manager.cancelAll()
             val handler = CustomerIOPushNotificationHandler(
                 mockk(relaxed = true),
@@ -336,7 +343,7 @@ class BackgroundPushHandlerTest : IntegrationTest() {
     }
 
     @Test
-    fun unsupportedBackgroundVersion_withLegacyTrackingKeys_isConsumedWithoutDisplayOrReceipt() {
+    fun legacyTrackingKeys_withUnknownBackgroundVersion_keepLegacyNotificationHandling() {
         val processor = mockk<PushMessageProcessor>(relaxed = true)
         val message = RemoteMessage.Builder("destination").setData(
             mapOf(
@@ -350,8 +357,7 @@ class BackgroundPushHandlerTest : IntegrationTest() {
         assertTrue(handler.handleMessage(contextMock))
 
         val manager = contextMock.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        assertTrue(Shadows.shadowOf(manager).allNotifications.isEmpty())
-        assertTrue(manager.notificationChannels.isEmpty())
-        verify(exactly = 0) { processor.processRemoteMessageDeliveredMetrics(any(), any()) }
+        assertEquals(1, Shadows.shadowOf(manager).allNotifications.size)
+        verify(exactly = 1) { processor.processRemoteMessageDeliveredMetrics("legacy-delivery", "legacy-token") }
     }
 }

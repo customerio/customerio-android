@@ -1,6 +1,7 @@
 package io.customer.messagingpush.processor
 
 import io.customer.messagingpush.data.model.CustomerIOBackgroundPushPayload
+import io.customer.messagingpush.util.PushTrackingUtil
 
 internal sealed class BackgroundPushParseResult {
     object NotBackground : BackgroundPushParseResult()
@@ -13,6 +14,10 @@ internal object BackgroundPushParser {
     private val metadataKeys = setOf("${PREFIX}Version", "${PREFIX}Delivery-ID", "${PREFIX}Delivery-Token")
 
     fun parse(data: Map<String, String>): BackgroundPushParseResult {
+        // The legacy relay owns this pair; background envelopes forbid it.
+        if (data[PushTrackingUtil.DELIVERY_ID_KEY] != null && data[PushTrackingUtil.DELIVERY_TOKEN_KEY] != null) {
+            return BackgroundPushParseResult.NotBackground
+        }
         // Existing customer keys may share the prefix without declaring background intent.
         if (metadataKeys.none { it in data }) return BackgroundPushParseResult.NotBackground
 

@@ -41,8 +41,12 @@ class ModuleMessagingPushFCM @JvmOverloads constructor(
     override val moduleName: String
         get() = MODULE_NAME
 
+    private val isBackgroundPushReady: Boolean
+        get() = moduleConfig.backgroundPushCallback != null
+
     override fun initialize() {
-        eventBus.publish(Event.BackgroundPushReadinessChangedEvent(ready = moduleConfig.backgroundPushCallback != null))
+        // The token registration below carries readiness to Customer.io.
+        eventBus.publish(Event.BackgroundPushReadinessChangedEvent(ready = isBackgroundPushReady))
         // Live notifications are opt-in; start before requesting the token so the
         // registrar observes the resulting RegisterDeviceTokenEvent.
         if (moduleConfig.liveNotificationTypes.isNotEmpty()) {
@@ -247,8 +251,11 @@ class ModuleMessagingPushFCM @JvmOverloads constructor(
      */
     private fun getCurrentFcmToken() {
         fcmTokenProvider.getCurrentToken { token ->
-            token?.let {
+            if (token != null) {
                 eventBus.publish(Event.RegisterDeviceTokenEvent(token = token.value, tokenType = token.type))
+            } else {
+                // No registration follows, so report readiness against the token stored earlier.
+                eventBus.publish(Event.BackgroundPushReadinessChangedEvent(ready = isBackgroundPushReady, reportWithStoredToken = true))
             }
         }
     }

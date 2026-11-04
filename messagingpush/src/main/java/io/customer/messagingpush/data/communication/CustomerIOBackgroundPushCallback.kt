@@ -22,9 +22,8 @@ import io.customer.messagingpush.data.model.CustomerIOBackgroundPushPayload
  * After a device has been offline, only the newest silent push may arrive. Treat each one as a
  * prompt to fetch the latest state.
  *
- * Silent push needs Customer.io Android SDK 5.1.0 or later. Devices on older versions, and
- * devices whose app registers no callback, report that they can't receive silent pushes, and
- * Customer.io skips them.
+ * Silent push needs Customer.io Android SDK 5.1.0 or later. Customer.io skips devices on older
+ * versions and devices whose app registers no callback.
  */
 fun interface CustomerIOBackgroundPushCallback {
     fun onBackgroundPushReceived(context: Context, payload: CustomerIOBackgroundPushPayload)

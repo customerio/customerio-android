@@ -201,10 +201,12 @@ class CustomerIO private constructor(
             synchronized(this) {
                 backgroundPushReady = it.ready
                 // The push module fetches the token right after publishing readiness, and that
-                // registration carries it. Send an update here only to correct one this process
-                // already sent with the other value, so each launch keeps a single device update.
+                // registration carries it, so each launch keeps a single device update. Send one
+                // here only to correct an update this process already sent with the other value,
+                // or with the stored token when the startup fetch failed and nothing was sent yet.
                 val reported = reportedBackgroundPushReady
-                if (reported != null && reported != it.ready) {
+                val shouldReport = if (reported == null) it.reportWithStoredToken else reported != it.ready
+                if (shouldReport) {
                     setDeviceAttributes(emptyMap())
                 }
             }

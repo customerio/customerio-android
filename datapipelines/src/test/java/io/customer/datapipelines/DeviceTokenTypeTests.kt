@@ -7,6 +7,7 @@ import io.customer.commontest.extensions.random
 import io.customer.commontest.util.ScopeProviderStub
 import io.customer.datapipelines.testutils.core.IntegrationTest
 import io.customer.datapipelines.testutils.core.testConfiguration
+import io.customer.datapipelines.testutils.extensions.deviceToken
 import io.customer.datapipelines.testutils.utils.OutputReaderPlugin
 import io.customer.datapipelines.testutils.utils.TOKEN_TYPE_ATTRIBUTE
 import io.customer.datapipelines.testutils.utils.trackEvents
@@ -123,6 +124,21 @@ class DeviceTokenTypeTests : IntegrationTest() {
 
         sdkInstance.registerDeviceToken("token-from-earlier-launch", DeviceTokenType.TOKEN)
         outputReaderPlugin.trackEvents.shouldHaveSingleItem().properties["cio_background_push_version"]?.jsonPrimitive?.content shouldBeEqualTo "1"
+    }
+
+    @Test
+    fun backgroundReadiness_givenTokenFetchFailedWithStoredToken_expectOneUpdateWithStoredToken() {
+        setupSdk(autoTrackDeviceAttributes = false)
+        globalPreferenceStore.saveDeviceToken("token-from-earlier-launch", DeviceTokenType.TOKEN)
+
+        eventBus.publish(Event.BackgroundPushReadinessChangedEvent(ready = true))
+        eventBus.publish(Event.BackgroundPushReadinessChangedEvent(ready = true, reportWithStoredToken = true))
+        eventBus.publish(Event.BackgroundPushReadinessChangedEvent(ready = true, reportWithStoredToken = true))
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val update = outputReaderPlugin.trackEvents.shouldHaveSingleItem()
+        update.context.deviceToken shouldBeEqualTo "token-from-earlier-launch"
+        update.properties["cio_background_push_version"]?.jsonPrimitive?.content shouldBeEqualTo "1"
     }
 
     @Test

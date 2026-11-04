@@ -117,6 +117,31 @@ class ModuleMessagingPushFCMTest : IntegrationTest() {
     }
 
     @Test
+    fun initialize_givenNoFCMTokenAvailable_expectReadinessReportedWithStoredToken() {
+        every { fcmTokenProviderMock.getCurrentToken(any()) } answers {
+            firstArg<(DeviceToken?) -> Unit>().invoke(null)
+        }
+        module = ModuleMessagingPushFCM(
+            MessagingPushModuleConfig.Builder().setBackgroundPushCallback { _, _ -> }.build()
+        )
+
+        module.initialize()
+
+        assertCalledOnce { eventBus.publish(Event.BackgroundPushReadinessChangedEvent(ready = true, reportWithStoredToken = true)) }
+    }
+
+    @Test
+    fun initialize_givenFCMTokenAvailable_expectNoStoredTokenReadinessReport() {
+        every { fcmTokenProviderMock.getCurrentToken(any()) } answers {
+            firstArg<(DeviceToken?) -> Unit>().invoke(DeviceToken(String.random, DeviceTokenType.TOKEN))
+        }
+
+        module.initialize()
+
+        assertCalledNever { eventBus.publish(Event.BackgroundPushReadinessChangedEvent(ready = false, reportWithStoredToken = true)) }
+    }
+
+    @Test
     fun initialize_givenFCMTokenAvailable_expectRegisterToken() {
         val givenToken = String.random
 

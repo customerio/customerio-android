@@ -1,5 +1,6 @@
 package io.customer.datapipelines
 
+import com.segment.analytics.kotlin.core.TrackEvent
 import io.customer.commontest.config.TestConfig
 import io.customer.commontest.extensions.assertCalledNever
 import io.customer.commontest.extensions.assertCalledOnce
@@ -66,6 +67,9 @@ class DeviceTokenTypeTests : IntegrationTest() {
         analytics.add(outputReaderPlugin)
     }
 
+    private val TrackEvent.backgroundPushVersion: String?
+        get() = properties[BACKGROUND_PUSH_VERSION_ATTRIBUTE]?.jsonPrimitive?.content
+
     private fun deviceUpdateTokenType(): String? {
         val event = outputReaderPlugin.trackEvents.filter { it.event == EventNames.DEVICE_UPDATE }.shouldHaveSingleItem()
         return event.properties[TOKEN_TYPE_ATTRIBUTE]?.jsonPrimitive?.content
@@ -104,17 +108,6 @@ class DeviceTokenTypeTests : IntegrationTest() {
     }
 
     @Test
-    fun backgroundReadiness_givenNoToken_expectNoUpdateUntilTokenRegistration() {
-        setupSdk(autoTrackDeviceAttributes = false)
-
-        eventBus.publish(Event.BackgroundPushReadinessChangedEvent(ready = true))
-        outputReaderPlugin.trackEvents.size shouldBeEqualTo 0
-
-        sdkInstance.registerDeviceToken(String.random, DeviceTokenType.TOKEN)
-        outputReaderPlugin.trackEvents.shouldHaveSingleItem().properties[BACKGROUND_PUSH_VERSION_ATTRIBUTE]?.jsonPrimitive?.content shouldBeEqualTo "1"
-    }
-
-    @Test
     fun backgroundReadiness_givenTokenStoredByEarlierLaunch_expectNoExtraUpdateBeforeRegistration() {
         setupSdk(autoTrackDeviceAttributes = false)
         globalPreferenceStore.saveDeviceToken("token-from-earlier-launch", DeviceTokenType.TOKEN)
@@ -124,7 +117,7 @@ class DeviceTokenTypeTests : IntegrationTest() {
         outputReaderPlugin.trackEvents.size shouldBeEqualTo 0
 
         sdkInstance.registerDeviceToken("token-from-earlier-launch", DeviceTokenType.TOKEN)
-        outputReaderPlugin.trackEvents.shouldHaveSingleItem().properties[BACKGROUND_PUSH_VERSION_ATTRIBUTE]?.jsonPrimitive?.content shouldBeEqualTo "1"
+        outputReaderPlugin.trackEvents.shouldHaveSingleItem().backgroundPushVersion shouldBeEqualTo "1"
     }
 
     @Test
@@ -139,7 +132,7 @@ class DeviceTokenTypeTests : IntegrationTest() {
 
         val update = outputReaderPlugin.trackEvents.shouldHaveSingleItem()
         update.context.deviceToken shouldBeEqualTo "token-from-earlier-launch"
-        update.properties[BACKGROUND_PUSH_VERSION_ATTRIBUTE]?.jsonPrimitive?.content shouldBeEqualTo "1"
+        update.backgroundPushVersion shouldBeEqualTo "1"
     }
 
     @Test
@@ -150,7 +143,7 @@ class DeviceTokenTypeTests : IntegrationTest() {
         eventBus.publish(Event.BackgroundPushReadinessChangedEvent(ready = false))
         testDispatcher.scheduler.advanceUntilIdle()
 
-        outputReaderPlugin.trackEvents.shouldHaveSingleItem().properties[BACKGROUND_PUSH_VERSION_ATTRIBUTE]?.jsonPrimitive?.content shouldBeEqualTo "0"
+        outputReaderPlugin.trackEvents.shouldHaveSingleItem().backgroundPushVersion shouldBeEqualTo "0"
     }
 
     @Test
@@ -161,25 +154,25 @@ class DeviceTokenTypeTests : IntegrationTest() {
         testDispatcher.scheduler.advanceUntilIdle()
         sdkInstance.registerDeviceToken(String.random)
 
-        outputReaderPlugin.trackEvents.shouldHaveSingleItem().properties[BACKGROUND_PUSH_VERSION_ATTRIBUTE]?.jsonPrimitive?.content shouldBeEqualTo "1"
+        outputReaderPlugin.trackEvents.shouldHaveSingleItem().backgroundPushVersion shouldBeEqualTo "1"
     }
 
     @Test
     fun backgroundReadiness_givenExistingToken_expectCurrentReadinessOnEveryUpdate() {
         setupSdk(autoTrackDeviceAttributes = false)
         sdkInstance.registerDeviceToken(String.random, DeviceTokenType.TOKEN)
-        outputReaderPlugin.trackEvents.last().properties[BACKGROUND_PUSH_VERSION_ATTRIBUTE]?.jsonPrimitive?.content shouldBeEqualTo "0"
+        outputReaderPlugin.trackEvents.last().backgroundPushVersion shouldBeEqualTo "0"
 
         eventBus.publish(Event.BackgroundPushReadinessChangedEvent(ready = true))
         testDispatcher.scheduler.advanceUntilIdle()
-        outputReaderPlugin.trackEvents.last().properties[BACKGROUND_PUSH_VERSION_ATTRIBUTE]?.jsonPrimitive?.content shouldBeEqualTo "1"
+        outputReaderPlugin.trackEvents.last().backgroundPushVersion shouldBeEqualTo "1"
 
         sdkInstance.setDeviceAttributes(mapOf(BACKGROUND_PUSH_VERSION_ATTRIBUTE to "0"))
-        outputReaderPlugin.trackEvents.last().properties[BACKGROUND_PUSH_VERSION_ATTRIBUTE]?.jsonPrimitive?.content shouldBeEqualTo "1"
+        outputReaderPlugin.trackEvents.last().backgroundPushVersion shouldBeEqualTo "1"
 
         eventBus.publish(Event.BackgroundPushReadinessChangedEvent(ready = false))
         testDispatcher.scheduler.advanceUntilIdle()
-        outputReaderPlugin.trackEvents.last().properties[BACKGROUND_PUSH_VERSION_ATTRIBUTE]?.jsonPrimitive?.content shouldBeEqualTo "0"
+        outputReaderPlugin.trackEvents.last().backgroundPushVersion shouldBeEqualTo "0"
     }
 
     @Test

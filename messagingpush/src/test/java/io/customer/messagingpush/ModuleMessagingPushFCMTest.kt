@@ -84,14 +84,14 @@ class ModuleMessagingPushFCMTest : IntegrationTest() {
     }
 
     @Test
-    fun initialize_givenNoBackgroundCallback_expectReceiverDisabled() {
+    fun initialize_givenNoBackgroundCallback_expectNotReady() {
         module.initialize()
 
         assertCalledOnce { eventBus.publish(Event.BackgroundPushReadinessChangedEvent(ready = false)) }
     }
 
     @Test
-    fun initialize_givenBackgroundCallback_expectReceiverReadyBeforeFetchingToken() {
+    fun initialize_givenBackgroundCallback_expectReadyBeforeFetchingToken() {
         module = ModuleMessagingPushFCM(
             MessagingPushModuleConfig.Builder().setBackgroundPushCallback { _, _ -> }.build()
         )
@@ -138,7 +138,7 @@ class ModuleMessagingPushFCMTest : IntegrationTest() {
 
         module.initialize()
 
-        assertCalledNever { eventBus.publish(Event.BackgroundPushReadinessChangedEvent(ready = false, reportWithStoredToken = true)) }
+        assertCalledNever { eventBus.publish(match { it is Event.BackgroundPushReadinessChangedEvent && it.reportWithStoredToken }) }
     }
 
     @Test

@@ -160,7 +160,7 @@ class DeviceAttributesTests : IntegrationTest() {
         deviceRegisterEvent.context.deviceToken shouldBeEqualTo givenToken
 
         val properties = deviceRegisterEvent.properties
-        // Auto tracked device attributes and receiver readiness => 14
+        // Auto tracked device attributes and silent push readiness => 14
         // Custom device attributes => 4
         // Overlapping attributes => 2
         properties.keys shouldHaveSize 16

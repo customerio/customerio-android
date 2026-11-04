@@ -1,5 +1,6 @@
 package io.customer.messagingpush
 
+import android.app.Notification
 import android.app.NotificationManager
 import android.content.Context
 import android.os.Bundle
@@ -8,6 +9,7 @@ import androidx.work.OneTimeWorkRequest
 import androidx.work.WorkManager
 import com.google.firebase.messaging.RemoteMessage
 import io.customer.commontest.extensions.attachToSDKComponent
+import io.customer.messagingpush.data.communication.CustomerIOBackgroundPushCallback
 import io.customer.messagingpush.data.model.CustomerIOBackgroundPushPayload
 import io.customer.messagingpush.logger.PushNotificationLogger
 import io.customer.messagingpush.processor.PushDeliveryMetricsBackgroundScheduler
@@ -22,6 +24,7 @@ import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
 import io.mockk.verify
+import java.util.UUID
 import java.util.concurrent.RejectedExecutionException
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
@@ -44,19 +47,77 @@ class BackgroundPushHandlerTest : IntegrationTest() {
         "order_id" to "42"
     )
 
+    private val legacy = mapOf(
+        "CIO-Delivery-ID" to "old",
+        "CIO-Delivery-Token" to "old",
+        "title" to "Existing title",
+        "body" to "Existing body"
+    )
+
+    private val notificationManager: NotificationManager
+        get() = contextMock.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+
+    private fun postedNotifications(): List<Notification> = Shadows.shadowOf(notificationManager).allNotifications
+
     private fun assertNoNotification() {
-        val manager = contextMock.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        assertTrue(Shadows.shadowOf(manager).allNotifications.isEmpty())
-        assertTrue(manager.notificationChannels.isEmpty())
+        assertTrue(postedNotifications().isEmpty())
+        assertTrue(notificationManager.notificationChannels.isEmpty())
+    }
+
+    private fun installCallback(
+        autoTrackPushEvents: Boolean = true,
+        callback: CustomerIOBackgroundPushCallback
+    ): MessagingPushModuleConfig {
+        val config = MessagingPushModuleConfig.Builder()
+            .setAutoTrackPushEvents(autoTrackPushEvents)
+            .setBackgroundPushCallback(callback)
+            .build()
+        ModuleMessagingPushFCM(moduleConfig = config).attachToSDKComponent()
+        return config
+    }
+
+    private fun processor(
+        config: MessagingPushModuleConfig,
+        scheduler: PushDeliveryMetricsBackgroundScheduler,
+        store: PendingDeliveryStore<PendingPushDeliveryMetric>
+    ) = PushMessageProcessorImpl(mockk<PushNotificationLogger>(relaxed = true), config, mockk(relaxed = true), scheduler, store)
+
+    private fun handler(
+        payload: Map<String, String>,
+        processor: PushMessageProcessor = mockk(relaxed = true)
+    ) = CustomerIOPushNotificationHandler(
+        processor,
+        RemoteMessage.Builder("destination").setData(payload).build(),
+        NotificationChannelCreator()
+    )
+
+    @Test
+    fun validBackgroundMessage_reachesHostAsDataWithoutDisplayLinkOrOpened() {
+        var received: CustomerIOBackgroundPushPayload? = null
+        installCallback { _, payload -> received = payload }
+        val processor = mockk<PushMessageProcessor>(relaxed = true)
+        val displayLike = mapOf(
+            "title" to "Order shipped",
+            "body" to "Tap to track",
+            "image" to "https://example.com/box.png",
+            "link" to "https://example.com/orders/42"
+        )
+
+        assertTrue(handler(data() + displayLike, processor).handleMessage(contextMock))
+
+        assertEquals("dlv_123", received?.deliveryId)
+        assertEquals("tok_abc", received?.deliveryToken)
+        assertEquals(displayLike + ("order_id" to "42"), received?.data)
+        verify(exactly = 1) { processor.processRemoteMessageDeliveredMetrics("dlv_123", "tok_abc") }
+        verify(exactly = 0) { processor.processNotificationClick(any(), any()) }
+        assertNull(Shadows.shadowOf(applicationMock).nextStartedActivity)
+        assertNoNotification()
     }
 
     @Test
     fun malformedMarkedMessages_neverFallBackToDisplayOrCallHost() {
         var calls = 0
-        ModuleMessagingPushFCM(
-            moduleConfig = MessagingPushModuleConfig.Builder()
-                .setBackgroundPushCallback { _, _ -> calls++ }.build()
-        ).attachToSDKComponent()
+        installCallback { _, _ -> calls++ }
         val cases = listOf(
             data() - "CIO-Background-Version",
             data() - "CIO-Background-Delivery-Token",
@@ -68,12 +129,7 @@ class BackgroundPushHandlerTest : IntegrationTest() {
         )
         cases.forEach { payload ->
             val processor = mockk<PushMessageProcessor>(relaxed = true)
-            val handler = CustomerIOPushNotificationHandler(
-                processor,
-                RemoteMessage.Builder("destination").setData(payload).build(),
-                NotificationChannelCreator()
-            )
-            assertTrue(handler.handleMessage(contextMock))
+            assertTrue(handler(payload, processor).handleMessage(contextMock))
             verify(exactly = 0) { processor.processRemoteMessageDeliveredMetrics(any(), any()) }
         }
         assertEquals(0, calls)
@@ -83,10 +139,7 @@ class BackgroundPushHandlerTest : IntegrationTest() {
     @Test
     fun mixedNotificationAndBackgroundData_whenHandlerRuns_isConsumedWithoutDisplay() {
         var calls = 0
-        ModuleMessagingPushFCM(
-            moduleConfig = MessagingPushModuleConfig.Builder()
-                .setBackgroundPushCallback { _, _ -> calls++ }.build()
-        ).attachToSDKComponent()
+        installCallback { _, _ -> calls++ }
         val processor = mockk<PushMessageProcessor>(relaxed = true)
         val message = RemoteMessage(
             Bundle().apply {
@@ -106,43 +159,11 @@ class BackgroundPushHandlerTest : IntegrationTest() {
     }
 
     @Test
-    fun displayLikeData_reachesHostAsDataWithoutDisplayLinkOrOpened() {
-        var received: CustomerIOBackgroundPushPayload? = null
-        ModuleMessagingPushFCM(
-            moduleConfig = MessagingPushModuleConfig.Builder()
-                .setBackgroundPushCallback { _, payload -> received = payload }.build()
-        ).attachToSDKComponent()
-        val processor = mockk<PushMessageProcessor>(relaxed = true)
-        val displayLike = mapOf(
-            "title" to "Order shipped",
-            "body" to "Tap to track",
-            "image" to "https://example.com/box.png",
-            "link" to "https://example.com/orders/42"
-        )
-        val handler = CustomerIOPushNotificationHandler(
-            processor,
-            RemoteMessage.Builder("destination").setData(data() + displayLike).build(),
-            NotificationChannelCreator()
-        )
-
-        assertTrue(handler.handleMessage(contextMock))
-
-        assertEquals(displayLike + ("order_id" to "42"), received?.data)
-        assertNoNotification()
-        assertNull(Shadows.shadowOf(applicationMock).nextStartedActivity)
-        verify(exactly = 0) { processor.processNotificationClick(any(), any()) }
-        verify(exactly = 1) { processor.processRemoteMessageDeliveredMetrics("dlv_123", "tok_abc") }
-    }
-
-    @Test
     fun missingCallback_stillConsumesBackgroundPushWithoutDisplay() {
         val processor = mockk<PushMessageProcessor>(relaxed = true)
-        val handler = CustomerIOPushNotificationHandler(
-            processor,
-            RemoteMessage.Builder("destination").setData(data()).build(),
-            NotificationChannelCreator()
-        )
-        assertTrue(handler.handleMessage(contextMock))
+
+        assertTrue(handler(data(), processor).handleMessage(contextMock))
+
         verify(exactly = 1) { processor.processRemoteMessageDeliveredMetrics("dlv_123", "tok_abc") }
         assertNoNotification()
     }
@@ -150,16 +171,10 @@ class BackgroundPushHandlerTest : IntegrationTest() {
     @Test
     fun throwingCallback_stillConsumesBackgroundPushWithoutDisplay() {
         var calls = 0
-        ModuleMessagingPushFCM(
-            moduleConfig = MessagingPushModuleConfig.Builder()
-                .setBackgroundPushCallback { _, _ -> calls++; throw IllegalStateException("host failed") }.build()
-        ).attachToSDKComponent()
-        val handler = CustomerIOPushNotificationHandler(
-            mockk(relaxed = true),
-            RemoteMessage.Builder("destination").setData(data()).build(),
-            NotificationChannelCreator()
-        )
-        assertTrue(handler.handleMessage(contextMock, false))
+        installCallback { _, _ -> calls++; throw IllegalStateException("host failed") }
+
+        assertTrue(handler(data()).handleMessage(contextMock, false))
+
         assertEquals(1, calls)
         assertNoNotification()
     }
@@ -167,9 +182,7 @@ class BackgroundPushHandlerTest : IntegrationTest() {
     @Test
     fun receiptSchedulingFailure_stillDeliversBusinessDataWithoutNotification() {
         var received: CustomerIOBackgroundPushPayload? = null
-        val config = MessagingPushModuleConfig.Builder()
-            .setBackgroundPushCallback { _, payload -> received = payload }.build()
-        ModuleMessagingPushFCM(moduleConfig = config).attachToSDKComponent()
+        val config = installCallback { _, payload -> received = payload }
         val workManager = mockk<WorkManager>()
         every { workManager.enqueueUniqueWork(any<String>(), any<ExistingWorkPolicy>(), any<OneTimeWorkRequest>()) } throws
             RejectedExecutionException("injected rejected receipt scheduling")
@@ -177,22 +190,14 @@ class BackgroundPushHandlerTest : IntegrationTest() {
         every { provider.getWorkManager() } returns workManager
         val tracker = mockk<AsyncPushDeliveryTracker>(relaxed = true)
         val store = mockk<PendingDeliveryStore<PendingPushDeliveryMetric>>(relaxed = true)
-        val processor = PushMessageProcessorImpl(
-            mockk<PushNotificationLogger>(relaxed = true),
-            config,
-            mockk(relaxed = true),
-            PushDeliveryMetricsBackgroundScheduler(provider, tracker),
-            store
-        )
-        val id = "receipt-failure-${java.util.UUID.randomUUID()}"
-        val handler = CustomerIOPushNotificationHandler(
-            processor,
-            RemoteMessage.Builder("destination")
-                .setData(data() + ("CIO-Background-Delivery-ID" to id)).build(),
-            NotificationChannelCreator()
-        )
+        val id = "receipt-failure-${UUID.randomUUID()}"
 
-        assertTrue(handler.handleMessage(contextMock))
+        assertTrue(
+            handler(
+                data() + ("CIO-Background-Delivery-ID" to id),
+                processor(config, PushDeliveryMetricsBackgroundScheduler(provider, tracker), store)
+            ).handleMessage(contextMock)
+        )
 
         assertEquals(id, received?.deliveryId)
         assertEquals(mapOf("title" to "Order shipped", "body" to "", "order_id" to "42"), received?.data)
@@ -202,75 +207,13 @@ class BackgroundPushHandlerTest : IntegrationTest() {
     }
 
     @Test
-    fun legacyEmptyDisplayFields_stillPostNotification() {
-        val handler = CustomerIOPushNotificationHandler(
-            mockk(relaxed = true),
-            RemoteMessage.Builder("destination")
-                .setData(mapOf("CIO-Delivery-ID" to "old", "CIO-Delivery-Token" to "old", "title" to "", "body" to ""))
-                .build(),
-            NotificationChannelCreator()
-        )
-
-        assertTrue(handler.handleMessage(contextMock))
-
-        val manager = contextMock.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        assertEquals(1, Shadows.shadowOf(manager).allNotifications.size)
-    }
-
-    @Test
-    fun legacyBusinessKeys_includingBackgroundMetadata_stillPostNotification() {
-        val manager = contextMock.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        val legacy = mapOf(
-            "CIO-Delivery-ID" to "old",
-            "CIO-Delivery-Token" to "old",
-            "title" to "Existing title",
-            "body" to "Existing body"
-        )
-        listOf(
-            "CIO-Background-Version",
-            "CIO-Background-Delivery-ID",
-            "CIO-Background-Delivery-Token",
-            "CIO-Background-sync",
-            "cio-background-version",
-            "CIO-Background-Delivery-ID-extra"
-        ).forEach { key ->
-            manager.cancelAll()
-            val handler = CustomerIOPushNotificationHandler(
-                mockk(relaxed = true),
-                RemoteMessage.Builder("destination")
-                    .setData(legacy + (key to "existing business data")).build(),
-                NotificationChannelCreator()
-            )
-
-            assertTrue(handler.handleMessage(contextMock))
-
-            val notifications = Shadows.shadowOf(manager).allNotifications
-            assertEquals("Legacy message with customer key $key must still render", 1, notifications.size)
-            assertEquals("Existing title", notifications.single().extras.getString(android.app.Notification.EXTRA_TITLE))
-        }
-    }
-
-    @Test
     fun repeatedDelivery_reachesHostTwiceButPersistsOnlyOneReceipt() {
-        val id = "background-${java.util.UUID.randomUUID()}"
+        val id = "background-${UUID.randomUUID()}"
         var calls = 0
-        val config = MessagingPushModuleConfig.Builder().setBackgroundPushCallback { _, _ -> calls++ }.build()
-        ModuleMessagingPushFCM(moduleConfig = config).attachToSDKComponent()
+        val config = installCallback { _, _ -> calls++ }
         val store = mockk<PendingDeliveryStore<PendingPushDeliveryMetric>>(relaxed = true)
         val scheduler = mockk<PushDeliveryMetricsBackgroundScheduler>(relaxed = true)
-        val processor = PushMessageProcessorImpl(
-            mockk<PushNotificationLogger>(relaxed = true),
-            config,
-            mockk(relaxed = true),
-            scheduler,
-            store
-        )
-        val handler = CustomerIOPushNotificationHandler(
-            processor,
-            RemoteMessage.Builder("destination")
-                .setData(data() + ("CIO-Background-Delivery-ID" to id)).build(),
-            NotificationChannelCreator()
-        )
+        val handler = handler(data() + ("CIO-Background-Delivery-ID" to id), processor(config, scheduler, store))
 
         assertTrue(handler.handleMessage(contextMock))
         assertTrue(handler.handleMessage(contextMock, false))
@@ -287,26 +230,16 @@ class BackgroundPushHandlerTest : IntegrationTest() {
     @Test
     fun autoTrackingDisabled_deliversToHostWithoutPersistingReceipt() {
         var calls = 0
-        val config = MessagingPushModuleConfig.Builder().setAutoTrackPushEvents(false)
-            .setBackgroundPushCallback { _, _ -> calls++ }.build()
-        ModuleMessagingPushFCM(moduleConfig = config).attachToSDKComponent()
+        val config = installCallback(autoTrackPushEvents = false) { _, _ -> calls++ }
         val store = mockk<PendingDeliveryStore<PendingPushDeliveryMetric>>(relaxed = true)
         val scheduler = mockk<PushDeliveryMetricsBackgroundScheduler>(relaxed = true)
-        val processor = PushMessageProcessorImpl(
-            mockk<PushNotificationLogger>(relaxed = true),
-            config,
-            mockk(relaxed = true),
-            scheduler,
-            store
-        )
-        val handler = CustomerIOPushNotificationHandler(
-            processor,
-            RemoteMessage.Builder("destination")
-                .setData(data() + ("CIO-Background-Delivery-ID" to "disabled-${java.util.UUID.randomUUID()}")).build(),
-            NotificationChannelCreator()
-        )
 
-        assertTrue(handler.handleMessage(contextMock))
+        assertTrue(
+            handler(
+                data() + ("CIO-Background-Delivery-ID" to "disabled-${UUID.randomUUID()}"),
+                processor(config, scheduler, store)
+            ).handleMessage(contextMock)
+        )
 
         assertEquals(1, calls)
         verify(exactly = 0) { store.append(any()) }
@@ -315,56 +248,15 @@ class BackgroundPushHandlerTest : IntegrationTest() {
     }
 
     @Test
-    fun validBackgroundMessage_deliversBusinessDataAndReceiptWithoutNotification() {
-        var received: CustomerIOBackgroundPushPayload? = null
-        ModuleMessagingPushFCM(
-            moduleConfig = MessagingPushModuleConfig.Builder()
-                .setBackgroundPushCallback { _, payload -> received = payload }
-                .build()
-        ).attachToSDKComponent()
-        val processor = mockk<PushMessageProcessor>(relaxed = true)
-        val message = RemoteMessage.Builder("destination").setData(
-            mapOf(
-                "CIO-Background-Version" to "1",
-                "CIO-Background-Delivery-ID" to "dlv_123",
-                "CIO-Background-Delivery-Token" to "tok_abc",
-                "title" to "Order shipped",
-                "body" to "",
-                "order_id" to "42"
-            )
-        ).build()
-
-        assertTrue(CustomerIOPushNotificationHandler(processor, message, NotificationChannelCreator()).handleMessage(contextMock))
-
-        assertEquals("dlv_123", received?.deliveryId)
-        assertEquals("tok_abc", received?.deliveryToken)
-        assertEquals(mapOf("title" to "Order shipped", "body" to "", "order_id" to "42"), received?.data)
-        verify(exactly = 1) { processor.processRemoteMessageDeliveredMetrics("dlv_123", "tok_abc") }
-        val manager = contextMock.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        assertTrue(Shadows.shadowOf(manager).allNotifications.isEmpty())
-        assertTrue(manager.notificationChannels.isEmpty())
-    }
-
-    @Test
     fun goEncodedProviderFixture_reachesHostUnchangedWithoutDisplay() {
         val bytes = javaClass.getResourceAsStream("/background_push/android_fcm.json")!!.use { it.readBytes() }
-        val provider = JSONObject(bytes.toString(Charsets.UTF_8)).getJSONObject("message")
-        val fields = provider.getJSONObject("data")
+        val fields = JSONObject(bytes.toString(Charsets.UTF_8)).getJSONObject("message").getJSONObject("data")
         val data = fields.keys().asSequence().associateWith { fields.getString(it) }
         var received: CustomerIOBackgroundPushPayload? = null
-        ModuleMessagingPushFCM(
-            moduleConfig = MessagingPushModuleConfig.Builder()
-                .setBackgroundPushCallback { _, payload -> received = payload }.build()
-        ).attachToSDKComponent()
+        installCallback { _, payload -> received = payload }
         val processor = mockk<PushMessageProcessor>(relaxed = true)
 
-        assertTrue(
-            CustomerIOPushNotificationHandler(
-                processor,
-                RemoteMessage.Builder("destination").setData(data).build(),
-                NotificationChannelCreator()
-            ).handleMessage(contextMock)
-        )
+        assertTrue(handler(data, processor).handleMessage(contextMock))
 
         assertEquals("fixture-delivery-1", received?.deliveryId)
         assertEquals(mapOf("title" to "Order shipped", "order_id" to "A-1001", "note" to "line one\nsays \"hi\" <b>&</b> ✓", "cıo-x" to "dotless"), received?.data)
@@ -373,21 +265,42 @@ class BackgroundPushHandlerTest : IntegrationTest() {
     }
 
     @Test
-    fun legacyTrackingKeys_withUnknownBackgroundVersion_keepLegacyNotificationHandling() {
+    fun legacyPair_withCompleteBackgroundMetadata_keepsLegacyHandling() {
+        var calls = 0
+        installCallback { _, _ -> calls++ }
         val processor = mockk<PushMessageProcessor>(relaxed = true)
-        val message = RemoteMessage.Builder("destination").setData(
-            mapOf(
-                "CIO-Background-Version" to "2",
-                "CIO-Delivery-ID" to "legacy-delivery",
-                "CIO-Delivery-Token" to "legacy-token"
-            )
-        ).build()
-        val handler = CustomerIOPushNotificationHandler(processor, message, NotificationChannelCreator())
 
-        assertTrue(handler.handleMessage(contextMock))
+        assertTrue(handler(data() + legacy, processor).handleMessage(contextMock))
 
-        val manager = contextMock.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        assertEquals(1, Shadows.shadowOf(manager).allNotifications.size)
-        verify(exactly = 1) { processor.processRemoteMessageDeliveredMetrics("legacy-delivery", "legacy-token") }
+        assertEquals(1, postedNotifications().size)
+        verify(exactly = 1) { processor.processRemoteMessageDeliveredMetrics("old", "old") }
+        assertEquals(0, calls)
+    }
+
+    @Test
+    fun legacyEmptyDisplayFields_stillPostNotification() {
+        assertTrue(handler(legacy + mapOf("title" to "", "body" to "")).handleMessage(contextMock))
+
+        assertEquals(1, postedNotifications().size)
+    }
+
+    @Test
+    fun legacyBusinessKeys_includingBackgroundMetadata_stillPostNotification() {
+        listOf(
+            "CIO-Background-Version",
+            "CIO-Background-Delivery-ID",
+            "CIO-Background-Delivery-Token",
+            "CIO-Background-sync",
+            "cio-background-version",
+            "CIO-Background-Delivery-ID-extra"
+        ).forEach { key ->
+            notificationManager.cancelAll()
+
+            assertTrue(handler(legacy + (key to "existing business data")).handleMessage(contextMock))
+
+            val notifications = postedNotifications()
+            assertEquals("Legacy message with customer key $key must still render", 1, notifications.size)
+            assertEquals("Existing title", notifications.single().extras.getString(Notification.EXTRA_TITLE))
+        }
     }
 }

@@ -1,6 +1,7 @@
 package io.customer.android.sample.kotlin_compose
 
 import android.app.Application
+import android.util.Log
 import io.customer.android.sample.kotlin_compose.data.models.setValuesFromBuilder
 import io.customer.android.sample.kotlin_compose.data.sdk.InAppMessageEventListener
 import io.customer.android.sample.kotlin_compose.data.sdk.SampleInboxEventListener
@@ -57,16 +58,10 @@ class MainApplication : Application() {
                     MessagingPushModuleConfig.Builder()
                         // Silent push: registered here in Application.onCreate because Firebase can
                         // start the process in the background just to deliver one. The callback gets a
-                        // short time budget, so it only appends a line for QA. Real work belongs in
+                        // short time budget, so this sample only logs it. Real work belongs in
                         // WorkManager, keyed on payload.deliveryId, since a push can repeat or arrive late.
-                        .setBackgroundPushCallback { context, payload ->
-                            val receipt = org.json.JSONObject()
-                                .put("delivery_id", payload.deliveryId)
-                                .put("received_at_ms", System.currentTimeMillis())
-                                .put("data", org.json.JSONObject(payload.data))
-                            context.openFileOutput("background-push.jsonl", MODE_APPEND).use {
-                                it.write((receipt.toString() + "\n").toByteArray(Charsets.UTF_8))
-                            }
+                        .setBackgroundPushCallback { _, payload ->
+                            Log.d("CustomerIO", "Silent push ${payload.deliveryId}: ${payload.data}")
                         }
                         .build()
                 )

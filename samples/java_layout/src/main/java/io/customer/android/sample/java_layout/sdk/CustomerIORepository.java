@@ -5,9 +5,6 @@ import android.text.TextUtils;
 import androidx.annotation.NonNull;
 
 import java.util.Map;
-import java.io.FileOutputStream;
-import java.nio.charset.StandardCharsets;
-import org.json.JSONObject;
 
 import io.customer.android.sample.java_layout.SampleApplication;
 import io.customer.android.sample.java_layout.data.PreferencesDataStore;
@@ -69,21 +66,10 @@ public class CustomerIORepository {
                 new MessagingPushModuleConfig.Builder()
                         // Silent push: initializeSdk runs from SampleApplication.onCreate because Firebase
                         // can start the process in the background just to deliver one. The callback gets a
-                        // short time budget, so it only appends a line for QA. Real work belongs in
-                        // WorkManager, keyed on payload.getDeliveryId(), since a push can repeat or arrive late.
-                        .setBackgroundPushCallback((context, payload) -> {
-                            try {
-                                JSONObject receipt = new JSONObject()
-                                        .put("delivery_id", payload.getDeliveryId())
-                                        .put("received_at_ms", System.currentTimeMillis())
-                                        .put("data", new JSONObject(payload.getData()));
-                                try (FileOutputStream output = context.openFileOutput("background-push.jsonl", android.content.Context.MODE_APPEND)) {
-                                    output.write((receipt.toString() + "\n").getBytes(StandardCharsets.UTF_8));
-                                }
-                            } catch (Exception error) {
-                                throw new IllegalStateException("Unable to record background push data", error);
-                            }
-                        })
+                        // short time budget, so this sample only logs it. Real work belongs in WorkManager,
+                        // keyed on payload.getDeliveryId(), since a push can repeat or arrive late.
+                        .setBackgroundPushCallback((context, payload) -> appGraph.getLogger().d(
+                                "Silent push " + payload.getDeliveryId() + ": " + payload.getData()))
                         // One app-level brand applied to every live notification.
                         .setLiveNotificationBranding(new LiveNotificationBranding(
                                 "Customer.io Sample",

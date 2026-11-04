@@ -6,7 +6,6 @@ import android.content.Intent
 import android.util.Log
 import com.google.firebase.messaging.RemoteMessage
 import io.customer.messagingpush.CustomerIOFirebaseMessagingService
-import org.json.JSONObject
 
 /**
  * Dev-only broadcast receiver that simulates an FCM delivered-metric callback
@@ -24,20 +23,6 @@ import org.json.JSONObject
  */
 class SimulatePushDeliveryReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
-        // Replay the data object from a captured provider request without rebuilding its fields.
-        intent.getStringExtra("fcmJson")?.let { json ->
-            val fields = JSONObject(json).getJSONObject("message").getJSONObject("data")
-            val data = fields.keys().asSequence().associateWith { key ->
-                require(fields.get(key) is String) { "FCM data values must be strings" }
-                fields.getString(key)
-            }
-            CustomerIOFirebaseMessagingService.onMessageReceived(
-                context = context.applicationContext,
-                remoteMessage = RemoteMessage.Builder("provider-replay").setData(data).build(),
-                handleNotificationTrigger = true
-            )
-            return
-        }
         val deliveryId = intent.getStringExtra(EXTRA_DELIVERY_ID)
         val token = intent.getStringExtra(EXTRA_TOKEN)
         if (deliveryId.isNullOrBlank() || token.isNullOrBlank()) {

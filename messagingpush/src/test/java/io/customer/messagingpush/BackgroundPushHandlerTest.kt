@@ -26,6 +26,7 @@ import java.util.concurrent.RejectedExecutionException
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -102,6 +103,35 @@ class BackgroundPushHandlerTest : IntegrationTest() {
         assertEquals(0, calls)
         verify(exactly = 0) { processor.processRemoteMessageDeliveredMetrics(any(), any()) }
         assertNoNotification()
+    }
+
+    @Test
+    fun displayLikeData_reachesHostAsDataWithoutDisplayLinkOrOpened() {
+        var received: CustomerIOBackgroundPushPayload? = null
+        ModuleMessagingPushFCM(
+            moduleConfig = MessagingPushModuleConfig.Builder()
+                .setBackgroundPushCallback { _, payload -> received = payload }.build()
+        ).attachToSDKComponent()
+        val processor = mockk<PushMessageProcessor>(relaxed = true)
+        val displayLike = mapOf(
+            "title" to "Order shipped",
+            "body" to "Tap to track",
+            "image" to "https://example.com/box.png",
+            "link" to "https://example.com/orders/42"
+        )
+        val handler = CustomerIOPushNotificationHandler(
+            processor,
+            RemoteMessage.Builder("destination").setData(data() + displayLike).build(),
+            NotificationChannelCreator()
+        )
+
+        assertTrue(handler.handleMessage(contextMock))
+
+        assertEquals(displayLike + ("order_id" to "42"), received?.data)
+        assertNoNotification()
+        assertNull(Shadows.shadowOf(applicationMock).nextStartedActivity)
+        verify(exactly = 0) { processor.processNotificationClick(any(), any()) }
+        verify(exactly = 1) { processor.processRemoteMessageDeliveredMetrics("dlv_123", "tok_abc") }
     }
 
     @Test

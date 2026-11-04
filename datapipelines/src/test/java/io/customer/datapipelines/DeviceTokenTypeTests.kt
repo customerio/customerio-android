@@ -113,6 +113,41 @@ class DeviceTokenTypeTests : IntegrationTest() {
     }
 
     @Test
+    fun backgroundReadiness_givenTokenStoredByEarlierLaunch_expectNoExtraUpdateBeforeRegistration() {
+        setupSdk(autoTrackDeviceAttributes = false)
+        globalPreferenceStore.saveDeviceToken("token-from-earlier-launch", DeviceTokenType.TOKEN)
+
+        eventBus.publish(Event.BackgroundPushReadinessChangedEvent(ready = true))
+        testDispatcher.scheduler.advanceUntilIdle()
+        outputReaderPlugin.trackEvents.size shouldBeEqualTo 0
+
+        sdkInstance.registerDeviceToken("token-from-earlier-launch", DeviceTokenType.TOKEN)
+        outputReaderPlugin.trackEvents.shouldHaveSingleItem().properties["cio_background_push_version"]?.jsonPrimitive?.content shouldBeEqualTo "1"
+    }
+
+    @Test
+    fun backgroundReadiness_givenUnchangedValueAlreadyReported_expectNoExtraUpdate() {
+        setupSdk(autoTrackDeviceAttributes = false)
+        sdkInstance.registerDeviceToken(String.random, DeviceTokenType.TOKEN)
+
+        eventBus.publish(Event.BackgroundPushReadinessChangedEvent(ready = false))
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        outputReaderPlugin.trackEvents.shouldHaveSingleItem().properties["cio_background_push_version"]?.jsonPrimitive?.content shouldBeEqualTo "0"
+    }
+
+    @Test
+    fun backgroundReadiness_givenManualTokenRegistration_expectReadinessSent() {
+        setupSdk()
+
+        eventBus.publish(Event.BackgroundPushReadinessChangedEvent(ready = true))
+        testDispatcher.scheduler.advanceUntilIdle()
+        sdkInstance.registerDeviceToken(String.random)
+
+        outputReaderPlugin.trackEvents.shouldHaveSingleItem().properties["cio_background_push_version"]?.jsonPrimitive?.content shouldBeEqualTo "1"
+    }
+
+    @Test
     fun backgroundReadiness_givenExistingToken_expectCurrentReadinessOnEveryUpdate() {
         setupSdk(autoTrackDeviceAttributes = false)
         sdkInstance.registerDeviceToken(String.random, DeviceTokenType.TOKEN)

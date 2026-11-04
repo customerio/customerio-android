@@ -67,6 +67,10 @@ public class CustomerIORepository {
         // Enables push notification with live-notification branding registered once at init.
         messagingPushModule = new ModuleMessagingPushFCM(
                 new MessagingPushModuleConfig.Builder()
+                        // Silent push: initializeSdk runs from SampleApplication.onCreate because Firebase
+                        // can start the process in the background just to deliver one. The callback gets a
+                        // short time budget, so it only appends a line for QA. Real work belongs in
+                        // WorkManager, keyed on payload.getDeliveryId(), since a push can repeat or arrive late.
                         .setBackgroundPushCallback((context, payload) -> {
                             try {
                                 JSONObject receipt = new JSONObject()

@@ -55,6 +55,10 @@ class MainApplication : Application() {
             .addCustomerIOModule(
                 ModuleMessagingPushFCM(
                     MessagingPushModuleConfig.Builder()
+                        // Silent push: registered here in Application.onCreate because Firebase can
+                        // start the process in the background just to deliver one. The callback gets a
+                        // short time budget, so it only appends a line for QA. Real work belongs in
+                        // WorkManager, keyed on payload.deliveryId, since a push can repeat or arrive late.
                         .setBackgroundPushCallback { context, payload ->
                             val receipt = org.json.JSONObject()
                                 .put("delivery_id", payload.deliveryId)

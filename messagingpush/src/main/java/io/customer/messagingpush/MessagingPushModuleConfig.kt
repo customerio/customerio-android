@@ -45,10 +45,16 @@ class MessagingPushModuleConfig private constructor(
         private var liveNotificationCallback: CustomerIOLiveNotificationsCallback? = null
 
         /**
-         * Registers the host's data handler for explicitly marked background pushes.
-         * Configure this during Application.onCreate so cold FCM starts have a handler.
-         * Without a handler the message is consumed without display; automatic delivered
-         * metrics still describe SDK receipt, not completed application work.
+         * Sets the callback that receives Customer.io silent pushes. Configure it while
+         * initializing the SDK in `Application.onCreate`, so a push that starts the app in the
+         * background still reaches it.
+         *
+         * Setting a callback also tells Customer.io that this device can receive silent pushes.
+         * Without one, the device reports that it can't, and a silent push that still arrives
+         * is dropped without being shown. The delivered metric means the SDK received the push.
+         * It doesn't track whether your callback's work finished.
+         *
+         * See [CustomerIOBackgroundPushCallback] for threading, repeats and offline delivery.
          */
         fun setBackgroundPushCallback(callback: CustomerIOBackgroundPushCallback): Builder {
             backgroundPushCallback = callback

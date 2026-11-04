@@ -200,7 +200,13 @@ class CustomerIO private constructor(
         eventBus.subscribe<Event.BackgroundPushReadinessChangedEvent> {
             synchronized(this) {
                 backgroundPushReady = it.ready
-                setDeviceAttributes(emptyMap())
+                // The push module fetches the token right after publishing readiness, and that
+                // registration carries it. Send an update here only to correct one this process
+                // already sent with the other value, so each launch keeps a single device update.
+                val reported = reportedBackgroundPushReady
+                if (reported != null && reported != it.ready) {
+                    setDeviceAttributes(emptyMap())
+                }
             }
         }
         eventBus.subscribe<Event.TrackPushMetricEvent> {
@@ -488,7 +494,11 @@ class CustomerIO private constructor(
         trackDeviceAttributes(token = deviceToken, tokenType = tokenType)
     }
 
+    // Both guarded by this instance's lock, like every caller of trackDeviceAttributes.
     private var backgroundPushReady = false
+
+    // Readiness in the last device update this process sent, or null before the first one.
+    private var reportedBackgroundPushReady: Boolean? = null
 
     private fun trackDeviceAttributes(
         token: String?,
@@ -528,6 +538,7 @@ class CustomerIO private constructor(
             serializationStrategy = JsonAnySerializer.serializersModule.serializer(),
             enrichment = { event -> event?.putInContextUnderKey("device", "token", token) }
         )
+        reportedBackgroundPushReady = backgroundPushReady
     }
 
     override fun deleteDeviceTokenImpl() = deleteDeviceToken(contextPlugin.deviceToken)

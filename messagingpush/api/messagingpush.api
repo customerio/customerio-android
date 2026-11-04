@@ -28,7 +28,6 @@ public final class io/customer/messagingpush/MessagingPushModuleConfig : io/cust
 	public static final field Companion Lio/customer/messagingpush/MessagingPushModuleConfig$Companion;
 	public synthetic fun <init> (ZLio/customer/messagingpush/data/communication/CustomerIOPushNotificationCallback;Lio/customer/messagingpush/config/PushClickBehavior;Lio/customer/messagingpush/livenotification/LiveNotificationBranding;Ljava/util/Set;Lio/customer/messagingpush/data/communication/CustomerIOLiveNotificationsCallback;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public final fun getAutoTrackPushEvents ()Z
-	public final fun getBackgroundPushCallback ()Lio/customer/messagingpush/data/communication/CustomerIOBackgroundPushCallback;
 	public final fun getLiveNotificationBranding ()Lio/customer/messagingpush/livenotification/LiveNotificationBranding;
 	public final fun getLiveNotificationCallback ()Lio/customer/messagingpush/data/communication/CustomerIOLiveNotificationsCallback;
 	public final fun getLiveNotificationTypes ()Ljava/util/Set;

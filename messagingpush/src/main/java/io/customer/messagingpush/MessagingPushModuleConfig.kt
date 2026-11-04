@@ -31,8 +31,8 @@ class MessagingPushModuleConfig private constructor(
     val liveNotificationTypes: Set<String>,
     val liveNotificationCallback: CustomerIOLiveNotificationsCallback?
 ) : CustomerIOModuleConfig {
-    // Keep the existing constructor bridge for already-compiled integrations.
-    var backgroundPushCallback: CustomerIOBackgroundPushCallback? = null
+    // Set by the Builder after construction, so the constructor in the API dump stays unchanged.
+    internal var backgroundPushCallback: CustomerIOBackgroundPushCallback? = null
         private set
 
     class Builder : CustomerIOModuleConfig.Builder<MessagingPushModuleConfig> {

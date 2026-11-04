@@ -8,6 +8,7 @@ import io.customer.commontest.util.ScopeProviderStub
 import io.customer.datapipelines.testutils.core.IntegrationTest
 import io.customer.datapipelines.testutils.core.testConfiguration
 import io.customer.datapipelines.testutils.extensions.deviceToken
+import io.customer.datapipelines.testutils.utils.BACKGROUND_PUSH_VERSION_ATTRIBUTE
 import io.customer.datapipelines.testutils.utils.OutputReaderPlugin
 import io.customer.datapipelines.testutils.utils.TOKEN_TYPE_ATTRIBUTE
 import io.customer.datapipelines.testutils.utils.trackEvents
@@ -99,7 +100,7 @@ class DeviceTokenTypeTests : IntegrationTest() {
         sdkInstance.registerDeviceToken(String.random, DeviceTokenType.TOKEN)
 
         deviceUpdateTokenType() shouldBeEqualTo "token"
-        outputReaderPlugin.trackEvents.single().properties.keys shouldBeEqualTo setOf(TOKEN_TYPE_ATTRIBUTE, "cio_background_push_version")
+        outputReaderPlugin.trackEvents.single().properties.keys shouldBeEqualTo setOf(TOKEN_TYPE_ATTRIBUTE, BACKGROUND_PUSH_VERSION_ATTRIBUTE)
     }
 
     @Test
@@ -110,7 +111,7 @@ class DeviceTokenTypeTests : IntegrationTest() {
         outputReaderPlugin.trackEvents.size shouldBeEqualTo 0
 
         sdkInstance.registerDeviceToken(String.random, DeviceTokenType.TOKEN)
-        outputReaderPlugin.trackEvents.shouldHaveSingleItem().properties["cio_background_push_version"]?.jsonPrimitive?.content shouldBeEqualTo "1"
+        outputReaderPlugin.trackEvents.shouldHaveSingleItem().properties[BACKGROUND_PUSH_VERSION_ATTRIBUTE]?.jsonPrimitive?.content shouldBeEqualTo "1"
     }
 
     @Test
@@ -123,7 +124,7 @@ class DeviceTokenTypeTests : IntegrationTest() {
         outputReaderPlugin.trackEvents.size shouldBeEqualTo 0
 
         sdkInstance.registerDeviceToken("token-from-earlier-launch", DeviceTokenType.TOKEN)
-        outputReaderPlugin.trackEvents.shouldHaveSingleItem().properties["cio_background_push_version"]?.jsonPrimitive?.content shouldBeEqualTo "1"
+        outputReaderPlugin.trackEvents.shouldHaveSingleItem().properties[BACKGROUND_PUSH_VERSION_ATTRIBUTE]?.jsonPrimitive?.content shouldBeEqualTo "1"
     }
 
     @Test
@@ -138,7 +139,7 @@ class DeviceTokenTypeTests : IntegrationTest() {
 
         val update = outputReaderPlugin.trackEvents.shouldHaveSingleItem()
         update.context.deviceToken shouldBeEqualTo "token-from-earlier-launch"
-        update.properties["cio_background_push_version"]?.jsonPrimitive?.content shouldBeEqualTo "1"
+        update.properties[BACKGROUND_PUSH_VERSION_ATTRIBUTE]?.jsonPrimitive?.content shouldBeEqualTo "1"
     }
 
     @Test
@@ -149,7 +150,7 @@ class DeviceTokenTypeTests : IntegrationTest() {
         eventBus.publish(Event.BackgroundPushReadinessChangedEvent(ready = false))
         testDispatcher.scheduler.advanceUntilIdle()
 
-        outputReaderPlugin.trackEvents.shouldHaveSingleItem().properties["cio_background_push_version"]?.jsonPrimitive?.content shouldBeEqualTo "0"
+        outputReaderPlugin.trackEvents.shouldHaveSingleItem().properties[BACKGROUND_PUSH_VERSION_ATTRIBUTE]?.jsonPrimitive?.content shouldBeEqualTo "0"
     }
 
     @Test
@@ -160,25 +161,25 @@ class DeviceTokenTypeTests : IntegrationTest() {
         testDispatcher.scheduler.advanceUntilIdle()
         sdkInstance.registerDeviceToken(String.random)
 
-        outputReaderPlugin.trackEvents.shouldHaveSingleItem().properties["cio_background_push_version"]?.jsonPrimitive?.content shouldBeEqualTo "1"
+        outputReaderPlugin.trackEvents.shouldHaveSingleItem().properties[BACKGROUND_PUSH_VERSION_ATTRIBUTE]?.jsonPrimitive?.content shouldBeEqualTo "1"
     }
 
     @Test
     fun backgroundReadiness_givenExistingToken_expectCurrentReadinessOnEveryUpdate() {
         setupSdk(autoTrackDeviceAttributes = false)
         sdkInstance.registerDeviceToken(String.random, DeviceTokenType.TOKEN)
-        outputReaderPlugin.trackEvents.last().properties["cio_background_push_version"]?.jsonPrimitive?.content shouldBeEqualTo "0"
+        outputReaderPlugin.trackEvents.last().properties[BACKGROUND_PUSH_VERSION_ATTRIBUTE]?.jsonPrimitive?.content shouldBeEqualTo "0"
 
         eventBus.publish(Event.BackgroundPushReadinessChangedEvent(ready = true))
         testDispatcher.scheduler.advanceUntilIdle()
-        outputReaderPlugin.trackEvents.last().properties["cio_background_push_version"]?.jsonPrimitive?.content shouldBeEqualTo "1"
+        outputReaderPlugin.trackEvents.last().properties[BACKGROUND_PUSH_VERSION_ATTRIBUTE]?.jsonPrimitive?.content shouldBeEqualTo "1"
 
-        sdkInstance.setDeviceAttributes(mapOf("cio_background_push_version" to "0"))
-        outputReaderPlugin.trackEvents.last().properties["cio_background_push_version"]?.jsonPrimitive?.content shouldBeEqualTo "1"
+        sdkInstance.setDeviceAttributes(mapOf(BACKGROUND_PUSH_VERSION_ATTRIBUTE to "0"))
+        outputReaderPlugin.trackEvents.last().properties[BACKGROUND_PUSH_VERSION_ATTRIBUTE]?.jsonPrimitive?.content shouldBeEqualTo "1"
 
         eventBus.publish(Event.BackgroundPushReadinessChangedEvent(ready = false))
         testDispatcher.scheduler.advanceUntilIdle()
-        outputReaderPlugin.trackEvents.last().properties["cio_background_push_version"]?.jsonPrimitive?.content shouldBeEqualTo "0"
+        outputReaderPlugin.trackEvents.last().properties[BACKGROUND_PUSH_VERSION_ATTRIBUTE]?.jsonPrimitive?.content shouldBeEqualTo "0"
     }
 
     @Test

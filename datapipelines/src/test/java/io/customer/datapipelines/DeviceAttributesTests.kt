@@ -10,6 +10,7 @@ import io.customer.datapipelines.testutils.core.IntegrationTest
 import io.customer.datapipelines.testutils.core.testConfiguration
 import io.customer.datapipelines.testutils.extensions.deviceToken
 import io.customer.datapipelines.testutils.extensions.encodeToJsonValue
+import io.customer.datapipelines.testutils.utils.BACKGROUND_PUSH_VERSION_ATTRIBUTE
 import io.customer.datapipelines.testutils.utils.OutputReaderPlugin
 import io.customer.datapipelines.testutils.utils.trackEvents
 import io.customer.sdk.core.di.SDKComponent
@@ -80,7 +81,7 @@ class DeviceAttributesTests : IntegrationTest() {
         deviceRegisterEvent.userId shouldBeEqualTo givenIdentifier
         deviceRegisterEvent.event shouldBeEqualTo EventNames.DEVICE_UPDATE
         deviceRegisterEvent.context.deviceToken shouldBeEqualTo givenToken
-        deviceRegisterEvent.properties shouldContain ("cio_background_push_version" to "0").encodeToJsonValue()
+        deviceRegisterEvent.properties shouldContain (BACKGROUND_PUSH_VERSION_ATTRIBUTE to "0").encodeToJsonValue()
         deviceRegisterEvent.properties.keys shouldHaveSize 1
     }
 

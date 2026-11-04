@@ -14,6 +14,7 @@ import io.customer.base.internal.InternalCustomerIOApi
 import io.customer.datapipelines.config.DataPipelinesModuleConfig
 import io.customer.datapipelines.di.analyticsFactory
 import io.customer.datapipelines.di.dataPipelinesLogger
+import io.customer.datapipelines.extensions.BACKGROUND_PUSH_VERSION_ATTRIBUTE
 import io.customer.datapipelines.extensions.asMap
 import io.customer.datapipelines.extensions.sanitizeForJson
 import io.customer.datapipelines.extensions.type
@@ -200,10 +201,8 @@ class CustomerIO private constructor(
         eventBus.subscribe<Event.BackgroundPushReadinessChangedEvent> {
             synchronized(this) {
                 backgroundPushReady = it.ready
-                // The push module fetches the token right after publishing readiness, and that
-                // registration carries it, so each launch keeps a single device update. Send one
-                // here only to correct an update this process already sent with the other value,
-                // or with the stored token when the startup fetch failed and nothing was sent yet.
+                // The startup token registration carries readiness. Send an update here only to
+                // correct a value already sent, or when the token fetch failed and nothing was sent.
                 val reported = reportedBackgroundPushReady
                 val shouldReport = if (reported == null) it.reportWithStoredToken else reported != it.ready
                 if (shouldReport) {
@@ -526,7 +525,7 @@ class CustomerIO private constructor(
         }
         // Always applied, even with autoTrackDeviceAttributes off: the backend needs the type for every device.
         val attributes = trackedAttributes.withDeviceTokenType(tokenType = tokenType, logger = dataPipelinesLogger) +
-            ("cio_background_push_version" to if (backgroundPushReady) "1" else "0")
+            (BACKGROUND_PUSH_VERSION_ATTRIBUTE to if (backgroundPushReady) "1" else "0")
 
         // Update plugin with updated device information
         contextPlugin.deviceToken = token

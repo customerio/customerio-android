@@ -15,6 +15,7 @@ import io.customer.datapipelines.testutils.extensions.deviceToken
 import io.customer.datapipelines.testutils.extensions.encodeToJsonElement
 import io.customer.datapipelines.testutils.extensions.shouldMatchTo
 import io.customer.datapipelines.testutils.extensions.toJsonObject
+import io.customer.datapipelines.testutils.utils.BACKGROUND_PUSH_VERSION_ATTRIBUTE
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.data.model.CustomAttributes
 import io.customer.sdk.data.store.DeviceStore
@@ -427,7 +428,7 @@ class DataPipelinesCompatibilityTests : JUnitTest() {
 
         val payloadContext = payload["context"]?.jsonObject.shouldNotBeNull()
         payloadContext.deviceToken shouldBeEqualTo givenToken
-        payload["properties"]?.jsonObject.shouldNotBeNull() shouldMatchTo mapOf("cio_background_push_version" to "0")
+        payload["properties"]?.jsonObject.shouldNotBeNull() shouldMatchTo mapOf(BACKGROUND_PUSH_VERSION_ATTRIBUTE to "0")
         // server does not require 'last_used' and 'platform' and may fail if included
         payloadContext.containsKey("last_used") shouldBeEqualTo false
         payloadContext.containsKey("platform") shouldBeEqualTo false
@@ -490,7 +491,7 @@ class DataPipelinesCompatibilityTests : JUnitTest() {
         val payloadContext = payload["context"]?.jsonObject.shouldNotBeNull()
         payloadContext.deviceToken shouldBeEqualTo givenToken
 
-        val givenAttributes = deviceStore.buildDeviceAttributes() + customAttributes + ("cio_background_push_version" to "0")
+        val givenAttributes = deviceStore.buildDeviceAttributes() + customAttributes + (BACKGROUND_PUSH_VERSION_ATTRIBUTE to "0")
         payload["properties"]?.jsonObject.shouldNotBeNull() shouldMatchTo givenAttributes
     }
 

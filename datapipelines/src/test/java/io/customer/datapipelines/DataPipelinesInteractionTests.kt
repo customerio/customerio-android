@@ -10,6 +10,7 @@ import io.customer.datapipelines.testutils.data.model.UserTraits
 import io.customer.datapipelines.testutils.extensions.deviceToken
 import io.customer.datapipelines.testutils.extensions.encodeToJsonElement
 import io.customer.datapipelines.testutils.extensions.shouldMatchTo
+import io.customer.datapipelines.testutils.utils.BACKGROUND_PUSH_VERSION_ATTRIBUTE
 import io.customer.datapipelines.testutils.utils.OutputReaderPlugin
 import io.customer.datapipelines.testutils.utils.identifyEvents
 import io.customer.datapipelines.testutils.utils.screenEvents
@@ -442,7 +443,7 @@ class DataPipelinesInteractionTests : JUnitTest() {
         deviceRegisterEvent.userId shouldBeEqualTo givenIdentifier
         deviceRegisterEvent.event shouldBeEqualTo EventNames.DEVICE_UPDATE
         deviceRegisterEvent.context.deviceToken shouldBeEqualTo givenToken
-        deviceRegisterEvent.properties shouldMatchTo mapOf("cio_background_push_version" to "0")
+        deviceRegisterEvent.properties shouldMatchTo mapOf(BACKGROUND_PUSH_VERSION_ATTRIBUTE to "0")
     }
 
     @Test
@@ -467,7 +468,7 @@ class DataPipelinesInteractionTests : JUnitTest() {
         deviceRegisterEvent.userId shouldBeEqualTo givenIdentifier
         deviceRegisterEvent.event shouldBeEqualTo EventNames.DEVICE_UPDATE
         deviceRegisterEvent.context.deviceToken shouldBeEqualTo givenToken
-        deviceRegisterEvent.properties shouldMatchTo (givenAttributes + ("cio_background_push_version" to "0"))
+        deviceRegisterEvent.properties shouldMatchTo (givenAttributes + (BACKGROUND_PUSH_VERSION_ATTRIBUTE to "0"))
     }
 
     @Test

@@ -8,6 +8,7 @@ import io.customer.datapipelines.testutils.core.JUnitTest
 import io.customer.datapipelines.testutils.core.testConfiguration
 import io.customer.datapipelines.testutils.extensions.deviceToken
 import io.customer.datapipelines.testutils.extensions.shouldMatchTo
+import io.customer.datapipelines.testutils.utils.BACKGROUND_PUSH_VERSION_ATTRIBUTE
 import io.customer.datapipelines.testutils.utils.OutputReaderPlugin
 import io.customer.datapipelines.testutils.utils.TOKEN_TYPE_ATTRIBUTE
 import io.customer.datapipelines.testutils.utils.identifyEvents
@@ -96,7 +97,7 @@ class DataPipelinesStandardDispatcherTest : JUnitTest(dispatcher = StandardTestD
 
         val deviceRegisterEventContext = deviceRegisterEvent.context
         deviceRegisterEventContext.deviceToken shouldBeEqualTo givenToken
-        deviceRegisterEvent.properties shouldMatchTo (deviceStore.buildDeviceAttributes() + ("cio_background_push_version" to "0"))
+        deviceRegisterEvent.properties shouldMatchTo (deviceStore.buildDeviceAttributes() + (BACKGROUND_PUSH_VERSION_ATTRIBUTE to "0"))
     }
 
     @Test

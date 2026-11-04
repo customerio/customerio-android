@@ -14,6 +14,7 @@ import io.customer.datapipelines.testutils.core.IntegrationTest
 import io.customer.datapipelines.testutils.core.testConfiguration
 import io.customer.datapipelines.testutils.extensions.deviceToken
 import io.customer.datapipelines.testutils.extensions.shouldMatchTo
+import io.customer.datapipelines.testutils.utils.BACKGROUND_PUSH_VERSION_ATTRIBUTE
 import io.customer.datapipelines.testutils.utils.OutputReaderPlugin
 import io.customer.datapipelines.testutils.utils.TOKEN_TYPE_ATTRIBUTE
 import io.customer.datapipelines.testutils.utils.identifyEvents
@@ -150,7 +151,7 @@ class TrackingMigrationProcessorTest : IntegrationTest() {
         deviceRegisterEvent.context.deviceToken shouldBeEqualTo oldDeviceToken
         deviceRegisterEvent.properties shouldBeEqualTo buildJsonObject {
             put(TOKEN_TYPE_ATTRIBUTE, "token")
-            put("cio_background_push_version", "0")
+            put(BACKGROUND_PUSH_VERSION_ATTRIBUTE, "0")
         }
     }
 

@@ -7,6 +7,7 @@ import com.google.firebase.installations.FirebaseInstallations
 import com.google.firebase.messaging.FirebaseMessaging
 import io.customer.base.internal.InternalCustomerIOApi
 import io.customer.messagingpush.AsyncPushDeliveryTracker
+import io.customer.messagingpush.BackgroundPushCallbackFallback
 import io.customer.messagingpush.MessagingPushModuleConfig
 import io.customer.messagingpush.ModuleMessagingPushFCM
 import io.customer.messagingpush.PushDeliveryTracker
@@ -59,6 +60,11 @@ val SDKComponent.pushModuleConfig: MessagingPushModuleConfig
     get() = newInstance {
         modules[ModuleMessagingPushFCM.MODULE_NAME]?.moduleConfig as? MessagingPushModuleConfig ?: MessagingPushModuleConfig.default()
     }
+
+/** See [BackgroundPushCallbackFallback]. Only wrapper SDKs set it. */
+@InternalCustomerIOApi
+val SDKComponent.backgroundPushCallbackFallback: BackgroundPushCallbackFallback
+    get() = singleton<BackgroundPushCallbackFallback> { BackgroundPushCallbackFallback() }
 
 internal val SDKComponent.deepLinkUtil: DeepLinkUtil
     get() = newInstance<DeepLinkUtil> { DeepLinkUtilImpl(logger, pushModuleConfig) }

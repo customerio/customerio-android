@@ -11,6 +11,7 @@ import com.google.firebase.messaging.RemoteMessage
 import io.customer.commontest.extensions.attachToSDKComponent
 import io.customer.messagingpush.data.communication.CustomerIOBackgroundPushCallback
 import io.customer.messagingpush.data.model.CustomerIOBackgroundPushPayload
+import io.customer.messagingpush.di.backgroundPushCallbackFallback
 import io.customer.messagingpush.logger.PushNotificationLogger
 import io.customer.messagingpush.processor.PushDeliveryMetricsBackgroundScheduler
 import io.customer.messagingpush.processor.PushMessageProcessor
@@ -18,6 +19,7 @@ import io.customer.messagingpush.processor.PushMessageProcessorImpl
 import io.customer.messagingpush.store.PendingPushDeliveryMetric
 import io.customer.messagingpush.testutils.core.IntegrationTest
 import io.customer.messagingpush.util.NotificationChannelCreator
+import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.util.CustomerIOWorkManagerProvider
 import io.customer.sdk.data.store.PendingDeliveryStore
 import io.mockk.every
@@ -183,6 +185,32 @@ class BackgroundPushHandlerTest : IntegrationTest() {
 
         verify(exactly = 1) { processor.processRemoteMessageDeliveredMetrics("dlv_123", "tok_abc") }
         assertNoNotification()
+    }
+
+    @Test
+    fun fallbackCallback_withoutConfigCallback_receivesBackgroundPush() {
+        var received: CustomerIOBackgroundPushPayload? = null
+        SDKComponent.backgroundPushCallbackFallback.callback = CustomerIOBackgroundPushCallback { _, payload -> received = payload }
+        val processor = mockk<PushMessageProcessor>(relaxed = true)
+
+        assertTrue(handler(data(), processor).handleMessage(contextMock))
+
+        assertEquals("dlv_123", received?.deliveryId)
+        verify(exactly = 1) { processor.processRemoteMessageDeliveredMetrics("dlv_123", "tok_abc") }
+        assertNoNotification()
+    }
+
+    @Test
+    fun configCallback_whenFallbackAlsoSet_winsOverFallback() {
+        var configCalls = 0
+        var fallbackCalls = 0
+        installCallback { _, _ -> configCalls++ }
+        SDKComponent.backgroundPushCallbackFallback.callback = CustomerIOBackgroundPushCallback { _, _ -> fallbackCalls++ }
+
+        assertTrue(handler(data()).handleMessage(contextMock))
+
+        assertEquals(1, configCalls)
+        assertEquals(0, fallbackCalls)
     }
 
     @Test

@@ -16,6 +16,7 @@ import com.google.firebase.messaging.RemoteMessage
 import io.customer.messagingpush.activity.NotificationClickReceiverActivity
 import io.customer.messagingpush.data.model.CustomerIOBackgroundPushPayload
 import io.customer.messagingpush.data.model.CustomerIOParsedPushPayload
+import io.customer.messagingpush.di.backgroundPushCallbackFallback
 import io.customer.messagingpush.di.liveNotificationManager
 import io.customer.messagingpush.di.pushLogger
 import io.customer.messagingpush.di.pushModuleConfig
@@ -131,7 +132,8 @@ internal class CustomerIOPushNotificationHandler(
         } catch (error: Exception) {
             pushLogger.logBackgroundPushReceiptFailed(error)
         }
-        val callback = moduleConfig.backgroundPushCallback
+        // A wrapper's fallback covers a process that Firebase started before the wrapper set up the SDK.
+        val callback = moduleConfig.backgroundPushCallback ?: diGraph.backgroundPushCallbackFallback.callback
         if (callback == null) {
             pushLogger.logBackgroundPushCallbackMissing()
             return

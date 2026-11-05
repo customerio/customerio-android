@@ -78,6 +78,7 @@ class PushMessageProcessorTest : IntegrationTest() {
 
         deepLinkUtilMock = SDKComponent.deepLinkUtil
         eventBus = SDKComponent.eventBus
+        every { mockPendingStore.append(any<PendingPushDeliveryMetric>()) } returns true
     }
 
     private fun pushMessagePayload(deepLink: String? = null): CustomerIOParsedPushPayload {
@@ -476,6 +477,26 @@ class PushMessageProcessorTest : IntegrationTest() {
         verify(exactly = 1) { mockPendingStore.append(PendingPushDeliveryMetric(givenDeliveryId, givenDeviceToken)) }
         verify(exactly = 1) { mockDeliveryMetricsScheduler.scheduleDeliveredPushMetricsReceipt(givenDeliveryId, givenDeviceToken) }
         SDKComponent.heldPushDeliveryStore.loadAll() shouldBeEqualTo emptyList()
+    }
+
+    @Test
+    fun processHeldDeliveredMetrics_givenPendingSaveFails_expectKeepHeldAndSendOnNextRelease() {
+        val held = PendingPushDeliveryMetric(deliveryId = String.random, token = String.random)
+        val processor = pushMessageProcessor()
+        processor.processRemoteMessageDeliveredMetrics(held.deliveryId, held.token)
+        setupModuleConfig(autoTrackPushEvents = true)
+        every { mockPendingStore.append(any<PendingPushDeliveryMetric>()) } returnsMany listOf(false, true)
+
+        processor.processHeldDeliveredMetrics()
+
+        SDKComponent.heldPushDeliveryStore.loadAll() shouldBeEqualTo listOf(held)
+        verify(exactly = 0) { mockDeliveryMetricsScheduler.scheduleDeliveredPushMetricsReceipt(any(), any()) }
+
+        processor.processHeldDeliveredMetrics()
+
+        SDKComponent.heldPushDeliveryStore.loadAll() shouldBeEqualTo emptyList()
+        verify(exactly = 2) { mockPendingStore.append(held) }
+        verify(exactly = 1) { mockDeliveryMetricsScheduler.scheduleDeliveredPushMetricsReceipt(held.deliveryId, held.token) }
     }
 
     @Test

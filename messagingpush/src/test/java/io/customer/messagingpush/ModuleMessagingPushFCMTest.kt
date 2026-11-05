@@ -71,6 +71,7 @@ class ModuleMessagingPushFCMTest : IntegrationTest() {
         )
 
         every { mockWorkManagerProvider.getWorkManager() } returns mockWorkManager
+        every { mockPendingStore.append(any<PendingPushDeliveryMetric>()) } returns true
         every { mockWorkManager.cancelUniqueWork(any()) } returns immediateSuccessfulOperation()
 
         eventBus = SDKComponent.eventBus

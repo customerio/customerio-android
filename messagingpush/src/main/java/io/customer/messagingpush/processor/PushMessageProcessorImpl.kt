@@ -116,8 +116,15 @@ internal class PushMessageProcessorImpl(
         val config = moduleConfig ?: return
         for (entry in heldPushDeliveryStore.loadAll()) {
             // Claiming first keeps two racing releases from tracking the same metric twice.
-            if (heldPushDeliveryStore.claim(entry.key)) {
-                trackDeliveredMetricsIfEnabled(entry.deliveryId, entry.token, config.autoTrackPushEvents)
+            if (!heldPushDeliveryStore.claim(entry.key)) continue
+            if (!config.autoTrackPushEvents) {
+                pushLogger.logPushMetricsAutoTrackingDisabled()
+            } else if (savePendingDeliveredMetrics(entry.deliveryId, entry.token)) {
+                scheduleDeliveredMetrics(entry.deliveryId, entry.token)
+            } else {
+                // The pending store didn't save it, so keep the held copy for the next setup. Scheduling
+                // anyway could send it now through the direct fallback and again from the held copy.
+                heldPushDeliveryStore.append(entry)
             }
         }
     }
@@ -125,30 +132,38 @@ internal class PushMessageProcessorImpl(
     private fun trackDeliveredMetricsIfEnabled(deliveryId: String, deliveryToken: String, autoTrackPushEvents: Boolean) {
         // Track delivered event only if auto-tracking is enabled
         if (autoTrackPushEvents) {
-            pushLogger.logTrackingPushMessageDelivered(deliveryId)
-
-            // Persist a pending entry first so the metric can be replayed via the
-            // analytics pipeline when the user next foregrounds the app, if the
-            // WorkManager job has not confirmed delivery by then. The entry is
-            // keyed by deliveryId; the worker (or direct-HTTP fallback) removes
-            // it on a successful response, otherwise the foreground handoff
-            // cancels the worker and publishes the entry via the analytics
-            // pipeline instead.
-            pushLogger.logPendingStoreAppended(deliveryId)
-            pendingPushDeliveryStore.append(
-                PendingPushDeliveryMetric(
-                    deliveryId = deliveryId,
-                    token = deliveryToken
-                )
-            )
-
-            deliveryMetricsScheduler.scheduleDeliveredPushMetricsReceipt(
-                deliveryId = deliveryId,
-                deliveryToken = deliveryToken
-            )
+            savePendingDeliveredMetrics(deliveryId, deliveryToken)
+            scheduleDeliveredMetrics(deliveryId, deliveryToken)
         } else {
             pushLogger.logPushMetricsAutoTrackingDisabled()
         }
+    }
+
+    /** @return false when the pending store couldn't save the metric. */
+    private fun savePendingDeliveredMetrics(deliveryId: String, deliveryToken: String): Boolean {
+        pushLogger.logTrackingPushMessageDelivered(deliveryId)
+
+        // Persist a pending entry first so the metric can be replayed via the
+        // analytics pipeline when the user next foregrounds the app, if the
+        // WorkManager job has not confirmed delivery by then. The entry is
+        // keyed by deliveryId; the worker (or direct-HTTP fallback) removes
+        // it on a successful response, otherwise the foreground handoff
+        // cancels the worker and publishes the entry via the analytics
+        // pipeline instead.
+        pushLogger.logPendingStoreAppended(deliveryId)
+        return pendingPushDeliveryStore.append(
+            PendingPushDeliveryMetric(
+                deliveryId = deliveryId,
+                token = deliveryToken
+            )
+        )
+    }
+
+    private fun scheduleDeliveredMetrics(deliveryId: String, deliveryToken: String) {
+        deliveryMetricsScheduler.scheduleDeliveredPushMetricsReceipt(
+            deliveryId = deliveryId,
+            deliveryToken = deliveryToken
+        )
     }
 
     override fun processNotificationClick(activityContext: Context, intent: Intent) {

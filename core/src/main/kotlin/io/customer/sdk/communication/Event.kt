@@ -40,16 +40,6 @@ sealed class Event {
     @InternalCustomerIOApi
     object SdkInitializedEvent : Event()
 
-    /**
-     * Whether the app registered a silent push callback. [reportWithStoredToken] is set when the
-     * push module's startup token fetch failed, so no token registration will carry readiness.
-     */
-    @InternalCustomerIOApi
-    data class BackgroundPushReadinessChangedEvent(
-        val ready: Boolean,
-        val reportWithStoredToken: Boolean = false
-    ) : Event()
-
     data class TrackPushMetricEvent(
         val deliveryId: String,
         val event: Metric,

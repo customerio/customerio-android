@@ -1,23 +1,16 @@
 package io.customer.datapipelines
 
-import com.segment.analytics.kotlin.core.TrackEvent
 import io.customer.commontest.config.TestConfig
 import io.customer.commontest.extensions.assertCalledNever
 import io.customer.commontest.extensions.assertCalledOnce
 import io.customer.commontest.extensions.random
-import io.customer.commontest.util.ScopeProviderStub
 import io.customer.datapipelines.testutils.core.IntegrationTest
 import io.customer.datapipelines.testutils.core.testConfiguration
-import io.customer.datapipelines.testutils.extensions.deviceToken
-import io.customer.datapipelines.testutils.utils.BACKGROUND_PUSH_VERSION_ATTRIBUTE
 import io.customer.datapipelines.testutils.utils.OutputReaderPlugin
 import io.customer.datapipelines.testutils.utils.TOKEN_TYPE_ATTRIBUTE
 import io.customer.datapipelines.testutils.utils.trackEvents
 import io.customer.sdk.DataPipelinesLogger
-import io.customer.sdk.communication.Event
 import io.customer.sdk.core.di.SDKComponent
-import io.customer.sdk.core.di.SDKComponent.eventBus
-import io.customer.sdk.core.util.ScopeProvider
 import io.customer.sdk.data.model.DeviceTokenType
 import io.customer.sdk.data.store.GlobalPreferenceStore
 import io.customer.sdk.util.EventNames
@@ -44,12 +37,7 @@ class DeviceTokenTypeTests : IntegrationTest() {
         super.setup(
             testConfiguration {
                 sdkConfig { autoTrackDeviceAttributes(autoTrackDeviceAttributes) }
-                diGraph {
-                    sdk {
-                        overrideDependency<DataPipelinesLogger>(mockDataPipelinesLogger)
-                        overrideDependency<ScopeProvider>(ScopeProviderStub.Unconfined())
-                    }
-                }
+                diGraph { sdk { overrideDependency<DataPipelinesLogger>(mockDataPipelinesLogger) } }
             }
         )
         globalPreferenceStore = SDKComponent.android().globalPreferenceStore
@@ -66,9 +54,6 @@ class DeviceTokenTypeTests : IntegrationTest() {
         outputReaderPlugin = OutputReaderPlugin()
         analytics.add(outputReaderPlugin)
     }
-
-    private val TrackEvent.backgroundPushVersion: String?
-        get() = properties[BACKGROUND_PUSH_VERSION_ATTRIBUTE]?.jsonPrimitive?.content
 
     private fun deviceUpdateTokenType(): String? {
         val event = outputReaderPlugin.trackEvents.filter { it.event == EventNames.DEVICE_UPDATE }.shouldHaveSingleItem()
@@ -104,75 +89,7 @@ class DeviceTokenTypeTests : IntegrationTest() {
         sdkInstance.registerDeviceToken(String.random, DeviceTokenType.TOKEN)
 
         deviceUpdateTokenType() shouldBeEqualTo "token"
-        outputReaderPlugin.trackEvents.single().properties.keys shouldBeEqualTo setOf(TOKEN_TYPE_ATTRIBUTE, BACKGROUND_PUSH_VERSION_ATTRIBUTE)
-    }
-
-    @Test
-    fun backgroundReadiness_givenTokenStoredByEarlierLaunch_expectNoExtraUpdateBeforeRegistration() {
-        setupSdk(autoTrackDeviceAttributes = false)
-        globalPreferenceStore.saveDeviceToken("token-from-earlier-launch", DeviceTokenType.TOKEN)
-
-        eventBus.publish(Event.BackgroundPushReadinessChangedEvent(ready = true))
-        testDispatcher.scheduler.advanceUntilIdle()
-        outputReaderPlugin.trackEvents.size shouldBeEqualTo 0
-
-        sdkInstance.registerDeviceToken("token-from-earlier-launch", DeviceTokenType.TOKEN)
-        outputReaderPlugin.trackEvents.shouldHaveSingleItem().backgroundPushVersion shouldBeEqualTo "1"
-    }
-
-    @Test
-    fun backgroundReadiness_givenTokenFetchFailedWithStoredToken_expectOneUpdateWithStoredToken() {
-        setupSdk(autoTrackDeviceAttributes = false)
-        globalPreferenceStore.saveDeviceToken("token-from-earlier-launch", DeviceTokenType.TOKEN)
-
-        eventBus.publish(Event.BackgroundPushReadinessChangedEvent(ready = true))
-        eventBus.publish(Event.BackgroundPushReadinessChangedEvent(ready = true, reportWithStoredToken = true))
-        eventBus.publish(Event.BackgroundPushReadinessChangedEvent(ready = true, reportWithStoredToken = true))
-        testDispatcher.scheduler.advanceUntilIdle()
-
-        val update = outputReaderPlugin.trackEvents.shouldHaveSingleItem()
-        update.context.deviceToken shouldBeEqualTo "token-from-earlier-launch"
-        update.backgroundPushVersion shouldBeEqualTo "1"
-    }
-
-    @Test
-    fun backgroundReadiness_givenUnchangedValueAlreadyReported_expectNoExtraUpdate() {
-        setupSdk(autoTrackDeviceAttributes = false)
-        sdkInstance.registerDeviceToken(String.random, DeviceTokenType.TOKEN)
-
-        eventBus.publish(Event.BackgroundPushReadinessChangedEvent(ready = false))
-        testDispatcher.scheduler.advanceUntilIdle()
-
-        outputReaderPlugin.trackEvents.shouldHaveSingleItem().backgroundPushVersion shouldBeEqualTo "0"
-    }
-
-    @Test
-    fun backgroundReadiness_givenManualTokenRegistration_expectReadinessSent() {
-        setupSdk()
-
-        eventBus.publish(Event.BackgroundPushReadinessChangedEvent(ready = true))
-        testDispatcher.scheduler.advanceUntilIdle()
-        sdkInstance.registerDeviceToken(String.random)
-
-        outputReaderPlugin.trackEvents.shouldHaveSingleItem().backgroundPushVersion shouldBeEqualTo "1"
-    }
-
-    @Test
-    fun backgroundReadiness_givenExistingToken_expectCurrentReadinessOnEveryUpdate() {
-        setupSdk(autoTrackDeviceAttributes = false)
-        sdkInstance.registerDeviceToken(String.random, DeviceTokenType.TOKEN)
-        outputReaderPlugin.trackEvents.last().backgroundPushVersion shouldBeEqualTo "0"
-
-        eventBus.publish(Event.BackgroundPushReadinessChangedEvent(ready = true))
-        testDispatcher.scheduler.advanceUntilIdle()
-        outputReaderPlugin.trackEvents.last().backgroundPushVersion shouldBeEqualTo "1"
-
-        sdkInstance.setDeviceAttributes(mapOf(BACKGROUND_PUSH_VERSION_ATTRIBUTE to "0"))
-        outputReaderPlugin.trackEvents.last().backgroundPushVersion shouldBeEqualTo "1"
-
-        eventBus.publish(Event.BackgroundPushReadinessChangedEvent(ready = false))
-        testDispatcher.scheduler.advanceUntilIdle()
-        outputReaderPlugin.trackEvents.last().backgroundPushVersion shouldBeEqualTo "0"
+        outputReaderPlugin.trackEvents.single().properties.keys shouldBeEqualTo setOf(TOKEN_TYPE_ATTRIBUTE)
     }
 
     @Test

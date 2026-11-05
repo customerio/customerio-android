@@ -14,7 +14,6 @@ import io.customer.base.internal.InternalCustomerIOApi
 import io.customer.datapipelines.config.DataPipelinesModuleConfig
 import io.customer.datapipelines.di.analyticsFactory
 import io.customer.datapipelines.di.dataPipelinesLogger
-import io.customer.datapipelines.extensions.BACKGROUND_PUSH_VERSION_ATTRIBUTE
 import io.customer.datapipelines.extensions.asMap
 import io.customer.datapipelines.extensions.sanitizeForJson
 import io.customer.datapipelines.extensions.type
@@ -198,18 +197,6 @@ class CustomerIO private constructor(
     }
 
     private fun subscribeToJourneyEvents() {
-        eventBus.subscribe<Event.BackgroundPushReadinessChangedEvent> {
-            synchronized(this) {
-                backgroundPushReady = it.ready
-                // The startup token registration carries readiness. Send an update here only to
-                // correct a value already sent, or when the token fetch failed and nothing was sent.
-                val reported = reportedBackgroundPushReady
-                val shouldReport = if (reported == null) it.reportWithStoredToken else reported != it.ready
-                if (shouldReport) {
-                    setDeviceAttributes(emptyMap())
-                }
-            }
-        }
         eventBus.subscribe<Event.TrackPushMetricEvent> {
             trackMetric(TrackMetric.Push(metric = it.event, deliveryId = it.deliveryId, deviceToken = it.deviceToken))
         }
@@ -495,12 +482,6 @@ class CustomerIO private constructor(
         trackDeviceAttributes(token = deviceToken, tokenType = tokenType)
     }
 
-    // Both guarded by this instance's lock, like every caller of trackDeviceAttributes.
-    private var backgroundPushReady = false
-
-    // Readiness in the last device update this process sent, or null before the first one.
-    private var reportedBackgroundPushReady: Boolean? = null
-
     private fun trackDeviceAttributes(
         token: String?,
         tokenType: DeviceTokenType?,
@@ -524,8 +505,7 @@ class CustomerIO private constructor(
             customAddedAttributes
         }
         // Always applied, even with autoTrackDeviceAttributes off: the backend needs the type for every device.
-        val attributes = trackedAttributes.withDeviceTokenType(tokenType = tokenType, logger = dataPipelinesLogger) +
-            (BACKGROUND_PUSH_VERSION_ATTRIBUTE to if (backgroundPushReady) "1" else "0")
+        val attributes = trackedAttributes.withDeviceTokenType(tokenType = tokenType, logger = dataPipelinesLogger)
 
         // Update plugin with updated device information
         contextPlugin.deviceToken = token
@@ -539,7 +519,6 @@ class CustomerIO private constructor(
             serializationStrategy = JsonAnySerializer.serializersModule.serializer(),
             enrichment = { event -> event?.putInContextUnderKey("device", "token", token) }
         )
-        reportedBackgroundPushReady = backgroundPushReady
     }
 
     override fun deleteDeviceTokenImpl() = deleteDeviceToken(contextPlugin.deviceToken)

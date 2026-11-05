@@ -1,7 +1,9 @@
 {
   "message": {
     "android": {
-      "priority": "normal"
+      "collapse_key": "cio-background",
+      "priority": "normal",
+      "ttl": "86400s"
     },
     "data": {
       "CIO-Background-Delivery-ID": "fixture-delivery-1",

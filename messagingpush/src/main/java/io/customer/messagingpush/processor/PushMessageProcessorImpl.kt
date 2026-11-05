@@ -20,11 +20,15 @@ import io.customer.sdk.events.Metric
 
 internal class PushMessageProcessorImpl(
     private val pushLogger: PushNotificationLogger,
-    private val moduleConfig: MessagingPushModuleConfig,
+    private val moduleConfigProvider: () -> MessagingPushModuleConfig,
     private val deepLinkUtil: DeepLinkUtil,
     private val deliveryMetricsScheduler: PushDeliveryMetricsBackgroundScheduler,
     private val pendingPushDeliveryStore: PendingDeliveryStore<PendingPushDeliveryMetric>
 ) : PushMessageProcessor {
+
+    // Read for each message because this processor can be created before the app sets up the SDK.
+    private val moduleConfig: MessagingPushModuleConfig
+        get() = moduleConfigProvider()
 
     /**
      * Responsible for storing and updating recent messages in queue atomically.
@@ -134,12 +138,13 @@ internal class PushMessageProcessorImpl(
         activityContext: Context,
         payload: CustomerIOParsedPushPayload
     ) {
-        trackNotificationClickMetrics(payload)
-        handleNotificationDeepLink(activityContext, payload)
+        val config = moduleConfig
+        trackNotificationClickMetrics(payload, config)
+        handleNotificationDeepLink(activityContext, payload, config)
     }
 
-    private fun trackNotificationClickMetrics(payload: CustomerIOParsedPushPayload) {
-        if (!moduleConfig.autoTrackPushEvents) {
+    private fun trackNotificationClickMetrics(payload: CustomerIOParsedPushPayload, config: MessagingPushModuleConfig) {
+        if (!config.autoTrackPushEvents) {
             pushLogger.logPushMetricsAutoTrackingDisabled()
             return
         }
@@ -162,13 +167,14 @@ internal class PushMessageProcessorImpl(
 
     private fun handleNotificationDeepLink(
         activityContext: Context,
-        payload: CustomerIOParsedPushPayload
+        payload: CustomerIOParsedPushPayload,
+        config: MessagingPushModuleConfig
     ) {
-        pushLogger.logHandlingNotificationDeepLink(payload, moduleConfig.pushClickBehavior)
+        pushLogger.logHandlingNotificationDeepLink(payload, config.pushClickBehavior)
         val deepLink = payload.deepLink?.takeIf { link -> link.isNotBlank() }
 
         // check if host app overrides the handling of deeplink
-        val notificationCallback = moduleConfig.notificationCallback
+        val notificationCallback = config.notificationCallback
         val wasClicked = notificationCallback?.onNotificationClicked(
             context = activityContext,
             payload = payload
@@ -205,11 +211,11 @@ internal class PushMessageProcessorImpl(
         when {
             deepLinkHostAppIntent != null -> {
                 pushLogger.logDeepLinkHandledByHostApp()
-                startActivityForIntent(activityContext, deepLinkHostAppIntent, payload)
+                startActivityForIntent(activityContext, deepLinkHostAppIntent, payload, config.pushClickBehavior)
             }
             defaultHostAppIntent != null -> {
                 pushLogger.logDeepLinkHandledDefaultHostAppLauncher()
-                startActivityForIntent(activityContext, defaultHostAppIntent, payload)
+                startActivityForIntent(activityContext, defaultHostAppIntent, payload, config.pushClickBehavior)
             }
             else -> pushLogger.logDeepLinkWasNotHandled()
         }
@@ -218,14 +224,15 @@ internal class PushMessageProcessorImpl(
     private fun startActivityForIntent(
         activityContext: Context,
         deepLinkIntent: Intent,
-        payload: CustomerIOParsedPushPayload
+        payload: CustomerIOParsedPushPayload,
+        pushClickBehavior: PushClickBehavior
     ) {
         deepLinkIntent.putExtra(
             NotificationClickReceiverActivity.NOTIFICATION_PAYLOAD_EXTRA,
             payload
         )
 
-        when (moduleConfig.pushClickBehavior) {
+        when (pushClickBehavior) {
             PushClickBehavior.RESET_TASK_STACK -> {
                 val taskStackBuilder = TaskStackBuilder.create(activityContext).apply {
                     addNextIntentWithParentStack(deepLinkIntent)

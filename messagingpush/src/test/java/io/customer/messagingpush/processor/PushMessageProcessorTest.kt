@@ -376,6 +376,30 @@ class PushMessageProcessorTest : IntegrationTest() {
     }
 
     @Test
+    fun processMessages_givenPushBeforeSdkInit_expectSettingsFromLaterInitApply() {
+        // A push that arrives before the app sets up the SDK creates the processor while only the default config exists.
+        val processor = pushMessageProcessor()
+        processor.processRemoteMessageDeliveredMetrics(String.random, String.random)
+        val notificationCallback: CustomerIOPushNotificationCallback = mockk(relaxed = true)
+        setupModuleConfig(autoTrackPushEvents = false, notificationCallback = notificationCallback)
+
+        val laterDeliveryId = String.random
+        processor.processRemoteMessageDeliveredMetrics(laterDeliveryId, String.random)
+        val givenPayload = pushMessagePayload(deepLink = "https://cio.example.com/")
+        every { notificationCallback.onNotificationClicked(givenPayload, any()) } answers { }
+        processor.processNotificationClick(
+            contextMock,
+            Intent().apply { putExtra(NotificationClickReceiverActivity.NOTIFICATION_PAYLOAD_EXTRA, givenPayload) }
+        )
+
+        verify(exactly = 0) { mockPendingStore.append(match<PendingPushDeliveryMetric> { it.deliveryId == laterDeliveryId }) }
+        verify(exactly = 0) { mockDeliveryMetricsScheduler.scheduleDeliveredPushMetricsReceipt(laterDeliveryId, any()) }
+        verify(exactly = 1) { notificationCallback.onNotificationClicked(givenPayload, any()) }
+        verify(exactly = 0) { eventBus.publish(any<Event.TrackPushMetricEvent>()) }
+        assertNoInteractions(deepLinkUtilMock)
+    }
+
+    @Test
     fun processNotificationClick_givenValidIntent_expectSuccessfulProcessing() {
         setupModuleConfig(autoTrackPushEvents = true)
         val processor = pushMessageProcessor()

@@ -83,7 +83,7 @@ class BackgroundPushHandlerTest : IntegrationTest() {
         config: MessagingPushModuleConfig,
         scheduler: PushDeliveryMetricsBackgroundScheduler,
         store: PendingDeliveryStore<PendingPushDeliveryMetric>
-    ) = PushMessageProcessorImpl(mockk<PushNotificationLogger>(relaxed = true), config, mockk(relaxed = true), scheduler, store)
+    ) = PushMessageProcessorImpl(mockk<PushNotificationLogger>(relaxed = true), { config }, mockk(relaxed = true), scheduler, store)
 
     private fun handler(
         payload: Map<String, String>,

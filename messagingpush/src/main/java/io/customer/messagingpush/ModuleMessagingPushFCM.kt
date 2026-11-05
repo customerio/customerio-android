@@ -12,6 +12,7 @@ import io.customer.messagingpush.di.liveNotificationRegistrar
 import io.customer.messagingpush.di.pushDeliveryFlusher
 import io.customer.messagingpush.di.pushLogger
 import io.customer.messagingpush.di.pushMessageProcessor
+import io.customer.messagingpush.di.pushSettingsStore
 import io.customer.messagingpush.di.pushTrackingUtil
 import io.customer.messagingpush.livenotification.LiveNotificationData
 import io.customer.messagingpush.livenotification.ULID
@@ -53,17 +54,20 @@ class ModuleMessagingPushFCM @JvmOverloads constructor(
         getCurrentFcmToken()
         subscribeToLifecycleEvents()
         observeProcessForeground()
-        releaseHeldDeliveredMetrics()
+        savePushSettingsAndReleaseHeldMetrics()
     }
 
     /**
-     * Pushes that arrived before the app set up the SDK held their delivered metrics until the
-     * app's settings were known. Runs in the background because it reads a file.
+     * Saves the tracking setting for pushes that arrive before the next setup, then tracks or drops
+     * the delivered metrics held for pushes that arrived before this one. Runs in the background
+     * because both touch files.
      */
-    private fun releaseHeldDeliveredMetrics() {
+    private fun savePushSettingsAndReleaseHeldMetrics() {
         CoroutineScope(SDKComponent.dispatchersProvider.background).launch {
-            runCatching { SDKComponent.pushMessageProcessor.processHeldDeliveredMetrics() }
-                .onFailure { error -> pushLogger.logHeldDeliveredMetricsFailed(error) }
+            runCatching {
+                SDKComponent.pushSettingsStore.saveAutoTrackPushEvents(moduleConfig.autoTrackPushEvents)
+                SDKComponent.pushMessageProcessor.processHeldDeliveredMetrics()
+            }.onFailure { error -> pushLogger.logHeldDeliveredMetricsFailed(error) }
         }
     }
 

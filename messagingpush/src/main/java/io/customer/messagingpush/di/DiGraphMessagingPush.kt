@@ -25,6 +25,7 @@ import io.customer.messagingpush.provider.DeviceTokenProvider
 import io.customer.messagingpush.provider.FCMTokenProviderImpl
 import io.customer.messagingpush.provider.FirebaseTokenSource
 import io.customer.messagingpush.store.PendingPushDeliveryMetric
+import io.customer.messagingpush.store.PushSettingsStore
 import io.customer.messagingpush.util.DeepLinkUtil
 import io.customer.messagingpush.util.DeepLinkUtilImpl
 import io.customer.messagingpush.util.PushTrackingUtil
@@ -93,8 +94,15 @@ internal val SDKComponent.heldPushDeliveryStore: PendingDeliveryStore<PendingPus
             context = android().applicationContext,
             fileName = PendingPushDeliveryMetric.HELD_FILE_NAME,
             elementSerializer = PendingPushDeliveryMetric.serializer(),
-            logger = logger
+            logger = logger,
+            maxEntries = PendingPushDeliveryMetric.HELD_MAX_ENTRIES
         )
+    }
+
+internal val SDKComponent.pushSettingsStore: PushSettingsStore
+    get() = singleton<PushSettingsStore> {
+        val context = android().applicationContext
+        PushSettingsStore(context) { PushSettingsStore.installedAppVersion(context) }
     }
 
 internal val SDKComponent.pushDeliveryFlusher: PendingDeliveryFlusher<PendingPushDeliveryMetric>
@@ -125,7 +133,8 @@ internal val SDKComponent.pushMessageProcessor: PushMessageProcessor
             deepLinkUtil = deepLinkUtil,
             deliveryMetricsScheduler = deliveryMetricsScheduler,
             pendingPushDeliveryStore = pendingPushDeliveryStore,
-            heldPushDeliveryStore = heldPushDeliveryStore
+            heldPushDeliveryStore = heldPushDeliveryStore,
+            pushSettingsStore = pushSettingsStore
         )
     }
 

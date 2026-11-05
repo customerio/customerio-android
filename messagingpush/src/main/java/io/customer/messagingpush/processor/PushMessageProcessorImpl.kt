@@ -11,6 +11,7 @@ import io.customer.messagingpush.data.model.CustomerIOParsedPushPayload
 import io.customer.messagingpush.extensions.parcelable
 import io.customer.messagingpush.logger.PushNotificationLogger
 import io.customer.messagingpush.store.PendingPushDeliveryMetric
+import io.customer.messagingpush.store.PushSettingsStore
 import io.customer.messagingpush.util.DeepLinkUtil
 import io.customer.messagingpush.util.PushTrackingUtil
 import io.customer.sdk.communication.Event
@@ -24,7 +25,8 @@ internal class PushMessageProcessorImpl(
     private val deepLinkUtil: DeepLinkUtil,
     private val deliveryMetricsScheduler: PushDeliveryMetricsBackgroundScheduler,
     private val pendingPushDeliveryStore: PendingDeliveryStore<PendingPushDeliveryMetric>,
-    private val heldPushDeliveryStore: PendingDeliveryStore<PendingPushDeliveryMetric>
+    private val heldPushDeliveryStore: PendingDeliveryStore<PendingPushDeliveryMetric>,
+    private val pushSettingsStore: PushSettingsStore
 ) : PushMessageProcessor {
 
     // Null until the app sets up the SDK. Read for each message because this processor can be created earlier.
@@ -93,16 +95,17 @@ internal class PushMessageProcessorImpl(
     }
 
     private fun trackDeliveredMetrics(deliveryId: String, deliveryToken: String) {
-        val config = moduleConfig
-        if (config == null) {
+        // Before the app sets up the SDK, follow the setting this app version saved at its last setup.
+        val autoTrackPushEvents = moduleConfig?.autoTrackPushEvents ?: pushSettingsStore.autoTrackPushEvents()
+        if (autoTrackPushEvents == null) {
             holdDeliveredMetrics(deliveryId, deliveryToken)
         } else {
-            trackDeliveredMetricsIfEnabled(deliveryId, deliveryToken, config.autoTrackPushEvents)
+            trackDeliveredMetricsIfEnabled(deliveryId, deliveryToken, autoTrackPushEvents)
         }
     }
 
     private fun holdDeliveredMetrics(deliveryId: String, deliveryToken: String) {
-        // Whether the app tracks push metrics isn't known until it sets up the SDK.
+        // This app version hasn't set up the SDK yet, so whether it tracks push metrics isn't known.
         pushLogger.logDeliveredMetricsHeld(deliveryId)
         heldPushDeliveryStore.append(PendingPushDeliveryMetric(deliveryId = deliveryId, token = deliveryToken))
         // The SDK may have been set up, and held metrics released, after the check above.

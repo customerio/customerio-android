@@ -12,10 +12,12 @@ import io.customer.commontest.extensions.random
 import io.customer.commontest.util.DispatchersProviderStub
 import io.customer.messagingpush.di.fcmTokenProvider
 import io.customer.messagingpush.di.heldPushDeliveryStore
+import io.customer.messagingpush.di.pushSettingsStore
 import io.customer.messagingpush.logger.PushNotificationLogger
 import io.customer.messagingpush.provider.DeviceToken
 import io.customer.messagingpush.provider.DeviceTokenProvider
 import io.customer.messagingpush.store.PendingPushDeliveryMetric
+import io.customer.messagingpush.store.PushSettingsStore
 import io.customer.messagingpush.testutils.core.IntegrationTest
 import io.customer.sdk.communication.Event
 import io.customer.sdk.communication.EventBus
@@ -61,6 +63,7 @@ class ModuleMessagingPushFCMTest : IntegrationTest() {
                         overrideDependency<CustomerIOWorkManagerProvider>(mockWorkManagerProvider)
                         overrideDependency<PushNotificationLogger>(mockPushLogger)
                         overrideDependency<DispatchersProvider>(DispatchersProviderStub())
+                        overrideDependency<PushSettingsStore>(PushSettingsStore(applicationMock) { "1" })
                     }
                     android { overrideDependency<DeviceTokenProvider>(mockk(relaxed = true)) }
                 }
@@ -136,6 +139,15 @@ class ModuleMessagingPushFCMTest : IntegrationTest() {
 
         verify(exactly = 1) { mockPendingStore.append(held) }
         SDKComponent.heldPushDeliveryStore.loadAll() shouldBeEqualTo emptyList()
+    }
+
+    @Test
+    fun initialize_givenAutoTrackingOff_expectSaveItForPushesBeforeNextSetUp() {
+        ModuleMessagingPushFCM(MessagingPushModuleConfig.Builder().setAutoTrackPushEvents(false).build())
+            .attachToSDKComponent()
+            .initialize()
+
+        SDKComponent.pushSettingsStore.autoTrackPushEvents() shouldBeEqualTo false
     }
 
     @Test

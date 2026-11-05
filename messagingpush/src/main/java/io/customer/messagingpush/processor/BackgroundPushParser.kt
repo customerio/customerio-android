@@ -31,8 +31,8 @@ internal object BackgroundPushParser {
         if (data[PushTrackingUtil.DELIVERY_ID_KEY] != null && data[PushTrackingUtil.DELIVERY_TOKEN_KEY] != null) {
             return BackgroundPushParseResult.NotBackground
         }
-        // Only the exact metadata keys mark a silent push. Other keys with the prefix are app data.
-        if (metadataKeys.none { it in data }) return BackgroundPushParseResult.NotBackground
+        // Only the exact version key marks a silent push, so another sender's stray delivery key stays app data.
+        if (VERSION_KEY !in data) return BackgroundPushParseResult.NotBackground
 
         val deliveryId = data[ID_KEY]
         val token = data[TOKEN_KEY]

@@ -28,6 +28,7 @@ import java.util.UUID
 import java.util.concurrent.RejectedExecutionException
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -119,7 +120,6 @@ class BackgroundPushHandlerTest : IntegrationTest() {
         var calls = 0
         installCallback { _, _ -> calls++ }
         val cases = listOf(
-            data() - "CIO-Background-Version",
             data() - "CIO-Background-Delivery-Token",
             data() + ("CIO-Background-Delivery-ID" to " "),
             data() + ("CIO-Background-Version" to "2"),
@@ -130,6 +130,23 @@ class BackgroundPushHandlerTest : IntegrationTest() {
         cases.forEach { payload ->
             val processor = mockk<PushMessageProcessor>(relaxed = true)
             assertTrue(handler(payload, processor).handleMessage(contextMock))
+            verify(exactly = 0) { processor.processRemoteMessageDeliveredMetrics(any(), any()) }
+        }
+        assertEquals(0, calls)
+        assertNoNotification()
+    }
+
+    @Test
+    fun strayBackgroundKeysWithoutVersion_areLeftForTheApp() {
+        var calls = 0
+        installCallback { _, _ -> calls++ }
+        val cases = listOf(
+            data() - "CIO-Background-Version",
+            mapOf("CIO-Background-Delivery-ID" to "someone-else", "sync" to "1")
+        )
+        cases.forEach { payload ->
+            val processor = mockk<PushMessageProcessor>(relaxed = true)
+            assertFalse(handler(payload, processor).handleMessage(contextMock))
             verify(exactly = 0) { processor.processRemoteMessageDeliveredMetrics(any(), any()) }
         }
         assertEquals(0, calls)

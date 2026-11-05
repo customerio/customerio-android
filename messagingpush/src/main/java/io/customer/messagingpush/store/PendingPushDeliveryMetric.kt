@@ -27,5 +27,8 @@ internal data class PendingPushDeliveryMetric(
 
     companion object {
         internal const val FILE_NAME = "cio_pending_push_delivery.json"
+
+        /** Delivered metrics received before the app set up the SDK, kept until its settings are known. */
+        internal const val HELD_FILE_NAME = "cio_held_push_delivery.json"
     }
 }

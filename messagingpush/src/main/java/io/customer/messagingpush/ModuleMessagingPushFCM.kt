@@ -11,6 +11,7 @@ import io.customer.messagingpush.di.liveNotificationManager
 import io.customer.messagingpush.di.liveNotificationRegistrar
 import io.customer.messagingpush.di.pushDeliveryFlusher
 import io.customer.messagingpush.di.pushLogger
+import io.customer.messagingpush.di.pushMessageProcessor
 import io.customer.messagingpush.di.pushTrackingUtil
 import io.customer.messagingpush.livenotification.LiveNotificationData
 import io.customer.messagingpush.livenotification.ULID
@@ -23,7 +24,9 @@ import io.customer.sdk.core.di.SDKComponent.eventBus
 import io.customer.sdk.core.module.CustomerIOModule
 import io.customer.sdk.data.store.PendingDeliveryFlusher
 import io.customer.sdk.events.Metric
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.launch
 
 class ModuleMessagingPushFCM @JvmOverloads constructor(
     override val moduleConfig: MessagingPushModuleConfig = MessagingPushModuleConfig.default()
@@ -50,6 +53,18 @@ class ModuleMessagingPushFCM @JvmOverloads constructor(
         getCurrentFcmToken()
         subscribeToLifecycleEvents()
         observeProcessForeground()
+        releaseHeldDeliveredMetrics()
+    }
+
+    /**
+     * Pushes that arrived before the app set up the SDK held their delivered metrics until the
+     * app's settings were known. Runs in the background because it reads a file.
+     */
+    private fun releaseHeldDeliveredMetrics() {
+        CoroutineScope(SDKComponent.dispatchersProvider.background).launch {
+            runCatching { SDKComponent.pushMessageProcessor.processHeldDeliveredMetrics() }
+                .onFailure { error -> pushLogger.logHeldDeliveredMetricsFailed(error) }
+        }
     }
 
     /**

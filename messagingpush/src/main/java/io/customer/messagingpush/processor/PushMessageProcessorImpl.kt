@@ -20,14 +20,15 @@ import io.customer.sdk.events.Metric
 
 internal class PushMessageProcessorImpl(
     private val pushLogger: PushNotificationLogger,
-    private val moduleConfigProvider: () -> MessagingPushModuleConfig,
+    private val moduleConfigProvider: () -> MessagingPushModuleConfig?,
     private val deepLinkUtil: DeepLinkUtil,
     private val deliveryMetricsScheduler: PushDeliveryMetricsBackgroundScheduler,
-    private val pendingPushDeliveryStore: PendingDeliveryStore<PendingPushDeliveryMetric>
+    private val pendingPushDeliveryStore: PendingDeliveryStore<PendingPushDeliveryMetric>,
+    private val heldPushDeliveryStore: PendingDeliveryStore<PendingPushDeliveryMetric>
 ) : PushMessageProcessor {
 
-    // Read for each message because this processor can be created before the app sets up the SDK.
-    private val moduleConfig: MessagingPushModuleConfig
+    // Null until the app sets up the SDK. Read for each message because this processor can be created earlier.
+    private val moduleConfig: MessagingPushModuleConfig?
         get() = moduleConfigProvider()
 
     /**
@@ -92,8 +93,35 @@ internal class PushMessageProcessorImpl(
     }
 
     private fun trackDeliveredMetrics(deliveryId: String, deliveryToken: String) {
+        val config = moduleConfig
+        if (config == null) {
+            holdDeliveredMetrics(deliveryId, deliveryToken)
+        } else {
+            trackDeliveredMetricsIfEnabled(deliveryId, deliveryToken, config.autoTrackPushEvents)
+        }
+    }
+
+    private fun holdDeliveredMetrics(deliveryId: String, deliveryToken: String) {
+        // Whether the app tracks push metrics isn't known until it sets up the SDK.
+        pushLogger.logDeliveredMetricsHeld(deliveryId)
+        heldPushDeliveryStore.append(PendingPushDeliveryMetric(deliveryId = deliveryId, token = deliveryToken))
+        // The SDK may have been set up, and held metrics released, after the check above.
+        if (moduleConfig != null) processHeldDeliveredMetrics()
+    }
+
+    override fun processHeldDeliveredMetrics() {
+        val config = moduleConfig ?: return
+        for (entry in heldPushDeliveryStore.loadAll()) {
+            // Claiming first keeps two racing releases from tracking the same metric twice.
+            if (heldPushDeliveryStore.claim(entry.key)) {
+                trackDeliveredMetricsIfEnabled(entry.deliveryId, entry.token, config.autoTrackPushEvents)
+            }
+        }
+    }
+
+    private fun trackDeliveredMetricsIfEnabled(deliveryId: String, deliveryToken: String, autoTrackPushEvents: Boolean) {
         // Track delivered event only if auto-tracking is enabled
-        if (moduleConfig.autoTrackPushEvents) {
+        if (autoTrackPushEvents) {
             pushLogger.logTrackingPushMessageDelivered(deliveryId)
 
             // Persist a pending entry first so the metric can be replayed via the
@@ -138,7 +166,8 @@ internal class PushMessageProcessorImpl(
         activityContext: Context,
         payload: CustomerIOParsedPushPayload
     ) {
-        val config = moduleConfig
+        // A tap that starts the app before it sets up the SDK gets the defaults, as before.
+        val config = moduleConfig ?: MessagingPushModuleConfig.default()
         trackNotificationClickMetrics(payload, config)
         handleNotificationDeepLink(activityContext, payload, config)
     }

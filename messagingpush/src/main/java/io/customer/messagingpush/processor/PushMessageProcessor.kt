@@ -47,6 +47,12 @@ interface PushMessageProcessor {
     fun processRemoteMessageDeliveredMetrics(deliveryId: String, deliveryToken: String)
 
     /**
+     * Tracks or drops the delivered metrics held for pushes that arrived before the app set up
+     * the SDK, following the app's settings. Does nothing until the SDK is set up.
+     */
+    fun processHeldDeliveredMetrics()
+
+    /**
      * Executes the necessary actions when a notification is clicked by the user.
      *
      * This method performs the following tasks:

@@ -61,6 +61,10 @@ val SDKComponent.pushModuleConfig: MessagingPushModuleConfig
         modules[ModuleMessagingPushFCM.MODULE_NAME]?.moduleConfig as? MessagingPushModuleConfig ?: MessagingPushModuleConfig.default()
     }
 
+/** Null until the app sets up the SDK, so code that runs before then can tell the defaults from the app's settings. */
+internal val SDKComponent.pushModuleConfigIfSetUp: MessagingPushModuleConfig?
+    get() = if (modules.isEmpty()) null else pushModuleConfig
+
 /** See [BackgroundPushCallbackFallback]. Only wrapper SDKs set it. */
 @InternalCustomerIOApi
 val SDKComponent.backgroundPushCallbackFallback: BackgroundPushCallbackFallback
@@ -78,6 +82,16 @@ internal val SDKComponent.pendingPushDeliveryStore: PendingDeliveryStore<Pending
         PendingDeliveryStore(
             context = android().applicationContext,
             fileName = PendingPushDeliveryMetric.FILE_NAME,
+            elementSerializer = PendingPushDeliveryMetric.serializer(),
+            logger = logger
+        )
+    }
+
+internal val SDKComponent.heldPushDeliveryStore: PendingDeliveryStore<PendingPushDeliveryMetric>
+    get() = singleton<PendingDeliveryStore<PendingPushDeliveryMetric>>(identifier = PendingPushDeliveryMetric.HELD_FILE_NAME) {
+        PendingDeliveryStore(
+            context = android().applicationContext,
+            fileName = PendingPushDeliveryMetric.HELD_FILE_NAME,
             elementSerializer = PendingPushDeliveryMetric.serializer(),
             logger = logger
         )
@@ -107,10 +121,11 @@ internal val SDKComponent.pushMessageProcessor: PushMessageProcessor
     get() = singleton<PushMessageProcessor> {
         PushMessageProcessorImpl(
             pushLogger = pushLogger,
-            moduleConfigProvider = { pushModuleConfig },
+            moduleConfigProvider = { pushModuleConfigIfSetUp },
             deepLinkUtil = deepLinkUtil,
             deliveryMetricsScheduler = deliveryMetricsScheduler,
-            pendingPushDeliveryStore = pendingPushDeliveryStore
+            pendingPushDeliveryStore = pendingPushDeliveryStore,
+            heldPushDeliveryStore = heldPushDeliveryStore
         )
     }
 

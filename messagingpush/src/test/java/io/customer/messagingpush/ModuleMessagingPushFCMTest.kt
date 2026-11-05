@@ -7,9 +7,11 @@ import io.customer.commontest.config.TestConfig
 import io.customer.commontest.config.testConfigurationDefault
 import io.customer.commontest.extensions.assertCalledNever
 import io.customer.commontest.extensions.assertCalledOnce
+import io.customer.commontest.extensions.attachToSDKComponent
 import io.customer.commontest.extensions.random
 import io.customer.commontest.util.DispatchersProviderStub
 import io.customer.messagingpush.di.fcmTokenProvider
+import io.customer.messagingpush.di.heldPushDeliveryStore
 import io.customer.messagingpush.logger.PushNotificationLogger
 import io.customer.messagingpush.provider.DeviceToken
 import io.customer.messagingpush.provider.DeviceTokenProvider
@@ -28,6 +30,7 @@ import io.mockk.mockk
 import io.mockk.verify
 import io.mockk.verifyOrder
 import kotlinx.coroutines.test.runTest
+import org.amshove.kluent.shouldBeEqualTo
 import org.amshove.kluent.shouldBeTrue
 import org.amshove.kluent.shouldNotBeNull
 import org.junit.Test
@@ -121,6 +124,18 @@ class ModuleMessagingPushFCMTest : IntegrationTest() {
         module.initialize()
 
         assertCalledOnce { eventBus.publish(Event.RegisterDeviceTokenEvent(token = givenInstallationId, tokenType = DeviceTokenType.FID)) }
+    }
+
+    @Test
+    fun initialize_givenDeliveredMetricsHeldBeforeSetUp_expectTrackThem() {
+        val held = PendingPushDeliveryMetric(deliveryId = String.random, token = String.random)
+        SDKComponent.heldPushDeliveryStore.append(held)
+        module.attachToSDKComponent()
+
+        module.initialize()
+
+        verify(exactly = 1) { mockPendingStore.append(held) }
+        SDKComponent.heldPushDeliveryStore.loadAll() shouldBeEqualTo emptyList()
     }
 
     @Test

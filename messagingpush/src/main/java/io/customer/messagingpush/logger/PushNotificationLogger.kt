@@ -256,6 +256,21 @@ internal class PushNotificationLogger(private val logger: Logger) {
         )
     }
 
+    fun logDeliveredMetricsHeld(deliveryId: String) {
+        logger.debug(
+            tag = TAG,
+            message = "Holding delivered metrics for $deliveryId until the SDK is set up"
+        )
+    }
+
+    fun logHeldDeliveredMetricsFailed(error: Throwable) {
+        logger.error(
+            tag = TAG,
+            message = "Failed to process held delivered metrics: ${error.message}",
+            throwable = error
+        )
+    }
+
     fun logPushMetricsAutoTrackingDisabled() {
         logger.debug(
             tag = TAG,

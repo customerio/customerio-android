@@ -151,6 +151,16 @@ class ModuleMessagingPushFCMTest : IntegrationTest() {
     }
 
     @Test
+    fun initialize_givenNewerSetUpRegisteredBeforeOlderSaveRuns_expectSaveNewerSetting() {
+        val olderSetUp = ModuleMessagingPushFCM(MessagingPushModuleConfig.Builder().setAutoTrackPushEvents(true).build())
+        ModuleMessagingPushFCM(MessagingPushModuleConfig.Builder().setAutoTrackPushEvents(false).build()).attachToSDKComponent()
+
+        olderSetUp.initialize()
+
+        SDKComponent.pushSettingsStore.autoTrackPushEvents() shouldBeEqualTo false
+    }
+
+    @Test
     fun initialize_doesNotFlushPendingDeliveryFromInit() {
         // The handoff is triggered by ProcessLifecycleOwner.ON_START, not by module init —
         // an FCM-woken background process that initializes the SDK must not flush

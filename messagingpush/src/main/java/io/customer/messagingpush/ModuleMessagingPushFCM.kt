@@ -12,6 +12,7 @@ import io.customer.messagingpush.di.liveNotificationRegistrar
 import io.customer.messagingpush.di.pushDeliveryFlusher
 import io.customer.messagingpush.di.pushLogger
 import io.customer.messagingpush.di.pushMessageProcessor
+import io.customer.messagingpush.di.pushModuleConfig
 import io.customer.messagingpush.di.pushSettingsStore
 import io.customer.messagingpush.di.pushTrackingUtil
 import io.customer.messagingpush.livenotification.LiveNotificationData
@@ -65,7 +66,11 @@ class ModuleMessagingPushFCM @JvmOverloads constructor(
     private fun savePushSettingsAndReleaseHeldMetrics() {
         CoroutineScope(SDKComponent.dispatchersProvider.background).launch {
             runCatching {
-                SDKComponent.pushSettingsStore.saveAutoTrackPushEvents(moduleConfig.autoTrackPushEvents)
+                // A repeat setup can register newer settings before this job runs, so save whatever
+                // is registered now. The lock keeps an older job's read and write from straddling a newer one.
+                synchronized(pushSettingsLock) {
+                    SDKComponent.pushSettingsStore.saveAutoTrackPushEvents(SDKComponent.pushModuleConfig.autoTrackPushEvents)
+                }
                 SDKComponent.pushMessageProcessor.processHeldDeliveredMetrics()
             }.onFailure { error -> pushLogger.logHeldDeliveredMetricsFailed(error) }
         }
@@ -273,6 +278,8 @@ class ModuleMessagingPushFCM @JvmOverloads constructor(
 
     companion object {
         internal const val MODULE_NAME = "MessagingPushFCM"
+
+        private val pushSettingsLock = Any()
 
         // Held statically because ProcessLifecycleOwner is process-scoped.
         // Mutated only from the main thread inside `observeProcessForeground`

@@ -14,11 +14,17 @@ import androidx.core.app.NotificationCompat
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
 import io.customer.messagingpush.activity.NotificationClickReceiverActivity
+import io.customer.messagingpush.data.model.CustomerIOBackgroundPushPayload
 import io.customer.messagingpush.data.model.CustomerIOParsedPushPayload
+import io.customer.messagingpush.di.backgroundPushCallbackFallback
+import io.customer.messagingpush.di.backgroundPushDeliveryMetrics
 import io.customer.messagingpush.di.liveNotificationManager
 import io.customer.messagingpush.di.pushLogger
 import io.customer.messagingpush.di.pushModuleConfig
 import io.customer.messagingpush.extensions.*
+import io.customer.messagingpush.processor.BackgroundPushDeliveryMetrics
+import io.customer.messagingpush.processor.BackgroundPushParseResult
+import io.customer.messagingpush.processor.BackgroundPushParser
 import io.customer.messagingpush.processor.PushMessageProcessor
 import io.customer.messagingpush.util.BitmapDownloader
 import io.customer.messagingpush.util.NotificationChannelCreator
@@ -37,7 +43,9 @@ import kotlin.math.roundToInt
 internal class CustomerIOPushNotificationHandler(
     private val pushMessageProcessor: PushMessageProcessor,
     private val remoteMessage: RemoteMessage,
-    private val notificationChannelCreator: NotificationChannelCreator
+    private val notificationChannelCreator: NotificationChannelCreator,
+    // Lazy so a regular push never builds it.
+    private val backgroundPushDeliveryMetrics: Lazy<BackgroundPushDeliveryMetrics> = lazy { SDKComponent.backgroundPushDeliveryMetrics }
 ) {
 
     companion object {
@@ -80,6 +88,19 @@ internal class CustomerIOPushNotificationHandler(
             return false
         }
 
+        // A message with the silent delivery ID is never displayed, even one missing its token.
+        when (val background = BackgroundPushParser.parse(remoteMessage)) {
+            BackgroundPushParseResult.NotBackground -> Unit
+            BackgroundPushParseResult.Unsupported -> {
+                pushLogger.logUnsupportedBackgroundPush()
+                return true
+            }
+            is BackgroundPushParseResult.Received -> {
+                deliverBackgroundPush(context, background.payload)
+                return true
+            }
+        }
+
         // Customer.io push notifications include data regarding the push
         // message in the data part of the payload which can be used to send
         // feedback into our system.
@@ -106,6 +127,25 @@ internal class CustomerIOPushNotificationHandler(
         }
 
         return true
+    }
+
+    private fun deliverBackgroundPush(context: Context, payload: CustomerIOBackgroundPushPayload) {
+        // A failed receipt must not keep the data from the app.
+        try {
+            backgroundPushDeliveryMetrics.value.trackDelivered(payload.deliveryId, payload.deliveryToken)
+        } catch (error: Exception) {
+            pushLogger.logBackgroundPushReceiptFailed(error)
+        }
+        val callback = moduleConfig.backgroundPushCallback ?: diGraph.backgroundPushCallbackFallback.callback
+        if (callback == null) {
+            pushLogger.logBackgroundPushCallbackMissing()
+            return
+        }
+        try {
+            callback.onBackgroundPushReceived(context, payload)
+        } catch (error: Exception) {
+            pushLogger.logBackgroundPushCallbackFailed(error)
+        }
     }
 
     private fun handleNotification(

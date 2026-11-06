@@ -1,0 +1,17 @@
+{
+  "message": {
+    "android": {
+      "collapse_key": "cio-background",
+      "priority": "normal",
+      "ttl": "86400s"
+    },
+    "data": {
+      "CIO-Background-Delivery-ID": "fixture-delivery-1",
+      "CIO-Background-Delivery-Token": "fixture-fcm-token-1",
+      "cıo-x": "dotless",
+      "note": "line one\nsays \"hi\" \u003cb\u003e\u0026\u003c/b\u003e ✓",
+      "order_id": "A-1001",
+      "title": "Order shipped"
+    }
+  }
+}

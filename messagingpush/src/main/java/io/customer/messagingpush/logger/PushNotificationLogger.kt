@@ -205,6 +205,22 @@ internal class PushNotificationLogger(private val logger: Logger) {
         )
     }
 
+    fun logUnsupportedBackgroundPush() {
+        logger.info(tag = TAG, message = "Ignoring unsupported background push without displaying a notification")
+    }
+
+    fun logBackgroundPushCallbackFailed(error: Exception) {
+        logger.error(tag = TAG, message = "Background push callback failed: ${error.javaClass.simpleName}")
+    }
+
+    fun logBackgroundPushCallbackMissing() {
+        logger.info(tag = TAG, message = "Background push received without a host callback. Configure setBackgroundPushCallback during Application.onCreate.")
+    }
+
+    fun logBackgroundPushReceiptFailed(error: Exception) {
+        logger.error(tag = TAG, message = "Background push delivered receipt failed: ${error.javaClass.simpleName}")
+    }
+
     fun logReceivedCioPushMessage() {
         logger.debug(
             tag = TAG,

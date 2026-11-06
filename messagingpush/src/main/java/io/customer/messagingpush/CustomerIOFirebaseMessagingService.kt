@@ -28,7 +28,8 @@ open class CustomerIOFirebaseMessagingService : FirebaseMessagingService() {
          * @param remoteMessage Remote message received from Firebase in
          * [FirebaseMessagingService.onMessageReceived]
          * @param handleNotificationTrigger indicating if the local notification should be triggered
-         * @return Boolean indicating whether this will be handled by CustomerIO
+         * @return true when Customer.io consumed the message, including silent pushes this
+         * SDK can't read, which must not fall back to a notification renderer.
          */
         @JvmOverloads
         @JvmStatic

@@ -13,9 +13,9 @@ import io.customer.messagingpush.data.communication.CustomerIOBackgroundPushCall
 import io.customer.messagingpush.data.model.CustomerIOBackgroundPushPayload
 import io.customer.messagingpush.di.backgroundPushCallbackFallback
 import io.customer.messagingpush.logger.PushNotificationLogger
+import io.customer.messagingpush.processor.BackgroundPushDeliveryMetrics
 import io.customer.messagingpush.processor.PushDeliveryMetricsBackgroundScheduler
 import io.customer.messagingpush.processor.PushMessageProcessor
-import io.customer.messagingpush.processor.PushMessageProcessorImpl
 import io.customer.messagingpush.store.PendingPushDeliveryMetric
 import io.customer.messagingpush.testutils.core.IntegrationTest
 import io.customer.messagingpush.util.NotificationChannelCreator
@@ -79,28 +79,28 @@ class BackgroundPushHandlerTest : IntegrationTest() {
         return config
     }
 
-    private fun processor(
+    private fun metrics(
         config: MessagingPushModuleConfig,
         scheduler: PushDeliveryMetricsBackgroundScheduler,
         store: PendingDeliveryStore<PendingPushDeliveryMetric>
-    ) = PushMessageProcessorImpl(
+    ) = BackgroundPushDeliveryMetrics(
         pushLogger = mockk<PushNotificationLogger>(relaxed = true),
-        moduleConfig = config,
-        deepLinkUtil = mockk(relaxed = true),
-        deliveryMetricsScheduler = scheduler,
-        pendingPushDeliveryStore = store,
-        currentModuleConfig = { config },
-        heldPushDeliveryStore = mockk(relaxed = true),
-        pushSettingsStore = mockk(relaxed = true)
+        registeredModuleConfig = { config },
+        pushSettingsStore = mockk(relaxed = true),
+        heldStore = mockk(relaxed = true),
+        pendingStore = store,
+        deliveryMetricsScheduler = scheduler
     )
 
     private fun handler(
         payload: Map<String, String>,
-        processor: PushMessageProcessor = mockk(relaxed = true)
+        processor: PushMessageProcessor = mockk(relaxed = true),
+        metrics: BackgroundPushDeliveryMetrics = mockk(relaxed = true)
     ) = CustomerIOPushNotificationHandler(
         processor,
         RemoteMessage.Builder("destination").setData(payload).build(),
-        NotificationChannelCreator()
+        NotificationChannelCreator(),
+        metrics
     )
 
     @Test
@@ -108,6 +108,7 @@ class BackgroundPushHandlerTest : IntegrationTest() {
         var received: CustomerIOBackgroundPushPayload? = null
         installCallback { _, payload -> received = payload }
         val processor = mockk<PushMessageProcessor>(relaxed = true)
+        val metrics = mockk<BackgroundPushDeliveryMetrics>(relaxed = true)
         val displayLike = mapOf(
             "title" to "Order shipped",
             "body" to "Tap to track",
@@ -115,12 +116,12 @@ class BackgroundPushHandlerTest : IntegrationTest() {
             "link" to "https://example.com/orders/42"
         )
 
-        assertTrue(handler(data() + displayLike, processor).handleMessage(contextMock))
+        assertTrue(handler(data() + displayLike, processor, metrics).handleMessage(contextMock))
 
         assertEquals("dlv_123", received?.deliveryId)
         assertEquals("tok_abc", received?.deliveryToken)
         assertEquals(displayLike + ("order_id" to "42"), received?.data)
-        verify(exactly = 1) { processor.processBackgroundPushDeliveredMetrics("dlv_123", "tok_abc") }
+        verify(exactly = 1) { metrics.trackDelivered("dlv_123", "tok_abc") }
         verify(exactly = 0) { processor.processRemoteMessageDeliveredMetrics(any(), any()) }
         verify(exactly = 0) { processor.processNotificationClick(any(), any()) }
         assertNull(Shadows.shadowOf(applicationMock).nextStartedActivity)
@@ -141,8 +142,9 @@ class BackgroundPushHandlerTest : IntegrationTest() {
         )
         cases.forEach { payload ->
             val processor = mockk<PushMessageProcessor>(relaxed = true)
-            assertTrue(handler(payload, processor).handleMessage(contextMock))
-            verify(exactly = 0) { processor.processBackgroundPushDeliveredMetrics(any(), any()) }
+            val metrics = mockk<BackgroundPushDeliveryMetrics>(relaxed = true)
+            assertTrue(handler(payload, processor, metrics).handleMessage(contextMock))
+            verify(exactly = 0) { metrics.trackDelivered(any(), any()) }
         }
         assertEquals(0, calls)
         assertNoNotification()
@@ -158,8 +160,9 @@ class BackgroundPushHandlerTest : IntegrationTest() {
         )
         cases.forEach { payload ->
             val processor = mockk<PushMessageProcessor>(relaxed = true)
-            assertFalse(handler(payload, processor).handleMessage(contextMock))
-            verify(exactly = 0) { processor.processBackgroundPushDeliveredMetrics(any(), any()) }
+            val metrics = mockk<BackgroundPushDeliveryMetrics>(relaxed = true)
+            assertFalse(handler(payload, processor, metrics).handleMessage(contextMock))
+            verify(exactly = 0) { metrics.trackDelivered(any(), any()) }
         }
         assertEquals(0, calls)
         assertNoNotification()
@@ -170,6 +173,7 @@ class BackgroundPushHandlerTest : IntegrationTest() {
         var calls = 0
         installCallback { _, _ -> calls++ }
         val processor = mockk<PushMessageProcessor>(relaxed = true)
+        val metrics = mockk<BackgroundPushDeliveryMetrics>(relaxed = true)
         val message = RemoteMessage(
             Bundle().apply {
                 data().forEach { (key, value) -> putString(key, value) }
@@ -180,20 +184,21 @@ class BackgroundPushHandlerTest : IntegrationTest() {
         )
         assertNotNull(message.notification)
 
-        assertTrue(CustomerIOPushNotificationHandler(processor, message, NotificationChannelCreator()).handleMessage(contextMock))
+        assertTrue(CustomerIOPushNotificationHandler(processor, message, NotificationChannelCreator(), metrics).handleMessage(contextMock))
 
         assertEquals(0, calls)
-        verify(exactly = 0) { processor.processBackgroundPushDeliveredMetrics(any(), any()) }
+        verify(exactly = 0) { metrics.trackDelivered(any(), any()) }
         assertNoNotification()
     }
 
     @Test
     fun missingCallback_stillConsumesBackgroundPushWithoutDisplay() {
         val processor = mockk<PushMessageProcessor>(relaxed = true)
+        val metrics = mockk<BackgroundPushDeliveryMetrics>(relaxed = true)
 
-        assertTrue(handler(data(), processor).handleMessage(contextMock))
+        assertTrue(handler(data(), processor, metrics).handleMessage(contextMock))
 
-        verify(exactly = 1) { processor.processBackgroundPushDeliveredMetrics("dlv_123", "tok_abc") }
+        verify(exactly = 1) { metrics.trackDelivered("dlv_123", "tok_abc") }
         assertNoNotification()
     }
 
@@ -202,11 +207,12 @@ class BackgroundPushHandlerTest : IntegrationTest() {
         var received: CustomerIOBackgroundPushPayload? = null
         SDKComponent.backgroundPushCallbackFallback.callback = CustomerIOBackgroundPushCallback { _, payload -> received = payload }
         val processor = mockk<PushMessageProcessor>(relaxed = true)
+        val metrics = mockk<BackgroundPushDeliveryMetrics>(relaxed = true)
 
-        assertTrue(handler(data(), processor).handleMessage(contextMock))
+        assertTrue(handler(data(), processor, metrics).handleMessage(contextMock))
 
         assertEquals("dlv_123", received?.deliveryId)
-        verify(exactly = 1) { processor.processBackgroundPushDeliveredMetrics("dlv_123", "tok_abc") }
+        verify(exactly = 1) { metrics.trackDelivered("dlv_123", "tok_abc") }
         assertNoNotification()
     }
 
@@ -245,12 +251,13 @@ class BackgroundPushHandlerTest : IntegrationTest() {
         every { provider.getWorkManager() } returns workManager
         val tracker = mockk<AsyncPushDeliveryTracker>(relaxed = true)
         val store = mockk<PendingDeliveryStore<PendingPushDeliveryMetric>>(relaxed = true)
+        every { store.append(any<PendingPushDeliveryMetric>()) } returns true
         val id = "receipt-failure-${UUID.randomUUID()}"
 
         assertTrue(
             handler(
                 data() + ("CIO-Background-Delivery-ID" to id),
-                processor(config, PushDeliveryMetricsBackgroundScheduler(provider, tracker), store)
+                metrics = metrics(config, PushDeliveryMetricsBackgroundScheduler(provider, tracker), store)
             ).handleMessage(contextMock)
         )
 
@@ -267,8 +274,9 @@ class BackgroundPushHandlerTest : IntegrationTest() {
         var calls = 0
         val config = installCallback { _, _ -> calls++ }
         val store = mockk<PendingDeliveryStore<PendingPushDeliveryMetric>>(relaxed = true)
+        every { store.append(any<PendingPushDeliveryMetric>()) } returns true
         val scheduler = mockk<PushDeliveryMetricsBackgroundScheduler>(relaxed = true)
-        val handler = handler(data() + ("CIO-Background-Delivery-ID" to id), processor(config, scheduler, store))
+        val handler = handler(data() + ("CIO-Background-Delivery-ID" to id), metrics = metrics(config, scheduler, store))
 
         assertTrue(handler.handleMessage(contextMock))
         assertTrue(handler.handleMessage(contextMock, false))
@@ -287,12 +295,13 @@ class BackgroundPushHandlerTest : IntegrationTest() {
         var calls = 0
         val config = installCallback(autoTrackPushEvents = false) { _, _ -> calls++ }
         val store = mockk<PendingDeliveryStore<PendingPushDeliveryMetric>>(relaxed = true)
+        every { store.append(any<PendingPushDeliveryMetric>()) } returns true
         val scheduler = mockk<PushDeliveryMetricsBackgroundScheduler>(relaxed = true)
 
         assertTrue(
             handler(
                 data() + ("CIO-Background-Delivery-ID" to "disabled-${UUID.randomUUID()}"),
-                processor(config, scheduler, store)
+                metrics = metrics(config, scheduler, store)
             ).handleMessage(contextMock)
         )
 
@@ -310,12 +319,13 @@ class BackgroundPushHandlerTest : IntegrationTest() {
         var received: CustomerIOBackgroundPushPayload? = null
         installCallback { _, payload -> received = payload }
         val processor = mockk<PushMessageProcessor>(relaxed = true)
+        val metrics = mockk<BackgroundPushDeliveryMetrics>(relaxed = true)
 
-        assertTrue(handler(data, processor).handleMessage(contextMock))
+        assertTrue(handler(data, processor, metrics).handleMessage(contextMock))
 
         assertEquals("fixture-delivery-1", received?.deliveryId)
         assertEquals(mapOf("title" to "Order shipped", "order_id" to "A-1001", "note" to "line one\nsays \"hi\" <b>&</b> ✓", "cıo-x" to "dotless"), received?.data)
-        verify(exactly = 1) { processor.processBackgroundPushDeliveredMetrics("fixture-delivery-1", "fixture-fcm-token-1") }
+        verify(exactly = 1) { metrics.trackDelivered("fixture-delivery-1", "fixture-fcm-token-1") }
         assertNoNotification()
     }
 
@@ -324,11 +334,13 @@ class BackgroundPushHandlerTest : IntegrationTest() {
         var calls = 0
         installCallback { _, _ -> calls++ }
         val processor = mockk<PushMessageProcessor>(relaxed = true)
+        val metrics = mockk<BackgroundPushDeliveryMetrics>(relaxed = true)
 
-        assertTrue(handler(data() + legacy, processor).handleMessage(contextMock))
+        assertTrue(handler(data() + legacy, processor, metrics).handleMessage(contextMock))
 
         assertEquals(1, postedNotifications().size)
         verify(exactly = 1) { processor.processRemoteMessageDeliveredMetrics("old", "old") }
+        verify(exactly = 0) { metrics.trackDelivered(any(), any()) }
         assertEquals(0, calls)
     }
 

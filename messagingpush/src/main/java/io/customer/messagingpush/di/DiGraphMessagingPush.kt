@@ -18,6 +18,7 @@ import io.customer.messagingpush.livenotification.LiveNotificationManager
 import io.customer.messagingpush.livenotification.LiveNotificationRegistrar
 import io.customer.messagingpush.livenotification.LiveNotificationStore
 import io.customer.messagingpush.logger.PushNotificationLogger
+import io.customer.messagingpush.processor.BackgroundPushDeliveryMetrics
 import io.customer.messagingpush.processor.PushDeliveryMetricsBackgroundScheduler
 import io.customer.messagingpush.processor.PushMessageProcessor
 import io.customer.messagingpush.processor.PushMessageProcessorImpl
@@ -62,9 +63,9 @@ val SDKComponent.pushModuleConfig: MessagingPushModuleConfig
         modules[ModuleMessagingPushFCM.MODULE_NAME]?.moduleConfig as? MessagingPushModuleConfig ?: MessagingPushModuleConfig.default()
     }
 
-/** Null until the app sets up the SDK, so code that runs before then can tell the defaults from the app's settings. */
-internal val SDKComponent.pushModuleConfigIfSetUp: MessagingPushModuleConfig?
-    get() = if (modules.isEmpty()) null else pushModuleConfig
+/** The registered push module's config, or null until the push module is registered, so silent push code can tell the defaults from the app's settings. */
+internal val SDKComponent.registeredPushModuleConfig: MessagingPushModuleConfig?
+    get() = modules[ModuleMessagingPushFCM.MODULE_NAME]?.moduleConfig as? MessagingPushModuleConfig
 
 /** See [BackgroundPushCallbackFallback]. Only wrapper SDKs set it. */
 @InternalCustomerIOApi
@@ -132,10 +133,19 @@ internal val SDKComponent.pushMessageProcessor: PushMessageProcessor
             moduleConfig = pushModuleConfig,
             deepLinkUtil = deepLinkUtil,
             deliveryMetricsScheduler = deliveryMetricsScheduler,
-            pendingPushDeliveryStore = pendingPushDeliveryStore,
-            currentModuleConfig = { pushModuleConfigIfSetUp },
-            heldPushDeliveryStore = heldPushDeliveryStore,
-            pushSettingsStore = pushSettingsStore
+            pendingPushDeliveryStore = pendingPushDeliveryStore
+        )
+    }
+
+internal val SDKComponent.backgroundPushDeliveryMetrics: BackgroundPushDeliveryMetrics
+    get() = singleton<BackgroundPushDeliveryMetrics> {
+        BackgroundPushDeliveryMetrics(
+            pushLogger = pushLogger,
+            registeredModuleConfig = { registeredPushModuleConfig },
+            pushSettingsStore = pushSettingsStore,
+            heldStore = heldPushDeliveryStore,
+            pendingStore = pendingPushDeliveryStore,
+            deliveryMetricsScheduler = deliveryMetricsScheduler
         )
     }
 

@@ -17,10 +17,12 @@ import io.customer.messagingpush.activity.NotificationClickReceiverActivity
 import io.customer.messagingpush.data.model.CustomerIOBackgroundPushPayload
 import io.customer.messagingpush.data.model.CustomerIOParsedPushPayload
 import io.customer.messagingpush.di.backgroundPushCallbackFallback
+import io.customer.messagingpush.di.backgroundPushDeliveryMetrics
 import io.customer.messagingpush.di.liveNotificationManager
 import io.customer.messagingpush.di.pushLogger
 import io.customer.messagingpush.di.pushModuleConfig
 import io.customer.messagingpush.extensions.*
+import io.customer.messagingpush.processor.BackgroundPushDeliveryMetrics
 import io.customer.messagingpush.processor.BackgroundPushParseResult
 import io.customer.messagingpush.processor.BackgroundPushParser
 import io.customer.messagingpush.processor.PushMessageProcessor
@@ -41,7 +43,8 @@ import kotlin.math.roundToInt
 internal class CustomerIOPushNotificationHandler(
     private val pushMessageProcessor: PushMessageProcessor,
     private val remoteMessage: RemoteMessage,
-    private val notificationChannelCreator: NotificationChannelCreator
+    private val notificationChannelCreator: NotificationChannelCreator,
+    private val backgroundPushDeliveryMetrics: BackgroundPushDeliveryMetrics = SDKComponent.backgroundPushDeliveryMetrics
 ) {
 
     companion object {
@@ -128,7 +131,7 @@ internal class CustomerIOPushNotificationHandler(
     private fun deliverBackgroundPush(context: Context, payload: CustomerIOBackgroundPushPayload) {
         // A failed receipt must not keep the data from the app.
         try {
-            pushMessageProcessor.processBackgroundPushDeliveredMetrics(payload.deliveryId, payload.deliveryToken)
+            backgroundPushDeliveryMetrics.trackDelivered(payload.deliveryId, payload.deliveryToken)
         } catch (error: Exception) {
             pushLogger.logBackgroundPushReceiptFailed(error)
         }

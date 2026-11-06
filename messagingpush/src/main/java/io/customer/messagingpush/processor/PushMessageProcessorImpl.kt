@@ -11,7 +11,6 @@ import io.customer.messagingpush.data.model.CustomerIOParsedPushPayload
 import io.customer.messagingpush.extensions.parcelable
 import io.customer.messagingpush.logger.PushNotificationLogger
 import io.customer.messagingpush.store.PendingPushDeliveryMetric
-import io.customer.messagingpush.store.PushSettingsStore
 import io.customer.messagingpush.util.DeepLinkUtil
 import io.customer.messagingpush.util.PushTrackingUtil
 import io.customer.sdk.communication.Event
@@ -24,11 +23,7 @@ internal class PushMessageProcessorImpl(
     private val moduleConfig: MessagingPushModuleConfig,
     private val deepLinkUtil: DeepLinkUtil,
     private val deliveryMetricsScheduler: PushDeliveryMetricsBackgroundScheduler,
-    private val pendingPushDeliveryStore: PendingDeliveryStore<PendingPushDeliveryMetric>,
-    // The parameters below serve only silent pushes. Regular pushes keep using moduleConfig above.
-    private val currentModuleConfig: () -> MessagingPushModuleConfig?,
-    private val heldPushDeliveryStore: PendingDeliveryStore<PendingPushDeliveryMetric>,
-    private val pushSettingsStore: PushSettingsStore
+    private val pendingPushDeliveryStore: PendingDeliveryStore<PendingPushDeliveryMetric>
 ) : PushMessageProcessor {
 
     /**
@@ -119,56 +114,6 @@ internal class PushMessageProcessorImpl(
         } else {
             pushLogger.logPushMetricsAutoTrackingDisabled()
         }
-    }
-
-    override fun processBackgroundPushDeliveredMetrics(deliveryId: String, deliveryToken: String) {
-        if (getOrUpdateMessageAlreadyProcessed(deliveryId = deliveryId)) return
-        // A silent push often starts the app before it sets up the SDK. Read the current config, and
-        // before setup the setting this app version saved at its last setup.
-        when (currentModuleConfig()?.autoTrackPushEvents ?: pushSettingsStore.autoTrackPushEvents()) {
-            null -> holdDeliveredMetrics(deliveryId, deliveryToken)
-            true -> {
-                savePendingDeliveredMetrics(deliveryId, deliveryToken)
-                scheduleDeliveredMetrics(deliveryId, deliveryToken)
-            }
-            false -> pushLogger.logPushMetricsAutoTrackingDisabled()
-        }
-    }
-
-    private fun holdDeliveredMetrics(deliveryId: String, deliveryToken: String) {
-        // This app version hasn't set up the SDK yet, so whether it tracks push metrics isn't known.
-        pushLogger.logDeliveredMetricsHeld(deliveryId)
-        heldPushDeliveryStore.append(PendingPushDeliveryMetric(deliveryId = deliveryId, token = deliveryToken))
-        // The SDK may have been set up, and held metrics released, after the check above.
-        if (currentModuleConfig() != null) processHeldDeliveredMetrics()
-    }
-
-    override fun processHeldDeliveredMetrics() {
-        val config = currentModuleConfig() ?: return
-        for (entry in heldPushDeliveryStore.loadAll()) {
-            // Claiming first keeps two racing releases from tracking the same metric twice.
-            if (!heldPushDeliveryStore.claim(entry.key)) continue
-            if (!config.autoTrackPushEvents) {
-                pushLogger.logPushMetricsAutoTrackingDisabled()
-            } else if (savePendingDeliveredMetrics(entry.deliveryId, entry.token)) {
-                scheduleDeliveredMetrics(entry.deliveryId, entry.token)
-            } else {
-                // The pending store didn't save it, so keep the held copy for the next setup. Scheduling
-                // anyway could send it now through the direct fallback and again from the held copy.
-                heldPushDeliveryStore.append(entry)
-            }
-        }
-    }
-
-    /** Same steps as [trackDeliveredMetrics] when tracking is on. Returns false when the pending store couldn't save the metric. */
-    private fun savePendingDeliveredMetrics(deliveryId: String, deliveryToken: String): Boolean {
-        pushLogger.logTrackingPushMessageDelivered(deliveryId)
-        pushLogger.logPendingStoreAppended(deliveryId)
-        return pendingPushDeliveryStore.append(PendingPushDeliveryMetric(deliveryId = deliveryId, token = deliveryToken))
-    }
-
-    private fun scheduleDeliveredMetrics(deliveryId: String, deliveryToken: String) {
-        deliveryMetricsScheduler.scheduleDeliveredPushMetricsReceipt(deliveryId = deliveryId, deliveryToken = deliveryToken)
     }
 
     override fun processNotificationClick(activityContext: Context, intent: Intent) {

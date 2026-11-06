@@ -7,12 +7,12 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ProcessLifecycleOwner
 import io.customer.messagingpush.di.backgroundPushCallbackFallback
+import io.customer.messagingpush.di.backgroundPushDeliveryMetrics
 import io.customer.messagingpush.di.fcmTokenProvider
 import io.customer.messagingpush.di.liveNotificationManager
 import io.customer.messagingpush.di.liveNotificationRegistrar
 import io.customer.messagingpush.di.pushDeliveryFlusher
 import io.customer.messagingpush.di.pushLogger
-import io.customer.messagingpush.di.pushMessageProcessor
 import io.customer.messagingpush.di.pushModuleConfig
 import io.customer.messagingpush.di.pushSettingsStore
 import io.customer.messagingpush.di.pushTrackingUtil
@@ -75,7 +75,8 @@ class ModuleMessagingPushFCM @JvmOverloads constructor(
                 synchronized(pushSettingsLock) {
                     SDKComponent.pushSettingsStore.saveAutoTrackPushEvents(SDKComponent.pushModuleConfig.autoTrackPushEvents)
                 }
-                SDKComponent.pushMessageProcessor.processHeldDeliveredMetrics()
+                // Not the push message processor: building it here would fix its config before a repeat setup.
+                SDKComponent.backgroundPushDeliveryMetrics.releaseHeld()
             }.onFailure { error -> pushLogger.logHeldDeliveredMetricsFailed(error) }
         }
     }

@@ -14,6 +14,7 @@ import io.customer.messagingpush.data.communication.CustomerIOBackgroundPushCall
 import io.customer.messagingpush.di.backgroundPushCallbackFallback
 import io.customer.messagingpush.di.fcmTokenProvider
 import io.customer.messagingpush.di.heldPushDeliveryStore
+import io.customer.messagingpush.di.pushMessageProcessor
 import io.customer.messagingpush.di.pushSettingsStore
 import io.customer.messagingpush.logger.PushNotificationLogger
 import io.customer.messagingpush.provider.DeviceToken
@@ -176,6 +177,16 @@ class ModuleMessagingPushFCMTest : IntegrationTest() {
         verify(exactly = 0) { mockPendingStore.append(any<PendingPushDeliveryMetric>()) }
         SDKComponent.heldPushDeliveryStore.loadAll() shouldBeEqualTo listOf(held)
         SDKComponent.pushSettingsStore.autoTrackPushEvents().shouldBeNull()
+    }
+
+    @Test
+    fun initialize_givenRepeatSetUpWithSilentPushCallback_expectRegularPushesUseLatestConfigAsOnMain() {
+        pushModule(autoTrackPushEvents = true, backgroundPushCallback = silentPushCallback).attachToSDKComponent().initialize()
+        pushModule(autoTrackPushEvents = false, backgroundPushCallback = silentPushCallback).attachToSDKComponent().initialize()
+
+        SDKComponent.pushMessageProcessor.processRemoteMessageDeliveredMetrics(String.random, String.random)
+
+        verify(exactly = 0) { mockPendingStore.append(any<PendingPushDeliveryMetric>()) }
     }
 
     @Test

@@ -19,11 +19,9 @@ import io.customer.messagingpush.config.PushClickBehavior.ACTIVITY_PREVENT_RESTA
 import io.customer.messagingpush.data.communication.CustomerIOPushNotificationCallback
 import io.customer.messagingpush.data.model.CustomerIOParsedPushPayload
 import io.customer.messagingpush.di.deepLinkUtil
-import io.customer.messagingpush.di.heldPushDeliveryStore
 import io.customer.messagingpush.di.pushMessageProcessor
 import io.customer.messagingpush.logger.PushNotificationLogger
 import io.customer.messagingpush.store.PendingPushDeliveryMetric
-import io.customer.messagingpush.store.PushSettingsStore
 import io.customer.messagingpush.testutils.core.IntegrationTest
 import io.customer.messagingpush.util.DeepLinkUtil
 import io.customer.messagingpush.util.PushTrackingUtil
@@ -52,15 +50,12 @@ class PushMessageProcessorTest : IntegrationTest() {
     private val mockPushLogger = mockk<PushNotificationLogger>(relaxed = true)
     private val mockDeliveryMetricsScheduler = mockk<PushDeliveryMetricsBackgroundScheduler>(relaxed = true)
     private val mockPendingStore = mockk<PendingDeliveryStore<PendingPushDeliveryMetric>>(relaxed = true)
-    private var installedAppVersion = "1"
-    private lateinit var pushSettingsStore: PushSettingsStore
 
     private fun pushMessageProcessor(): PushMessageProcessorImpl {
         return SDKComponent.pushMessageProcessor as PushMessageProcessorImpl
     }
 
     override fun setup(testConfig: TestConfig) {
-        pushSettingsStore = PushSettingsStore(applicationMock) { installedAppVersion }
         super.setup(
             testConfigurationDefault {
                 diGraph {
@@ -70,7 +65,6 @@ class PushMessageProcessorTest : IntegrationTest() {
                         overrideDependency<PushNotificationLogger>(mockPushLogger)
                         overrideDependency<PushDeliveryMetricsBackgroundScheduler>(mockDeliveryMetricsScheduler)
                         overrideDependency<PendingDeliveryStore<PendingPushDeliveryMetric>>(mockPendingStore)
-                        overrideDependency<PushSettingsStore>(pushSettingsStore)
                     }
                 }
             }
@@ -78,7 +72,6 @@ class PushMessageProcessorTest : IntegrationTest() {
 
         deepLinkUtilMock = SDKComponent.deepLinkUtil
         eventBus = SDKComponent.eventBus
-        every { mockPendingStore.append(any<PendingPushDeliveryMetric>()) } returns true
     }
 
     private fun pushMessagePayload(deepLink: String? = null): CustomerIOParsedPushPayload {
@@ -380,177 +373,6 @@ class PushMessageProcessorTest : IntegrationTest() {
         processor.processRemoteMessageDeliveredMetrics(givenDeliveryId, givenDeviceToken)
 
         assertCalledOnce { mockPushLogger.logTrackingPushMessageDelivered(givenDeliveryId) }
-    }
-
-    @Test
-    fun processRemoteMessageDeliveredMetrics_givenSdkNotSetUpAndTrackingSavedOff_expectTrackRightAwayAsOnMain() {
-        // Regular pushes ignore the silent push hold and saved setting.
-        val givenDeliveryId = String.random
-        val givenDeviceToken = String.random
-        pushSettingsStore.saveAutoTrackPushEvents(false)
-
-        pushMessageProcessor().processRemoteMessageDeliveredMetrics(givenDeliveryId, givenDeviceToken)
-
-        verify(exactly = 1) { mockPendingStore.append(PendingPushDeliveryMetric(givenDeliveryId, givenDeviceToken)) }
-        verify(exactly = 1) { mockDeliveryMetricsScheduler.scheduleDeliveredPushMetricsReceipt(givenDeliveryId, givenDeviceToken) }
-        SDKComponent.heldPushDeliveryStore.loadAll() shouldBeEqualTo emptyList()
-    }
-
-    @Test
-    fun processBackgroundPushDeliveredMetrics_givenSdkNotSetUp_expectHoldUntilSettingsAreKnown() {
-        val givenDeliveryId = String.random
-        val givenDeviceToken = String.random
-
-        pushMessageProcessor().processBackgroundPushDeliveredMetrics(givenDeliveryId, givenDeviceToken)
-
-        SDKComponent.heldPushDeliveryStore.loadAll() shouldBeEqualTo listOf(PendingPushDeliveryMetric(givenDeliveryId, givenDeviceToken))
-        verify(exactly = 0) { mockPendingStore.append(any<PendingPushDeliveryMetric>()) }
-        verify(exactly = 0) { mockDeliveryMetricsScheduler.scheduleDeliveredPushMetricsReceipt(any(), any()) }
-    }
-
-    @Test
-    fun processBackgroundPushDeliveredMetrics_givenTrackingSavedOnBeforeSetUp_expectTrackRightAway() {
-        val givenDeliveryId = String.random
-        val givenDeviceToken = String.random
-        pushSettingsStore.saveAutoTrackPushEvents(true)
-
-        pushMessageProcessor().processBackgroundPushDeliveredMetrics(givenDeliveryId, givenDeviceToken)
-
-        verify(exactly = 1) { mockPendingStore.append(PendingPushDeliveryMetric(givenDeliveryId, givenDeviceToken)) }
-        verify(exactly = 1) { mockDeliveryMetricsScheduler.scheduleDeliveredPushMetricsReceipt(givenDeliveryId, givenDeviceToken) }
-        SDKComponent.heldPushDeliveryStore.loadAll() shouldBeEqualTo emptyList()
-    }
-
-    @Test
-    fun processBackgroundPushDeliveredMetrics_givenTrackingSavedOffBeforeSetUp_expectDrop() {
-        pushSettingsStore.saveAutoTrackPushEvents(false)
-
-        pushMessageProcessor().processBackgroundPushDeliveredMetrics(String.random, String.random)
-
-        verify(exactly = 0) { mockPendingStore.append(any<PendingPushDeliveryMetric>()) }
-        verify(exactly = 0) { mockDeliveryMetricsScheduler.scheduleDeliveredPushMetricsReceipt(any(), any()) }
-        SDKComponent.heldPushDeliveryStore.loadAll() shouldBeEqualTo emptyList()
-        assertCalledOnce { mockPushLogger.logPushMetricsAutoTrackingDisabled() }
-    }
-
-    @Test
-    fun processBackgroundPushDeliveredMetrics_givenSettingSavedByOlderAppVersion_expectHold() {
-        val givenDeliveryId = String.random
-        val givenDeviceToken = String.random
-        pushSettingsStore.saveAutoTrackPushEvents(true)
-        installedAppVersion = "2"
-
-        pushMessageProcessor().processBackgroundPushDeliveredMetrics(givenDeliveryId, givenDeviceToken)
-
-        verify(exactly = 0) { mockPendingStore.append(any<PendingPushDeliveryMetric>()) }
-        SDKComponent.heldPushDeliveryStore.loadAll() shouldBeEqualTo listOf(PendingPushDeliveryMetric(givenDeliveryId, givenDeviceToken))
-    }
-
-    @Test
-    fun processBackgroundPushDeliveredMetrics_givenHoldIsFull_expectDropOldest() {
-        val processor = pushMessageProcessor()
-        val givenDeliveryIds = List(PendingPushDeliveryMetric.HELD_MAX_ENTRIES + 1) { String.random }
-
-        givenDeliveryIds.forEach { deliveryId -> processor.processBackgroundPushDeliveredMetrics(deliveryId, String.random) }
-
-        SDKComponent.heldPushDeliveryStore.loadAll().map { it.deliveryId } shouldBeEqualTo givenDeliveryIds.drop(1)
-    }
-
-    @Test
-    fun processBackgroundPushDeliveredMetrics_givenSdkSetUpWhileHolding_expectTrackRightAway() {
-        val givenDeliveryId = String.random
-        val givenDeviceToken = String.random
-        // The app finishes setting up the SDK right after the processor finds no config.
-        var setUp = false
-        val processor = PushMessageProcessorImpl(
-            pushLogger = mockPushLogger,
-            moduleConfig = MessagingPushModuleConfig.default(),
-            deepLinkUtil = deepLinkUtilMock,
-            deliveryMetricsScheduler = mockDeliveryMetricsScheduler,
-            pendingPushDeliveryStore = mockPendingStore,
-            currentModuleConfig = { MessagingPushModuleConfig.default().takeIf { setUp }.also { setUp = true } },
-            heldPushDeliveryStore = SDKComponent.heldPushDeliveryStore,
-            pushSettingsStore = pushSettingsStore
-        )
-
-        processor.processBackgroundPushDeliveredMetrics(givenDeliveryId, givenDeviceToken)
-
-        verify(exactly = 1) { mockPendingStore.append(PendingPushDeliveryMetric(givenDeliveryId, givenDeviceToken)) }
-        SDKComponent.heldPushDeliveryStore.loadAll() shouldBeEqualTo emptyList()
-    }
-
-    @Test
-    fun processBackgroundPushDeliveredMetrics_givenProcessorCreatedBeforeSetUp_expectSettingsFromLaterSetUpApply() {
-        // A silent push that arrives before the app sets up the SDK creates the processor while only the defaults exist.
-        val processor = pushMessageProcessor()
-        processor.processBackgroundPushDeliveredMetrics(String.random, String.random)
-        setupModuleConfig(autoTrackPushEvents = false)
-        processor.processHeldDeliveredMetrics()
-
-        processor.processBackgroundPushDeliveredMetrics(String.random, String.random)
-
-        verify(exactly = 0) { mockPendingStore.append(any<PendingPushDeliveryMetric>()) }
-        verify(exactly = 0) { mockDeliveryMetricsScheduler.scheduleDeliveredPushMetricsReceipt(any(), any()) }
-        SDKComponent.heldPushDeliveryStore.loadAll() shouldBeEqualTo emptyList()
-    }
-
-    @Test
-    fun processHeldDeliveredMetrics_givenSdkSetUpWithAutoTracking_expectTrackHeldMetrics() {
-        val givenDeliveryId = String.random
-        val givenDeviceToken = String.random
-        val processor = pushMessageProcessor()
-        processor.processBackgroundPushDeliveredMetrics(givenDeliveryId, givenDeviceToken)
-        setupModuleConfig(autoTrackPushEvents = true)
-
-        processor.processHeldDeliveredMetrics()
-
-        verify(exactly = 1) { mockPendingStore.append(PendingPushDeliveryMetric(givenDeliveryId, givenDeviceToken)) }
-        verify(exactly = 1) { mockDeliveryMetricsScheduler.scheduleDeliveredPushMetricsReceipt(givenDeliveryId, givenDeviceToken) }
-        SDKComponent.heldPushDeliveryStore.loadAll() shouldBeEqualTo emptyList()
-    }
-
-    @Test
-    fun processHeldDeliveredMetrics_givenSdkSetUpWithoutAutoTracking_expectDropHeldMetrics() {
-        val processor = pushMessageProcessor()
-        processor.processBackgroundPushDeliveredMetrics(String.random, String.random)
-        setupModuleConfig(autoTrackPushEvents = false)
-
-        processor.processHeldDeliveredMetrics()
-
-        verify(exactly = 0) { mockPendingStore.append(any<PendingPushDeliveryMetric>()) }
-        verify(exactly = 0) { mockDeliveryMetricsScheduler.scheduleDeliveredPushMetricsReceipt(any(), any()) }
-        SDKComponent.heldPushDeliveryStore.loadAll() shouldBeEqualTo emptyList()
-    }
-
-    @Test
-    fun processHeldDeliveredMetrics_givenSdkNotSetUp_expectKeepHolding() {
-        val processor = pushMessageProcessor()
-        processor.processBackgroundPushDeliveredMetrics(String.random, String.random)
-
-        processor.processHeldDeliveredMetrics()
-
-        verify(exactly = 0) { mockPendingStore.append(any<PendingPushDeliveryMetric>()) }
-        SDKComponent.heldPushDeliveryStore.loadAll().size shouldBeEqualTo 1
-    }
-
-    @Test
-    fun processHeldDeliveredMetrics_givenPendingSaveFails_expectKeepHeldAndSendOnNextRelease() {
-        val held = PendingPushDeliveryMetric(deliveryId = String.random, token = String.random)
-        val processor = pushMessageProcessor()
-        processor.processBackgroundPushDeliveredMetrics(held.deliveryId, held.token)
-        setupModuleConfig(autoTrackPushEvents = true)
-        every { mockPendingStore.append(any<PendingPushDeliveryMetric>()) } returnsMany listOf(false, true)
-
-        processor.processHeldDeliveredMetrics()
-
-        SDKComponent.heldPushDeliveryStore.loadAll() shouldBeEqualTo listOf(held)
-        verify(exactly = 0) { mockDeliveryMetricsScheduler.scheduleDeliveredPushMetricsReceipt(any(), any()) }
-
-        processor.processHeldDeliveredMetrics()
-
-        SDKComponent.heldPushDeliveryStore.loadAll() shouldBeEqualTo emptyList()
-        verify(exactly = 2) { mockPendingStore.append(held) }
-        verify(exactly = 1) { mockDeliveryMetricsScheduler.scheduleDeliveredPushMetricsReceipt(held.deliveryId, held.token) }
     }
 
     @Test

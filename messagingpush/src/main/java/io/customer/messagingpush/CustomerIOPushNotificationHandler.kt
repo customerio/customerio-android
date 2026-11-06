@@ -128,7 +128,7 @@ internal class CustomerIOPushNotificationHandler(
     private fun deliverBackgroundPush(context: Context, payload: CustomerIOBackgroundPushPayload) {
         // A failed receipt must not keep the data from the app.
         try {
-            pushMessageProcessor.processRemoteMessageDeliveredMetrics(payload.deliveryId, payload.deliveryToken)
+            pushMessageProcessor.processBackgroundPushDeliveredMetrics(payload.deliveryId, payload.deliveryToken)
         } catch (error: Exception) {
             pushLogger.logBackgroundPushReceiptFailed(error)
         }

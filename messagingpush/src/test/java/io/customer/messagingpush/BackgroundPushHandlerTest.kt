@@ -83,7 +83,16 @@ class BackgroundPushHandlerTest : IntegrationTest() {
         config: MessagingPushModuleConfig,
         scheduler: PushDeliveryMetricsBackgroundScheduler,
         store: PendingDeliveryStore<PendingPushDeliveryMetric>
-    ) = PushMessageProcessorImpl(mockk<PushNotificationLogger>(relaxed = true), { config }, mockk(relaxed = true), scheduler, store, mockk(relaxed = true), mockk(relaxed = true))
+    ) = PushMessageProcessorImpl(
+        pushLogger = mockk<PushNotificationLogger>(relaxed = true),
+        moduleConfig = config,
+        deepLinkUtil = mockk(relaxed = true),
+        deliveryMetricsScheduler = scheduler,
+        pendingPushDeliveryStore = store,
+        currentModuleConfig = { config },
+        heldPushDeliveryStore = mockk(relaxed = true),
+        pushSettingsStore = mockk(relaxed = true)
+    )
 
     private fun handler(
         payload: Map<String, String>,
@@ -111,7 +120,8 @@ class BackgroundPushHandlerTest : IntegrationTest() {
         assertEquals("dlv_123", received?.deliveryId)
         assertEquals("tok_abc", received?.deliveryToken)
         assertEquals(displayLike + ("order_id" to "42"), received?.data)
-        verify(exactly = 1) { processor.processRemoteMessageDeliveredMetrics("dlv_123", "tok_abc") }
+        verify(exactly = 1) { processor.processBackgroundPushDeliveredMetrics("dlv_123", "tok_abc") }
+        verify(exactly = 0) { processor.processRemoteMessageDeliveredMetrics(any(), any()) }
         verify(exactly = 0) { processor.processNotificationClick(any(), any()) }
         assertNull(Shadows.shadowOf(applicationMock).nextStartedActivity)
         assertNoNotification()
@@ -132,7 +142,7 @@ class BackgroundPushHandlerTest : IntegrationTest() {
         cases.forEach { payload ->
             val processor = mockk<PushMessageProcessor>(relaxed = true)
             assertTrue(handler(payload, processor).handleMessage(contextMock))
-            verify(exactly = 0) { processor.processRemoteMessageDeliveredMetrics(any(), any()) }
+            verify(exactly = 0) { processor.processBackgroundPushDeliveredMetrics(any(), any()) }
         }
         assertEquals(0, calls)
         assertNoNotification()
@@ -149,7 +159,7 @@ class BackgroundPushHandlerTest : IntegrationTest() {
         cases.forEach { payload ->
             val processor = mockk<PushMessageProcessor>(relaxed = true)
             assertFalse(handler(payload, processor).handleMessage(contextMock))
-            verify(exactly = 0) { processor.processRemoteMessageDeliveredMetrics(any(), any()) }
+            verify(exactly = 0) { processor.processBackgroundPushDeliveredMetrics(any(), any()) }
         }
         assertEquals(0, calls)
         assertNoNotification()
@@ -173,7 +183,7 @@ class BackgroundPushHandlerTest : IntegrationTest() {
         assertTrue(CustomerIOPushNotificationHandler(processor, message, NotificationChannelCreator()).handleMessage(contextMock))
 
         assertEquals(0, calls)
-        verify(exactly = 0) { processor.processRemoteMessageDeliveredMetrics(any(), any()) }
+        verify(exactly = 0) { processor.processBackgroundPushDeliveredMetrics(any(), any()) }
         assertNoNotification()
     }
 
@@ -183,7 +193,7 @@ class BackgroundPushHandlerTest : IntegrationTest() {
 
         assertTrue(handler(data(), processor).handleMessage(contextMock))
 
-        verify(exactly = 1) { processor.processRemoteMessageDeliveredMetrics("dlv_123", "tok_abc") }
+        verify(exactly = 1) { processor.processBackgroundPushDeliveredMetrics("dlv_123", "tok_abc") }
         assertNoNotification()
     }
 
@@ -196,7 +206,7 @@ class BackgroundPushHandlerTest : IntegrationTest() {
         assertTrue(handler(data(), processor).handleMessage(contextMock))
 
         assertEquals("dlv_123", received?.deliveryId)
-        verify(exactly = 1) { processor.processRemoteMessageDeliveredMetrics("dlv_123", "tok_abc") }
+        verify(exactly = 1) { processor.processBackgroundPushDeliveredMetrics("dlv_123", "tok_abc") }
         assertNoNotification()
     }
 
@@ -305,7 +315,7 @@ class BackgroundPushHandlerTest : IntegrationTest() {
 
         assertEquals("fixture-delivery-1", received?.deliveryId)
         assertEquals(mapOf("title" to "Order shipped", "order_id" to "A-1001", "note" to "line one\nsays \"hi\" <b>&</b> ✓", "cıo-x" to "dotless"), received?.data)
-        verify(exactly = 1) { processor.processRemoteMessageDeliveredMetrics("fixture-delivery-1", "fixture-fcm-token-1") }
+        verify(exactly = 1) { processor.processBackgroundPushDeliveredMetrics("fixture-delivery-1", "fixture-fcm-token-1") }
         assertNoNotification()
     }
 

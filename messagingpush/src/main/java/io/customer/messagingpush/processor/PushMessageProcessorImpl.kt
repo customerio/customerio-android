@@ -21,17 +21,15 @@ import io.customer.sdk.events.Metric
 
 internal class PushMessageProcessorImpl(
     private val pushLogger: PushNotificationLogger,
-    private val moduleConfigProvider: () -> MessagingPushModuleConfig?,
+    private val moduleConfig: MessagingPushModuleConfig,
     private val deepLinkUtil: DeepLinkUtil,
     private val deliveryMetricsScheduler: PushDeliveryMetricsBackgroundScheduler,
     private val pendingPushDeliveryStore: PendingDeliveryStore<PendingPushDeliveryMetric>,
+    // The parameters below serve only silent pushes. Regular pushes keep using moduleConfig above.
+    private val currentModuleConfig: () -> MessagingPushModuleConfig?,
     private val heldPushDeliveryStore: PendingDeliveryStore<PendingPushDeliveryMetric>,
     private val pushSettingsStore: PushSettingsStore
 ) : PushMessageProcessor {
-
-    // Null until the app sets up the SDK. Read for each message because this processor can be created earlier.
-    private val moduleConfig: MessagingPushModuleConfig?
-        get() = moduleConfigProvider()
 
     /**
      * Responsible for storing and updating recent messages in queue atomically.
@@ -95,12 +93,45 @@ internal class PushMessageProcessorImpl(
     }
 
     private fun trackDeliveredMetrics(deliveryId: String, deliveryToken: String) {
-        // Before the app sets up the SDK, follow the setting this app version saved at its last setup.
-        val autoTrackPushEvents = moduleConfig?.autoTrackPushEvents ?: pushSettingsStore.autoTrackPushEvents()
-        if (autoTrackPushEvents == null) {
-            holdDeliveredMetrics(deliveryId, deliveryToken)
+        // Track delivered event only if auto-tracking is enabled
+        if (moduleConfig.autoTrackPushEvents) {
+            pushLogger.logTrackingPushMessageDelivered(deliveryId)
+
+            // Persist a pending entry first so the metric can be replayed via the
+            // analytics pipeline when the user next foregrounds the app, if the
+            // WorkManager job has not confirmed delivery by then. The entry is
+            // keyed by deliveryId; the worker (or direct-HTTP fallback) removes
+            // it on a successful response, otherwise the foreground handoff
+            // cancels the worker and publishes the entry via the analytics
+            // pipeline instead.
+            pushLogger.logPendingStoreAppended(deliveryId)
+            pendingPushDeliveryStore.append(
+                PendingPushDeliveryMetric(
+                    deliveryId = deliveryId,
+                    token = deliveryToken
+                )
+            )
+
+            deliveryMetricsScheduler.scheduleDeliveredPushMetricsReceipt(
+                deliveryId = deliveryId,
+                deliveryToken = deliveryToken
+            )
         } else {
-            trackDeliveredMetricsIfEnabled(deliveryId, deliveryToken, autoTrackPushEvents)
+            pushLogger.logPushMetricsAutoTrackingDisabled()
+        }
+    }
+
+    override fun processBackgroundPushDeliveredMetrics(deliveryId: String, deliveryToken: String) {
+        if (getOrUpdateMessageAlreadyProcessed(deliveryId = deliveryId)) return
+        // A silent push often starts the app before it sets up the SDK. Read the current config, and
+        // before setup the setting this app version saved at its last setup.
+        when (currentModuleConfig()?.autoTrackPushEvents ?: pushSettingsStore.autoTrackPushEvents()) {
+            null -> holdDeliveredMetrics(deliveryId, deliveryToken)
+            true -> {
+                savePendingDeliveredMetrics(deliveryId, deliveryToken)
+                scheduleDeliveredMetrics(deliveryId, deliveryToken)
+            }
+            false -> pushLogger.logPushMetricsAutoTrackingDisabled()
         }
     }
 
@@ -109,11 +140,11 @@ internal class PushMessageProcessorImpl(
         pushLogger.logDeliveredMetricsHeld(deliveryId)
         heldPushDeliveryStore.append(PendingPushDeliveryMetric(deliveryId = deliveryId, token = deliveryToken))
         // The SDK may have been set up, and held metrics released, after the check above.
-        if (moduleConfig != null) processHeldDeliveredMetrics()
+        if (currentModuleConfig() != null) processHeldDeliveredMetrics()
     }
 
     override fun processHeldDeliveredMetrics() {
-        val config = moduleConfig ?: return
+        val config = currentModuleConfig() ?: return
         for (entry in heldPushDeliveryStore.loadAll()) {
             // Claiming first keeps two racing releases from tracking the same metric twice.
             if (!heldPushDeliveryStore.claim(entry.key)) continue
@@ -129,41 +160,15 @@ internal class PushMessageProcessorImpl(
         }
     }
 
-    private fun trackDeliveredMetricsIfEnabled(deliveryId: String, deliveryToken: String, autoTrackPushEvents: Boolean) {
-        // Track delivered event only if auto-tracking is enabled
-        if (autoTrackPushEvents) {
-            savePendingDeliveredMetrics(deliveryId, deliveryToken)
-            scheduleDeliveredMetrics(deliveryId, deliveryToken)
-        } else {
-            pushLogger.logPushMetricsAutoTrackingDisabled()
-        }
-    }
-
-    /** @return false when the pending store couldn't save the metric. */
+    /** Same steps as [trackDeliveredMetrics] when tracking is on. Returns false when the pending store couldn't save the metric. */
     private fun savePendingDeliveredMetrics(deliveryId: String, deliveryToken: String): Boolean {
         pushLogger.logTrackingPushMessageDelivered(deliveryId)
-
-        // Persist a pending entry first so the metric can be replayed via the
-        // analytics pipeline when the user next foregrounds the app, if the
-        // WorkManager job has not confirmed delivery by then. The entry is
-        // keyed by deliveryId; the worker (or direct-HTTP fallback) removes
-        // it on a successful response, otherwise the foreground handoff
-        // cancels the worker and publishes the entry via the analytics
-        // pipeline instead.
         pushLogger.logPendingStoreAppended(deliveryId)
-        return pendingPushDeliveryStore.append(
-            PendingPushDeliveryMetric(
-                deliveryId = deliveryId,
-                token = deliveryToken
-            )
-        )
+        return pendingPushDeliveryStore.append(PendingPushDeliveryMetric(deliveryId = deliveryId, token = deliveryToken))
     }
 
     private fun scheduleDeliveredMetrics(deliveryId: String, deliveryToken: String) {
-        deliveryMetricsScheduler.scheduleDeliveredPushMetricsReceipt(
-            deliveryId = deliveryId,
-            deliveryToken = deliveryToken
-        )
+        deliveryMetricsScheduler.scheduleDeliveredPushMetricsReceipt(deliveryId = deliveryId, deliveryToken = deliveryToken)
     }
 
     override fun processNotificationClick(activityContext: Context, intent: Intent) {
@@ -184,14 +189,12 @@ internal class PushMessageProcessorImpl(
         activityContext: Context,
         payload: CustomerIOParsedPushPayload
     ) {
-        // A tap that starts the app before it sets up the SDK gets the defaults, as before.
-        val config = moduleConfig ?: MessagingPushModuleConfig.default()
-        trackNotificationClickMetrics(payload, config)
-        handleNotificationDeepLink(activityContext, payload, config)
+        trackNotificationClickMetrics(payload)
+        handleNotificationDeepLink(activityContext, payload)
     }
 
-    private fun trackNotificationClickMetrics(payload: CustomerIOParsedPushPayload, config: MessagingPushModuleConfig) {
-        if (!config.autoTrackPushEvents) {
+    private fun trackNotificationClickMetrics(payload: CustomerIOParsedPushPayload) {
+        if (!moduleConfig.autoTrackPushEvents) {
             pushLogger.logPushMetricsAutoTrackingDisabled()
             return
         }
@@ -214,14 +217,13 @@ internal class PushMessageProcessorImpl(
 
     private fun handleNotificationDeepLink(
         activityContext: Context,
-        payload: CustomerIOParsedPushPayload,
-        config: MessagingPushModuleConfig
+        payload: CustomerIOParsedPushPayload
     ) {
-        pushLogger.logHandlingNotificationDeepLink(payload, config.pushClickBehavior)
+        pushLogger.logHandlingNotificationDeepLink(payload, moduleConfig.pushClickBehavior)
         val deepLink = payload.deepLink?.takeIf { link -> link.isNotBlank() }
 
         // check if host app overrides the handling of deeplink
-        val notificationCallback = config.notificationCallback
+        val notificationCallback = moduleConfig.notificationCallback
         val wasClicked = notificationCallback?.onNotificationClicked(
             context = activityContext,
             payload = payload
@@ -258,11 +260,11 @@ internal class PushMessageProcessorImpl(
         when {
             deepLinkHostAppIntent != null -> {
                 pushLogger.logDeepLinkHandledByHostApp()
-                startActivityForIntent(activityContext, deepLinkHostAppIntent, payload, config.pushClickBehavior)
+                startActivityForIntent(activityContext, deepLinkHostAppIntent, payload)
             }
             defaultHostAppIntent != null -> {
                 pushLogger.logDeepLinkHandledDefaultHostAppLauncher()
-                startActivityForIntent(activityContext, defaultHostAppIntent, payload, config.pushClickBehavior)
+                startActivityForIntent(activityContext, defaultHostAppIntent, payload)
             }
             else -> pushLogger.logDeepLinkWasNotHandled()
         }
@@ -271,15 +273,14 @@ internal class PushMessageProcessorImpl(
     private fun startActivityForIntent(
         activityContext: Context,
         deepLinkIntent: Intent,
-        payload: CustomerIOParsedPushPayload,
-        pushClickBehavior: PushClickBehavior
+        payload: CustomerIOParsedPushPayload
     ) {
         deepLinkIntent.putExtra(
             NotificationClickReceiverActivity.NOTIFICATION_PAYLOAD_EXTRA,
             payload
         )
 
-        when (pushClickBehavior) {
+        when (moduleConfig.pushClickBehavior) {
             PushClickBehavior.RESET_TASK_STACK -> {
                 val taskStackBuilder = TaskStackBuilder.create(activityContext).apply {
                     addNextIntentWithParentStack(deepLinkIntent)

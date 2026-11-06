@@ -129,10 +129,11 @@ internal val SDKComponent.pushMessageProcessor: PushMessageProcessor
     get() = singleton<PushMessageProcessor> {
         PushMessageProcessorImpl(
             pushLogger = pushLogger,
-            moduleConfigProvider = { pushModuleConfigIfSetUp },
+            moduleConfig = pushModuleConfig,
             deepLinkUtil = deepLinkUtil,
             deliveryMetricsScheduler = deliveryMetricsScheduler,
             pendingPushDeliveryStore = pendingPushDeliveryStore,
+            currentModuleConfig = { pushModuleConfigIfSetUp },
             heldPushDeliveryStore = heldPushDeliveryStore,
             pushSettingsStore = pushSettingsStore
         )

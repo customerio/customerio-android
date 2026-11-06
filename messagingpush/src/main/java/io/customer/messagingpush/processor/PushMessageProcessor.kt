@@ -47,8 +47,15 @@ interface PushMessageProcessor {
     fun processRemoteMessageDeliveredMetrics(deliveryId: String, deliveryToken: String)
 
     /**
-     * Tracks or drops the delivered metrics held for pushes that arrived before the app set up
-     * the SDK, following the app's settings. Does nothing until the SDK is set up.
+     * Tracks delivered metrics for a silent push. A silent push can start the app before it sets up
+     * the SDK, so this follows the current config, or before setup the tracking setting this app
+     * version saved at its last setup. With neither, the metrics are held until setup.
+     */
+    fun processBackgroundPushDeliveredMetrics(deliveryId: String, deliveryToken: String)
+
+    /**
+     * Tracks or drops the delivered metrics held for silent pushes that arrived before the app set
+     * up the SDK, following the app's settings. Does nothing until the SDK is set up.
      */
     fun processHeldDeliveredMetrics()
 

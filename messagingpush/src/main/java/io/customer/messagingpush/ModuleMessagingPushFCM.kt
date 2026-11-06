@@ -6,6 +6,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ProcessLifecycleOwner
+import io.customer.messagingpush.di.backgroundPushCallbackFallback
 import io.customer.messagingpush.di.fcmTokenProvider
 import io.customer.messagingpush.di.liveNotificationManager
 import io.customer.messagingpush.di.liveNotificationRegistrar
@@ -55,13 +56,16 @@ class ModuleMessagingPushFCM @JvmOverloads constructor(
         getCurrentFcmToken()
         subscribeToLifecycleEvents()
         observeProcessForeground()
-        savePushSettingsAndReleaseHeldMetrics()
+        // Only apps that use silent push do this, so apps that don't see no change.
+        if (moduleConfig.backgroundPushCallback != null || SDKComponent.backgroundPushCallbackFallback.callback != null) {
+            savePushSettingsAndReleaseHeldMetrics()
+        }
     }
 
     /**
-     * Saves the tracking setting for pushes that arrive before the next setup, then tracks or drops
-     * the delivered metrics held for pushes that arrived before this one. Runs in the background
-     * because both touch files.
+     * Saves the tracking setting for silent pushes that arrive before the next setup, then tracks or
+     * drops the delivered metrics held for silent pushes that arrived before this one. Runs in the
+     * background because both touch files.
      */
     private fun savePushSettingsAndReleaseHeldMetrics() {
         CoroutineScope(SDKComponent.dispatchersProvider.background).launch {

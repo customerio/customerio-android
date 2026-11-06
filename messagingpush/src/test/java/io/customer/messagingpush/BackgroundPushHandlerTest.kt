@@ -42,7 +42,6 @@ import org.robolectric.Shadows
 @RunWith(RobolectricTestRunner::class)
 class BackgroundPushHandlerTest : IntegrationTest() {
     private fun data(): Map<String, String> = mapOf(
-        "CIO-Background-Version" to "1",
         "CIO-Background-Delivery-ID" to "dlv_123",
         "CIO-Background-Delivery-Token" to "tok_abc",
         "title" to "Order shipped",
@@ -134,8 +133,9 @@ class BackgroundPushHandlerTest : IntegrationTest() {
         installCallback { _, _ -> calls++ }
         val cases = listOf(
             data() - "CIO-Background-Delivery-Token",
+            mapOf("CIO-Background-Delivery-ID" to "someone-else", "sync" to "1"),
+            data() + ("CIO-Background-Delivery-Token" to " "),
             data() + ("CIO-Background-Delivery-ID" to " "),
-            data() + ("CIO-Background-Version" to "2"),
             data() + ("CIO-Delivery-ID" to "legacy"),
             data() + ("CIO-Background-Unknown" to "future"),
             data() + ("notification" to "display")
@@ -151,12 +151,13 @@ class BackgroundPushHandlerTest : IntegrationTest() {
     }
 
     @Test
-    fun strayBackgroundKeysWithoutVersion_areLeftForTheApp() {
+    fun backgroundKeysWithoutExactDeliveryId_areLeftForTheApp() {
         var calls = 0
         installCallback { _, _ -> calls++ }
         val cases = listOf(
-            data() - "CIO-Background-Version",
-            mapOf("CIO-Background-Delivery-ID" to "someone-else", "sync" to "1")
+            data() - "CIO-Background-Delivery-ID",
+            mapOf("CIO-Background-Delivery-Token" to "someone-else", "sync" to "1"),
+            data().mapKeys { (key, _) -> key.lowercase() }
         )
         cases.forEach { payload ->
             val processor = mockk<PushMessageProcessor>(relaxed = true)
@@ -363,11 +364,10 @@ class BackgroundPushHandlerTest : IntegrationTest() {
     @Test
     fun legacyBusinessKeys_includingBackgroundMetadata_stillPostNotification() {
         listOf(
-            "CIO-Background-Version",
             "CIO-Background-Delivery-ID",
             "CIO-Background-Delivery-Token",
             "CIO-Background-sync",
-            "cio-background-version",
+            "cio-background-delivery-id",
             "CIO-Background-Delivery-ID-extra"
         ).forEach { key ->
             notificationManager.cancelAll()

@@ -8,17 +8,16 @@ internal sealed class BackgroundPushParseResult {
     /** Not a silent push, so the regular push handling applies. */
     object NotBackground : BackgroundPushParseResult()
 
-    /** Marked as a silent push, but not one this SDK can deliver. It is dropped without display. */
+    /** Has the silent delivery ID, but this SDK can't deliver it. It is dropped without display. */
     object Unsupported : BackgroundPushParseResult()
 
     class Received(val payload: CustomerIOBackgroundPushPayload) : BackgroundPushParseResult()
 }
 
 internal object BackgroundPushParser {
-    private const val VERSION_KEY = "CIO-Background-Version"
     private const val ID_KEY = "CIO-Background-Delivery-ID"
     private const val TOKEN_KEY = "CIO-Background-Delivery-Token"
-    private val metadataKeys = setOf(VERSION_KEY, ID_KEY, TOKEN_KEY)
+    private val metadataKeys = setOf(ID_KEY, TOKEN_KEY)
 
     // Lowercase. Customer.io never sends these keys in a silent push. Firebase strips the exact spellings
     // of from, message_type, collapse_key and the google. and gcm. prefixes, so the checks for those here
@@ -31,12 +30,10 @@ internal object BackgroundPushParser {
         if (data[PushTrackingUtil.DELIVERY_ID_KEY] != null && data[PushTrackingUtil.DELIVERY_TOKEN_KEY] != null) {
             return BackgroundPushParseResult.NotBackground
         }
-        // Only the exact version key marks a silent push, so another sender's stray delivery key stays app data.
-        if (VERSION_KEY !in data) return BackgroundPushParseResult.NotBackground
-
-        val deliveryId = data[ID_KEY]
+        // Only the exact silent delivery ID key marks a silent push, so a message with just the token stays app data.
+        val deliveryId = data[ID_KEY] ?: return BackgroundPushParseResult.NotBackground
         val token = data[TOKEN_KEY]
-        if (data[VERSION_KEY] != "1" || deliveryId.isNullOrBlank() || token.isNullOrBlank() ||
+        if (deliveryId.isBlank() || token.isNullOrBlank() ||
             data.keys.any(::isReserved) || message.notification != null
         ) {
             return BackgroundPushParseResult.Unsupported

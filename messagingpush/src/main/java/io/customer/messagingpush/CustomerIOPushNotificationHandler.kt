@@ -88,7 +88,7 @@ internal class CustomerIOPushNotificationHandler(
             return false
         }
 
-        // A message marked as a silent push is never displayed, even one this SDK can't decode.
+        // A message with the silent delivery ID is never displayed, even one this SDK can't decode.
         when (val background = BackgroundPushParser.parse(remoteMessage)) {
             BackgroundPushParseResult.NotBackground -> Unit
             BackgroundPushParseResult.Unsupported -> {

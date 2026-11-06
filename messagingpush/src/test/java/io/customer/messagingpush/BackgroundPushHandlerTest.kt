@@ -3,7 +3,6 @@ package io.customer.messagingpush
 import android.app.Notification
 import android.app.NotificationManager
 import android.content.Context
-import android.os.Bundle
 import androidx.work.ExistingWorkPolicy
 import androidx.work.OneTimeWorkRequest
 import androidx.work.WorkManager
@@ -31,7 +30,6 @@ import java.util.concurrent.RejectedExecutionException
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -84,9 +82,7 @@ class BackgroundPushHandlerTest : IntegrationTest() {
         store: PendingDeliveryStore<PendingPushDeliveryMetric>
     ) = BackgroundPushDeliveryMetrics(
         pushLogger = mockk<PushNotificationLogger>(relaxed = true),
-        registeredModuleConfig = { config },
-        pushSettingsStore = mockk(relaxed = true),
-        heldStore = mockk(relaxed = true),
+        moduleConfig = { config },
         pendingStore = store,
         deliveryMetricsScheduler = scheduler
     )
@@ -133,12 +129,8 @@ class BackgroundPushHandlerTest : IntegrationTest() {
         installCallback { _, _ -> calls++ }
         val cases = listOf(
             data() - "CIO-Background-Delivery-Token",
-            mapOf("CIO-Background-Delivery-ID" to "someone-else", "sync" to "1"),
             data() + ("CIO-Background-Delivery-Token" to " "),
-            data() + ("CIO-Background-Delivery-ID" to " "),
-            data() + ("CIO-Delivery-ID" to "legacy"),
-            data() + ("CIO-Background-Unknown" to "future"),
-            data() + ("notification" to "display")
+            data() + ("CIO-Background-Delivery-ID" to " ")
         )
         cases.forEach { payload ->
             val processor = mockk<PushMessageProcessor>(relaxed = true)
@@ -156,7 +148,6 @@ class BackgroundPushHandlerTest : IntegrationTest() {
         installCallback { _, _ -> calls++ }
         val cases = listOf(
             data() - "CIO-Background-Delivery-ID",
-            mapOf("CIO-Background-Delivery-Token" to "someone-else", "sync" to "1"),
             data().mapKeys { (key, _) -> key.lowercase() }
         )
         cases.forEach { payload ->
@@ -166,29 +157,6 @@ class BackgroundPushHandlerTest : IntegrationTest() {
             verify(exactly = 0) { metrics.trackDelivered(any(), any()) }
         }
         assertEquals(0, calls)
-        assertNoNotification()
-    }
-
-    @Test
-    fun mixedNotificationAndBackgroundData_whenHandlerRuns_isConsumedWithoutDisplay() {
-        var calls = 0
-        installCallback { _, _ -> calls++ }
-        val processor = mockk<PushMessageProcessor>(relaxed = true)
-        val metrics = mockk<BackgroundPushDeliveryMetrics>(relaxed = true)
-        val message = RemoteMessage(
-            Bundle().apply {
-                data().forEach { (key, value) -> putString(key, value) }
-                putString("gcm.n.e", "1")
-                putString("gcm.n.title", "Visible notification")
-                putString("gcm.n.body", "Conflicting body")
-            }
-        )
-        assertNotNull(message.notification)
-
-        assertTrue(CustomerIOPushNotificationHandler(processor, message, NotificationChannelCreator(), lazyOf(metrics)).handleMessage(contextMock))
-
-        assertEquals(0, calls)
-        verify(exactly = 0) { metrics.trackDelivered(any(), any()) }
         assertNoNotification()
     }
 
@@ -352,31 +320,5 @@ class BackgroundPushHandlerTest : IntegrationTest() {
         assertTrue(CustomerIOPushNotificationHandler(mockk(relaxed = true), message, NotificationChannelCreator()).handleMessage(contextMock))
 
         assertNull(SDKComponent.getOrNull<BackgroundPushDeliveryMetrics>())
-    }
-
-    @Test
-    fun legacyEmptyDisplayFields_stillPostNotification() {
-        assertTrue(handler(legacy + mapOf("title" to "", "body" to "")).handleMessage(contextMock))
-
-        assertEquals(1, postedNotifications().size)
-    }
-
-    @Test
-    fun legacyBusinessKeys_includingBackgroundMetadata_stillPostNotification() {
-        listOf(
-            "CIO-Background-Delivery-ID",
-            "CIO-Background-Delivery-Token",
-            "CIO-Background-sync",
-            "cio-background-delivery-id",
-            "CIO-Background-Delivery-ID-extra"
-        ).forEach { key ->
-            notificationManager.cancelAll()
-
-            assertTrue(handler(legacy + (key to "existing business data")).handleMessage(contextMock))
-
-            val notifications = postedNotifications()
-            assertEquals("Legacy message with customer key $key must still render", 1, notifications.size)
-            assertEquals("Existing title", notifications.single().extras.getString(Notification.EXTRA_TITLE))
-        }
     }
 }

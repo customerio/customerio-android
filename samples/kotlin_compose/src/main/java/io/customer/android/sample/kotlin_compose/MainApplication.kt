@@ -56,10 +56,7 @@ class MainApplication : Application() {
             .addCustomerIOModule(
                 ModuleMessagingPushFCM(
                     MessagingPushModuleConfig.Builder()
-                        // Silent push: registered here in Application.onCreate because Firebase can
-                        // start the process in the background just to deliver one. The callback gets a
-                        // short time budget, so this sample only logs it. Real work belongs in
-                        // WorkManager, keyed on payload.deliveryId, since a push can repeat or arrive late.
+                        // Logs silent pushes. Real work belongs in WorkManager, keyed on payload.deliveryId.
                         .setBackgroundPushCallback { _, payload ->
                             Log.d("CustomerIO", "Silent push ${payload.deliveryId}: ${payload.data}")
                         }

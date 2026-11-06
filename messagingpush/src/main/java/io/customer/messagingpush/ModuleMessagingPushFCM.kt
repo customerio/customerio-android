@@ -6,15 +6,11 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ProcessLifecycleOwner
-import io.customer.messagingpush.di.backgroundPushCallbackFallback
-import io.customer.messagingpush.di.backgroundPushDeliveryMetrics
 import io.customer.messagingpush.di.fcmTokenProvider
 import io.customer.messagingpush.di.liveNotificationManager
 import io.customer.messagingpush.di.liveNotificationRegistrar
 import io.customer.messagingpush.di.pushDeliveryFlusher
 import io.customer.messagingpush.di.pushLogger
-import io.customer.messagingpush.di.pushModuleConfig
-import io.customer.messagingpush.di.pushSettingsStore
 import io.customer.messagingpush.di.pushTrackingUtil
 import io.customer.messagingpush.livenotification.LiveNotificationData
 import io.customer.messagingpush.livenotification.ULID
@@ -27,9 +23,7 @@ import io.customer.sdk.core.di.SDKComponent.eventBus
 import io.customer.sdk.core.module.CustomerIOModule
 import io.customer.sdk.data.store.PendingDeliveryFlusher
 import io.customer.sdk.events.Metric
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.filter
-import kotlinx.coroutines.launch
 
 class ModuleMessagingPushFCM @JvmOverloads constructor(
     override val moduleConfig: MessagingPushModuleConfig = MessagingPushModuleConfig.default()
@@ -56,33 +50,6 @@ class ModuleMessagingPushFCM @JvmOverloads constructor(
         getCurrentFcmToken()
         subscribeToLifecycleEvents()
         observeProcessForeground()
-        savePushSettingsAndReleaseHeldMetrics(
-            // Only apps that use silent push save the setting, so other apps write nothing new.
-            saveSettings = moduleConfig.backgroundPushCallback != null || SDKComponent.backgroundPushCallbackFallback.callback != null
-        )
-    }
-
-    /**
-     * Saves the tracking setting for silent pushes that arrive before the next setup when [saveSettings]
-     * is true, then tracks or drops the delivered metrics held for silent pushes that arrived before
-     * this setup. The release runs for every app, so an app without a silent push callback still gets
-     * Delivered for them. An app that never got a silent push has nothing held, and its release only
-     * finds no held file. Runs in the background because both touch files.
-     */
-    private fun savePushSettingsAndReleaseHeldMetrics(saveSettings: Boolean) {
-        CoroutineScope(SDKComponent.dispatchersProvider.background).launch {
-            runCatching {
-                // A repeat setup can register newer settings before this job runs, so save whatever
-                // is registered now. The lock keeps an older job's read and write from straddling a newer one.
-                if (saveSettings) {
-                    synchronized(pushSettingsLock) {
-                        SDKComponent.pushSettingsStore.saveAutoTrackPushEvents(SDKComponent.pushModuleConfig.autoTrackPushEvents)
-                    }
-                }
-                // Not the push message processor: building it here would fix its config before a repeat setup.
-                SDKComponent.backgroundPushDeliveryMetrics.releaseHeld()
-            }.onFailure { error -> pushLogger.logHeldDeliveredMetricsFailed(error) }
-        }
     }
 
     /**
@@ -287,8 +254,6 @@ class ModuleMessagingPushFCM @JvmOverloads constructor(
 
     companion object {
         internal const val MODULE_NAME = "MessagingPushFCM"
-
-        private val pushSettingsLock = Any()
 
         // Held statically because ProcessLifecycleOwner is process-scoped.
         // Mutated only from the main thread inside `observeProcessForeground`

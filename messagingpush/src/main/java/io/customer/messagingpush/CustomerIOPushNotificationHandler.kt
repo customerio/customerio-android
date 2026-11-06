@@ -88,7 +88,7 @@ internal class CustomerIOPushNotificationHandler(
             return false
         }
 
-        // A message with the silent delivery ID is never displayed, even one this SDK can't decode.
+        // A message with the silent delivery ID is never displayed, even one missing its token.
         when (val background = BackgroundPushParser.parse(remoteMessage)) {
             BackgroundPushParseResult.NotBackground -> Unit
             BackgroundPushParseResult.Unsupported -> {
@@ -136,7 +136,6 @@ internal class CustomerIOPushNotificationHandler(
         } catch (error: Exception) {
             pushLogger.logBackgroundPushReceiptFailed(error)
         }
-        // A wrapper's fallback covers a process that Firebase started before the wrapper set up the SDK.
         val callback = moduleConfig.backgroundPushCallback ?: diGraph.backgroundPushCallbackFallback.callback
         if (callback == null) {
             pushLogger.logBackgroundPushCallbackMissing()

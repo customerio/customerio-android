@@ -46,14 +46,7 @@ class MessagingPushModuleConfig private constructor(
 
         /**
          * Sets the callback that receives Customer.io silent pushes. Configure it while
-         * initializing the SDK in `Application.onCreate`, so a push that starts the app in the
-         * background still reaches it.
-         *
-         * Without a callback, the SDK drops a silent push without showing it and still tracks
-         * the delivered metric, as it does for other pushes. That metric means the SDK received
-         * the push. It doesn't track whether your callback's work finished.
-         *
-         * See [CustomerIOBackgroundPushCallback] for threading, repeats and offline delivery.
+         * initializing the SDK in `Application.onCreate`. See [CustomerIOBackgroundPushCallback].
          */
         fun setBackgroundPushCallback(callback: CustomerIOBackgroundPushCallback): Builder {
             backgroundPushCallback = callback

@@ -64,10 +64,7 @@ public class CustomerIORepository {
         // Enables push notification with live-notification branding registered once at init.
         messagingPushModule = new ModuleMessagingPushFCM(
                 new MessagingPushModuleConfig.Builder()
-                        // Silent push: initializeSdk runs from SampleApplication.onCreate because Firebase
-                        // can start the process in the background just to deliver one. The callback gets a
-                        // short time budget, so this sample only logs it. Real work belongs in WorkManager,
-                        // keyed on payload.getDeliveryId(), since a push can repeat or arrive late.
+                        // Logs silent pushes. Real work belongs in WorkManager, keyed on payload.getDeliveryId().
                         .setBackgroundPushCallback((context, payload) -> appGraph.getLogger().d(
                                 "Silent push " + payload.getDeliveryId() + ": " + payload.getData()))
                         // One app-level brand applied to every live notification.

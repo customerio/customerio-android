@@ -7,21 +7,13 @@ import io.customer.commontest.config.TestConfig
 import io.customer.commontest.config.testConfigurationDefault
 import io.customer.commontest.extensions.assertCalledNever
 import io.customer.commontest.extensions.assertCalledOnce
-import io.customer.commontest.extensions.attachToSDKComponent
 import io.customer.commontest.extensions.random
 import io.customer.commontest.util.DispatchersProviderStub
-import io.customer.messagingpush.data.communication.CustomerIOBackgroundPushCallback
-import io.customer.messagingpush.di.backgroundPushCallbackFallback
-import io.customer.messagingpush.di.backgroundPushDeliveryMetrics
 import io.customer.messagingpush.di.fcmTokenProvider
-import io.customer.messagingpush.di.heldPushDeliveryStore
-import io.customer.messagingpush.di.pushMessageProcessor
-import io.customer.messagingpush.di.pushSettingsStore
 import io.customer.messagingpush.logger.PushNotificationLogger
 import io.customer.messagingpush.provider.DeviceToken
 import io.customer.messagingpush.provider.DeviceTokenProvider
 import io.customer.messagingpush.store.PendingPushDeliveryMetric
-import io.customer.messagingpush.store.PushSettingsStore
 import io.customer.messagingpush.testutils.core.IntegrationTest
 import io.customer.sdk.communication.Event
 import io.customer.sdk.communication.EventBus
@@ -35,10 +27,7 @@ import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
 import io.mockk.verifyOrder
-import java.io.File
 import kotlinx.coroutines.test.runTest
-import org.amshove.kluent.shouldBeEqualTo
-import org.amshove.kluent.shouldBeNull
 import org.amshove.kluent.shouldBeTrue
 import org.amshove.kluent.shouldNotBeNull
 import org.junit.Test
@@ -69,7 +58,6 @@ class ModuleMessagingPushFCMTest : IntegrationTest() {
                         overrideDependency<CustomerIOWorkManagerProvider>(mockWorkManagerProvider)
                         overrideDependency<PushNotificationLogger>(mockPushLogger)
                         overrideDependency<DispatchersProvider>(DispatchersProviderStub())
-                        overrideDependency<PushSettingsStore>(PushSettingsStore(applicationMock) { "1" })
                     }
                     android { overrideDependency<DeviceTokenProvider>(mockk(relaxed = true)) }
                 }
@@ -77,7 +65,6 @@ class ModuleMessagingPushFCMTest : IntegrationTest() {
         )
 
         every { mockWorkManagerProvider.getWorkManager() } returns mockWorkManager
-        every { mockPendingStore.append(any<PendingPushDeliveryMetric>()) } returns true
         every { mockWorkManager.cancelUniqueWork(any()) } returns immediateSuccessfulOperation()
 
         eventBus = SDKComponent.eventBus
@@ -134,92 +121,6 @@ class ModuleMessagingPushFCMTest : IntegrationTest() {
         module.initialize()
 
         assertCalledOnce { eventBus.publish(Event.RegisterDeviceTokenEvent(token = givenInstallationId, tokenType = DeviceTokenType.FID)) }
-    }
-
-    private val silentPushCallback = CustomerIOBackgroundPushCallback { _, _ -> }
-
-    private fun pushModule(autoTrackPushEvents: Boolean, backgroundPushCallback: CustomerIOBackgroundPushCallback?) = ModuleMessagingPushFCM(
-        MessagingPushModuleConfig.Builder().apply {
-            setAutoTrackPushEvents(autoTrackPushEvents)
-            backgroundPushCallback?.let { setBackgroundPushCallback(it) }
-        }.build()
-    )
-
-    @Test
-    fun initialize_givenSilentPushCallback_expectSaveSettingAndTrackHeldMetrics() {
-        val held = PendingPushDeliveryMetric(deliveryId = String.random, token = String.random)
-        SDKComponent.heldPushDeliveryStore.append(held)
-
-        pushModule(autoTrackPushEvents = true, backgroundPushCallback = silentPushCallback).attachToSDKComponent().initialize()
-
-        verify(exactly = 1) { mockPendingStore.append(held) }
-        SDKComponent.heldPushDeliveryStore.loadAll() shouldBeEqualTo emptyList()
-        SDKComponent.pushSettingsStore.autoTrackPushEvents() shouldBeEqualTo true
-    }
-
-    @Test
-    fun initialize_givenWrapperFallbackOnly_expectSaveSettingAndDropHeldMetrics() {
-        SDKComponent.backgroundPushCallbackFallback.callback = silentPushCallback
-        SDKComponent.heldPushDeliveryStore.append(PendingPushDeliveryMetric(deliveryId = String.random, token = String.random))
-
-        pushModule(autoTrackPushEvents = false, backgroundPushCallback = null).attachToSDKComponent().initialize()
-
-        verify(exactly = 0) { mockPendingStore.append(any<PendingPushDeliveryMetric>()) }
-        SDKComponent.heldPushDeliveryStore.loadAll() shouldBeEqualTo emptyList()
-        SDKComponent.pushSettingsStore.autoTrackPushEvents() shouldBeEqualTo false
-    }
-
-    @Test
-    fun initialize_givenReceiptHeldBeforeSetUpWithoutSilentPushCallback_expectTrackedWithoutAnotherPush() {
-        val held = PendingPushDeliveryMetric(deliveryId = String.random, token = String.random)
-        SDKComponent.backgroundPushDeliveryMetrics.trackDelivered(held.deliveryId, held.token)
-        SDKComponent.heldPushDeliveryStore.loadAll() shouldBeEqualTo listOf(held)
-
-        pushModule(autoTrackPushEvents = true, backgroundPushCallback = null).attachToSDKComponent().initialize()
-
-        verify(exactly = 1) { mockPendingStore.append(held) }
-        SDKComponent.heldPushDeliveryStore.loadAll() shouldBeEqualTo emptyList()
-        SDKComponent.pushSettingsStore.autoTrackPushEvents().shouldBeNull()
-    }
-
-    @Test
-    fun initialize_givenNoSilentPushCallbackAndTrackingOff_expectHeldMetricsDroppedWithoutSavingSetting() {
-        SDKComponent.heldPushDeliveryStore.append(PendingPushDeliveryMetric(deliveryId = String.random, token = String.random))
-
-        pushModule(autoTrackPushEvents = false, backgroundPushCallback = null).attachToSDKComponent().initialize()
-
-        verify(exactly = 0) { mockPendingStore.append(any<PendingPushDeliveryMetric>()) }
-        SDKComponent.heldPushDeliveryStore.loadAll() shouldBeEqualTo emptyList()
-        SDKComponent.pushSettingsStore.autoTrackPushEvents().shouldBeNull()
-    }
-
-    @Test
-    fun initialize_givenNoSilentPushCallbackAndNothingHeld_expectNothingWritten() {
-        pushModule(autoTrackPushEvents = true, backgroundPushCallback = null).attachToSDKComponent().initialize()
-
-        verify(exactly = 0) { mockPendingStore.append(any<PendingPushDeliveryMetric>()) }
-        File(applicationMock.filesDir, PendingPushDeliveryMetric.HELD_FILE_NAME).exists() shouldBeEqualTo false
-        SDKComponent.pushSettingsStore.autoTrackPushEvents().shouldBeNull()
-    }
-
-    @Test
-    fun initialize_givenRepeatSetUpWithSilentPushCallback_expectRegularPushesUseLatestConfigAsOnMain() {
-        pushModule(autoTrackPushEvents = true, backgroundPushCallback = silentPushCallback).attachToSDKComponent().initialize()
-        pushModule(autoTrackPushEvents = false, backgroundPushCallback = silentPushCallback).attachToSDKComponent().initialize()
-
-        SDKComponent.pushMessageProcessor.processRemoteMessageDeliveredMetrics(String.random, String.random)
-
-        verify(exactly = 0) { mockPendingStore.append(any<PendingPushDeliveryMetric>()) }
-    }
-
-    @Test
-    fun initialize_givenNewerSetUpRegisteredBeforeOlderSaveRuns_expectSaveNewerSetting() {
-        val olderSetUp = pushModule(autoTrackPushEvents = true, backgroundPushCallback = silentPushCallback)
-        pushModule(autoTrackPushEvents = false, backgroundPushCallback = silentPushCallback).attachToSDKComponent()
-
-        olderSetUp.initialize()
-
-        SDKComponent.pushSettingsStore.autoTrackPushEvents() shouldBeEqualTo false
     }
 
     @Test

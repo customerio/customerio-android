@@ -26,7 +26,6 @@ import io.customer.messagingpush.provider.DeviceTokenProvider
 import io.customer.messagingpush.provider.FCMTokenProviderImpl
 import io.customer.messagingpush.provider.FirebaseTokenSource
 import io.customer.messagingpush.store.PendingPushDeliveryMetric
-import io.customer.messagingpush.store.PushSettingsStore
 import io.customer.messagingpush.util.DeepLinkUtil
 import io.customer.messagingpush.util.DeepLinkUtilImpl
 import io.customer.messagingpush.util.PushTrackingUtil
@@ -63,10 +62,6 @@ val SDKComponent.pushModuleConfig: MessagingPushModuleConfig
         modules[ModuleMessagingPushFCM.MODULE_NAME]?.moduleConfig as? MessagingPushModuleConfig ?: MessagingPushModuleConfig.default()
     }
 
-/** The registered push module's config, or null until the push module is registered, so silent push code can tell the defaults from the app's settings. */
-internal val SDKComponent.registeredPushModuleConfig: MessagingPushModuleConfig?
-    get() = modules[ModuleMessagingPushFCM.MODULE_NAME]?.moduleConfig as? MessagingPushModuleConfig
-
 /** See [BackgroundPushCallbackFallback]. Only wrapper SDKs set it. */
 @InternalCustomerIOApi
 val SDKComponent.backgroundPushCallbackFallback: BackgroundPushCallbackFallback
@@ -87,23 +82,6 @@ internal val SDKComponent.pendingPushDeliveryStore: PendingDeliveryStore<Pending
             elementSerializer = PendingPushDeliveryMetric.serializer(),
             logger = logger
         )
-    }
-
-internal val SDKComponent.heldPushDeliveryStore: PendingDeliveryStore<PendingPushDeliveryMetric>
-    get() = singleton<PendingDeliveryStore<PendingPushDeliveryMetric>>(identifier = PendingPushDeliveryMetric.HELD_FILE_NAME) {
-        PendingDeliveryStore(
-            context = android().applicationContext,
-            fileName = PendingPushDeliveryMetric.HELD_FILE_NAME,
-            elementSerializer = PendingPushDeliveryMetric.serializer(),
-            logger = logger,
-            maxEntries = PendingPushDeliveryMetric.HELD_MAX_ENTRIES
-        )
-    }
-
-internal val SDKComponent.pushSettingsStore: PushSettingsStore
-    get() = singleton<PushSettingsStore> {
-        val context = android().applicationContext
-        PushSettingsStore(context) { PushSettingsStore.installedAppVersion(context) }
     }
 
 internal val SDKComponent.pushDeliveryFlusher: PendingDeliveryFlusher<PendingPushDeliveryMetric>
@@ -141,9 +119,7 @@ internal val SDKComponent.backgroundPushDeliveryMetrics: BackgroundPushDeliveryM
     get() = singleton<BackgroundPushDeliveryMetrics> {
         BackgroundPushDeliveryMetrics(
             pushLogger = pushLogger,
-            registeredModuleConfig = { registeredPushModuleConfig },
-            pushSettingsStore = pushSettingsStore,
-            heldStore = heldPushDeliveryStore,
+            moduleConfig = { pushModuleConfig },
             pendingStore = pendingPushDeliveryStore,
             deliveryMetricsScheduler = deliveryMetricsScheduler
         )

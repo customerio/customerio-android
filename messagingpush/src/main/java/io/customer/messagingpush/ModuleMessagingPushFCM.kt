@@ -56,24 +56,28 @@ class ModuleMessagingPushFCM @JvmOverloads constructor(
         getCurrentFcmToken()
         subscribeToLifecycleEvents()
         observeProcessForeground()
-        // Only apps that use silent push do this, so apps that don't see no change.
-        if (moduleConfig.backgroundPushCallback != null || SDKComponent.backgroundPushCallbackFallback.callback != null) {
-            savePushSettingsAndReleaseHeldMetrics()
-        }
+        savePushSettingsAndReleaseHeldMetrics(
+            // Only apps that use silent push save the setting, so other apps write nothing new.
+            saveSettings = moduleConfig.backgroundPushCallback != null || SDKComponent.backgroundPushCallbackFallback.callback != null
+        )
     }
 
     /**
-     * Saves the tracking setting for silent pushes that arrive before the next setup, then tracks or
-     * drops the delivered metrics held for silent pushes that arrived before this one. Runs in the
-     * background because both touch files.
+     * Saves the tracking setting for silent pushes that arrive before the next setup when [saveSettings]
+     * is true, then tracks or drops the delivered metrics held for silent pushes that arrived before
+     * this setup. The release runs for every app, so an app without a silent push callback still gets
+     * Delivered for them. An app that never got a silent push has nothing held, and its release only
+     * finds no held file. Runs in the background because both touch files.
      */
-    private fun savePushSettingsAndReleaseHeldMetrics() {
+    private fun savePushSettingsAndReleaseHeldMetrics(saveSettings: Boolean) {
         CoroutineScope(SDKComponent.dispatchersProvider.background).launch {
             runCatching {
                 // A repeat setup can register newer settings before this job runs, so save whatever
                 // is registered now. The lock keeps an older job's read and write from straddling a newer one.
-                synchronized(pushSettingsLock) {
-                    SDKComponent.pushSettingsStore.saveAutoTrackPushEvents(SDKComponent.pushModuleConfig.autoTrackPushEvents)
+                if (saveSettings) {
+                    synchronized(pushSettingsLock) {
+                        SDKComponent.pushSettingsStore.saveAutoTrackPushEvents(SDKComponent.pushModuleConfig.autoTrackPushEvents)
+                    }
                 }
                 // Not the push message processor: building it here would fix its config before a repeat setup.
                 SDKComponent.backgroundPushDeliveryMetrics.releaseHeld()

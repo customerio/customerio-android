@@ -42,8 +42,8 @@ internal class BackgroundPushDeliveryMetrics(
             }
             false -> pushLogger.logPushMetricsAutoTrackingDisabled()
         }
-        // After setup, also send or drop metrics held from before it. This covers a hold that raced
-        // with setup and apps without a silent push callback, whose setup skips the release.
+        // After setup, also send or drop metrics held from before it. This covers a hold written
+        // after setup's release had already run.
         if (registeredModuleConfig() != null) releaseHeld()
     }
 

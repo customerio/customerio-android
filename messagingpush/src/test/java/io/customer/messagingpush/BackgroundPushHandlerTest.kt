@@ -100,7 +100,7 @@ class BackgroundPushHandlerTest : IntegrationTest() {
         processor,
         RemoteMessage.Builder("destination").setData(payload).build(),
         NotificationChannelCreator(),
-        metrics
+        lazyOf(metrics)
     )
 
     @Test
@@ -184,7 +184,7 @@ class BackgroundPushHandlerTest : IntegrationTest() {
         )
         assertNotNull(message.notification)
 
-        assertTrue(CustomerIOPushNotificationHandler(processor, message, NotificationChannelCreator(), metrics).handleMessage(contextMock))
+        assertTrue(CustomerIOPushNotificationHandler(processor, message, NotificationChannelCreator(), lazyOf(metrics)).handleMessage(contextMock))
 
         assertEquals(0, calls)
         verify(exactly = 0) { metrics.trackDelivered(any(), any()) }
@@ -342,6 +342,15 @@ class BackgroundPushHandlerTest : IntegrationTest() {
         verify(exactly = 1) { processor.processRemoteMessageDeliveredMetrics("old", "old") }
         verify(exactly = 0) { metrics.trackDelivered(any(), any()) }
         assertEquals(0, calls)
+    }
+
+    @Test
+    fun regularPush_doesNotBuildSilentPushMetrics() {
+        val message = RemoteMessage.Builder("destination").setData(legacy).build()
+
+        assertTrue(CustomerIOPushNotificationHandler(mockk(relaxed = true), message, NotificationChannelCreator()).handleMessage(contextMock))
+
+        assertNull(SDKComponent.getOrNull<BackgroundPushDeliveryMetrics>())
     }
 
     @Test

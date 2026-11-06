@@ -44,7 +44,8 @@ internal class CustomerIOPushNotificationHandler(
     private val pushMessageProcessor: PushMessageProcessor,
     private val remoteMessage: RemoteMessage,
     private val notificationChannelCreator: NotificationChannelCreator,
-    private val backgroundPushDeliveryMetrics: BackgroundPushDeliveryMetrics = SDKComponent.backgroundPushDeliveryMetrics
+    // Lazy so a regular push never builds it.
+    private val backgroundPushDeliveryMetrics: Lazy<BackgroundPushDeliveryMetrics> = lazy { SDKComponent.backgroundPushDeliveryMetrics }
 ) {
 
     companion object {
@@ -131,7 +132,7 @@ internal class CustomerIOPushNotificationHandler(
     private fun deliverBackgroundPush(context: Context, payload: CustomerIOBackgroundPushPayload) {
         // A failed receipt must not keep the data from the app.
         try {
-            backgroundPushDeliveryMetrics.trackDelivered(payload.deliveryId, payload.deliveryToken)
+            backgroundPushDeliveryMetrics.value.trackDelivered(payload.deliveryId, payload.deliveryToken)
         } catch (error: Exception) {
             pushLogger.logBackgroundPushReceiptFailed(error)
         }

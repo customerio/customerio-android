@@ -210,7 +210,7 @@ internal class PushNotificationLogger(private val logger: Logger) {
     }
 
     fun logBackgroundPushCallbackFailed(error: Exception) {
-        logger.error(tag = TAG, message = "Background push callback failed: ${error.javaClass.simpleName}")
+        logger.error(tag = TAG, message = "Background push callback failed: ${error.message}", throwable = error)
     }
 
     fun logBackgroundPushCallbackMissing() {
@@ -218,7 +218,7 @@ internal class PushNotificationLogger(private val logger: Logger) {
     }
 
     fun logBackgroundPushReceiptFailed(error: Exception) {
-        logger.error(tag = TAG, message = "Background push delivered receipt failed: ${error.javaClass.simpleName}")
+        logger.error(tag = TAG, message = "Background push delivered receipt failed: ${error.message}", throwable = error)
     }
 
     fun logReceivedCioPushMessage() {

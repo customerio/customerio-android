@@ -20,6 +20,7 @@ import io.customer.messagingpush.di.backgroundPushCallbackFallback
 import io.customer.messagingpush.di.backgroundPushDeliveryMetrics
 import io.customer.messagingpush.di.liveNotificationManager
 import io.customer.messagingpush.di.pushLogger
+import io.customer.messagingpush.di.pushMessageProcessor
 import io.customer.messagingpush.di.pushModuleConfig
 import io.customer.messagingpush.extensions.*
 import io.customer.messagingpush.processor.BackgroundPushDeliveryMetrics
@@ -41,7 +42,9 @@ import kotlin.math.roundToInt
  * Make sure [CustomerIO] instance is always initialized before using this class.
  */
 internal class CustomerIOPushNotificationHandler(
-    private val pushMessageProcessor: PushMessageProcessor,
+    // Lazy since the processor keeps the module config it's built with, so a push that doesn't need it, a silent
+    // one included, never builds it before SDK setup.
+    private val pushMessageProcessor: Lazy<PushMessageProcessor> = lazy { SDKComponent.pushMessageProcessor },
     private val remoteMessage: RemoteMessage,
     private val notificationChannelCreator: NotificationChannelCreator,
     // Lazy so a regular push never builds it.
@@ -111,7 +114,7 @@ internal class CustomerIOPushNotificationHandler(
             // CIO push notification
             pushLogger.logReceivedCioPushMessage()
             // Use processor to track metrics properly and avoid duplication
-            pushMessageProcessor.processRemoteMessageDeliveredMetrics(
+            pushMessageProcessor.value.processRemoteMessageDeliveredMetrics(
                 deliveryId = deliveryId,
                 deliveryToken = deliveryToken
             )

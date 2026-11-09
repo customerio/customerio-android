@@ -4,7 +4,6 @@ import android.content.Context
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
 import io.customer.messagingpush.di.pushLogger
-import io.customer.messagingpush.di.pushMessageProcessor
 import io.customer.messagingpush.util.NotificationChannelCreator
 import io.customer.sdk.communication.Event
 import io.customer.sdk.communication.EventBus
@@ -93,7 +92,6 @@ open class CustomerIOFirebaseMessagingService : FirebaseMessagingService() {
         ): Boolean {
             SDKComponent.setupAndroidComponent(context = context)
             val handler = CustomerIOPushNotificationHandler(
-                pushMessageProcessor = SDKComponent.pushMessageProcessor,
                 remoteMessage = remoteMessage,
                 notificationChannelCreator = NotificationChannelCreator()
             )

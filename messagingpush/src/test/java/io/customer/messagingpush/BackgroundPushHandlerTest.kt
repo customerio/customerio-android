@@ -92,7 +92,7 @@ class BackgroundPushHandlerTest : IntegrationTest() {
         processor: PushMessageProcessor = mockk(relaxed = true),
         metrics: BackgroundPushDeliveryMetrics = mockk(relaxed = true)
     ) = CustomerIOPushNotificationHandler(
-        processor,
+        lazyOf(processor),
         RemoteMessage.Builder("destination").setData(payload).build(),
         NotificationChannelCreator(),
         lazyOf(metrics)
@@ -317,8 +317,24 @@ class BackgroundPushHandlerTest : IntegrationTest() {
     fun regularPush_doesNotBuildSilentPushMetrics() {
         val message = RemoteMessage.Builder("destination").setData(legacy).build()
 
-        assertTrue(CustomerIOPushNotificationHandler(mockk(relaxed = true), message, NotificationChannelCreator()).handleMessage(contextMock))
+        assertTrue(CustomerIOPushNotificationHandler(lazyOf(mockk(relaxed = true)), message, NotificationChannelCreator()).handleMessage(contextMock))
 
         assertNull(SDKComponent.getOrNull<BackgroundPushDeliveryMetrics>())
+    }
+
+    // The processor keeps the module config it's built with, so a silent push that wakes the app before SDK setup
+    // mustn't build it with the defaults.
+    @Test
+    fun silentPush_doesNotBuildPushMessageProcessor() {
+        val message = RemoteMessage.Builder("destination").setData(data()).build()
+        val handler = CustomerIOPushNotificationHandler(
+            remoteMessage = message,
+            notificationChannelCreator = NotificationChannelCreator(),
+            backgroundPushDeliveryMetrics = lazyOf(mockk(relaxed = true))
+        )
+
+        assertTrue(handler.handleMessage(contextMock))
+
+        assertNull(SDKComponent.getOrNull<PushMessageProcessor>())
     }
 }

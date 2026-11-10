@@ -1,3 +1,9 @@
+## [5.1.0](https://github.com/customerio/customerio-android/compare/5.0.3...5.1.0) (2026-11-10)
+
+### Features
+
+* support silent push callbacks ([#975](https://github.com/customerio/customerio-android/issues/975)) ([0265c97](https://github.com/customerio/customerio-android/commit/0265c97b43f6c1421950a6b7ec8c178a3a48ef3b))
+
 ## [5.0.3](https://github.com/customerio/customerio-android/compare/5.0.2...5.0.3) (2026-10-29)
 
 ### Bug Fixes

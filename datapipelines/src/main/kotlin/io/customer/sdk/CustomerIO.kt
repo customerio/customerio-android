@@ -48,7 +48,6 @@ import io.customer.sdk.data.model.Settings
 import io.customer.sdk.events.TrackMetric
 import io.customer.sdk.util.EventNames
 import io.customer.tracking.migration.MigrationProcessor
-import java.util.concurrent.atomic.AtomicReference
 import kotlinx.coroutines.flow.conflate
 import kotlinx.coroutines.flow.filter
 import kotlinx.serialization.SerializationStrategy
@@ -162,14 +161,10 @@ class CustomerIO private constructor(
     @Volatile
     private var syncUserIdentified: Boolean? = null
 
-    // push_enabled from the last device update sent in this process, so resume only sends on a change.
-    // null until a device update is sent or the first resume records the current value.
-    private val lastSentPushEnabled = AtomicReference<Boolean?>(null)
-
-    // Set from a device delete (logout, deleteDeviceToken) until the next device update, so resume
-    // doesn't re-create a device the app removed.
+    // push_enabled the server has from this process: set by each device update, cleared by a device
+    // delete. Resume only sends when the permission differs from it, so it never re-creates a device.
     @Volatile
-    private var isDeviceDeleted = false
+    private var lastSentPushEnabled: Boolean? = null
 
     init {
         // Set analytics logger and debug logs based on SDK logger configuration
@@ -264,15 +259,16 @@ class CustomerIO private constructor(
 
     private fun refreshPushEnabledIfChanged() {
         // Kept current only for an identified profile, not for anonymous or logged-out devices
-        if (!isUserIdentified || isDeviceDeleted || registeredDeviceToken.isNullOrBlank()) return
+        if (!isUserIdentified) return
+        // Null until a device update is sent, which needs a token
+        val lastSent = lastSentPushEnabled ?: return
 
         val isPushEnabled = deviceStore.isPushEnabled
-        // Nothing sent in this process yet: record the value and wait for a change
-        if (lastSentPushEnabled.getAndUpdate { lastSent -> lastSent ?: isPushEnabled } == null) return
-        if (lastSentPushEnabled.get() == isPushEnabled) return
+        if (lastSent == isPushEnabled) return
 
         synchronized(this) {
-            if (lastSentPushEnabled.get() == isPushEnabled) return
+            val current = lastSentPushEnabled
+            if (current == null || current == isPushEnabled) return
             trackDeviceAttributes(token = registeredDeviceToken, tokenType = globalPreferenceStore.getDeviceTokenType())
         }
         logger.debug("push_enabled changed to $isPushEnabled, sent device update")
@@ -553,8 +549,7 @@ class CustomerIO private constructor(
         } else {
             customAddedAttributes
         }
-        (trackedAttributes[PUSH_ENABLED_ATTRIBUTE] as? Boolean)?.let { lastSentPushEnabled.set(it) }
-        isDeviceDeleted = false
+        (trackedAttributes[PUSH_ENABLED_ATTRIBUTE] as? Boolean)?.let { lastSentPushEnabled = it }
         // Always applied, even with autoTrackDeviceAttributes off: the backend needs the type for every device.
         val attributes = trackedAttributes.withDeviceTokenType(tokenType = tokenType, logger = dataPipelinesLogger)
 
@@ -588,7 +583,7 @@ class CustomerIO private constructor(
             enrichment?.invoke(event)
             event?.putInContextUnderKey("device", "token", deviceToken)
         }
-        isDeviceDeleted = true
+        lastSentPushEnabled = null
         track(name = EventNames.DEVICE_DELETE, properties = emptyJsonObject, serializationStrategy = JsonAnySerializer.serializersModule.serializer(), enrichment = enrichmentWithToken)
     }
 

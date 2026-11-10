@@ -152,17 +152,16 @@ class PushEnabledRefreshTests : IntegrationTest() {
     }
 
     @Test
-    fun resume_givenStoredTokenAndNothingSentThisProcess_expectFirstResumeOnlyRecordsValue() {
+    fun resume_givenStoredTokenAndNothingSentThisProcess_expectNoPermissionReadOrDeviceUpdate() {
         setupWithConfig()
         every { globalPreferenceStore.getDeviceToken() } returns String.random
 
         resumeActivity()
-        deviceUpdateEvents shouldHaveSize 0
-
         isPushEnabled = false
         resumeActivity()
-        deviceUpdateEvents shouldHaveSize 1
-        deviceUpdateEvents.last().properties shouldContain ("push_enabled" to false).encodeToJsonValue()
+
+        verify(exactly = 0) { deviceStore.isPushEnabled }
+        deviceUpdateEvents shouldHaveSize 0
     }
 
     @Test
@@ -173,12 +172,13 @@ class PushEnabledRefreshTests : IntegrationTest() {
             }
         )
         registerDeviceToken()
+        // Records a value, as without automatic attributes only a custom one can
+        sdkInstance.setDeviceAttributes(mapOf("push_enabled" to true))
 
-        resumeActivity()
         isPushEnabled = false
         resumeActivity()
 
-        deviceUpdateEvents shouldHaveSize 1
+        deviceUpdateEvents shouldHaveSize 2
     }
 
     @Test

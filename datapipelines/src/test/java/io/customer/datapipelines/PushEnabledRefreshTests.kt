@@ -38,7 +38,10 @@ class PushEnabledRefreshTests : IntegrationTest() {
         // Each test sets up the SDK with its own configuration
     }
 
-    private fun setupWithConfig(testConfig: DataPipelinesTestConfig = testConfiguration {}) {
+    private fun setupWithConfig(
+        testConfig: DataPipelinesTestConfig = testConfiguration {},
+        identified: Boolean = true
+    ) {
         super.setup(
             testConfiguration {
                 diGraph {
@@ -51,6 +54,8 @@ class PushEnabledRefreshTests : IntegrationTest() {
         globalPreferenceStore = androidSDKComponent.globalPreferenceStore
         deviceStore = androidSDKComponent.deviceStore
         every { deviceStore.isPushEnabled } answers { isPushEnabled }
+        // No token yet, so this sends no device update
+        if (identified) sdkInstance.identify(String.random)
 
         outputReaderPlugin = OutputReaderPlugin()
         analytics.add(outputReaderPlugin)
@@ -208,7 +213,7 @@ class PushEnabledRefreshTests : IntegrationTest() {
         registerDeviceToken()
 
         isPushEnabled = false
-        // First identify with a registered token sends the device for the new profile
+        // Switching profile sends the device for the new profile
         sdkInstance.identify(String.random)
         resumeActivity()
 
@@ -220,14 +225,24 @@ class PushEnabledRefreshTests : IntegrationTest() {
     fun resume_givenDeviceDeletedByClearIdentify_expectNoDeviceUpdate() {
         setupWithConfig()
         registerDeviceToken()
-        sdkInstance.identify(String.random)
         sdkInstance.clearIdentify()
 
         isPushEnabled = false
         resumeActivity()
 
-        deviceUpdateEvents shouldHaveSize 2
+        deviceUpdateEvents shouldHaveSize 1
         outputReaderPlugin.trackEvents.last().event shouldBeEqualTo EventNames.DEVICE_DELETE
+    }
+
+    @Test
+    fun resume_givenNoProfileIdentified_expectNoDeviceUpdate() {
+        setupWithConfig(identified = false)
+        registerDeviceToken()
+
+        isPushEnabled = false
+        resumeActivity()
+
+        deviceUpdateEvents shouldHaveSize 1
     }
 
     @Test
@@ -262,14 +277,13 @@ class PushEnabledRefreshTests : IntegrationTest() {
     fun resume_givenProfileSwitched_expectChangeSent() {
         setupWithConfig()
         registerDeviceToken()
-        sdkInstance.identify(String.random)
         // Deletes the device from the first profile, then sends it for the second
         sdkInstance.identify(String.random)
 
         isPushEnabled = false
         resumeActivity()
 
-        deviceUpdateEvents shouldHaveSize 4
+        deviceUpdateEvents shouldHaveSize 3
         deviceUpdateEvents.last().properties shouldContain ("push_enabled" to false).encodeToJsonValue()
     }
 }

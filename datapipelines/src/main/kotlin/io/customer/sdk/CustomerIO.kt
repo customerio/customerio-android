@@ -263,7 +263,8 @@ class CustomerIO private constructor(
     }
 
     private fun refreshPushEnabledIfChanged() {
-        if (isDeviceDeleted || registeredDeviceToken.isNullOrBlank()) return
+        // Kept current only for an identified profile, not for anonymous or logged-out devices
+        if (!isUserIdentified || isDeviceDeleted || registeredDeviceToken.isNullOrBlank()) return
 
         val isPushEnabled = deviceStore.isPushEnabled
         // Nothing sent in this process yet: record the value and wait for a change

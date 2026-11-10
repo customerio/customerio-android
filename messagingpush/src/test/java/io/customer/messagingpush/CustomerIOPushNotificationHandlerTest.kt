@@ -57,7 +57,7 @@ internal class CustomerIOPushNotificationHandlerTest : IntegrationTest() {
         val extras = Bundle()
         extras.putString("CIO-Delivery-ID", "anyId")
         extras.putString("CIO-Delivery-Token", "anyToken")
-        pushNotificationHandler = CustomerIOPushNotificationHandler(mockk(relaxed = true), RemoteMessage(extras), NotificationChannelCreator())
+        pushNotificationHandler = CustomerIOPushNotificationHandler(lazyOf(mockk(relaxed = true)), RemoteMessage(extras), NotificationChannelCreator())
         pushNotificationPayload = CustomerIOParsedPushPayload(
             extras = extras,
             deepLink = String.random,
@@ -98,7 +98,7 @@ internal class CustomerIOPushNotificationHandlerTest : IntegrationTest() {
         val bundle = Bundle()
         bundle.putString("anyKey", "anyValue")
         val remoteMessage = RemoteMessage(bundle)
-        val handler = CustomerIOPushNotificationHandler(mockk(relaxed = true), remoteMessage, NotificationChannelCreator())
+        val handler = CustomerIOPushNotificationHandler(lazyOf(mockk(relaxed = true)), remoteMessage, NotificationChannelCreator())
 
         handler.handleMessage(contextMock, false)
 
@@ -110,7 +110,7 @@ internal class CustomerIOPushNotificationHandlerTest : IntegrationTest() {
     fun handleMessage_givenEmptyBundle_shouldLogPushMessageEmpty() {
         val bundle = Bundle()
         val remoteMessage = RemoteMessage(bundle)
-        val handler = CustomerIOPushNotificationHandler(mockk(relaxed = true), remoteMessage, NotificationChannelCreator())
+        val handler = CustomerIOPushNotificationHandler(lazyOf(mockk(relaxed = true)), remoteMessage, NotificationChannelCreator())
 
         handler.handleMessage(contextMock, true)
 
@@ -124,7 +124,7 @@ internal class CustomerIOPushNotificationHandlerTest : IntegrationTest() {
         bundle.putString("CIO-Delivery-ID", "anyId")
         bundle.putString("CIO-Delivery-Token", "anyToken")
         val remoteMessage = RemoteMessage(bundle)
-        val handler = CustomerIOPushNotificationHandler(mockk(relaxed = true), remoteMessage, NotificationChannelCreator())
+        val handler = CustomerIOPushNotificationHandler(lazyOf(mockk(relaxed = true)), remoteMessage, NotificationChannelCreator())
 
         handler.handleMessage(contextMock, false)
 
@@ -163,7 +163,7 @@ internal class CustomerIOPushNotificationHandlerTest : IntegrationTest() {
                 "image" to imageFile.toURI().toURL().toString()
             )
         ).build()
-        val handler = CustomerIOPushNotificationHandler(mockk(relaxed = true), message, NotificationChannelCreator())
+        val handler = CustomerIOPushNotificationHandler(lazyOf(mockk(relaxed = true)), message, NotificationChannelCreator())
 
         handler.handleMessage(contextMock, true)
 

@@ -360,6 +360,34 @@ class PushNotificationLoggerTest : JUnitTest() {
     }
 
     @Test
+    fun test_logBackgroundPushCallbackFailed_forwardsCorrectCallToLogger() {
+        val throwable = IllegalStateException("app not ready")
+        pushLogger.logBackgroundPushCallbackFailed(throwable)
+
+        assertCalledOnce {
+            mockLogger.error(
+                tag = "Push",
+                message = "Background push callback failed: app not ready",
+                throwable = throwable
+            )
+        }
+    }
+
+    @Test
+    fun test_logBackgroundPushReceiptFailed_forwardsCorrectCallToLogger() {
+        val throwable = IllegalStateException("store closed")
+        pushLogger.logBackgroundPushReceiptFailed(throwable)
+
+        assertCalledOnce {
+            mockLogger.error(
+                tag = "Push",
+                message = "Background push delivered receipt failed: store closed",
+                throwable = throwable
+            )
+        }
+    }
+
+    @Test
     fun test_logHandlingNotificationDeepLink_forwardsCorrectCallToLogger() {
         val payload = mockk<CustomerIOParsedPushPayload>(relaxed = true)
         val behavior = PushClickBehavior.ACTIVITY_NO_FLAGS

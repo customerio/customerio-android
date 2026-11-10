@@ -1,6 +1,7 @@
 package io.customer.sdk
 
 import androidx.annotation.VisibleForTesting
+import androidx.lifecycle.Lifecycle
 import com.segment.analytics.kotlin.android.Analytics
 import com.segment.analytics.kotlin.core.Analytics
 import com.segment.analytics.kotlin.core.ErrorHandler
@@ -47,6 +48,9 @@ import io.customer.sdk.data.model.Settings
 import io.customer.sdk.events.TrackMetric
 import io.customer.sdk.util.EventNames
 import io.customer.tracking.migration.MigrationProcessor
+import java.util.concurrent.atomic.AtomicReference
+import kotlinx.coroutines.flow.conflate
+import kotlinx.coroutines.flow.filter
 import kotlinx.serialization.SerializationStrategy
 import kotlinx.serialization.serializer
 
@@ -158,6 +162,15 @@ class CustomerIO private constructor(
     @Volatile
     private var syncUserIdentified: Boolean? = null
 
+    // push_enabled from the last device update sent in this process, so resume only sends on a change.
+    // null until a device update is sent or the first resume records the current value.
+    private val lastSentPushEnabled = AtomicReference<Boolean?>(null)
+
+    // Set from a device delete (logout, deleteDeviceToken) until the next device update, so resume
+    // doesn't re-create a device the app removed.
+    @Volatile
+    private var isDeviceDeleted = false
+
     init {
         // Set analytics logger and debug logs based on SDK logger configuration
         Analytics.debugLogsEnabled = logger.logLevel == CioLogLevel.DEBUG
@@ -187,6 +200,10 @@ class CustomerIO private constructor(
         subscribeToJourneyEvents()
         // republish profile/anonymous events for late-added modules
         publishUserChanged()
+
+        if (moduleConfig.autoTrackDeviceAttributes) {
+            refreshPushEnabledOnActivityResume()
+        }
     }
 
     /** Stores the userId before publishing so subscribers that read [secureUserStore] don't race the event. */
@@ -227,6 +244,37 @@ class CustomerIO private constructor(
                 enrichment = enrichment
             )
         }
+    }
+
+    // Resume over foreground: the notification permission prompt pauses the activity without stopping it.
+    private fun refreshPushEnabledOnActivityResume() {
+        SDKComponent.activityLifecycleCallbacks.subscribe { events ->
+            events
+                .filter { state -> state.event == Lifecycle.Event.ON_RESUME }
+                // Keeps the shared lifecycle flow from waiting on this check and collapses quick resumes
+                .conflate()
+                .collect {
+                    // A failed check must not end the subscription, so the next resume tries again
+                    runCatching { refreshPushEnabledIfChanged() }.onFailure { error ->
+                        logger.error("Failed to refresh push_enabled: $error", throwable = error)
+                    }
+                }
+        }
+    }
+
+    private fun refreshPushEnabledIfChanged() {
+        if (isDeviceDeleted || registeredDeviceToken.isNullOrBlank()) return
+
+        val isPushEnabled = deviceStore.isPushEnabled
+        // Nothing sent in this process yet: record the value and wait for a change
+        if (lastSentPushEnabled.getAndUpdate { lastSent -> lastSent ?: isPushEnabled } == null) return
+        if (lastSentPushEnabled.get() == isPushEnabled) return
+
+        synchronized(this) {
+            if (lastSentPushEnabled.get() == isPushEnabled) return
+            trackDeviceAttributes(token = registeredDeviceToken, tokenType = globalPreferenceStore.getDeviceTokenType())
+        }
+        logger.debug("push_enabled changed to $isPushEnabled, sent device update")
     }
 
     private fun migrateTrackingEvents() {
@@ -504,6 +552,8 @@ class CustomerIO private constructor(
         } else {
             customAddedAttributes
         }
+        (trackedAttributes[PUSH_ENABLED_ATTRIBUTE] as? Boolean)?.let { lastSentPushEnabled.set(it) }
+        isDeviceDeleted = false
         // Always applied, even with autoTrackDeviceAttributes off: the backend needs the type for every device.
         val attributes = trackedAttributes.withDeviceTokenType(tokenType = tokenType, logger = dataPipelinesLogger)
 
@@ -537,6 +587,7 @@ class CustomerIO private constructor(
             enrichment?.invoke(event)
             event?.putInContextUnderKey("device", "token", deviceToken)
         }
+        isDeviceDeleted = true
         track(name = EventNames.DEVICE_DELETE, properties = emptyJsonObject, serializationStrategy = JsonAnySerializer.serializersModule.serializer(), enrichment = enrichmentWithToken)
     }
 
@@ -553,6 +604,8 @@ class CustomerIO private constructor(
          * Module identifier for DataPipelines module.
          */
         internal const val MODULE_NAME = "DataPipelines"
+
+        private const val PUSH_ENABLED_ATTRIBUTE = "push_enabled"
 
         /**
          * Singleton instance of CustomerIO SDK that is created and set using the provided implementation.

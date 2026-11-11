@@ -172,7 +172,6 @@ class PushEnabledRefreshTests : IntegrationTest() {
             }
         )
         registerDeviceToken()
-        // Records a value, as without automatic attributes only a custom one can
         sdkInstance.setDeviceAttributes(mapOf("push_enabled" to true))
 
         isPushEnabled = false
@@ -218,6 +217,21 @@ class PushEnabledRefreshTests : IntegrationTest() {
         resumeActivity()
 
         deviceUpdateEvents shouldHaveSize 2
+        deviceUpdateEvents.last().properties shouldContain ("push_enabled" to false).encodeToJsonValue()
+    }
+
+    @Test
+    fun resume_givenCustomPushEnabled_expectCustomValueKeptUntilPermissionChanges() {
+        setupWithConfig()
+        registerDeviceToken()
+        sdkInstance.setDeviceAttributes(mapOf("push_enabled" to false))
+
+        resumeActivity()
+        deviceUpdateEvents shouldHaveSize 2
+
+        isPushEnabled = false
+        resumeActivity()
+        deviceUpdateEvents shouldHaveSize 3
         deviceUpdateEvents.last().properties shouldContain ("push_enabled" to false).encodeToJsonValue()
     }
 

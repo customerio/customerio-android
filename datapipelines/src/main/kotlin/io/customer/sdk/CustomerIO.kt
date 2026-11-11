@@ -161,8 +161,8 @@ class CustomerIO private constructor(
     @Volatile
     private var syncUserIdentified: Boolean? = null
 
-    // push_enabled the server has from this process: set by each device update, cleared by a device
-    // delete. Resume only sends when the permission differs from it, so it never re-creates a device.
+    // OS push_enabled in the last device update from this process, cleared by a device delete. Resume only
+    // sends when the permission differs from it, so it keeps a custom value and never re-creates a device.
     @Volatile
     private var lastSentPushEnabled: Boolean? = null
 
@@ -544,12 +544,13 @@ class CustomerIO private constructor(
         }
 
         val trackedAttributes = if (moduleConfig.autoTrackDeviceAttributes) {
+            val defaultAttributes = deviceStore.buildDeviceAttributes()
+            (defaultAttributes[PUSH_ENABLED_ATTRIBUTE] as? Boolean)?.let { lastSentPushEnabled = it }
             // order matters! allow customer to override default values if they wish.
-            deviceStore.buildDeviceAttributes() + customAddedAttributes
+            defaultAttributes + customAddedAttributes
         } else {
             customAddedAttributes
         }
-        (trackedAttributes[PUSH_ENABLED_ATTRIBUTE] as? Boolean)?.let { lastSentPushEnabled = it }
         // Always applied, even with autoTrackDeviceAttributes off: the backend needs the type for every device.
         val attributes = trackedAttributes.withDeviceTokenType(tokenType = tokenType, logger = dataPipelinesLogger)
 

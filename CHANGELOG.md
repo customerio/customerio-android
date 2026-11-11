@@ -1,3 +1,9 @@
+## [5.1.1](https://github.com/customerio/customerio-android/compare/5.1.0...5.1.1) (2026-11-11)
+
+### Bug Fixes
+
+* **datapipelines:** refresh push_enabled when the app resumes ([#978](https://github.com/customerio/customerio-android/issues/978)) ([b0f3f4b](https://github.com/customerio/customerio-android/commit/b0f3f4b95d4a4bbd7cfc79b15cd3cddcaf817bbc))
+
 ## [5.1.0](https://github.com/customerio/customerio-android/compare/5.0.3...5.1.0) (2026-11-10)
 
 ### Features

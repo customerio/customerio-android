@@ -1,6 +1,7 @@
 package io.customer.android.sample.kotlin_compose
 
 import android.app.Application
+import android.util.Log
 import io.customer.android.sample.kotlin_compose.data.models.setValuesFromBuilder
 import io.customer.android.sample.kotlin_compose.data.sdk.InAppMessageEventListener
 import io.customer.android.sample.kotlin_compose.data.sdk.SampleInboxEventListener
@@ -10,6 +11,7 @@ import io.customer.location.ModuleLocation
 import io.customer.messaginginapp.MessagingInAppModuleConfig
 import io.customer.messaginginapp.ModuleMessagingInApp
 import io.customer.messaginginapp.type.NotificationInboxAccessibilityLabels
+import io.customer.messagingpush.MessagingPushModuleConfig
 import io.customer.messagingpush.ModuleMessagingPushFCM
 import io.customer.sdk.CustomerIO
 import io.customer.sdk.CustomerIOConfigBuilder
@@ -51,7 +53,16 @@ class MainApplication : Application() {
                         .build()
                 )
             )
-            .addCustomerIOModule(ModuleMessagingPushFCM())
+            .addCustomerIOModule(
+                ModuleMessagingPushFCM(
+                    MessagingPushModuleConfig.Builder()
+                        // Logs silent pushes. Real work belongs in WorkManager, keyed on payload.deliveryId.
+                        .setBackgroundPushCallback { _, payload ->
+                            Log.d("CustomerIO", "Silent push ${payload.deliveryId}: ${payload.data}")
+                        }
+                        .build()
+                )
+            )
             .addCustomerIOModule(ModuleLocation())
             .addCustomerIOModule(ModuleGeofence())
         configuration.setValuesFromBuilder(builder)

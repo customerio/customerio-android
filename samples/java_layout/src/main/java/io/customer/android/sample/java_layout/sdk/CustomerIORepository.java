@@ -64,6 +64,9 @@ public class CustomerIORepository {
         // Enables push notification with live-notification branding registered once at init.
         messagingPushModule = new ModuleMessagingPushFCM(
                 new MessagingPushModuleConfig.Builder()
+                        // Logs silent pushes. Real work belongs in WorkManager, keyed on payload.getDeliveryId().
+                        .setBackgroundPushCallback((context, payload) -> appGraph.getLogger().d(
+                                "Silent push " + payload.getDeliveryId() + ": " + payload.getData()))
                         // One app-level brand applied to every live notification.
                         .setLiveNotificationBranding(new LiveNotificationBranding(
                                 "Customer.io Sample",

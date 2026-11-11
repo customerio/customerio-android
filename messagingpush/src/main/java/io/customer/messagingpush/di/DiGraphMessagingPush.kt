@@ -7,6 +7,7 @@ import com.google.firebase.installations.FirebaseInstallations
 import com.google.firebase.messaging.FirebaseMessaging
 import io.customer.base.internal.InternalCustomerIOApi
 import io.customer.messagingpush.AsyncPushDeliveryTracker
+import io.customer.messagingpush.BackgroundPushCallbackFallback
 import io.customer.messagingpush.MessagingPushModuleConfig
 import io.customer.messagingpush.ModuleMessagingPushFCM
 import io.customer.messagingpush.PushDeliveryTracker
@@ -17,6 +18,7 @@ import io.customer.messagingpush.livenotification.LiveNotificationManager
 import io.customer.messagingpush.livenotification.LiveNotificationRegistrar
 import io.customer.messagingpush.livenotification.LiveNotificationStore
 import io.customer.messagingpush.logger.PushNotificationLogger
+import io.customer.messagingpush.processor.BackgroundPushDeliveryMetrics
 import io.customer.messagingpush.processor.PushDeliveryMetricsBackgroundScheduler
 import io.customer.messagingpush.processor.PushMessageProcessor
 import io.customer.messagingpush.processor.PushMessageProcessorImpl
@@ -59,6 +61,11 @@ val SDKComponent.pushModuleConfig: MessagingPushModuleConfig
     get() = newInstance {
         modules[ModuleMessagingPushFCM.MODULE_NAME]?.moduleConfig as? MessagingPushModuleConfig ?: MessagingPushModuleConfig.default()
     }
+
+/** See [BackgroundPushCallbackFallback]. Only wrapper SDKs set it. */
+@InternalCustomerIOApi
+val SDKComponent.backgroundPushCallbackFallback: BackgroundPushCallbackFallback
+    get() = singleton<BackgroundPushCallbackFallback> { BackgroundPushCallbackFallback() }
 
 internal val SDKComponent.deepLinkUtil: DeepLinkUtil
     get() = newInstance<DeepLinkUtil> { DeepLinkUtilImpl(logger, pushModuleConfig) }
@@ -105,6 +112,16 @@ internal val SDKComponent.pushMessageProcessor: PushMessageProcessor
             deepLinkUtil = deepLinkUtil,
             deliveryMetricsScheduler = deliveryMetricsScheduler,
             pendingPushDeliveryStore = pendingPushDeliveryStore
+        )
+    }
+
+internal val SDKComponent.backgroundPushDeliveryMetrics: BackgroundPushDeliveryMetrics
+    get() = singleton<BackgroundPushDeliveryMetrics> {
+        BackgroundPushDeliveryMetrics(
+            pushLogger = pushLogger,
+            moduleConfig = { pushModuleConfig },
+            pendingStore = pendingPushDeliveryStore,
+            deliveryMetricsScheduler = deliveryMetricsScheduler
         )
     }
 

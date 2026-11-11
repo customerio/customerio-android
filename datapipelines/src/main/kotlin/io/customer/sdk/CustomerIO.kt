@@ -1,6 +1,7 @@
 package io.customer.sdk
 
 import androidx.annotation.VisibleForTesting
+import androidx.lifecycle.Lifecycle
 import com.segment.analytics.kotlin.android.Analytics
 import com.segment.analytics.kotlin.core.Analytics
 import com.segment.analytics.kotlin.core.ErrorHandler
@@ -47,6 +48,8 @@ import io.customer.sdk.data.model.Settings
 import io.customer.sdk.events.TrackMetric
 import io.customer.sdk.util.EventNames
 import io.customer.tracking.migration.MigrationProcessor
+import kotlinx.coroutines.flow.conflate
+import kotlinx.coroutines.flow.filter
 import kotlinx.serialization.SerializationStrategy
 import kotlinx.serialization.serializer
 
@@ -158,6 +161,11 @@ class CustomerIO private constructor(
     @Volatile
     private var syncUserIdentified: Boolean? = null
 
+    // OS push_enabled in the last device update from this process, cleared by a device delete. Resume only
+    // sends when the permission differs from it, so it keeps a custom value and never re-creates a device.
+    @Volatile
+    private var lastSentPushEnabled: Boolean? = null
+
     init {
         // Set analytics logger and debug logs based on SDK logger configuration
         Analytics.debugLogsEnabled = logger.logLevel == CioLogLevel.DEBUG
@@ -187,6 +195,10 @@ class CustomerIO private constructor(
         subscribeToJourneyEvents()
         // republish profile/anonymous events for late-added modules
         publishUserChanged()
+
+        if (moduleConfig.autoTrackDeviceAttributes) {
+            refreshPushEnabledOnActivityResume()
+        }
     }
 
     /** Stores the userId before publishing so subscribers that read [secureUserStore] don't race the event. */
@@ -227,6 +239,39 @@ class CustomerIO private constructor(
                 enrichment = enrichment
             )
         }
+    }
+
+    // Resume over foreground: the notification permission prompt pauses the activity without stopping it.
+    private fun refreshPushEnabledOnActivityResume() {
+        SDKComponent.activityLifecycleCallbacks.subscribe { events ->
+            events
+                .filter { state -> state.event == Lifecycle.Event.ON_RESUME }
+                // Keeps the shared lifecycle flow from waiting on this check and collapses quick resumes
+                .conflate()
+                .collect {
+                    // A failed check must not end the subscription, so the next resume tries again
+                    runCatching { refreshPushEnabledIfChanged() }.onFailure { error ->
+                        logger.error("Failed to refresh push_enabled: $error", throwable = error)
+                    }
+                }
+        }
+    }
+
+    private fun refreshPushEnabledIfChanged() {
+        // Kept current only for an identified profile, not for anonymous or logged-out devices
+        if (!isUserIdentified) return
+        // Null until a device update is sent, which needs a token
+        val lastSent = lastSentPushEnabled ?: return
+
+        val isPushEnabled = deviceStore.isPushEnabled
+        if (lastSent == isPushEnabled) return
+
+        synchronized(this) {
+            val current = lastSentPushEnabled
+            if (current == null || current == isPushEnabled) return
+            trackDeviceAttributes(token = registeredDeviceToken, tokenType = globalPreferenceStore.getDeviceTokenType())
+        }
+        logger.debug("push_enabled changed to $isPushEnabled, sent device update")
     }
 
     private fun migrateTrackingEvents() {
@@ -499,8 +544,10 @@ class CustomerIO private constructor(
         }
 
         val trackedAttributes = if (moduleConfig.autoTrackDeviceAttributes) {
+            val defaultAttributes = deviceStore.buildDeviceAttributes()
+            (defaultAttributes[PUSH_ENABLED_ATTRIBUTE] as? Boolean)?.let { lastSentPushEnabled = it }
             // order matters! allow customer to override default values if they wish.
-            deviceStore.buildDeviceAttributes() + customAddedAttributes
+            defaultAttributes + customAddedAttributes
         } else {
             customAddedAttributes
         }
@@ -537,6 +584,7 @@ class CustomerIO private constructor(
             enrichment?.invoke(event)
             event?.putInContextUnderKey("device", "token", deviceToken)
         }
+        lastSentPushEnabled = null
         track(name = EventNames.DEVICE_DELETE, properties = emptyJsonObject, serializationStrategy = JsonAnySerializer.serializersModule.serializer(), enrichment = enrichmentWithToken)
     }
 
@@ -553,6 +601,8 @@ class CustomerIO private constructor(
          * Module identifier for DataPipelines module.
          */
         internal const val MODULE_NAME = "DataPipelines"
+
+        private const val PUSH_ENABLED_ATTRIBUTE = "push_enabled"
 
         /**
          * Singleton instance of CustomerIO SDK that is created and set using the provided implementation.

@@ -11,6 +11,7 @@ import com.segment.analytics.kotlin.core.utilities.putAll
 import com.segment.analytics.kotlin.core.utilities.putInContextUnderKey
 import io.customer.datapipelines.extensions.DEVICE_TOKEN_TYPE_ATTRIBUTE
 import io.customer.datapipelines.extensions.toJsonObject
+import io.customer.datapipelines.handoff.gateway
 import io.customer.sdk.CustomerIO
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.util.Iso8601TimestampFormatter
@@ -86,7 +87,7 @@ internal class TrackingMigrationProcessor(
     }
 
     override fun processProfileMigration(identifier: String): Result<Unit> = runCatching {
-        val currentUserId = analytics.userId()
+        val currentUserId = analytics.gateway().userId()
         if (currentUserId != null) {
             logger.error("User already identified with userId: $currentUserId, skipping migration profile for: $identifier")
             return@runCatching
@@ -120,7 +121,7 @@ internal class TrackingMigrationProcessor(
                         )
                     }
                 )
-                analytics.process(deleteDeviceEvent) { event ->
+                analytics.gateway().process(deleteDeviceEvent) { event ->
                     event?.putInContextUnderKey(
                         PAYLOAD_JSON_KEY_DEVICE,
                         PAYLOAD_JSON_KEY_TOKEN,
@@ -256,7 +257,7 @@ internal class TrackingMigrationProcessor(
             }
             logger.debug("forwarding migrated event: $event")
         }
-        analytics.process(eventData.trackEvent) { event ->
+        analytics.gateway().process(eventData.trackEvent) { event ->
             event?.apply(enrichmentClosure)
         }
     }

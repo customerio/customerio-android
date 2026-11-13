@@ -769,6 +769,8 @@ class CustomerIO private constructor(
         @InternalCustomerIOApi
         @VisibleForTesting(otherwise = VisibleForTesting.PACKAGE_PRIVATE)
         fun clearInstance() {
+            // Stop Segment's threads and storage with the instance, as releaseDisabledInstance does
+            instance?.let { runCatching { it.analytics.shutdown() } }
             // Reset SDKComponent to clear static references and avoid memory leaks
             SDKComponent.reset()
             instance = null

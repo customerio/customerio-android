@@ -4,7 +4,9 @@ import android.content.Context
 import android.content.Intent
 import com.google.firebase.messaging.RemoteMessage
 import io.customer.base.internal.InternalCustomerIOApi
+import io.customer.messagingpush.di.recentPushMessagesQueue
 import io.customer.messagingpush.processor.PushMessageProcessor.Companion.RECENT_MESSAGES_MAX_SIZE
+import io.customer.sdk.core.di.SDKComponent
 import java.util.concurrent.LinkedBlockingDeque
 
 /**
@@ -62,12 +64,13 @@ interface PushMessageProcessor {
     fun processNotificationClick(activityContext: Context, intent: Intent)
 
     companion object {
-        // Count of messages stored in memory
+        // Count of messages stored in memory; the queue itself lives in the SDK's DI graph
         const val RECENT_MESSAGES_MAX_SIZE = 10
 
         // Queue to store recent messages received. The most recent message should be the
         // first element while the oldest being the last.
-        val recentMessagesQueue: LinkedBlockingDeque<String> =
-            LinkedBlockingDeque(RECENT_MESSAGES_MAX_SIZE)
+        @Deprecated("The queue lives in the SDK's DI graph; kept so the public API is unchanged")
+        val recentMessagesQueue: LinkedBlockingDeque<String>
+            get() = SDKComponent.recentPushMessagesQueue
     }
 }

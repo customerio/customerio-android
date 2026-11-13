@@ -20,6 +20,7 @@ import io.customer.messagingpush.data.communication.CustomerIOPushNotificationCa
 import io.customer.messagingpush.data.model.CustomerIOParsedPushPayload
 import io.customer.messagingpush.di.deepLinkUtil
 import io.customer.messagingpush.di.pushMessageProcessor
+import io.customer.messagingpush.di.recentPushMessagesQueue
 import io.customer.messagingpush.logger.PushNotificationLogger
 import io.customer.messagingpush.store.PendingPushDeliveryMetric
 import io.customer.messagingpush.testutils.core.IntegrationTest
@@ -204,6 +205,17 @@ class PushMessageProcessorTest : IntegrationTest() {
 
         resultOldest.shouldBeFalse()
         resultRecent.shouldBeTrue()
+    }
+
+    @Test
+    fun processMessage_givenSDKComponentReset_expectRecentMessagesCleared() {
+        val givenDeliveryId = String.random
+        pushMessageProcessor().getOrUpdateMessageAlreadyProcessed(givenDeliveryId).shouldBeFalse()
+        SDKComponent.recentPushMessagesQueue.contains(givenDeliveryId).shouldBeTrue()
+
+        SDKComponent.reset()
+
+        SDKComponent.recentPushMessagesQueue.isEmpty().shouldBeTrue()
     }
 
     @Test

@@ -20,6 +20,7 @@ import io.customer.datapipelines.extensions.sanitizeForJson
 import io.customer.datapipelines.extensions.type
 import io.customer.datapipelines.extensions.updateAnalyticsConfig
 import io.customer.datapipelines.extensions.withDeviceTokenType
+import io.customer.datapipelines.handoff.DataPipelinesLogTail
 import io.customer.datapipelines.handoff.SegmentGateway
 import io.customer.datapipelines.handoff.gateway
 import io.customer.datapipelines.migration.AnalyticsStorageMigration
@@ -141,7 +142,10 @@ class CustomerIO private constructor(
         }
     }
 
-    // Every call into Segment goes through here, so a test can wrap each hand-off
+    // Numbers this instance in the hand-off log; the gateway below logs under it
+    internal val logInstance: Int = DataPipelinesLogTail.newInstance()
+
+    // Every call into Segment goes through here, so each one is logged as a hand-off
     private val segment: SegmentGateway = analytics.gateway()
 
     // Seeded from storage so a cold start can delete the stored device (token change, profile
@@ -215,13 +219,19 @@ class CustomerIO private constructor(
 
     private fun subscribeToJourneyEvents() {
         eventBus.subscribe<Event.TrackPushMetricEvent> {
-            trackMetric(TrackMetric.Push(metric = it.event, deliveryId = it.deliveryId, deviceToken = it.deviceToken))
+            DataPipelinesLogTail.input("bus.push_metric", { listOf("metric" to it.event.name, "delivery" to it.deliveryId) }, logInstance) {
+                trackMetric(TrackMetric.Push(metric = it.event, deliveryId = it.deliveryId, deviceToken = it.deviceToken))
+            }
         }
         eventBus.subscribe<Event.TrackInAppMetricEvent> {
-            trackMetric(TrackMetric.InApp(metric = it.event, deliveryId = it.deliveryID, metadata = it.params))
+            DataPipelinesLogTail.input("bus.inapp_metric", { listOf("metric" to it.event.name, "delivery" to it.deliveryID) }, logInstance) {
+                trackMetric(TrackMetric.InApp(metric = it.event, deliveryId = it.deliveryID, metadata = it.params))
+            }
         }
         eventBus.subscribe<Event.RegisterDeviceTokenEvent> {
-            registerDeviceToken(deviceToken = it.token, tokenType = it.tokenType)
+            DataPipelinesLogTail.input("bus.register_token", { listOf("token" to it.token) }, logInstance) {
+                registerDeviceToken(deviceToken = it.token, tokenType = it.tokenType)
+            }
         }
         eventBus.subscribe<Event.GeofenceTransitionEvent> { geofenceEvent ->
             // Snapshotted userId (if any) overrides current SDK identity for this one event so a
@@ -237,12 +247,14 @@ class CustomerIO private constructor(
                     transitionTimestamp?.let { timestamp = it }
                 }
             }
-            track(
-                name = EventNames.GEOFENCE_TRANSITION,
-                properties = geofenceEvent.properties.sanitizeForJson(),
-                serializationStrategy = JsonAnySerializer.serializersModule.serializer(),
-                enrichment = enrichment
-            )
+            DataPipelinesLogTail.input("bus.geofence_transition", instance = logInstance) {
+                track(
+                    name = EventNames.GEOFENCE_TRANSITION,
+                    properties = geofenceEvent.properties.sanitizeForJson(),
+                    serializationStrategy = JsonAnySerializer.serializersModule.serializer(),
+                    enrichment = enrichment
+                )
+            }
         }
     }
 
@@ -324,7 +336,7 @@ class CustomerIO private constructor(
             setProfileAttributes(value)
         }
 
-    override fun setProfileAttributes(attributes: CustomAttributes) {
+    override fun setProfileAttributes(attributes: CustomAttributes) = DataPipelinesLogTail.input("api.profile_attributes", { listOf("attrs" to attributes.size.toString()) }) {
         val identifier = lastIdentifiedUserIdThisSession ?: this.userId
         if (identifier != null) {
             identify(userId = identifier, traits = attributes)
@@ -504,12 +516,14 @@ class CustomerIO private constructor(
 
     // Same lock as registration, held through tracking: a token registered in between would
     // otherwise be deleted as a refresh and replaced by the stale one read here.
-    override fun setDeviceAttributes(attributes: CustomAttributes) = synchronized(this) {
-        trackDeviceAttributes(
-            token = registeredDeviceToken,
-            tokenType = globalPreferenceStore.getDeviceTokenType(),
-            customAddedAttributes = attributes
-        )
+    override fun setDeviceAttributes(attributes: CustomAttributes) = DataPipelinesLogTail.input("api.device_attributes", { listOf("attrs" to attributes.size.toString()) }) {
+        synchronized(this) {
+            trackDeviceAttributes(
+                token = registeredDeviceToken,
+                tokenType = globalPreferenceStore.getDeviceTokenType(),
+                customAddedAttributes = attributes
+            )
+        }
     }
 
     override fun registerDeviceTokenImpl(deviceToken: String) = saveAndTrackDeviceToken(deviceToken, tokenType = null)
@@ -650,6 +664,14 @@ class CustomerIO private constructor(
          */
         @JvmStatic
         fun initialize(config: CustomerIOConfig) {
+            // Whether the hand-off log is on, fixed once for this SDK at the level it is initialized with
+            DataPipelinesLogTail.resolve(config.logLevel)
+            // Logged as an input, so a replay can tell calls made before init from calls made after
+            // Before the instance exists, so it carries none
+            DataPipelinesLogTail.input("api.initialize", instance = null) { initializeSdk(config) }
+        }
+
+        private fun initializeSdk(config: CustomerIOConfig) {
             val androidSDKComponent = SDKComponent.android()
 
             val modules = SDKComponent.modules

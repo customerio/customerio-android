@@ -11,6 +11,7 @@ import androidx.lifecycle.ProcessLifecycleOwner
 import com.segment.analytics.kotlin.core.Analytics
 import com.segment.analytics.kotlin.core.Storage
 import com.segment.analytics.kotlin.core.platform.Plugin
+import io.customer.datapipelines.handoff.gateway
 import io.customer.sdk.util.EventNames
 import java.util.Collections
 import java.util.WeakHashMap
@@ -63,7 +64,7 @@ internal class AutomaticApplicationLifecycleTrackingPlugin @VisibleForTesting co
         synchronized(lock) {
             // Registered first so no transition is missed; callbacks wait for the lock until the initial state is set
             application.registerActivityLifecycleCallbacks(this)
-            installOrUpdateEvent?.let { (name, properties) -> analytics.track(name, properties) }
+            installOrUpdateEvent?.let { (name, properties) -> analytics.gateway().track(name, properties) }
             if (isAppInForeground()) {
                 moveToForeground()
             }
@@ -85,7 +86,7 @@ internal class AutomaticApplicationLifecycleTrackingPlugin @VisibleForTesting co
         // A configuration change stops and recreates the Activity, and the new instance starts right after
         if (isInForeground && startedActivities.isEmpty() && !activity.isChangingConfigurations) {
             isInForeground = false
-            analytics.track(EventNames.APPLICATION_BACKGROUNDED)
+            analytics.gateway().track(EventNames.APPLICATION_BACKGROUNDED)
         }
     }
 
@@ -106,7 +107,7 @@ internal class AutomaticApplicationLifecycleTrackingPlugin @VisibleForTesting co
         isInForeground = true
         val isFirstOpen = !hasTrackedFirstOpen
         hasTrackedFirstOpen = true
-        analytics.track(
+        analytics.gateway().track(
             APPLICATION_OPENED,
             buildJsonObject {
                 if (isFirstOpen) {
@@ -116,7 +117,7 @@ internal class AutomaticApplicationLifecycleTrackingPlugin @VisibleForTesting co
                 put("from_background", !isFirstOpen)
             }
         )
-        analytics.track(APPLICATION_FOREGROUNDED)
+        analytics.gateway().track(APPLICATION_FOREGROUNDED)
     }
 
     /** Application Installed or Application Updated with its properties, or null when the build hasn't changed. */

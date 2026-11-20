@@ -11,13 +11,17 @@ import io.customer.messaginginapp.testutils.core.JUnitTest
 import io.customer.sdk.core.util.Logger
 import io.customer.sdk.core.util.MainThreadPoster
 import io.mockk.Runs
+import io.mockk.clearMocks
 import io.mockk.every
 import io.mockk.just
 import io.mockk.mockk
 import io.mockk.slot
 import io.mockk.verify
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 
@@ -168,6 +172,7 @@ class PollingLifecycleManagerTest : JUnitTest() {
     @Test
     fun fetchInAppMessages_whenSseInactive_fetches() {
         val manager = createManager()
+        bringToForegroundAndSettle()
 
         manager.fetchInAppMessages()
 
@@ -188,6 +193,7 @@ class PollingLifecycleManagerTest : JUnitTest() {
     fun fetchInAppMessages_givenPendingFreshPoll_expectReplacementFetchIsFreshOnlyOnce() {
         val manager = createManager()
         try {
+            bringToForegroundAndSettle()
             startDelayedFreshPoll(manager)
 
             manager.fetchInAppMessages()
@@ -205,6 +211,7 @@ class PollingLifecycleManagerTest : JUnitTest() {
     fun reset_givenPendingFreshPoll_expectRequirementCleared() {
         val manager = createManager()
         try {
+            bringToForegroundAndSettle()
             startDelayedFreshPoll(manager)
 
             manager.reset()
@@ -215,6 +222,14 @@ class PollingLifecycleManagerTest : JUnitTest() {
         } finally {
             manager.reset()
         }
+    }
+
+    // Brings the manager to the foreground and waits for its launch fetch, so tests of later fetches
+    // start from a foregrounded manager with no recorded fetches.
+    private fun bringToForegroundAndSettle() {
+        captureObserver().onStart(processLifecycleOwner)
+        verify(timeout = 2000) { gistQueue.fetchUserMessages(any()) }
+        clearMocks(gistQueue, answers = false)
     }
 
     // Delay the foreground timer so replacement always happens before its first tick.
@@ -298,5 +313,70 @@ class PollingLifecycleManagerTest : JUnitTest() {
         sseEnabledListener(false)
 
         verify(timeout = 2000) { gistQueue.fetchUserMessages(any()) }
+    }
+
+    // --- MBL-2808: background-start control. A process that starts with no UI (push, worker,
+    // service) never reaches STARTED, so polling must not start from SDK init or identify. ---
+
+    /**
+     * R1. SDK init, identify and reset all reach [PollingLifecycleManager.fetchInAppMessages]
+     * through the UserChangedEvent handler. With the process never started there is no UI to show a
+     * message on, so no queue fetch may happen.
+     *
+     * Absence is observed over a bounded window. The timer's initialDelay is 0, so when polling does
+     * start a tick lands within milliseconds; the mutation check (remove the foreground guard,
+     * expect this test to fail) is what proves the window is long enough.
+     */
+    @Test
+    fun fetchInAppMessages_givenProcessNeverStarted_expectNoQueueFetch() {
+        every { lifecycle.currentState } returns Lifecycle.State.CREATED
+        val fetched = CountDownLatch(1)
+        every { gistQueue.fetchUserMessages(any()) } answers { fetched.countDown() }
+        val manager = createManager()
+
+        manager.fetchInAppMessages()
+
+        assertFalse(
+            fetched.await(1, TimeUnit.SECONDS),
+            "Queue was fetched while the process had no started activity"
+        )
+    }
+
+    /**
+     * P3 (catch-up preservation). A process that started with no UI and later gets its first
+     * foreground must fetch the queue then, so messages that could not be shown earlier appear.
+     * Before the foreground gate this also passes through the background fetch, so it only becomes
+     * a strict check once the gate removes that fetch.
+     */
+    @Test
+    fun onStart_givenProcessStartedWithoutUi_expectFirstForegroundFetchesQueue() {
+        every { lifecycle.currentState } returns Lifecycle.State.CREATED
+        val manager = createManager()
+        val observer = captureObserver()
+        manager.fetchInAppMessages()
+
+        observer.onStart(processLifecycleOwner)
+
+        verify(timeout = 2000) { gistQueue.fetchUserMessages(any()) }
+    }
+
+    /**
+     * R2. The isUserIdentified subscription is already gated on the foreground flag, so identifying
+     * a user while backgrounded starts nothing. Guards that the fix for R1 does not regress it.
+     */
+    @Test
+    fun userIdentified_givenProcessNeverStarted_expectNoQueueFetch() {
+        every { lifecycle.currentState } returns Lifecycle.State.CREATED
+        val fetched = CountDownLatch(1)
+        every { gistQueue.fetchUserMessages(any()) } answers { fetched.countDown() }
+        state = InAppMessagingState(pollInterval = 600000L, sseEnabled = false, userId = "user-123")
+        createManager()
+
+        userIdentifiedListener(true)
+
+        assertFalse(
+            fetched.await(1, TimeUnit.SECONDS),
+            "Queue was fetched on identification while the process had no started activity"
+        )
     }
 }

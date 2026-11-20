@@ -13,6 +13,7 @@ import io.customer.messaginginapp.state.InAppMessagingManager
 import io.customer.messaginginapp.state.InlineMessageState
 import io.customer.messaginginapp.state.ModalMessageState
 import io.customer.messaginginapp.testutils.core.IntegrationTest
+import io.customer.messaginginapp.testutils.core.foregroundedProcessConfig
 import io.customer.messaginginapp.testutils.extension.createInAppMessage
 import io.customer.messaginginapp.testutils.extension.createInboxMessage
 import io.customer.messaginginapp.testutils.extension.pageRuleContains
@@ -49,7 +50,8 @@ class InAppMessagingStoreTest : IntegrationTest() {
     private lateinit var manager: InAppMessagingManager
 
     override fun setup(testConfig: TestConfig) {
-        super.setup(testConfig)
+        // Modals only launch while the app has a started UI, so these tests run with a foregrounded process.
+        super.setup(testConfig + foregroundedProcessConfig())
         module = ModuleMessagingInApp(
             config = MessagingInAppModuleConfig.Builder(
                 siteId = TestConstants.Keys.SITE_ID

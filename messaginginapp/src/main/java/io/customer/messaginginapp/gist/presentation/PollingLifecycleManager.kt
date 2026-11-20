@@ -76,9 +76,17 @@ internal class PollingLifecycleManager(
 
     /**
      * Triggers an immediate message fetch and (re)starts polling unless SSE is active.
-     * Called by external events such as user identification and message dismissal.
+     * Called by external events such as user identification and message dismissal. Does nothing while the
+     * app is in the background.
      */
     fun fetchInAppMessages() {
+        // A process without a started UI has nobody to show a message to, and a poll timer started here
+        // would keep fetching and launching modals from the background. The foreground handler starts
+        // polling with an immediate catch-up fetch when the app comes to the foreground.
+        if (!isForegrounded.get()) {
+            logger.debug("[Polling] Skipping fetch - app is not in the foreground, the foreground catch-up fetch will run when it returns")
+            return
+        }
         startPolling(duration = state.pollInterval)
     }
 

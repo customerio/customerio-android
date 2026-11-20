@@ -1,5 +1,6 @@
 package io.customer.messaginginapp.di
 
+import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ProcessLifecycleOwner
 import com.google.gson.Gson
 import io.customer.messaginginapp.MessagingInAppModuleConfig
@@ -52,6 +53,14 @@ internal val SDKComponent.inAppPreferenceStore: InAppPreferenceStore
 
 internal val SDKComponent.inAppMessagingManager: InAppMessagingManager
     get() = singleton<InAppMessagingManager> { InAppMessagingManager(inAppMessaging) }
+
+/**
+ * Lifecycle of the whole app process. It reaches STARTED only while at least one activity is
+ * started, so it tells whether the user can currently see any UI of the host app. Read by the modal
+ * display gate; tests override it to simulate a foregrounded or never-started process.
+ */
+internal val SDKComponent.processLifecycleOwner: LifecycleOwner
+    get() = singleton<LifecycleOwner> { ProcessLifecycleOwner.get() }
 
 internal val SDKComponent.pollingLifecycleManager: PollingLifecycleManager
     get() = singleton<PollingLifecycleManager> {

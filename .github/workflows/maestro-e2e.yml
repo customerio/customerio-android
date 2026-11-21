@@ -131,11 +131,19 @@ jobs:
         timeout-minutes: 1
         run: sudo chmod 666 /dev/kvm
 
-      - name: Install Maestro and evidence dependencies
-        timeout-minutes: 5
+      - name: Install Maestro
+        timeout-minutes: 2
         run: |
           curl -Ls https://get.maestro.mobile.dev | bash
           echo "$HOME/.maestro/bin" >> "$GITHUB_PATH"
+
+      # Video evidence only. The harness skips video rendering without these,
+      # and the Ubuntu package mirror can stall fetches for minutes, so a slow
+      # mirror costs the recording instead of the run.
+      - name: Install evidence dependencies
+        timeout-minutes: 3
+        continue-on-error: true
+        run: |
           sudo apt-get update
           sudo apt-get install -y ffmpeg python3-pil
 

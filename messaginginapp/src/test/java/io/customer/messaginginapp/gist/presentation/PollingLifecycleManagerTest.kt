@@ -22,6 +22,7 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 
@@ -285,10 +286,16 @@ class PollingLifecycleManagerTest : JUnitTest() {
         every { gistQueue.fetchUserMessages(any()) } answers { fetchCount.incrementAndGet() }
         state = InAppMessagingState(pollInterval = 30L)
         val manager = createManager()
+        // Fetches are skipped while the app is in the background, so start from the foreground.
+        bringToForegroundAndSettle()
+        fetchCount.set(0)
 
         val threads = (1..8).map { Thread { repeat(25) { manager.fetchInAppMessages() } } }
         threads.forEach(Thread::start)
         threads.forEach(Thread::join)
+
+        // Guards against a vacuous pass: the concurrent calls must have reached the queue.
+        assertTrue(fetchCount.get() > 0, "No fetch happened, the orphan-timer check below would pass without testing anything")
 
         // Stop polling; after a settle window no further ticks should occur if exactly one timer
         // existed (without the fix, orphaned timers keep firing every 30ms).

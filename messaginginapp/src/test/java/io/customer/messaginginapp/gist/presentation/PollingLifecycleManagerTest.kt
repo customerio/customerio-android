@@ -22,7 +22,6 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
-import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 
@@ -294,8 +293,9 @@ class PollingLifecycleManagerTest : JUnitTest() {
         threads.forEach(Thread::start)
         threads.forEach(Thread::join)
 
-        // Guards against a vacuous pass: the concurrent calls must have reached the queue.
-        assertTrue(fetchCount.get() > 0, "No fetch happened, the orphan-timer check below would pass without testing anything")
+        // Guards against a vacuous pass: the surviving timer must tick and reach the queue. Fetches
+        // run on the timer thread, so wait for the tick instead of reading the counter right away.
+        verify(timeout = 2000) { gistQueue.fetchUserMessages(any()) }
 
         // Stop polling; after a settle window no further ticks should occur if exactly one timer
         // existed (without the fix, orphaned timers keep firing every 30ms).

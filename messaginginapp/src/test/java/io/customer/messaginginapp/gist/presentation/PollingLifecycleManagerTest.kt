@@ -350,6 +350,22 @@ class PollingLifecycleManagerTest : JUnitTest() {
     }
 
     /**
+     * An INITIALIZED process lifecycle never attached to the process (secondary process, or the
+     * androidx.startup initializer was removed), so no foreground event will ever arrive. Fetching
+     * must continue there as before the foreground gate; the modal gate decides whether a message
+     * can be shown.
+     */
+    @Test
+    fun fetchInAppMessages_givenProcessLifecycleNeverAttached_expectQueueFetch() {
+        every { lifecycle.currentState } returns Lifecycle.State.INITIALIZED
+        val manager = createManager()
+
+        manager.fetchInAppMessages()
+
+        verify(timeout = 2000) { gistQueue.fetchUserMessages(any()) }
+    }
+
+    /**
      * P3 (catch-up preservation). A process that started with no UI and later gets its first
      * foreground must fetch the queue then, so messages that could not be shown earlier appear.
      * Before the foreground gate this also passes through the background fetch, so it only becomes

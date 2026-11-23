@@ -6,6 +6,7 @@ import com.segment.analytics.kotlin.core.emptyJsonObject
 import com.segment.analytics.kotlin.core.platform.EnrichmentClosure
 import io.customer.datapipelines.di.segmentGatewayFactory
 import io.customer.sdk.core.di.SDKComponent
+import java.lang.ref.WeakReference
 import java.util.WeakHashMap
 import kotlinx.serialization.SerializationStrategy
 import kotlinx.serialization.json.JsonObject
@@ -51,44 +52,47 @@ internal fun Analytics.gateway(): SegmentGateway = synchronized(gateways) {
     gateways.getOrPut(this) { SDKComponent.segmentGatewayFactory?.invoke(this) ?: AnalyticsSegmentGateway(this) }
 }
 
-/** Makes each call on [analytics] unchanged. */
-internal class AnalyticsSegmentGateway(private val analytics: Analytics) : SegmentGateway {
+/**
+ * Makes each call on the instance unchanged.
+ *
+ * The instance is held weakly: [gateways] is keyed by the same instance, so a strong reference here
+ * would keep every instance, including shut-down ones, alive for the life of the process. Callers
+ * hold the instance themselves, so it is only gone when nothing can reach this gateway either; a
+ * call made after that is dropped and the getters return empty values.
+ */
+internal class AnalyticsSegmentGateway(analytics: Analytics) : SegmentGateway {
+    private val analyticsRef = WeakReference(analytics)
 
-    override fun <T> identify(userId: String, traits: T, serializationStrategy: SerializationStrategy<T>) {
-        analytics.identify(userId = userId, traits = traits, serializationStrategy = serializationStrategy)
+    private inline fun <R> onAnalytics(whenReleased: R, block: Analytics.() -> R): R {
+        val analytics = analyticsRef.get() ?: return whenReleased
+        return analytics.block()
     }
 
-    override fun <T> identify(traits: T, serializationStrategy: SerializationStrategy<T>) {
-        analytics.identify(traits = traits, serializationStrategy = serializationStrategy)
-    }
+    override fun <T> identify(userId: String, traits: T, serializationStrategy: SerializationStrategy<T>) =
+        onAnalytics(Unit) { identify(userId = userId, traits = traits, serializationStrategy = serializationStrategy) }
 
-    override fun <T> track(name: String, properties: T, serializationStrategy: SerializationStrategy<T>, enrichment: EnrichmentClosure?) {
-        analytics.track(name = name, properties = properties, serializationStrategy = serializationStrategy, enrichment = enrichment)
-    }
+    override fun <T> identify(traits: T, serializationStrategy: SerializationStrategy<T>) =
+        onAnalytics(Unit) { identify(traits = traits, serializationStrategy = serializationStrategy) }
 
-    override fun track(name: String, properties: JsonObject) {
-        analytics.track(name, properties)
-    }
+    override fun <T> track(name: String, properties: T, serializationStrategy: SerializationStrategy<T>, enrichment: EnrichmentClosure?) =
+        onAnalytics(Unit) { track(name = name, properties = properties, serializationStrategy = serializationStrategy, enrichment = enrichment) }
 
-    override fun <T> screen(title: String, properties: T, serializationStrategy: SerializationStrategy<T>) {
-        analytics.screen(title = title, properties = properties, serializationStrategy = serializationStrategy)
-    }
+    override fun track(name: String, properties: JsonObject) =
+        onAnalytics(Unit) { track(name, properties) }
 
-    override fun screen(title: String) {
-        analytics.screen(title)
-    }
+    override fun <T> screen(title: String, properties: T, serializationStrategy: SerializationStrategy<T>) =
+        onAnalytics(Unit) { screen(title = title, properties = properties, serializationStrategy = serializationStrategy) }
 
-    override fun process(event: BaseEvent, enrichment: EnrichmentClosure?) {
-        analytics.process(event, enrichment)
-    }
+    override fun screen(title: String) = onAnalytics(Unit) { screen(title) }
 
-    override fun reset() {
-        analytics.reset()
-    }
+    override fun process(event: BaseEvent, enrichment: EnrichmentClosure?) =
+        onAnalytics(Unit) { process(event, enrichment) }
 
-    override fun userId(): String? = analytics.userId()
+    override fun reset() = onAnalytics(Unit) { reset() }
 
-    override fun anonymousId(): String = analytics.anonymousId()
+    override fun userId(): String? = onAnalytics(null) { userId() }
 
-    override fun traits(): JsonObject? = analytics.traits()
+    override fun anonymousId(): String = onAnalytics("") { anonymousId() }
+
+    override fun traits(): JsonObject? = onAnalytics(null) { traits() }
 }

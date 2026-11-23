@@ -45,4 +45,12 @@ class SegmentGatewayTest : JUnit5Test() {
 
         analytics.gateway() shouldBe wrapped
     }
+
+    @Test
+    fun gateway_expectNoStrongReferenceToAnalytics() {
+        // The cache is keyed by the instance, so a strong reference from the value would pin it forever
+        val heldTypes = AnalyticsSegmentGateway::class.java.declaredFields.map { it.type }
+
+        heldTypes.contains(Analytics::class.java) shouldBe false
+    }
 }

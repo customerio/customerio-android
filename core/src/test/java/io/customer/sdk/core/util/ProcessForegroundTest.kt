@@ -41,12 +41,13 @@ class ProcessForegroundTest : JUnit5Test() {
     }
 
     @Test
-    fun isProcessInForeground_givenNeverAttachedAndVisibleImportance_expectTrue() {
-        isForeground(Lifecycle.State.INITIALIZED, RunningAppProcessInfo.IMPORTANCE_VISIBLE) shouldBeEqualTo true
+    fun isProcessInForeground_givenNeverAttachedAndVisibleImportance_expectFalse() {
+        // The OS reports VISIBLE for a process that only has an overlay window, with no activity.
+        isForeground(Lifecycle.State.INITIALIZED, RunningAppProcessInfo.IMPORTANCE_VISIBLE) shouldBeEqualTo false
     }
 
     @Test
-    fun isProcessInForeground_givenNeverAttachedAndImportanceBelowVisible_expectFalse() {
+    fun isProcessInForeground_givenNeverAttachedAndImportanceBelowForeground_expectFalse() {
         listOf(
             RunningAppProcessInfo.IMPORTANCE_FOREGROUND_SERVICE,
             RunningAppProcessInfo.IMPORTANCE_PERCEPTIBLE,

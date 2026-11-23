@@ -95,6 +95,22 @@ class ModalDisplayBackgroundTest : IntegrationTest() {
         verify(exactly = 0) { applicationMock.startActivity(any<Intent>()) }
     }
 
+    /**
+     * An overlay window with no activity makes the OS report IMPORTANCE_VISIBLE for the process. With the
+     * process lifecycle never attached, that must not let a modal launch over another app.
+     */
+    @Test
+    fun loadMessage_givenProcessLifecycleNeverAttachedAndVisibleImportance_expectNoActivityLaunch() {
+        SDKComponent.overrideDependency<LifecycleOwner>(processLifecycleOwnerIn(Lifecycle.State.INITIALIZED))
+        setProcessImportance(ActivityManager.RunningAppProcessInfo.IMPORTANCE_VISIBLE)
+        every { store.state } returns InAppMessagingState()
+        val message = Message(messageId = "message-id", queueId = "queue-id")
+
+        displayModalMessageMiddleware()(store)(nextFn)(InAppMessagingAction.LoadMessage(message))
+
+        verify(exactly = 0) { applicationMock.startActivity(any<Intent>()) }
+    }
+
     private fun setProcessImportance(importance: Int) {
         val processInfo = ActivityManager.RunningAppProcessInfo().apply {
             pid = Process.myPid()

@@ -13,7 +13,10 @@ import io.customer.base.internal.InternalCustomerIOApi
  *
  * The process lifecycle stays INITIALIZED only when it never attached to this process: a secondary
  * process, or an app that removed the androidx.startup initializer. It has no state to read then, so the
- * process importance reported by the OS decides instead.
+ * process importance reported by the OS decides instead. Only IMPORTANCE_FOREGROUND counts. The OS gives
+ * it to a process with a visible or paused activity, also when another app's dialog or share sheet is
+ * over it. IMPORTANCE_VISIBLE does not count: the OS also reports it for a process that only has an
+ * overlay window, or that a foreground app is bound to or reads from, and none of these has an activity.
  *
  * Known limitation: the process lifecycle reports a stop about 700 ms after the last Activity stopped.
  * A caller that checks within that window still counts the app as in the foreground.
@@ -30,9 +33,7 @@ fun isProcessInForeground(
         return state.isAtLeast(Lifecycle.State.STARTED)
     }
     val importance = importanceProvider()
-    // Importances in between, such as a foreground service, don't mean an Activity is started
-    return importance == ActivityManager.RunningAppProcessInfo.IMPORTANCE_FOREGROUND ||
-        importance == ActivityManager.RunningAppProcessInfo.IMPORTANCE_VISIBLE
+    return importance == ActivityManager.RunningAppProcessInfo.IMPORTANCE_FOREGROUND
 }
 
 private fun currentProcessImportance(): Int {

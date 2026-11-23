@@ -1,3 +1,9 @@
+## [5.1.2](https://github.com/customerio/customerio-android/compare/5.1.1...5.1.2) (2026-11-23)
+
+### Bug Fixes
+
+* **in-app:** do not fetch or show modals without a started UI ([#979](https://github.com/customerio/customerio-android/issues/979)) ([1a2877d](https://github.com/customerio/customerio-android/commit/1a2877d58e3849a1c593521c8b4a540c3056db0b))
+
 ## [5.1.1](https://github.com/customerio/customerio-android/compare/5.1.0...5.1.1) (2026-11-11)
 
 ### Bug Fixes

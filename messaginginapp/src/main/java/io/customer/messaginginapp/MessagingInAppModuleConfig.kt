@@ -4,6 +4,7 @@ import io.customer.messaginginapp.type.ColorScheme
 import io.customer.messaginginapp.type.InAppEventListener
 import io.customer.messaginginapp.type.InboxEventListener
 import io.customer.messaginginapp.type.NotificationInboxAccessibilityLabels
+import io.customer.messaginginapp.type.UserJwtListener
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.module.CustomerIOModuleConfig
 import io.customer.sdk.core.pipeline.DataPipeline
@@ -28,7 +29,8 @@ class MessagingInAppModuleConfig private constructor(
      * Host-provided TalkBack labels for the Visual Notification Inbox UI. All null by default (the SDK
      * emits no strings of its own). See [NotificationInboxAccessibilityLabels].
      */
-    val notificationInboxAccessibilityLabels: NotificationInboxAccessibilityLabels
+    val notificationInboxAccessibilityLabels: NotificationInboxAccessibilityLabels,
+    val userJwtListener: UserJwtListener?
 ) : CustomerIOModuleConfig {
     // Read from the SDK as it was set up in CustomerIO init, so they always match it
     private val dataPipeline: DataPipeline?
@@ -68,6 +70,7 @@ class MessagingInAppModuleConfig private constructor(
         private var colorScheme: ColorScheme = ColorScheme.AUTO
         private var inboxEventListener: InboxEventListener? = null
         private var notificationInboxAccessibilityLabels: NotificationInboxAccessibilityLabels = NotificationInboxAccessibilityLabels()
+        private var userJwtListener: UserJwtListener? = null
 
         fun setEventListener(eventListener: InAppEventListener): Builder {
             this.eventListener = eventListener
@@ -100,6 +103,15 @@ class MessagingInAppModuleConfig private constructor(
             return this
         }
 
+        /**
+         * Registers a listener told when Customer.io rejects the JWT handed over with
+         * [ModuleMessagingInApp.setUserJwt], so the app can fetch a fresh one.
+         */
+        fun setUserJwtListener(userJwtListener: UserJwtListener): Builder {
+            this.userJwtListener = userJwtListener
+            return this
+        }
+
         override fun build(): MessagingInAppModuleConfig {
             return MessagingInAppModuleConfig(
                 siteId = siteId.orEmpty(),
@@ -107,7 +119,8 @@ class MessagingInAppModuleConfig private constructor(
                 eventListener = eventListener,
                 colorScheme = colorScheme,
                 inboxEventListener = inboxEventListener,
-                notificationInboxAccessibilityLabels = notificationInboxAccessibilityLabels
+                notificationInboxAccessibilityLabels = notificationInboxAccessibilityLabels,
+                userJwtListener = userJwtListener
             )
         }
     }

@@ -1,6 +1,9 @@
 package io.customer.messaginginapp.gist.data.listeners
 
 import android.content.Context
+import com.google.gson.Gson
+import com.google.gson.JsonParseException
+import io.customer.messaginginapp.ModuleMessagingInApp
 import io.customer.messaginginapp.di.anonymousMessageManager
 import io.customer.messaginginapp.di.inAppMessagingManager
 import io.customer.messaginginapp.di.inAppPreferenceStore
@@ -16,7 +19,9 @@ import io.customer.messaginginapp.gist.data.model.response.QueueMessagesResponse
 import io.customer.messaginginapp.gist.data.model.response.toLogString
 import io.customer.messaginginapp.state.InAppMessagingAction
 import io.customer.messaginginapp.state.InAppMessagingState
+import io.customer.messaginginapp.state.UserJwtRejection
 import io.customer.messaginginapp.store.InAppPreferenceStore
+import io.customer.messaginginapp.type.UserJwtRejectionReason
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.util.Logger
 import java.io.File
@@ -219,6 +224,10 @@ internal class Queue(
     }
 
     override fun fetchUserMessages(mustBeFresh: Boolean) {
+        if (state.isPausedByUserJwtRejection) {
+            logger.debug("Queue fetch paused until a new user JWT is set")
+            return
+        }
         // Without an identity the request carries no user token; it goes out uncoordinated, as before.
         val key = QueueFetchKey.from(state)
         val ticket = key?.let { queueFetches.begin(it, mustBeFresh) }
@@ -234,6 +243,7 @@ internal class Queue(
                 val latestMessagesResponse = gistQueueService.fetchMessagesForUser(sessionId = state.sessionId)
 
                 val code = latestMessagesResponse.code()
+                val userJwtRejectionReason = if (code == 401) parseUserJwtRejectionReason(latestMessagesResponse.errorBody()?.string()) else null
                 val fromCache = latestMessagesResponse.headers()[HEADER_FROM_CACHE] == "true"
                 when {
                     // The identity changed while the request was in flight (logout, or another user
@@ -242,6 +252,7 @@ internal class Queue(
                         logger.debug("Discarding queue response for a previous user")
                         return@launch
                     }
+                    userJwtRejectionReason != null -> handleUserJwtRejection(key, userJwtRejectionReason)
                     (code == 204 || code == 304) -> handleNoContent(code, sseRevisionAtFetchStart)
                     latestMessagesResponse.isSuccessful -> handleSuccessfulFetch(
                         responseBody = latestMessagesResponse.body(),
@@ -342,6 +353,30 @@ internal class Queue(
             // the headless store keeps the last set across a failed poll (serve-stale).
         }
     }
+
+    // Messages already shown are kept: the user and their queue haven't changed, only the token.
+    private fun handleUserJwtRejection(key: QueueFetchKey?, reason: UserJwtRejectionReason) {
+        val userId = key?.takeUnless { it.isAnonymous }?.userToken
+        logger.error("In-app user JWT rejected for userId: $userId, reason: ${reason.value}")
+        inAppMessagingManager.dispatch(InAppMessagingAction.UserJwtRejected(UserJwtRejection(userId = userId, token = key?.userJwt)))
+        if (userId != null && state.isPausedByUserJwtRejection) {
+            (SDKComponent.modules[ModuleMessagingInApp.MODULE_NAME] as? ModuleMessagingInApp)?.notifyUserJwtRejected(userId, reason)
+        }
+    }
+
+    // Null when a 401 isn't Gist rejecting the user JWT, so it is handled as any other failure.
+    private fun parseUserJwtRejectionReason(errorBody: String?): UserJwtRejectionReason? {
+        if (errorBody.isNullOrBlank()) return null
+        val body = try {
+            Gson().fromJson(errorBody, UserJwtRejectionBody::class.java)
+        } catch (e: JsonParseException) {
+            null
+        }
+        if (body?.error != USER_JWT_REJECTED_ERROR) return null
+        return UserJwtRejectionReason.values().firstOrNull { it.value == body.reason } ?: UserJwtRejectionReason.UNKNOWN
+    }
+
+    private data class UserJwtRejectionBody(val error: String?, val reason: String?)
 
     private fun handleFailedFetch(responseCode: Int) {
         logger.error("Failed to fetch messages: $responseCode")
@@ -476,6 +511,9 @@ internal class Queue(
     companion object {
         // Custom header to distinguish 304 responses (converted to 200) from genuine 200 responses
         private const val HEADER_FROM_CACHE = "X-CIO-MOBILE-SDK-Cache"
+
+        // The error Gist answers a rejected user JWT with, beside a `reason`.
+        private const val USER_JWT_REJECTED_ERROR = "user_jwt_rejected"
 
         // Path of [GistQueueService.fetchMessagesForUser].
         private const val QUEUE_PATH = "/api/v4/users"

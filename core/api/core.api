@@ -217,6 +217,19 @@ public final class io/customer/sdk/core/extensions/ContextExtensionsKt {
 	public static final fun applicationMetaData (Landroid/content/Context;)Landroid/os/Bundle;
 }
 
+public final class io/customer/sdk/core/identity/UserJwtStore$Entry {
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;Ljava/lang/String;)Lio/customer/sdk/core/identity/UserJwtStore$Entry;
+	public static synthetic fun copy$default (Lio/customer/sdk/core/identity/UserJwtStore$Entry;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Lio/customer/sdk/core/identity/UserJwtStore$Entry;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getToken ()Ljava/lang/String;
+	public final fun getUserId ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
 public abstract interface class io/customer/sdk/core/module/CustomerIOModule {
 	public abstract fun getModuleConfig ()Lio/customer/sdk/core/module/CustomerIOModuleConfig;
 	public abstract fun getModuleName ()Ljava/lang/String;

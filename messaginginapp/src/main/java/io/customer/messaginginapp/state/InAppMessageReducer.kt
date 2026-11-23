@@ -28,6 +28,17 @@ internal val inAppMessagingReducer: Reducer<InAppMessagingState> = { state, acti
         is InAppMessagingAction.SetAnonymousIdentifier ->
             state.copy(anonymousId = action.anonymousId)
 
+        is InAppMessagingAction.SetUserJwt ->
+            state.copy(userJwt = action.userJwt)
+
+        is InAppMessagingAction.UserJwtRejected ->
+            // A rejection of a request made for another user or JWT than the one in effect is stale.
+            if (action.rejection.userId == state.userId && action.rejection.token == state.activeUserJwt) {
+                state.copy(userJwtRejection = action.rejection)
+            } else {
+                state
+            }
+
         is InAppMessagingAction.ClearMessageQueue ->
             if (action.expectedSseRevision != null && action.expectedSseRevision != state.sseMessageRevision) {
                 // The in-app HTTP response is older than an SSE snapshot. A 204 can still clear
@@ -145,7 +156,11 @@ internal val inAppMessagingReducer: Reducer<InAppMessagingState> = { state, acti
             deletedInboxMessageIds = emptySet(),
             shownMessageQueueIds = emptySet(),
             sseEnabled = false,
-            isInboxEnabled = false
+            isInboxEnabled = false,
+            // Identify and logout reach in-app after the app's own calls, so a JWT the app has already
+            // handed over for the next user survives the reset of the previous one.
+            userJwt = state.userJwt?.takeIf { it.userId != state.userId },
+            userJwtRejection = null
         )
 
         is InAppMessagingAction.EmbedMessages -> {

@@ -23,6 +23,7 @@ import io.customer.messaginginapp.state.UserJwt
 import io.customer.messaginginapp.testutils.core.IntegrationTest
 import io.customer.messaginginapp.type.UserJwtRejectionReason
 import io.customer.sdk.core.di.SDKComponent
+import io.customer.sdk.core.util.Clock
 import io.customer.sdk.core.util.ScopeProvider
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -50,6 +51,8 @@ class QueueUserJwtTest : IntegrationTest() {
     private val mockGistProvider: GistProvider = mockk(relaxed = true)
     private val rejections = mutableListOf<Pair<String, UserJwtRejectionReason>>()
     private val responses = ArrayDeque<Response<QueueMessagesResponse>>()
+    private var nowMillis = 1_000_000L
+    private val clock: Clock = mockk(relaxed = true) { every { currentTimeMillis() } answers { nowMillis } }
 
     private lateinit var manager: InAppMessagingManager
     private lateinit var module: ModuleMessagingInApp
@@ -63,6 +66,7 @@ class QueueUserJwtTest : IntegrationTest() {
                         overrideDependency<ScopeProvider>(scopeProviderStub)
                         overrideDependency<InboxRepository>(mockRepository)
                         overrideDependency<GistProvider>(mockGistProvider)
+                        overrideDependency<Clock>(clock)
                     }
                 }
             } + testConfig
@@ -164,6 +168,27 @@ class QueueUserJwtTest : IntegrationTest() {
         module.setUserJwt("user-2", "jwt-2")
 
         io.mockk.verify(exactly = 2) { mockGistProvider.fetchInAppMessages() }
+    }
+
+    @Test
+    fun setUserJwt_givenNewJwtAfterEachRejection_expectAtMostOneImmediateFetchPerPollInterval() {
+        val pollInterval = manager.getCurrentState().pollInterval
+        fun rejectThenHandOver(jwt: String) {
+            responses += rejected("bad_subject")
+            fetch()
+            module.setUserJwt("user-1", jwt)
+        }
+
+        module.setUserJwt("user-1", "jwt-0")
+        rejectThenHandOver("jwt-1")
+        rejectThenHandOver("jwt-2")
+        nowMillis += pollInterval
+        rejectThenHandOver("jwt-3")
+
+        // jwt-0 and jwt-1 fetch straight away, jwt-2 waits for the next poll, and jwt-3 comes a
+        // polling interval after jwt-1.
+        io.mockk.verify(exactly = 3) { mockGistProvider.fetchInAppMessages() }
+        assertEquals("jwt-3", manager.getCurrentState().activeUserJwt)
     }
 
     @Test

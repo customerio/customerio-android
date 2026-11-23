@@ -25,6 +25,7 @@ import io.customer.messaginginapp.type.UserJwtRejectionReason
 import io.customer.sdk.communication.Event
 import io.customer.sdk.communication.subscribe
 import io.customer.sdk.core.di.SDKComponent
+import io.customer.sdk.core.di.clock
 import io.customer.sdk.core.identity.UserJwtStore
 import io.customer.sdk.core.identity.userJwtStore
 import io.customer.sdk.core.module.CustomerIOModule
@@ -74,7 +75,8 @@ class ModuleMessagingInApp(
     /**
      * Hands over the JWT your backend signed for [userId], for workspaces that require signed
      * in-app requests. The SDK sends it with every in-app and inbox request while [userId] is the
-     * identified user, and fetches messages straight away when it changes. Call it after `identify`
+     * identified user, and fetches messages straight away when it changes; after a rejection, at most
+     * once per polling interval, and otherwise at the next poll. Call it after `identify`
      * and whenever you get a fresh token, including on each app start: the JWT is kept in memory
      * only. Logging out drops a JWT handed over for the user being logged out.
      *
@@ -91,13 +93,24 @@ class ModuleMessagingInApp(
         SDKComponent.userJwtStore.set(null)
     }
 
+    @Volatile
+    private var lastFetchAfterRejectionMillis: Long? = null
+
     private fun updateUserJwt(userJwt: UserJwt?) {
         val inAppMessagingManager = SDKComponent.inAppMessagingManager
-        val previousActiveJwt = inAppMessagingManager.getCurrentState().activeUserJwt
+        val before = inAppMessagingManager.getCurrentState()
         inAppMessagingManager.dispatch(InAppMessagingAction.SetUserJwt(userJwt))
-        if (inAppMessagingManager.getCurrentState().activeUserJwt != previousActiveJwt) {
-            gistProvider.fetchInAppMessages()
+        val after = inAppMessagingManager.getCurrentState()
+        if (after.activeUserJwt == before.activeUserJwt) return
+        // An app that answers every rejection with a new token, wrong again, would otherwise poll Gist
+        // as fast as it can mint them. The next poll still uses the new token.
+        if (before.isPausedByUserJwtRejection) {
+            val now = SDKComponent.clock.currentTimeMillis()
+            val last = lastFetchAfterRejectionMillis
+            if (last != null && now - last < after.pollInterval) return
+            lastFetchAfterRejectionMillis = now
         }
+        gistProvider.fetchInAppMessages()
     }
 
     /**

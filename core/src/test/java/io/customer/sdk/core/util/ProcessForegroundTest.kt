@@ -14,8 +14,13 @@ class ProcessForegroundTest : JUnit5Test() {
         every { it.currentState } returns state
     }
 
-    private fun isForeground(state: Lifecycle.State, importance: Int? = null): Boolean = isProcessInForeground(
+    private fun isForeground(
+        state: Lifecycle.State,
+        importance: Int? = null,
+        countVisibleAsForeground: Boolean = false
+    ): Boolean = isProcessInForeground(
         processLifecycle = lifecycleIn(state),
+        countVisibleAsForeground = countVisibleAsForeground,
         importanceProvider = {
             checkNotNull(importance) { "importance must not be read when the process lifecycle is running" }
         }
@@ -41,9 +46,20 @@ class ProcessForegroundTest : JUnit5Test() {
     }
 
     @Test
-    fun isProcessInForeground_givenNeverAttachedAndVisibleImportance_expectFalse() {
+    fun isProcessInForeground_givenNeverAttachedAndVisibleImportanceNotCounted_expectFalse() {
         // The OS reports VISIBLE for a process that only has an overlay window, with no activity.
-        isForeground(Lifecycle.State.INITIALIZED, RunningAppProcessInfo.IMPORTANCE_VISIBLE) shouldBeEqualTo false
+        isForeground(Lifecycle.State.INITIALIZED, RunningAppProcessInfo.IMPORTANCE_VISIBLE, countVisibleAsForeground = false) shouldBeEqualTo false
+    }
+
+    @Test
+    fun isProcessInForeground_givenNeverAttachedAndVisibleImportanceCounted_expectTrue() {
+        isForeground(Lifecycle.State.INITIALIZED, RunningAppProcessInfo.IMPORTANCE_VISIBLE, countVisibleAsForeground = true) shouldBeEqualTo true
+    }
+
+    @Test
+    fun isProcessInForeground_givenRunningLifecycleAndVisibleCounted_expectLifecycleDecides() {
+        isForeground(Lifecycle.State.CREATED, countVisibleAsForeground = true) shouldBeEqualTo false
+        isForeground(Lifecycle.State.STARTED, countVisibleAsForeground = true) shouldBeEqualTo true
     }
 
     @Test

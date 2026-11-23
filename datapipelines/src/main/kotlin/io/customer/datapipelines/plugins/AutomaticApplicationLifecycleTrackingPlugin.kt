@@ -39,7 +39,8 @@ internal class AutomaticApplicationLifecycleTrackingPlugin @VisibleForTesting co
     constructor(application: Application) : this(
         application = application,
         appVersionProvider = { application.getAppVersion() },
-        isAppInForeground = { isProcessInForeground(ProcessLifecycleOwner.get().lifecycle) }
+        // A visible process counts as started here, so the first open is tracked
+        isAppInForeground = { isProcessInForeground(ProcessLifecycleOwner.get().lifecycle, countVisibleAsForeground = true) }
     )
 
     override val type: Plugin.Type = Plugin.Type.Utility

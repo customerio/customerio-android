@@ -134,7 +134,8 @@ private fun handleModalMessageDisplay(logger: Logger, store: Store<InAppMessagin
     // the OS may block it, which would leave the modal state stuck in Loading, or allow it and show a
     // modal over another app. The action is not forwarded, so the state stays unchanged and the message
     // stays queued until the next queue pass after the app returns to the foreground.
-    if (!isProcessInForeground(SDKComponent.processLifecycleOwner.lifecycle)) {
+    // An overlay-only process reports IMPORTANCE_VISIBLE without an activity, so visible does not pass here.
+    if (!isProcessInForeground(SDKComponent.processLifecycleOwner.lifecycle, countVisibleAsForeground = false)) {
         logger.debug("Not showing message: ${action.message.queueId}, app has no started UI. It stays queued until the app is in the foreground")
         return
     }

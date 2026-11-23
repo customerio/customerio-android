@@ -191,7 +191,11 @@ internal object DataPipelinesLogTail {
             // Marks "not set by the enrichment" on the probe event
             private const val UNSET = "\u0000unset"
 
-            /** Every enrichment the SDK hands off is a plain field setter, so applying one to a probe has no side effects. */
+            /**
+             * Every enrichment the SDK hands off is a plain field setter, so applying one to a probe has no side effects.
+             * Keep it so: an enrichment that logs or writes would run for the probe as well as for the real event
+             * (`TrackingMigrationForwardLogTest` covers the migration one).
+             */
             fun of(enrichment: EnrichmentClosure?): Pinned {
                 val event: BaseEvent? = enrichment?.let { closure ->
                     runCatching {

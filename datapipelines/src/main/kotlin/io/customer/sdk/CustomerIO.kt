@@ -664,6 +664,9 @@ class CustomerIO private constructor(
          */
         @JvmStatic
         fun initialize(config: CustomerIOConfig) {
+            // Update the log level for the SDK. Before the first line is logged: a published SDK starts at
+            // the default level, which would drop the `api.initialize` line below
+            SDKComponent.logger.logLevel = config.logLevel
             // Whether the hand-off log is on, fixed once for this SDK at the level it is initialized with
             DataPipelinesLogTail.resolve(config.logLevel)
             // Logged as an input, so a replay can tell calls made before init from calls made after
@@ -676,9 +679,6 @@ class CustomerIO private constructor(
 
             val modules = SDKComponent.modules
             val logger = SDKComponent.dataPipelinesLogger
-
-            // Update the log level for the SDK
-            SDKComponent.logger.logLevel = config.logLevel
 
             // Secret keys must not ship in apps, so log and set up a disabled SDK instead of crashing the app
             if (CioApiKey.isSecretKey(config.cdpApiKey)) {

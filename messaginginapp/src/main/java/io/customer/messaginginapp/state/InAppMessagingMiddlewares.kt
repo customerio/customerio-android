@@ -6,6 +6,7 @@ import io.customer.messaginginapp.di.anonymousMessageManager
 import io.customer.messaginginapp.di.gistQueue
 import io.customer.messaginginapp.di.inAppSseLogger
 import io.customer.messaginginapp.di.pollingLifecycleManager
+import io.customer.messaginginapp.di.processLifecycleOwner
 import io.customer.messaginginapp.gist.data.model.InboxMessage
 import io.customer.messaginginapp.gist.data.model.Message
 import io.customer.messaginginapp.gist.data.model.isMessageAnonymous
@@ -17,6 +18,7 @@ import io.customer.messaginginapp.gist.utilities.ModalMessageParser
 import io.customer.sdk.communication.Event
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.util.Logger
+import io.customer.sdk.core.util.isProcessInForeground
 import io.customer.sdk.events.Metric
 import org.reduxkotlin.Store
 import org.reduxkotlin.middleware
@@ -127,6 +129,16 @@ internal fun displayModalMessageMiddleware() = middleware { store, next, action 
 }
 
 private fun handleModalMessageDisplay(logger: Logger, store: Store<InAppMessagingState>, action: InAppMessagingAction.LoadMessage, next: (Any) -> Any) {
+    // A modal needs a visible app. A process that was started without UI (for example by a push, a
+    // worker, or an accessibility or keyboard service) must not launch an activity from the background:
+    // the OS may block it, which would leave the modal state stuck in Loading, or allow it and show a
+    // modal over another app. The action is not forwarded, so the state stays unchanged and the message
+    // stays queued until the next queue pass after the app returns to the foreground.
+    // An overlay-only process reports IMPORTANCE_VISIBLE without an activity, so visible does not pass here.
+    if (!isProcessInForeground(SDKComponent.processLifecycleOwner.lifecycle, countVisibleAsForeground = false)) {
+        logger.debug("Not showing message: ${action.message.queueId}, app has no started UI. It stays queued until the app is in the foreground")
+        return
+    }
     if (store.state.modalMessageState !is ModalMessageState.Displayed) {
         val context = SDKComponent.android().applicationContext
         logger.debug("Showing message: ${action.message} with position: ${action.position} and context: $context")

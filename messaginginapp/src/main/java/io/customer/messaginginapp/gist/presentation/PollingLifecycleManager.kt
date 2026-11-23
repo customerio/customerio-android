@@ -28,6 +28,8 @@ internal class PollingLifecycleManager(
     private val logger: Logger,
     private val mainThreadPoster: MainThreadPoster = HandlerMainThreadPoster()
 ) {
+    private val processLifecycle = processLifecycleOwner.lifecycle
+
     private val isForegrounded = AtomicBoolean(false)
 
     // Set by the first real background transition. Until then a foreground belongs to launch, so its
@@ -76,9 +78,20 @@ internal class PollingLifecycleManager(
 
     /**
      * Triggers an immediate message fetch and (re)starts polling unless SSE is active.
-     * Called by external events such as user identification and message dismissal.
+     * Called by external events such as user identification and message dismissal. Does nothing while the
+     * app is in the background.
      */
     fun fetchInAppMessages() {
+        // A process without a started UI has nobody to show a message to, and a poll timer started here
+        // would keep fetching and launching modals from the background. The foreground handler starts
+        // polling with an immediate catch-up fetch when the app comes to the foreground.
+        // An INITIALIZED process lifecycle never attached to this process (secondary process, or the
+        // androidx.startup initializer was removed), so no foreground event will ever come. Fetching
+        // continues there as before, and the modal gate decides whether a message can be shown.
+        if (!isForegrounded.get() && processLifecycle.currentState != Lifecycle.State.INITIALIZED) {
+            logger.debug("[Polling] Skipping fetch - app is not in the foreground, the foreground catch-up fetch will run when it returns")
+            return
+        }
         startPolling(duration = state.pollInterval)
     }
 

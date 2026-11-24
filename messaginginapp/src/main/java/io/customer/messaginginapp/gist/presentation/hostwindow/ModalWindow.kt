@@ -1,0 +1,63 @@
+package io.customer.messaginginapp.gist.presentation.hostwindow
+
+import android.app.Activity
+import io.customer.messaginginapp.gist.data.model.Message
+import io.customer.messaginginapp.gist.data.model.MessagePosition
+
+/**
+ * A modal message rendered inside a host activity's window. All members are called on the main thread.
+ */
+internal interface ModalWindow {
+    /** The host activity this window is attached to. */
+    val host: Activity
+
+    /** True once the window was removed, by [release], by dismissal or by the system. A released window is never shown again. */
+    val isReleased: Boolean
+
+    /** Attaches the window and starts loading the message. The window stays invisible and untouchable until [onMessageDisplayed]. */
+    fun show()
+
+    /** The SDK reports the message as displayed. [animate] is false when the message is carried over from another host. */
+    fun onMessageDisplayed(animate: Boolean)
+
+    /** Animates the window out, removes it and then calls [onDismissed]. */
+    fun dismiss(onDismissed: () -> Unit)
+
+    /** Removes the window immediately without animation. Safe to call more than once. */
+    fun release()
+}
+
+internal interface ModalWindowListener {
+    /** The user cancelled the modal, for example with the back button. */
+    fun onCancelled()
+}
+
+internal fun interface ModalWindowFactory {
+    /**
+     * @param shouldDispatchDisplayEvent false when the message was already reported as displayed, so
+     * moving it to another host does not log a second view.
+     */
+    fun create(
+        host: Activity,
+        message: Message,
+        position: MessagePosition,
+        shouldDispatchDisplayEvent: Boolean,
+        listener: ModalWindowListener
+    ): ModalWindow
+}
+
+/** The slice of the modal state the presenter reacts to. */
+internal sealed class ModalPresentationState {
+    object Idle : ModalPresentationState()
+    data class Loading(val message: Message) : ModalPresentationState()
+    data class Displayed(val message: Message) : ModalPresentationState()
+}
+
+internal fun interface ModalStateSource {
+    /** Subscribes to modal state changes. The current state is delivered first. Returns a function that cancels the subscription. */
+    fun subscribe(listener: (ModalPresentationState) -> Unit): () -> Unit
+}
+
+internal fun interface ModalDismisser {
+    fun dismiss(message: Message)
+}

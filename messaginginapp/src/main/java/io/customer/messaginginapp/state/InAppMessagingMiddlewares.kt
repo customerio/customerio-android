@@ -150,8 +150,9 @@ private fun handleModalMessageDisplay(logger: Logger, store: Store<InAppMessagin
         // Hosts that choose HOST_WINDOW get the modal in their own window. The default keeps the activity.
         if (SDKComponent.inAppModuleConfig.modalPresentation == ModalPresentation.HOST_WINDOW) {
             logger.debug("Showing message in the host window: ${action.message.queueId}")
-            SDKComponent.hostWindowModalPresenter.present(action.message, action.position ?: action.message.gistProperties.position)
+            // Reduce first: the presenter only shows a message the store reports as loading.
             next(action)
+            SDKComponent.hostWindowModalPresenter.present(action.message, action.position ?: action.message.gistProperties.position)
             return
         }
 

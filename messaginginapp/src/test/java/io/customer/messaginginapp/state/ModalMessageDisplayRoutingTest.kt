@@ -17,6 +17,7 @@ import io.customer.sdk.core.util.Logger
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
+import io.mockk.verifyOrder
 import org.amshove.kluent.shouldBeEqualTo
 import org.amshove.kluent.shouldBeNull
 import org.amshove.kluent.shouldNotBeNull
@@ -86,6 +87,11 @@ class ModalMessageDisplayRoutingTest : IntegrationTest() {
         verify(exactly = 1) { presenter.present(message, MessagePosition.BOTTOM) }
         shadowOf(application).nextStartedActivity.shouldBeNull()
         verify(exactly = 1) { nextFn(action) }
+        // The store must report Loading before the presenter checks it.
+        verifyOrder {
+            nextFn(action)
+            presenter.present(message, MessagePosition.BOTTOM)
+        }
     }
 
     @Test

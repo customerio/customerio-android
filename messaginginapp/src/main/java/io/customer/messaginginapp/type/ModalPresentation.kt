@@ -17,8 +17,10 @@ enum class ModalPresentation {
 
     /**
      * Shows each modal in a full-screen transparent dialog attached to the host's resumed activity, so
-     * the modal never needs a task of its own. A modal that is showing carries over to the next
-     * resumed host activity. When no host activity is resumed, the modal waits until one is.
+     * the modal never needs a task of its own. As with [ACTIVITY], the modal stays with the activity it
+     * opened over: another activity opened on top covers it until the user returns. When that activity
+     * is recreated (rotation, dark mode) or finishes, the modal moves to the next resumed activity
+     * without being counted again. When no host activity is resumed, the modal waits until one is.
      */
     HOST_WINDOW
 }

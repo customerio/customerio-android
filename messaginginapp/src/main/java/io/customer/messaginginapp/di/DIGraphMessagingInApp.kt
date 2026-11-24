@@ -19,6 +19,11 @@ import io.customer.messaginginapp.gist.presentation.GistProvider
 import io.customer.messaginginapp.gist.presentation.GistSdk
 import io.customer.messaginginapp.gist.presentation.PollingLifecycleManager
 import io.customer.messaginginapp.gist.presentation.SseLifecycleManager
+import io.customer.messaginginapp.gist.presentation.hostwindow.DialogModalWindowFactory
+import io.customer.messaginginapp.gist.presentation.hostwindow.HostActivityTracker
+import io.customer.messaginginapp.gist.presentation.hostwindow.HostWindowModalPresenter
+import io.customer.messaginginapp.gist.presentation.hostwindow.InAppMessagingManagerModalDismisser
+import io.customer.messaginginapp.gist.presentation.hostwindow.InAppMessagingManagerModalStateSource
 import io.customer.messaginginapp.gist.utilities.ModalMessageGsonParser
 import io.customer.messaginginapp.gist.utilities.ModalMessageParser
 import io.customer.messaginginapp.gist.utilities.ModalMessageParserDefault
@@ -30,6 +35,7 @@ import io.customer.messaginginapp.store.InAppPreferenceStore
 import io.customer.messaginginapp.store.InAppPreferenceStoreImpl
 import io.customer.sdk.CustomerIOInstance
 import io.customer.sdk.core.di.SDKComponent
+import io.customer.sdk.core.util.HandlerMainThreadPoster
 import java.util.concurrent.ConcurrentHashMap
 
 internal val SDKComponent.gistQueue: GistQueue
@@ -78,6 +84,23 @@ internal val SDKComponent.modalMessageParser: ModalMessageParser
             logger = logger,
             dispatchersProvider = dispatchersProvider,
             parser = ModalMessageGsonParser(gson = Gson())
+        )
+    }
+
+internal val SDKComponent.hostActivityTracker: HostActivityTracker
+    get() = singleton<HostActivityTracker> {
+        HostActivityTracker().also { it.register(android().application) }
+    }
+
+internal val SDKComponent.hostWindowModalPresenter: HostWindowModalPresenter
+    get() = singleton<HostWindowModalPresenter> {
+        HostWindowModalPresenter(
+            tracker = hostActivityTracker,
+            windowFactory = DialogModalWindowFactory(logger),
+            stateSource = InAppMessagingManagerModalStateSource(inAppMessagingManager),
+            dismisser = InAppMessagingManagerModalDismisser(inAppMessagingManager),
+            mainThreadPoster = lazy { HandlerMainThreadPoster() },
+            logger = logger
         )
     }
 

@@ -181,7 +181,7 @@ class ModalDisplayBackgroundTest : IntegrationTest() {
      */
     @Test
     fun loadMessage_givenHeldBackByGate_expectOneQueuePassWhenAnActivityResumes() {
-        // The lifecycle subscription runs inline, so the pass is dispatched when the activity resumes
+        // The resume hook runs inline, so the pass is dispatched when the activity resumes
         SDKComponent.overrideDependency<ScopeProvider>(ScopeProviderStub.Unconfined())
         // The test setup already created the callbacks with the real scope, so use one built on the stub
         SDKComponent.overrideDependency<CustomerIOActivityLifecycleCallbacks>(CustomerIOActivityLifecycleCallbacks())
@@ -211,7 +211,7 @@ class ModalDisplayBackgroundTest : IntegrationTest() {
     /** Nothing is held back while the modal launches, so no pass waits for a resume. */
     @Test
     fun loadMessage_givenLaunched_expectNoQueuePassOnResume() {
-        // The lifecycle subscription runs inline, so the pass is dispatched when the activity resumes
+        // The resume hook runs inline, so the pass is dispatched when the activity resumes
         SDKComponent.overrideDependency<ScopeProvider>(ScopeProviderStub.Unconfined())
         // The test setup already created the callbacks with the real scope, so use one built on the stub
         SDKComponent.overrideDependency<CustomerIOActivityLifecycleCallbacks>(CustomerIOActivityLifecycleCallbacks())

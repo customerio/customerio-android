@@ -1,7 +1,6 @@
 package io.customer.messaginginapp.state
 
 import android.content.Intent
-import androidx.lifecycle.Lifecycle
 import com.google.gson.Gson
 import io.customer.messaginginapp.di.anonymousMessageManager
 import io.customer.messaginginapp.di.gistQueue
@@ -23,7 +22,6 @@ import io.customer.sdk.core.util.Logger
 import io.customer.sdk.core.util.isProcessInForeground
 import io.customer.sdk.events.Metric
 import java.util.concurrent.atomic.AtomicBoolean
-import kotlinx.coroutines.flow.first
 import org.reduxkotlin.Store
 import org.reduxkotlin.middleware
 
@@ -173,19 +171,14 @@ internal class PendingQueuePassOnResume {
  * come. Pass the queue through the middleware once more as soon as an activity resumes, which is when the
  * gate lets a modal through. One pass is pending at a time, however many messages were held back.
  *
- * A resume event only counts while the SDK still sees a resumed activity, because the event flow replays
- * its last event to a new subscriber and a stale one must not trigger a pass that the gate holds back again.
+ * It waits on the resume hook, not on the lifecycle event flow, which drops an event when a collector is
+ * still busy with the previous one.
  */
 private fun processQueueOnNextResume(store: Store<InAppMessagingState>) {
     val pendingPass = SDKComponent.pendingQueuePassOnResume.pending
     if (!pendingPass.compareAndSet(false, true)) return
-    val activityCallbacks = SDKComponent.activityLifecycleCallbacks
-    activityCallbacks.subscribe { events ->
-        try {
-            events.first { it.event == Lifecycle.Event.ON_RESUME && activityCallbacks.hasResumedActivity() != false }
-        } finally {
-            pendingPass.set(false)
-        }
+    SDKComponent.activityLifecycleCallbacks.runOnNextResume {
+        pendingPass.set(false)
         SDKComponent.logger.debug("An activity resumed, processing the messages that were held back")
         store.dispatch(
             InAppMessagingAction.ProcessMessageQueue(

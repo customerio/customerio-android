@@ -47,6 +47,33 @@ class CustomerIOActivityLifecycleCallbacks : Application.ActivityLifecycleCallba
     fun hasResumedActivity(): Boolean? =
         if (hasSeenResumeOrPause.get()) resumedActivities.get() > 0 else null
 
+    /** One-shot listeners waiting for the next resume, see [runOnNextResume]. Guarded by itself. */
+    private val resumeListeners = mutableListOf<suspend CoroutineScope.() -> Unit>()
+
+    /**
+     * Runs [block] once, the next time an activity resumes, or right away when one is already resumed.
+     *
+     * Unlike a [subscribe]r, it never misses the resume: the subscriber flow is non-suspending and drops an
+     * event while a collector is still processing the previous one, which a start followed by a resume,
+     * called back to back on the main thread, makes likely. This hook is called synchronously from the
+     * resume callback and then runs [block] on the subscriber scope.
+     */
+    @InternalCustomerIOApi
+    fun runOnNextResume(block: suspend CoroutineScope.() -> Unit) {
+        synchronized(resumeListeners) { resumeListeners.add(block) }
+        // The activity may have resumed between the caller's check and this registration
+        if (hasResumedActivity() == true) {
+            runResumeListeners()
+        }
+    }
+
+    private fun runResumeListeners() {
+        val ready = synchronized(resumeListeners) {
+            resumeListeners.toList().also { resumeListeners.clear() }
+        }
+        ready.forEach { listener -> subscriberScope.launch { listener() } }
+    }
+
     /**
      * Register the lifecycle callbacks to start receiving events.
      */
@@ -60,6 +87,7 @@ class CustomerIOActivityLifecycleCallbacks : Application.ActivityLifecycleCallba
     fun unregister(application: Application) {
         application.unregisterActivityLifecycleCallbacks(this)
         subscriberScope.cancel()
+        synchronized(resumeListeners) { resumeListeners.clear() }
         resumedActivities.set(0)
         hasSeenResumeOrPause.set(false)
     }
@@ -96,6 +124,7 @@ class CustomerIOActivityLifecycleCallbacks : Application.ActivityLifecycleCallba
         resumedActivities.incrementAndGet()
         hasSeenResumeOrPause.set(true)
         sendEventToCallbacks(activity, Lifecycle.Event.ON_RESUME)
+        runResumeListeners()
     }
 
     override fun onActivityPaused(activity: Activity) {

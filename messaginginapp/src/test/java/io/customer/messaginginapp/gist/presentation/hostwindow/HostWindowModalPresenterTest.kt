@@ -535,4 +535,16 @@ class HostWindowModalPresenterTest {
 
         factory.created.size shouldBeEqualTo 0
     }
+
+    @Test
+    fun seed_givenMessageWaitingWithoutHost_expectWindowAttachedToSeededHost() {
+        load(message, MessagePosition.TOP)
+        factory.created.size shouldBeEqualTo 0
+        val host = newHost()
+
+        tracker.seed(host)
+
+        factory.created.size shouldBeEqualTo 1
+        factory.created.single().window.host shouldBe host
+    }
 }

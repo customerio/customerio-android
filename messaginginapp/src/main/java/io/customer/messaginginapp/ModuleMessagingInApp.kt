@@ -1,8 +1,10 @@
 package io.customer.messaginginapp
 
+import android.app.Activity
 import io.customer.base.internal.InternalCustomerIOApi
 import io.customer.messaginginapp.di.gistCustomAttributes
 import io.customer.messaginginapp.di.gistProvider
+import io.customer.messaginginapp.di.hostActivityTracker
 import io.customer.messaginginapp.di.hostWindowModalPresenter
 import io.customer.messaginginapp.di.inAppMessagingManager
 import io.customer.messaginginapp.di.notificationInbox
@@ -88,6 +90,18 @@ class ModuleMessagingInApp(
 
     fun dismissMessage() {
         gistProvider.dismissMessage()
+    }
+
+    /**
+     * Tells the SDK which activity is currently resumed. Internal API for the React Native and Flutter
+     * wrappers, which initialize the SDK after their first activity has resumed. Without it a modal that
+     * arrives before the next resume waits when [ModalPresentation.HOST_WINDOW] is chosen. Does nothing
+     * for the default [ModalPresentation.ACTIVITY], and when the SDK already knows the resumed activity.
+     */
+    @InternalCustomerIOApi
+    fun seedHostActivity(activity: Activity) {
+        if (moduleConfig.modalPresentation != ModalPresentation.HOST_WINDOW) return
+        activity.runOnUiThread { SDKComponent.hostActivityTracker.seed(activity) }
     }
 
     /**

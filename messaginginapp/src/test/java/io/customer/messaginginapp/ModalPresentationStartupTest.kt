@@ -1,5 +1,6 @@
 package io.customer.messaginginapp
 
+import android.app.Activity
 import io.customer.commontest.config.TestConfig
 import io.customer.commontest.config.testConfigurationDefault
 import io.customer.commontest.extensions.attachToSDKComponent
@@ -11,6 +12,7 @@ import io.mockk.mockk
 import io.mockk.verify
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
@@ -52,5 +54,25 @@ class ModalPresentationStartupTest : IntegrationTest() {
         module(ModalPresentation.HOST_WINDOW).initialize()
 
         verify(exactly = 1) { tracker.listener = any() }
+    }
+
+    @Test
+    fun seedHostActivity_givenHostWindowPresentation_expectTrackerSeeded() {
+        val module = module(ModalPresentation.HOST_WINDOW)
+        val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
+
+        module.seedHostActivity(activity)
+
+        verify(exactly = 1) { tracker.seed(activity) }
+    }
+
+    @Test
+    fun seedHostActivity_givenActivityPresentation_expectTrackerUntouched() {
+        val module = module(ModalPresentation.ACTIVITY)
+        val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
+
+        module.seedHostActivity(activity)
+
+        verify(exactly = 0) { tracker.seed(any()) }
     }
 }

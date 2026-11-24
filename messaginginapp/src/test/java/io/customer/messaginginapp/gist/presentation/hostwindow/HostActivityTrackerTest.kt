@@ -1,6 +1,7 @@
 package io.customer.messaginginapp.gist.presentation.hostwindow
 
 import android.app.Activity
+import androidx.activity.ComponentActivity
 import org.amshove.kluent.shouldBe
 import org.amshove.kluent.shouldBeEqualTo
 import org.amshove.kluent.shouldBeNull
@@ -139,6 +140,60 @@ class HostActivityTrackerTest {
         tracker.onActivityPaused(Robolectric.buildActivity(ModalStandIn::class.java).setup().get())
 
         pausedCalls shouldBeEqualTo emptyList()
+        tracker.resumedActivity shouldBe activity
+    }
+
+    @Test
+    fun seed_givenResumedActivityAndNothingTracked_expectTrackedAndListenerNotified() {
+        val activity = host()
+
+        tracker.seed(activity)
+
+        tracker.resumedActivity shouldBe activity
+        resumedCalls shouldBeEqualTo listOf(activity)
+    }
+
+    @Test
+    fun seed_givenHostAlreadyTracked_expectIgnored() {
+        val current = host().also { tracker.onActivityResumed(it) }
+
+        tracker.seed(host())
+
+        tracker.resumedActivity shouldBe current
+        resumedCalls shouldBeEqualTo listOf(current)
+    }
+
+    @Test
+    fun seed_givenModalActivity_expectIgnored() {
+        tracker.seed(Robolectric.buildActivity(ModalStandIn::class.java).setup().get())
+
+        tracker.resumedActivity.shouldBeNull()
+        resumedCalls shouldBeEqualTo emptyList()
+    }
+
+    @Test
+    fun seed_givenFinishingOrDestroyedActivity_expectIgnored() {
+        tracker.seed(host(finishing = true))
+        tracker.seed(host(destroyed = true))
+
+        tracker.resumedActivity.shouldBeNull()
+        resumedCalls shouldBeEqualTo emptyList()
+    }
+
+    @Test
+    fun seed_givenLifecycleOwnerThatIsNotResumed_expectIgnored() {
+        tracker.seed(Robolectric.buildActivity(ComponentActivity::class.java).create().get())
+
+        tracker.resumedActivity.shouldBeNull()
+        resumedCalls shouldBeEqualTo emptyList()
+    }
+
+    @Test
+    fun seed_givenResumedLifecycleOwner_expectTracked() {
+        val activity = Robolectric.buildActivity(ComponentActivity::class.java).setup().get()
+
+        tracker.seed(activity)
+
         tracker.resumedActivity shouldBe activity
     }
 }

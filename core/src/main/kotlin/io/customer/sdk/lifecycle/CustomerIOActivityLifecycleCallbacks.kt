@@ -4,8 +4,11 @@ import android.app.Activity
 import android.app.Application
 import android.os.Bundle
 import androidx.lifecycle.Lifecycle
+import io.customer.base.internal.InternalCustomerIOApi
 import io.customer.sdk.core.di.SDKComponent
 import java.lang.ref.WeakReference
+import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -27,6 +30,24 @@ class CustomerIOActivityLifecycleCallbacks : Application.ActivityLifecycleCallba
     private val subscriberScope = SDKComponent.scopeProvider.lifecycleListenerScope
 
     /**
+     * Number of resumed activities and whether a resume or pause has been seen since registration.
+     * Updated synchronously on the main thread and readable from any thread, unlike the process
+     * lifecycle, which reports that the app left the foreground about 700 ms after the last pause.
+     */
+    private val resumedActivities = AtomicInteger(0)
+    private val hasSeenResumeOrPause = AtomicBoolean(false)
+
+    /**
+     * Whether an activity of this app is resumed right now: true while one is in the foreground, false
+     * from the moment the last one pauses. Returns null until the first resume or pause is seen, for
+     * example when the SDK was initialized after the first activity had already resumed. The caller
+     * then has no answer and should fall back to another signal.
+     */
+    @InternalCustomerIOApi
+    fun hasResumedActivity(): Boolean? =
+        if (hasSeenResumeOrPause.get()) resumedActivities.get() > 0 else null
+
+    /**
      * Register the lifecycle callbacks to start receiving events.
      */
     fun register(application: Application) {
@@ -39,6 +60,8 @@ class CustomerIOActivityLifecycleCallbacks : Application.ActivityLifecycleCallba
     fun unregister(application: Application) {
         application.unregisterActivityLifecycleCallbacks(this)
         subscriberScope.cancel()
+        resumedActivities.set(0)
+        hasSeenResumeOrPause.set(false)
     }
 
     /**
@@ -70,10 +93,15 @@ class CustomerIOActivityLifecycleCallbacks : Application.ActivityLifecycleCallba
     }
 
     override fun onActivityResumed(activity: Activity) {
+        resumedActivities.incrementAndGet()
+        hasSeenResumeOrPause.set(true)
         sendEventToCallbacks(activity, Lifecycle.Event.ON_RESUME)
     }
 
     override fun onActivityPaused(activity: Activity) {
+        // Never below zero: the first pause seen can belong to an activity that resumed before registration
+        resumedActivities.updateAndGet { count -> (count - 1).coerceAtLeast(0) }
+        hasSeenResumeOrPause.set(true)
         sendEventToCallbacks(activity, Lifecycle.Event.ON_PAUSE)
     }
 

@@ -21,6 +21,7 @@ internal class HostActivityTracker(
 
     interface Listener {
         fun onHostResumed(activity: Activity)
+        fun onHostPaused(activity: Activity)
         fun onHostDestroyed(activity: Activity)
     }
 
@@ -46,7 +47,9 @@ internal class HostActivityTracker(
     }
 
     override fun onActivityPaused(activity: Activity) {
+        if (isModalActivity(activity)) return
         if (resumed?.get() === activity) resumed = null
+        listener?.onHostPaused(activity)
     }
 
     override fun onActivityDestroyed(activity: Activity) {

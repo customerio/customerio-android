@@ -9,17 +9,20 @@ import io.customer.messaginginapp.state.ModalMessageState
 internal class InAppMessagingManagerModalStateSource(
     private val manager: InAppMessagingManager
 ) : ModalStateSource {
+    override val currentState: ModalPresentationState
+        get() = manager.getCurrentState().modalMessageState.toPresentationState()
+
     override fun subscribe(listener: (ModalPresentationState) -> Unit): () -> Unit {
         val job = manager.subscribeToAttribute(selector = { it.modalMessageState }) { state ->
-            listener(
-                when (state) {
-                    is ModalMessageState.Loading -> ModalPresentationState.Loading(state.message)
-                    is ModalMessageState.Displayed -> ModalPresentationState.Displayed(state.message)
-                    else -> ModalPresentationState.Idle
-                }
-            )
+            listener(state.toPresentationState())
         }
         return { job.cancel() }
+    }
+
+    private fun ModalMessageState.toPresentationState(): ModalPresentationState = when (this) {
+        is ModalMessageState.Loading -> ModalPresentationState.Loading(message)
+        is ModalMessageState.Displayed -> ModalPresentationState.Displayed(message)
+        else -> ModalPresentationState.Idle
     }
 }
 

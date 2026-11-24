@@ -15,10 +15,15 @@ import org.robolectric.annotation.Config
 class HostActivityTrackerTest {
     private val resumedCalls = mutableListOf<Activity>()
     private val destroyedCalls = mutableListOf<Activity>()
+    private val pausedCalls = mutableListOf<Activity>()
     private val tracker = HostActivityTracker(isModalActivity = { it is ModalStandIn }).also {
         it.listener = object : HostActivityTracker.Listener {
             override fun onHostResumed(activity: Activity) {
                 resumedCalls += activity
+            }
+
+            override fun onHostPaused(activity: Activity) {
+                pausedCalls += activity
             }
 
             override fun onHostDestroyed(activity: Activity) {
@@ -116,5 +121,24 @@ class HostActivityTrackerTest {
 
         tracker.resumedActivity shouldBe second
         resumedCalls shouldBeEqualTo listOf(first, second)
+    }
+
+    @Test
+    fun onActivityPaused_givenHost_expectListenerNotified() {
+        val activity = host().also { tracker.onActivityResumed(it) }
+
+        tracker.onActivityPaused(activity)
+
+        pausedCalls shouldBeEqualTo listOf(activity)
+    }
+
+    @Test
+    fun onActivityPaused_givenModalActivity_expectIgnoredAndHostStillTracked() {
+        val activity = host().also { tracker.onActivityResumed(it) }
+
+        tracker.onActivityPaused(Robolectric.buildActivity(ModalStandIn::class.java).setup().get())
+
+        pausedCalls shouldBeEqualTo emptyList()
+        tracker.resumedActivity shouldBe activity
     }
 }

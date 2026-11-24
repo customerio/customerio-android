@@ -31,6 +31,8 @@ class HostWindowModalPresenterTest {
         var showFailure: Throwable? = null
         var pendingDismissCallback: (() -> Unit)? = null
         var completeDismissImmediately = true
+        var hostPauses = 0
+        var hostResumes = 0
 
         override val isReleased: Boolean get() = released
 
@@ -55,6 +57,14 @@ class HostWindowModalPresenterTest {
 
         override fun release() {
             released = true
+        }
+
+        override fun onHostPaused() {
+            hostPauses++
+        }
+
+        override fun onHostResumed() {
+            hostResumes++
         }
     }
 
@@ -83,12 +93,17 @@ class HostWindowModalPresenterTest {
         }
     }
 
-    /** Mimics the store: the current state is delivered to a new subscriber first. */
+    /**
+     * Mimics the store. [state] is what the store holds right now; [emit] also notifies the subscriber,
+     * which in production happens later, through a background collector.
+     */
     private class FakeStateSource : ModalStateSource {
         var state: ModalPresentationState = ModalPresentationState.Idle
         var listener: ((ModalPresentationState) -> Unit)? = null
         var subscriptions = 0
         var cancellations = 0
+
+        override val currentState: ModalPresentationState get() = state
 
         override fun subscribe(listener: (ModalPresentationState) -> Unit): () -> Unit {
             subscriptions++
@@ -103,6 +118,18 @@ class HostWindowModalPresenterTest {
         fun emit(newState: ModalPresentationState) {
             state = newState
             listener?.invoke(newState)
+        }
+    }
+
+    /** Runs posts in order when [runAll] is called, like the main looper. */
+    private class QueuedPoster : MainThreadPoster {
+        val queue = ArrayDeque<() -> Unit>()
+        override fun post(block: () -> Unit) {
+            queue.addLast(block)
+        }
+
+        fun runAll() {
+            while (queue.isNotEmpty()) queue.removeFirst().invoke()
         }
     }
 
@@ -121,15 +148,17 @@ class HostWindowModalPresenterTest {
 
     @Before
     fun setUp() {
-        presenter = HostWindowModalPresenter(
-            tracker = tracker,
-            windowFactory = factory,
-            stateSource = stateSource,
-            dismisser = { dismissed += it },
-            mainThreadPoster = lazyOf(ImmediatePoster()),
-            logger = mockk<Logger>(relaxed = true)
-        )
+        presenter = newPresenter(ImmediatePoster())
     }
+
+    private fun newPresenter(poster: MainThreadPoster) = HostWindowModalPresenter(
+        tracker = tracker,
+        windowFactory = factory,
+        stateSource = stateSource,
+        dismisser = { dismissed += it },
+        mainThreadPoster = lazyOf(poster),
+        logger = mockk<Logger>(relaxed = true)
+    )
 
     private fun newHost(): Activity = mockk<Activity>(relaxed = true) {
         every { isFinishing } returns false
@@ -138,13 +167,24 @@ class HostWindowModalPresenterTest {
 
     private fun Activity.resume() = tracker.onActivityResumed(this)
     private fun Activity.pause() = tracker.onActivityPaused(this)
-    private fun Activity.destroy() = tracker.onActivityDestroyed(this)
+    private fun Activity.destroy() {
+        every { isDestroyed } returns true
+        tracker.onActivityDestroyed(this)
+    }
+
+    private fun Activity.markFinishing() = every { isFinishing } returns true
+
+    /** What the display middleware does: the store reduces the load, then the presenter is asked. */
+    private fun load(message: Message, position: MessagePosition = MessagePosition.CENTER) {
+        stateSource.emit(ModalPresentationState.Loading(message))
+        presenter.present(message, position)
+    }
 
     @Test
     fun present_givenResumedHost_expectWindowCreatedAndShown() {
         val host = newHost().also { it.resume() }
 
-        presenter.present(message, MessagePosition.BOTTOM)
+        load(message, MessagePosition.BOTTOM)
 
         factory.created.size shouldBeEqualTo 1
         val created = factory.created.single()
@@ -157,7 +197,7 @@ class HostWindowModalPresenterTest {
 
     @Test
     fun present_givenNoResumedHost_expectNoWindowUntilHostResumes() {
-        presenter.present(message, MessagePosition.CENTER)
+        load(message)
         factory.created.size shouldBeEqualTo 0
 
         val host = newHost()
@@ -170,8 +210,8 @@ class HostWindowModalPresenterTest {
 
     @Test
     fun present_givenMessageWaitingForHost_expectNewerMessageReplacesIt() {
-        presenter.present(message, MessagePosition.CENTER)
-        presenter.present(otherMessage, MessagePosition.CENTER)
+        load(message)
+        load(otherMessage)
 
         newHost().resume()
 
@@ -181,9 +221,9 @@ class HostWindowModalPresenterTest {
     }
 
     @Test
-    fun present_givenMessageAlreadyDisplayed_expectIgnored() {
+    fun present_givenMessageStillDisplayedInStore_expectIgnored() {
         newHost().resume()
-        presenter.present(message, MessagePosition.CENTER)
+        load(message)
         stateSource.emit(ModalPresentationState.Displayed(message))
 
         presenter.present(otherMessage, MessagePosition.CENTER)
@@ -195,67 +235,122 @@ class HostWindowModalPresenterTest {
     @Test
     fun displayedState_givenAttachedWindow_expectAnimatedDisplay() {
         newHost().resume()
-        presenter.present(message, MessagePosition.CENTER)
+        load(message)
 
-        stateSource.emit(ModalPresentationState.Loading(message))
         factory.created.single().window.displayedWithAnimation.shouldBeNull()
         stateSource.emit(ModalPresentationState.Displayed(message))
 
         factory.created.single().window.displayedWithAnimation shouldBeEqualTo true
     }
 
+    // Finding: the next queued modal could be dropped. Dismissing A loads B in the same call, and the
+    // presenter hears about it through a later post, so present(B) used to see A as displayed and drop B.
     @Test
-    fun hostChanges_givenDisplayedMessage_expectCarryOverWithoutAnimationOrDisplayEvent() {
-        val first = newHost().also { it.resume() }
-        presenter.present(message, MessagePosition.CENTER)
+    fun nextMessage_givenDismissalReachesPresenterAfterNextLoad_expectPreviousEndedAndNextShown() {
+        val poster = QueuedPoster()
+        presenter = newPresenter(poster)
+        newHost().resume()
+        load(message)
+        poster.runAll()
         stateSource.emit(ModalPresentationState.Displayed(message))
+        poster.runAll()
+        val first = factory.created.single().window
 
-        // Navigation: the first host pauses, the second resumes.
+        // Dismissing A processes the queue synchronously: the store ends at Loading(B), present(B) is
+        // posted first, and the collector's update for A's dismissal is posted after it.
+        stateSource.state = ModalPresentationState.Loading(otherMessage)
+        presenter.present(otherMessage, MessagePosition.CENTER)
+        stateSource.listener?.invoke(ModalPresentationState.Loading(otherMessage))
+        poster.runAll()
+
+        first.dismissRequested.shouldBeTrue()
+        factory.created.size shouldBeEqualTo 2
+        factory.created[1].message shouldBe otherMessage
+        factory.created[1].window.shown.shouldBeTrue()
+        factory.created[1].window.released.shouldBeFalse()
+    }
+
+    // Finding: a pending presentation could survive logout. Reset lands between the load and the post.
+    @Test
+    fun present_givenResetBeforePresentationRuns_expectNothingShown() {
+        val poster = QueuedPoster()
+        presenter = newPresenter(poster)
+        newHost().resume()
+
+        load(message)
+        stateSource.state = ModalPresentationState.Idle // Reset (logout)
+        poster.runAll()
+
+        factory.created.size shouldBeEqualTo 0
+        stateSource.subscriptions shouldBeEqualTo 0
+    }
+
+    @Test
+    fun waitingMessage_givenResetBeforeHostResumes_expectNothingShown() {
+        load(message)
+
+        stateSource.emit(ModalPresentationState.Idle) // Reset (logout)
+        newHost().resume()
+
+        factory.created.size shouldBeEqualTo 0
+        stateSource.cancellations shouldBeEqualTo 1
+    }
+
+    @Test
+    fun waitingMessage_givenResetNotYetDelivered_expectNotAttachedOnResume() {
+        load(message)
+
+        stateSource.state = ModalPresentationState.Idle // reset reduced, update not delivered yet
+        newHost().resume()
+
+        factory.created.size shouldBeEqualTo 0
+    }
+
+    // Case 3 (decided): like GistModalActivity, the modal stays with the activity it opened over.
+    @Test
+    fun otherActivityOpensOnTop_givenDisplayedMessage_expectModalStaysWithFirstHostAndPauses() {
+        val first = newHost().also { it.resume() }
+        load(message)
+        stateSource.emit(ModalPresentationState.Displayed(message))
+        val window = factory.created.single().window
+
         first.pause()
         val second = newHost()
         second.resume()
 
-        factory.created.size shouldBeEqualTo 2
-        factory.created[0].window.released.shouldBeTrue()
-        val carried = factory.created[1]
-        carried.window.host shouldBe second
-        carried.shouldDispatchDisplayEvent.shouldBeFalse()
-        carried.window.displayedWithAnimation shouldBeEqualTo false
+        factory.created.size shouldBeEqualTo 1
+        window.released.shouldBeFalse()
+        window.host shouldBe first
+        window.hostPauses shouldBeEqualTo 1
+        window.hostResumes shouldBeEqualTo 0
+
+        // Back to the first activity: the same window comes back.
+        second.pause()
+        first.resume()
+
+        factory.created.size shouldBeEqualTo 1
+        window.hostResumes shouldBeEqualTo 1
     }
 
     @Test
-    fun hostChanges_givenMessageStillLoading_expectNewWindowDispatchesDisplayEvent() {
+    fun otherActivityOpensOnTop_givenMessageStillLoading_expectNoNewWindow() {
         val first = newHost().also { it.resume() }
-        presenter.present(message, MessagePosition.CENTER)
-        stateSource.emit(ModalPresentationState.Loading(message))
+        load(message)
 
         first.pause()
         newHost().resume()
 
-        factory.created.size shouldBeEqualTo 2
-        factory.created[1].shouldDispatchDisplayEvent.shouldBeTrue()
-        factory.created[1].window.displayedWithAnimation.shouldBeNull()
-    }
-
-    @Test
-    fun resumeOfSameHost_givenAttachedWindow_expectNoNewWindow() {
-        val host = newHost().also { it.resume() }
-        presenter.present(message, MessagePosition.CENTER)
-
-        host.pause()
-        host.resume()
-
         factory.created.size shouldBeEqualTo 1
-        factory.created.single().window.released.shouldBeFalse()
+        factory.created.single().window.host shouldBe first
     }
 
+    // Case 1: the activity is recreated (rotation, dark mode).
     @Test
-    fun hostDestroyed_givenAttachedWindow_expectReleasedAndReattachedOnNextResume() {
+    fun hostDestroyed_givenDisplayedMessage_expectReleasedAndCarriedOverToRecreatedActivity() {
         val first = newHost().also { it.resume() }
-        presenter.present(message, MessagePosition.CENTER)
+        load(message)
         stateSource.emit(ModalPresentationState.Displayed(message))
 
-        // Rotation or dark mode: the activity is destroyed and recreated.
         first.pause()
         first.destroy()
         factory.created.single().window.released.shouldBeTrue()
@@ -264,14 +359,81 @@ class HostWindowModalPresenterTest {
         recreated.resume()
 
         factory.created.size shouldBeEqualTo 2
-        factory.created[1].window.host shouldBe recreated
+        val carried = factory.created[1]
+        carried.window.host shouldBe recreated
+        carried.shouldDispatchDisplayEvent.shouldBeFalse()
+        carried.window.displayedWithAnimation shouldBeEqualTo false
+    }
+
+    // Case 2: the activity finishes after opening another one (a splash screen).
+    @Test
+    fun hostFinishing_givenNextActivityResumes_expectCarriedOverWithoutAnimationOrDisplayEvent() {
+        val splash = newHost().also { it.resume() }
+        load(message)
+        stateSource.emit(ModalPresentationState.Displayed(message))
+
+        splash.markFinishing()
+        splash.pause()
+        val main = newHost()
+        main.resume()
+
+        factory.created.size shouldBeEqualTo 2
+        factory.created[0].window.released.shouldBeTrue()
+        val carried = factory.created[1]
+        carried.window.host shouldBe main
+        carried.shouldDispatchDisplayEvent.shouldBeFalse()
+        carried.window.displayedWithAnimation shouldBeEqualTo false
+    }
+
+    @Test
+    fun hostFinishing_givenMessageStillLoading_expectNewWindowDispatchesDisplayEvent() {
+        val splash = newHost().also { it.resume() }
+        load(message)
+
+        splash.markFinishing()
+        splash.pause()
+        newHost().resume()
+
+        factory.created.size shouldBeEqualTo 2
+        factory.created[1].shouldDispatchDisplayEvent.shouldBeTrue()
+        factory.created[1].window.displayedWithAnimation.shouldBeNull()
+    }
+
+    @Test
+    fun hostDestroyed_givenOtherActivityAlreadyResumed_expectMovedImmediately() {
+        val first = newHost().also { it.resume() }
+        load(message)
+        stateSource.emit(ModalPresentationState.Displayed(message))
+        first.pause()
+        val second = newHost().also { it.resume() }
+        factory.created.size shouldBeEqualTo 1
+
+        first.destroy()
+
+        factory.created.size shouldBeEqualTo 2
+        factory.created[1].window.host shouldBe second
         factory.created[1].shouldDispatchDisplayEvent.shouldBeFalse()
+    }
+
+    @Test
+    fun resumeOfSameHost_givenAttachedWindow_expectNoNewWindowAndRendererPausedAndResumed() {
+        val host = newHost().also { it.resume() }
+        load(message)
+
+        host.pause()
+        host.resume()
+
+        factory.created.size shouldBeEqualTo 1
+        val window = factory.created.single().window
+        window.released.shouldBeFalse()
+        window.hostPauses shouldBeEqualTo 1
+        window.hostResumes shouldBeEqualTo 1
     }
 
     @Test
     fun hostDestroyed_givenOtherActivity_expectWindowUntouched() {
         newHost().resume()
-        presenter.present(message, MessagePosition.CENTER)
+        load(message)
 
         newHost().destroy()
 
@@ -281,7 +443,7 @@ class HostWindowModalPresenterTest {
     @Test
     fun resume_givenWindowReleasedBySystem_expectWindowRecreatedOnSameHost() {
         val host = newHost().also { it.resume() }
-        presenter.present(message, MessagePosition.CENTER)
+        load(message)
         stateSource.emit(ModalPresentationState.Displayed(message))
         factory.created.single().window.released = true
 
@@ -295,7 +457,7 @@ class HostWindowModalPresenterTest {
     @Test
     fun dismissedState_givenDisplayedMessage_expectWindowDismissedAndSubscriptionCancelled() {
         newHost().resume()
-        presenter.present(message, MessagePosition.CENTER)
+        load(message)
         stateSource.emit(ModalPresentationState.Displayed(message))
 
         stateSource.emit(ModalPresentationState.Idle)
@@ -307,13 +469,13 @@ class HostWindowModalPresenterTest {
     @Test
     fun dismissedState_givenExitAnimationStillRunning_expectNextMessagePresentable() {
         newHost().resume()
-        presenter.present(message, MessagePosition.CENTER)
+        load(message)
         factory.created.single().window.completeDismissImmediately = false
         stateSource.emit(ModalPresentationState.Displayed(message))
 
         // The SDK dispatches the next load in the same millisecond as the dismissal.
         stateSource.emit(ModalPresentationState.Idle)
-        presenter.present(otherMessage, MessagePosition.CENTER)
+        load(otherMessage)
 
         factory.created.size shouldBeEqualTo 2
         factory.created[1].message shouldBe otherMessage
@@ -321,31 +483,9 @@ class HostWindowModalPresenterTest {
     }
 
     @Test
-    fun staleIdleState_givenNewPresentation_expectNotDismissed() {
-        newHost().resume()
-        // The previous message was dismissed, so the store still reports an idle modal when we subscribe.
-        stateSource.state = ModalPresentationState.Idle
-
-        presenter.present(message, MessagePosition.CENTER)
-
-        factory.created.single().window.dismissRequested.shouldBeFalse()
-        stateSource.cancellations shouldBeEqualTo 0
-    }
-
-    @Test
-    fun staleDisplayedStateOfOtherMessage_givenNewPresentation_expectNotDismissed() {
-        newHost().resume()
-        stateSource.state = ModalPresentationState.Displayed(otherMessage)
-
-        presenter.present(message, MessagePosition.CENTER)
-
-        factory.created.single().window.dismissRequested.shouldBeFalse()
-    }
-
-    @Test
     fun cancelled_givenBackPress_expectDismisserCalledWithMessage() {
         newHost().resume()
-        presenter.present(message, MessagePosition.CENTER)
+        load(message)
 
         factory.created.single().listener.onCancelled()
 
@@ -357,7 +497,7 @@ class HostWindowModalPresenterTest {
         val host = newHost().also { it.resume() }
         factory.nextShowFailure = IllegalStateException("bad token")
 
-        presenter.present(message, MessagePosition.CENTER)
+        load(message)
 
         factory.created.single().window.released.shouldBeTrue()
 

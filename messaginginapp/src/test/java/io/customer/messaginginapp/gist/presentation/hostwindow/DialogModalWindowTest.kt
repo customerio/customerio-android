@@ -5,6 +5,10 @@ import android.app.Dialog
 import android.graphics.Color
 import android.view.View
 import android.view.WindowManager
+import androidx.activity.ComponentDialog
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleRegistry
+import androidx.lifecycle.findViewTreeLifecycleOwner
 import io.customer.commontest.config.TestConfig
 import io.customer.commontest.config.testConfigurationDefault
 import io.customer.commontest.extensions.attachToSDKComponent
@@ -24,6 +28,7 @@ import io.mockk.spyk
 import org.amshove.kluent.shouldBeEqualTo
 import org.amshove.kluent.shouldBeFalse
 import org.amshove.kluent.shouldBeTrue
+import org.amshove.kluent.shouldNotBeNull
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.Robolectric
@@ -225,5 +230,77 @@ class DialogModalWindowTest : IntegrationTest() {
         ShadowLooper.idleMainLooper()
 
         window.isReleased.shouldBeTrue()
+    }
+
+    private fun Dialog.rendererLifecycle(): Lifecycle {
+        val gistView = window!!.decorView.findViewById<View>(io.customer.messaginginapp.R.id.gistView)
+        return gistView.findViewTreeLifecycleOwner().shouldNotBeNull().lifecycle
+    }
+
+    @Test
+    fun show_givenHost_expectRendererSeesResumedLifecycleThatIsNotTheDialogs() {
+        val window = window()
+        window.show()
+        val dialog = ShadowDialog.getLatestDialog() as ComponentDialog
+
+        val lifecycle = dialog.rendererLifecycle()
+
+        lifecycle.currentState shouldBeEqualTo Lifecycle.State.RESUMED
+        (lifecycle === dialog.lifecycle).shouldBeFalse()
+        // The engine subscribed to it during setup.
+        (lifecycle as LifecycleRegistry).observerCount shouldBeEqualTo 1
+    }
+
+    @Test
+    fun hostPausedAndResumed_expectRendererLifecycleFollowsWhileDialogStaysShown() {
+        val window = window()
+        window.show()
+        val dialog = ShadowDialog.getLatestDialog()
+        val lifecycle = dialog.rendererLifecycle()
+
+        window.onHostPaused()
+
+        lifecycle.currentState shouldBeEqualTo Lifecycle.State.STARTED
+        dialog.isShowing.shouldBeTrue()
+
+        window.onHostResumed()
+
+        lifecycle.currentState shouldBeEqualTo Lifecycle.State.RESUMED
+    }
+
+    @Test
+    fun cancel_givenBackPress_expectRendererCleanedUpBeforeAndAfterPresenterRelease() {
+        val window = window(message = message(persistent = false))
+        window.show()
+        val dialog = ShadowDialog.getLatestDialog()
+        val lifecycle = dialog.rendererLifecycle()
+
+        dialog.cancel()
+        ShadowLooper.idleMainLooper()
+
+        window.isReleased.shouldBeTrue()
+        // stopLoading ran: the engine unsubscribed (and cancelled its color-scheme job with it).
+        (lifecycle as LifecycleRegistry).observerCount shouldBeEqualTo 0
+        lifecycle.currentState shouldBeEqualTo Lifecycle.State.DESTROYED
+
+        // The presenter dismisses the released window afterwards; that path must stay safe.
+        var dismissed = false
+        window.dismiss { dismissed = true }
+        dismissed.shouldBeTrue()
+        lifecycle.currentState shouldBeEqualTo Lifecycle.State.DESTROYED
+    }
+
+    @Test
+    fun release_givenShownWindow_expectRendererCleanedUpAndHostEventsIgnored() {
+        val window = window()
+        window.show()
+        val lifecycle = ShadowDialog.getLatestDialog().rendererLifecycle()
+
+        window.release()
+        window.onHostResumed()
+        window.onHostPaused()
+
+        (lifecycle as LifecycleRegistry).observerCount shouldBeEqualTo 0
+        lifecycle.currentState shouldBeEqualTo Lifecycle.State.DESTROYED
     }
 }

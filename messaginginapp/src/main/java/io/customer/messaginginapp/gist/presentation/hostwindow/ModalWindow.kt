@@ -25,6 +25,15 @@ internal interface ModalWindow {
 
     /** Removes the window immediately without animation. Safe to call more than once. */
     fun release()
+
+    /**
+     * The host left the foreground (Home, or another activity opened on top). Android hides the dialog
+     * with its host; this pauses the renderer the way GistModalActivity's own pause does.
+     */
+    fun onHostPaused()
+
+    /** The host is in the foreground again. Resumes the renderer. */
+    fun onHostResumed()
 }
 
 internal interface ModalWindowListener {
@@ -53,7 +62,13 @@ internal sealed class ModalPresentationState {
     data class Displayed(val message: Message) : ModalPresentationState()
 }
 
-internal fun interface ModalStateSource {
+internal interface ModalStateSource {
+    /**
+     * The modal state right now. Updates from [subscribe] arrive later and can be conflated, so a
+     * decision that must not act on a stale message reads this instead.
+     */
+    val currentState: ModalPresentationState
+
     /** Subscribes to modal state changes. The current state is delivered first. Returns a function that cancels the subscription. */
     fun subscribe(listener: (ModalPresentationState) -> Unit): () -> Unit
 }

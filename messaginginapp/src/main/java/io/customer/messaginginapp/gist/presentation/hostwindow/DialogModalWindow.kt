@@ -16,6 +16,10 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.updatePadding
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.LifecycleRegistry
+import androidx.lifecycle.setViewTreeLifecycleOwner
 import io.customer.messaginginapp.R
 import io.customer.messaginginapp.databinding.ActivityGistBinding
 import io.customer.messaginginapp.gist.data.model.Message
@@ -49,12 +53,29 @@ internal class DialogModalWindow(
     private var released = false
     private var shown = false
 
+    /** Set once the renderer was stopped. Separate from [released], which the dialog's own dismissal also sets. */
+    private var rendererCleanedUp = false
+
+    /**
+     * The lifecycle the renderer observes. The dialog's own lifecycle stays resumed for as long as the
+     * dialog is shown, even while the host is paused, so the renderer would keep its bridge and load
+     * timeout running in the background. This one follows the host through [onHostPaused] and
+     * [onHostResumed], like GistModalActivity's lifecycle does for the activity path.
+     */
+    private val rendererLifecycleOwner = object : LifecycleOwner {
+        val registry = LifecycleRegistry(this)
+        override val lifecycle: Lifecycle get() = registry
+    }
+
     override val isReleased: Boolean
         get() = released
 
     init {
         configureWindow()
         dialog.setContentView(binding.root)
+        // After setContentView, which points the view tree at the dialog's own lifecycle.
+        dialog.window?.decorView?.setViewTreeLifecycleOwner(rendererLifecycleOwner)
+        rendererLifecycleOwner.registry.currentState = Lifecycle.State.CREATED
         applySystemBarInsets()
 
         val persistent = message.gistProperties.persistent
@@ -62,7 +83,12 @@ internal class DialogModalWindow(
         dialog.setCancelable(!persistent)
         dialog.setCanceledOnTouchOutside(false)
         dialog.setOnCancelListener { listener.onCancelled() }
-        dialog.setOnDismissListener { released = true }
+        // Every way the dialog goes away (back, the system, release) ends here, so the renderer is
+        // always stopped. Otherwise its color-scheme subscription keeps the view and the host alive.
+        dialog.setOnDismissListener {
+            released = true
+            cleanUpRenderer()
+        }
 
         binding.gistView.setViewCallback(this)
     }
@@ -85,8 +111,11 @@ internal class DialogModalWindow(
     override fun show() {
         if (released || host.isFinishing || host.isDestroyed) {
             released = true
+            cleanUpRenderer()
             return
         }
+        // Windows are only created for the resumed host, so the renderer starts resumed.
+        rendererLifecycleOwner.registry.currentState = Lifecycle.State.RESUMED
         binding.gistView.setup(message, shouldDispatchDisplayEvent)
         applyPosition()
         dialog.show()
@@ -136,10 +165,29 @@ internal class DialogModalWindow(
     }
 
     override fun release() {
-        if (released && !dialog.isShowing) return
         released = true
-        runCatching { binding.gistView.stopLoading() }
+        cleanUpRenderer()
         runCatching { if (dialog.isShowing) dialog.dismiss() }
+    }
+
+    override fun onHostPaused() {
+        if (rendererCleanedUp) return
+        if (rendererLifecycleOwner.registry.currentState.isAtLeast(Lifecycle.State.RESUMED)) {
+            rendererLifecycleOwner.registry.currentState = Lifecycle.State.STARTED
+        }
+    }
+
+    override fun onHostResumed() {
+        if (rendererCleanedUp || !shown) return
+        rendererLifecycleOwner.registry.currentState = Lifecycle.State.RESUMED
+    }
+
+    /** Stops the renderer once, whichever dismissal path gets here first. */
+    private fun cleanUpRenderer() {
+        if (rendererCleanedUp) return
+        rendererCleanedUp = true
+        runCatching { binding.gistView.stopLoading() }
+        rendererLifecycleOwner.registry.currentState = Lifecycle.State.DESTROYED
     }
 
     private fun configureWindow() {

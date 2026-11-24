@@ -7,6 +7,7 @@ import io.customer.commontest.extensions.assertNoInteractions
 import io.customer.commontest.extensions.random
 import io.customer.messaginginapp.state.InAppMessagingAction
 import io.customer.messaginginapp.state.InAppMessagingManager
+import io.customer.messaginginapp.state.InAppMessagingState
 import io.customer.messaginginapp.testutils.core.JUnitTest
 import io.customer.messaginginapp.testutils.extension.createInAppMessage
 import io.customer.messaginginapp.ui.bridge.EngineWebViewDelegate
@@ -17,6 +18,7 @@ import io.mockk.clearMocks
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.spyk
+import io.mockk.verify
 import io.mockk.verifyOrder
 import org.amshove.kluent.shouldBeEqualTo
 import org.amshove.kluent.shouldBeNull
@@ -110,6 +112,50 @@ class ModalMessageViewControllerTest : JUnitTest() {
 
         controller.currentRoute shouldBeEqualTo givenRoute
         assertNoInteractions(engineWebViewDelegate, inAppMessagingManager)
+    }
+
+    @Test
+    fun loadMessage_givenDisplayEventSuppressed_expectViewRevealedWithoutDispatchWhenRouteLoads() {
+        val controller = createViewController()
+        val givenMessage = createInAppMessage()
+        every { inAppMessagingManager.getCurrentState() } returns InAppMessagingState()
+
+        // A message carried over to another host window was already reported as displayed.
+        controller.loadMessage(givenMessage, shouldDispatchDisplayEvent = false)
+        controller.routeLoaded(String.random)
+
+        // Without the reveal the carried-over modal stays at alpha 0 and only its scrim shows.
+        verify(exactly = 1) { engineWebViewDelegate.setAlpha(1.0F) }
+        verify(exactly = 0) {
+            inAppMessagingManager.dispatch(InAppMessagingAction.DisplayMessage(givenMessage))
+        }
+    }
+
+    @Test
+    fun routeLoaded_givenDisplayEventSuppressedAndSecondRoute_expectRevealedOnlyOnce() {
+        val controller = createViewController()
+        val givenMessage = createInAppMessage()
+        every { inAppMessagingManager.getCurrentState() } returns InAppMessagingState()
+
+        controller.loadMessage(givenMessage, shouldDispatchDisplayEvent = false)
+        controller.routeLoaded(String.random)
+        controller.routeLoaded(String.random)
+
+        verify(exactly = 1) { engineWebViewDelegate.setAlpha(1.0F) }
+    }
+
+    @Test
+    fun loadMessage_givenNoOverride_expectDisplayEventDispatchedWhenRouteLoads() {
+        val controller = createViewController()
+        val givenMessage = createInAppMessage()
+        every { inAppMessagingManager.getCurrentState() } returns InAppMessagingState()
+
+        controller.loadMessage(givenMessage)
+        controller.routeLoaded(String.random)
+
+        assertCalledOnce {
+            inAppMessagingManager.dispatch(InAppMessagingAction.DisplayMessage(givenMessage))
+        }
     }
 
     @Test

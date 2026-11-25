@@ -189,7 +189,7 @@ class ModuleMessagingInApp(
 
     override fun initialize() {
         setupHooks()
-        userJwtStoreListener(SDKComponent.userJwtStore.current)
+        SDKComponent.userJwtStore.replayCurrent(userJwtStoreListener)
     }
 
     // The JWT can be handed over here or through CustomerIO.setUserJwt; both write the shared

@@ -2,6 +2,7 @@ package io.customer.sdk.core.identity
 
 import io.customer.base.internal.InternalCustomerIOApi
 import io.customer.sdk.core.di.SDKComponent
+import java.util.concurrent.CopyOnWriteArrayList
 
 /**
  * The signed user JWT the app handed over, and the user it was signed for. Data Pipelines sends
@@ -19,19 +20,26 @@ class UserJwtStore {
     var current: Entry? = null
         private set
 
-    private val listeners = mutableListOf<(Entry?) -> Unit>()
+    private val listeners = CopyOnWriteArrayList<(Entry?) -> Unit>()
+    private val notifyLock = Any()
 
     fun set(entry: Entry?) {
-        val listenersToCall = synchronized(listeners) {
-            current = entry
-            listeners.toList()
+        current = entry
+        // Listeners get the value at call time, not [entry], one notification at a time: two close
+        // calls could otherwise reach a listener in the wrong order and leave it on the older token.
+        synchronized(notifyLock) {
+            listeners.forEach { it(current) }
         }
-        listenersToCall.forEach { it(entry) }
     }
 
-    /** Calls [listener] on every change after this call; read [current] for the value now. */
+    /** Calls [listener] on every change after this call; [replayCurrent] hands it the value now. */
     fun addListener(listener: (Entry?) -> Unit) {
-        synchronized(listeners) { listeners += listener }
+        listeners += listener
+    }
+
+    /** Calls [listener] with [current], in order with the notifications from [set]. */
+    fun replayCurrent(listener: (Entry?) -> Unit) {
+        synchronized(notifyLock) { listener(current) }
     }
 }
 

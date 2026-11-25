@@ -109,9 +109,10 @@ class ModalDisplayBackgroundTest : IntegrationTest() {
     }
 
     /**
-     * A UI-less service that a foreground app is bound to gets IMPORTANCE_FOREGROUND from the OS when the
-     * process lifecycle never attached. The SDK has seen its activities pause, and none is resumed, so
-     * the gate still blocks the launch.
+     * A service process that a foreground app is bound to gets IMPORTANCE_FOREGROUND from the OS when the
+     * process lifecycle never attached. Once the SDK has seen an activity pause and none is resumed, the
+     * gate blocks the launch. A process that never saw a resume or pause has no answer, and the importance
+     * decides, as the next test shows.
      */
     @Test
     fun loadMessage_givenProcessLifecycleNeverAttachedAndForegroundImportanceButNoResumedActivity_expectNoActivityLaunch() {
@@ -191,21 +192,58 @@ class ModalDisplayBackgroundTest : IntegrationTest() {
         SDKComponent.activityLifecycleCallbacks.onActivityResumed(activity)
         SDKComponent.activityLifecycleCallbacks.onActivityPaused(activity)
         every { store.state } returns InAppMessagingState()
+        // The pass goes through the manager, which holds the store lock. Dispatching on the captured inner
+        // store would run it on a background thread without the lock.
         val dispatched = mutableListOf<InAppMessagingAction>()
-        every { store.dispatch(any()) } answers {
+        val storeDispatched = mutableListOf<InAppMessagingAction>()
+        val manager = mockk<InAppMessagingManager>(relaxed = true)
+        every { manager.dispatch(any()) } answers {
             dispatched.add(firstArg())
             Unit
         }
+        every { store.dispatch(any()) } answers {
+            storeDispatched.add(firstArg())
+            Unit
+        }
+        SDKComponent.overrideDependency<InAppMessagingManager>(manager)
         val message = Message(messageId = "message-id", queueId = "queue-id")
 
         // two held-back messages leave one pending pass
         displayModalMessageMiddleware()(store)(nextFn)(InAppMessagingAction.LoadMessage(message))
         displayModalMessageMiddleware()(store)(nextFn)(InAppMessagingAction.LoadMessage(message))
-        dispatched.filterIsInstance<InAppMessagingAction.ProcessMessageQueue>().size shouldBeEqualTo 0
+        dispatched.filterIsInstance<InAppMessagingAction.ReprocessMessageQueue>().size shouldBeEqualTo 0
 
         SDKComponent.activityLifecycleCallbacks.onActivityResumed(activity)
 
-        dispatched.filterIsInstance<InAppMessagingAction.ProcessMessageQueue>().size shouldBeEqualTo 1
+        dispatched.filterIsInstance<InAppMessagingAction.ReprocessMessageQueue>().size shouldBeEqualTo 1
+        storeDispatched.filterIsInstance<InAppMessagingAction.ProcessMessageQueue>().size shouldBeEqualTo 0
+    }
+
+    /**
+     * End to end on the real store: a queued modal that the gate holds back launches once, from the queue as
+     * it is when the activity resumes, and the cleared queue is not brought back.
+     */
+    @Test
+    fun processMessageQueue_givenHeldBackByGate_expectModalLaunchesOnceOnResume() {
+        SDKComponent.overrideDependency<ScopeProvider>(ScopeProviderStub.Unconfined())
+        SDKComponent.overrideDependency<CustomerIOActivityLifecycleCallbacks>(CustomerIOActivityLifecycleCallbacks())
+        SDKComponent.overrideDependency<LifecycleOwner>(processLifecycleOwnerIn(Lifecycle.State.STARTED))
+        setProcessImportance(ActivityManager.RunningAppProcessInfo.IMPORTANCE_FOREGROUND)
+        val activity = mockk<Activity>(relaxed = true)
+        SDKComponent.activityLifecycleCallbacks.onActivityResumed(activity)
+        SDKComponent.activityLifecycleCallbacks.onActivityPaused(activity)
+        val manager = InAppMessagingManager()
+        SDKComponent.overrideDependency<InAppMessagingManager>(manager)
+        val message = Message(messageId = "message-id", queueId = "queue-id")
+
+        manager.dispatch(InAppMessagingAction.ProcessMessageQueue(messages = listOf(message)))
+
+        verify(exactly = 0) { applicationMock.startActivity(any<Intent>()) }
+        manager.getCurrentState().messagesInQueue.map { it.queueId } shouldBeEqualTo listOf("queue-id")
+
+        SDKComponent.activityLifecycleCallbacks.onActivityResumed(activity)
+
+        verify(exactly = 1) { applicationMock.startActivity(any<Intent>()) }
     }
 
     /** Nothing is held back while the modal launches, so no pass waits for a resume. */
@@ -220,18 +258,54 @@ class ModalDisplayBackgroundTest : IntegrationTest() {
         val activity = mockk<Activity>(relaxed = true)
         SDKComponent.activityLifecycleCallbacks.onActivityResumed(activity)
         every { store.state } returns InAppMessagingState()
+        // The pass goes through the manager, which holds the store lock. Dispatching on the captured inner
+        // store would run it on a background thread without the lock.
         val dispatched = mutableListOf<InAppMessagingAction>()
-        every { store.dispatch(any()) } answers {
+        val storeDispatched = mutableListOf<InAppMessagingAction>()
+        val manager = mockk<InAppMessagingManager>(relaxed = true)
+        every { manager.dispatch(any()) } answers {
             dispatched.add(firstArg())
             Unit
         }
+        every { store.dispatch(any()) } answers {
+            storeDispatched.add(firstArg())
+            Unit
+        }
+        SDKComponent.overrideDependency<InAppMessagingManager>(manager)
         val message = Message(messageId = "message-id", queueId = "queue-id")
 
         displayModalMessageMiddleware()(store)(nextFn)(InAppMessagingAction.LoadMessage(message))
         SDKComponent.activityLifecycleCallbacks.onActivityPaused(activity)
         SDKComponent.activityLifecycleCallbacks.onActivityResumed(activity)
 
-        dispatched.filterIsInstance<InAppMessagingAction.ProcessMessageQueue>().size shouldBeEqualTo 0
+        dispatched.filterIsInstance<InAppMessagingAction.ReprocessMessageQueue>().size shouldBeEqualTo 0
+    }
+
+    /**
+     * The pass reads the queue inside the locked chain, so a clear or reset that lands first leaves it empty
+     * and a stale queue is never written back.
+     */
+    @Test
+    fun reprocessMessageQueue_givenQueuedMessages_expectCurrentQueueDispatchedAndActionNotForwarded() {
+        val message = Message(messageId = "message-id", queueId = "queue-id")
+        every { store.state } returns InAppMessagingState(messagesInQueue = setOf(message))
+        val dispatched = mutableListOf<InAppMessagingAction>()
+        every { store.dispatch(any()) } answers {
+            dispatched.add(firstArg())
+            Unit
+        }
+
+        processMessages()(store)(nextFn)(InAppMessagingAction.ReprocessMessageQueue)
+
+        val pass = dispatched.single() as InAppMessagingAction.ProcessMessageQueue
+        pass.messages shouldBeEqualTo listOf(message)
+        pass.shouldReconcileInlineMessages shouldBeEqualTo false
+        verify(exactly = 0) { nextFn(any()) }
+
+        every { store.state } returns InAppMessagingState()
+        dispatched.clear()
+        processMessages()(store)(nextFn)(InAppMessagingAction.ReprocessMessageQueue)
+        (dispatched.single() as InAppMessagingAction.ProcessMessageQueue).messages shouldBeEqualTo emptyList()
     }
 
     private fun setProcessImportance(importance: Int) {

@@ -29,14 +29,15 @@ import io.customer.sdk.core.di.SDKComponent
  * lifecycle never attached. Pass false where a process without an activity must not pass, for example
  * before launching a modal over another app.
  * @param requireResumedActivity whether an activity of this app must be resumed. The SDK's activity
- * callbacks answer this synchronously: it turns false the moment the last activity pauses, and a
- * process without any activity, such as one started by a push or bound as a service, never has one.
- * It decides whenever it has an answer, for any process lifecycle state. It has no answer until the
- * first resume or pause is seen, for example after a late SDK initialization, and the process lifecycle
- * and importance decide until then. A resumed activity can be missing for a short moment while an
- * activity is recreated or replaced, and while the app is in picture-in-picture or covered by another
- * app's dialog. Pass true where acting without a resumed activity is harmful, and a short deferral is
- * acceptable.
+ * callbacks answer this synchronously: it turns false the moment the last activity pauses. It decides
+ * whenever it has an answer, for any process lifecycle state. It has no answer until the first resume or
+ * pause is seen. That covers a late SDK initialization, and also a process that never had an activity,
+ * such as one started by a push or a service process bound by a foreground app. The process lifecycle and
+ * importance decide there, as they did before, so a UI-less service process whose lifecycle never
+ * attached and that a foreground app is bound to still counts as foreground. A resumed activity can be
+ * missing for a short moment while an activity is recreated or replaced, and while the app is in
+ * picture-in-picture or covered by another app's dialog. Pass true where acting without a resumed
+ * activity is harmful, and a short deferral is acceptable.
  * @param importanceProvider the importance of this process, replaced in tests
  * @param resumedActivityProvider whether an activity is resumed, or null when unknown, replaced in tests
  */

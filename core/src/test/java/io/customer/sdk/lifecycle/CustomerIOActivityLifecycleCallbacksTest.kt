@@ -66,6 +66,21 @@ class CustomerIOActivityLifecycleCallbacksTest : JUnit5Test() {
     }
 
     @Test
+    fun hasResumedActivity_givenLateInitAndSecondActivityResumesBeforeUnseenFirstPauses_expectTrueUntilTheSecondPauses() {
+        // The SDK was initialized after the first activity resumed. Multi-resume (Android 10+) resumes the
+        // second one before the first pauses, and the first pause must not hide the second.
+        val unseenFirst = activity()
+        val second = activity()
+
+        callbacks.onActivityResumed(second)
+        callbacks.onActivityPaused(unseenFirst)
+        callbacks.hasResumedActivity() shouldBeEqualTo true
+
+        callbacks.onActivityPaused(second)
+        callbacks.hasResumedActivity() shouldBeEqualTo false
+    }
+
+    @Test
     fun hasResumedActivity_givenActivityReplacedByRecreation_expectTrueAgainAfterTheNewOneResumes() {
         val old = activity()
         val recreated = activity()

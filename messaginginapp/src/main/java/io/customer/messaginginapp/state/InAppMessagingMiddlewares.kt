@@ -4,6 +4,7 @@ import android.content.Intent
 import com.google.gson.Gson
 import io.customer.messaginginapp.di.anonymousMessageManager
 import io.customer.messaginginapp.di.gistQueue
+import io.customer.messaginginapp.di.inAppMessagingManager
 import io.customer.messaginginapp.di.inAppSseLogger
 import io.customer.messaginginapp.di.pendingQueuePassOnResume
 import io.customer.messaginginapp.di.pollingLifecycleManager
@@ -142,7 +143,7 @@ private fun handleModalMessageDisplay(logger: Logger, store: Store<InAppMessagin
     // An overlay-only process reports IMPORTANCE_VISIBLE without an activity, so visible does not pass here.
     if (!isProcessInForeground(SDKComponent.processLifecycleOwner.lifecycle, countVisibleAsForeground = false, requireResumedActivity = true)) {
         logger.debug("Not showing message: ${action.message.queueId}, app has no started UI. It stays queued until the app is in the foreground")
-        processQueueOnNextResume(store)
+        processQueueOnNextResume()
         return
     }
     if (store.state.modalMessageState !is ModalMessageState.Displayed) {
@@ -174,18 +175,15 @@ internal class PendingQueuePassOnResume {
  * It waits on the resume hook, not on the lifecycle event flow, which drops an event when a collector is
  * still busy with the previous one.
  */
-private fun processQueueOnNextResume(store: Store<InAppMessagingState>) {
+private fun processQueueOnNextResume() {
     val pendingPass = SDKComponent.pendingQueuePassOnResume.pending
     if (!pendingPass.compareAndSet(false, true)) return
     SDKComponent.activityLifecycleCallbacks.runOnNextResume {
         pendingPass.set(false)
         SDKComponent.logger.debug("An activity resumed, processing the messages that were held back")
-        store.dispatch(
-            InAppMessagingAction.ProcessMessageQueue(
-                messages = store.state.messagesInQueue.toList(),
-                shouldReconcileInlineMessages = false
-            )
-        )
+        // Through the manager, which takes the store lock. This runs on a background thread, and the store
+        // captured by the middleware is the inner one without the lock.
+        SDKComponent.inAppMessagingManager.dispatch(InAppMessagingAction.ReprocessMessageQueue)
     }
 }
 
@@ -232,6 +230,16 @@ internal fun routeChangeMiddleware() = middleware<InAppMessagingState> { store, 
  * Middleware to process messages in the queue.
  */
 internal fun processMessages() = middleware<InAppMessagingState> { store, next, action ->
+    if (action is InAppMessagingAction.ReprocessMessageQueue) {
+        // Runs inside the store lock, so the queue read here is the one a concurrent clear or reset leaves
+        store.dispatch(
+            InAppMessagingAction.ProcessMessageQueue(
+                messages = store.state.messagesInQueue.toList(),
+                shouldReconcileInlineMessages = false
+            )
+        )
+        return@middleware store.state
+    }
     if (action is InAppMessagingAction.ProcessMessageQueue) {
         // A live SSE snapshot wins over an HTTP response requested before it arrived.
         if (action.expectedSseRevision != null && action.expectedSseRevision != store.state.sseMessageRevision) {

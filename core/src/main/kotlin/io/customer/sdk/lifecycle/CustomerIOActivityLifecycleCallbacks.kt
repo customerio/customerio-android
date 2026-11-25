@@ -7,8 +7,9 @@ import androidx.lifecycle.Lifecycle
 import io.customer.base.internal.InternalCustomerIOApi
 import io.customer.sdk.core.di.SDKComponent
 import java.lang.ref.WeakReference
+import java.util.Collections
+import java.util.WeakHashMap
 import java.util.concurrent.atomic.AtomicBoolean
-import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -30,11 +31,14 @@ class CustomerIOActivityLifecycleCallbacks : Application.ActivityLifecycleCallba
     private val subscriberScope = SDKComponent.scopeProvider.lifecycleListenerScope
 
     /**
-     * Number of resumed activities and whether a resume or pause has been seen since registration.
+     * The activities that are resumed, and whether a resume or pause has been seen since registration.
+     * Tracked by identity, so a pause of an activity the SDK never saw resume, as after a late
+     * initialization, leaves the others counted. Held weakly, so a leaked activity is never kept alive.
      * Updated synchronously on the main thread and readable from any thread, unlike the process
      * lifecycle, which reports that the app left the foreground about 700 ms after the last pause.
      */
-    private val resumedActivities = AtomicInteger(0)
+    private val resumedActivities: MutableSet<Activity> =
+        Collections.synchronizedSet(Collections.newSetFromMap(WeakHashMap()))
     private val hasSeenResumeOrPause = AtomicBoolean(false)
 
     /**
@@ -45,7 +49,7 @@ class CustomerIOActivityLifecycleCallbacks : Application.ActivityLifecycleCallba
      */
     @InternalCustomerIOApi
     fun hasResumedActivity(): Boolean? =
-        if (hasSeenResumeOrPause.get()) resumedActivities.get() > 0 else null
+        if (hasSeenResumeOrPause.get()) resumedActivities.isNotEmpty() else null
 
     /** One-shot listeners waiting for the next resume, see [runOnNextResume]. Guarded by itself. */
     private val resumeListeners = mutableListOf<suspend CoroutineScope.() -> Unit>()
@@ -88,7 +92,7 @@ class CustomerIOActivityLifecycleCallbacks : Application.ActivityLifecycleCallba
         application.unregisterActivityLifecycleCallbacks(this)
         subscriberScope.cancel()
         synchronized(resumeListeners) { resumeListeners.clear() }
-        resumedActivities.set(0)
+        resumedActivities.clear()
         hasSeenResumeOrPause.set(false)
     }
 
@@ -121,15 +125,15 @@ class CustomerIOActivityLifecycleCallbacks : Application.ActivityLifecycleCallba
     }
 
     override fun onActivityResumed(activity: Activity) {
-        resumedActivities.incrementAndGet()
+        resumedActivities.add(activity)
         hasSeenResumeOrPause.set(true)
         sendEventToCallbacks(activity, Lifecycle.Event.ON_RESUME)
         runResumeListeners()
     }
 
     override fun onActivityPaused(activity: Activity) {
-        // Never below zero: the first pause seen can belong to an activity that resumed before registration
-        resumedActivities.updateAndGet { count -> (count - 1).coerceAtLeast(0) }
+        // The first pause seen can belong to an activity that resumed before registration, which is not in the set
+        resumedActivities.remove(activity)
         hasSeenResumeOrPause.set(true)
         sendEventToCallbacks(activity, Lifecycle.Event.ON_PAUSE)
     }

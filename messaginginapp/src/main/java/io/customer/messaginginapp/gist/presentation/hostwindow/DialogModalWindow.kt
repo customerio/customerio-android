@@ -151,6 +151,12 @@ internal class DialogModalWindow(
             onDismissed()
             return
         }
+        // As in GistModalActivity's cleanUp, the renderer stops before the exit animation. The next
+        // message can already be loading underneath, and a second close tap or Back on this one would
+        // dismiss it again, which replaces the store's modal state and ends the next message.
+        cleanUpRenderer()
+        dialog.setCancelable(false)
+        dialog.window?.addFlags(WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE)
         val layout = binding.modalGistViewLayout
         val animator = if (position == MessagePosition.TOP) {
             ModalAnimationUtil.createAnimationSetOutToTop(layout)

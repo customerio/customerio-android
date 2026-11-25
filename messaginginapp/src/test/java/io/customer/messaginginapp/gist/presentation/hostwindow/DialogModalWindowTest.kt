@@ -324,6 +324,47 @@ class DialogModalWindowTest : IntegrationTest() {
     }
 
     @Test
+    fun dismiss_givenDisplayedWindow_expectRendererStoppedAndInputBlockedBeforeExitAnimationEnds() {
+        val window = window()
+        window.show()
+        window.onMessageDisplayed(animate = false)
+        val dialog = ShadowDialog.getLatestDialog()
+        val lifecycle = dialog.rendererLifecycle()
+        var dismissed = false
+
+        window.dismiss { dismissed = true }
+
+        // The exit animation is still running: the looper has not been idled.
+        dismissed.shouldBeFalse()
+        dialog.isShowing.shouldBeTrue()
+        (lifecycle as LifecycleRegistry).observerCount shouldBeEqualTo 0
+        lifecycle.currentState shouldBeEqualTo Lifecycle.State.DESTROYED
+        (dialog.flags and WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE != 0).shouldBeTrue()
+        (dialog.flags and WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE != 0).shouldBeTrue()
+
+        ShadowLooper.idleMainLooper()
+
+        dismissed.shouldBeTrue()
+        window.isReleased.shouldBeTrue()
+        dialog.isShowing.shouldBeFalse()
+    }
+
+    @Test
+    fun dismiss_givenBackPressDuringExitAnimation_expectNotCancelledAgain() {
+        val window = window(message = message(persistent = false))
+        window.show()
+        window.onMessageDisplayed(animate = false)
+        val dialog = ShadowDialog.getLatestDialog()
+
+        window.dismiss { }
+        dialog.onBackPressed()
+        // Dialog delivers cancellation through a posted message.
+        ShadowLooper.idleMainLooper()
+
+        cancelled shouldBeEqualTo 0
+    }
+
+    @Test
     fun release_givenShownWindow_expectRendererCleanedUpAndHostEventsIgnored() {
         val window = window()
         window.show()

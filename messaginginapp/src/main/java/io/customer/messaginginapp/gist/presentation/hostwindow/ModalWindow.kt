@@ -20,7 +20,10 @@ internal interface ModalWindow {
     /** The SDK reports the message as displayed. [animate] is false when the message is carried over from another host. */
     fun onMessageDisplayed(animate: Boolean)
 
-    /** Stops the renderer and blocks input, animates the window out, removes it and then calls [onDismissed]. */
+    /**
+     * Stops the renderer and blocks input, animates the window out, removes it and then calls [onDismissed].
+     * A call made while the window is already animating out joins that animation, so each callback runs once.
+     */
     fun dismiss(onDismissed: () -> Unit)
 
     /** Removes the window immediately without animation. Safe to call more than once. */

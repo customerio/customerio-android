@@ -3,6 +3,10 @@ package io.customer.messaginginapp.gist.presentation.hostwindow
 import android.app.Activity
 import android.app.Dialog
 import android.graphics.Color
+import android.os.Handler
+import android.os.Looper
+import android.view.KeyEvent
+import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
@@ -142,25 +146,40 @@ class DialogModalWindowTest : IntegrationTest() {
     }
 
     @Test
-    fun cancel_givenNonPersistentMessage_expectListenerNotified() {
+    fun backPressed_givenNonPersistentDisplayedMessage_expectListenerNotifiedAndWindowAnimatedOut() {
         val window = window(message = message(persistent = false))
         window.show()
-
+        window.onMessageDisplayed(animate = false)
         val dialog = ShadowDialog.getLatestDialog()
-        shadowOf(dialog).isCancelable.shouldBeTrue()
-        dialog.cancel()
-        // Dialog delivers its cancel and dismiss listeners through a handler message.
+
+        dialog.onBackPressed()
+
+        // Reported at once, while the window is still on screen and animating out.
+        cancelled shouldBeEqualTo 1
+        dialog.isShowing.shouldBeTrue()
+        window.isReleased.shouldBeFalse()
+
         ShadowLooper.idleMainLooper()
 
+        dialog.isShowing.shouldBeFalse()
+        window.isReleased.shouldBeTrue()
         cancelled shouldBeEqualTo 1
     }
 
     @Test
-    fun show_givenPersistentMessage_expectNotCancelable() {
+    fun backPressed_givenPersistentMessage_expectSwallowed() {
         val window = window(message = message(persistent = true))
         window.show()
+        window.onMessageDisplayed(animate = false)
+        val dialog = ShadowDialog.getLatestDialog()
 
-        shadowOf(ShadowDialog.getLatestDialog()).isCancelable.shouldBeFalse()
+        shadowOf(dialog).isCancelable.shouldBeFalse()
+        dialog.onBackPressed()
+        ShadowLooper.idleMainLooper()
+
+        cancelled shouldBeEqualTo 0
+        dialog.isShowing.shouldBeTrue()
+        window.isReleased.shouldBeFalse()
     }
 
     @Test
@@ -325,34 +344,76 @@ class DialogModalWindowTest : IntegrationTest() {
     }
 
     @Test
-    fun cancel_givenBackPress_expectRendererCleanedUpBeforeAndAfterPresenterRelease() {
-        val window = window(message = message(persistent = false))
+    fun backPressed_givenPresenterDismissesFromListener_expectOneExitAnimationAndRendererCleanedUp() {
+        var window: DialogModalWindow? = null
+        var presenterDismissed = 0
+        val dismissingListener = object : ModalWindowListener {
+            override fun onCancelled() {
+                cancelled++
+                // The presenter reacts to the cancellation by dismissing the window, as HostWindowModalPresenter does.
+                window?.dismiss { presenterDismissed++ }
+            }
+        }
+        window = DialogModalWindow(host(), message(persistent = false), MessagePosition.CENTER, true, dismissingListener, mockLogger)
         window.show()
+        window.onMessageDisplayed(animate = false)
         val dialog = ShadowDialog.getLatestDialog()
         val lifecycle = dialog.rendererLifecycle()
 
-        dialog.cancel()
-        ShadowLooper.idleMainLooper()
+        dialog.onBackPressed()
 
-        window.isReleased.shouldBeTrue()
-        // stopLoading ran: the engine unsubscribed (and cancelled its color-scheme job with it).
+        // stopLoading ran before the exit animation: the engine unsubscribed (and cancelled its color-scheme job with it).
         (lifecycle as LifecycleRegistry).observerCount shouldBeEqualTo 0
         lifecycle.currentState shouldBeEqualTo Lifecycle.State.DESTROYED
+        dialog.isShowing.shouldBeTrue()
+        presenterDismissed shouldBeEqualTo 0
 
-        // The presenter dismisses the released window afterwards; that path must stay safe.
-        var dismissed = false
-        window.dismiss { dismissed = true }
-        dismissed.shouldBeTrue()
-        lifecycle.currentState shouldBeEqualTo Lifecycle.State.DESTROYED
+        ShadowLooper.idleMainLooper()
+
+        presenterDismissed shouldBeEqualTo 1
+        cancelled shouldBeEqualTo 1
+        window.isReleased.shouldBeTrue()
+        dialog.isShowing.shouldBeFalse()
+
+        // A late dismiss of the released window stays safe and still calls back.
+        window.dismiss { presenterDismissed++ }
+        presenterDismissed shouldBeEqualTo 2
     }
 
     @Test
-    fun dismiss_givenDisplayedWindow_expectRendererStoppedAndInputBlockedBeforeExitAnimationEnds() {
+    fun dismiss_givenCalledAgainDuringExitAnimation_expectEachCallbackInvokedOnce() {
+        val window = window()
+        window.show()
+        window.onMessageDisplayed(animate = false)
+        val mainHandler = Handler(Looper.getMainLooper())
+        var first = 0
+        var second = 0
+        var secondCalledWhileRunning = false
+
+        window.dismiss { first++ }
+        // Partway through the exit animation (color then slide, about 250 ms), a second dismiss arrives.
+        mainHandler.postDelayed({
+            secondCalledWhileRunning = first == 0
+            window.dismiss { second++ }
+        }, 100)
+        ShadowLooper.idleMainLooper()
+
+        secondCalledWhileRunning.shouldBeTrue()
+        first shouldBeEqualTo 1
+        second shouldBeEqualTo 1
+        window.isReleased.shouldBeTrue()
+    }
+
+    @Test
+    fun dismiss_givenDisplayedWindow_expectRendererStoppedAndInputConsumedBeforeExitAnimationEnds() {
         val window = window()
         window.show()
         window.onMessageDisplayed(animate = false)
         val dialog = ShadowDialog.getLatestDialog()
         val lifecycle = dialog.rendererLifecycle()
+        var messageTouches = 0
+        dialog.window!!.decorView.findViewById<View>(io.customer.messaginginapp.R.id.modalGistViewLayout)
+            .setOnTouchListener { _, _ -> messageTouches++; true }
         var dismissed = false
 
         window.dismiss { dismissed = true }
@@ -362,8 +423,15 @@ class DialogModalWindowTest : IntegrationTest() {
         dialog.isShowing.shouldBeTrue()
         (lifecycle as LifecycleRegistry).observerCount shouldBeEqualTo 0
         lifecycle.currentState shouldBeEqualTo Lifecycle.State.DESTROYED
-        (dialog.flags and WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE != 0).shouldBeTrue()
-        (dialog.flags and WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE != 0).shouldBeTrue()
+        // The window keeps receiving input, so nothing passes through to the host behind it...
+        (dialog.flags and WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE) shouldBeEqualTo 0
+        (dialog.flags and WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE) shouldBeEqualTo 0
+        // ...and consumes it before it reaches the message.
+        val down = MotionEvent.obtain(0L, 0L, MotionEvent.ACTION_DOWN, 10f, 10f, 0)
+        dialog.dispatchTouchEvent(down).shouldBeTrue()
+        down.recycle()
+        dialog.dispatchKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_ENTER)).shouldBeTrue()
+        messageTouches shouldBeEqualTo 0
 
         ShadowLooper.idleMainLooper()
 
@@ -381,7 +449,6 @@ class DialogModalWindowTest : IntegrationTest() {
 
         window.dismiss { }
         dialog.onBackPressed()
-        // Dialog delivers cancellation through a posted message.
         ShadowLooper.idleMainLooper()
 
         cancelled shouldBeEqualTo 0

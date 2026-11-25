@@ -5,11 +5,14 @@ import android.content.res.Configuration
 import android.graphics.Color
 import android.os.Build
 import android.view.Gravity
+import android.view.KeyEvent
 import android.view.LayoutInflater
+import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
 import androidx.activity.ComponentDialog
+import androidx.activity.OnBackPressedCallback
 import androidx.core.animation.doOnEnd
 import androidx.core.graphics.drawable.toDrawable
 import androidx.core.graphics.toColorInt
@@ -49,7 +52,16 @@ internal class DialogModalWindow(
     private val postToMain: (() -> Unit) -> Unit = { block -> host.runOnUiThread(block) }
 ) : ModalWindow, ModalInAppMessageViewCallback {
 
-    private val dialog = ComponentDialog(host, R.style.GistHostWindowDialogTheme)
+    /** True while the exit animation runs. The window then consumes every touch and key, so nothing reaches the message or the host behind it. */
+    private var dismissing = false
+
+    /** Every [dismiss] caller's callback, each run once when the exit animation ends. */
+    private val pendingDismissCallbacks = mutableListOf<() -> Unit>()
+
+    private val dialog = object : ComponentDialog(host, R.style.GistHostWindowDialogTheme) {
+        override fun dispatchTouchEvent(ev: MotionEvent): Boolean = dismissing || super.dispatchTouchEvent(ev)
+        override fun dispatchKeyEvent(event: KeyEvent): Boolean = dismissing || super.dispatchKeyEvent(event)
+    }
     private val binding = ActivityGistBinding.inflate(LayoutInflater.from(dialog.context))
     private var released = false
     private var shown = false
@@ -79,12 +91,23 @@ internal class DialogModalWindow(
         rendererLifecycleOwner.registry.currentState = Lifecycle.State.CREATED
         applySystemBarInsets()
 
-        val persistent = message.gistProperties.persistent
-        // Like the activity, a persistent message swallows back presses instead of closing.
-        dialog.setCancelable(!persistent)
+        // Back is handled here instead of through Dialog.cancel, which would remove the window at once and
+        // report the cancellation only afterwards. Like GistModalActivity's finish, Back animates the
+        // message out. A persistent message swallows Back, as in the activity.
+        dialog.setCancelable(false)
         dialog.setCanceledOnTouchOutside(false)
-        dialog.setOnCancelListener { listener.onCancelled() }
-        // Every way the dialog goes away (back, the system, release) ends here, so the renderer is
+        val persistent = message.gistProperties.persistent
+        dialog.onBackPressedDispatcher.addCallback(
+            object : OnBackPressedCallback(true) {
+                override fun handleOnBackPressed() {
+                    if (persistent || dismissing || released) return
+                    listener.onCancelled()
+                    // Closes even if nobody else dismisses the window. A later dismiss joins this animation.
+                    dismiss {}
+                }
+            }
+        )
+        // Every way the dialog goes away (dismissal, the system, release) ends here, so the renderer is
         // always stopped. Otherwise its color-scheme subscription keeps the view and the host alive.
         dialog.setOnDismissListener {
             released = true
@@ -147,6 +170,11 @@ internal class DialogModalWindow(
     }
 
     override fun dismiss(onDismissed: () -> Unit) {
+        if (dismissing) {
+            // Already animating out: run this callback with the first one instead of animating again.
+            pendingDismissCallbacks += onDismissed
+            return
+        }
         if (released || !shown || binding.modalGistViewLayout.visibility != View.VISIBLE) {
             release()
             onDismissed()
@@ -154,10 +182,12 @@ internal class DialogModalWindow(
         }
         // As in GistModalActivity's cleanUp, the renderer stops before the exit animation. The next
         // message can already be loading underneath, and a second close tap or Back on this one would
-        // dismiss it again, which replaces the store's modal state and ends the next message.
+        // dismiss it again, which replaces the store's modal state and ends the next message. The window
+        // stays touchable and focused, like the finishing activity, so input can't reach the host while
+        // the message is still on screen; [dismissing] makes it consume that input.
+        dismissing = true
+        pendingDismissCallbacks += onDismissed
         cleanUpRenderer()
-        dialog.setCancelable(false)
-        dialog.window?.addFlags(WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE)
         val layout = binding.modalGistViewLayout
         val animator = if (position == MessagePosition.TOP) {
             ModalAnimationUtil.createAnimationSetOutToTop(layout)
@@ -166,7 +196,10 @@ internal class DialogModalWindow(
         }
         animator.doOnEnd {
             release()
-            onDismissed()
+            dismissing = false
+            val callbacks = pendingDismissCallbacks.toList()
+            pendingDismissCallbacks.clear()
+            callbacks.forEach { it() }
         }
         animator.start()
     }

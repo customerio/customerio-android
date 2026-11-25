@@ -346,6 +346,28 @@ class HostWindowModalPresenterTest {
 
     // Case 1: the activity is recreated (rotation, dark mode).
     @Test
+    fun hostRecreated_givenDisplayedNotYetReconciled_expectCarriedOverWithoutSecondDisplayEvent() {
+        val poster = QueuedPoster()
+        presenter = newPresenter(poster)
+        val first = newHost().also { it.resume() }
+        load(message)
+        poster.runAll()
+
+        // The store reaches Displayed, but the posted reconcile has not run when the relaunch does.
+        stateSource.emit(ModalPresentationState.Displayed(message))
+        first.pause()
+        first.destroy()
+        newHost().resume()
+        poster.runAll()
+
+        factory.created.size shouldBeEqualTo 2
+        val carried = factory.created[1]
+        carried.shouldDispatchDisplayEvent.shouldBeFalse()
+        // Shown at once, and the late reconcile does not animate it in again.
+        carried.window.displayedWithAnimation shouldBeEqualTo false
+    }
+
+    @Test
     fun hostDestroyed_givenDisplayedMessage_expectReleasedAndCarriedOverToRecreatedActivity() {
         val first = newHost().also { it.resume() }
         load(message)

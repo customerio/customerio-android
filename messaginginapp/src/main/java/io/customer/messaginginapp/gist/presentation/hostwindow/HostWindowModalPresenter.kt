@@ -149,6 +149,13 @@ internal class HostWindowModalPresenter(
         existing?.release()
         presentation.window = null
 
+        // The store can report Displayed before the posted reconcile runs, for example when a relaunch
+        // was already queued on the main thread. Reading it here keeps the replacement window from
+        // reporting the message a second time, and the late reconcile from animating it in again.
+        val state = stateSource.currentState
+        if (state is ModalPresentationState.Displayed && state.message == presentation.message) {
+            presentation.displayed = true
+        }
         val carryOver = presentation.displayed
         logger.debug("HostWindowModalPresenter: attaching to ${host.javaClass.simpleName} (carryOver=$carryOver)")
         val window = windowFactory.create(

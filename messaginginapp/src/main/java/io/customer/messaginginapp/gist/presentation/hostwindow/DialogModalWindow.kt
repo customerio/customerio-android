@@ -1,6 +1,7 @@
 package io.customer.messaginginapp.gist.presentation.hostwindow
 
 import android.app.Activity
+import android.content.res.Configuration
 import android.graphics.Color
 import android.os.Build
 import android.view.Gravity
@@ -218,8 +219,18 @@ internal class DialogModalWindow(
         @Suppress("DEPRECATION")
         window.navigationBarColor = Color.TRANSPARENT
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            // Keep Android from painting a contrast scrim behind 3-button navigation.
+            // Keep Android from painting contrast scrims behind the bars.
+            window.isStatusBarContrastEnforced = false
             window.isNavigationBarContrastEnforced = false
+        }
+        // This window controls the bar icons from the moment it attaches, and the dialog theme is dark, which would
+        // turn them light. Match the activity's enableEdgeToEdge defaults instead: status bar icons follow night mode,
+        // navigation bar icons stay light.
+        val isNightMode = (window.decorView.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) ==
+            Configuration.UI_MODE_NIGHT_YES
+        WindowCompat.getInsetsController(window, window.decorView).apply {
+            isAppearanceLightStatusBars = !isNightMode
+            isAppearanceLightNavigationBars = false
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
             window.attributes = window.attributes.apply {

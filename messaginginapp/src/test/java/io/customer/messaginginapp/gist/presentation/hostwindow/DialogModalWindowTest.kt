@@ -7,6 +7,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
 import androidx.activity.ComponentDialog
+import androidx.core.view.WindowCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleRegistry
 import androidx.lifecycle.findViewTreeLifecycleOwner
@@ -99,6 +100,28 @@ class DialogModalWindowTest : IntegrationTest() {
         (dialog.flags and WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE) shouldBeEqualTo WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
         (dialog.flags and WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE) shouldBeEqualTo WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
         window.isReleased.shouldBeFalse()
+    }
+
+    private fun Dialog.barsController() = WindowCompat.getInsetsController(window!!, window!!.decorView)
+
+    @Test
+    fun show_givenLightMode_expectDarkStatusBarIconsAndLightNavigationBarIcons() {
+        window().show()
+
+        // Same as the activity's enableEdgeToEdge defaults, not the dark dialog theme's light icons.
+        val bars = ShadowDialog.getLatestDialog().barsController()
+        bars.isAppearanceLightStatusBars.shouldBeTrue()
+        bars.isAppearanceLightNavigationBars.shouldBeFalse()
+    }
+
+    @Test
+    @Config(qualifiers = "night")
+    fun show_givenNightMode_expectLightStatusBarIconsAndLightNavigationBarIcons() {
+        window().show()
+
+        val bars = ShadowDialog.getLatestDialog().barsController()
+        bars.isAppearanceLightStatusBars.shouldBeFalse()
+        bars.isAppearanceLightNavigationBars.shouldBeFalse()
     }
 
     @Test

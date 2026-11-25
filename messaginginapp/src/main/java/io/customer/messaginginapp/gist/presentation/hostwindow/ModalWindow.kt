@@ -28,7 +28,8 @@ internal interface ModalWindow {
 
     /**
      * The host left the foreground (Home, or another activity opened on top). Android hides the dialog
-     * with its host; this pauses the renderer the way GistModalActivity's own pause does.
+     * with its host; this pauses the renderer the way GistModalActivity's own pause does, and keeps
+     * it paused until [onHostResumed].
      */
     fun onHostPaused()
 

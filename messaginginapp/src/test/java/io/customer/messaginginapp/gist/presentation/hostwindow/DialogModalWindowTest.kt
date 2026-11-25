@@ -4,6 +4,7 @@ import android.app.Activity
 import android.app.Dialog
 import android.graphics.Color
 import android.view.View
+import android.view.ViewGroup
 import android.view.WindowManager
 import androidx.activity.ComponentDialog
 import androidx.lifecycle.Lifecycle
@@ -19,12 +20,15 @@ import io.customer.messaginginapp.ModuleMessagingInApp
 import io.customer.messaginginapp.gist.data.listeners.GistQueue
 import io.customer.messaginginapp.gist.data.model.Message
 import io.customer.messaginginapp.gist.data.model.MessagePosition
+import io.customer.messaginginapp.gist.presentation.engine.EngineWebView
 import io.customer.messaginginapp.testutils.core.IntegrationTest
 import io.customer.sdk.core.util.DispatchersProvider
 import io.customer.sdk.core.util.Logger
 import io.customer.sdk.core.util.ScopeProvider
+import io.mockk.clearMocks
 import io.mockk.mockk
 import io.mockk.spyk
+import io.mockk.verify
 import org.amshove.kluent.shouldBeEqualTo
 import org.amshove.kluent.shouldBeFalse
 import org.amshove.kluent.shouldBeTrue
@@ -260,12 +264,41 @@ class DialogModalWindowTest : IntegrationTest() {
 
         window.onHostPaused()
 
-        lifecycle.currentState shouldBeEqualTo Lifecycle.State.STARTED
+        lifecycle.currentState shouldBeEqualTo Lifecycle.State.CREATED
         dialog.isShowing.shouldBeTrue()
 
         window.onHostResumed()
 
         lifecycle.currentState shouldBeEqualTo Lifecycle.State.RESUMED
+    }
+
+    private fun View.findEngine(): EngineWebView? = when (this) {
+        is EngineWebView -> this
+        is ViewGroup -> (0 until childCount).firstNotNullOfOrNull { getChildAt(it).findEngine() }
+        else -> null
+    }
+
+    @Test
+    fun rendererAttachedToWindow_givenHostPaused_expectRendererStaysPausedUntilHostResumes() {
+        val window = window()
+        window.show()
+        ShadowLooper.idleMainLooper()
+        val engine = ShadowDialog.getLatestDialog().window!!.decorView.findEngine().shouldNotBeNull()
+        window.onHostPaused()
+        clearMocks(mockLogger, answers = false)
+
+        // A view attach that lands after the host paused, as on a busy main thread after Home.
+        val parent = engine.parent as ViewGroup
+        val index = parent.indexOfChild(engine)
+        val params = engine.layoutParams
+        parent.removeView(engine)
+        parent.addView(engine, index, params)
+
+        verify(exactly = 0) { mockLogger.info("EngineWebView onLifecycleResumed") }
+
+        window.onHostResumed()
+
+        verify(exactly = 1) { mockLogger.info("EngineWebView onLifecycleResumed") }
     }
 
     @Test

@@ -170,10 +170,15 @@ internal class DialogModalWindow(
         runCatching { if (dialog.isShowing) dialog.dismiss() }
     }
 
+    /**
+     * Drops the renderer to CREATED, which sends it ON_PAUSE. STARTED would not hold: the engine
+     * resumes itself when its view attaches under a STARTED owner (EngineWebView.onAttachedToWindow),
+     * and on a busy main thread the dialog's first attach can land after Home, before the host's stop.
+     */
     override fun onHostPaused() {
         if (rendererCleanedUp) return
-        if (rendererLifecycleOwner.registry.currentState.isAtLeast(Lifecycle.State.RESUMED)) {
-            rendererLifecycleOwner.registry.currentState = Lifecycle.State.STARTED
+        if (rendererLifecycleOwner.registry.currentState.isAtLeast(Lifecycle.State.STARTED)) {
+            rendererLifecycleOwner.registry.currentState = Lifecycle.State.CREATED
         }
     }
 

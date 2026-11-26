@@ -1,5 +1,6 @@
 package io.customer.messaginginapp
 
+import io.customer.messaginginapp.type.ModalPresentation
 import io.customer.messaginginapp.type.NotificationInboxAccessibilityLabels
 import io.customer.sdk.data.model.Region
 import org.amshove.kluent.shouldBeEqualTo
@@ -16,6 +17,22 @@ class MessagingInAppModuleConfigTest {
         config.notificationInboxAccessibilityLabels.bellWithUnreadCount.shouldBeNull()
         config.notificationInboxAccessibilityLabels.loadingIndicator.shouldBeNull()
         config.notificationInboxAccessibilityLabels.emptyState.shouldBeNull()
+    }
+
+    @Test
+    fun build_givenNoModalPresentation_expectActivity() {
+        val config = MessagingInAppModuleConfig.Builder(siteId = "site").build()
+
+        config.modalPresentation shouldBeEqualTo ModalPresentation.ACTIVITY
+    }
+
+    @Test
+    fun setModalPresentation_givenHostWindow_expectHostWindowOnConfig() {
+        val config = MessagingInAppModuleConfig.Builder(siteId = "site")
+            .setModalPresentation(ModalPresentation.HOST_WINDOW)
+            .build()
+
+        config.modalPresentation shouldBeEqualTo ModalPresentation.HOST_WINDOW
     }
 
     @Test

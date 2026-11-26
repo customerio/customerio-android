@@ -223,6 +223,41 @@ class InAppMessagingStoreTest : IntegrationTest() {
     }
 
     @Test
+    fun givenMessageFailedToLoad_whenItsRouteLoadsLate_thenItIsNotShownAndNextMessageLoads() = runTest {
+        initializeAndSetUser()
+        val first = createInAppMessage(queueId = "1")
+        val second = createInAppMessage(queueId = "2")
+        manager.dispatch(InAppMessagingAction.ProcessMessageQueue(listOf(first)))
+        manager.dispatch(InAppMessagingAction.EngineAction.MessageLoadingFailed(first, InAppMessageError(reason = InAppMessageErrorReason.TIMEOUT)))
+
+        // The renderer finishes after the timeout already dismissed the message
+        manager.dispatch(InAppMessagingAction.DisplayMessage(first))
+
+        manager.getCurrentState().modalMessageState shouldBeEqualTo ModalMessageState.Dismissed(first)
+        verify(exactly = 0) { inAppEventListener.messageShown(any()) }
+        manager.dispatch(InAppMessagingAction.ProcessMessageQueue(listOf(second)))
+        manager.getCurrentState().modalMessageState
+            .shouldBeInstanceOf<ModalMessageState.Loading>()
+            .message
+            .queueId shouldBeEqualTo "2"
+    }
+
+    @Test
+    fun givenOtherMessageLoading_whenStaleDisplayArrives_thenOtherMessageStaysLoading() = runTest {
+        initializeAndSetUser()
+        val first = createInAppMessage(queueId = "1")
+        val second = createInAppMessage(queueId = "2")
+        manager.dispatch(InAppMessagingAction.ProcessMessageQueue(listOf(first, second)))
+        manager.dispatch(InAppMessagingAction.DisplayMessage(first))
+        manager.dispatch(InAppMessagingAction.DismissMessage(first))
+
+        manager.dispatch(InAppMessagingAction.DisplayMessage(first))
+
+        manager.getCurrentState().modalMessageState shouldBeEqualTo ModalMessageState.Loading(second)
+        verify(exactly = 1) { inAppEventListener.messageShown(InAppMessage.getFromGistMessage(first)) }
+    }
+
+    @Test
     fun givenInitialPollingInterval_whenIntervalIsChanged_thenNewIntervalIsReflectedInState() = runTest {
         initializeAndSetUser()
 

@@ -124,10 +124,30 @@ private fun handleMessageDisplay(logger: Logger, action: InAppMessagingAction.Di
  */
 internal fun displayModalMessageMiddleware() = middleware { store, next, action ->
     val logger = SDKComponent.logger
-    if (action is InAppMessagingAction.LoadMessage) {
-        handleModalMessageDisplay(logger, store, action, next)
-    } else {
-        next(action)
+    when {
+        action is InAppMessagingAction.LoadMessage -> handleModalMessageDisplay(logger, store, action, next)
+        action is InAppMessagingAction.DisplayMessage && isStaleModalDisplay(store.state.modalMessageState, action.message) -> {
+            // A route can finish loading after its message was dismissed (for example by the load timeout) or
+            // replaced. Reporting it as displayed would mark a message with no view as on screen, log a view
+            // for it, and block every later modal until the app restarts.
+            logger.debug("Ignoring display of ${action.message.queueId}: modal state is ${store.state.modalMessageState}")
+        }
+        else -> next(action)
+    }
+}
+
+/**
+ * A modal's display is stale when the store no longer shows that message: it was dismissed, or another
+ * message is loading or displayed. Initial passes, as does a message without a queue id, which the
+ * reducer ignores anyway.
+ */
+private fun isStaleModalDisplay(state: ModalMessageState, message: Message): Boolean {
+    if (message.isEmbedded || message.queueId == null) return false
+    return when (state) {
+        ModalMessageState.Initial -> false
+        is ModalMessageState.Loading -> state.message.queueId != message.queueId
+        is ModalMessageState.Displayed -> state.message.queueId != message.queueId
+        is ModalMessageState.Dismissed -> true
     }
 }
 

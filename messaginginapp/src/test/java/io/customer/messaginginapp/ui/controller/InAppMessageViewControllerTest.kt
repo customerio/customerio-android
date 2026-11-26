@@ -364,6 +364,34 @@ class InAppMessageViewControllerTest : JUnitTest() {
     }
 
     @Test
+    fun routeLoaded_givenStoppedBeforeRouteLoads_expectNoDisplayDispatched() {
+        val givenMessage = createInAppMessage()
+        controller.currentMessage = givenMessage
+
+        controller.stopLoading()
+        controller.routeLoaded(String.random)
+
+        verify(exactly = 0) { inAppMessagingManager.dispatch(any<InAppMessagingAction.DisplayMessage>()) }
+    }
+
+    @Test
+    fun routeLoaded_givenMessageLoadedAgainAfterStop_expectDisplayDispatched() {
+        every { inAppMessagingManager.getCurrentState() } returns InAppMessagingState(
+            siteId = String.random,
+            dataCenter = String.random,
+            environment = GistEnvironment.LOCAL
+        )
+        controller.engineWebViewDelegate = mockk(relaxed = true)
+        val givenMessage = createInAppMessage()
+        controller.stopLoading()
+
+        controller.loadMessage(givenMessage)
+        controller.routeLoaded(String.random)
+
+        verify(exactly = 1) { inAppMessagingManager.dispatch(InAppMessagingAction.DisplayMessage(givenMessage)) }
+    }
+
+    @Test
     fun routeListener_givenRouteError_expectDispatchMessageFailedEvent() {
         val givenMessage = createInAppMessage()
         controller.setMessageAndRouteForTest(message = givenMessage, route = String.random)

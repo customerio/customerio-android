@@ -3,6 +3,8 @@ package io.customer.messaginginapp.gist.presentation.hostwindow
 import android.app.Activity
 import android.app.Application
 import android.os.Bundle
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleOwner
 import io.customer.messaginginapp.gist.presentation.GistModalActivity
 import java.lang.ref.WeakReference
 
@@ -37,6 +39,20 @@ internal class HostActivityTracker(
 
     fun register(application: Application) {
         application.registerActivityLifecycleCallbacks(this)
+    }
+
+    /**
+     * Records [activity] as the resumed host when the tracker registered after that activity resumed. The
+     * tracker only sees resumes that happen after it registers, and the React Native and Flutter wrappers
+     * initialize the SDK after their first activity is already up. A host the tracker already knows wins,
+     * because its own callbacks are the source of truth. Call on the main thread.
+     */
+    fun seed(activity: Activity) {
+        if (isModalActivity(activity) || activity.isFinishing || activity.isDestroyed) return
+        if (activity is LifecycleOwner && !activity.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) return
+        if (resumedActivity != null) return
+        resumed = WeakReference(activity)
+        listener?.onHostResumed(activity)
     }
 
     override fun onActivityResumed(activity: Activity) {

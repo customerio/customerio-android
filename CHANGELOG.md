@@ -1,3 +1,9 @@
+## [5.2.0](https://github.com/customerio/customerio-android/compare/5.1.2...5.2.0) (2026-11-26)
+
+### Features
+
+* host-window modal presentation for in-app messages ([#993](https://github.com/customerio/customerio-android/issues/993)) ([2f2d3e6](https://github.com/customerio/customerio-android/commit/2f2d3e64ca34adef8aaf459273164ac7ef4070cb))
+
 ## [5.1.2](https://github.com/customerio/customerio-android/compare/5.1.1...5.1.2) (2026-11-23)
 
 ### Bug Fixes

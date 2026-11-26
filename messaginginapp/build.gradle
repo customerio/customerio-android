@@ -44,7 +44,12 @@ android {
     buildFeatures {
         viewBinding true
     }
-    
+    // The androidTest APK pulls in common-test, whose JUnit 5 jars all ship META-INF/LICENSE*.md.
+    packaging {
+        resources {
+            excludes += ['META-INF/LICENSE.md', 'META-INF/LICENSE-notice.md']
+        }
+    }
 }
 
 dependencies {
@@ -63,6 +68,9 @@ dependencies {
     implementation Dependencies.retrofit
     implementation Dependencies.okhttp
     implementation Dependencies.androidxProcessLifecycle
+
+    // Heap analysis for the host-window modal retention tests.
+    androidTestImplementation Dependencies.leakCanaryInstrumentation
 }
 
 // Allows CI to compile and run the SSE compatibility tests against the OkHttp versions commonly

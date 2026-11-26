@@ -36,6 +36,7 @@ object Versions {
     internal const val KOTLIN_BINARY_VALIDATOR = "0.16.3"
     internal const val KOTLINX_SERIALIZATION_JSON = "1.8.1"
     internal const val KOTLIN = "2.1.21"
+    internal const val LEAK_CANARY = "2.14"
     internal const val MOCKK = "1.13.13"
     internal const val SEGMENT = "1.24.1!!"
     internal const val REDUX_KOTLIN = "0.6.0"

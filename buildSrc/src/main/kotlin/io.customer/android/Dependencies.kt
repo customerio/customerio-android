@@ -55,6 +55,8 @@ object Dependencies {
     const val kluentJava = "org.amshove.kluent:kluent:${Versions.KLUENT}"
     const val kotlinGradlePlugin = "org.jetbrains.kotlin:kotlin-gradle-plugin:${Versions.KOTLIN}"
     const val kotlinSerialization = "org.jetbrains.kotlin:kotlin-serialization:${Versions.KOTLIN}"
+    const val leakCanaryInstrumentation =
+        "com.squareup.leakcanary:leakcanary-android-instrumentation:${Versions.LEAK_CANARY}"
     const val mockK = "io.mockk:mockk:${Versions.MOCKK}"
     const val mockKAndroid = "io.mockk:mockk-android:${Versions.MOCKK}"
     const val robolectric = "org.robolectric:robolectric:${Versions.ROBOLECTRIC}"

@@ -1,8 +1,11 @@
 package io.customer.messaginginapp
 
+import android.app.Activity
 import io.customer.base.internal.InternalCustomerIOApi
 import io.customer.messaginginapp.di.gistCustomAttributes
 import io.customer.messaginginapp.di.gistProvider
+import io.customer.messaginginapp.di.hostActivityTracker
+import io.customer.messaginginapp.di.hostWindowModalPresenter
 import io.customer.messaginginapp.di.inAppMessagingManager
 import io.customer.messaginginapp.di.notificationInbox
 import io.customer.messaginginapp.di.visualInbox
@@ -19,6 +22,7 @@ import io.customer.messaginginapp.type.InAppMessage
 import io.customer.messaginginapp.type.InAppMessageError
 import io.customer.messaginginapp.type.InAppMessageErrorReason
 import io.customer.messaginginapp.type.InboxEventListener
+import io.customer.messaginginapp.type.ModalPresentation
 import io.customer.sdk.communication.Event
 import io.customer.sdk.communication.subscribe
 import io.customer.sdk.core.di.SDKComponent
@@ -89,6 +93,18 @@ class ModuleMessagingInApp(
     }
 
     /**
+     * Tells the SDK which activity is currently resumed. Internal API for the React Native and Flutter
+     * wrappers, which initialize the SDK after their first activity has resumed. Without it a modal that
+     * arrives before the next resume waits when [ModalPresentation.HOST_WINDOW] is chosen. Does nothing
+     * for the default [ModalPresentation.ACTIVITY], and when the SDK already knows the resumed activity.
+     */
+    @InternalCustomerIOApi
+    fun seedHostActivity(activity: Activity) {
+        if (moduleConfig.modalPresentation != ModalPresentation.HOST_WINDOW) return
+        activity.runOnUiThread { SDKComponent.hostActivityTracker.seed(activity) }
+    }
+
+    /**
      * Observes whether an inline in-app message is currently available for [elementId].
      *
      * The returned flow emits the current value immediately and updates when the message queue,
@@ -126,6 +142,12 @@ class ModuleMessagingInApp(
     }
 
     override fun initialize() {
+        // Creating the presenter registers the host activity tracker. It has to happen at startup so the
+        // first modal already knows which activity is resumed. Hosts on the default ACTIVITY presentation
+        // never create it.
+        if (moduleConfig.modalPresentation == ModalPresentation.HOST_WINDOW) {
+            SDKComponent.hostWindowModalPresenter
+        }
         setupHooks()
     }
 

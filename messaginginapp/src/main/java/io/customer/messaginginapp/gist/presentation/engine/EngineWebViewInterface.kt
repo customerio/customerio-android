@@ -21,6 +21,8 @@ class EngineWebViewInterface(private val listener: EngineWebViewListener) {
     private val logger = SDKComponent.logger
 
     // Indicates whether the interface is attached to a web view and should continue to process messages
+    // Written on the UI thread by attach/detach, read on the WebView's JavaScript bridge thread.
+    @Volatile
     private var isAttachedToWebView: Boolean = false
 
     internal fun attach(webView: WebView) {

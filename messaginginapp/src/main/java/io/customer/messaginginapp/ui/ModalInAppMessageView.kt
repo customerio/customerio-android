@@ -32,9 +32,13 @@ internal class ModalInAppMessageView @JvmOverloads constructor(
         controller.viewCallback = viewCallback
     }
 
+    /**
+     * @param shouldDispatchDisplayEvent false when the message was already reported as displayed and is
+     * only being re-created, for example in another host window, so the view is not logged twice.
+     */
     @UiThread
-    internal fun setup(message: Message) {
-        controller.loadMessage(message = message)
+    internal fun setup(message: Message, shouldDispatchDisplayEvent: Boolean = true) {
+        controller.loadMessage(message = message, shouldDispatchDisplayEvent = shouldDispatchDisplayEvent)
     }
 
     @UiThread

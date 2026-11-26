@@ -5,6 +5,10 @@ import android.content.Intent
 import android.os.Process
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
+import io.customer.commontest.config.TestConfig
+import io.customer.commontest.extensions.attachToSDKComponent
+import io.customer.messaginginapp.MessagingInAppModuleConfig
+import io.customer.messaginginapp.ModuleMessagingInApp
 import io.customer.messaginginapp.gist.data.model.Message
 import io.customer.messaginginapp.testutils.core.IntegrationTest
 import io.customer.messaginginapp.testutils.core.processLifecycleOwnerIn
@@ -31,6 +35,12 @@ import org.robolectric.Shadows.shadowOf
 class ModalDisplayBackgroundTest : IntegrationTest() {
     private val store: Store<InAppMessagingState> = mockk(relaxed = true)
     private val nextFn: (Any) -> Any = mockk(relaxed = true)
+
+    override fun setup(testConfig: TestConfig) {
+        super.setup(testConfig)
+        // The display middleware reads the module config to pick the modal presentation. Default config.
+        ModuleMessagingInApp(MessagingInAppModuleConfig.Builder(siteId = "test-site").build()).attachToSDKComponent()
+    }
 
     /**
      * R3. `LoadMessage` reaches the display middleware with the process lifecycle running but never

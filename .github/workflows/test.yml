@@ -87,7 +87,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        sample: [kotlin_compose, java_layout]
+        # messaginginapp runs the SDK's own device tests (host-window modal retention) on the same emulator setup.
+        sample: [kotlin_compose, java_layout, messaginginapp]
         api-level: [31]
     steps:
       - uses: actions/checkout@v7
@@ -206,4 +207,4 @@ jobs:
         uses: mikepenz/action-junit-report@6ef3fdcfcd5f0b5d14df3e659ef19b8c6820f93d # v6.6.1
         if: always()
         with:
-          report_paths: 'samples/${{ matrix.sample }}/build/outputs/androidTest-results/connected/TEST-*.xml'
+          report_paths: "${{ matrix.sample == 'messaginginapp' && 'messaginginapp/build/outputs/androidTest-results/connected/**/TEST-*.xml' || format('samples/{0}/build/outputs/androidTest-results/connected/TEST-*.xml', matrix.sample) }}"

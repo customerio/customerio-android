@@ -30,6 +30,11 @@ internal class ModalInAppMessageViewController(
         super.onRouteLoaded(message, route)
     }
 
+    override fun onRouteLoadedWithoutDisplayEvent(message: Message, route: String) {
+        // The message was already reported as displayed, so only reveal the view.
+        engineWebViewDelegate?.setAlpha(1.0F)
+    }
+
     override fun bootstrapped() {
         super.bootstrapped()
         // Cleaning after engine web is bootstrapped and all assets downloaded.

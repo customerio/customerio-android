@@ -1,6 +1,13 @@
 name: Tests
 
+# Runs on pushes to main as well as on pull requests. setup-gradle only writes the
+# Gradle cache from the default branch, so without the push trigger no job here
+# ever seeds a cache and every PR job starts with an incomplete one.
 on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - '**/*.md'
   pull_request:
     types: [opened, synchronize, reopened] # Don't rerun on `edited` to save time
     paths-ignore:
@@ -92,19 +99,11 @@ jobs:
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
 
-      # Create and cache the AVD
-      - name: AVD cache
-        uses: actions/cache@v6
-        id: avd-cache
-        with:
-          path: |
-            ~/.android/avd/*
-            ~/.android/adb*
-          key: avd-${{ matrix.api-level }}
-
-      # Create AVD and generate snapshot for caching
+      # Create the AVD and its boot snapshot for the test step below. The AVD is
+      # not cached across runs: each PR saved its own ~2.3 GB copy, a restore took
+      # as long as creating it, and the copies crowded Gradle out of the repo's
+      # 10 GB cache budget.
       - name: Create AVD and generate snapshot
-        if: steps.avd-cache.outputs.cache-hit != 'true'
         uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
         with:
           api-level: ${{ matrix.api-level }}
@@ -114,7 +113,7 @@ jobs:
           force-avd-creation: false
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           disable-animations: false
-          script: echo "Generated AVD snapshot for caching."
+          script: echo "Generated AVD snapshot."
 
       # Clear script-started breadcrumb before each attempt
       # Used to distinguish action-level failures from script/test failures

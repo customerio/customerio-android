@@ -452,7 +452,7 @@ class HostWindowModalPresenterTest {
         window.hostResumes shouldBeEqualTo 1
     }
 
-    // Review finding: the same-host resume path skipped the store check that attach and reconcile make.
+    // The same-host resume path makes the store check that attach and reconcile make.
     @Test
     fun resumeOfSameHost_givenDismissalNotYetDelivered_expectWindowDismissedWithoutResumingRenderer() {
         val host = newHost().also { it.resume() }

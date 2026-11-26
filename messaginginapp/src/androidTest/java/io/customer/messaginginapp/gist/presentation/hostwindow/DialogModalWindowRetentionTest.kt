@@ -14,8 +14,10 @@ import io.customer.commontest.core.AndroidTest
 import io.customer.commontest.extensions.attachToSDKComponent
 import io.customer.messaginginapp.MessagingInAppModuleConfig
 import io.customer.messaginginapp.ModuleMessagingInApp
+import io.customer.messaginginapp.di.inAppMessagingManager
 import io.customer.messaginginapp.gist.data.model.Message
 import io.customer.messaginginapp.gist.data.model.MessagePosition
+import io.customer.messaginginapp.state.InAppMessagingManager
 import io.customer.sdk.core.di.SDKComponent
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
@@ -42,9 +44,15 @@ class DialogModalWindowRetentionTest : AndroidTest() {
     @get:Rule
     val detectLeaks = DetectLeaksAfterTestSuccess()
 
+    // The leak check runs after teardown, which resets SDKComponent and drops the in-app store. Holding the
+    // store here keeps its subscriptions (EngineWebView's color-scheme job) reachable during the check, so a
+    // WebView or host held through the store still shows up as a leak.
+    private lateinit var store: InAppMessagingManager
+
     override fun setup(testConfig: TestConfig) {
         super.setup(testConfigurationDefault { argument(ApplicationArgument(application)) })
         ModuleMessagingInApp(MessagingInAppModuleConfig.Builder(siteId = "test-site-id").build()).attachToSDKComponent()
+        store = SDKComponent.inAppMessagingManager
         // A library's test APK has no LeakCanary install provider, so install the watcher here.
         InstrumentationRegistry.getInstrumentation().runOnMainSync {
             if (!AppWatcher.isInstalled) AppWatcher.manualInstall(application)

@@ -14,8 +14,12 @@ import io.customer.messaginginapp.gist.data.model.engine.EngineWebConfiguration
 import io.customer.messaginginapp.state.InAppMessagingManager
 import io.customer.messaginginapp.state.InAppMessagingState
 import io.customer.messaginginapp.testutils.core.IntegrationTest
+import io.customer.messaginginapp.type.InAppMessageError
+import io.customer.messaginginapp.type.InAppMessageErrorReason
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.verify
+import java.util.TimerTask
 import org.amshove.kluent.shouldBeEqualTo
 import org.amshove.kluent.shouldBeNull
 import org.amshove.kluent.shouldNotBeNull
@@ -287,6 +291,60 @@ class EngineWebViewLifecycleTest : IntegrationTest() {
     }
 
     @Test
+    fun routeLoaded_givenLoadAlreadyTimedOut_expectRouteNotForwarded() {
+        val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
+        val owner = FakeLifecycleOwner()
+        val host = FrameLayout(activity).apply { setViewTreeLifecycleOwner(owner) }
+        val engineWebView = EngineWebView(activity)
+        val listener = mockk<EngineWebViewListener>(relaxed = true)
+        engineWebView.listener = listener
+        host.addView(engineWebView)
+        activity.setContentView(host)
+        owner.registry.currentState = Lifecycle.State.RESUMED
+        engineWebView.setup(givenConfiguration())
+
+        engineWebView.timeoutTask().run()
+        engineWebView.routeLoaded("route")
+
+        verify(exactly = 1) { listener.error(match { it.reason == InAppMessageErrorReason.TIMEOUT }) }
+        verify(exactly = 0) { listener.routeLoaded(any()) }
+
+        engineWebView.stopLoading()
+        host.removeView(engineWebView)
+        engineWebView.releaseResources()
+    }
+
+    @Test
+    fun timeoutTask_givenRouteLoadedAfterResumeRearm_expectStaleTaskReportsNothing() {
+        val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
+        val owner = FakeLifecycleOwner()
+        val host = FrameLayout(activity).apply { setViewTreeLifecycleOwner(owner) }
+        val engineWebView = EngineWebView(activity)
+        val listener = mockk<EngineWebViewListener>(relaxed = true)
+        engineWebView.listener = listener
+        host.addView(engineWebView)
+        activity.setContentView(host)
+        owner.registry.currentState = Lifecycle.State.RESUMED
+        engineWebView.setup(givenConfiguration())
+        engineWebView.bootstrapped()
+        owner.registry.currentState = Lifecycle.State.CREATED
+        owner.registry.currentState = Lifecycle.State.RESUMED
+        val rearmedTask = engineWebView.timeoutTask()
+
+        // The route loads, then the already-scheduled task runs: it is no longer current, so it must not fail
+        // a message that is now on screen.
+        engineWebView.routeLoaded("route")
+        rearmedTask.run()
+
+        verify(exactly = 1) { listener.routeLoaded("route") }
+        verify(exactly = 0) { listener.error(any<InAppMessageError>()) }
+
+        engineWebView.stopLoading()
+        host.removeView(engineWebView)
+        engineWebView.releaseResources()
+    }
+
+    @Test
     fun onResume_givenRouteAlreadyLoaded_expectNoTimeout() {
         val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
         val owner = FakeLifecycleOwner()
@@ -452,6 +510,8 @@ class EngineWebViewLifecycleTest : IntegrationTest() {
     }
 
     private fun EngineWebView.timeoutTimer(): Any? = ReflectionHelpers.getField(this, "timer")
+
+    private fun EngineWebView.timeoutTask(): TimerTask = ReflectionHelpers.getField<TimerTask?>(this, "timerTask").shouldNotBeNull()
 
     private fun givenConfiguration() = EngineWebConfiguration(
         siteId = String.random,

@@ -43,13 +43,22 @@ internal class EngineWebView @JvmOverloads constructor(
     private var timer: Timer? = null
 
     /**
+     * Guards [timer], [timerTask], [isAwaitingFirstRoute] and [hasTimedOut]. They are touched from the UI
+     * thread (setup, pause, resume, stop), the JavaScript bridge thread (bootstrapped, routeLoaded) and the
+     * timer's own thread, so every read-then-write on them happens under this lock.
+     */
+    private val timerLock = Any()
+
+    /**
      * True between the renderer's bootstrap and its first route load. The load timeout is cleared at
      * bootstrap, and a route load that arrives while the engine is paused is dropped with the detached
      * bridge, so a resume in this window re-arms the timeout. Otherwise the message stays loading for good
      * and no other modal can show.
      */
-    @Volatile
     private var isAwaitingFirstRoute: Boolean = false
+
+    /** True once the load timeout fired for the current message. A route load after that is stale. */
+    private var hasTimedOut: Boolean = false
     private var timerTask: TimerTask? = null
     private var webView: WebView? = null
     private var elapsedTimer: ElapsedTimer = ElapsedTimer()
@@ -185,15 +194,19 @@ internal class EngineWebView @JvmOverloads constructor(
     fun onLifecycleResumed() {
         logger.info("EngineWebView onLifecycleResumed")
         webView?.let { engineWebViewInterface.attach(webView = it) }
-        // If timerTask exists but timer doesn't, we were paused mid-load
-        // Restart the timer with a fresh timeout duration
-        if (timerTask != null && timer == null) {
-            logger.debug("Resuming timeout timer after lifecycle resume")
-            setupTimeout()
-        } else if (isAwaitingFirstRoute && timer == null) {
-            // The route may have loaded while paused, and that call was dropped with the detached bridge.
-            logger.debug("Re-arming timeout after resume: bootstrapped but no route loaded yet")
-            setupTimeout(detail = "Route did not load within ${TIMEOUT_DURATION}ms after the app resumed")
+        // Under the lock: a route load on the bridge thread lands either before this check, so nothing is
+        // re-armed, or after it, and then it cancels the timer armed here.
+        synchronized(timerLock) {
+            // If timerTask exists but timer doesn't, we were paused mid-load
+            // Restart the timer with a fresh timeout duration
+            if (timerTask != null && timer == null) {
+                logger.debug("Resuming timeout timer after lifecycle resume")
+                setupTimeout()
+            } else if (isAwaitingFirstRoute && timer == null) {
+                // The route may have loaded while paused, and that call was dropped with the detached bridge.
+                logger.debug("Re-arming timeout after resume: bootstrapped but no route loaded yet")
+                setupTimeout(detail = "Route did not load within ${TIMEOUT_DURATION}ms after the app resumed")
+            }
         }
     }
 
@@ -262,7 +275,7 @@ internal class EngineWebView @JvmOverloads constructor(
         // stop the timer and clean up
         bootstrapped()
         // A stopped engine waits for nothing, so a later resume must not re-arm the timeout.
-        isAwaitingFirstRoute = false
+        synchronized(timerLock) { isAwaitingFirstRoute = false }
     }
 
     override fun updateColorScheme(scheme: String) {
@@ -304,8 +317,11 @@ internal class EngineWebView @JvmOverloads constructor(
         val initialColorScheme = configuration.colorScheme
         lastResolvedColorScheme = initialColorScheme
         subscribeToColorSchemeChanges()
-        isAwaitingFirstRoute = false
-        setupTimeout()
+        synchronized(timerLock) {
+            isAwaitingFirstRoute = false
+            hasTimedOut = false
+            setupTimeout()
+        }
         elapsedTimer.start("Engine render for message: ${configuration.messageId}")
         val messageData = mapOf("options" to configuration)
         val jsonString = Gson().toJson(messageData)
@@ -465,30 +481,34 @@ internal class EngineWebView @JvmOverloads constructor(
         }
     }
 
-    private fun setupTimeout(detail: String = "Engine did not bootstrap within ${TIMEOUT_DURATION}ms") {
-        timerTask = object : TimerTask() {
+    private fun setupTimeout(detail: String = "Engine did not bootstrap within ${TIMEOUT_DURATION}ms") = synchronized(timerLock) {
+        val task = object : TimerTask() {
             override fun run() {
-                if (timer != null) {
-                    reportFailure(
-                        InAppMessageError(
-                            reason = InAppMessageErrorReason.TIMEOUT,
-                            detail = detail
-                        )
-                    )
-                    cleanupTimer()
+                // Only the current task may fire: a route load or a re-arm may have replaced or cleared it
+                // after this run was already scheduled.
+                val isCurrent = synchronized(timerLock) {
+                    (timerTask === this && timer != null).also { if (it) hasTimedOut = true }
                 }
+                if (!isCurrent) return
+                reportFailure(
+                    InAppMessageError(
+                        reason = InAppMessageErrorReason.TIMEOUT,
+                        detail = detail
+                    )
+                )
+                cleanupTimer()
             }
         }
-        timer = Timer()
-        timer?.schedule(timerTask, TIMEOUT_DURATION)
+        timerTask = task
+        timer = Timer().also { it.schedule(task, TIMEOUT_DURATION) }
     }
 
     /**
      * Pauses the timeout timer when the app goes to background.
      * Cancels the timer but keeps timerTask as a signal that we need to restart on resume.
      */
-    private fun pauseTimer() {
-        if (timer == null) return
+    private fun pauseTimer() = synchronized(timerLock) {
+        if (timer == null) return@synchronized
         logger.debug("Pausing timeout timer")
         timer?.cancel()
         timer?.purge()
@@ -501,8 +521,11 @@ internal class EngineWebView @JvmOverloads constructor(
     }
 
     override fun bootstrapped() {
-        cleanupTimer()
-        isAwaitingFirstRoute = true
+        synchronized(timerLock) {
+            cleanupTimer()
+            // After a timeout the message is already failed, so there is no first route to wait for.
+            if (!hasTimedOut) isAwaitingFirstRoute = true
+        }
         listener?.bootstrapped()
     }
 
@@ -520,8 +543,18 @@ internal class EngineWebView @JvmOverloads constructor(
     }
 
     override fun routeLoaded(route: String) {
-        isAwaitingFirstRoute = false
-        cleanupTimer()
+        val isStale = synchronized(timerLock) {
+            if (!hasTimedOut) {
+                isAwaitingFirstRoute = false
+                cleanupTimer()
+            }
+            hasTimedOut
+        }
+        if (isStale) {
+            // The timeout already failed this message; showing it now would revive a dismissed message.
+            logger.debug("Ignoring route loaded after the load timed out: $route")
+            return
+        }
         elapsedTimer.end()
         listener?.routeLoaded(route)
     }
@@ -595,7 +628,7 @@ internal class EngineWebView @JvmOverloads constructor(
      * Called when loading completes (success or timeout).
      * Nulls out both timer and timerTask to indicate we're no longer waiting for load.
      */
-    private fun cleanupTimer() {
+    private fun cleanupTimer() = synchronized(timerLock) {
         timerTask?.cancel()
         timerTask = null
         timer?.cancel()

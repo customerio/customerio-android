@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <application>
+        <!-- Plain host for the host-window modal retention tests. -->
+        <activity
+            android:name="io.customer.messaginginapp.gist.presentation.hostwindow.RetentionHostActivity"
+            android:exported="false" />
+    </application>
+</manifest>

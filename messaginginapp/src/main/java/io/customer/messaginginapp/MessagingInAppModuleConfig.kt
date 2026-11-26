@@ -3,6 +3,7 @@ package io.customer.messaginginapp
 import io.customer.messaginginapp.type.ColorScheme
 import io.customer.messaginginapp.type.InAppEventListener
 import io.customer.messaginginapp.type.InboxEventListener
+import io.customer.messaginginapp.type.ModalPresentation
 import io.customer.messaginginapp.type.NotificationInboxAccessibilityLabels
 import io.customer.messaginginapp.type.UserJwtListener
 import io.customer.sdk.core.di.SDKComponent
@@ -30,6 +31,10 @@ class MessagingInAppModuleConfig private constructor(
      * emits no strings of its own). See [NotificationInboxAccessibilityLabels].
      */
     val notificationInboxAccessibilityLabels: NotificationInboxAccessibilityLabels,
+    /**
+     * How modal messages are shown. [ModalPresentation.ACTIVITY] by default. See [ModalPresentation].
+     */
+    val modalPresentation: ModalPresentation,
     val userJwtListener: UserJwtListener?
 ) : CustomerIOModuleConfig {
     // Read from the SDK as it was set up in CustomerIO init, so they always match it
@@ -70,6 +75,7 @@ class MessagingInAppModuleConfig private constructor(
         private var colorScheme: ColorScheme = ColorScheme.AUTO
         private var inboxEventListener: InboxEventListener? = null
         private var notificationInboxAccessibilityLabels: NotificationInboxAccessibilityLabels = NotificationInboxAccessibilityLabels()
+        private var modalPresentation: ModalPresentation = ModalPresentation.ACTIVITY
         private var userJwtListener: UserJwtListener? = null
 
         fun setEventListener(eventListener: InAppEventListener): Builder {
@@ -104,6 +110,17 @@ class MessagingInAppModuleConfig private constructor(
         }
 
         /**
+         * Chooses how modal messages are shown. Use [ModalPresentation.HOST_WINDOW] when the host
+         * activity is `singleInstance`, has a different or empty task affinity, or uses a document
+         * launch mode, because the default activity would then open in a task of its own. See
+         * [ModalPresentation].
+         */
+        fun setModalPresentation(modalPresentation: ModalPresentation): Builder {
+            this.modalPresentation = modalPresentation
+            return this
+        }
+
+        /**
          * Registers a listener told when Customer.io rejects the JWT handed over with
          * [ModuleMessagingInApp.setUserJwt], so the app can fetch a fresh one.
          */
@@ -120,6 +137,7 @@ class MessagingInAppModuleConfig private constructor(
                 colorScheme = colorScheme,
                 inboxEventListener = inboxEventListener,
                 notificationInboxAccessibilityLabels = notificationInboxAccessibilityLabels,
+                modalPresentation = modalPresentation,
                 userJwtListener = userJwtListener
             )
         }

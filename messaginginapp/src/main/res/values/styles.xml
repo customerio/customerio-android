@@ -9,4 +9,16 @@
         <item name="android:windowContentOverlay">@null</item>
     </style>
 
+    <!-- Full-screen, transparent window for a modal rendered inside the host's window (no separate task). -->
+    <style name="GistHostWindowDialogTheme" parent="Theme.AppCompat.NoActionBar">
+        <item name="android:windowIsFloating">false</item>
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:colorBackgroundCacheHint">@null</item>
+        <item name="android:windowIsTranslucent">true</item>
+        <item name="android:windowAnimationStyle">@null</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:windowContentOverlay">@null</item>
+        <item name="android:backgroundDimEnabled">false</item>
+    </style>
+
 </resources>

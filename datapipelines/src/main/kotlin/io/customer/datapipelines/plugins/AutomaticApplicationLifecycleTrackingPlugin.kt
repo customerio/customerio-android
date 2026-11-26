@@ -1,16 +1,15 @@
 package io.customer.datapipelines.plugins
 
 import android.app.Activity
-import android.app.ActivityManager
 import android.app.Application
 import android.os.Build
 import android.os.Bundle
 import androidx.annotation.VisibleForTesting
-import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.ProcessLifecycleOwner
 import com.segment.analytics.kotlin.core.Analytics
 import com.segment.analytics.kotlin.core.Storage
 import com.segment.analytics.kotlin.core.platform.Plugin
+import io.customer.sdk.core.util.isProcessInForeground
 import io.customer.sdk.util.EventNames
 import java.util.Collections
 import java.util.WeakHashMap
@@ -40,7 +39,8 @@ internal class AutomaticApplicationLifecycleTrackingPlugin @VisibleForTesting co
     constructor(application: Application) : this(
         application = application,
         appVersionProvider = { application.getAppVersion() },
-        isAppInForeground = ::isProcessInForeground
+        // A visible process counts as started here, so the first open is tracked
+        isAppInForeground = { isProcessInForeground(ProcessLifecycleOwner.get().lifecycle, countVisibleAsForeground = true) }
     )
 
     override val type: Plugin.Type = Plugin.Type.Utility
@@ -172,22 +172,4 @@ private fun Application.getAppVersion(): AppVersion {
         packageInfo.versionCode.toLong()
     }
     return AppVersion(version = packageInfo.versionName, build = versionCode.toString())
-}
-
-private fun isProcessInForeground(): Boolean {
-    // Reading the state is a plain field read, so this is safe from the thread initializing the SDK.
-    // It stays INITIALIZED only when the process lifecycle isn't running in this process
-    // (a secondary process, or an app that removed the androidx.startup initializer).
-    val processState = ProcessLifecycleOwner.get().lifecycle.currentState
-    if (processState != Lifecycle.State.INITIALIZED) {
-        // Known limitation: the process lifecycle reports a stop about 700 ms after the last Activity stopped. An SDK
-        // initialized within that window counts the app as in foreground and never sees that Activity stop, so the
-        // next return to the app tracks no Application Opened, and Application Backgrounded waits until it's left.
-        return processState.isAtLeast(Lifecycle.State.STARTED)
-    }
-    val processInfo = ActivityManager.RunningAppProcessInfo()
-    ActivityManager.getMyMemoryState(processInfo)
-    // Importances in between, such as a foreground service, don't mean an Activity is started
-    return processInfo.importance == ActivityManager.RunningAppProcessInfo.IMPORTANCE_FOREGROUND ||
-        processInfo.importance == ActivityManager.RunningAppProcessInfo.IMPORTANCE_VISIBLE
 }

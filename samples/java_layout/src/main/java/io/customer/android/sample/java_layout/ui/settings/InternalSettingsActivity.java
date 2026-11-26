@@ -129,7 +129,8 @@ public class InternalSettingsActivity extends BaseActivity<ActivityInternalSetti
                 currentSettings.isApplicationLifecycleTrackingEnabled(),
                 currentSettings.isTestModeEnabled(),
                 currentSettings.isInAppMessagingEnabled(),
-                currentSettings.getLocationTrackingMode()
+                currentSettings.getLocationTrackingMode(),
+                currentSettings.getModalPresentation()
         );
     }
 

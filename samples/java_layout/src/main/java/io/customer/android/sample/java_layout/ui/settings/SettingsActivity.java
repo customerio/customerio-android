@@ -19,6 +19,7 @@ import io.customer.android.sample.java_layout.utils.OSUtils;
 import io.customer.android.sample.java_layout.utils.ViewUtils;
 import io.customer.datapipelines.config.ScreenView;
 import io.customer.location.LocationTrackingMode;
+import io.customer.messaginginapp.type.ModalPresentation;
 import io.customer.sdk.core.util.CioLogLevel;
 import io.customer.sdk.data.model.Region;
 import io.reactivex.rxjava3.android.schedulers.AndroidSchedulers;
@@ -141,6 +142,7 @@ public class SettingsActivity extends BaseActivity<ActivitySettingsBinding> {
         binding.settingsTestModeValuesGroup.check(getCheckedTestModeButtonId(config.isTestModeEnabled()));
         binding.settingsInAppMessagingValuesGroup.check(getCheckedInAppMessagingButtonId(config.isInAppMessagingEnabled()));
         binding.settingsLocationTrackingModeValuesGroup.check(getCheckedLocationTrackingModeButtonId(config.getLocationTrackingMode()));
+        binding.settingsModalPresentationValuesGroup.check(getCheckedModalPresentationButtonId(config.getModalPresentation()));
     }
 
     private void saveSettings() {
@@ -185,6 +187,7 @@ public class SettingsActivity extends BaseActivity<ActivitySettingsBinding> {
         Region region = getSelectedRegion();
         ScreenView screenViewUse = getSelectedScreenViewUse();
         LocationTrackingMode locationTrackingMode = getSelectedLocationTrackingMode();
+        ModalPresentation modalPresentation = getSelectedModalPresentation();
 
         return new CustomerIOSDKConfig(cdpApiKey,
                 siteId,
@@ -198,7 +201,8 @@ public class SettingsActivity extends BaseActivity<ActivitySettingsBinding> {
                 featTrackApplicationLifecycle,
                 featTestModeEnabled,
                 featInAppMessagingEnabled,
-                locationTrackingMode);
+                locationTrackingMode,
+                modalPresentation);
     }
 
     @NonNull
@@ -222,6 +226,28 @@ public class SettingsActivity extends BaseActivity<ActivitySettingsBinding> {
                 return R.id.settings_location_tracking_mode_manual_button;
             case ON_APP_START:
                 return R.id.settings_location_tracking_mode_on_app_start_button;
+            default:
+                throw new IllegalStateException();
+        }
+    }
+
+    @NonNull
+    private ModalPresentation getSelectedModalPresentation() {
+        int checkedButton = binding.settingsModalPresentationValuesGroup.getCheckedButtonId();
+        if (checkedButton == R.id.settings_modal_presentation_activity_button) {
+            return ModalPresentation.ACTIVITY;
+        } else if (checkedButton == R.id.settings_modal_presentation_host_window_button) {
+            return ModalPresentation.HOST_WINDOW;
+        }
+        throw new IllegalStateException();
+    }
+
+    private int getCheckedModalPresentationButtonId(@NonNull ModalPresentation modalPresentation) {
+        switch (modalPresentation) {
+            case ACTIVITY:
+                return R.id.settings_modal_presentation_activity_button;
+            case HOST_WINDOW:
+                return R.id.settings_modal_presentation_host_window_button;
             default:
                 throw new IllegalStateException();
         }

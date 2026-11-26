@@ -116,6 +116,8 @@ public class CustomerIORepository {
                                     "Loading inbox",
                                     "No notifications"
                             ))
+                            // ACTIVITY (default) or HOST_WINDOW, picked on the Settings screen.
+                            .setModalPresentation(sdkConfig.getModalPresentation())
                             .build()
             ));
         }

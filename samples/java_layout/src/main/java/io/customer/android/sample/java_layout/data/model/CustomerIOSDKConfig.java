@@ -14,6 +14,7 @@ import io.customer.android.sample.java_layout.utils.StringUtils;
 import io.customer.datapipelines.config.ScreenView;
 import io.customer.datapipelines.extensions.RegionExtKt;
 import io.customer.location.LocationTrackingMode;
+import io.customer.messaginginapp.type.ModalPresentation;
 import io.customer.sdk.core.util.CioLogLevel;
 import io.customer.sdk.data.model.Region;
 
@@ -35,6 +36,7 @@ public class CustomerIOSDKConfig {
         static final String TEST_MODE_ENABLED = "cio_sdk_test_mode";
         static final String IN_APP_MESSAGING_ENABLED = "cio_sdk_in_app_messaging_enabled";
         static final String LOCATION_TRACKING_MODE = "cio_sdk_location_tracking_mode";
+        static final String MODAL_PRESENTATION = "cio_sdk_modal_presentation";
     }
 
     public static CustomerIOSDKConfig getDefaultConfigurations() {
@@ -50,7 +52,8 @@ public class CustomerIOSDKConfig {
                 true,
                 false,
                 true,
-                LocationTrackingMode.MANUAL);
+                LocationTrackingMode.MANUAL,
+                ModalPresentation.ACTIVITY);
     }
 
     @NonNull
@@ -73,6 +76,7 @@ public class CustomerIOSDKConfig {
         boolean testModeEnabled = StringUtils.parseBoolean(bundle.get(Keys.TEST_MODE_ENABLED), defaultConfig.testModeEnabled);
         boolean inAppMessagingEnabled = StringUtils.parseBoolean(bundle.get(Keys.IN_APP_MESSAGING_ENABLED), defaultConfig.inAppMessagingEnabled);
         LocationTrackingMode locationTrackingMode = parseLocationTrackingMode(bundle.get(Keys.LOCATION_TRACKING_MODE), defaultConfig.locationTrackingMode);
+        ModalPresentation modalPresentation = parseModalPresentation(bundle.get(Keys.MODAL_PRESENTATION), defaultConfig.modalPresentation);
 
         CustomerIOSDKConfig config = new CustomerIOSDKConfig(cdpApiKey,
                 siteId,
@@ -86,7 +90,8 @@ public class CustomerIOSDKConfig {
                 applicationLifecycleTrackingEnabled,
                 testModeEnabled,
                 inAppMessagingEnabled,
-                locationTrackingMode);
+                locationTrackingMode,
+                modalPresentation);
         return Optional.of(config);
     }
 
@@ -97,6 +102,18 @@ public class CustomerIOSDKConfig {
         }
         try {
             return LocationTrackingMode.valueOf(name);
+        } catch (IllegalArgumentException e) {
+            return fallback;
+        }
+    }
+
+    @NonNull
+    private static ModalPresentation parseModalPresentation(@Nullable String name, @NonNull ModalPresentation fallback) {
+        if (TextUtils.isEmpty(name)) {
+            return fallback;
+        }
+        try {
+            return ModalPresentation.valueOf(name);
         } catch (IllegalArgumentException e) {
             return fallback;
         }
@@ -118,6 +135,7 @@ public class CustomerIOSDKConfig {
         bundle.put(Keys.TEST_MODE_ENABLED, StringUtils.fromBoolean(config.testModeEnabled));
         bundle.put(Keys.IN_APP_MESSAGING_ENABLED, StringUtils.fromBoolean(config.inAppMessagingEnabled));
         bundle.put(Keys.LOCATION_TRACKING_MODE, config.locationTrackingMode.name());
+        bundle.put(Keys.MODAL_PRESENTATION, config.modalPresentation.name());
         return bundle;
     }
 
@@ -141,6 +159,8 @@ public class CustomerIOSDKConfig {
     private final boolean inAppMessagingEnabled;
     @NonNull
     private final LocationTrackingMode locationTrackingMode;
+    @NonNull
+    private final ModalPresentation modalPresentation;
 
     public CustomerIOSDKConfig(@NonNull String cdpApiKey,
                                @NonNull String siteId,
@@ -154,7 +174,8 @@ public class CustomerIOSDKConfig {
                                boolean applicationLifecycleTrackingEnabled,
                                boolean testModeEnabled,
                                boolean inAppMessagingEnabled,
-                               @NonNull LocationTrackingMode locationTrackingMode) {
+                               @NonNull LocationTrackingMode locationTrackingMode,
+                               @NonNull ModalPresentation modalPresentation) {
         this.cdpApiKey = cdpApiKey;
         this.siteId = siteId;
         this.apiHost = apiHost;
@@ -168,6 +189,7 @@ public class CustomerIOSDKConfig {
         this.testModeEnabled = testModeEnabled;
         this.inAppMessagingEnabled = inAppMessagingEnabled;
         this.locationTrackingMode = locationTrackingMode;
+        this.modalPresentation = modalPresentation;
     }
 
     @NonNull
@@ -228,5 +250,10 @@ public class CustomerIOSDKConfig {
     @NonNull
     public LocationTrackingMode getLocationTrackingMode() {
         return locationTrackingMode;
+    }
+
+    @NonNull
+    public ModalPresentation getModalPresentation() {
+        return modalPresentation;
     }
 }

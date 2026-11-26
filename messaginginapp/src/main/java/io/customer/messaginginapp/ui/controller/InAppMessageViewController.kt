@@ -35,6 +35,8 @@ internal abstract class InAppMessageViewController<ViewCallback : InAppMessageVi
     protected var shouldDispatchDisplayEvent: Boolean = true
 
     /** True until the first route of the current message has loaded. */
+    @Volatile
+    @ThreadSafeProperty("Reset on the UI thread in loadMessage, read in routeLoaded on the WebView bridge thread")
     private var isFirstRouteOfMessage: Boolean = true
 
     @VisibleForTesting(otherwise = VisibleForTesting.PROTECTED)

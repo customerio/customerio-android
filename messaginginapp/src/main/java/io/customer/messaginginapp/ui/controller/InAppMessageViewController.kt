@@ -39,6 +39,15 @@ internal abstract class InAppMessageViewController<ViewCallback : InAppMessageVi
     @ThreadSafeProperty("Reset on the UI thread in loadMessage, read in routeLoaded on the WebView bridge thread")
     private var isFirstRouteOfMessage: Boolean = true
 
+    /**
+     * True once [stopLoading] ran for the current message. A route-loaded call can still be on its way
+     * from the WebView's bridge thread when the view is torn down, and must not report the message as
+     * displayed for a view that is gone (for example after the host window moved to a recreated activity).
+     */
+    @Volatile
+    @ThreadSafeProperty("Set on the UI thread in loadMessage and stopLoading, read in routeLoaded on the WebView bridge thread")
+    private var isStopped: Boolean = false
+
     @VisibleForTesting(otherwise = VisibleForTesting.PROTECTED)
     var engineWebViewDelegate: EngineWebViewDelegate? by threadSafe()
 
@@ -113,6 +122,7 @@ internal abstract class InAppMessageViewController<ViewCallback : InAppMessageVi
     internal fun loadMessage(message: Message, shouldDispatchDisplayEvent: Boolean? = null) {
         shouldDispatchDisplayEvent?.let { this.shouldDispatchDisplayEvent = it }
         isFirstRouteOfMessage = true
+        isStopped = false
         val store = inAppMessagingManager.getCurrentState()
         val uiMode = engineWebViewDelegate?.getView()?.context
             ?.resources?.configuration?.uiMode ?: 0
@@ -135,6 +145,7 @@ internal abstract class InAppMessageViewController<ViewCallback : InAppMessageVi
     @UiThread
     internal fun stopLoading() {
         logViewEvent("Stopping EngineWebView loading")
+        isStopped = true
         stopEngineWebViewLoading()
     }
 
@@ -266,6 +277,10 @@ internal abstract class InAppMessageViewController<ViewCallback : InAppMessageVi
     }
 
     final override fun routeLoaded(route: String) {
+        if (isStopped) {
+            logViewEvent("Ignoring route loaded after stop: $route")
+            return
+        }
         logViewEvent("Route loaded: $route")
         currentRoute = route
         val message = currentMessage ?: return

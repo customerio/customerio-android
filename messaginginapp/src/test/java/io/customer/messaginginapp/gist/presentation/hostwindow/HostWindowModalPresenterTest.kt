@@ -452,6 +452,38 @@ class HostWindowModalPresenterTest {
         window.hostResumes shouldBeEqualTo 1
     }
 
+    // Review finding: the same-host resume path skipped the store check that attach and reconcile make.
+    @Test
+    fun resumeOfSameHost_givenDismissalNotYetDelivered_expectWindowDismissedWithoutResumingRenderer() {
+        val host = newHost().also { it.resume() }
+        load(message)
+        stateSource.emit(ModalPresentationState.Displayed(message))
+        host.pause()
+
+        stateSource.state = ModalPresentationState.Idle // dismissal reduced, update not delivered yet
+        host.resume()
+
+        val window = factory.created.single().window
+        window.dismissRequested.shouldBeTrue()
+        window.hostResumes shouldBeEqualTo 0
+        stateSource.listener.shouldBeNull()
+    }
+
+    @Test
+    fun resumeOfSameHost_givenResetWhileLoadingNotYetDelivered_expectWindowReleasedWithoutResumingRenderer() {
+        val host = newHost().also { it.resume() }
+        load(message)
+        host.pause()
+
+        stateSource.state = ModalPresentationState.Idle // reset reduced, update not delivered yet
+        host.resume()
+
+        val window = factory.created.single().window
+        window.released.shouldBeTrue()
+        window.dismissRequested.shouldBeFalse()
+        window.hostResumes shouldBeEqualTo 0
+    }
+
     @Test
     fun hostDestroyed_givenOtherActivity_expectWindowUntouched() {
         newHost().resume()

@@ -63,6 +63,12 @@ internal class HostWindowModalPresenter(
 
     override fun onHostResumed(activity: Activity) {
         val presentation = current ?: return
+        // The store can leave the message before its posted reconcile runs. End it here, as attach and
+        // reconcile do, so a dismissed or reset message's renderer is never resumed.
+        if (!isActive(presentation.message)) {
+            end(presentation)
+            return
+        }
         val window = presentation.window
         if (window != null && !window.isReleased && window.host === activity) {
             window.onHostResumed()

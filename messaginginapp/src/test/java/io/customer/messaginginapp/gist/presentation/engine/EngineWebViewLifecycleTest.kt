@@ -261,6 +261,76 @@ class EngineWebViewLifecycleTest : IntegrationTest() {
     }
 
     @Test
+    fun onResume_givenBootstrappedButNoRouteLoadedWhilePaused_expectTimeoutRearmedUntilRouteLoads() {
+        val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
+        val owner = FakeLifecycleOwner()
+        val host = FrameLayout(activity).apply { setViewTreeLifecycleOwner(owner) }
+        val engineWebView = EngineWebView(activity)
+        host.addView(engineWebView)
+        activity.setContentView(host)
+        owner.registry.currentState = Lifecycle.State.RESUMED
+        engineWebView.setup(givenConfiguration())
+        engineWebView.bootstrapped()
+        engineWebView.timeoutTimer().shouldBeNull()
+
+        // Home after bootstrap: a route load in this window reaches the detached bridge and is dropped.
+        owner.registry.currentState = Lifecycle.State.CREATED
+        owner.registry.currentState = Lifecycle.State.RESUMED
+
+        engineWebView.timeoutTimer().shouldNotBeNull()
+        engineWebView.routeLoaded("route")
+        engineWebView.timeoutTimer().shouldBeNull()
+
+        engineWebView.stopLoading()
+        host.removeView(engineWebView)
+        engineWebView.releaseResources()
+    }
+
+    @Test
+    fun onResume_givenRouteAlreadyLoaded_expectNoTimeout() {
+        val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
+        val owner = FakeLifecycleOwner()
+        val host = FrameLayout(activity).apply { setViewTreeLifecycleOwner(owner) }
+        val engineWebView = EngineWebView(activity)
+        host.addView(engineWebView)
+        activity.setContentView(host)
+        owner.registry.currentState = Lifecycle.State.RESUMED
+        engineWebView.setup(givenConfiguration())
+        engineWebView.bootstrapped()
+        engineWebView.routeLoaded("route")
+
+        owner.registry.currentState = Lifecycle.State.CREATED
+        owner.registry.currentState = Lifecycle.State.RESUMED
+
+        engineWebView.timeoutTimer().shouldBeNull()
+
+        engineWebView.stopLoading()
+        host.removeView(engineWebView)
+        engineWebView.releaseResources()
+    }
+
+    @Test
+    fun onAttachedToWindow_givenStoppedAfterBootstrap_expectNoTimeoutOnResume() {
+        val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
+        val owner = FakeLifecycleOwner()
+        val host = FrameLayout(activity).apply { setViewTreeLifecycleOwner(owner) }
+        val engineWebView = EngineWebView(activity)
+        host.addView(engineWebView)
+        activity.setContentView(host)
+        owner.registry.currentState = Lifecycle.State.RESUMED
+        engineWebView.setup(givenConfiguration())
+        engineWebView.bootstrapped()
+
+        engineWebView.stopLoading()
+        engineWebView.onLifecycleResumed()
+
+        engineWebView.timeoutTimer().shouldBeNull()
+
+        host.removeView(engineWebView)
+        engineWebView.releaseResources()
+    }
+
+    @Test
     fun onDetachedFromWindow_givenOwnerPausesWhileDetached_expectInterfaceStaysDetachedUntilResumed() {
         val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
         val owner = FakeLifecycleOwner()

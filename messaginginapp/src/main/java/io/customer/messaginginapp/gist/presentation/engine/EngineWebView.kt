@@ -41,6 +41,15 @@ internal class EngineWebView @JvmOverloads constructor(
 
     override var listener: EngineWebViewListener? = null
     private var timer: Timer? = null
+
+    /**
+     * True between the renderer's bootstrap and its first route load. The load timeout is cleared at
+     * bootstrap, and a route load that arrives while the engine is paused is dropped with the detached
+     * bridge, so a resume in this window re-arms the timeout. Otherwise the message stays loading for good
+     * and no other modal can show.
+     */
+    @Volatile
+    private var isAwaitingFirstRoute: Boolean = false
     private var timerTask: TimerTask? = null
     private var webView: WebView? = null
     private var elapsedTimer: ElapsedTimer = ElapsedTimer()
@@ -181,6 +190,10 @@ internal class EngineWebView @JvmOverloads constructor(
         if (timerTask != null && timer == null) {
             logger.debug("Resuming timeout timer after lifecycle resume")
             setupTimeout()
+        } else if (isAwaitingFirstRoute && timer == null) {
+            // The route may have loaded while paused, and that call was dropped with the detached bridge.
+            logger.debug("Re-arming timeout after resume: bootstrapped but no route loaded yet")
+            setupTimeout(detail = "Route did not load within ${TIMEOUT_DURATION}ms after the app resumed")
         }
     }
 
@@ -248,6 +261,8 @@ internal class EngineWebView @JvmOverloads constructor(
         stopObservingLifecycle()
         // stop the timer and clean up
         bootstrapped()
+        // A stopped engine waits for nothing, so a later resume must not re-arm the timeout.
+        isAwaitingFirstRoute = false
     }
 
     override fun updateColorScheme(scheme: String) {
@@ -289,6 +304,7 @@ internal class EngineWebView @JvmOverloads constructor(
         val initialColorScheme = configuration.colorScheme
         lastResolvedColorScheme = initialColorScheme
         subscribeToColorSchemeChanges()
+        isAwaitingFirstRoute = false
         setupTimeout()
         elapsedTimer.start("Engine render for message: ${configuration.messageId}")
         val messageData = mapOf("options" to configuration)
@@ -449,14 +465,14 @@ internal class EngineWebView @JvmOverloads constructor(
         }
     }
 
-    private fun setupTimeout() {
+    private fun setupTimeout(detail: String = "Engine did not bootstrap within ${TIMEOUT_DURATION}ms") {
         timerTask = object : TimerTask() {
             override fun run() {
                 if (timer != null) {
                     reportFailure(
                         InAppMessageError(
                             reason = InAppMessageErrorReason.TIMEOUT,
-                            detail = "Engine did not bootstrap within ${TIMEOUT_DURATION}ms"
+                            detail = detail
                         )
                     )
                     cleanupTimer()
@@ -486,6 +502,7 @@ internal class EngineWebView @JvmOverloads constructor(
 
     override fun bootstrapped() {
         cleanupTimer()
+        isAwaitingFirstRoute = true
         listener?.bootstrapped()
     }
 
@@ -503,6 +520,8 @@ internal class EngineWebView @JvmOverloads constructor(
     }
 
     override fun routeLoaded(route: String) {
+        isAwaitingFirstRoute = false
+        cleanupTimer()
         elapsedTimer.end()
         listener?.routeLoaded(route)
     }

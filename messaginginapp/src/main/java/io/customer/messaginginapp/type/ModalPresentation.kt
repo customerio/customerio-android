@@ -21,6 +21,10 @@ enum class ModalPresentation {
      * opened over: another activity opened on top covers it until the user returns. When that activity
      * is recreated (rotation, dark mode) or finishes, the modal moves to the next resumed activity
      * without being counted again. When no host activity is resumed, the modal waits until one is.
+     *
+     * Initialize the SDK in `Application.onCreate`. The SDK finds the host activity through lifecycle
+     * callbacks, so an activity that resumed before the SDK started is missed, and the modal waits for
+     * the next activity to resume.
      */
     HOST_WINDOW
 }

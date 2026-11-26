@@ -34,6 +34,11 @@ internal abstract class InAppMessageViewController<ViewCallback : InAppMessageVi
     protected val inAppMessagingManager = SDKComponent.inAppMessagingManager
     protected var shouldDispatchDisplayEvent: Boolean = true
 
+    /** True until the first route of the current message has loaded. */
+    @Volatile
+    @ThreadSafeProperty("Reset on the UI thread in loadMessage, read in routeLoaded on the WebView bridge thread")
+    private var isFirstRouteOfMessage: Boolean = true
+
     @VisibleForTesting(otherwise = VisibleForTesting.PROTECTED)
     var engineWebViewDelegate: EngineWebViewDelegate? by threadSafe()
 
@@ -99,8 +104,15 @@ internal abstract class InAppMessageViewController<ViewCallback : InAppMessageVi
         return true
     }
 
+    /**
+     * @param shouldDispatchDisplayEvent when not null, overrides whether this view reports the message
+     * as displayed once its route loads. Null keeps the current value, so callers that set the flag
+     * themselves (the inline controller) are unaffected.
+     */
     @UiThread
-    internal fun loadMessage(message: Message) {
+    internal fun loadMessage(message: Message, shouldDispatchDisplayEvent: Boolean? = null) {
+        shouldDispatchDisplayEvent?.let { this.shouldDispatchDisplayEvent = it }
+        isFirstRouteOfMessage = true
         val store = inAppMessagingManager.getCurrentState()
         val uiMode = engineWebViewDelegate?.getView()?.context
             ?.resources?.configuration?.uiMode ?: 0
@@ -257,7 +269,14 @@ internal abstract class InAppMessageViewController<ViewCallback : InAppMessageVi
         logViewEvent("Route loaded: $route")
         currentRoute = route
         val message = currentMessage ?: return
-        if (!shouldDispatchDisplayEvent) return
+        val isFirstRoute = isFirstRouteOfMessage
+        isFirstRouteOfMessage = false
+        if (!shouldDispatchDisplayEvent) {
+            // Already reported as displayed, for example a message restored in another host window.
+            // The view still has to be revealed once its first route is ready.
+            if (isFirstRoute) onRouteLoadedWithoutDisplayEvent(message = message, route = route)
+            return
+        }
 
         // Dispatch the display event to track metrics
         // The display event should be dispatched only once for each message
@@ -269,6 +288,12 @@ internal abstract class InAppMessageViewController<ViewCallback : InAppMessageVi
     protected open fun onRouteLoaded(message: Message, route: String) {
         inAppMessagingManager.dispatch(InAppMessagingAction.DisplayMessage(message))
     }
+
+    /**
+     * Called for the first route of a message whose display event is suppressed ([shouldDispatchDisplayEvent]
+     * is false). Subclasses reveal their view here. Does nothing by default.
+     */
+    protected open fun onRouteLoadedWithoutDisplayEvent(message: Message, route: String) = Unit
 
     override fun error() {
         // Only reachable from an implementation that predates the classified callback. EngineWebView

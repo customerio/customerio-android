@@ -3,6 +3,7 @@ package io.customer.messaginginapp
 import io.customer.base.internal.InternalCustomerIOApi
 import io.customer.messaginginapp.di.gistCustomAttributes
 import io.customer.messaginginapp.di.gistProvider
+import io.customer.messaginginapp.di.hostWindowModalPresenter
 import io.customer.messaginginapp.di.inAppMessagingManager
 import io.customer.messaginginapp.di.notificationInbox
 import io.customer.messaginginapp.di.visualInbox
@@ -19,6 +20,7 @@ import io.customer.messaginginapp.type.InAppMessage
 import io.customer.messaginginapp.type.InAppMessageError
 import io.customer.messaginginapp.type.InAppMessageErrorReason
 import io.customer.messaginginapp.type.InboxEventListener
+import io.customer.messaginginapp.type.ModalPresentation
 import io.customer.sdk.communication.Event
 import io.customer.sdk.communication.subscribe
 import io.customer.sdk.core.di.SDKComponent
@@ -126,6 +128,12 @@ class ModuleMessagingInApp(
     }
 
     override fun initialize() {
+        // Creating the presenter registers the host activity tracker. It has to happen at startup so the
+        // first modal already knows which activity is resumed. Hosts on the default ACTIVITY presentation
+        // never create it.
+        if (moduleConfig.modalPresentation == ModalPresentation.HOST_WINDOW) {
+            SDKComponent.hostWindowModalPresenter
+        }
         setupHooks()
     }
 

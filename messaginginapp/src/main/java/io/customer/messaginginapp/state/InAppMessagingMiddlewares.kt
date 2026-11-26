@@ -4,6 +4,8 @@ import android.content.Intent
 import com.google.gson.Gson
 import io.customer.messaginginapp.di.anonymousMessageManager
 import io.customer.messaginginapp.di.gistQueue
+import io.customer.messaginginapp.di.hostWindowModalPresenter
+import io.customer.messaginginapp.di.inAppModuleConfig
 import io.customer.messaginginapp.di.inAppSseLogger
 import io.customer.messaginginapp.di.pollingLifecycleManager
 import io.customer.messaginginapp.di.processLifecycleOwner
@@ -15,6 +17,7 @@ import io.customer.messaginginapp.gist.data.model.response.toLogString
 import io.customer.messaginginapp.gist.presentation.GistListener
 import io.customer.messaginginapp.gist.presentation.GistModalActivity
 import io.customer.messaginginapp.gist.utilities.ModalMessageParser
+import io.customer.messaginginapp.type.ModalPresentation
 import io.customer.sdk.communication.Event
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.util.Logger
@@ -142,6 +145,17 @@ private fun handleModalMessageDisplay(logger: Logger, store: Store<InAppMessagin
     if (store.state.modalMessageState !is ModalMessageState.Displayed) {
         val context = SDKComponent.android().applicationContext
         logger.debug("Showing message: ${action.message} with position: ${action.position} and context: $context")
+
+        // A host whose activity is singleInstance cannot hold a second activity in its task (MBL-2812).
+        // Hosts that choose HOST_WINDOW get the modal in their own window. The default keeps the activity.
+        if (SDKComponent.inAppModuleConfig.modalPresentation == ModalPresentation.HOST_WINDOW) {
+            logger.debug("Showing message in the host window: ${action.message.queueId}")
+            // Reduce first: the presenter only shows a message the store reports as loading.
+            next(action)
+            SDKComponent.hostWindowModalPresenter.present(action.message, action.position ?: action.message.gistProperties.position)
+            return
+        }
+
         val intent = GistModalActivity.newIntent(context).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK
             putExtra(ModalMessageParser.EXTRA_IN_APP_MESSAGE, Gson().toJson(action.message))

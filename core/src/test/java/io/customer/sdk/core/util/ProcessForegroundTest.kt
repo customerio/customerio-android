@@ -14,15 +14,25 @@ class ProcessForegroundTest : JUnit5Test() {
         every { it.currentState } returns state
     }
 
+    /**
+     * The importance and the resumed activity must not be read unless a test provides them,
+     * which also checks that a caller who did not ask for a signal never pays for reading it.
+     */
     private fun isForeground(
         state: Lifecycle.State,
         importance: Int? = null,
-        countVisibleAsForeground: Boolean = false
+        countVisibleAsForeground: Boolean = false,
+        requireResumedActivity: Boolean = false,
+        resumedActivityProvider: (() -> Boolean?)? = null
     ): Boolean = isProcessInForeground(
         processLifecycle = lifecycleIn(state),
         countVisibleAsForeground = countVisibleAsForeground,
+        requireResumedActivity = requireResumedActivity,
         importanceProvider = {
-            checkNotNull(importance) { "importance must not be read when the process lifecycle is running" }
+            checkNotNull(importance) { "importance must not be read here" }
+        },
+        resumedActivityProvider = {
+            checkNotNull(resumedActivityProvider) { "resumed activity must not be read here" }.invoke()
         }
     )
 
@@ -33,11 +43,13 @@ class ProcessForegroundTest : JUnit5Test() {
     }
 
     @Test
-    fun isProcessInForeground_givenCreatedOrDestroyed_expectFalseWithoutReadingImportance() {
+    fun isProcessInForeground_givenCreatedOrDestroyed_expectFalseWithoutReadingAnySignal() {
         // A process lifecycle that is running but not started, for example a push-started process.
-        // The importance is not consulted, even if it would say foreground.
-        isForeground(Lifecycle.State.CREATED) shouldBeEqualTo false
-        isForeground(Lifecycle.State.DESTROYED) shouldBeEqualTo false
+        // Neither the importance nor the resumed activity is consulted, even if they would say foreground.
+        listOf(false, true).forEach { requireResumedActivity ->
+            isForeground(Lifecycle.State.CREATED, requireResumedActivity = requireResumedActivity) shouldBeEqualTo false
+            isForeground(Lifecycle.State.DESTROYED, requireResumedActivity = requireResumedActivity) shouldBeEqualTo false
+        }
     }
 
     @Test
@@ -72,5 +84,59 @@ class ProcessForegroundTest : JUnit5Test() {
         ).forEach { importance ->
             isForeground(Lifecycle.State.INITIALIZED, importance) shouldBeEqualTo false
         }
+    }
+
+    // The window after the last activity paused: the process lifecycle still reports started for
+    // about 700 ms, and the OS importance is still FOREGROUND until the activity stops.
+
+    @Test
+    fun isProcessInForeground_givenStartedAndNoResumedActivity_expectFalse() {
+        isForeground(Lifecycle.State.STARTED, requireResumedActivity = true, resumedActivityProvider = { false }) shouldBeEqualTo false
+        isForeground(Lifecycle.State.RESUMED, requireResumedActivity = true, resumedActivityProvider = { false }) shouldBeEqualTo false
+    }
+
+    @Test
+    fun isProcessInForeground_givenStartedAndResumedActivity_expectTrueWithoutReadingImportance() {
+        isForeground(Lifecycle.State.STARTED, requireResumedActivity = true, resumedActivityProvider = { true }) shouldBeEqualTo true
+        isForeground(Lifecycle.State.RESUMED, requireResumedActivity = true, resumedActivityProvider = { true }) shouldBeEqualTo true
+    }
+
+    @Test
+    fun isProcessInForeground_givenStartedAndResumedActivityUnknown_expectLifecycleDecides() {
+        // No resume or pause has been seen yet, for example after a late SDK initialization
+        isForeground(Lifecycle.State.STARTED, requireResumedActivity = true, resumedActivityProvider = { null }) shouldBeEqualTo true
+    }
+
+    @Test
+    fun isProcessInForeground_givenNeverAttachedAndResumedActivity_expectTrueWithoutReadingImportance() {
+        isForeground(Lifecycle.State.INITIALIZED, requireResumedActivity = true, resumedActivityProvider = { true }) shouldBeEqualTo true
+    }
+
+    @Test
+    fun isProcessInForeground_givenNeverAttachedAndNoResumedActivity_expectFalseEvenWithForegroundImportance() {
+        // A UI-less service that a foreground app is bound to gets IMPORTANCE_FOREGROUND from the OS
+        isForeground(
+            Lifecycle.State.INITIALIZED,
+            RunningAppProcessInfo.IMPORTANCE_FOREGROUND,
+            requireResumedActivity = true,
+            resumedActivityProvider = { false }
+        ) shouldBeEqualTo false
+    }
+
+    @Test
+    fun isProcessInForeground_givenNeverAttachedAndResumedActivityUnknown_expectImportanceDecides() {
+        isForeground(
+            Lifecycle.State.INITIALIZED,
+            RunningAppProcessInfo.IMPORTANCE_FOREGROUND,
+            requireResumedActivity = true,
+            resumedActivityProvider = { null }
+        ) shouldBeEqualTo true
+        isForeground(
+            Lifecycle.State.INITIALIZED,
+            RunningAppProcessInfo.IMPORTANCE_VISIBLE,
+            countVisibleAsForeground = false,
+            requireResumedActivity = true,
+            resumedActivityProvider = { null }
+        ) shouldBeEqualTo false
     }
 }

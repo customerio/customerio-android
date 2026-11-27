@@ -31,6 +31,7 @@ import io.customer.messaginginapp.inbox.NotificationInbox
 import io.customer.messaginginapp.inbox.VisualInbox
 import io.customer.messaginginapp.inbox.data.InboxRepository
 import io.customer.messaginginapp.state.InAppMessagingManager
+import io.customer.messaginginapp.state.PendingQueuePassOnResume
 import io.customer.messaginginapp.store.InAppPreferenceStore
 import io.customer.messaginginapp.store.InAppPreferenceStoreImpl
 import io.customer.sdk.CustomerIOInstance
@@ -59,6 +60,13 @@ internal val SDKComponent.inAppPreferenceStore: InAppPreferenceStore
 
 internal val SDKComponent.inAppMessagingManager: InAppMessagingManager
     get() = singleton<InAppMessagingManager> { InAppMessagingManager(inAppMessaging) }
+
+/**
+ * Whether a queue pass is already waiting for the next resumed activity. Kept in the graph so it resets
+ * together with the SDK and tests start without a pending pass.
+ */
+internal val SDKComponent.pendingQueuePassOnResume: PendingQueuePassOnResume
+    get() = singleton<PendingQueuePassOnResume> { PendingQueuePassOnResume() }
 
 /**
  * Lifecycle of the whole app process. It reaches STARTED only while at least one activity is

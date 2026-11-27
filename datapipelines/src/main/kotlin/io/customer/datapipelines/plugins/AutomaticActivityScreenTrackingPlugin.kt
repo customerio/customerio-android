@@ -5,6 +5,7 @@ import android.content.pm.PackageManager
 import com.segment.analytics.kotlin.android.plugins.AndroidLifecycle
 import com.segment.analytics.kotlin.core.Analytics
 import com.segment.analytics.kotlin.core.platform.Plugin
+import io.customer.datapipelines.handoff.gateway
 import io.customer.sdk.CustomerIO
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.util.Logger
@@ -68,7 +69,7 @@ class AutomaticActivityScreenTrackingPlugin : Plugin, AndroidLifecycle {
                     CustomerIO.instance().screen(screenName)
                     markScreenTracked(screenName)
                 }.onFailure {
-                    analytics.screen(screenName)
+                    analytics.gateway().screen(screenName)
                     markScreenTracked(screenName)
                 }
             }

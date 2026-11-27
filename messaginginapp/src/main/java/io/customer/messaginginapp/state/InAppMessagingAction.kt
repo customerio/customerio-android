@@ -31,6 +31,12 @@ internal sealed class InAppMessagingAction {
         val isSseSnapshot: Boolean = false,
         val expectedSseRevision: Long? = null
     ) : InAppMessagingAction()
+
+    /**
+     * Passes the queue through the middleware again, with the queue as it is when this action is processed.
+     * It carries no messages, so a caller outside the store lock never writes back a queue it read earlier.
+     */
+    object ReprocessMessageQueue : InAppMessagingAction()
     data class ProcessInboxMessages(val messages: List<InboxMessage>) : InAppMessagingAction()
     data class DisplayMessage(val message: Message) : InAppMessagingAction()
     data class DismissMessage(val message: Message, val shouldLog: Boolean = true, val viaCloseAction: Boolean = true) : InAppMessagingAction()

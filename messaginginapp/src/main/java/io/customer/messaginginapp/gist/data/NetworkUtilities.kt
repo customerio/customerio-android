@@ -17,6 +17,7 @@ class NetworkUtilities {
         internal const val CIO_CLIENT_VERSION = "X-CIO-Client-Version"
         internal const val CIO_CLIENT_APP_IDENTIFIER = "X-CIO-Client-App-Identifier"
         internal const val GIST_USER_ANONYMOUS_HEADER = "X-Gist-User-Anonymous"
+        internal const val USER_JWT_HEADER = "X-CIO-User-JWT"
         internal const val SDK_NOT_INITIALIZED_MESSAGE =
             "Customer.io SDK is not initialized or was reset; in-app request aborted"
 
@@ -73,6 +74,7 @@ class NetworkUtilities {
             builder.addHeader(CIO_CLIENT_APP_IDENTIFIER, androidSDKComponent.applicationStore.customerPackageName)
 
             builder.addHeader(GIST_USER_ANONYMOUS_HEADER, (state.userId == null).toString())
+            state.activeUserJwt?.let { jwt -> builder.addHeader(USER_JWT_HEADER, jwt) }
             if (includeUserToken) {
                 val userToken = state.userId ?: state.anonymousId
                 userToken?.let { token ->

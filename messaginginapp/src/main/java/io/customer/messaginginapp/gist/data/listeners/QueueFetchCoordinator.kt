@@ -1,6 +1,7 @@
 package io.customer.messaginginapp.gist.data.listeners
 
 import io.customer.messaginginapp.state.InAppMessagingState
+import java.security.MessageDigest
 
 /**
  * The identity a queue request is made for, resolved the same way
@@ -8,16 +9,36 @@ import io.customer.messaginginapp.state.InAppMessagingState
  * within the session it was made in. Reset starts a new session, so a request from before a logout is
  * never shared with, or applied to, the session after it, even for the same user.
  */
-internal data class QueueFetchKey(val userToken: String, val isAnonymous: Boolean, val sessionId: String = "") {
+internal data class QueueFetchKey(
+    val userToken: String,
+    val isAnonymous: Boolean,
+    val sessionId: String = "",
+    // Gist serves the queue of the person the JWT names, so a body fetched with one JWT is never
+    // the answer for another.
+    val userJwt: String? = null
+) {
     /** Stored next to the cached queue response, so a 304 only reuses a body fetched for this identity. */
     val cacheOwner: String
-        get() = "${if (isAnonymous) "anonymous" else "identified"}:$userToken"
+        get() = "${if (isAnonymous) "anonymous" else "identified"}:$userToken" + userJwt?.let { ":jwt:${sha256(it)}" }.orEmpty()
+
+    // The data class's toString would print the JWT.
+    override fun toString(): String =
+        "QueueFetchKey(userToken=$userToken, isAnonymous=$isAnonymous, sessionId=$sessionId, hasUserJwt=${userJwt != null})"
 
     companion object {
         fun from(state: InAppMessagingState): QueueFetchKey? {
             val userToken = state.userId ?: state.anonymousId ?: return null
-            return QueueFetchKey(userToken = userToken, isAnonymous = state.userId == null, sessionId = state.sessionId)
+            return QueueFetchKey(
+                userToken = userToken,
+                isAnonymous = state.userId == null,
+                sessionId = state.sessionId,
+                userJwt = state.activeUserJwt
+            )
         }
+
+        // The cache owner is persisted, and the JWT must not be.
+        private fun sha256(value: String): String =
+            MessageDigest.getInstance("SHA-256").digest(value.toByteArray()).joinToString("") { "%02x".format(it) }
     }
 }
 

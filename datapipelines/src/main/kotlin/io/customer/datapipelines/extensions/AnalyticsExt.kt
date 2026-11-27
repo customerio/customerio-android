@@ -12,16 +12,20 @@ import com.segment.analytics.kotlin.core.CoroutineConfiguration
 import com.segment.analytics.kotlin.core.ErrorHandler
 import com.segment.analytics.kotlin.core.Settings
 import com.segment.analytics.kotlin.core.emptyJsonObject
+import io.customer.base.internal.InternalCustomerIOApi
 import io.customer.datapipelines.config.DataPipelinesModuleConfig
 import io.customer.datapipelines.di.segmentCoroutineConfiguration
 import io.customer.datapipelines.di.segmentRequestFactory
+import io.customer.datapipelines.network.UserJwtRequestFactory
 import io.customer.datapipelines.plugins.CUSTOMER_IO_DATA_PIPELINES
 import io.customer.sdk.core.di.SDKComponent
+import io.customer.sdk.core.identity.userJwtStore
 import kotlinx.serialization.json.buildJsonObject
 
 /**
  * Updates analytics configuration using the provided [DataPipelinesModuleConfig].
  */
+@OptIn(InternalCustomerIOApi::class)
 internal fun updateAnalyticsConfig(
     moduleConfig: DataPipelinesModuleConfig,
     errorHandler: ErrorHandler? = null
@@ -47,9 +51,10 @@ internal fun updateAnalyticsConfig(
     this.trackApplicationLifecycleEvents = false
     this.apiHost = moduleConfig.apiHost
     this.cdnHost = moduleConfig.cdnHost
-    // Tests only: answer Segment's requests without a network
-    SDKComponent.segmentRequestFactory?.let { this.requestFactory = it }
     this.errorHandler = errorHandler
+    // Tests only: answer Segment's requests without a network
+    this.requestFactory = SDKComponent.segmentRequestFactory
+        ?: UserJwtRequestFactory { SDKComponent.userJwtStore.current?.token }
 }
 
 /**

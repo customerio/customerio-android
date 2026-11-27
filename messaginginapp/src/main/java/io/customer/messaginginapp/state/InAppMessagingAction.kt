@@ -23,6 +23,8 @@ internal sealed class InAppMessagingAction {
     data class SetInlineMessageViewAttached(val message: Message, val isAttached: Boolean) : InAppMessagingAction()
     data class SetUserIdentifier(val user: String) : InAppMessagingAction()
     data class SetAnonymousIdentifier(val anonymousId: String) : InAppMessagingAction()
+    data class SetUserJwt(val userJwt: UserJwt?) : InAppMessagingAction()
+    data class UserJwtRejected(val rejection: UserJwtRejection) : InAppMessagingAction()
     data class ProcessMessageQueue(
         val messages: List<Message>,
         val shouldReconcileInlineMessages: Boolean = true,

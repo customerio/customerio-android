@@ -1,5 +1,5 @@
 public final class io/customer/messaginginapp/MessagingInAppModuleConfig : io/customer/sdk/core/module/CustomerIOModuleConfig {
-	public synthetic fun <init> (Ljava/lang/String;Lio/customer/sdk/data/model/Region;Lio/customer/messaginginapp/type/InAppEventListener;Lio/customer/messaginginapp/type/ColorScheme;Lio/customer/messaginginapp/type/InboxEventListener;Lio/customer/messaginginapp/type/NotificationInboxAccessibilityLabels;Lio/customer/messaginginapp/type/ModalPresentation;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public synthetic fun <init> (Ljava/lang/String;Lio/customer/sdk/data/model/Region;Lio/customer/messaginginapp/type/InAppEventListener;Lio/customer/messaginginapp/type/ColorScheme;Lio/customer/messaginginapp/type/InboxEventListener;Lio/customer/messaginginapp/type/NotificationInboxAccessibilityLabels;Lio/customer/messaginginapp/type/ModalPresentation;Lio/customer/messaginginapp/type/UserJwtListener;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public final fun getColorScheme ()Lio/customer/messaginginapp/type/ColorScheme;
 	public final fun getEventListener ()Lio/customer/messaginginapp/type/InAppEventListener;
 	public final fun getInboxEventListener ()Lio/customer/messaginginapp/type/InboxEventListener;
@@ -7,6 +7,7 @@ public final class io/customer/messaginginapp/MessagingInAppModuleConfig : io/cu
 	public final fun getNotificationInboxAccessibilityLabels ()Lio/customer/messaginginapp/type/NotificationInboxAccessibilityLabels;
 	public final fun getRegion ()Lio/customer/sdk/data/model/Region;
 	public final fun getSiteId ()Ljava/lang/String;
+	public final fun getUserJwtListener ()Lio/customer/messaginginapp/type/UserJwtListener;
 }
 
 public final class io/customer/messaginginapp/MessagingInAppModuleConfig$Builder : io/customer/sdk/core/module/CustomerIOModuleConfig$Builder {
@@ -20,12 +21,14 @@ public final class io/customer/messaginginapp/MessagingInAppModuleConfig$Builder
 	public final fun setInboxEventListener (Lio/customer/messaginginapp/type/InboxEventListener;)Lio/customer/messaginginapp/MessagingInAppModuleConfig$Builder;
 	public final fun setModalPresentation (Lio/customer/messaginginapp/type/ModalPresentation;)Lio/customer/messaginginapp/MessagingInAppModuleConfig$Builder;
 	public final fun setNotificationInboxAccessibilityLabels (Lio/customer/messaginginapp/type/NotificationInboxAccessibilityLabels;)Lio/customer/messaginginapp/MessagingInAppModuleConfig$Builder;
+	public final fun setUserJwtListener (Lio/customer/messaginginapp/type/UserJwtListener;)Lio/customer/messaginginapp/MessagingInAppModuleConfig$Builder;
 }
 
 public final class io/customer/messaginginapp/ModuleMessagingInApp : io/customer/messaginginapp/gist/presentation/GistListener, io/customer/sdk/core/module/CustomerIOModule {
 	public static final field Companion Lio/customer/messaginginapp/ModuleMessagingInApp$Companion;
 	public static final field MODULE_NAME Ljava/lang/String;
 	public fun <init> (Lio/customer/messaginginapp/MessagingInAppModuleConfig;)V
+	public final fun clearUserJwt ()V
 	public final fun dismissMessage ()V
 	public fun embedMessage (Lio/customer/messaginginapp/gist/data/model/Message;Ljava/lang/String;)V
 	public final fun getInboxEventListener ()Lio/customer/messaginginapp/type/InboxEventListener;
@@ -44,6 +47,8 @@ public final class io/customer/messaginginapp/ModuleMessagingInApp : io/customer
 	public fun onMessageShown (Lio/customer/messaginginapp/gist/data/model/Message;)V
 	public final fun setColorScheme (Lio/customer/messaginginapp/type/ColorScheme;)V
 	public final fun setInboxEventListener (Lio/customer/messaginginapp/type/InboxEventListener;)V
+	public final fun setUserJwt (Ljava/lang/String;Ljava/lang/String;)V
+	public final fun setUserJwtListener (Lio/customer/messaginginapp/type/UserJwtListener;)V
 }
 
 public final class io/customer/messaginginapp/ModuleMessagingInApp$Companion {
@@ -364,6 +369,23 @@ public final class io/customer/messaginginapp/type/NotificationInboxAccessibilit
 	public final fun getBellWithUnreadCount ()Lkotlin/jvm/functions/Function1;
 	public final fun getEmptyState ()Ljava/lang/String;
 	public final fun getLoadingIndicator ()Ljava/lang/String;
+}
+
+public abstract interface class io/customer/messaginginapp/type/UserJwtListener {
+	public abstract fun onUserJwtRejected (Ljava/lang/String;Lio/customer/messaginginapp/type/UserJwtRejectionReason;)V
+}
+
+public final class io/customer/messaginginapp/type/UserJwtRejectionReason : java/lang/Enum {
+	public static final field BAD_SIGNATURE Lio/customer/messaginginapp/type/UserJwtRejectionReason;
+	public static final field BAD_SUBJECT Lio/customer/messaginginapp/type/UserJwtRejectionReason;
+	public static final field EXPIRED Lio/customer/messaginginapp/type/UserJwtRejectionReason;
+	public static final field MALFORMED Lio/customer/messaginginapp/type/UserJwtRejectionReason;
+	public static final field MISSING Lio/customer/messaginginapp/type/UserJwtRejectionReason;
+	public static final field UNKNOWN Lio/customer/messaginginapp/type/UserJwtRejectionReason;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public final fun getValue ()Ljava/lang/String;
+	public static fun valueOf (Ljava/lang/String;)Lio/customer/messaginginapp/type/UserJwtRejectionReason;
+	public static fun values ()[Lio/customer/messaginginapp/type/UserJwtRejectionReason;
 }
 
 public final class io/customer/messaginginapp/ui/InlineInAppMessageView : io/customer/messaginginapp/ui/core/BaseInlineInAppMessageView, io/customer/messaginginapp/ui/bridge/InlineInAppMessageViewCallback {

@@ -33,8 +33,21 @@ internal data class InAppMessagingState(
     val sseEnabled: Boolean = false,
     // Visual inbox enablement gate, driven by the X-CIO-Inbox-Enabled response header.
     // The UI observes this flag to decide whether to surface the visual inbox.
-    val isInboxEnabled: Boolean = false
+    val isInboxEnabled: Boolean = false,
+    val userJwt: UserJwt? = null,
+    // The JWT Gist last rejected for a user. Fetches pause while it is still the one in effect.
+    val userJwtRejection: UserJwtRejection? = null
 ) {
+    /**
+     * The JWT to send, which is only the one handed over for the user identified now. A JWT handed
+     * over for a user who isn't identified yet waits until they are.
+     */
+    val activeUserJwt: String?
+        get() = userJwt?.takeIf { it.userId == userId }?.token
+
+    val isPausedByUserJwtRejection: Boolean
+        get() = userJwtRejection != null && userJwtRejection.userId == userId && userJwtRejection.token == activeUserJwt
+
     /**
      * Returns true if the user is identified (has a non-empty userId set).
      * Anonymous users (with only anonymousId or empty userId) are not considered identified.
@@ -73,7 +86,9 @@ internal data class InAppMessagingState(
         append("deletedInboxMessageIds=$deletedInboxMessageIds,\n")
         append("shownMessageQueueIds=$shownMessageQueueIds,\n")
         append("sseEnabled=$sseEnabled,\n")
-        append("isInboxEnabled=$isInboxEnabled)")
+        append("isInboxEnabled=$isInboxEnabled,\n")
+        append("userJwt=$userJwt,\n")
+        append("isPausedByUserJwtRejection=$isPausedByUserJwtRejection)")
     }
 
     fun diff(other: InAppMessagingState): Map<String, Pair<Any?, Any?>> {
@@ -96,8 +111,20 @@ internal data class InAppMessagingState(
             if (shownMessageQueueIds != other.shownMessageQueueIds) put("shownMessageQueueIds", shownMessageQueueIds to other.shownMessageQueueIds)
             if (sseEnabled != other.sseEnabled) put("sseEnabled", sseEnabled to other.sseEnabled)
             if (isInboxEnabled != other.isInboxEnabled) put("isInboxEnabled", isInboxEnabled to other.isInboxEnabled)
+            if (userJwt != other.userJwt) put("userJwt", userJwt to other.userJwt)
+            if (userJwtRejection != other.userJwtRejection) put("userJwtRejection", userJwtRejection to other.userJwtRejection)
         }
     }
+}
+
+/** A user JWT and the user it was handed over for. [toString] never prints the token. */
+internal data class UserJwt(val userId: String, val token: String) {
+    override fun toString(): String = "UserJwt(userId=$userId)"
+}
+
+/** The user and JWT (null when none was sent) of a rejected request. [toString] never prints the token. */
+internal data class UserJwtRejection(val userId: String?, val token: String?) {
+    override fun toString(): String = "UserJwtRejection(userId=$userId, hadToken=${token != null})"
 }
 
 internal sealed class InlineMessageState {

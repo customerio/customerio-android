@@ -1,8 +1,12 @@
 package io.customer.sdk
 
 import com.segment.analytics.kotlin.core.utilities.JsonAnySerializer
+import io.customer.base.internal.InternalCustomerIOApi
 import io.customer.datapipelines.extensions.sanitizeForJson
 import io.customer.datapipelines.handoff.DataPipelinesLogTail
+import io.customer.sdk.core.di.SDKComponent
+import io.customer.sdk.core.identity.UserJwtStore
+import io.customer.sdk.core.identity.userJwtStore
 import io.customer.sdk.data.model.CustomAttributes
 import io.customer.sdk.events.TrackMetric
 import kotlinx.serialization.SerializationStrategy
@@ -314,6 +318,29 @@ abstract class DataPipelineInstance : CustomerIOInstance {
      * Implementation of clearIdentify to be overridden by subclasses.
      */
     protected abstract fun clearIdentifyImpl()
+
+    /**
+     * Hands over the JWT your backend signed for [userId], for workspaces that require signed
+     * SDK requests. The SDK sends it with event uploads and in-app requests. Call it after
+     * `identify` and whenever you get a fresh token, including on each app start: it is kept in
+     * memory only.
+     *
+     * The token is an RS256 JWT whose `sub` is `cio_<cio_id>` for that person, whose `uid` is
+     * [userId], and whose `exp` is set. A blank [jwt] clears it.
+     */
+    @OptIn(InternalCustomerIOApi::class)
+    fun setUserJwt(userId: String, jwt: String) {
+        val token = jwt.trim()
+        SDKComponent.userJwtStore.set(
+            UserJwtStore.Entry(userId, token).takeIf { token.isNotEmpty() && userId.isNotEmpty() }
+        )
+    }
+
+    /** Stops sending a user JWT. */
+    @OptIn(InternalCustomerIOApi::class)
+    fun clearUserJwt() {
+        SDKComponent.userJwtStore.set(null)
+    }
 
     /**
      * The track method helps manually record metric events for push notifications and

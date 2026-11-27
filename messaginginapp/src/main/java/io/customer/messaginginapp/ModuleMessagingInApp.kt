@@ -17,15 +17,21 @@ import io.customer.messaginginapp.inbox.NotificationInbox
 import io.customer.messaginginapp.inbox.VisualInbox
 import io.customer.messaginginapp.state.InAppMessagingAction
 import io.customer.messaginginapp.state.InlineMessageState
+import io.customer.messaginginapp.state.UserJwt
 import io.customer.messaginginapp.type.ColorScheme
 import io.customer.messaginginapp.type.InAppMessage
 import io.customer.messaginginapp.type.InAppMessageError
 import io.customer.messaginginapp.type.InAppMessageErrorReason
 import io.customer.messaginginapp.type.InboxEventListener
 import io.customer.messaginginapp.type.ModalPresentation
+import io.customer.messaginginapp.type.UserJwtListener
+import io.customer.messaginginapp.type.UserJwtRejectionReason
 import io.customer.sdk.communication.Event
 import io.customer.sdk.communication.subscribe
 import io.customer.sdk.core.di.SDKComponent
+import io.customer.sdk.core.di.clock
+import io.customer.sdk.core.identity.UserJwtStore
+import io.customer.sdk.core.identity.userJwtStore
 import io.customer.sdk.core.module.CustomerIOModule
 import io.customer.sdk.events.Metric
 import kotlinx.coroutines.flow.Flow
@@ -65,6 +71,62 @@ class ModuleMessagingInApp(
      */
     fun setInboxEventListener(listener: InboxEventListener) {
         runtimeInboxEventListener = listener
+    }
+
+    @Volatile
+    private var runtimeUserJwtListener: UserJwtListener? = config.userJwtListener
+
+    /**
+     * Hands over the JWT your backend signed for [userId], for workspaces that require signed
+     * in-app requests. The SDK sends it with every in-app and inbox request while [userId] is the
+     * identified user, and fetches messages straight away when it changes; after a rejection, at most
+     * once per polling interval, and otherwise at the next poll. Call it after `identify`
+     * and whenever you get a fresh token, including on each app start: the JWT is kept in memory
+     * only. Logging out drops a JWT handed over for the user being logged out.
+     *
+     * The token is an RS256 JWT whose `sub` is `cio_<cio_id>` for that person and whose `exp` is set.
+     * See [UserJwtListener] for rejections.
+     */
+    fun setUserJwt(userId: String, jwt: String) {
+        val token = jwt.trim()
+        SDKComponent.userJwtStore.set(UserJwtStore.Entry(userId, token).takeIf { token.isNotEmpty() && userId.isNotEmpty() })
+    }
+
+    /** Stops sending a user JWT. */
+    fun clearUserJwt() {
+        SDKComponent.userJwtStore.set(null)
+    }
+
+    @Volatile
+    private var lastFetchAfterRejectionMillis: Long? = null
+
+    private fun updateUserJwt(userJwt: UserJwt?) {
+        val inAppMessagingManager = SDKComponent.inAppMessagingManager
+        val before = inAppMessagingManager.getCurrentState()
+        inAppMessagingManager.dispatch(InAppMessagingAction.SetUserJwt(userJwt))
+        val after = inAppMessagingManager.getCurrentState()
+        if (after.activeUserJwt == before.activeUserJwt) return
+        // An app that answers every rejection with a new token, wrong again, would otherwise poll Gist
+        // as fast as it can mint them. The next poll still uses the new token.
+        if (before.isPausedByUserJwtRejection) {
+            val now = SDKComponent.clock.currentTimeMillis()
+            val last = lastFetchAfterRejectionMillis
+            if (last != null && now - last < after.pollInterval) return
+            lastFetchAfterRejectionMillis = now
+        }
+        gistProvider.fetchInAppMessages()
+    }
+
+    /**
+     * Registers (or replaces) the listener told when Customer.io rejects the user JWT. Overrides the
+     * one set with [MessagingInAppModuleConfig.Builder.setUserJwtListener].
+     */
+    fun setUserJwtListener(listener: UserJwtListener) {
+        runtimeUserJwtListener = listener
+    }
+
+    internal fun notifyUserJwtRejected(userId: String, reason: UserJwtRejectionReason) {
+        runtimeUserJwtListener?.onUserJwtRejected(userId, reason)
     }
 
     /**
@@ -149,6 +211,17 @@ class ModuleMessagingInApp(
             SDKComponent.hostWindowModalPresenter
         }
         setupHooks()
+        SDKComponent.userJwtStore.replayCurrent(userJwtStoreListener)
+    }
+
+    // The JWT can be handed over here or through CustomerIO.setUserJwt; both write the shared
+    // store, so in-app follows it however it was set.
+    private val userJwtStoreListener: (UserJwtStore.Entry?) -> Unit = { entry ->
+        updateUserJwt(entry?.let { UserJwt(it.userId, it.token) })
+    }
+
+    init {
+        SDKComponent.userJwtStore.addListener(userJwtStoreListener)
     }
 
     private fun setupHooks() {

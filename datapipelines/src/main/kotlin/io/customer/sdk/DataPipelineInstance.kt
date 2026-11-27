@@ -3,6 +3,7 @@ package io.customer.sdk
 import com.segment.analytics.kotlin.core.utilities.JsonAnySerializer
 import io.customer.base.internal.InternalCustomerIOApi
 import io.customer.datapipelines.extensions.sanitizeForJson
+import io.customer.datapipelines.handoff.DataPipelinesLogTail
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.identity.UserJwtStore
 import io.customer.sdk.core.identity.userJwtStore
@@ -112,7 +113,9 @@ abstract class DataPipelineInstance : CustomerIOInstance {
         serializationStrategy: SerializationStrategy<Traits>
     ) {
         synchronized {
-            identifyImpl(userId, traits, serializationStrategy)
+            DataPipelinesLogTail.input("api.identify", { listOf("user" to userId, "traits" to (traits as? Map<*, *>)?.size?.toString()) }) {
+                identifyImpl(userId, traits, serializationStrategy)
+            }
         }
     }
 
@@ -183,7 +186,9 @@ abstract class DataPipelineInstance : CustomerIOInstance {
         serializationStrategy: SerializationStrategy<T>
     ) {
         synchronized {
-            trackImpl(name, properties, serializationStrategy)
+            DataPipelinesLogTail.input("api.track", { listOf("event" to name) }) {
+                trackImpl(name, properties, serializationStrategy)
+            }
         }
     }
 
@@ -263,7 +268,9 @@ abstract class DataPipelineInstance : CustomerIOInstance {
         serializationStrategy: SerializationStrategy<T>
     ) {
         synchronized {
-            screenImpl(title, properties, serializationStrategy)
+            DataPipelinesLogTail.input("api.screen", { listOf("event" to title) }) {
+                screenImpl(title, properties, serializationStrategy)
+            }
         }
     }
 
@@ -303,7 +310,7 @@ abstract class DataPipelineInstance : CustomerIOInstance {
      */
     fun clearIdentify() {
         synchronized {
-            clearIdentifyImpl()
+            DataPipelinesLogTail.input("api.clear_identify") { clearIdentifyImpl() }
         }
     }
 
@@ -343,7 +350,9 @@ abstract class DataPipelineInstance : CustomerIOInstance {
      */
     fun trackMetric(event: TrackMetric) {
         synchronized {
-            trackMetricImpl(event)
+            DataPipelinesLogTail.input("api.track_metric", { listOf("metric" to event.metric.name, "delivery" to event.deliveryId) }) {
+                trackMetricImpl(event)
+            }
         }
     }
 
@@ -388,7 +397,7 @@ abstract class DataPipelineInstance : CustomerIOInstance {
      */
     fun registerDeviceToken(deviceToken: String) {
         synchronized {
-            registerDeviceTokenImpl(deviceToken)
+            DataPipelinesLogTail.input("api.register_token", { listOf("token" to deviceToken) }) { registerDeviceTokenImpl(deviceToken) }
         }
     }
 
@@ -402,7 +411,7 @@ abstract class DataPipelineInstance : CustomerIOInstance {
      */
     fun deleteDeviceToken() {
         synchronized {
-            deleteDeviceTokenImpl()
+            DataPipelinesLogTail.input("api.delete_token") { deleteDeviceTokenImpl() }
         }
     }
 

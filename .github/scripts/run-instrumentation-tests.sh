@@ -97,4 +97,9 @@ TEST_VARIANT="Debug"
 if [ "$SAMPLE_MODULE" = "java_layout" ]; then
     TEST_VARIANT="TokenDebug"
 fi
-./gradlew ":samples:${SAMPLE_MODULE}:connected${TEST_VARIANT}AndroidTest" --no-daemon --stacktrace -PuseKsp=true
+# SDK modules with device tests (messaginginapp) live at the root, samples under samples/
+GRADLE_PROJECT=":samples:${SAMPLE_MODULE}"
+if [ "$SAMPLE_MODULE" = "messaginginapp" ]; then
+    GRADLE_PROJECT=":messaginginapp"
+fi
+./gradlew "${GRADLE_PROJECT}:connected${TEST_VARIANT}AndroidTest" --no-daemon --stacktrace -PuseKsp=true

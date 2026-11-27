@@ -4,7 +4,9 @@ import android.content.Intent
 import com.google.gson.Gson
 import io.customer.messaginginapp.di.anonymousMessageManager
 import io.customer.messaginginapp.di.gistQueue
+import io.customer.messaginginapp.di.hostWindowModalPresenter
 import io.customer.messaginginapp.di.inAppMessagingManager
+import io.customer.messaginginapp.di.inAppModuleConfig
 import io.customer.messaginginapp.di.inAppSseLogger
 import io.customer.messaginginapp.di.pendingQueuePassOnResume
 import io.customer.messaginginapp.di.pollingLifecycleManager
@@ -17,6 +19,7 @@ import io.customer.messaginginapp.gist.data.model.response.toLogString
 import io.customer.messaginginapp.gist.presentation.GistListener
 import io.customer.messaginginapp.gist.presentation.GistModalActivity
 import io.customer.messaginginapp.gist.utilities.ModalMessageParser
+import io.customer.messaginginapp.type.ModalPresentation
 import io.customer.sdk.communication.Event
 import io.customer.sdk.core.di.SDKComponent
 import io.customer.sdk.core.util.Logger
@@ -124,10 +127,30 @@ private fun handleMessageDisplay(logger: Logger, action: InAppMessagingAction.Di
  */
 internal fun displayModalMessageMiddleware() = middleware { store, next, action ->
     val logger = SDKComponent.logger
-    if (action is InAppMessagingAction.LoadMessage) {
-        handleModalMessageDisplay(logger, store, action, next)
-    } else {
-        next(action)
+    when {
+        action is InAppMessagingAction.LoadMessage -> handleModalMessageDisplay(logger, store, action, next)
+        action is InAppMessagingAction.DisplayMessage && isStaleModalDisplay(store.state.modalMessageState, action.message) -> {
+            // A route can finish loading after its message was dismissed (for example by the load timeout) or
+            // replaced. Reporting it as displayed would mark a message with no view as on screen, log a view
+            // for it, and block every later modal until the app restarts.
+            logger.debug("Ignoring display of ${action.message.queueId}: modal state is ${store.state.modalMessageState}")
+        }
+        else -> next(action)
+    }
+}
+
+/**
+ * A modal's display is stale when the store no longer shows that message: it was dismissed, or another
+ * message is loading or displayed. Initial passes, as does a message without a queue id, which the
+ * reducer ignores anyway.
+ */
+private fun isStaleModalDisplay(state: ModalMessageState, message: Message): Boolean {
+    if (message.isEmbedded || message.queueId == null) return false
+    return when (state) {
+        ModalMessageState.Initial -> false
+        is ModalMessageState.Loading -> state.message.queueId != message.queueId
+        is ModalMessageState.Displayed -> state.message.queueId != message.queueId
+        is ModalMessageState.Dismissed -> true
     }
 }
 
@@ -149,6 +172,17 @@ private fun handleModalMessageDisplay(logger: Logger, store: Store<InAppMessagin
     if (store.state.modalMessageState !is ModalMessageState.Displayed) {
         val context = SDKComponent.android().applicationContext
         logger.debug("Showing message: ${action.message} with position: ${action.position} and context: $context")
+
+        // A host whose activity is singleInstance cannot hold a second activity in its task (MBL-2812).
+        // Hosts that choose HOST_WINDOW get the modal in their own window. The default keeps the activity.
+        if (SDKComponent.inAppModuleConfig.modalPresentation == ModalPresentation.HOST_WINDOW) {
+            logger.debug("Showing message in the host window: ${action.message.queueId}")
+            // Reduce first: the presenter only shows a message the store reports as loading.
+            next(action)
+            SDKComponent.hostWindowModalPresenter.present(action.message, action.position ?: action.message.gistProperties.position)
+            return
+        }
+
         val intent = GistModalActivity.newIntent(context).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK
             putExtra(ModalMessageParser.EXTRA_IN_APP_MESSAGE, Gson().toJson(action.message))

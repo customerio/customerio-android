@@ -37,6 +37,10 @@
     <string name="settings_yes">Yes</string>
     <string name="settings_no">No</string>
     <string name="enable_in_app_messages">Enable in-app messages</string>
+    <string name="modal_presentation">In-app modal presentation</string>
+    <string name="modal_presentation_desc">(How modal in-app messages are shown. Host window keeps them in the app\'s own task)</string>
+    <string name="modal_presentation_activity">Activity</string>
+    <string name="modal_presentation_host_window">Host window</string>
     <string name="location_tracking_mode">Location tracking mode</string>
     <string name="location_tracking_mode_desc">(Controls whether the SDK captures location automatically — required for geofencing without a manual fetch)</string>
     <string name="location_tracking_mode_off">Off</string>

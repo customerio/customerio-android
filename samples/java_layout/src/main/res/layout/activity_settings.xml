@@ -321,6 +321,51 @@
                 </com.google.android.material.button.MaterialButtonToggleGroup>
 
                 <TextView
+                    android:id="@+id/settings_modal_presentation_label"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="@dimen/margin_default"
+                    android:text="@string/modal_presentation"
+                    android:textAppearance="@style/TextAppearance.MaterialComponents.Subtitle1"
+                    app:layout_constraintLeft_toLeftOf="parent"
+                    app:layout_constraintTop_toBottomOf="@+id/settings_in_app_messaging_values_group" />
+
+                <TextView
+                    android:id="@+id/settings_modal_presentation_desc_label"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/modal_presentation_desc"
+                    android:textAppearance="@style/TextAppearance.Material3.BodySmall"
+                    app:layout_constraintLeft_toLeftOf="parent"
+                    app:layout_constraintTop_toBottomOf="@+id/settings_modal_presentation_label" />
+
+                <com.google.android.material.button.MaterialButtonToggleGroup
+                    android:id="@+id/settings_modal_presentation_values_group"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    app:layout_constraintLeft_toLeftOf="parent"
+                    app:layout_constraintTop_toBottomOf="@+id/settings_modal_presentation_desc_label"
+                    app:selectionRequired="true"
+                    app:singleSelection="true">
+
+                    <Button
+                        android:id="@+id/settings_modal_presentation_activity_button"
+                        style="?attr/materialButtonOutlinedStyle"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="@string/modal_presentation_activity" />
+
+                    <Button
+                        android:id="@+id/settings_modal_presentation_host_window_button"
+                        style="?attr/materialButtonOutlinedStyle"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="@string/modal_presentation_host_window" />
+                </com.google.android.material.button.MaterialButtonToggleGroup>
+
+                <TextView
                     android:id="@+id/settings_location_tracking_mode_label"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
@@ -328,7 +373,7 @@
                     android:text="@string/location_tracking_mode"
                     android:textAppearance="@style/TextAppearance.MaterialComponents.Subtitle1"
                     app:layout_constraintLeft_toLeftOf="parent"
-                    app:layout_constraintTop_toBottomOf="@+id/settings_in_app_messaging_values_group" />
+                    app:layout_constraintTop_toBottomOf="@+id/settings_modal_presentation_values_group" />
 
                 <TextView
                     android:id="@+id/settings_location_tracking_mode_desc_label"

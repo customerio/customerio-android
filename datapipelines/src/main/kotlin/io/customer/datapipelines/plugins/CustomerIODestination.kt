@@ -101,7 +101,7 @@ class CustomerIODestination : DestinationPlugin(), VersionedPlugin, Subscriber {
         add(DestinationMetadataPlugin())
 
         with(analytics) {
-            pipeline = EventPipeline(
+            pipeline = CustomerIOEventPipeline(
                 analytics,
                 key,
                 configuration.writeKey,

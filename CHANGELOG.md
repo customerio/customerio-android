@@ -1,3 +1,9 @@
+## [5.2.1](https://github.com/customerio/customerio-android/compare/5.2.0...5.2.1) (2026-11-27)
+
+### Bug Fixes
+
+* **in-app:** do not launch a modal while no activity is resumed ([#989](https://github.com/customerio/customerio-android/issues/989)) ([c8d507d](https://github.com/customerio/customerio-android/commit/c8d507d12bd53e1d1b3bb9c1b44e131a583e00b8))
+
 ## [5.2.0](https://github.com/customerio/customerio-android/compare/5.1.2...5.2.0) (2026-11-26)
 
 ### Features

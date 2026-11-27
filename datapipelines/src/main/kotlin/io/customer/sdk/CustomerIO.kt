@@ -2,7 +2,6 @@ package io.customer.sdk
 
 import androidx.annotation.VisibleForTesting
 import androidx.lifecycle.Lifecycle
-import com.segment.analytics.kotlin.android.Analytics
 import com.segment.analytics.kotlin.core.Analytics
 import com.segment.analytics.kotlin.core.ErrorHandler
 import com.segment.analytics.kotlin.core.emptyJsonObject
@@ -16,10 +15,13 @@ import io.customer.datapipelines.config.DataPipelinesModuleConfig
 import io.customer.datapipelines.di.analyticsFactory
 import io.customer.datapipelines.di.dataPipelinesLogger
 import io.customer.datapipelines.extensions.asMap
+import io.customer.datapipelines.extensions.createAnalytics
 import io.customer.datapipelines.extensions.sanitizeForJson
 import io.customer.datapipelines.extensions.type
 import io.customer.datapipelines.extensions.updateAnalyticsConfig
 import io.customer.datapipelines.extensions.withDeviceTokenType
+import io.customer.datapipelines.handoff.SegmentGateway
+import io.customer.datapipelines.handoff.gateway
 import io.customer.datapipelines.migration.AnalyticsStorageMigration
 import io.customer.datapipelines.migration.TrackingMigrationProcessor
 import io.customer.datapipelines.plugins.ApplicationLifecyclePlugin
@@ -121,7 +123,7 @@ class CustomerIO private constructor(
             newKey = newKey
         )
         storageMigration.copyIdentity(previousKey = previousKey, newKey = newKey)
-        Analytics(
+        createAnalytics(
             writeKey = newKey,
             context = androidSDKComponent.applicationContext,
             configs = updateAnalyticsConfig(
@@ -138,6 +140,9 @@ class CustomerIO private constructor(
             )
         }
     }
+
+    // Every call into Segment goes through here, so a test can wrap each hand-off
+    private val segment: SegmentGateway = analytics.gateway()
 
     // Seeded from storage so a cold start can delete the stored device (token change, profile
     // switch, clearIdentify) before the token is registered again.
@@ -202,8 +207,8 @@ class CustomerIO private constructor(
     }
 
     /** Stores the userId before publishing so subscribers that read [secureUserStore] don't race the event. */
-    private fun publishUserChanged(userId: String? = analytics.userId()) {
-        val anonymousId = analytics.anonymousId()
+    private fun publishUserChanged(userId: String? = segment.userId()) {
+        val anonymousId = segment.anonymousId()
         secureUserStore.saveUserId(userId)
         eventBus.publish(Event.UserChangedEvent(userId = userId, anonymousId = anonymousId))
     }
@@ -314,7 +319,7 @@ class CustomerIO private constructor(
     @Deprecated("Use setProfileAttributes() function instead")
     @set:JvmName("setProfileAttributesDeprecated")
     override var profileAttributes: CustomAttributes
-        get() = analytics.traits() ?: emptyMap()
+        get() = segment.traits() ?: emptyMap()
         set(value) {
             setProfileAttributes(value)
         }
@@ -324,8 +329,8 @@ class CustomerIO private constructor(
         if (identifier != null) {
             identify(userId = identifier, traits = attributes)
         } else {
-            logger.debug("No user profile found, updating sanitized traits for anonymous user ${analytics.anonymousId()}")
-            analytics.identify(traits = attributes.sanitizeForJson())
+            logger.debug("No user profile found, updating sanitized traits for anonymous user ${segment.anonymousId()}")
+            segment.identify(traits = attributes.sanitizeForJson(), serializationStrategy = JsonAnySerializer.serializersModule.serializer())
         }
     }
 
@@ -376,7 +381,7 @@ class CustomerIO private constructor(
 
         logger.info("identify profile with identifier $userId and traits $traits")
 
-        analytics.identify(
+        segment.identify(
             userId = userId,
             traits = traits,
             serializationStrategy = serializationStrategy
@@ -417,7 +422,7 @@ class CustomerIO private constructor(
      */
     private fun <T> track(name: String, properties: T, serializationStrategy: SerializationStrategy<T>, enrichment: EnrichmentClosure?) {
         logger.debug("track an event with name $name and attributes $properties")
-        analytics.track(name = name, properties = properties, serializationStrategy = serializationStrategy, enrichment = enrichment)
+        segment.track(name = name, properties = properties, serializationStrategy = serializationStrategy, enrichment = enrichment)
     }
 
     /**
@@ -427,7 +432,7 @@ class CustomerIO private constructor(
     override fun <T> screenImpl(title: String, properties: T, serializationStrategy: SerializationStrategy<T>) {
         logger.debug("track a screen with title $title, properties $properties")
         eventBus.publish(Event.ScreenViewedEvent(name = title))
-        analytics.screen(title = title, properties = properties, serializationStrategy = serializationStrategy)
+        segment.screen(title = title, properties = properties, serializationStrategy = serializationStrategy)
     }
 
     override fun clearIdentifyImpl() {
@@ -460,9 +465,9 @@ class CustomerIO private constructor(
         secureUserStore.clearAll()
         // publish event to EventBus for other modules to consume
         eventBus.publish(Event.ResetEvent)
-        analytics.reset()
+        segment.reset()
 
-        val newAnonymousId = analytics.anonymousId()
+        val newAnonymousId = segment.anonymousId()
         eventBus.publish(Event.UserChangedEvent(userId = null, anonymousId = newAnonymousId))
     }
 
@@ -470,10 +475,10 @@ class CustomerIO private constructor(
         get() = globalPreferenceStore.getDeviceToken()
 
     override val anonymousId: String
-        get() = analytics.anonymousId()
+        get() = segment.anonymousId()
 
     override val userId: String?
-        get() = analytics.userId()
+        get() = segment.userId()
 
     @InternalCustomerIOApi
     override val cdpApiKey: String
@@ -487,7 +492,7 @@ class CustomerIO private constructor(
         // Prefer the caller-thread mirror so this is correct synchronously right after
         // identify()/clearIdentify(); fall back to analytics for a session restored from
         // persistence, where neither was called this process. See [syncUserIdentified].
-        get() = syncUserIdentified ?: !analytics.userId().isNullOrEmpty()
+        get() = syncUserIdentified ?: !segment.userId().isNullOrEmpty()
 
     @Deprecated("Use setDeviceAttributes() function instead")
     @set:JvmName("setDeviceAttributesDeprecated")

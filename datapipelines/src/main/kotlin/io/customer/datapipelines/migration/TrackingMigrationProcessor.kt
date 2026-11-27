@@ -247,16 +247,17 @@ internal class TrackingMigrationProcessor(
 
         logger.debug("processing migrated task: $eventData")
 
+        val timestamp = Iso8601TimestampFormatter.fromUnixSeconds(task.timestamp)
         val enrichmentClosure: (event: BaseEvent) -> Unit = { event ->
             eventData.enrichmentClosure?.invoke(event)
             // Update event with task identifier and timestamp at the end to
             // make sure these properties are not overridden by any other plugin.
             event.userId = task.identifier
-            Iso8601TimestampFormatter.fromUnixSeconds(task.timestamp)?.let { timestamp ->
-                event.timestamp = timestamp
-            }
-            logger.debug("forwarding migrated event: $event")
+            timestamp?.let { event.timestamp = it }
         }
+        // Logged here, not in the closure: with the hand-off log on, that log applies the closure to a
+        // throwaway event to read what it sets, so a line written inside it would appear twice
+        logger.debug("forwarding migrated event: ${eventData.trackEvent}, user ${task.identifier}, timestamp $timestamp")
         analytics.gateway().process(eventData.trackEvent) { event ->
             event?.apply(enrichmentClosure)
         }
